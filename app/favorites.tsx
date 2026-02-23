@@ -93,7 +93,8 @@ export default function FavoritesScreen() {
         } else {
           setError('Unable to determine your account. Please sign in again.');
         }
-      } catch {
+      } catch (error) {
+        console.error('[favorites] Failed to load user data:', error);
         if (!canceled) {
           setError('Unable to load your favorites right now.');
           setLoading(false);
@@ -247,11 +248,8 @@ export default function FavoritesScreen() {
       <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.background }]} edges={['top', 'bottom']}>
         <Stack.Screen options={{ 
           title: 'Favorites',
-          headerLeft: () => (
-            <Pressable onPress={() => router.back()} style={{ paddingLeft: 8 }}>
-              <Ionicons name="chevron-back" size={24} color="#3B82F6" />
-            </Pressable>
-          ),
+          headerBackTitle: 'Back',
+          headerShown: true,
         }} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator color={palette.tint} size="large" />
@@ -265,11 +263,8 @@ export default function FavoritesScreen() {
     <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.background }]} edges={['top', 'bottom']}>
       <Stack.Screen options={{ 
         title: 'Favorites',
-        headerLeft: () => (
-          <Pressable onPress={() => router.back()} style={{ paddingLeft: 8 }}>
-            <Ionicons name="chevron-back" size={24} color="#3B82F6" />
-          </Pressable>
-        ),
+        headerBackTitle: 'Back',
+        headerShown: true,
       }} />
       <View style={styles.header}>
         <Text style={[styles.title, { color: palette.text }]}>Favorites</Text>

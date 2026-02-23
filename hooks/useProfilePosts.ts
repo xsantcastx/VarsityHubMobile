@@ -34,7 +34,10 @@ export function useProfilePosts(sort: 'newest' | 'most_upvoted' | 'most_commente
 
   const refresh = useCallback(async (userId: string) => {
     // Prevent concurrent requests
-    if (requestInFlight.current) {
+    if (requestInFlight.current) return;
+    // Guard against undefined/null user IDs
+    if (!userId || userId === 'undefined' || userId === 'null') {
+      if (__DEV__) console.warn('[useProfilePosts] Skipping refresh — invalid userId:', userId);
       return;
     }
     
@@ -61,9 +64,8 @@ export function useProfilePosts(sort: 'newest' | 'most_upvoted' | 'most_commente
   }, [sort]);
 
   const loadMore = useCallback(async (userId: string) => {
-    if (loading || !hasMore || requestInFlight.current) {
-      return;
-    }
+    if (loading || !hasMore || requestInFlight.current) return;
+    if (!userId || userId === 'undefined' || userId === 'null') return;
 
     requestInFlight.current = true;
     setLoading(true);

@@ -40,18 +40,10 @@ tournamentsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res: 
       data: {
         name,
         description: description || `${season ? `${season} ` : ''}${sport ?? ''} Tournament`.trim() || undefined,
-        type: 'tournament',
-        is_tournament: true,
+        org_type: 'tournament',
         sport,
-        logo_url,
         location,
-        stadium_name,
-        capacity: toOptionalNumber(capacity),
-        opened_year: toOptionalNumber(opened_year),
-        tournament_start_date: tournament_start_date ? new Date(tournament_start_date) : undefined,
-        tournament_end_date: tournament_end_date ? new Date(tournament_end_date) : undefined,
-        tournament_format: tournament_format || 'GROUP_STAGE',
-        created_by: req.user?.id,
+        updated_at: new Date(),
       },
     });
 
@@ -69,7 +61,7 @@ tournamentsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res: 
 tournamentsRouter.get('/', async (_req: Request, res: Response) => {
   try {
     const tournaments = await prisma.organization.findMany({
-      where: { type: 'tournament' },
+      where: { org_type: 'tournament' },
       include: {
         teams: {
           select: {
@@ -77,21 +69,6 @@ tournamentsRouter.get('/', async (_req: Request, res: Response) => {
             name: true,
             logo_url: true,
           },
-        },
-        games: {
-          select: {
-            id: true,
-            date: true,
-            home_team: true,
-            away_team: true,
-            location: true,
-            group: true,
-            round: true,
-            stadium: true,
-            stadium_capacity: true,
-            banner_image_url: true,
-          },
-          orderBy: { date: 'asc' },
         },
       },
     });
@@ -125,21 +102,6 @@ tournamentsRouter.get('/:id', async (req: Request, res: Response) => {
             season_end: true,
           },
         },
-        games: {
-          select: {
-            id: true,
-            date: true,
-            home_team: true,
-            away_team: true,
-            location: true,
-            group: true,
-            round: true,
-            stadium: true,
-            stadium_capacity: true,
-            banner_image_url: true,
-          },
-          orderBy: { date: 'asc' },
-        },
       },
     });
 
@@ -169,28 +131,12 @@ tournamentsRouter.patch('/:id', requireAuth as any, async (req: AuthedRequest, r
       stadium_name,
       capacity,
       opened_year,
-      tournament_start_date,
-      tournament_end_date,
-      tournament_format,
-      tournament_location,
-      tournament_rules,
-      tournament_logo_url,
     } = req.body;
 
     const data: Record<string, unknown> = {};
     if (typeof name === 'string') data.name = name;
     if (typeof description === 'string') data.description = description;
-    if (typeof logo_url === 'string') data.logo_url = logo_url;
     if (typeof location === 'string') data.location = location;
-    if (typeof stadium_name === 'string') data.stadium_name = stadium_name;
-    if (capacity !== undefined) data.capacity = toOptionalNumber(capacity) ?? null;
-    if (opened_year !== undefined) data.opened_year = toOptionalNumber(opened_year) ?? null;
-    if (tournament_start_date) data.tournament_start_date = new Date(tournament_start_date);
-    if (tournament_end_date) data.tournament_end_date = new Date(tournament_end_date);
-    if (typeof tournament_format === 'string') data.tournament_format = tournament_format;
-    if (typeof tournament_location === 'string') data.tournament_location = tournament_location;
-    if (typeof tournament_rules === 'string') data.tournament_rules = tournament_rules;
-    if (typeof tournament_logo_url === 'string') data.tournament_logo_url = tournament_logo_url;
 
     const tournament = await prisma.organization.update({
       where: { id },
@@ -244,11 +190,6 @@ tournamentsRouter.post('/:id/games', requireAuth as any, async (req: AuthedReque
       location,
       latitude,
       longitude,
-      group,
-      round,
-      stadium,
-      stadium_capacity,
-      banner_image_url,
     } = req.body;
 
     if (!home_team || !away_team || !date) {
@@ -266,15 +207,9 @@ tournamentsRouter.post('/:id/games', requireAuth as any, async (req: AuthedReque
         home_team,
         away_team,
         date: new Date(date),
-        location: location || stadium || tournament.tournament_location,
+        location: location || tournament.location || null,
         latitude: toOptionalNumber(latitude),
         longitude: toOptionalNumber(longitude),
-        group,
-        round,
-        stadium,
-        stadium_capacity: toOptionalNumber(stadium_capacity),
-        banner_image_url,
-        tournament_organization_id: id,
         approval_status: 'approved',
       },
     });

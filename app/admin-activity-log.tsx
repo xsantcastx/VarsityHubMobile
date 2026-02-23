@@ -34,29 +34,16 @@ export default function AdminActivityLogScreen() {
     setError(null);
     
     try {
-      const token = await (await import('@/api/auth')).loadToken();
-      const apiUrl = getApiBaseUrl();
+      const _token = await (await import('@/api/auth')).loadToken();
+      const _apiUrl = getApiBaseUrl();
 
       const params = new URLSearchParams();
       if (filter !== 'all') params.append('type', filter);
       if (searchQuery) params.append('q', searchQuery);
       
-      const response = await fetch(`${apiUrl}/admin/activity-log?${params}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (response.status === 403) {
-        throw new Error('Access denied (admin only)');
-      }
-
-      if (!response.ok) {
-        throw new Error('Failed to load activity log');
-      }
-
-      const data = await response.json();
+      // Use API client instead of direct fetch
+      const { httpGet } = await import('@/api/http');
+      const data = await httpGet(`/admin/activity-log?${params}`);
       setItems(Array.isArray(data) ? data : []);
     } catch (e: any) {
       setError(e?.message || 'Failed to load activity log');
@@ -161,7 +148,7 @@ export default function AdminActivityLogScreen() {
 
   return (
     <SafeAreaView
-      style={[styles.container, { backgroundColor: colorScheme === 'dark' ? '#0B1120' : '#F3F4F6' }]}
+      style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}
       edges={['top']}
     >
       <Stack.Screen

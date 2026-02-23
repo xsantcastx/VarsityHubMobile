@@ -1,5 +1,6 @@
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding } from '@/context/OnboardingContext';
+import { STEP_ROUTES, nextIncompleteStep } from '@/context/onboardingReducer';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
@@ -7,7 +8,7 @@ import { ActivityIndicator, View } from 'react-native';
 export default function OnboardingIndex() {
   const router = useRouter();
   const { user } = useAuth();
-  const { progress, state, isLoaded } = useOnboarding();
+  const { progress, state, isLoaded, setProgress, reducerState, dispatch, nextStep } = useOnboarding();
   const [hasNavigated, setHasNavigated] = useState(false);
 
   // CRITICAL: User must be authenticated to access onboarding
@@ -27,26 +28,37 @@ export default function OnboardingIndex() {
       return;
     }
     
-    // Resume from saved progress, or start at step 1
-    const stepRoutes = [
-      '/onboarding/step-1-role',           // 0
-      '/onboarding/step-2-basic',          // 1
-      '/onboarding/step-3-plan',           // 2
-      '/onboarding/step-4-organization',   // 3
-      '/onboarding/step-6-authorized-users', // 4
-      '/onboarding/step-7-profile',        // 5
-      '/onboarding/step-8-interests',      // 6
-      '/onboarding/step-9-features',       // 7
-      '/onboarding/step-10-confirmation',  // 8
-    ];
+    // Use reducer-based deterministic step calculation
+    const calculatedStepIndex = nextIncompleteStep(state, state?.role);
+    const targetRoute = STEP_ROUTES[calculatedStepIndex] || STEP_ROUTES[0];
     
-    // Progress is 0-based index, so progress=8 means step 10
-    const targetRoute = stepRoutes[progress] || stepRoutes[0];
+    if (__DEV__) {
+      // eslint-disable-next-line no-console
+      console.log('[ONBOARDING INDEX] Navigation decision:', {
+        role: state?.role,
+        progress,
+        calculatedStepIndex,
+        targetRoute,
+        hasStep2: !!(state?.username && state?.dob && (state?.zip || state?.zip_code)),
+        hasStep3: !!state?.plan,
+        hasStep4: !!(state?.team_id || state?.organization_id),
+        reducerState: {
+          currentStepIndex: reducerState.currentStepIndex,
+          isSaving: reducerState.isSaving,
+          initialized: reducerState.initialized,
+        },
+      });
+    }
     
+    // Sync progress with calculated step
+    if (calculatedStepIndex !== progress) {
+      setProgress(calculatedStepIndex);
+      dispatch({ type: 'SET_STEP', stepIndex: calculatedStepIndex, reason: 'INDEX_ROUTER' });
+    }
     
     setHasNavigated(true);
     router.replace(targetRoute as any);
-  }, [hasNavigated, isLoaded, progress, router, state, user]);
+  }, [hasNavigated, isLoaded, progress, router, state, user, setProgress, dispatch, reducerState, nextStep]);
   
   // Show loading indicator while waiting for state to load
   return (

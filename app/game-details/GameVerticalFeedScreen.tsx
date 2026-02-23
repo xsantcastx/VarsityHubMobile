@@ -11,6 +11,7 @@ import { VideoView, useVideoPlayer } from 'expo-video';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     ActivityIndicator,
+    Alert,
     Dimensions,
     FlatList,
     KeyboardAvoidingView,
@@ -37,7 +38,8 @@ const { height: windowHeight, width: windowWidth } = Dimensions.get('window');
 let FastImage: any = null;
 try {
   FastImage = require('react-native-fast-image');
-} catch {
+} catch (error) {
+  console.warn('[GameVerticalFeedScreen] FastImage not available, using fallback:', error);
   FastImage = ({ source, style, resizeMode }: any) => (
     <Image
       source={source}
@@ -56,7 +58,7 @@ export type FeedPost = {
   comments_count: number;
   bookmarks_count: number;
   created_at: string | null;
-  author: { id: string; display_name: string | null; avatar_url: string | null } | null;
+  author: { id: string; username?: string | null; display_name?: string | null; avatar_url: string | null } | null;
   has_upvoted: boolean;
   has_bookmarked: boolean;
   is_following_author: boolean;
@@ -69,7 +71,7 @@ export type FeedPost = {
 type CommentItem = {
   id: string;
   content: string;
-  author?: { display_name?: string | null } | null;
+  author?: { username?: string | null } | null;
   created_at?: string | null;
   optimistic?: boolean;
 };
@@ -97,7 +99,7 @@ export const mapHighlightToFeedPost = (item: any): FeedPost | null => {
     created_at: item?.created_at ?? null,
     author: item?.author ? {
       id: String(item.author.id ?? item.author.user_id ?? id),
-      display_name: item.author.display_name ?? item.author.name ?? null,
+      username: item.author.username ?? item.author.display_name ?? null,
       avatar_url: item.author.avatar_url ?? item.author.avatarUrl ?? null,
     } : null,
     has_upvoted: Boolean(item?.has_upvoted),
@@ -169,6 +171,13 @@ const FeedCard = memo(
     const [showEditModal, setShowEditModal] = useState(false);
     const [showOptionsMenu, setShowOptionsMenu] = useState(false);
     const [editCaption, setEditCaption] = useState('');
+    const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    useEffect(() => {
+      return () => {
+        if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current);
+      };
+    }, []);
 
     // Load current user
     useEffect(() => {
@@ -192,9 +201,36 @@ const FeedCard = memo(
 
     const confirmDelete = async () => {
       try {
-        await Post.delete(post.id);
+        const res: any = await Post.delete(post.id);
         setShowDeleteConfirm(false);
-        onDeletePost?.();
+        const undoUntil = res?.undo_until ? new Date(res.undo_until).getTime() : null;
+        const timeoutMs = undoUntil ? Math.max(0, undoUntil - Date.now()) : 5000;
+        if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current);
+        deleteTimerRef.current = setTimeout(() => {
+          onDeletePost?.();
+        }, timeoutMs || 1);
+        Alert.alert(
+          'Post deleted',
+          'You can undo this action for a short time.',
+          [
+            {
+              text: 'Undo',
+              onPress: async () => {
+                if (deleteTimerRef.current) {
+                  clearTimeout(deleteTimerRef.current);
+                  deleteTimerRef.current = null;
+                }
+                try {
+                  await Post.restore(post.id);
+                } catch (restoreError: any) {
+                  onDeletePost?.();
+                  Alert.alert('Error', restoreError?.message || 'Restore window expired.');
+                }
+              },
+            },
+            { text: 'Dismiss', style: 'cancel' },
+          ]
+        );
       } catch (error) {
         console.error('Failed to delete post:', error);
       }
@@ -220,7 +256,10 @@ const FeedCard = memo(
       p.loop = true;
       p.muted = true;
       if (isActive && post.media_type === 'video') {
-        try { p.play(); } catch {}
+        try { p.play(); } catch (e) {
+          // Video player may not be ready - non-critical
+          if (__DEV__) console.warn('[FeedCard] Video play failed:', e);
+        }
       }
     });
 
@@ -233,7 +272,10 @@ const FeedCard = memo(
       if (post.media_type !== 'video') return;
       try {
         if (isActive) player.play(); else player.pause();
-      } catch {}
+      } catch (e) {
+        // Video player state change failed - non-critical
+        if (__DEV__) console.warn('[FeedCard] Video play/pause failed:', e);
+      }
     }, [isActive, post.media_type, player]);
 
     const handleTap = () => {
@@ -244,7 +286,7 @@ const FeedCard = memo(
       lastTapRef.current = now;
     };
 
-    const authorLabel = post.author?.display_name || 'Anonymous';
+    const authorLabel = post.author?.username ? `@${post.author.username}` : 'Anonymous';
 
     const onLongPressExport = useCallback(async () => {
       if (!post?.collage) return;
@@ -253,7 +295,12 @@ const FeedCard = memo(
         if (perm.status !== 'granted') return;
         const uri = await captureRef(collageRef, { format: 'jpg', quality: 0.92 } as any);
         await MediaLibrary.saveToLibraryAsync(uri as any);
-      } catch {}
+      } catch (error: any) {
+        if (__DEV__) {
+          console.warn('[GameVerticalFeed] Failed to save collage:', error?.message || error);
+        }
+        // Non-critical - user can try again
+      }
     }, [post?.collage]);
 
     return (
@@ -275,7 +322,7 @@ const FeedCard = memo(
             <FastImage
               source={{ uri: post.media_url }}
               style={styles.media}
-              resizeMode="cover"
+              resizeMode="contain"
             />
           ) : (
             <View style={[styles.media, styles.textOnlyCard]}>
@@ -453,7 +500,8 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
       s = s.replace(/^https?:\/\//i, '');
       s = s.replace(/\/+$/, '');
       return s.toLowerCase();
-    } catch {
+    } catch (error) {
+      console.warn('[GameVerticalFeedScreen] URL normalization failed:', error);
       return null;
     }
   }, []);
@@ -500,14 +548,15 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
   const hasMoreRef = useRef(true);
   const _resetRunCount = useRef(0);
   const setIfDifferent = useCallback((setter: any, next: any) => {
-    setter((prev: any) => {
-      try {
-        if (JSON.stringify(prev) === JSON.stringify(next)) return prev;
-      } catch {
-        // If comparison fails, fall back to setting the new value
-      }
-      return next;
-    });
+      setter((prev: any) => {
+        try {
+          if (JSON.stringify(prev) === JSON.stringify(next)) return prev;
+        } catch (error) {
+          console.warn('[GameVerticalFeedScreen] State comparison failed, using new value:', error);
+          // If comparison fails, fall back to setting the new value
+        }
+        return next;
+      });
   }, []);
   const _initialSeedSig = useRef<string | null>(null);
 
@@ -572,7 +621,10 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
       return () => {
         isScreenFocusedRef.current = false;
         Object.values(videoRefs.current).forEach((player) => {
-          try { player?.pause?.(); } catch {}
+          try { player?.pause?.(); } catch (e) {
+            // Non-critical: cleanup pause can fail silently
+            if (__DEV__) console.warn('[GameVerticalFeed] Cleanup pause failed:', e);
+          }
         });
       };
     }, []),
@@ -591,7 +643,8 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
         if (!cancelled && summary) {
           setGame({ id: summary.id, title: summary.title || 'Game', date: summary.date ?? null });
         }
-      } catch {
+      } catch (error) {
+        console.warn('[GameVerticalFeedScreen] Failed to load game summary:', error);
         if (!cancelled) setGame(null);
       }
     })();
@@ -666,7 +719,8 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
         cursorRef.current = nextCursor;
         const more = Boolean(page?.nextCursor);
         hasMoreRef.current = more;
-      } catch {
+      } catch (error) {
+        console.error('[GameVerticalFeedScreen] Failed to load more posts:', error);
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -691,7 +745,12 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
         flatListRef.current?.scrollToIndex({ index: target, animated: false });
         setActiveIndex(target);
       });
-    } catch {}
+    } catch (error: any) {
+      if (__DEV__) {
+        console.warn('[GameVerticalFeed] Failed to load posts:', error?.message || error);
+      }
+      // Continue with existing posts
+    }
   }, [gameId, posts.length, startIndex, usingInitial]);
 
   const onEndReached = useCallback(() => {
@@ -727,7 +786,10 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
         } else {
           player.pause?.();
         }
-      } catch {}
+      } catch (e) {
+        // Video state sync failed - non-critical
+        if (__DEV__) console.warn('[GameVerticalFeed] Video sync failed for post:', postId, e);
+      }
     });
   }, [activeIndex, posts]);
 
@@ -814,7 +876,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
   );
 
   const handleShare = useCallback((post: FeedPost) => {
-   const shareLink = AppLinks.post(post.id, post.caption);
+   const shareLink = AppLinks.post(post.id, post.caption ?? undefined);
    Share.share({ message: shareLink.shareMessage, url: shareLink.webUrl }).catch(() => {});
   }, []);
 
@@ -850,8 +912,13 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
         if (!meInfo) {
           try {
             const me: any = await User.me();
-            setMeInfo({ id: me?.id ? String(me.id) : undefined, display_name: me?.display_name ?? null, username: me?.username ?? null });
-          } catch {}
+            setMeInfo({ id: me?.id ? String(me.id) : undefined, username: me?.username ?? null });
+          } catch (error: any) {
+            if (__DEV__) {
+              console.warn('[GameVerticalFeed] Failed to load user:', error?.message || error);
+            }
+            // Continue without user info
+          }
         }
         const res: any = await fetchCommentsPage(post.id);
         const items = Array.isArray(res?.items) ? res.items : Array.isArray(res) ? res : [];
@@ -888,7 +955,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
       content: commentInput,
       optimistic: true,
       created_at: new Date().toISOString(),
-  author: { display_name: (meInfo?.display_name || meInfo?.username || 'You') as any },
+  author: { username: (meInfo?.username || 'you') as any },
     };
     setComments((prev) => [optimistic, ...prev]);
     setCommentInput('');
@@ -896,7 +963,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
     try {
       const res: any = await Post.addComment(commentTarget.id, optimistic.content);
       const withAuthor = res && typeof res === 'object'
-        ? { ...res, author: { display_name: res?.author?.display_name ?? (meInfo?.display_name || meInfo?.username || 'You') } }
+        ? { ...res, author: { username: res?.author?.username ?? (meInfo?.username || 'you') } }
         : res;
       setComments((prev) => [withAuthor, ...prev.filter((c) => !c.optimistic)]);
       updatePost(commentTarget.id, (p) => ({ ...p, comments_count: p.comments_count + 1 }));
@@ -954,21 +1021,16 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
         if (!cancelled && me) {
           setMeInfo({ id: me?.id ? String(me.id) : undefined, display_name: me?.display_name ?? null, username: me?.username ?? null });
         }
-      } catch {}
+      } catch (error) {
+        // User info load failed - non-critical for feed viewing
+        if (__DEV__) console.warn('[GameVerticalFeed] Failed to load user info:', error);
+      }
     })();
     return () => { cancelled = true; };
   }, []);
 
-  if (!gameId && !usingInitial) {
-    return (
-      <View style={styles.emptyState}>
-        <Text style={styles.emptyStateTitle}>Missing game id</Text>
-        <Pressable onPress={handleBack} style={styles.emptyStateBtn}>
-          <Text style={styles.emptyStateBtnText}>Go back</Text>
-        </Pressable>
-      </View>
-    );
-  }
+  // Note: We allow missing gameId - the component will load general highlights instead
+  // The loadFeed function handles this case gracefully (lines 612-642)
 
   return (
     <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} pointerEvents="box-none">
@@ -1036,7 +1098,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
           style={styles.commentModalRoot}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-          <View style={[styles.commentSheet, { maxHeight: windowHeight * 0.75 }]} pointerEvents="box-none"> 
+          <View style={[styles.commentSheet, { maxHeight: windowHeight * 0.75, backgroundColor: Colors[colorScheme].background }]} pointerEvents="box-none"> 
             <View style={[styles.commentHeader, { backgroundColor: Colors[colorScheme].surface }]}>
               <Text style={[styles.commentTitle, { color: Colors[colorScheme].text }]}>Comments</Text>
               <Pressable onPress={() => setCommentsVisible(false)} style={styles.commentCloseBtn}>
@@ -1046,15 +1108,16 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
             {commentsLoading && comments.length === 0 ? (
               <ActivityIndicator color={Colors[colorScheme].tint} style={{ marginVertical: 24 }} />
             ) : null}
-            {commentsError ? <Text style={[styles.commentError, { color: '#dc2626' }]}>{commentsError}</Text> : null}
+            {commentsError ? <Text style={[styles.commentError, { color: Colors[colorScheme].text }]}>{commentsError}</Text> : null}
             <FlatList
               data={comments}
               keyExtractor={(item) => String(item.id)}
               renderItem={({ item }) => (
-                <View style={styles.commentRow}>
-                  <Text style={styles.commentAuthor}>{item.author?.display_name || (item.optimistic ? (meInfo?.display_name || meInfo?.username || 'You') : 'Anonymous')}</Text>
-                  <Text style={styles.commentBody}>{item.content}</Text>
-                  {item.created_at ? <Text style={styles.commentTimestamp}>{new Date(item.created_at).toLocaleString()}</Text> : null}
+                <View style={[styles.commentRow, { borderBottomColor: Colors[colorScheme].border }]}>
+                  <Text style={[styles.commentAuthor, { color: Colors[colorScheme].text }]}>
+                    {item.author?.username ? `@${item.author.username}` : (item.optimistic ? (meInfo?.username ? `@${meInfo.username}` : 'You') : 'Anonymous')}
+                  </Text>
+                  <Text style={[styles.commentBody, { color: Colors[colorScheme].text }]}>{item.content}</Text>
                 </View>
               )}
               onEndReached={loadMoreComments}
@@ -1089,8 +1152,17 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   backdrop: { ...StyleSheet.absoluteFillObject },
   card: { width: windowWidth, backgroundColor: 'transparent' },
-  mediaContainer: { flex: 1 },
-  media: { width: '100%', height: '100%' },
+  mediaContainer: { 
+    flex: 1,
+    backgroundColor: '#000', // Black background for images to show properly with contain mode
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  media: { 
+    width: '100%', 
+    height: '100%',
+    backgroundColor: 'transparent',
+  },
   mediaFallback: { alignItems: 'center', justifyContent: 'center' },
   mediaFallbackText: { fontWeight: '700' },
   textOnlyCard: {
@@ -1269,8 +1341,8 @@ const styles = StyleSheet.create({
     textShadowRadius: 3,
   },
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
-  emptyStateTitle: { color: '#fff', fontWeight: '800', fontSize: 18 },
-  emptyStateCaption: { color: '#cbd5f5', marginTop: 8, textAlign: 'center' },
+  emptyStateTitle: { fontWeight: '800', fontSize: 18 },
+  emptyStateCaption: { marginTop: 8, textAlign: 'center' },
   emptyStateBtn: {
     marginTop: 16,
     backgroundColor: '#2563EB',
@@ -1282,7 +1354,6 @@ const styles = StyleSheet.create({
   loadingState: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   commentModalRoot: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.45)' },
   commentSheet: {
-    backgroundColor: '#111827',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingBottom: 24,
@@ -1291,13 +1362,13 @@ const styles = StyleSheet.create({
     minHeight: windowHeight * 0.4,
   },
   commentHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
-  commentTitle: { color: '#fff', fontSize: 18, fontWeight: '700' },
+  commentTitle: { fontSize: 18, fontWeight: '700' },
   commentCloseBtn: { position: 'absolute', right: 0, padding: 6 },
-  commentError: { color: '#f97316', marginVertical: 8, textAlign: 'center' },
-  commentRow: { marginBottom: 14 },
-  commentAuthor: { color: '#fff', fontWeight: '700' },
-  commentBody: { color: '#e5e7eb', marginTop: 4 },
-  commentTimestamp: { color: '#9ca3af', marginTop: 4, fontSize: 12 },
+  commentError: { marginVertical: 8, textAlign: 'center' },
+  commentRow: { marginBottom: 14, borderBottomWidth: 1 },
+  commentAuthor: { fontWeight: '700' },
+  commentBody: { marginTop: 4 },
+  commentTimestamp: { marginTop: 4, fontSize: 12 },
   commentComposer: { flexDirection: 'row', alignItems: 'center', marginTop: 12 },
   commentInput: {
     flex: 1,

@@ -11,18 +11,6 @@ import { Platform } from 'react-native';
 WebBrowser.maybeCompleteAuthSession();
 const { makeRedirectUri } = AuthSession;
 
-let sessionUrlProvider: {
-  getRedirectUrl: (options?: Record<string, any>) => string;
-  getStartUrl?: (authUrl: string, returnUrl: string, projectNameForProxy?: string) => string;
-} | null = null;
-
-try {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  sessionUrlProvider = require('expo-auth-session/build/SessionUrlProvider').default;
-} catch {
-  sessionUrlProvider = null;
-}
-
 type GoogleAuthResult = Awaited<ReturnType<typeof User.loginViaGoogle>>;
 
 const appConfig = getConfig();
@@ -35,10 +23,8 @@ const googleClientConfig = (opts: { shouldUseProxy: boolean }) => {
   const expoClientId = google.expoClientId;
 
   const isDevSimulator = opts.shouldUseProxy && Constants.appOwnership === 'expo' && Platform.OS === 'ios';
-  const isStandaloneIOS = Platform.OS === 'ios' && Constants.appOwnership !== 'expo';
 
   // For dev simulator, use Expo Client ID (registered with auth.expo.io)
-  // For standalone iOS builds, use web client with varsityhub.app domain
   if (isDevSimulator && expoClientId) {
     return {
       androidClientId: expoClientId,
@@ -49,17 +35,7 @@ const googleClientConfig = (opts: { shouldUseProxy: boolean }) => {
     } as const;
   }
 
-  if (isStandaloneIOS && webClientId) {
-    return {
-      androidClientId: webClientId,
-      iosClientId: webClientId,
-      webClientId,
-      expoClientId: webClientId,
-      forceWebClient: true,
-    } as const;
-  }
-
-  return { androidClientId, iosClientId, webClientId, expoClientId, forceWebClient: false } as const;
+  return { androidClientId, iosClientId, webClientId, expoClientId } as const;
 };
 
 const FORCE_PROXY_FLAG = appConfig.google.forceProxy;
@@ -76,17 +52,6 @@ const derivedProjectFullName =
       : undefined;
 const PROJECT_FULL_NAME = appConfig.expoProjectFullName || derivedProjectFullName || FALLBACK_PROJECT_FULL_NAME;
 
-if (PROJECT_FULL_NAME && sessionUrlProvider?.getRedirectUrl) {
-  const originalGetRedirectUrl = sessionUrlProvider.getRedirectUrl.bind(sessionUrlProvider);
-  sessionUrlProvider.getRedirectUrl = (options?: Record<string, any>) =>
-    originalGetRedirectUrl({ projectNameForProxy: PROJECT_FULL_NAME, ...(options || {}) });
-  if (sessionUrlProvider.getStartUrl) {
-    const originalGetStartUrl = sessionUrlProvider.getStartUrl.bind(sessionUrlProvider);
-    sessionUrlProvider.getStartUrl = (authUrl: string, returnUrl: string, projectNameForProxy?: string) =>
-      originalGetStartUrl(authUrl, returnUrl, projectNameForProxy ?? PROJECT_FULL_NAME);
-  }
-}
-
 export function useGoogleAuth() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -94,22 +59,38 @@ export function useGoogleAuth() {
   const shouldUseProxy = proxyRequested && !!PROJECT_FULL_NAME;
 
   const clients = useMemo(() => googleClientConfig({ shouldUseProxy }), [shouldUseProxy]);
-  const isConfigured = useMemo(
-    () => Boolean(clients.androidClientId || clients.iosClientId || clients.webClientId || clients.expoClientId),
-    [clients],
-  );
+
+  // Check if Google auth is configured for the CURRENT platform
+  const isConfigured = useMemo(() => {
+    if (Platform.OS === 'android') {
+      return Boolean(clients.androidClientId);
+    }
+    if (Platform.OS === 'ios') {
+      // For iOS, we need either the iOS client ID or Expo client ID (for Expo Go)
+      return Boolean(clients.iosClientId || clients.expoClientId);
+    }
+    if (Platform.OS === 'web') {
+      return Boolean(clients.webClientId);
+    }
+    // Fallback: any client ID configured
+    return Boolean(clients.androidClientId || clients.iosClientId || clients.webClientId || clients.expoClientId);
+  }, [clients]);
 
   const redirectUri = useMemo(() => {
     let uri = '';
-    
-    // For web platform, ALWAYS use localhost (highest priority)
+
+    // For web platform, use current origin
     if (Platform.OS === 'web') {
-      // Use window.location.origin if available (works for any port), fallback to 8081
-      uri = typeof window !== 'undefined' && window.location ? window.location.origin : 'http://localhost:8081';
+      if (typeof window !== 'undefined' && window.location?.origin) {
+        uri = window.location.origin;
+      } else {
+        // Fallback to production URL for SSR or missing window
+        uri = appConfig.webBaseUrl || 'https://varsityhub.app';
+      }
       console.log('[google-auth] Using web redirect:', uri);
       return uri;
     }
-    
+
     try {
       if (shouldUseProxy && PROJECT_FULL_NAME) {
         uri = AuthSession.getRedirectUrl();
@@ -119,27 +100,24 @@ export function useGoogleAuth() {
     } catch (err) {
       console.warn('[google-auth] failed to build proxy redirect uri', err);
     }
-    
-    // For production iOS with web client, use web redirect
+
+    // For standalone iOS, use native redirect with reversed iOS client ID scheme
     const isStandaloneIOS = Platform.OS === 'ios' && Constants.appOwnership !== 'expo';
     if (isStandaloneIOS) {
-      uri = `${appConfig.webBaseUrl}/auth/google/callback`;
-      console.log('[google-auth] Using production web redirect (standalone):', uri);
+      uri = makeRedirectUri({
+        native: 'com.googleusercontent.apps.316424843313-n0i9t49uoh2e9038m5b927vrm9cv77qr:/oauthredirect',
+      });
+      console.log('[google-auth] Using iOS native redirect:', uri);
       return uri;
     }
-    
+
     uri = makeRedirectUri({
       native: `${Application.applicationId}:/oauthredirect`,
       scheme: appConfig.appScheme,
     });
     console.log('[google-auth] Using custom scheme redirect:', uri, '(app scheme:', appConfig.appScheme, ')');
     return uri;
-  }, []);
-
-  const redirectOptions = useMemo(() => {
-    // Use default redirect behavior
-    return {} as const;
-  }, []);
+  }, [shouldUseProxy]);
 
   useEffect(() => {
     if (proxyRequested && !PROJECT_FULL_NAME) {
@@ -147,23 +125,23 @@ export function useGoogleAuth() {
         '[google-auth] Proxy requested but project full name could not be resolved. Falling back to custom scheme.',
       );
     }
-  }, [redirectUri, shouldUseProxy, proxyRequested]);
+  }, [proxyRequested]);
 
   // Create request config - use placeholder values if not configured
   // The hook must be called unconditionally (React rules of hooks)
-  const requestConfig: Google.GoogleAuthRequestConfig = useMemo(() => {
+  const requestConfig = useMemo((): Google.GoogleAuthRequestConfig => {
     // If configured, use real values
     if (isConfigured) {
       return {
         scopes: ['profile', 'email'],
         redirectUri,
-        androidClientId: clients.androidClientId || undefined,
-        iosClientId: clients.iosClientId || undefined,
-        webClientId: clients.webClientId || undefined,
-        clientId: clients.expoClientId || undefined,
+        androidClientId: clients.androidClientId,
+        iosClientId: clients.iosClientId,
+        webClientId: clients.webClientId,
+        clientId: clients.expoClientId || '',
       };
     }
-    
+
     // If not configured, provide placeholder values that satisfy the hook
     // We won't actually use this to sign in (isConfigured check prevents it)
     return {
@@ -178,7 +156,7 @@ export function useGoogleAuth() {
   }, [isConfigured, clients, redirectUri]);
 
   // Always call useAuthRequest (React rules of hooks)
-  const [request, , promptAsync] = Google.useAuthRequest(requestConfig, redirectOptions);
+  const [request, , promptAsync] = Google.useAuthRequest(requestConfig);
 
   const signInWithGoogle = useCallback(async (): Promise<GoogleAuthResult> => {
     if (!isConfigured) {
@@ -193,10 +171,10 @@ export function useGoogleAuth() {
       console.log('[google-auth] Starting Google sign-in...');
       console.log('[google-auth] Using redirect URI:', redirectUri);
       console.log('[google-auth] Request config:', requestConfig);
-      
+
       const response = await promptAsync();
       console.log('[google-auth] Response from Google:', response);
-      
+
       // Handle user cancellation gracefully - don't throw
       if (response.type === 'cancel' || response.type === 'dismiss') {
         console.log('[google-auth] User cancelled sign-in');
@@ -206,14 +184,14 @@ export function useGoogleAuth() {
         err.code = 'CANCELLED';
         throw err;
       }
-      
+
       // Handle other non-success responses
       if (response.type !== 'success' || !response.authentication?.idToken) {
         const errorMsg = `Google sign-in failed: ${response.type}`;
         console.error('[google-auth]', errorMsg, response);
         throw new Error(errorMsg);
       }
-      
+
       console.log('[google-auth] Got idToken, sending to server...');
       const serverResponse = await User.loginViaGoogle(response.authentication.idToken);
       console.log('[google-auth] Server accepted token, logged in as:', serverResponse);
@@ -223,7 +201,7 @@ export function useGoogleAuth() {
       if (err?.code === 'CANCELLED' || err?.message === 'GOOGLE_SIGN_IN_CANCELLED') {
         throw err;
       }
-      
+
       const message = err?.message || 'Unable to sign in with Google';
       console.error('[google-auth] Error:', message, err);
       setError(message);

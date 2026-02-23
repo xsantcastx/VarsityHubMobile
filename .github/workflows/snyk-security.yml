@@ -60,12 +60,20 @@ jobs:
       - name: Run Snyk authentication
         uses: snyk/actions/setup@master
 
-      - name: Run Snyk Code scan (SAST)
-        run: snyk code test --severity-threshold=high --sarif-file-output=snyk.sarif --report-metrics
+      - name: Run Snyk Code scan (SAST) - Frontend
+        run: snyk code test --severity-threshold=high --sarif-file-output=snyk-frontend.sarif --report-metrics
         continue-on-error: true
 
-      - name: Run Snyk Open Source scan (SCA)
+      - name: Run Snyk Code scan (SAST) - Server
+        run: cd server && snyk code test --severity-threshold=high --sarif-file-output=../snyk-server.sarif --report-metrics || true
+        continue-on-error: true
+
+      - name: Run Snyk Open Source scan (SCA) - Frontend
         run: snyk test --severity-threshold=high --report-metrics
+        continue-on-error: true
+
+      - name: Run Snyk Open Source scan (SCA) - Server
+        run: cd server && snyk test --severity-threshold=high --report-metrics || true
         continue-on-error: true
 
       - name: Run Snyk test with JSON output
@@ -119,8 +127,15 @@ jobs:
         uses: github/codeql-action/upload-sarif@v2
         if: always()
         with:
-          sarif_file: snyk.sarif
-          category: snyk
+          sarif_file: snyk-frontend.sarif
+          category: snyk-frontend
+
+      - name: Upload Snyk server results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: snyk-server.sarif
+          category: snyk-server
 
   dependency-audit:
     runs-on: ubuntu-latest

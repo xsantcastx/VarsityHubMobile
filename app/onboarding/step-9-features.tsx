@@ -2,7 +2,6 @@ import PrimaryButton from '@/components/ui/PrimaryButton';
 import { Colors } from '@/constants/Colors';
 import { Type } from '@/ui/tokens';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, StyleSheet, Switch, Text, View, useColorScheme } from 'react-native';
@@ -16,7 +15,7 @@ import OnboardingLayout from './components/OnboardingLayout';
 
 export default function Step9Features() {
   const router = useRouter();
-  const colorScheme = useColorScheme();
+  const colorScheme = useColorScheme() ?? 'light';
   const { state: ob, setState: setOB, setProgress } = useOnboarding();
   const { registerPushToken, user } = useAuth();
   const [locationEnabled, setLocationEnabled] = useState(false);
@@ -113,18 +112,19 @@ export default function Step9Features() {
   const onContinue = async () => {
     setSaving(true);
     try {
-      // Save to context - IMPORTANT: Also save messaging_policy_accepted
+      // Save to context
       setOB((prev) => ({ 
         ...prev, 
         location_enabled: locationEnabled,
         notifications_enabled: notificationsEnabled,
-        messaging_policy_accepted: true
+        messaging_policy_accepted: true,
       }));
       
       // Save to backend
       await User.updatePreferences({ 
         location_enabled: locationEnabled,
-        notifications_enabled: notificationsEnabled
+        notifications_enabled: notificationsEnabled,
+        messaging_policy_accepted: true,
       });
       
       // For fans, complete onboarding and go to feed
@@ -139,7 +139,7 @@ export default function Step9Features() {
         // Only add fields that exist in onboarding state
         if (ob.role) payload.role = ob.role;
         if (ob.username) payload.username = ob.username;
-        if (ob.display_name) payload.display_name = ob.display_name;
+        // Username is saved separately, not in this payload
         if (ob.dob) payload.dob = ob.dob;
         if (ob.zip) payload.zip = ob.zip;
         if (ob.zip_code) payload.zip_code = ob.zip_code;
@@ -163,8 +163,7 @@ export default function Step9Features() {
       }
       
       // For coaches, go to confirmation page
-      setProgress(7);
-      await AsyncStorage.setItem('@onboarding_progress', '8');
+      setProgress(8); // step-10 is index 8 in stepRoutes array
       router.replace('/onboarding/step-10-confirmation');
     } catch (e: any) {
       Alert.alert('Failed to save settings', e?.message || 'Please try again');
@@ -175,7 +174,7 @@ export default function Step9Features() {
 
   return (
     <OnboardingLayout
-      step={8}
+      step={9}
       title="Explore Features"
       subtitle="Configure your privacy and notification preferences"
     >

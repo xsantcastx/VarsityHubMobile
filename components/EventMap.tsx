@@ -13,13 +13,13 @@ import { useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
-    Platform,
     StyleSheet,
     Text,
     TouchableOpacity,
     View,
 } from 'react-native';
-import MapView, { Callout, Marker, PROVIDER_DEFAULT, PROVIDER_GOOGLE, Region } from 'react-native-maps';
+import MapView, { Callout, Marker, Region } from 'react-native-maps';
+import { getMapProvider } from '@/utils/maps';
 
 import { EventMapProps } from './EventMap.types';
 
@@ -36,14 +36,15 @@ export default function EventMap({
   const [loading, setLoading] = useState(true);
   const [userLocation, setUserLocation] = useState<Location.LocationObject | null>(null);
   const [showEmptyState, setShowEmptyState] = useState(true);
-  const [region, setRegion] = useState<Region>(
-    initialRegion || {
-      latitude: 39.8, // Default to center of USA
-      longitude: -98.5,
-      latitudeDelta: 50, // Wide view to show entire USA
-      longitudeDelta: 50,
-    }
-  );
+  const isUserInteractionRef = useRef(false);
+  
+  // Use initialRegion if provided, otherwise default to USA-wide view
+  const defaultRegion: Region = initialRegion || {
+    latitude: 39.8, // Default to center of USA
+    longitude: -98.5,
+    latitudeDelta: 50, // Wide view to show entire USA
+    longitudeDelta: 50,
+  };
 
   // Request location permissions and get user location
   useEffect(() => {
@@ -71,9 +72,9 @@ export default function EventMap({
     })();
   }, [showUserLocation, initialRegion]);
 
-  // Filter events that have coordinates
+  // Filter events that have coordinates (use != null so lat/lng of 0 are accepted)
   const eventsWithCoordinates = events.filter(
-    (event) => event.latitude && event.longitude
+    (event) => event.latitude != null && event.longitude != null
   );
 
   // Center map on all events
@@ -98,12 +99,18 @@ export default function EventMap({
       return;
     }
 
-    setRegion({
+    isUserInteractionRef.current = true;
+    mapRef.current?.animateToRegion({
       latitude: userLocation.coords.latitude,
       longitude: userLocation.coords.longitude,
       latitudeDelta: 0.1,
       longitudeDelta: 0.1,
-    });
+    }, 1000);
+    
+    // Reset flag after animation completes
+    setTimeout(() => {
+      isUserInteractionRef.current = false;
+    }, 1100);
   };
 
   // Get marker color based on event type
@@ -136,14 +143,21 @@ export default function EventMap({
       <MapView
         ref={mapRef}
         style={styles.map}
-        provider={Platform.OS === 'ios' ? PROVIDER_DEFAULT : PROVIDER_GOOGLE}
-        initialRegion={region}
-        region={region}
-        onRegionChangeComplete={setRegion}
+        provider={getMapProvider()}
+        initialRegion={defaultRegion}
         showsUserLocation={showUserLocation}
         showsMyLocationButton={false}
         showsCompass={true}
         showsScale={true}
+        followsUserLocation={false}
+        scrollEnabled={true}
+        zoomEnabled={true}
+        pitchEnabled={true}
+        rotateEnabled={true}
+        onRegionChangeComplete={() => {
+          // Only track region changes if needed for future features
+          // Don't update state to avoid re-render loop
+        }}
       >
         {eventsWithCoordinates.map((event) => (
           <Marker
@@ -153,7 +167,7 @@ export default function EventMap({
               longitude: event.longitude!,
             }}
             pinColor={getMarkerColor(event.type)}
-            onPress={() => onEventPress?.(event.id)}
+            onPress={() => onEventPress?.(event.id, event.type)}
           >
             <Callout>
               <View style={styles.callout}>
@@ -248,11 +262,7 @@ export default function EventMap({
             <View style={styles.emptyStateHints}>
               <View style={styles.hint}>
                 <Ionicons name="information-circle" size={16} color={Colors[colorScheme].tint} />
-                <Text style={[styles.hintText, { color: Colors[colorScheme].mutedText }]}>Create games with locations</Text>
-              </View>
-              <View style={styles.hint}>
-                <Ionicons name="information-circle" size={16} color={Colors[colorScheme].tint} />
-                <Text style={[styles.hintText, { color: Colors[colorScheme].mutedText }]}>Follow teams near you</Text>
+                <Text style={[styles.hintText, { color: Colors[colorScheme].mutedText }]}>Create games with locations to see them on the map</Text>
               </View>
             </View>
             <Text

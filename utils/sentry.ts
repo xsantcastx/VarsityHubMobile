@@ -4,7 +4,10 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
 const appConfig = getConfig();
-const SENTRY_DSN = appConfig.sentryDsn || '';
+const envDsn = process.env.EXPO_PUBLIC_SENTRY_DSN?.trim() || '';
+const configDsn = appConfig.sentryDsn || '';
+const SENTRY_DSN = envDsn || configDsn;
+
 const isPlaceholderDsn = (dsn: string) => {
   const lower = dsn.toLowerCase();
   return (
@@ -13,10 +16,26 @@ const isPlaceholderDsn = (dsn: string) => {
     !lower.includes('ingest.sentry.io')
   );
 };
+
 const shouldUseSentry = !__DEV__ && !!SENTRY_DSN && !isPlaceholderDsn(SENTRY_DSN);
+
 let sentryReady = false;
 
 export function initSentry() {
+  // Prefer EXPO_PUBLIC_SENTRY_DSN, fallback to appConfig.sentryDsn
+  const appConfig = getConfig();
+  const envDsn = process.env.EXPO_PUBLIC_SENTRY_DSN?.trim();
+  const configDsn = appConfig.sentryDsn || '';
+  const SENTRY_DSN = envDsn || configDsn;
+  const isPlaceholderDsn = (dsn: string) => {
+    const lower = dsn.toLowerCase();
+    return (
+      lower.includes('your-key-here') ||
+      !lower.startsWith('http') ||
+      !lower.includes('ingest.sentry.io')
+    );
+  };
+  const shouldUseSentry = !__DEV__ && !!SENTRY_DSN && !isPlaceholderDsn(SENTRY_DSN);
   if (!shouldUseSentry) {
     if (__DEV__) {
       console.log('[sentry] Skipping initialization in development mode');
@@ -27,17 +46,18 @@ export function initSentry() {
   }
 
   try {
+    const tracesSampleRate = Number(process.env.EXPO_PUBLIC_SENTRY_TRACES_SAMPLE_RATE ?? 0.2);
     Sentry.init({
       dsn: SENTRY_DSN,
       environment: appConfig.nodeEnv || 'development',
-      debug: false,
-      tracesSampleRate: 0.2, // 20% of transactions for performance monitoring
+      debug: __DEV__,
+      enableAutoSessionTracking: true,
+      tracesSampleRate: Number.isNaN(tracesSampleRate) ? 0.2 : tracesSampleRate,
       beforeSend(event, hint) {
         // Disable error reporting in development to avoid blocking UI
         if (__DEV__) {
           return null; // Drop all events in dev mode
         }
-
         // Filter out network timeouts from dev/local environments to reduce noise
         const isDev = event.environment === 'development';
         const ex = hint?.originalException as any;

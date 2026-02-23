@@ -9,6 +9,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Game } from '@/api/entities';
+import { httpGet } from '@/api/http';
 
 export default function GameMapScreen() {
   const router = useRouter();
@@ -34,26 +35,86 @@ export default function GameMapScreen() {
         }
       }
 
-      // Fetch ALL games worldwide - no location filter
-      const gamesResponse = await Game.list('-date', {}).catch(() => ({ items: [] }));
+      // Fetch ALL games and events worldwide - no location filter
+      const [gamesResponse, eventsResponse] = await Promise.all([
+        Game.list('-date', {}).catch((error) => {
+          console.error('[game-map] Failed to fetch games:', error);
+          return { items: [] };
+        }),
+        // Fetch approved events (including past events for map display)
+        httpGet('/events?approval_status=approved&include_past=1').catch((error) => {
+          console.error('[game-map] Failed to fetch events:', error);
+          return [];
+        }),
+      ]);
+
       const gamesList = Array.isArray(gamesResponse) ? gamesResponse : (gamesResponse?.items || []);
+      const eventsList = Array.isArray(eventsResponse) ? eventsResponse : (eventsResponse?.items || []);
+
+      // Helper: resolve the best available lat/lng for a game or event.
+      // Games can store coordinates in multiple fields depending on how
+      // they were created, so we fall back in order of preference.
+      const resolveCoords = (item: any): { latitude: number; longitude: number } | null => {
+        // Prefer explicit game-level coordinates, then venue coordinates
+        const lat = item.latitude ?? item.venue_lat ?? item.watch_location_lat ?? null;
+        const lng = item.longitude ?? item.venue_lng ?? item.watch_location_lng ?? null;
+        if (
+          lat != null && lng != null &&
+          typeof lat === 'number' && typeof lng === 'number' &&
+          !isNaN(lat) && !isNaN(lng) &&
+          lat >= -90 && lat <= 90 &&
+          lng >= -180 && lng <= 180
+        ) {
+          return { latitude: lat, longitude: lng };
+        }
+        return null;
+      };
+
+      const hasValidCoords = (item: any): boolean => resolveCoords(item) !== null;
 
       // Transform games to EventMapData format
-      // Note: Include all games, not just those with coordinates
-      // The map will show those with coordinates, empty state will encourage users to add locations
-      const mappedEvents: EventMapData[] = gamesList
-        .filter((game: any) => game.latitude && game.longitude)
-        .map((game: any) => ({
-          id: game.id,
-          title: game.title || 'Game',
-          date: game.date || new Date().toISOString(),
-          location: game.location,
-          latitude: game.latitude,
-          longitude: game.longitude,
-          type: 'game' as const,
-        }));
+      const gameMarkers: EventMapData[] = gamesList
+        .filter(hasValidCoords)
+        .map((game: any) => {
+          const coords = resolveCoords(game)!;
+          return {
+            id: game.id,
+            title: game.title || 'Game',
+            date: game.date || new Date().toISOString(),
+            location: game.location || game.venue_address,
+            latitude: coords.latitude,
+            longitude: coords.longitude,
+            type: 'game' as const,
+          };
+        });
 
-      setEvents(mappedEvents);
+      // Transform events to EventMapData format
+      const eventMarkers: EventMapData[] = eventsList
+        .filter(hasValidCoords)
+        .map((event: any) => {
+          const coords = resolveCoords(event)!;
+          return {
+            id: event.id,
+            title: event.title || 'Event',
+            date: event.date || new Date().toISOString(),
+            location: event.location,
+            latitude: coords.latitude,
+            longitude: coords.longitude,
+            type: 'event' as const,
+          };
+        });
+
+      // Combine games and events
+      const allMarkers = [...gameMarkers, ...eventMarkers];
+      setEvents(allMarkers);
+      
+      // Log for debugging
+      const totalItems = gamesList.length + eventsList.length;
+      if (allMarkers.length === 0 && totalItems > 0) {
+        if (__DEV__) console.warn(`[game-map] Loaded ${gamesList.length} games and ${eventsList.length} events, but none have valid coordinates`);
+      } else {
+        if (__DEV__) console.warn(`[game-map] Loaded ${gameMarkers.length} games and ${eventMarkers.length} events with locations (${allMarkers.length} total pins)`);
+      }
     } catch (error) {
       console.error('Error loading games:', error);
       // Don't show alert - just load empty map
@@ -66,8 +127,14 @@ export default function GameMapScreen() {
     void loadGames();
   }, [loadGames]);
 
-  const handleEventPress = (eventId: string) => {
-    router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(eventId) } });
+  const handleEventPress = (eventId: string, eventType?: 'game' | 'event' | 'post') => {
+    if (eventType === 'event') {
+      // Navigate to event detail page for events (using query param format)
+      router.push(`/event-detail?id=${String(eventId)}`);
+    } else {
+      // Navigate to game detail page for games (or posts)
+      router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(eventId) } });
+    }
   };
 
   return (

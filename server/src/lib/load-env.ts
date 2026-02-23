@@ -9,10 +9,8 @@ const candidatePaths = [
   path.resolve(moduleDir, '../../.env'),
 ];
 
-// Load all .env files with override to merge values
-// Later files override earlier ones (server/.env overrides root .env)
 for (const envPath of candidatePaths) {
   if (!fs.existsSync(envPath)) continue;
-  config({ path: envPath, override: true });
-  // Don't break - continue to merge all files
+  config({ path: envPath });
+  break;
 }

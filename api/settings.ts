@@ -1,5 +1,5 @@
-import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
 
 const prefix = 'vh_settings_';
 
@@ -10,7 +10,9 @@ async function setItem(key: string, value: string) {
     } else {
       await SecureStore.setItemAsync(prefix + key, value);
     }
-  } catch {}
+  } catch (error) {
+    console.warn('[settings] Failed to save setting:', key, error);
+  }
 }
 
 async function getItem(key: string): Promise<string | null> {
@@ -20,7 +22,8 @@ async function getItem(key: string): Promise<string | null> {
     } else {
       return await SecureStore.getItemAsync(prefix + key);
     }
-  } catch {
+  } catch (error) {
+    console.warn('[settings] Failed to read setting:', key, error);
     return null;
   }
 }
@@ -38,7 +41,10 @@ export async function setBool(key: string, value: boolean): Promise<void> {
 export async function getJson<T = any>(key: string, fallback: T): Promise<T> {
   const v = await getItem(key);
   if (!v) return fallback;
-  try { return JSON.parse(v) as T; } catch { return fallback; }
+  try { return JSON.parse(v) as T; } catch (error) {
+    if (__DEV__) console.warn('[settings] JSON parse failed for key:', key, error);
+    return fallback;
+  }
 }
 
 export async function setJson(key: string, value: any): Promise<void> {
@@ -61,6 +67,8 @@ export const SETTINGS_KEYS = {
   NOTIFY_MSG: 'notify_messages',
   NOTIFY_FOLLOW: 'notify_followers',
   LOCAL_ADS: 'local_ads', // stored drafts of submitted local ads
+  POST_DRAFT: 'post_draft', // draft for create post
+  SAMPLE_EVENT_POSTS: 'sample_event_posts', // local cache for sample event posts
 };
 
 export default {

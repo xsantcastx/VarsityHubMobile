@@ -4,10 +4,14 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 // @ts-ignore
 import { Post as PostApi } from '@/api/entities';
+import { Colors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
 
 export default function GameHighlightsScreen() {
   const { game_id } = useLocalSearchParams<{ game_id?: string }>();
   const router = useRouter();
+  const colorScheme = useColorScheme() ?? 'light';
+  const theme = Colors[colorScheme];
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<any[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -32,12 +36,12 @@ export default function GameHighlightsScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
       <Stack.Screen options={{ 
         title: 'Highlights',
         headerLeft: () => (
           <Pressable onPress={() => router.back()} style={{ paddingLeft: 8 }}>
-            <Ionicons name="chevron-back" size={24} color="#3B82F6" />
+            <Ionicons name="chevron-back" size={24} color={theme.tint} />
           </Pressable>
         ),
       }} />
@@ -47,7 +51,11 @@ export default function GameHighlightsScreen() {
         keyExtractor={(i) => String(i.id)}
         numColumns={3}
         renderItem={({ item: _item }) => (
-          <Pressable>
+          <Pressable
+            onPress={() => void router.push(`/post-detail?id=${encodeURIComponent(String(_item.id))}`)}
+            accessibilityRole="button"
+            accessibilityLabel="View highlight"
+          >
             <View style={styles.cellVideo}>
               <Ionicons name="play" size={22} color="#fff" />
             </View>
@@ -55,7 +63,7 @@ export default function GameHighlightsScreen() {
         )}
         onEndReached={_loadMore}
         onEndReachedThreshold={0.5}
-        ListEmptyComponent={!loading ? <Text style={styles.muted}>No highlights yet.</Text> : null}
+        ListEmptyComponent={!loading ? <Text style={[styles.muted, { color: theme.mutedText }]}>No highlights yet.</Text> : null}
       />
     </View>
   );

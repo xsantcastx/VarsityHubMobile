@@ -17,7 +17,7 @@ import OnboardingLayout from './components/OnboardingLayout';
 
 export default function Step4Organization() {
   const router = useRouter();
-  const colorScheme = useColorScheme();
+  const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
   const params = useLocalSearchParams<{ returnToConfirmation?: string }>();
   const returnToConfirmation = params.returnToConfirmation === 'true';
@@ -35,7 +35,7 @@ export default function Step4Organization() {
   
   // Search/Join state
   const [showSearch, setShowSearch] = useState(false);
-  const [searchZip, setSearchZip] = useState(ob.zip || '');
+  const [searchZip, setSearchZip] = useState(ob.zip || ob.zip_code || '');
   const { organizations: nearbyOrgs, loading: searching, search: searchOrganizations, clear: clearOrganizations } = useOrganizationSearch(false);
   const [requestingJoin, setRequestingJoin] = useState(false);
   const [joinMessage, setJoinMessage] = useState('');
@@ -84,9 +84,11 @@ export default function Step4Organization() {
             team_name: firstTeam.name 
           }));
           
-          // Auto-skip this step if team already exists
-          if (!e2e) {
-            setProgress(5); // step-6
+          // DON'T auto-skip - let user see step 4 even if team exists
+          // They can still review/update organization info
+          // Only skip in E2E tests
+          if (e2e) {
+            setProgress(4); // step-6 is index 4
             if (returnToConfirmation) {
               router.replace('/onboarding/step-10-confirmation');
             } else {
@@ -109,9 +111,11 @@ export default function Step4Organization() {
               organization_name: firstOrg.name 
             }));
             
-            // Auto-skip this step if org already exists
-            if (!e2e) {
-              setProgress(5); // step-6
+            // DON'T auto-skip - let user see step 4 even if org exists
+            // They can still review/update organization info
+            // Only skip in E2E tests
+            if (e2e) {
+              setProgress(4); // step-6 is index 4
               if (returnToConfirmation) {
                 router.replace('/onboarding/step-10-confirmation');
               } else {
@@ -171,15 +175,13 @@ export default function Step4Organization() {
 
   const canContinue = useMemo(() => {
     if (saving) return false;
-    
+
     // If team/org already exists, user can continue immediately
     if (alreadyExists) return true;
-    
-    // All coaches need organization fields
-    // Allow manual location entry if autocomplete is not available (location text is filled but no selectedPlace)
-    const hasLocation = !!selectedPlace || (location.trim().length > 0 && locationTouched);
-    return orgName.trim().length > 0 && !!orgType && hasLocation;
-  }, [orgName, orgType, saving, alreadyExists, selectedPlace, location, locationTouched]);
+
+    // All coaches need organization fields; location may be typed or autocomplete-selected
+    return orgName.trim().length > 0 && !!orgType && (!!selectedPlace || location.trim().length >= 2);
+  }, [orgName, orgType, saving, alreadyExists, selectedPlace, location]);
 
   // Format organization type for display (capitalize & friendly term mapping)
   const formatOrgType = (raw?: string) => {
@@ -331,8 +333,8 @@ export default function Step4Organization() {
                 setProgress(7);
                 router.replace('/onboarding/step-10-confirmation');
               } else {
-                setProgress(5);
-                router.push('/onboarding/step-6-authorized-users');
+                setProgress(4); // step-6 is index 4 (NOT step 7)
+                router.replace('/onboarding/step-6-authorized-users');
               }
             }
           }
@@ -366,13 +368,14 @@ export default function Step4Organization() {
     
     setSaving(true);
     try {
-      // If team/org already exists, just navigate to next step
+      // If team/org already exists, still navigate to step 6 (not step 7)
+      // User should still see step 4 to review, but can continue to step 6
       if (alreadyExists) {
         if (returnToConfirmation) {
           setProgress(7);
           router.replace('/onboarding/step-10-confirmation');
         } else {
-          setProgress(5); // step-6
+          setProgress(4); // step-6 is index 4 (NOT step 7 which is index 5)
           router.push('/onboarding/step-6-authorized-users');
         }
         return;
@@ -382,13 +385,12 @@ export default function Step4Organization() {
       const locationLabel = selectedPlace?.description || location.trim();
       const desc = `${orgType === 'school' ? 'School' : 'Organization'}` + (locationLabel ? ` in ${locationLabel}` : '');
       // Create an organization using the dedicated API
+      // Note: server schema expects location as a string (not an object)
       const payload: any = {
         name: orgName.trim(),
         description: desc,
         org_type: orgType,
-        location: locationLabel,
-        formatted_address: selectedPlace?.description,
-        place_id: selectedPlace?.place_id,
+        location: locationLabel || undefined,
         zip_code: (selectedPlaceZip || searchZip.trim()) || undefined,
       };
       // include plan if present in onboarding state
@@ -423,8 +425,8 @@ export default function Step4Organization() {
               setProgress(7);
               router.replace('/onboarding/step-10-confirmation');
             } else {
-              setProgress(5); // step-6
-              router.push('/onboarding/step-6-authorized-users');
+              setProgress(4); // step-6 is index 4 in stepRoutes array
+              router.replace('/onboarding/step-6-authorized-users');
             }
           })();
         }}]
@@ -641,12 +643,12 @@ export default function Step4Organization() {
 
         {!showSearch && (
           <>
-            <Text style={styles.label}>Location *</Text>
+            <Text style={styles.label}>Location</Text>
             <View style={styles.locationFieldWrapper}>
               <Input 
                 value={location} 
                 onChangeText={handleLocationChange} 
-                placeholder="Enter city, state, or address (e.g., New York, NY)" 
+                placeholder="Start typing an address, school, or city" 
                 autoCapitalize="words"
                 autoCorrect={false}
               />
@@ -677,13 +679,8 @@ export default function Step4Organization() {
                 </View>
               )}
             </View>
-            {!selectedPlace && locationTouched && locationSuggestions.length === 0 && location.trim().length > 0 && (
-              <Text style={styles.inputHelperText}>
-                {locationQuerying ? 'Searching...' : 'No suggestions found. You can continue with the entered location.'}
-              </Text>
-            )}
-            {!selectedPlace && locationTouched && locationSuggestions.length > 0 && (
-              <Text style={styles.inputHelperText}>Select a suggested location to continue.</Text>
+            {!selectedPlace && locationTouched && location.trim().length < 2 && (
+              <Text style={styles.inputHelperText}>Enter a city, school, or address to continue.</Text>
             )}
             {duplicateWarning && (
               <View style={styles.duplicateWarningBox}>

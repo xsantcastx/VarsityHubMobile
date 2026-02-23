@@ -14,15 +14,16 @@ if (!jwtSecretString || jwtSecretString === 'dev-secret-change-me' || jwtSecretS
 // Reduced access token expiry - use refresh tokens for long-lived sessions
 const DEFAULT_ACCESS_TOKEN_EXPIRY = '1h';
 
-export function signJwt(payload: Record<string, unknown>, expiresIn: string = DEFAULT_ACCESS_TOKEN_EXPIRY) {
-  const opts: SignOptions = { expiresIn: expiresIn as any } as SignOptions;
+export function signJwt(payload: Record<string, unknown>, expiresIn: string = DEFAULT_ACCESS_TOKEN_EXPIRY): string {
+  // @ts-expect-error - expiresIn accepts string but SignOptions type is strict
+  const opts: SignOptions = { expiresIn };
   return jwt.sign(payload, JWT_SECRET, opts);
 }
 
-export function verifyJwt<T = any>(token: string): T | null {
+export function verifyJwt<T = Record<string, unknown>>(token: string): T | null {
   try {
     return jwt.verify(token, JWT_SECRET) as T;
-  } catch {
+  } catch (_error) {
     return null;
   }
 }

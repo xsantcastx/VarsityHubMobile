@@ -20,24 +20,22 @@ cd server && npm install && cd ..
 
 ### Start Development
 ```bash
-# Terminal 1: Mobile app
-npm run start
-
-# Terminal 2: Backend server (if running locally)
-cd server && npm run dev
+# One command to run mobile + server
+npm run dev
 ```
 
-See **[SETUP.md](./SETUP.md)** for detailed setup instructions.
+See **[docs/INDEX.md](./docs/INDEX.md)** for the full documentation index.
 
 ---
 
 ## 📚 Key Documentation
 
-- **[SETUP.md](./SETUP.md)** - Development environment setup
-- **[SECURITY.md](./SECURITY.md)** - Security audit & foundation grade (A-)
-- **[IMPLEMENTATION_GUIDE.md](./IMPLEMENTATION_GUIDE.md)** - Feature implementation guide
-- **[PRODUCTION_LAUNCH_CHECKLIST.md](./PRODUCTION_LAUNCH_CHECKLIST.md)** - Pre-launch checklist
-- **[docs/RAILWAY_RUNBOOK.md](./docs/RAILWAY_RUNBOOK.md)** - Deployment guide
+- **[docs/INDEX.md](./docs/INDEX.md)** - Documentation entry point
+- **[docs/01-SETUP.md](./docs/01-SETUP.md)** - Development environment setup
+- **[docs/04-DEVELOPMENT.md](./docs/04-DEVELOPMENT.md)** - Development workflow and standards
+- **[docs/07-PRODUCTION.md](./docs/07-PRODUCTION.md)** - Production launch guide
+- **[docs/release/CHECKLIST.md](./docs/release/CHECKLIST.md)** - Release gating checklist
+- **[docs/status/INDEX.md](./docs/status/INDEX.md)** - Status reports and checklists
 
 ---
 
@@ -60,10 +58,9 @@ This repository is kept lean by excluding generated artifacts (~2 GB):
 
 After deploying to Railway, verify endpoints:
 
-```
+```bash
 SERVICE_URL="https://<your-service>.up.railway.app"
-curl -i "$SERVICE_URL/health"     # 200 OK when DB reachable
-curl -i "$SERVICE_URL/auth/me"    # 401 Unauthorized without token
+./scripts/smoke-test.sh
 ```
 
 Local DB connectivity check:
@@ -92,8 +89,8 @@ Recent security enhancements:
 ```bash
 # Development
 npm install                    # Install root dependencies
-npx expo start                 # Start Expo dev server  
-npx expo start --ios          # Start with iOS simulator
+npm run dev                    # Start mobile + server
+npm run dev:expo               # Start Expo dev server only
 
 # Server
 cd server && npm install       # Install backend deps
@@ -106,6 +103,7 @@ npx expo run:ios              # Build and run on iOS
 
 # Repository health
 ./scripts/check-repo-health.sh # Verify clean state
+./scripts/clean-repo-artifacts.sh
 du -sh * | sort -h             # Check directory sizes
 ```
 
@@ -127,4 +125,3 @@ On EAS/production, set it via your environment management (or keep `false` to us
 **Last Updated**: December 2, 2025  
 **Security Grade**: A-  
 **Repository Size**: ~18 MB (source) / ~2.5 GB (with dependencies)
-

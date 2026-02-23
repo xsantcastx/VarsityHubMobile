@@ -1,4 +1,5 @@
 import { getConfig } from '@/config/env';
+import { httpGet } from '@/api/http';
 import { findSeedOrganization, seedOrganizationToPayload } from '@/data/seedOrganizations';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
@@ -41,11 +42,7 @@ export default function OrganizationDetailScreen() {
           setOrg(seedOrganizationToPayload(seedOrg) as Organization);
           return;
         }
-        const res = await fetch(`${apiUrl}/organizations/${normalizedId}`);
-        if (!res.ok) {
-          throw new Error(`Failed to load org (${res.status})`);
-        }
-        const data = await res.json();
+        const data = await httpGet(`/organizations/${normalizedId}`);
         if (!cancelled) setOrg(data);
       } catch (e: any) {
         if (!cancelled) {

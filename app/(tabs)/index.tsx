@@ -1,17 +1,5 @@
-import { useEffect } from 'react';
-import { ActivityIndicator, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { Redirect } from 'expo-router';
 
-export default function TabsIndex() {
-  const router = useRouter();
-
-  useEffect(() => {
-    router.replace('/(tabs)/feed');
-  }, [router]);
-
-  return (
-    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-      <ActivityIndicator />
-    </View>
-  );
+export default function IndexTab() {
+  return <Redirect href="/(tabs)/feed" />;
 }

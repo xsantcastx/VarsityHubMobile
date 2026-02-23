@@ -127,7 +127,7 @@ export default function AdminTeamsScreen() {
                     style={{ padding: 8 }}
                   >
                     <Text style={{ 
-                      color: selectedTeams.size > 0 ? '#dc2626' : '#9ca3af', 
+                      color: selectedTeams.size > 0 ? Colors[colorScheme].destructive : Colors[colorScheme].mutedText, 
                       fontWeight: '600' 
                     }}>
                       Delete ({selectedTeams.size})
@@ -157,7 +157,7 @@ export default function AdminTeamsScreen() {
       ) : null}
       
       {error ? (
-        <Text style={[styles.error, { color: '#dc2626' }]}>{error}</Text>
+        <Text style={[styles.error, { color: Colors[colorScheme].destructive }]}>{error}</Text>
       ) : null}
       
       {!loading && !error && (

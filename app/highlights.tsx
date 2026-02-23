@@ -1,18 +1,20 @@
 import { Colors } from '@/constants/Colors';
+import { usePostCache } from '@/context/PostCacheContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import AppLinks from '@/utils/links';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { Image as ExpoImage } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
+    Dimensions,
     FlatList,
     Platform,
     Pressable,
-    RefreshControl,
     ScrollView,
     Share,
     StatusBar,
@@ -21,24 +23,23 @@ import {
     TextInput,
     View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore legacy export shape
-import { Event, Highlights, Organization, Team, User } from '@/api/entities';
+import { Event, Highlights, Organization, Post, Team, User } from '@/api/entities';
 // Clipboard is dynamically imported only when needed to avoid crashes
 // if the dev client wasn't built with the native module.
-import { BackHeader } from '@/components/ui/BackHeader';
-import RankingBadge from '../components/RankingBadge';
+import { formatCount, getCountryFlag, timeAgo } from '@/utils/format';
 import { calculateRanking, HighlightItem } from '../utils/rankingUtils';
 
 type TabType = 'trending' | 'recent' | 'top';
 const CARD_HEIGHT = 220;
+const SCREEN_WIDTH = Dimensions.get('window').width;
 
 const mapHighlightItem = (input: any): HighlightItem | null => {
   if (!input) return null;
   const idValue = input.id ?? input.post_id ?? input.highlight_id;
   if (!idValue) return null;
-  const authorId = input.author_id ?? input.author?.id ?? '';
-  if (!authorId) return null; // Required for ranking calculations
+  const authorId = String(input.author_id ?? input.author?.id ?? '');
   return {
     id: String(idValue),
     title: input.title ?? input.caption ?? undefined,
@@ -59,48 +60,47 @@ const mapHighlightItem = (input: any): HighlightItem | null => {
     lat: typeof input.lat === 'number' ? input.lat : undefined,
     lng: typeof input.lng === 'number' ? input.lng : undefined,
     country_code: typeof input.country_code === 'string' ? input.country_code : undefined,
+    sport: typeof input.sport === 'string' ? input.sport : undefined,
     _score: typeof input._score === 'number' ? input._score : undefined,
   };
 };
 
-const timeAgo = (value?: string | Date | null) => {
-  if (!value) return '';
-  const ts = typeof value === 'string' ? new Date(value).getTime() : new Date(value).getTime();
-  const diff = Math.max(0, Date.now() - ts) / 1000;
-  const days = Math.floor(diff / 86400);
-  if (days >= 30) return '1 month ago';
-  if (days >= 7) return `${Math.floor(days / 7)}w ago`;
-  if (days >= 1) return `${days}d ago`;
-  const hours = Math.floor(diff / 3600);
-  if (hours >= 1) return `${hours}h ago`;
-  const minutes = Math.floor(diff / 60);
-  if (minutes >= 1) return `${minutes}m ago`;
-  return 'now';
-};
 
-const formatCount = (value?: number | null) => {
-  if (!value) return '0';
-  if (value >= 1000000) return `${(value / 1000000).toFixed(1).replace(/\.0$/, '')}M`;
-  if (value >= 1000) return `${(value / 1000).toFixed(1).replace(/\.0$/, '')}K`;
-  return String(value);
-};
+const getSportCategory = (sport?: string, title?: string | null, content?: string | null) => {
+  // First, check if sport is explicitly provided from backend
+  if (sport) {
+    const sportLower = sport.toLowerCase();
+    if (sportLower.includes('football')) return { name: 'Football', icon: '🏈', color: '#8B5A2B' };
+    if (sportLower.includes('basketball')) return { name: 'Basketball', icon: '🏀', color: '#FF6B35' };
+    if (sportLower.includes('baseball')) return { name: 'Baseball', icon: '⚾', color: '#2E8B57' };
+    if (sportLower.includes('soccer')) return { name: 'Soccer', icon: '⚽', color: '#4169E1' };
+    if (sportLower.includes('hockey')) return { name: 'Hockey', icon: '🏒', color: '#1C1C1C' };
+    if (sportLower.includes('tennis')) return { name: 'Tennis', icon: '🎾', color: '#228B22' };
+    if (sportLower.includes('volleyball')) return { name: 'Volleyball', icon: '🏐', color: '#FF1744' };
+    if (sportLower.includes('wrestling')) return { name: 'Wrestling', icon: '🤼', color: '#7B1FA2' };
+    if (sportLower.includes('track')) return { name: 'Track & Field', icon: '🏃', color: '#FF9800' };
+    if (sportLower.includes('swimming')) return { name: 'Swimming', icon: '🏊', color: '#0288D1' };
+    if (sportLower.includes('golf')) return { name: 'Golf', icon: '⛳', color: '#558B2F' };
+    if (sportLower.includes('lacrosse')) return { name: 'Lacrosse', icon: '🥍', color: '#D32F2F' };
+    // Return the sport name as-is if it doesn't match known patterns
+    return { name: sport, icon: '🏆', color: '#FF6B35' };
+  }
 
-const getCountryFlag = (countryCode?: string | null) => {
-  const flags: { [key: string]: string } = {
-    'US': '🇺🇸', 'CA': '🇨🇦', 'GB': '🇬🇧', 'AU': '🇦🇺', 'DE': '🇩🇪',
-    'FR': '🇫🇷', 'IT': '🇮🇹', 'ES': '🇪🇸', 'BR': '🇧🇷', 'MX': '🇲🇽',
-  };
-  return flags[countryCode || ''] || '🌍';
-};
-
-const getSportCategory = (title?: string | null, content?: string | null) => {
-  const text = (title + ' ' + content || '').toLowerCase();
+  // Fallback: Parse from title/content
+  const text = ((title || '') + ' ' + (content || '')).toLowerCase();
   if (text.includes('football') || text.includes('nfl')) return { name: 'Football', icon: '🏈', color: '#8B5A2B' };
   if (text.includes('basketball') || text.includes('nba')) return { name: 'Basketball', icon: '🏀', color: '#FF6B35' };
   if (text.includes('baseball') || text.includes('mlb')) return { name: 'Baseball', icon: '⚾', color: '#2E8B57' };
   if (text.includes('soccer') || text.includes('fifa')) return { name: 'Soccer', icon: '⚽', color: '#4169E1' };
   if (text.includes('hockey') || text.includes('nhl')) return { name: 'Hockey', icon: '🏒', color: '#1C1C1C' };
   if (text.includes('tennis')) return { name: 'Tennis', icon: '🎾', color: '#228B22' };
+  if (text.includes('volleyball')) return { name: 'Volleyball', icon: '🏐', color: '#FF1744' };
+  if (text.includes('wrestling')) return { name: 'Wrestling', icon: '🤼', color: '#7B1FA2' };
+  if (text.includes('track')) return { name: 'Track & Field', icon: '🏃', color: '#FF9800' };
+  if (text.includes('swimming')) return { name: 'Swimming', icon: '🏊', color: '#0288D1' };
+  if (text.includes('golf')) return { name: 'Golf', icon: '⛳', color: '#558B2F' };
+  if (text.includes('lacrosse')) return { name: 'Lacrosse', icon: '🥍', color: '#D32F2F' };
+
   return { name: 'Sports', icon: '🏆', color: '#FF6B35' };
 };
 
@@ -113,7 +113,8 @@ const HighlightCard = ({
   userLocation,
   onPress,
   onAuthorPress,
-  colorScheme 
+  colorScheme,
+  onUpvote
 }: { 
   item: HighlightItem; 
   index?: number;
@@ -123,14 +124,15 @@ const HighlightCard = ({
   userLocation?: { lat: number; lng: number };
   onPress: (item: HighlightItem) => void;
   onAuthorPress?: (authorId: string) => void;
-  colorScheme: 'light' | 'dark' 
+  colorScheme: 'light' | 'dark';
+  onUpvote?: (item: HighlightItem) => void;
 }) => {
   const isVideo = item.media_url ? /\.(mp4|mov|webm|m4v|avi)$/i.test(item.media_url) : false;
-  const category = getSportCategory(item.title, item.content);
+  const category = getSportCategory(item.sport, item.title, item.content);
   const hasMedia = !!item.media_url;
   
   // Calculate ranking for this item
-  const ranking = calculateRanking(item, index, currentTab, nationalTop, ranked, userLocation);
+  const _ranking = calculateRanking(item, index, currentTab, nationalTop, ranked, userLocation);
   
   // Show numbered ranking for Trending (top 3) and Top (1-10)
   const showNumberedRank = (currentTab === 'trending' && index < 3) || (currentTab === 'top' && index < 10);
@@ -139,22 +141,22 @@ const HighlightCard = ({
   return (
     <Pressable style={[styles.card, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]} onPress={() => onPress(item)}>
       <View style={styles.cardContainer}>
-        {/* Numbered Ranking Badge for Top 3 (Trending) or Top 10 */}
-        {showNumberedRank && (
-          <View style={[
-            styles.numberBadge, 
-            { 
-              backgroundColor: index === 0 ? '#FFD700' : index === 1 ? '#C0C0C0' : index === 2 ? '#CD7F32' : '#2563EB'
-            }
-          ]}>
-            <Text style={styles.numberBadgeText}>#{rankNumber}</Text>
-          </View>
-        )}
         {/* Media Section */}
         <View style={styles.mediaSection}>
+          {/* Numbered Ranking Badge for Top 3 (Trending) or Top 10 - positioned relative to media */}
+          {showNumberedRank && (
+            <View style={[
+              styles.numberBadge, 
+              { 
+                backgroundColor: index === 0 ? '#FFD700' : index === 1 ? '#C0C0C0' : index === 2 ? '#CD7F32' : '#2563EB'
+              }
+            ]}>
+              <Text style={styles.numberBadgeText}>#{rankNumber}</Text>
+            </View>
+          )}
           {hasMedia ? (
             <View style={styles.mediaContainer}>
-              <ExpoImage source={{ uri: item.media_url }} style={styles.mediaImage} contentFit="cover" />
+              <ExpoImage source={{ uri: item.media_url }} style={styles.mediaImage} contentFit="contain" />
               {isVideo && (
                 <View style={styles.videoOverlay}>
                   <View style={styles.playButton}>
@@ -162,17 +164,10 @@ const HighlightCard = ({
                   </View>
                 </View>
               )}
-              {/* Ranking Badge */}
-              {ranking.show && (
-                <RankingBadge 
-                  type={ranking.type} 
-                  position={ranking.position}
-                />
-              )}
-              {/* Live badge for recent posts */}
-              {item.created_at && new Date(item.created_at).getTime() > Date.now() - 3600000 && (
-                <View style={styles.liveBadge}>
-                  <Text style={styles.liveText}>LIVE</Text>
+              {/* "NEW" badge for very recent posts (< 10 minutes) - more accurate than "LIVE" */}
+              {item.created_at && new Date(item.created_at).getTime() > Date.now() - 600000 && (
+                <View style={[styles.liveBadge, { backgroundColor: '#3b82f6' }]}>
+                  <Text style={styles.liveText}>NEW</Text>
                 </View>
               )}
             </View>
@@ -185,13 +180,6 @@ const HighlightCard = ({
                 <Text style={styles.categoryIcon}>{category.icon}</Text>
                 <Text style={styles.noMediaText}>Text Post</Text>
               </View>
-              {/* Ranking Badge for text posts */}
-              {ranking.show && (
-                <RankingBadge 
-                  type={ranking.type} 
-                  position={ranking.position}
-                />
-              )}
             </LinearGradient>
           )}
         </View>
@@ -234,20 +222,19 @@ const HighlightCard = ({
               </Text>
               <Ionicons name="chevron-forward" size={14} color={Colors[colorScheme].tabIconDefault} />
             </View>
-            <Text style={styles.timeText}>{timeAgo(item.created_at)}</Text>
+            <Text style={[styles.timeText, { color: Colors[colorScheme].mutedText }]}>{timeAgo(item.created_at)}</Text>
           </Pressable>
 
           {/* Stats Row */}
           <View style={styles.statsRow}>
-            <Pressable 
-              style={styles.actionButton}
+            <Pressable
+              style={[styles.actionButton, item.has_upvoted && { backgroundColor: 'rgba(37, 99, 235, 0.2)' }]}
               onPress={(e) => {
                 e.stopPropagation();
-                // Handle upvote action
-                Alert.alert('Upvote', 'Feature coming soon!');
+                onUpvote?.(item);
               }}
             >
-              <Ionicons name="arrow-up" size={18} color="#2563EB" />
+              <Ionicons name={item.has_upvoted ? 'arrow-up' : 'arrow-up-outline'} size={18} color="#2563EB" />
               <Text style={[styles.statText, { color: '#2563EB', fontWeight: '700' }]}>{formatCount(item.upvotes_count || 0)}</Text>
             </Pressable>
             
@@ -259,7 +246,7 @@ const HighlightCard = ({
               }}
             >
               <Ionicons name="chatbubble" size={16} color="#6B7280" />
-              <Text style={[styles.statText, { fontWeight: '600' }]}>{formatCount(item._count?.comments || 0)}</Text>
+              <Text style={[styles.statText, { color: Colors[colorScheme].mutedText, fontWeight: '600' }]}>{formatCount(item._count?.comments || 0)}</Text>
             </Pressable>
             
             <Pressable 
@@ -280,18 +267,21 @@ const HighlightCard = ({
                     } else {
                       Alert.alert('Share Failed', 'Clipboard unavailable in this build.');
                     }
-                  } catch {}
+                  } catch (error) {
+                    // Silently fail - instrumentation is optional
+                    if (__DEV__) console.warn('[highlights] Instrumentation error:', error);
+                  }
                 }
               }}
             >
               <Ionicons name="share-outline" size={16} color="#10B981" />
-              <Text style={[styles.statText, { fontWeight: '600' }]}>Share</Text>
+              <Text style={[styles.statText, { color: Colors[colorScheme].mutedText, fontWeight: '600' }]}>Share</Text>
             </Pressable>
             
             {item._score && (
               <View style={[styles.actionButton, { opacity: 0.7 }]}>
                 <Ionicons name="trending-up" size={16} color="#10B981" />
-                <Text style={styles.statText}>{Math.round(item._score)}</Text>
+                <Text style={[styles.statText, { color: Colors[colorScheme].mutedText }]}>{Math.round(item._score)}</Text>
               </View>
             )}
           </View>
@@ -309,6 +299,7 @@ const TabButton = ({ title, active, onPress, colorScheme }: { title: string; act
 
 export default function HighlightsScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme() ?? 'light';
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -318,6 +309,7 @@ export default function HighlightsScreen() {
   const [ranked, setRanked] = useState<HighlightItem[]>([]);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | undefined>();
   const [activeTab, setActiveTab] = useState<TabType>('trending');
+  const [currentHighlightIndex, setCurrentHighlightIndex] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<{
     teams: any[];
@@ -327,12 +319,26 @@ export default function HighlightsScreen() {
     posts: HighlightItem[];
   }>({ teams: [], events: [], users: [], organizations: [], posts: [] });
   const [searching, setSearching] = useState(false);
+  const postCache = usePostCache();
+
+  const onHighlightsViewableItemsChanged = useRef(({ viewableItems }: any) => {
+    if (viewableItems && viewableItems.length > 0) {
+      const idx = viewableItems[0].index;
+      if (idx !== undefined) setCurrentHighlightIndex(idx);
+    }
+  }).current;
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const me: any = await User.me().catch(() => null);
+      const me: any = await User.me().catch((error: any) => {
+        if (__DEV__) {
+          console.warn('[Highlights] Failed to load user:', error?.message || error);
+        }
+        return null;
+      });
+      
       const country = (me?.preferences?.country_code || 'US').toUpperCase();
       
       // Location preference lookup: coordinates live under me.preferences
@@ -357,6 +363,9 @@ export default function HighlightsScreen() {
       const rawNationalTop = Array.isArray(payload?.nationalTop) ? payload.nationalTop : [];
       const rawRanked = Array.isArray(payload?.ranked) ? payload.ranked : [];
       
+      // Cache all the raw posts for faster loading when navigating to post detail
+      postCache.setBatch([...rawNationalTop, ...rawRanked]);
+      
       setNationalTop(rawNationalTop.map(mapHighlightItem).filter(Boolean) as HighlightItem[]);
       setRanked(rawRanked.map(mapHighlightItem).filter(Boolean) as HighlightItem[]);
       
@@ -377,15 +386,17 @@ export default function HighlightsScreen() {
       
       setHighlights(uniqueHighlights);
     } catch (e: any) {
-      console.error('Highlights load failed', e);
-      console.error('Error details:', e?.response?.data || e?.message || e);
+      if (__DEV__) {
+        console.error('[Highlights] Load failed:', e);
+        console.error('[Highlights] Error details:', e?.response?.data || e?.message || e);
+      }
       setError('Unable to load highlights.');
       setHighlights([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [postCache]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -393,7 +404,13 @@ export default function HighlightsScreen() {
   }, [load]);
 
   useEffect(() => {
-    void load();
+    let mounted = true;
+    const loadData = async () => {
+      await load();
+      if (!mounted) return;
+    };
+    void loadData();
+    return () => { mounted = false; };
   }, [load]);
 
   // Global search function for teams, events, users, and posts
@@ -407,10 +424,22 @@ export default function HighlightsScreen() {
     setSearching(true);
     try {
       const [teamsRes, eventsRes, usersRes, orgsRes] = await Promise.all([
-        Team.list(query, false, { limit: 5 }).catch(() => []),
-        Event.filter({ q: query, approval_status: 'approved' }, 'date', 5).catch(() => []),
-        User.listAll(query, 5).catch(() => []),
-        Organization.list(query, 5).catch(() => []),
+        Team.list(query, false, { limit: 5 }).catch((error: any) => {
+          if (__DEV__) console.warn('[Highlights] Team search failed:', error?.message || error);
+          return [];
+        }),
+        Event.filter({ q: query, approval_status: 'approved' }, 'date', 5).catch((error: any) => {
+          if (__DEV__) console.warn('[Highlights] Event search failed:', error?.message || error);
+          return [];
+        }),
+        User.listAll(query, 5).catch((error: any) => {
+          if (__DEV__) console.warn('[Highlights] User search failed:', error?.message || error);
+          return [];
+        }),
+        Organization.list(query, 5).catch((error: any) => {
+          if (__DEV__) console.warn('[Highlights] Organization search failed:', error?.message || error);
+          return [];
+        }),
       ]);
 
       const teams = Array.isArray(teamsRes) ? teamsRes.slice(0, 5) : [];
@@ -430,8 +459,11 @@ export default function HighlightsScreen() {
       }).slice(0, 10);
 
       setSearchResults({ teams, events, users, organizations, posts });
-    } catch (err) {
-      console.error('Search failed:', err);
+    } catch (err: any) {
+      if (__DEV__) {
+        console.error('[Highlights] Search failed:', err?.message || err);
+      }
+      setSearchResults({ teams: [], events: [], users: [], organizations: [], posts: [] });
     } finally {
       setSearching(false);
     }
@@ -444,16 +476,6 @@ export default function HighlightsScreen() {
     }, 300);
     return () => clearTimeout(timer);
   }, [searchQuery, performGlobalSearch]);
-
-  const handleHighlightPress = useCallback((item: HighlightItem) => {
-    // Navigate to post detail screen
-    router.push(`/post-detail?id=${item.id}`);
-  }, [router]);
-
-  const handleAuthorPress = useCallback((authorId: string) => {
-    // Navigate to user profile
-    router.push(`/user-profile?id=${authorId}`);
-  }, [router]);
 
   const getFilteredHighlights = useCallback(() => {
     let filtered = [...highlights];
@@ -511,18 +533,110 @@ export default function HighlightsScreen() {
     
   }, [highlights, activeTab]);
 
+  const handleHighlightPress = useCallback((item: HighlightItem, index?: number) => {
+    try {
+      // Navigate to post-detail with all highlights for swipe navigation
+      const filtered = getFilteredHighlights();
+      const targetIndex = index !== undefined ? index : filtered.findIndex(h => h.id === item.id);
+      const postIds = filtered.map(h => h.id).filter(Boolean).join(',');
+      
+      if (postIds && filtered.length > 0) {
+        router.push(`/post-detail?postIds=${postIds}&index=${Math.max(0, targetIndex)}`);
+      } else {
+        // Fallback to single post if no filtered highlights
+        router.push(`/post-detail?id=${item.id}`);
+      }
+    } catch (error) {
+      console.error('Navigation error in handleHighlightPress:', error);
+      // Fallback to single post navigation on error
+      router.push(`/post-detail?id=${item.id}`);
+    }
+  }, [router, getFilteredHighlights]);
+
+  const handleAuthorPress = useCallback((authorId: string) => {
+    // Navigate to user profile
+    router.push(`/user-profile?id=${authorId}`);
+  }, [router]);
+
+  const handleEventPress = useCallback((event: any) => {
+    const gameId = event?.game_id || event?.gameId;
+    if (gameId) {
+      void router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(gameId) } });
+      return;
+    }
+
+    const eventId = event?.id || event?.event_id;
+    if (eventId) {
+      void router.push({ pathname: '/(tabs)/feed/game', params: { eventId: String(eventId) } } as any);
+      return;
+    }
+
+    Alert.alert('Event unavailable', 'This event is missing an identifier and cannot be opened.');
+  }, [router]);
+
+  const handleUpvote = useCallback(async (item: HighlightItem) => {
+    // Optimistic update: toggle immediately for responsiveness
+    const optimisticNext = !item.has_upvoted;
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    setHighlights((prev) =>
+      prev.map((h) =>
+        h.id === item.id
+          ? {
+              ...h,
+              has_upvoted: optimisticNext,
+              upvotes_count: Math.max(0, (h.upvotes_count || 0) + (optimisticNext ? 1 : -1)),
+            }
+          : h
+      )
+    );
+    try {
+      const r: any = await Post.toggleUpvote(item.id);
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      // Reconcile with server values
+      setHighlights((prev) =>
+        prev.map((h) =>
+          h.id === item.id
+            ? {
+                ...h,
+                has_upvoted: typeof r?.has_upvoted === 'boolean' ? r.has_upvoted : Boolean(r?.upvoted),
+                upvotes_count: typeof r?.count === 'number' ? r.count : typeof r?.upvotes_count === 'number' ? r.upvotes_count : h.upvotes_count,
+              }
+            : h
+        )
+      );
+    } catch (error) {
+      // Revert optimistic update on failure
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+      setHighlights((prev) =>
+        prev.map((h) =>
+          h.id === item.id
+            ? {
+                ...h,
+                has_upvoted: item.has_upvoted,
+                upvotes_count: Math.max(0, (h.upvotes_count || 0) + (optimisticNext ? -1 : 1)),
+              }
+            : h
+        )
+      );
+      if (__DEV__) console.warn('[Highlights] Failed to toggle upvote:', error);
+    }
+  }, []);
+
   const renderHighlight = ({ item, index }: { item: HighlightItem; index: number }) => (
-    <HighlightCard 
-      item={item} 
-      index={index}
-      currentTab={activeTab}
-      nationalTop={nationalTop}
-      ranked={ranked}
-      userLocation={userLocation}
-      onPress={handleHighlightPress}
-      onAuthorPress={handleAuthorPress}
-      colorScheme={colorScheme} 
-    />
+    <View style={{ width: SCREEN_WIDTH, paddingHorizontal: 16, paddingVertical: 8 }}>
+      <HighlightCard
+        item={item}
+        index={index}
+        currentTab={activeTab}
+        nationalTop={nationalTop}
+        ranked={ranked}
+        userLocation={userLocation}
+        onPress={() => handleHighlightPress(item, index)}
+        // onAuthorPress intentionally omitted to disable profile navigation from highlights feed
+        colorScheme={colorScheme}
+        onUpvote={handleUpvote}
+      />
+    </View>
   );
 
   if (loading) {
@@ -557,37 +671,103 @@ export default function HighlightsScreen() {
   const filteredHighlights = getFilteredHighlights();
 
   return (
-    <SafeAreaView style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]}>
+    <SafeAreaView style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]} edges={['bottom', 'left', 'right']}>
       <StatusBar barStyle={colorScheme === 'dark' ? "light-content" : "dark-content"} backgroundColor={Colors[colorScheme].background} />
       <Stack.Screen options={{ title: 'Highlights', headerShown: false }} />
-      <BackHeader 
-        title="Highlights"
-        backgroundColor={Colors[colorScheme].card}
-        textColor={Colors[colorScheme].text}
-        borderColor={Colors[colorScheme].border}
-        showDivider={false}
-      />
       
       {/* Custom Header */}
-      <View style={[styles.header, { paddingTop: 0, backgroundColor: Colors[colorScheme].card, borderBottomColor: Colors[colorScheme].border }]}>
-        <View style={styles.headerContent}>
-          <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>Highlights</Text>
+      <View style={[styles.header, { paddingTop: insets.top, backgroundColor: Colors[colorScheme].card, borderBottomColor: Colors[colorScheme].border }]}>
+        {/* Back button and title */}
+        <View style={styles.headerRow}>
+          <View style={styles.headerSpacer} />
+          <Text style={[styles.headerTitleText, { color: Colors[colorScheme].text }]} numberOfLines={1}>
+            Highlights
+          </Text>
+          <Pressable style={styles.headerSpacer} onPress={onRefresh} hitSlop={8}>
+            <Ionicons name="refresh" size={22} color={refreshing ? Colors[colorScheme].tint : Colors[colorScheme].text} style={{ opacity: refreshing ? 0.5 : 1 }} />
+          </Pressable>
         </View>
-        
         {/* Search Bar */}
-        <View style={[styles.searchContainer, { backgroundColor: Colors[colorScheme].background, borderColor: Colors[colorScheme].border }]}>
-          <Ionicons name="search" size={20} color={Colors[colorScheme].tabIconDefault} />
-          <TextInput
-            style={[styles.searchInput, { color: Colors[colorScheme].text }]}
-            placeholder="Search teams, events, users..."
-            placeholderTextColor={Colors[colorScheme].tabIconDefault}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-          {searchQuery.length > 0 && (
-            <Pressable onPress={() => setSearchQuery('')}>
-              <Ionicons name="close-circle" size={20} color={Colors[colorScheme].tabIconDefault} />
-            </Pressable>
+        <View style={{ zIndex: 10 }}>
+          <View style={[styles.searchContainer, { backgroundColor: Colors[colorScheme].background, borderColor: Colors[colorScheme].border }]}> 
+            <Ionicons name="search" size={20} color={Colors[colorScheme].tabIconDefault} />
+            <TextInput
+              style={[styles.searchInput, { color: Colors[colorScheme].text }]}
+              placeholder="Search users, teams, or organizations by name or username..."
+              placeholderTextColor={Colors[colorScheme].tabIconDefault}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              autoCorrect={false}
+              autoCapitalize="none"
+            />
+            {searchQuery.length > 0 && (
+              <Pressable onPress={() => setSearchQuery('')}>
+                <Ionicons name="close-circle" size={20} color={Colors[colorScheme].tabIconDefault} />
+              </Pressable>
+            )}
+          </View>
+          {/* Dropdown recommendations */}
+          {searchQuery.length > 0 && !searching && (
+            <View style={{
+              position: 'absolute',
+              top: 48,
+              left: 0,
+              right: 0,
+              backgroundColor: Colors[colorScheme].background,
+              borderColor: Colors[colorScheme].border,
+              borderWidth: 1,
+              borderTopWidth: 0,
+              borderRadius: 8,
+              shadowColor: '#000',
+              shadowOpacity: 0.08,
+              shadowRadius: 8,
+              elevation: 2,
+              zIndex: 20,
+              maxHeight: 180,
+            }}>
+              {/* Users */}
+              {searchResults.users.slice(0, 2).map((user) => (
+                <Pressable
+                  key={user.id}
+                  style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: Colors[colorScheme].border }}
+                  onPress={() => setSearchQuery(user.display_name || user.username || user.email)}
+                >
+                  <Text style={{ color: Colors[colorScheme].text }}>
+                    👤 {user.display_name || user.username || user.email}
+                  </Text>
+                </Pressable>
+              ))}
+              {/* Teams */}
+              {searchResults.teams.slice(0, 2).map((team) => (
+                <Pressable
+                  key={team.id}
+                  style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: Colors[colorScheme].border }}
+                  onPress={() => setSearchQuery(team.name)}
+                >
+                  <Text style={{ color: Colors[colorScheme].text }}>
+                    🏫 {team.name}
+                  </Text>
+                </Pressable>
+              ))}
+              {/* Organizations */}
+              {searchResults.organizations.slice(0, 2).map((org) => (
+                <Pressable
+                  key={org.id}
+                  style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: Colors[colorScheme].border }}
+                  onPress={() => setSearchQuery(org.name)}
+                >
+                  <Text style={{ color: Colors[colorScheme].text }}>
+                    🏆 {org.name}
+                  </Text>
+                </Pressable>
+              ))}
+              {/* No recommendations */}
+              {searchResults.users.length === 0 && searchResults.teams.length === 0 && searchResults.organizations.length === 0 && (
+                <View style={{ padding: 12 }}>
+                  <Text style={{ color: Colors[colorScheme].tabIconDefault }}>No recommendations</Text>
+                </View>
+              )}
+            </View>
           )}
         </View>
 
@@ -655,7 +835,7 @@ export default function HighlightsScreen() {
                   <Pressable
                     key={event.id}
                     style={[styles.searchResultItem, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
-                    onPress={() => { void router.push(`/event-detail?id=${event.id}`); }}
+                    onPress={() => handleEventPress(event)}
                   >
                     <Text style={[styles.searchResultTitle, { color: Colors[colorScheme].text }]}>{event.title}</Text>
                     <Text style={[styles.searchResultSubtitle, { color: Colors[colorScheme].tabIconDefault }]}>
@@ -719,7 +899,8 @@ export default function HighlightsScreen() {
                     userLocation={userLocation}
                     onPress={handleHighlightPress}
                     onAuthorPress={handleAuthorPress}
-                    colorScheme={colorScheme} 
+                    colorScheme={colorScheme}
+                    onUpvote={handleUpvote}
                   />
                 ))}
               </View>
@@ -746,22 +927,34 @@ export default function HighlightsScreen() {
           <Text style={[styles.emptySubtext, { color: Colors[colorScheme].tabIconDefault }]}>Check back later for amazing sports moments</Text>
         </View>
       ) : (
-        <FlatList
-          data={filteredHighlights}
-          renderItem={renderHighlight}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.list}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl 
-              refreshing={refreshing} 
-              onRefresh={onRefresh} 
-              tintColor="#2563EB"
-              colors={['#2563EB']}
-            />
-          }
-        />
+        <>
+          {/* Page indicator */}
+          <View style={styles.pageIndicator}>
+            <Text style={[styles.pageIndicatorText, { color: Colors[colorScheme].mutedText }]}>
+              {currentHighlightIndex + 1} / {filteredHighlights.length}
+            </Text>
+          </View>
+          <FlatList
+            data={filteredHighlights}
+            renderItem={renderHighlight}
+            keyExtractor={(item) => item.id}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            showsVerticalScrollIndicator={false}
+            decelerationRate="fast"
+            getItemLayout={(_, index) => ({
+              length: SCREEN_WIDTH,
+              offset: SCREEN_WIDTH * index,
+              index,
+            })}
+            onViewableItemsChanged={onHighlightsViewableItemsChanged}
+            viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
+            contentContainerStyle={{ paddingVertical: 8 }}
+          />
+        </>
       )}
+
     </SafeAreaView>
   );
 }
@@ -806,6 +999,31 @@ const styles = StyleSheet.create({
   header: {
     borderBottomWidth: 1,
     paddingBottom: 8,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 56,
+    paddingHorizontal: 16,
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: -12,
+  },
+  headerTitleText: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginHorizontal: 16,
+  },
+  headerSpacer: {
+    width: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerContent: {
     flexDirection: 'row',
@@ -889,6 +1107,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   activeTabText: {},
+  pageIndicator: {
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  pageIndicatorText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -930,15 +1156,20 @@ const styles = StyleSheet.create({
   },
   mediaSection: {
     width: '40%',
+    position: 'relative',
   },
   mediaContainer: {
     width: '100%',
     height: '100%',
     position: 'relative',
+    backgroundColor: '#000', // Black background for images to show properly with contain mode
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   mediaImage: {
     width: '100%',
     height: '100%',
+    backgroundColor: 'transparent',
   },
   noMediaContent: {
     flex: 1,
@@ -1047,7 +1278,7 @@ const styles = StyleSheet.create({
   },
   timeText: {
     fontSize: 11,
-    color: '#9CA3AF',
+    // color: Uses dynamic color in JSX
     fontWeight: '500',
   },
   statsRow: {
@@ -1082,7 +1313,7 @@ const styles = StyleSheet.create({
   statText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#6B7280',
+    // color: Uses dynamic color in JSX
   },
   numberBadge: {
     position: 'absolute',

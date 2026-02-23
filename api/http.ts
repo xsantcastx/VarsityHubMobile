@@ -1,6 +1,5 @@
-import { getConfig, getEnvValue } from '@/config/env';
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
-import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 
 let tokenCache: string | null = null;
 export function setAuthToken(token: string | null) { tokenCache = token || null; }
@@ -8,28 +7,22 @@ export function clearAuthToken() { tokenCache = null; }
 export function getAuthToken(): string | null { return tokenCache; }
 
 export function getApiBaseUrl(): string {
-  const config = getConfig();
-  const envUrl = getEnvValue('EXPO_PUBLIC_API_URL');
-  const forceRemote = config.forceRemoteApi;
-  let url = config.apiUrl || envUrl || 'https://api-production-8ac3.up.railway.app';
+  // Support environment-based configuration for testing/staging/preview builds
+  const PRODUCTION_URL = 'https://api-production-8ac3.up.railway.app';
+  const envUrl =
+    process.env.EXPO_PUBLIC_API_URL ||
+    Constants.expoConfig?.extra?.EXPO_PUBLIC_API_URL ||
+    Constants.expoConfig?.extra?.apiUrl;
+  const normalizedEnvUrl = envUrl?.trim().replace(/\/$/, '');
+  const isLocalhost = normalizedEnvUrl ? /(^http:\/\/localhost)|(^http:\/\/127\.0\.0\.1)/.test(normalizedEnvUrl) : false;
+  const finalUrl = normalizedEnvUrl && (!isLocalhost || __DEV__) ? normalizedEnvUrl : PRODUCTION_URL;
+  const isCustom = finalUrl !== PRODUCTION_URL;
 
-  // Handle simulator networking (only for actual localhost, not LAN IPs)
-  if (__DEV__ && !forceRemote && url.startsWith('http://localhost')) {
-    if (Platform.OS === 'android') {
-      // Android simulator uses 10.0.2.2 to reach host machine
-      url = url.replace('http://localhost', 'http://10.0.2.2');
-    }
-    if (Platform.OS === 'ios') {
-      // iOS simulator can use 127.0.0.1 for localhost
-      url = url.replace('http://localhost', 'http://127.0.0.1');
-    }
-  }
-  const finalUrl = url.replace(/\/$/, '');
   if (__DEV__ && !('__VH_LOGGED_API_BASE' in (globalThis as any))) {
     (globalThis as any).__VH_LOGGED_API_BASE = true;
-    // eslint-disable-next-line no-console
-    console.log('[http] API base:', finalUrl, { envUrl, forceRemote, platform: Platform.OS });
+    console.log('[http] API base:', finalUrl, isCustom ? '(custom)' : '(production)');
   }
+  
   return finalUrl;
 }
 
@@ -37,7 +30,7 @@ function getBaseUrl(): string {
   return getApiBaseUrl();
 }
 
-async function request(path: string, options: RequestInit = {}, timeoutMs: number = 30000, retries: number = 0): Promise<any> {
+async function request(path: string, options: RequestInit = {}, timeoutMs: number = 30000, retries: number = 1): Promise<any> {
   const base = getBaseUrl();
   const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(options.headers as any) };
   const token = getAuthToken();
@@ -77,7 +70,7 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
     if (ct.includes('application/json')) {
       try {
         data = text ? JSON.parse(text) : null;
-      } catch {
+      } catch (error) {
         data = null;
       }
     } else {
@@ -85,13 +78,40 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
     }
 
     if (!res.ok) {
-      const msg = ct.includes('application/json') ? (data && (data.error || data.message)) : (typeof data === 'string' ? data : null);
+      // Detect Bad Gateway HTML responses (Railway error pages with Correlation Key)
+      // Railway correlation keys are 27 uppercase alphanumeric characters
+      // Pattern: "Correlation Key: [27 alphanumeric chars]" (case-insensitive, flexible whitespace)
+      const hasCorrelationKey = typeof data === 'string' && 
+        (/Correlation Key:?\s*[A-Z0-9]{27}/i.test(data) || 
+         /[A-Z0-9]{27}/.test(data)); // Also match standalone 27-char keys
+      const isRailwayErrorPage = res.status === 502 && 
+        (ct.includes('text/html') || 
+         (typeof data === 'string' && (
+           data.includes('Bad Gateway') || 
+           data.includes('502') ||
+           data.includes('Correlation Key') ||
+           hasCorrelationKey ||
+           /[A-Z0-9]{27}/.test(data) // Match any 27-char alphanumeric (likely correlation key)
+         )));
+      
+      const msg = ct.includes('application/json') 
+        ? (data && (data.error || data.message)) 
+        : isRailwayErrorPage 
+          ? 'Server temporarily unavailable' 
+          : (typeof data === 'string' ? data : null);
+      
       const err: any = new Error(msg || `HTTP ${res.status}`);
       err.status = res.status;
       err.data = data;
-      // Clear token on auth errors and let AuthProvider handle session loss
-      if (err.status === 401 || err.status === 403) {
-        try { clearAuthToken(); } catch {}
+      err.isRailwayErrorPage = isRailwayErrorPage; // Flag for retry logic
+      
+      // Clear token on unauthorized responses and let AuthProvider handle session loss.
+      // Do not clear on 403 (forbidden) because role-based endpoints can return 403 for valid sessions.
+      if (err.status === 401) {
+        try { 
+          clearAuthToken();
+        } catch (error) {
+        }
         // Don't router.push here; AuthProvider will redirect if user is truly unauthenticated.
       }
       throw err;
@@ -99,26 +119,121 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
     return data;
   } catch (error: any) {
     clearTimeout(timeoutId);
-    
     // Suppress verbose logging for expected auth errors in dev mode
     const isAuthError = path.includes('/auth/') || path.includes('/me');
+    const isAbortError = error.name === 'AbortError';
     const isExpectedDevError = __DEV__ && isAuthError && (error.status === 401 || error.status === 408 || error.status === 400);
+    const isExpectedAbortInDev = __DEV__ && isAbortError;
     
     // Suppress logging for known missing endpoints
-    const isKnownMissingEndpoint = 
-      path.includes('/geocoding/autocomplete') || 
+    const isKnownMissingEndpoint =
+      path.includes('/geocoding/autocomplete') ||
       path.includes('/posts/trending') ||
       (path.includes('/users') && error.status === 403) ||
+      // Public user profile lookups that return 404 are expected (user deleted/not found)
+      (/^\/users\/[^/]+$/.test(path) && error.status === 404) ||
       (path.includes('/notifications') && error.status === 401);
     
-    if (!isExpectedDevError && !isKnownMissingEndpoint) {
-      console.error('[http] Request failed:', { url: base + path, error: error.message });
+    // Enhanced error logging with more context
+    if (!isExpectedDevError && !isKnownMissingEndpoint && !isExpectedAbortInDev) {
+      const errorDetails = {
+        url: base + path,
+        method: options.method || 'GET',
+        status: error.status,
+        message: error.message,
+        name: error.name,
+        ...(error.data && { responseData: error.data }),
+      };
+      console.error('[http] Request failed:', errorDetails);
+      
+      // Capture non-network errors to Sentry (network errors already handled below)
+      if (error.status && error.status >= 500) {
+        captureException(error, { 
+          tags: { component: 'http-client', endpoint: path },
+          extra: errorDetails 
+        });
+      }
+    }
+    if (isExpectedAbortInDev) {
+      console.debug(`[http] Request timed out: ${path}`);
+    }
+    
+    // Handle 502 Bad Gateway errors with retry - backend may be temporarily down
+    // Railway infrastructure errors show HTML error pages with Correlation Keys
+    // Since ALL our API calls go to Railway, ANY 502 error is a Railway infrastructure issue
+    if (error.status === 502 || error.isRailwayErrorPage) {
+      // Improved Railway error detection - check for correlation key pattern (27 uppercase alphanumeric)
+      // More flexible pattern matching to catch all Railway error formats
+      const hasCorrelationKey = typeof error.data === 'string' && 
+        (/Correlation Key:?\s*[A-Z0-9]{27}/i.test(error.data) ||
+         /[A-Z0-9]{27}/.test(error.data)); // Match standalone 27-char keys
+      
+      // ALL 502 errors from our Railway backend should be treated as infrastructure errors
+      // This ensures maximum retries and proper handling
+      const isRailwayInfraError = error.status === 502 || error.isRailwayErrorPage || hasCorrelationKey;
+      
+      console.error('[http] 502 Bad Gateway on', path, '- Railway infra error:', isRailwayInfraError, '- retries left:', retries);
+      captureException(error, { 
+        tags: { 
+          component: 'http-client', 
+          endpoint: path, 
+          errorType: 'bad-gateway',
+          railwayInfraError: String(isRailwayInfraError)
+        },
+        extra: { path, method: options.method || 'GET', base, retries, isRailwayErrorPage: error.isRailwayErrorPage, hasCorrelationKey } 
+      });
+      
+      // Aggressive retry for 502 errors - Railway infrastructure can be temporarily unstable
+      // For critical endpoints (payments, auth), allow more retries
+      // For Railway infrastructure errors, be even more aggressive
+      const isCriticalEndpoint = path.includes('/payments/') || path.includes('/auth/') || path.includes('/me') || path.includes('/notifications');
+      const maxRetriesFor502 = isRailwayInfraError 
+        ? (isCriticalEndpoint ? 5 : 4) // More retries for Railway infra errors
+        : (isCriticalEndpoint ? 3 : 2); // Standard retries for app-level 502
+      const effectiveRetries = Math.min(retries, maxRetriesFor502);
+      
+      if (effectiveRetries > 0) {
+        // Longer delays for Railway infrastructure errors (they need more time to recover)
+        const baseDelay = isRailwayInfraError ? 1000 : 500;
+        const delay = Math.min(3000, baseDelay * Math.pow(2, 1 - effectiveRetries)); // Exponential backoff
+        
+        console.log(`[http] Retrying 502 Bad Gateway after ${delay}ms... (${effectiveRetries}/${maxRetriesFor502} retries left)`);
+        await new Promise(r => setTimeout(r, delay));
+        // Retry with original retries count but ensure we don't exceed maxRetriesFor502
+        return request(path, options, timeoutMs, Math.min(retries - 1, maxRetriesFor502 - 1));
+      }
+      
+// If all retries exhausted, provide user-friendly error
+      const err: any = new Error(
+        isRailwayInfraError 
+          ? 'Our servers are temporarily unavailable. Please try again in a few moments.'
+          : 'Server temporarily unavailable. Please try again in a moment.'
+      );
+      err.status = 502;
+      err.data = error.data;
+      err.isRailwayErrorPage = error.isRailwayErrorPage;
+      throw err;
+    }
+    
+    // Handle 429 Rate Limit errors with retry
+    if (error.status === 429) {
+      const retryAfter = error.data?.retryAfter || 5; // Default 5 seconds
+      if (retries > 0) {
+        // Wait for retryAfter seconds before retrying
+        await new Promise(r => setTimeout(r, retryAfter * 1000));
+        return request(path, options, timeoutMs, retries - 1);
+      }
+      // If no retries left, throw user-friendly error
+      const err: any = new Error(error.data?.message || 'Too many requests, please try again later.');
+      err.status = 429;
+      err.data = error.data;
+      throw err;
     }
     
     if (error.name === 'AbortError') {
       const err: any = new Error('Request timeout - server did not respond');
       err.status = 408;
-      if (!isExpectedDevError) {
+      if (!isExpectedDevError && !__DEV__) {
         captureException(err, { path, base, timeoutMs, method: options.method || 'GET' });
       }
       // Retry once on timeout if allowed
@@ -129,16 +244,23 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
       }
       throw err;
     }
-    // Add more context to network errors
-    if (error.message === 'Network request failed') {
-      const err: any = new Error(`Cannot connect to server at ${base}. Make sure the backend is running.`);
+    
+    // Add more context to network errors with better retry logic
+    if (error.message === 'Network request failed' || error.message?.includes('NetworkError') || error.message?.includes('Failed to fetch')) {
+      // Always show production server error (we never use localhost)
+      const errorMessage = `Cannot connect to server at ${base}. Please check your internet connection and try again.`;
+      
+      const err: any = new Error(errorMessage);
       err.originalError = error;
       err.status = 0;
+      err.isNetworkError = true;
       if (!isExpectedDevError && !isKnownMissingEndpoint) {
-        captureException(err, { path, base, method: options.method || 'GET' });
+        captureException(err, { path, base, method: options.method || 'GET', isNetworkError: true });
       }
+      // Retry network errors with exponential backoff
       if (retries > 0) {
-        await new Promise(r => setTimeout(r, Math.min(1000, timeoutMs * 0.1)));
+        const delay = Math.min(2000, 500 * Math.pow(2, 1 - retries)); // Exponential backoff
+        await new Promise(r => setTimeout(r, delay));
         return request(path, options, timeoutMs, retries - 1);
       }
       throw err;
@@ -150,17 +272,38 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
   }
 }
 
-export function httpGet(path: string, options: RequestInit = {}) {
-  return request(path, { ...options, method: 'GET' });
+export function httpGet(path: string, options: RequestInit = {}, timeoutMs?: number, retriesOverride?: number) {
+  // Allow more retries for critical endpoints (helps with Railway infrastructure errors)
+  // Critical endpoints get additional retries automatically in 502 handler
+  const isCriticalEndpoint = path.includes('/payments/') || path.includes('/auth/') || path.includes('/me') || path.includes('/notifications');
+  const defaultRetries = isCriticalEndpoint ? 5 : 3; // More retries for critical endpoints
+  const retries = typeof retriesOverride === 'number' ? Math.max(0, retriesOverride) : defaultRetries;
+  return request(path, { ...options, method: 'GET' }, timeoutMs || 30000, retries);
 }
-// Default POST with moderate timeout
-export function httpPost(path: string, body?: any) { return request(path, { method: 'POST', body: JSON.stringify(body || {}) }, 15000, 1); }
-// Long-timeout POST for heavy endpoints like register/reset
-export function httpPostLongTimeout(path: string, body?: any) { return request(path, { method: 'POST', body: JSON.stringify(body || {}) }, 60000, 1); }
-export function httpPut(path: string, body?: any) { return request(path, { method: 'PUT', body: JSON.stringify(body || {}) }); }
-export function httpPatch(path: string, body?: any) { return request(path, { method: 'PATCH', body: JSON.stringify(body || {}) }); }
+// Default POST with moderate timeout - increased retries for reliability
+export function httpPost(path: string, body?: any) { 
+  const isCriticalEndpoint = path.includes('/payments/') || path.includes('/auth/') || path.includes('/notifications');
+  const retries = isCriticalEndpoint ? 5 : 3; // More retries for critical endpoints (especially for Railway infra errors)
+  return request(path, { method: 'POST', body: JSON.stringify(body || {}) }, 15000, retries); 
+}
+// POST with explicit timeout/retry controls for endpoint-specific tuning.
+export function httpPostWithOptions(path: string, body: any, timeoutMs: number, retries: number = 0) {
+  return request(path, { method: 'POST', body: JSON.stringify(body || {}) }, timeoutMs, Math.max(0, retries));
+}
+// Long-timeout POST for heavy endpoints like register/reset/posts - increased retries
+export function httpPostLongTimeout(path: string, body?: any) {
+  // Posts and critical endpoints get more retries for reliability
+  const isPostEndpoint = path.includes('/posts');
+  const isCriticalEndpoint = path.includes('/payments/') || path.includes('/auth/') || path.includes('/notifications');
+  const retries = (isPostEndpoint || isCriticalEndpoint) ? 5 : 3;
+  return request(path, { method: 'POST', body: JSON.stringify(body || {}) }, 180000, retries); // 3 minute timeout
+}
+// PUT/PATCH/DELETE should NOT retry - they are state-changing operations
+// Retrying could cause duplicate updates or delete operations on already-deleted resources
+export function httpPut(path: string, body?: any) { return request(path, { method: 'PUT', body: JSON.stringify(body || {}) }, 15000, 0); }
+export function httpPatch(path: string, body?: any) { return request(path, { method: 'PATCH', body: JSON.stringify(body || {}) }, 15000, 0); }
 export function httpDelete(path: string, body?: any) {
   const payload = typeof body === 'undefined' ? undefined : JSON.stringify(body);
   const options: RequestInit = payload ? { method: 'DELETE', body: payload } : { method: 'DELETE' };
-  return request(path, options);
+  return request(path, options, 15000, 0);
 }

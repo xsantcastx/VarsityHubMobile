@@ -19,6 +19,7 @@
     "incremental": true,
     "tsBuildInfoFile": ".tsbuildinfo",
     "isolatedModules": true,
+    "noEmit": false,
     "types": [
       "node",
       "jest"
@@ -35,6 +36,11 @@
     "dist",
     "prisma/**/*.ts",
     "src/**/*.test.ts",
-    "src/__tests__/**/*"
+    "src/__tests__/**/*",
+    "src/workers/**/*",
+    "src/jobs/**/*",
+    "src/cron/**/*",
+    "src/lib/queue.ts",
+    "src/routes/tournaments.ts"
   ]
 }

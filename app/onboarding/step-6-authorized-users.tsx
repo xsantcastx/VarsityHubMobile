@@ -24,7 +24,7 @@ export default function Step6AuthorizedUsers() {
   const router = useRouter();
   const params = useLocalSearchParams<{ returnToConfirmation?: string }>();
   const returnToConfirmation = params.returnToConfirmation === 'true';
-  const { state: ob, setState: setOB, setProgress } = useOnboarding();
+  const { state: ob, setState: setOB, progress, setProgress } = useOnboarding();
   const colorScheme = useColorScheme() ?? 'light';
   const [email, setEmail] = useState('');
   const [assignTeam, setAssignTeam] = useState('');
@@ -172,32 +172,92 @@ export default function Step6AuthorizedUsers() {
   };
 
   const onContinue = () => {
-    setOB((prev) => ({ ...prev, authorized: list }));
+    if (__DEV__) console.warn('[STEP-6] Continue clicked, current progress:', progress);
+    if (__DEV__) console.warn('[STEP-6] Current state:', JSON.stringify(ob, null, 2));
+    
+    // Save authorized users to state
+    setOB((prev) => ({ ...prev, authorized: list, step_6_visited: true }));
+    
     if (returnToConfirmation) {
+      if (__DEV__) console.warn('[STEP-6] Returning to confirmation');
       setProgress(7);
       router.replace('/onboarding/step-10-confirmation');
     } else {
-      setProgress(5); // Advance to Step 7
-      router.push('/onboarding/step-7-profile');
+      // CRITICAL: Validate coach has completed steps 2-4 before allowing step 7
+      if (ob.role === 'coach') {
+        const hasStep2 = !!(ob.username && ob.dob && (ob.zip || ob.zip_code));
+        const hasStep3 = !!ob.plan;
+        const hasStep4 = !!(ob.team_id || ob.organization_id);
+        
+        if (__DEV__) console.warn('[STEP-6] Coach validation:', { hasStep2, hasStep3, hasStep4 });
+        
+        if (!hasStep2) {
+          if (__DEV__) console.warn('[STEP-6] Missing Step 2, redirecting');
+          setProgress(1);
+          router.replace('/onboarding/step-2-basic');
+          return;
+        }
+        if (!hasStep3) {
+          if (__DEV__) console.warn('[STEP-6] Missing Step 3, redirecting');
+          setProgress(2);
+          router.replace('/onboarding/step-3-plan');
+          return;
+        }
+        if (!hasStep4) {
+          if (__DEV__) console.warn('[STEP-6] Missing Step 4, redirecting');
+          setProgress(3);
+          router.replace('/onboarding/step-4-organization');
+          return;
+        }
+      }
+      
+      // All validations passed - advance to Step 7
+      if (__DEV__) console.warn('[STEP-6] ✅ All validations passed, advancing to Step 7 (progress: 5)');
+      setProgress(5); // Advance to Step 7 (index 5 in stepRoutes)
+      // Use replace to prevent back navigation issues
+      router.replace('/onboarding/step-7-profile');
     }
   };
 
   const skipStep = () => {
     if (isOptional) {
-      setOB((prev) => ({ ...prev, authorized: [] }));
+      setOB((prev) => ({ ...prev, authorized: [], step_6_visited: true }));
       if (returnToConfirmation) {
         setProgress(7);
         router.replace('/onboarding/step-10-confirmation');
       } else {
+        // CRITICAL: Validate coach has completed steps 2-4 before allowing step 7
+        if (ob.role === 'coach') {
+          const hasStep2 = !!(ob.username && ob.dob && (ob.zip || ob.zip_code));
+          const hasStep3 = !!ob.plan;
+          const hasStep4 = !!(ob.team_id || ob.organization_id);
+          
+          if (!hasStep2) {
+            setProgress(1);
+            router.replace('/onboarding/step-2-basic');
+            return;
+          }
+          if (!hasStep3) {
+            setProgress(2);
+            router.replace('/onboarding/step-3-plan');
+            return;
+          }
+          if (!hasStep4) {
+            setProgress(3);
+            router.replace('/onboarding/step-4-organization');
+            return;
+          }
+        }
+        
         setProgress(5); // Advance to Step 7
-        router.push('/onboarding/step-7-profile');
+        router.replace('/onboarding/step-7-profile');
       }
     }
   };
 
   return (
     <OnboardingLayout
-      step={5}
+      step={6}
       title="Add Authorized Users"
       subtitle={planInfo.description}
     >

@@ -11,10 +11,24 @@ export default function CreateScreen() {
   const colorScheme = useColorScheme();
   const [me, setMe] = useState<any>(null);
   const verified = !!me?.email_verified;
-  useEffect(() => { void (async () => { try { const u = await User.me(); setMe(u); } catch {} })(); }, []);
+  useEffect(() => {
+    let mounted = true;
+    void (async () => {
+      try {
+        const u = await User.me();
+        if (mounted) setMe(u);
+      } catch (error: any) {
+        if (__DEV__) {
+          console.warn('[CreateScreen] Failed to load user:', error?.message || error);
+        }
+        // Silently fail - user can still use create screen
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
   const go = (path: string) => {
-    if (!verified) return void router.push('/verify-email');
-    void router.push(path as any);
+    if (!verified) return router.push('/verify-identity?method=email');
+    router.push(path as any);
   };
 
   const safeBack = () => {
@@ -47,8 +61,17 @@ export default function CreateScreen() {
         <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/create-post?type=highlight')}>
           <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>Share Highlight</Text>
         </Pressable>
-        <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/create-team')}>
-          <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>Create Team</Text>
+        {/* Team creation - COACH ONLY */}
+        {me?.preferences?.role === 'coach' && (
+          <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/create-team')}>
+            <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>Create Team</Text>
+          </Pressable>
+        )}
+        {/* Event creation - ALL USERS (fans pitch, coaches auto-approve) */}
+        <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/create-fan-event')}>
+          <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>
+            {me?.preferences?.role === 'coach' ? 'Create Event' : 'Pitch Event'}
+          </Text>
         </Pressable>
         <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/submit-ad')}>
           <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>Submit Ad</Text>

@@ -1,3 +1,4 @@
+import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
@@ -18,19 +19,21 @@ export default function CoreValuesScreen() {
 
   return (
     <SafeAreaView
-      style={[styles.container, { backgroundColor: isDark ? '#0B1120' : '#FFFFFF' }]}
-      edges={['top']}
+      style={[styles.container, { backgroundColor: Colors[colorScheme ?? 'light'].background }]}
+      edges={['top', 'bottom']}
     >
       <Stack.Screen
         options={{
           title: 'Core Values',
+          headerBackTitle: 'Back',
+          headerShown: true,
           headerRight: () => (
             <Pressable
-              onPress={() => void router.push('/settings/safe-zone-policy')}
+              onPress={() => void router.push('/dm-restrictions')}
               style={styles.headerButton}
             >
               <Ionicons
-                name="shield-checkmark-outline"
+                name="settings-outline"
                 size={24}
                 color={isDark ? '#ECEDEE' : '#11181C'}
               />
@@ -186,7 +189,7 @@ export default function CoreValuesScreen() {
           </View>
         </View>
 
-        {/* Safe Zone Button */}
+        {/* DM Settings Button */}
         <Pressable
           style={[
             styles.safeZoneButton,
@@ -194,10 +197,10 @@ export default function CoreValuesScreen() {
               backgroundColor: isDark ? '#3B82F6' : '#2563EB',
             },
           ]}
-          onPress={() => void router.push('/settings/safe-zone-policy')}
+          onPress={() => void router.push('/dm-restrictions')}
         >
-          <Ionicons name="shield-checkmark" size={20} color="#FFFFFF" />
-          <Text style={styles.safeZoneButtonText}>View Safe Zone Policy</Text>
+          <Ionicons name="settings-outline" size={20} color="#FFFFFF" />
+          <Text style={styles.safeZoneButtonText}>Manage DM Settings</Text>
         </Pressable>
       </ScrollView>
     </SafeAreaView>
@@ -263,4 +266,3 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
-

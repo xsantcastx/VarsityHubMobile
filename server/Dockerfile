@@ -1,4 +1,5 @@
 # Use Node.js 20 LTS Debian-based image for broader libc/SSL support
+# Cache bust: 2026-01-15 - force npm ci to pull fresh lock file
 FROM node:20-bookworm-slim
 
 # Set working directory
@@ -10,9 +11,10 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 # Copy package files and Prisma schema (needed for postinstall)
-COPY ./server/package*.json ./
+# Force fresh copy - 2026-01-15T04:40
+COPY ./server/package.json ./package.json
+COPY ./server/package-lock.json ./package-lock.json
 COPY ./server/prisma ./prisma/
-COPY ./shared ./shared
 
 # Install all dependencies (including devDependencies for build)
 RUN npm ci
@@ -23,10 +25,53 @@ RUN npx prisma generate
 # Copy source code and startup script
 COPY ./server/src ./src
 COPY ./server/tsconfig.json ./
-COPY ./server/start.sh ./
+COPY ./server/start.sh ./start.sh
+# Copy shared directory (needed for plan-definitions.json)
+COPY ./shared ./shared
 
-# Build TypeScript
-RUN npm run build
+# Remove expo extends and ensure compilation outputs files
+RUN python3 << 'PYTHON_SCRIPT'
+import json
+
+with open('tsconfig.json', 'r') as f:
+    config = json.load(f)
+
+# Remove extends property (expo config not needed in server)
+if 'extends' in config:
+    del config['extends']
+
+# Ensure compilation settings are correct
+if 'compilerOptions' not in config:
+    config['compilerOptions'] = {}
+
+# Make sure we're emitting files
+config['compilerOptions']['noEmit'] = False
+
+# Write back
+with open('tsconfig.json', 'w') as f:
+    json.dump(config, f, indent=2)
+
+print("✅ Updated tsconfig.json:")
+print(json.dumps(config, indent=2))
+PYTHON_SCRIPT
+
+# Build TypeScript using npm run build (matches package.json script)
+RUN echo "🔨 Building TypeScript..." && \
+    rm -rf dist .tsbuildinfo && \
+    npm run build && \
+    if [ ! -f dist/index.js ]; then \
+        echo "❌ ERROR: dist/index.js not found after build!" && \
+        echo "TypeScript config:" && \
+        cat tsconfig.json && \
+        echo "Checking if dist directory exists:" && \
+        ls -la dist/ 2>/dev/null || echo "dist/ does not exist" && \
+        echo "Files in src:" && \
+        ls -la src/ | head -10 && \
+        echo "Running tsc --listFiles to debug:" && \
+        npx tsc -p . --listFiles 2>&1 | head -30 && \
+        exit 1; \
+    fi && \
+    echo "✅ Build successful - dist/index.js exists"
 
 # Remove devDependencies to reduce final image size
 RUN npm prune --omit=dev

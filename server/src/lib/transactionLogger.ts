@@ -6,8 +6,8 @@
  */
 
 import { TransactionStatus, TransactionType } from '@prisma/client';
-import { prisma } from './prisma.js';
 import { debugLog } from './debugLog.js';
+import { prisma } from './prisma.js';
 
 export interface TransactionLogData {
   // Transaction identification
@@ -285,4 +285,81 @@ export async function getTransactionSummary(
       netRevenueCents: 0,
     };
   }
+}
+
+/**
+ * Get transaction breakdown by type
+ */
+export async function getTransactionBreakdownByType(
+  startDate?: Date,
+  endDate?: Date
+) {
+  try {
+    const where: any = { status: 'COMPLETED' };
+    if (startDate || endDate) {
+      where.created_at = {};
+      if (startDate) where.created_at.gte = startDate;
+      if (endDate) where.created_at.lte = endDate;
+    }
+
+    const transactions = await prisma.transactionLog.groupBy({
+      by: ['transaction_type'],
+      where,
+      _count: { id: true },
+      _sum: {
+        total_cents: true,
+        stripe_fee_cents: true,
+        discount_cents: true,
+      },
+    });
+
+    return transactions.map((t) => ({
+      type: t.transaction_type,
+      count: t._count.id,
+      revenueCents: t._sum.total_cents || 0,
+      feesCents: t._sum.stripe_fee_cents || 0,
+      discountsCents: t._sum.discount_cents || 0,
+      netCents: (t._sum.total_cents || 0) - (t._sum.stripe_fee_cents || 0),
+    }));
+  } catch (error) {
+    console.error('[transaction-log] Failed to get breakdown:', error);
+    return [];
+  }
+}
+
+/**
+ * Get end-of-day transaction report
+ */
+export async function getEndOfDayReport(date?: Date) {
+  const targetDate = date || new Date();
+  const startOfDay = new Date(targetDate);
+  startOfDay.setHours(0, 0, 0, 0);
+  const endOfDay = new Date(targetDate);
+  endOfDay.setHours(23, 59, 59, 999);
+
+  const [summary, breakdown, statusBreakdown] = await Promise.all([
+    getTransactionSummary(startOfDay, endOfDay),
+    getTransactionBreakdownByType(startOfDay, endOfDay),
+    // Get breakdown by status
+    prisma.transactionLog.groupBy({
+      by: ['status'],
+      where: {
+        created_at: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
+      },
+      _count: { id: true },
+    }).catch(() => []),
+  ]);
+
+  return {
+    date: targetDate.toISOString().split('T')[0],
+    summary,
+    breakdownByType: breakdown,
+    breakdownByStatus: statusBreakdown.map((s) => ({
+      status: s.status,
+      count: s._count.id,
+    })),
+  };
 }

@@ -1,12 +1,14 @@
-name: Deploy Guard - Pre-Merge Health Check (DISABLED)
+name: Deploy Guard - Pre-Merge Health Check
 
 on:
   workflow_dispatch:
-  # Temporarily disabled to stop email spam
-  # push:
-  #   branches: [main]
-  # pull_request:
-  #   branches: [main]
+  # Re-enabled: Runs before merging to main to verify Railway is healthy
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, ready_for_review]
+  # Only run on push to main (final gate before deploy)
+  push:
+    branches: [main]
 
 jobs:
   pre-deploy-health-check:

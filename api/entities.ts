@@ -1,6 +1,6 @@
 // Local REST client wrappers. Swaps out Base44 for a self-hosted API.
 import auth from './auth';
-import { httpDelete, httpGet, httpPatch, httpPost, httpPut } from './http';
+import { httpDelete, httpGet, httpPatch, httpPost, httpPostLongTimeout, httpPostWithOptions, httpPut } from './http';
 
 export const User = {
   me: () => auth.me(),
@@ -33,14 +33,15 @@ export const User = {
       throw error;
     }
   },
-  ban: (id: string) => httpPost('/users/' + encodeURIComponent(id) + '/ban', {}),
-  unban: (id: string) => httpPost('/users/' + encodeURIComponent(id) + '/unban', {}),
-  getFull: (id: string) => httpGet('/users/' + encodeURIComponent(id) + '/full'),
-  followers: (id: string, cursor?: string) => httpGet(`/users/${encodeURIComponent(id)}/followers` + (cursor ? `?cursor=${encodeURIComponent(cursor)}` : '')),
-  following: (id: string, cursor?: string) => httpGet(`/users/${encodeURIComponent(id)}/following` + (cursor ? `?cursor=${encodeURIComponent(cursor)}` : '')),
-  follow: (id: string) => httpPost(`/users/${encodeURIComponent(id)}/follow`, {}),
-  unfollow: (id: string) => httpDelete(`/users/${encodeURIComponent(id)}/follow`),
+  ban: (id: string) => { if (!id || id === 'undefined' || id === 'null') throw new Error('[User.ban] Invalid user ID'); return httpPost('/users/' + encodeURIComponent(id) + '/ban', {}); },
+  unban: (id: string) => { if (!id || id === 'undefined' || id === 'null') throw new Error('[User.unban] Invalid user ID'); return httpPost('/users/' + encodeURIComponent(id) + '/unban', {}); },
+  getFull: (id: string) => { if (!id || id === 'undefined' || id === 'null') throw new Error('[User.getFull] Invalid user ID'); return httpGet('/users/' + encodeURIComponent(id) + '/full'); },
+  followers: (id: string, cursor?: string) => { if (!id || id === 'undefined' || id === 'null') throw new Error('[User.followers] Invalid user ID'); return httpGet(`/users/${encodeURIComponent(id)}/followers` + (cursor ? `?cursor=${encodeURIComponent(cursor)}` : '')); },
+  following: (id: string, cursor?: string) => { if (!id || id === 'undefined' || id === 'null') throw new Error('[User.following] Invalid user ID'); return httpGet(`/users/${encodeURIComponent(id)}/following` + (cursor ? `?cursor=${encodeURIComponent(cursor)}` : '')); },
+  follow: (id: string) => { if (!id || id === 'undefined' || id === 'null') throw new Error('[User.follow] Invalid user ID'); return httpPost(`/users/${encodeURIComponent(id)}/follow`, {}); },
+  unfollow: (id: string) => { if (!id || id === 'undefined' || id === 'null') throw new Error('[User.unfollow] Invalid user ID'); return httpDelete(`/users/${encodeURIComponent(id)}/follow`); },
   postsForProfile: (id: string, opts: { cursor?: string | null; limit?: number; sort?: 'newest' | 'most_upvoted' | 'most_commented' } = {}) => {
+    if (!id || id === 'undefined' || id === 'null') throw new Error('[User.postsForProfile] Invalid user ID');
     const q: string[] = [];
     if (typeof opts.limit === 'number') q.push('limit=' + String(opts.limit));
     if (opts.cursor) q.push('cursor=' + encodeURIComponent(opts.cursor));
@@ -49,6 +50,7 @@ export const User = {
     return httpGet(`/users/${encodeURIComponent(id)}/posts` + qs);
   },
   interactionsForProfile: (id: string, opts: { type?: 'all' | 'like' | 'comment' | 'repost' | 'save'; cursor?: string | null; limit?: number; sort?: 'newest' | 'most_upvoted' | 'most_commented' } = {}) => {
+    if (!id || id === 'undefined' || id === 'null') throw new Error('[User.interactionsForProfile] Invalid user ID');
     const q: string[] = [];
     if (opts.type) q.push('type=' + encodeURIComponent(opts.type));
     if (typeof opts.limit === 'number') q.push('limit=' + String(opts.limit));
@@ -61,9 +63,11 @@ export const User = {
   requestPasswordReset: (email: string) => auth.requestPasswordReset(email),
   resetPassword: (email: string, code: string, password: string) => auth.resetPassword(email, code, password),
   // Public profile fetch
-  getPublic: (id: string) => httpGet('/users/' + encodeURIComponent(id)),
+  getPublic: (id: string) => { if (!id || id === 'undefined' || id === 'null') throw new Error('[User.getPublic] Invalid user ID'); return httpGet('/users/' + encodeURIComponent(id)); },
   // Search users for mentions
   searchForMentions: (query: string, limit: number = 10) => httpGet('/users/search/mentions?q=' + encodeURIComponent(query) + '&limit=' + String(limit)),
+  // Lookup user by username
+  lookupByUsername: (username: string) => httpGet('/users/lookup?username=' + encodeURIComponent(username)),
   // Block/unblock users
   block: (id: string) => httpPost('/users/' + encodeURIComponent(id) + '/block', {}),
   unblock: (id: string) => httpDelete('/users/' + encodeURIComponent(id) + '/block'),
@@ -74,6 +78,7 @@ export const Game = {
   list: (
     sort?: string,
     options?: {
+      cursor?: string | null;
       limit?: number;
       lat?: number;
       lng?: number;
@@ -86,6 +91,7 @@ export const Game = {
   ) => {
     const params: string[] = [];
     if (sort) params.push(`sort=${encodeURIComponent(sort)}`);
+    if (options?.cursor) params.push(`cursor=${encodeURIComponent(options.cursor)}`);
     if (typeof options?.limit === 'number') params.push(`limit=${encodeURIComponent(String(options.limit))}`);
     if (typeof options?.lat === 'number') params.push(`lat=${encodeURIComponent(String(options.lat))}`);
     if (typeof options?.lng === 'number') params.push(`lng=${encodeURIComponent(String(options.lng))}`);
@@ -97,8 +103,11 @@ export const Game = {
     const qs = params.length ? `?${params.join('&')}` : '';
     return httpGet('/games' + qs);
   },
-  get: (id: string) => httpGet('/games/' + encodeURIComponent(id)),
-  summary: (id: string) => httpGet('/games/' + encodeURIComponent(id) + '/summary'),
+  // Lightweight record fetch used as fallback when summary is unavailable.
+  get: (id: string) => httpGet('/games/' + encodeURIComponent(id), {}, 15000, 1),
+  // Summary drives the game-details screen critical path.
+  // Keep it bounded; caller can fall back to Game.get when unavailable.
+  summary: (id: string) => httpGet('/games/' + encodeURIComponent(id) + '/summary', {}, 15000, 1),
   create: (data: any) => httpPost('/games', data),
   delete: (id: string) => httpDelete('/games/' + encodeURIComponent(id)),
   posts: (id: string, options: { limit?: number; cursor?: string } = {}) => {
@@ -108,7 +117,8 @@ export const Game = {
     const qs = q.length ? '?' + q.join('&') : '';
     return httpGet(`/games/${encodeURIComponent(id)}/posts` + qs);
   },
-  media: (id: string) => httpGet(`/games/${encodeURIComponent(id)}/media`),
+  // Media is non-critical for first render; keep this bounded.
+  media: (id: string) => httpGet(`/games/${encodeURIComponent(id)}/media`, {}, 15000, 1),
   deleteMedia: (gameId: string, mediaId: string) => httpDelete(`/games/${encodeURIComponent(gameId)}/media/${encodeURIComponent(mediaId)}`),
   votesSummary: (id: string) => httpGet(`/games/${encodeURIComponent(id)}/votes/summary`),
   castVote: (id: string, team: 'A' | 'B') => httpPost(`/games/${encodeURIComponent(id)}/votes`, { team }),
@@ -116,8 +126,10 @@ export const Game = {
   update: (id: string, data: any) => httpPut('/games/' + encodeURIComponent(id), data),
   setApprovalStatus: (id: string, approval: 'approved' | 'rejected') =>
     httpPut(`/games/${encodeURIComponent(id)}/approve`, { approval_status: approval }),
-  stories: (id: string) => httpGet(`/games/${encodeURIComponent(id)}/stories`),
-  addStory: (id: string, data: { media_url: string; caption?: string }) => httpPost(`/games/${encodeURIComponent(id)}/stories`, data),
+  stories: (id: string) => httpGet(`/games/${encodeURIComponent(id)}/stories`, {}, 15000, 1),
+  // Story creation can be slower under server load; allow a longer timeout but avoid retries to prevent duplicates.
+  addStory: (id: string, data: { media_url: string; caption?: string; location?: { lat: number; lng: number; source?: 'device' | 'places' | 'zip' | 'derived' } }) =>
+    httpPostWithOptions(`/games/${encodeURIComponent(id)}/stories`, data, 45000, 0),
 };
 
 
@@ -143,10 +155,11 @@ export const Post = {
     const q: string[] = [];
     if (sort) q.push('sort=' + encodeURIComponent(sort));
     if (limit) q.push('limit=' + String(limit));
-    const res = await httpGet('/posts' + (q.length ? '?' + q.join('&') : ''));
+    // Non-critical content; avoid long retry storms on weak networks.
+    const res = await httpGet('/posts' + (q.length ? '?' + q.join('&') : ''), {}, 15000, 1);
     return normalizePostItems(res);
   },
-  create: (data: any) => httpPost('/posts', data),
+  create: (data: any) => httpPostLongTimeout('/posts', data),
   filter: async (where: { game_id?: string; type?: string; user_id?: string } = {}, sort?: string, limit: number = 20) => {
     const q: string[] = [];
     if (sort) q.push('sort=' + encodeURIComponent(sort));
@@ -190,7 +203,7 @@ export const Post = {
     const limitValue = typeof options.limit === 'number' ? options.limit : 10;
     if (limitValue) q.push('limit=' + String(limitValue));
     if (options.cursor) q.push('cursor=' + encodeURIComponent(options.cursor));
-    const res = await httpGet('/posts' + (q.length ? '?' + q.join('&') : ''));
+    const res = await httpGet('/posts' + (q.length ? '?' + q.join('&') : ''), {}, 15000, 1);
     return normalizePostPage(res);
   },
   // Additional helpers used in UI
@@ -199,7 +212,7 @@ export const Post = {
       const q: string[] = [];
       if (cursor) q.push('cursor=' + encodeURIComponent(cursor));
       if (limit) q.push('limit=' + String(limit));
-      const res = await httpGet('/posts/trending' + (q.length ? '?' + q.join('&') : ''));
+      const res = await httpGet('/posts/trending' + (q.length ? '?' + q.join('&') : ''), {}, 12000, 0);
       // normalize to page shape
       return normalizePostPage(res);
     } catch (error: any) {
@@ -209,8 +222,12 @@ export const Post = {
       if (cursor) q.push('cursor=' + encodeURIComponent(cursor));
       if (limit) q.push('limit=' + String(limit));
       q.push('sort=-created_at'); // Sort by most recent
-      const res = await httpGet('/posts' + (q.length ? '?' + q.join('&') : ''));
-      return normalizePostPage(res);
+      try {
+        const res = await httpGet('/posts' + (q.length ? '?' + q.join('&') : ''), {}, 12000, 0);
+        return normalizePostPage(res);
+      } catch (_fallbackError) {
+        return { items: [], nextCursor: null };
+      }
     }
   },
   createCollage: (data: any) => httpPost('/posts/collage', data),
@@ -220,12 +237,17 @@ export const Post = {
   deleteComment: (postId: string, commentId: string) => httpDelete(`/posts/${encodeURIComponent(postId)}/comments/${encodeURIComponent(commentId)}`),
   updateComment: (postId: string, commentId: string, content: string) => httpPatch(`/posts/${encodeURIComponent(postId)}/comments/${encodeURIComponent(commentId)}`, { content }),
   delete: (id: string) => httpDelete('/posts/' + encodeURIComponent(id)),
+  restore: (id: string) => httpPost(`/posts/${encodeURIComponent(id)}/restore`, {}),
   update: (id: string, data: { content?: string; title?: string }) => httpPatch('/posts/' + encodeURIComponent(id), data),
   toggleUpvote: (id: string) => httpPost(`/posts/${encodeURIComponent(id)}/upvote`, {}),
   toggleBookmark: (id: string) => httpPost(`/posts/${encodeURIComponent(id)}/bookmark`, {}),
+  getByEvent: (eventId: string) => httpGet(`/posts?event_id=${encodeURIComponent(eventId)}`),
+  createPoll: (id: string, data: { options: string[], expires_at?: string }) => httpPost(`/posts/${encodeURIComponent(id)}/poll`, data),
+  voteOnPoll: (id: string, optionId: string) => httpPost(`/posts/${encodeURIComponent(id)}/poll/vote`, { option_id: optionId }),
 };
 
 export const Event = {
+  create: (data: any) => httpPost('/events', data),
   filter: (where: { status?: string; approval_status?: string; event_type?: string; q?: string } = {}, sort?: string, limit?: number) => {
     const q: string[] = [];
     if (where.status) q.push('status=' + encodeURIComponent(where.status));
@@ -233,7 +255,7 @@ export const Event = {
     if (where.event_type) q.push('event_type=' + encodeURIComponent(where.event_type));
     if (where.q) q.push('q=' + encodeURIComponent(where.q));
     if (sort) q.push('sort=' + encodeURIComponent(sort));
-    if (typeof limit === 'number') q.push('limit=' + encodeURIComponent(String(limit)));
+    if (typeof limit === 'number') q.push('limit=' + String(limit));
     return httpGet('/events' + (q.length ? '?' + q.join('&') : ''));
   },
   get: (id: string) => httpGet('/events/' + encodeURIComponent(id)),
@@ -328,7 +350,7 @@ export const Team = {
     if (q) params.push(`q=${encodeURIComponent(q)}`);
     if (mine) params.push('mine=1');
     if (options?.directory) params.push('directory=1');
-    if (typeof options?.limit === 'number') params.push(`limit=${encodeURIComponent(String(options.limit))}`);
+    if (typeof options?.limit === 'number') params.push(`limit=${String(options.limit)}`);
     const qs = params.length ? '?' + params.join('&') : '';
     return httpGet('/teams' + qs);
   },
@@ -349,6 +371,7 @@ export const Team = {
     season_start?: string;
     season_end?: string;
     organization_id?: string;
+    organization_name?: string;
     logo_url?: string | null;
     authorized_users?: Array<{ email?: string; user_id?: string; role?: string; assign_team?: string }>;
   }) => {
@@ -401,7 +424,7 @@ export const Team = {
 };
 
 export const Support = {
-  contact: (data: { name: string; email: string; subject: string; message: string }) => httpPost('/support/contact', data),
+  contact: (data: { name: string; email: string; subject: string; message: string; from_email?: string }) => httpPost('/support/contact', data),
   feedback: (data: { user_id?: string; category: 'bug' | 'idea' | 'other'; message: string; screenshot_url?: string }) => httpPost('/support/feedback', data),
 };
 
@@ -416,6 +439,8 @@ export const Subscriptions = {
 
 export const TeamMemberships = {
   create: (data: { team_id: string; user_id: string; role?: string }) => httpPost('/team-memberships', data),
+  update: (membershipId: string, data: { role?: string; custom_position?: string }) => httpPatch(`/team-memberships/${encodeURIComponent(membershipId)}`, data),
+  delete: (membershipId: string) => httpDelete(`/team-memberships/${encodeURIComponent(membershipId)}`),
 };
 
 export const TeamInvites = {
@@ -430,12 +455,20 @@ export const Notification = {
       if (cursor) params.push('cursor=' + encodeURIComponent(cursor));
       if (unreadOnly) params.push('unread=1');
       const qs = params.length ? '?' + params.join('&') : '';
-      return await httpGet('/notifications' + qs);
+      // Use shorter timeout for notification polling (10 seconds)
+      const timeout = limit === 1 && unreadOnly ? 10000 : 30000;
+      // Polling endpoint: do not retry aggressively.
+      return await httpGet('/notifications' + qs, {}, timeout, 0);
     } catch (error: any) {
       // If unauthorized (not logged in), return empty page
       if (error?.message?.includes('Unauthorized') || error?.status === 401) {
-        console.log('[Notification.listPage] Not authenticated, returning empty results');
-        return { items: [], cursor: null };
+        if (__DEV__) console.log('[Notification.listPage] Not authenticated, returning empty results');
+        return { items: [], cursor: null, nextCursor: null };
+      }
+      // If timeout or network error, return empty page for polling requests
+      if (limit === 1 && unreadOnly && (error?.message?.includes('timeout') || error?.message?.includes('Aborted'))) {
+        if (__DEV__) console.warn('[Notification.listPage] Poll timeout, returning empty results');
+        return { items: [], cursor: null, nextCursor: null };
       }
       throw error;
     }

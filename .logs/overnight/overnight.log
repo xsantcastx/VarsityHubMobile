@@ -1,4 +1,0 @@
-npm error could not determine executable to run
-npm error A complete log of this run can be found in: /Users/varsityhub/.npm/_logs/2025-12-04T06_26_01_338Z-debug-0.log
-Invalid option '--ext' - perhaps you meant '-c'?
-You're using eslint.config.js, some command line flags are no longer available. Please see https://eslint.org/docs/latest/use/command-line-interface for details.

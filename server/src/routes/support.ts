@@ -8,25 +8,11 @@ export const supportRouter = Router();
 // POST /support/contact
 supportRouter.post('/contact', async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  const { name, email, subject, message, reported_user_id, reported_user_email, reported_user_name, context_url } =
-    (req.body || {}) as any;
+  const { name, email, subject, message } = (req.body || {}) as any;
   if (!name || !email || !subject || !message) return res.status(400).json({ error: 'Invalid payload' });
   
   // Log the report
-  req.log?.info?.(
-    {
-      type: 'support_contact',
-      user_id: req.user.id,
-      name,
-      email,
-      subject,
-      reported_user_id,
-      reported_user_email,
-      reported_user_name,
-      context_url,
-    },
-    'Support contact submit'
-  );
+  req.log?.info?.({ type: 'support_contact', user_id: req.user.id, name, email, subject }, 'Support contact submit');
   
   // Save to database for admin review
   const report = await prisma.abuseReport.create({
@@ -34,10 +20,6 @@ supportRouter.post('/contact', async (req: AuthedRequest, res) => {
       reporter_id: req.user.id,
       reporter_name: name,
       reporter_email: email,
-      reported_user_id: reported_user_id || null,
-      reported_user_email: reported_user_email || null,
-      reported_user_name: reported_user_name || null,
-      context_url: context_url || null,
       subject,
       message,
       status: 'pending',

@@ -3,18 +3,31 @@ import { Input } from '@/components/ui/input';
 import Textarea from '@/components/ui/textarea';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Support, User } from '@/api/entities';
+import { Colors } from '@/constants/Colors';
 
 export default function FeedbackScreen() {
   const router = useRouter();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
   const [category, setCategory] = useState<'bug' | 'idea' | 'other'>('bug');
   const [message, setMessage] = useState('');
   const [screenshotUrl, setScreenshotUrl] = useState('');
   const [sending, setSending] = useState(false);
 
-  useEffect(() => { void (async () => { try { await User.me(); } catch {} })(); }, []);
+  useEffect(() => { 
+    void (async () => { 
+      try { 
+        await User.me(); 
+      } catch (error) {
+        console.warn('[feedback] Failed to load user data:', error);
+        // Non-critical - feedback can be submitted without user data
+      }
+    })(); 
+  }, []);
 
   const onSubmit = async () => {
     if (!message.trim()) { Alert.alert('Please enter a message'); return; }
@@ -27,22 +40,26 @@ export default function FeedbackScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <Stack.Screen options={{ title: 'Leave Feedback' }} />
-      <Text style={styles.title}>Feedback</Text>
-      <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-        <Button variant={category === 'bug' ? 'default' : 'outline'} onPress={() => setCategory('bug')}><Text>Bug</Text></Button>
-        <Button variant={category === 'idea' ? 'default' : 'outline'} onPress={() => setCategory('idea')}><Text>Idea</Text></Button>
-        <Button variant={category === 'other' ? 'default' : 'outline'} onPress={() => setCategory('other')}><Text>Other</Text></Button>
-      </View>
-      <Textarea placeholder="Message" value={message} onChangeText={setMessage} style={{ marginBottom: 8, minHeight: 100 }} />
-      <Input placeholder="Screenshot URL (optional)" value={screenshotUrl} onChangeText={setScreenshotUrl} autoCapitalize="none" style={{ marginBottom: 12 }} />
-    <Button onPress={onSubmit} disabled={sending}><Text>{sending ? 'Sending…' : 'Submit'}</Text></Button>
-    </View>
+    <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#111827' : '#FFFFFF' }]} edges={['bottom']}>
+      <Stack.Screen options={{ title: 'Leave Feedback', headerBackTitle: 'Back', headerShown: true }} />
+      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
+        <Text style={[styles.title, { color: Colors[colorScheme ?? 'light'].text }]}>Feedback</Text>
+        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+          <Button variant={category === 'bug' ? 'default' : 'outline'} onPress={() => setCategory('bug')}><Text>Bug</Text></Button>
+          <Button variant={category === 'idea' ? 'default' : 'outline'} onPress={() => setCategory('idea')}><Text>Idea</Text></Button>
+          <Button variant={category === 'other' ? 'default' : 'outline'} onPress={() => setCategory('other')}><Text>Other</Text></Button>
+        </View>
+        <Textarea placeholder="Message" value={message} onChangeText={setMessage} style={{ marginBottom: 8, minHeight: 100 }} />
+        <Input placeholder="Screenshot URL (optional)" value={screenshotUrl} onChangeText={setScreenshotUrl} autoCapitalize="none" style={{ marginBottom: 12 }} />
+        <Button onPress={onSubmit} disabled={sending}><Text>{sending ? 'Sending…' : 'Submit'}</Text></Button>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: 'white' },
+  container: { flex: 1 },
+  content: { flex: 1 },
+  contentContainer: { padding: 16, paddingTop: 24 },
   title: { fontSize: 20, fontWeight: '700', marginBottom: 12 },
 });

@@ -25,10 +25,17 @@ const RSVPBadge = ({ gameItem, onRSVPChange }: { gameItem: any, onRSVPChange?: (
   const [isRsvped, setIsRsvped] = useState(false);
   const [rsvpCount, setRsvpCount] = useState((gameItem as any).rsvpCount || 0);
   const [isLoading, setIsLoading] = useState(false);
+  const isEventPast = useMemo(() => {
+    const iso = gameItem?.date;
+    if (!iso) return false;
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return false;
+    return date.getTime() < Date.now();
+  }, [gameItem?.date]);
 
   // Check initial RSVP status when component mounts
   useEffect(() => {
-    if (gameItem.event_id) {
+    if (gameItem.event_id && !isEventPast) {
       Event.rsvpStatus(gameItem.event_id)
         .then((status: any) => {
           setIsRsvped(status.going || status.attending || false);
@@ -38,10 +45,14 @@ const RSVPBadge = ({ gameItem, onRSVPChange }: { gameItem: any, onRSVPChange?: (
           // Handle error silently, keep default states
         });
     }
-  }, [gameItem.event_id]);
+  }, [gameItem.event_id, isEventPast]);
 
   const handleRSVP = async () => {
     if (isLoading || !gameItem.event_id) return;
+    if (isEventPast) {
+      Alert.alert('RSVP closed', 'You cannot RSVP to events that have already occurred.');
+      return;
+    }
     
     setIsLoading(true);
     try {
@@ -57,23 +68,37 @@ const RSVPBadge = ({ gameItem, onRSVPChange }: { gameItem: any, onRSVPChange?: (
       );
       
       onRSVPChange?.();
-    } catch (error) {
-      console.error('RSVP error:', error);
-      Alert.alert('Error', 'Failed to update RSVP. Please try again.');
+    } catch (error: any) {
+      const status = error?.status;
+      const message = String(error?.message || error?.data?.error || '');
+      if (status === 400 && /event has passed/i.test(message)) {
+        Alert.alert('RSVP closed', 'You cannot RSVP to events that have already occurred.');
+      } else {
+        console.error('RSVP error:', error);
+        Alert.alert('Error', 'Failed to update RSVP. Please try again.');
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
+  const badgeText = isEventPast ? 'RSVP closed' : (isRsvped ? `${rsvpCount} going` : '+');
+  const badgeA11yLabel = isEventPast
+    ? `RSVP closed. ${rsvpCount} went`
+    : (isRsvped ? `${rsvpCount} going - Tap to remove RSVP` : 'Tap to RSVP');
+
   return (
     <Pressable
       onPress={handleRSVP}
+      disabled={isLoading || isEventPast}
       style={{
         position: 'absolute',
         right: 14,
         bottom: 14,
-        backgroundColor: isRsvped ? 'rgba(34, 197, 94, 0.9)' : (colorScheme === 'dark' ? 'rgba(30,41,59,0.85)' : 'rgba(0,0,0,0.75)'),
-        paddingHorizontal: 12,
+        backgroundColor: isEventPast
+          ? 'rgba(127, 29, 29, 0.92)'
+          : (isRsvped ? 'rgba(34, 197, 94, 0.9)' : (colorScheme === 'dark' ? 'rgba(30,41,59,0.85)' : 'rgba(0,0,0,0.75)')),
+        paddingHorizontal: isEventPast ? 10 : 12,
         paddingVertical: 8,
         borderRadius: 20,
         shadowColor: colorScheme === 'dark' ? '#000' : '#000',
@@ -82,17 +107,18 @@ const RSVPBadge = ({ gameItem, onRSVPChange }: { gameItem: any, onRSVPChange?: (
         shadowRadius: 4,
         elevation: 5,
         zIndex: 1000,
-        opacity: isLoading ? 0.6 : 1,
+        opacity: (isLoading || isEventPast) ? 0.6 : 1,
       }}
       accessibilityRole="button"
-      accessibilityLabel={isRsvped ? `${rsvpCount} going - Tap to remove RSVP` : 'Tap to RSVP'}
+      accessibilityLabel={badgeA11yLabel}
     >
       <Text style={{
         color: 'white',
-        fontSize: 12,
-        fontWeight: '600',
+        fontSize: isEventPast ? 11 : 12,
+        fontWeight: isEventPast ? '700' : '600',
+        letterSpacing: isEventPast ? 0.2 : 0,
       }}>
-        {isRsvped ? `${rsvpCount} going` : '+'}
+        {badgeText}
       </Text>
     </Pressable>
   );
@@ -180,6 +206,11 @@ export default function FeedScreen() {
   // State for notifications in modal
   const [notificationsList, setNotificationsList] = useState<any[]>([]);
   const [loadingNotifications, setLoadingNotifications] = useState(false);
+  
+  // Ad rotation timer state - based on slide requirements
+  const [currentAdIndex, setCurrentAdIndex] = useState(0);
+  const [isShowingPromoCard, setIsShowingPromoCard] = useState(false);
+  const adCycleStartTimeRef = useRef(Date.now());
 
   const preloadVoteSummaries = useCallback(async (gameList: GameItem[]) => {
     const candidates = gameList
@@ -220,8 +251,25 @@ export default function FeedScreen() {
         ? String(user.preferences.country_code).toUpperCase()
         : undefined;
       const todayISO = new Date().toISOString().slice(0, 10);
-      const [gamesData, highlightsData, forFeedAds] = await Promise.all([
-        Game.list('-date'),
+      // Load games with better error handling
+      let gamesData: any = null;
+      try {
+        gamesData = await Game.list('-date', { limit: 30 });
+      } catch (err: any) {
+        console.error('[Feed] Failed to load games:', err);
+        // If it's a network error, show a more helpful message
+        if (err?.isNetworkError || err?.status === 0) {
+          setError('Unable to connect to server. Please check your internet connection.');
+        } else if (err?.status === 401 || err?.status === 403) {
+          setError('Please sign in to view games.');
+        } else {
+          setError('Unable to load games. Please try again.');
+        }
+        gamesData = null;
+      }
+      
+      // Load highlights and ads with error handling
+      const [highlightsData, forFeedAds] = await Promise.all([
         Highlights.fetch(countryCode ? { country: countryCode, limit: 20 } : { limit: 20 }).catch((err) => {
           if (__DEV__) console.warn('Highlights preview load failed', err);
           return null;
@@ -230,17 +278,21 @@ export default function FeedScreen() {
       ]);
       
       // Handle cursor-based response or array
-      let normalizedGames = [];
-      let cursor = null;
+      let normalizedGames: any[] = [];
+      let cursor: string | null = null;
       if (gamesData && typeof gamesData === 'object' && 'items' in gamesData) {
         normalizedGames = Array.isArray(gamesData.items) ? gamesData.items : [];
         cursor = gamesData.nextCursor || null;
-      } else {
-        normalizedGames = Array.isArray(gamesData) ? gamesData : [];
+      } else if (Array.isArray(gamesData)) {
+        normalizedGames = gamesData;
+      } else if (gamesData === null || gamesData === undefined) {
+        // If games failed to load, don't inject sample data - show error instead
+        normalizedGames = [];
       }
       
-      // If no games returned, inject sample events for Warriors, Duke, Patriots
-      if (!normalizedGames || normalizedGames.length === 0) {
+      // Only inject sample events if we successfully loaded but got empty results
+      // (not if the request failed)
+      if ((!normalizedGames || normalizedGames.length === 0) && gamesData !== null) {
         const now = new Date();
         const addDays = (d: number) => new Date(now.getTime() + d * 86400000).toISOString();
         normalizedGames = [
@@ -291,14 +343,23 @@ export default function FeedScreen() {
         setSponsoredAds([]);
       }
     } catch (e: any) {
-      console.error('Failed to load feed', e);
-      setError('Unable to load games. Sign in may be required.');
+      console.error('[Feed] Failed to load feed:', e);
+      // Only set generic error if we haven't already set a specific one
+      if (!error) {
+        if (e?.isNetworkError || e?.status === 0) {
+          setError('Unable to connect to server. Please check your internet connection.');
+        } else if (e?.status === 401 || e?.status === 403) {
+          setError('Please sign in to view your feed.');
+        } else {
+          setError('Unable to load feed. Please try again.');
+        }
+      }
       setGames([]);
       setHighlightPreview(null);
     } finally {
       if (!silent) setLoading(false);
     }
-  }, []);
+  }, [error]);
 
   const _loadMore = useCallback(async () => {
     if (loadingMore || !hasMoreGames || !gamesCursor) return;
@@ -308,8 +369,8 @@ export default function FeedScreen() {
       const nextData = await Game.list('-date');
       
       // Handle cursor-based response or array
-      let normalizedGames = [];
-      let cursor = null;
+      let normalizedGames: any[] = [];
+      let cursor: string | null = null;
       if (nextData && typeof nextData === 'object' && 'items' in nextData) {
         normalizedGames = Array.isArray(nextData.items) ? nextData.items : [];
         cursor = nextData.nextCursor || null;
@@ -344,10 +405,19 @@ export default function FeedScreen() {
       // Check for unread notifications when feed gains focus
       void (async () => {
         try {
-          const page = await NotificationApi.listPage(null, 1, true);
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Notification check timeout')), 10000)
+          );
+          const page = await Promise.race([
+            NotificationApi.listPage(null, 1, true),
+            timeoutPromise
+          ]) as any;
           setHasUnreadAlerts(Array.isArray(page.items) && page.items.length > 0);
-        } catch {
-          // ignore notification poll errors
+        } catch (err: any) {
+          // ignore notification poll errors, but log in dev
+          if (__DEV__ && err?.message !== 'Notification check timeout') {
+            console.warn('[Feed] Notification check error:', err?.message);
+          }
         }
       })();
     }, [load]),
@@ -358,14 +428,24 @@ export default function FeedScreen() {
     let mounted = true;
     const tick = async () => {
       try {
-        const page = await NotificationApi.listPage(null, 1, true);
+        // Add timeout to prevent hanging
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Notification poll timeout')), 10000)
+        );
+        const page = await Promise.race([
+          NotificationApi.listPage(null, 1, true),
+          timeoutPromise
+        ]) as any;
         if (!mounted) return;
         setHasUnreadAlerts(Array.isArray(page.items) && page.items.length > 0);
-      } catch {
-        // ignore notification poll errors
+      } catch (err: any) {
+        // ignore notification poll errors, but log in dev
+        if (__DEV__ && err?.message !== 'Notification poll timeout') {
+          console.warn('[Feed] Notification poll error:', err?.message);
+        }
       }
     };
-    const id = setInterval(tick, 30000); // ~30s
+    const id = setInterval(tick, 60000); // Poll every 60 seconds (reduced frequency to prevent timeouts)
     return () => { mounted = false; clearInterval(id); };
   }, []);
 
@@ -430,53 +510,96 @@ export default function FeedScreen() {
     return { upcomingEvents: upcoming, pastEvents: past };
   }, [filtered]);
 
-  // Insert sponsored ads into upcoming events feed (Instagram-style)
-  const upcomingWithAds = useMemo(() => {
-    const result: Array<GameItem | { type: 'ad'; ad: any }> = [];
-    const adInterval = 8; // Show ad every 8 events
-    const hasAds = sponsoredAds && sponsoredAds.length > 0;
+  // Ad rotation timer logic - based on slide requirements:
+  // 1 ad: Show ad for 2 minutes, then promo card for 15 seconds, cycle repeats
+  // 2+ ads: Show each ad for 1:30 (90 seconds), then promo card for 10 seconds, cycle repeats
+  useEffect(() => {
+    const activeAdsCount = sponsoredAds?.length || 0;
     
-    // If no events exist, show promotional ad card alone
+    if (activeAdsCount === 0) {
+      // No ads, always show promo card
+      setIsShowingPromoCard(true);
+      return;
+    }
+    
+    // Reset cycle start time when ads change
+    adCycleStartTimeRef.current = Date.now();
+    setCurrentAdIndex(0);
+    setIsShowingPromoCard(false);
+    
+    // Calculate timing based on number of ads
+    const AD_DURATION_MS = activeAdsCount === 1 
+      ? 2 * 60 * 1000  // 2 minutes for 1 ad
+      : 90 * 1000;      // 1:30 (90 seconds) for 2+ ads
+    const PROMO_DURATION_MS = activeAdsCount === 1
+      ? 15 * 1000       // 15 seconds promo for 1 ad
+      : 10 * 1000;      // 10 seconds promo for 2+ ads
+    const CYCLE_DURATION_MS = (AD_DURATION_MS * activeAdsCount) + PROMO_DURATION_MS;
+    const totalAdTime = AD_DURATION_MS * activeAdsCount;
+    
+    // Update every second to keep rotation smooth
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const elapsed = now - adCycleStartTimeRef.current;
+      const cyclePosition = elapsed % CYCLE_DURATION_MS;
+      
+      // Check if we're in promo card phase
+      if (cyclePosition >= totalAdTime) {
+        // Show promo card
+        setIsShowingPromoCard(true);
+      } else {
+        // Show ad - calculate which ad to show
+        setIsShowingPromoCard(false);
+        const adSlot = Math.floor(cyclePosition / AD_DURATION_MS);
+        const newIndex = Math.min(adSlot % activeAdsCount, activeAdsCount - 1);
+        setCurrentAdIndex((prev) => prev !== newIndex ? newIndex : prev);
+      }
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [sponsoredAds?.length]);
+
+  // Insert sponsored ads into upcoming events feed (Instagram-style)
+  // First event always shows the current ad (or promo card) based on rotation timer
+  const upcomingWithAds = useMemo(() => {
+    const result: Array<GameItem | { type: 'ad'; ad: any | null }> = [];
+    const activeAdsCount = sponsoredAds?.length || 0;
+    
+    // If no events exist, show ad/promo card alone
     if (upcomingEvents.length === 0) {
-      result.push({ type: 'ad', ad: null });
+      if (isShowingPromoCard || activeAdsCount === 0) {
+        result.push({ type: 'ad', ad: null }); // Promo card
+      } else if (activeAdsCount > 0 && sponsoredAds[currentAdIndex]) {
+        result.push({ type: 'ad', ad: sponsoredAds[currentAdIndex] });
+      }
       return result;
     }
     
     upcomingEvents.forEach((event, index) => {
       result.push(event);
       
-      // Insert first ad AFTER the first event (index 0)
+      // Insert ad/promo card AFTER the first event (index 0)
       if (index === 0) {
-        if (hasAds) {
-          const randomAdIndex = Math.floor(Math.random() * sponsoredAds.length);
-          result.push({ type: 'ad', ad: sponsoredAds[randomAdIndex] });
-        } else {
+        if (isShowingPromoCard || activeAdsCount === 0) {
+          // Show promo card during promo phase or if no ads
           result.push({ type: 'ad', ad: null });
-        }
-      }
-      // Insert subsequent ads after every adInterval events (starting from the first interval)
-      else if ((index + 1) % adInterval === 0) {
-        if (hasAds) {
-          // Pick a random ad from available ads
-          const randomAdIndex = Math.floor(Math.random() * sponsoredAds.length);
-          result.push({ type: 'ad', ad: sponsoredAds[randomAdIndex] });
-        } else {
-          // No ads available, show promotional card
-          result.push({ type: 'ad', ad: null });
+        } else if (activeAdsCount > 0 && sponsoredAds[currentAdIndex]) {
+          // Show current ad from rotation
+          result.push({ type: 'ad', ad: sponsoredAds[currentAdIndex] });
         }
       }
     });
     
     return result;
-  }, [upcomingEvents, sponsoredAds]);
+  }, [upcomingEvents, sponsoredAds, currentAdIndex, isShowingPromoCard]);
 
   const verticalFeedTitle = 'All Highlights';
   const verticalFeedPreviewImage = typeof highlightPreview?.media_url === 'string' ? highlightPreview.media_url : null;
   const verticalFeedSubtitleText = highlightPreview?.title
     ? `Featured: ${highlightPreview.title}`
     : 'Tap to watch top plays from every game.';
-  const verticalFeedAuthorText = highlightPreview?.author?.display_name
-    ? `By ${highlightPreview.author.display_name}`
+  const verticalFeedAuthorText = highlightPreview?.author?.username
+    ? `By @${highlightPreview.author.username}`
     : null;
 
   const openInstagram = useCallback(async () => {
@@ -516,18 +639,18 @@ export default function FeedScreen() {
         style={{
           padding: 10,
           borderRadius: 10,
-          backgroundColor: '#FEF9C3',
+          backgroundColor: colorScheme === 'dark' ? Colors[colorScheme].surface : '#FEF9C3',
           borderWidth: StyleSheet.hairlineWidth,
-          borderColor: '#FDE68A',
+          borderColor: colorScheme === 'dark' ? Colors[colorScheme].border : '#FDE68A',
           marginBottom: 12,
         }}
       >
-        <Text style={{ color: '#92400E', fontWeight: '700' }}>
+        <Text style={{ color: colorScheme === 'dark' ? Colors[colorScheme].text : '#92400E', fontWeight: '700' }}>
           Verify your email to unlock posting and ads. Tap to verify.
         </Text>
       </Pressable>
     );
-  }, [emailVerified, me, router]);
+  }, [emailVerified, me, router, colorScheme]);
 
   return (
     <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
@@ -584,16 +707,16 @@ export default function FeedScreen() {
       <View style={styles.contentContainer}>
 
       {error && (
-        <View style={{ marginBottom: 8 }}>
-          <Text style={styles.error}>{error}</Text>
+        <View style={{ marginBottom: 8, paddingHorizontal: 16 }}>
+          <Text style={[styles.error, { color: Colors[colorScheme].text }]}>{error}</Text>
           <Pressable onPress={() => void router.push('/sign-in')} style={{ paddingVertical: 8 }}>
-            <Text style={{ color: '#0a7ea4', fontWeight: '600' }}>Sign in to load personalized feed</Text>
+            <Text style={{ color: Colors[colorScheme].tint, fontWeight: '600' }}>Sign in to load personalized feed</Text>
           </Pressable>
         </View>
       )}
       {/* Maps Button - Navigate to nearby games/teams/events */}
       <Pressable 
-        style={[styles.mapsButton, { backgroundColor: Colors[colorScheme].tint }]}
+        style={[styles.mapsButton, { backgroundColor: '#0A84FF' }]}
         onPress={async () => {
           // Get user's current location and navigate to game map view
           try {
@@ -690,7 +813,7 @@ export default function FeedScreen() {
                           styles.promoIcon,
                           { borderColor: colorScheme === 'dark' ? '#60A5FA' : '#2563EB', justifyContent: 'center', alignItems: 'center' },
                         ]}>
-                          <Ionicons name="image-outline" size={24} color={colorScheme === 'dark' ? '#60A5FA' : '#2563EB'} />
+                          <Ionicons name="megaphone-outline" size={24} color={colorScheme === 'dark' ? '#60A5FA' : '#2563EB'} />
                         </View>
                         <View style={{ flex: 1, paddingRight: 12 }}>
                           <Text style={[
@@ -1020,13 +1143,13 @@ export default function FeedScreen() {
                     keyExtractor={(item) => item.id}
                     renderItem={({ item }) => {
                       const title = item.type === 'FOLLOW'
-                        ? `${item.actor?.display_name || 'Someone'} followed you`
+                        ? `${item.actor?.username ? `@${item.actor.username}` : item.actor?.display_name || 'Someone'} followed you`
                         : item.type === 'UPVOTE'
-                        ? `${item.actor?.display_name || 'Someone'} upvoted your post`
+                        ? `${item.actor?.username ? `@${item.actor.username}` : item.actor?.display_name || 'Someone'} upvoted your post`
                         : item.type === 'COMMENT'
-                        ? `${item.actor?.display_name || 'Someone'} commented on your post`
+                        ? `${item.actor?.username ? `@${item.actor.username}` : item.actor?.display_name || 'Someone'} commented on your post`
                         : item.type === 'TEAM_INVITE'
-                        ? `${item.actor?.display_name || 'Someone'} invited you to join ${item.meta?.team_name || 'a team'}`
+                        ? `${item.actor?.username ? `@${item.actor.username}` : item.actor?.display_name || 'Someone'} invited you to join ${item.meta?.team_name || 'a team'}`
                         : 'Notification';
                       
                       return (

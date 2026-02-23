@@ -35,7 +35,10 @@ export function useProfileInteractions(
 
   const refresh = useCallback(async (userId: string) => {
     // Prevent concurrent requests
-    if (requestInFlight.current) {
+    if (requestInFlight.current) return;
+    // Guard against undefined/null user IDs
+    if (!userId || userId === 'undefined' || userId === 'null') {
+      if (__DEV__) console.warn('[useProfileInteractions] Skipping refresh — invalid userId:', userId);
       return;
     }
 
@@ -66,9 +69,8 @@ export function useProfileInteractions(
   }, [type, sort]);
 
   const loadMore = useCallback(async (userId: string) => {
-    if (loading || !hasMore || requestInFlight.current) {
-      return;
-    }
+    if (loading || !hasMore || requestInFlight.current) return;
+    if (!userId || userId === 'undefined' || userId === 'null') return;
 
     requestInFlight.current = true;
     setLoading(true);

@@ -1,15 +1,11 @@
 import expressPkg, { Router } from 'express';
 import Stripe from 'stripe';
 import { debugLog } from '../lib/debugLog.js';
-import {
-    sendBillingNoticeEmail,
-    sendPaymentFailedEmail,
-    sendPaymentReceiptEmail,
-    sendSubscriptionCanceledEmail,
-} from '../lib/email.js';
+import { sendBillingNoticeEmail } from '../lib/email.js';
+import { getMaxTeamsForPlan } from '../lib/planLimits.js';
 import { prisma } from '../lib/prisma.js';
 import { previewPromo, redeemPromo } from '../lib/promos.js';
-import { emailQueue } from '../lib/queue.js';
+import { captureException } from '../lib/sentry.js';
 import { calculateSalesTax } from '../lib/taxCalculator.js';
 import { calculateStripeFee, getTransactionBySession, logTransaction, updateTransactionStatus } from '../lib/transactionLogger.js';
 import type { AuthedRequest } from '../middleware/auth.js';
@@ -23,19 +19,6 @@ export const paymentsRouter = Router();
 const formatUsd = (cents?: number | null) => {
   if (typeof cents !== 'number' || Number.isNaN(cents)) return '';
   return `$${(cents / 100).toFixed(2)}`;
-};
-
-const formatDateFromUnix = (unix?: number | null) => {
-  if (!unix) return null;
-  const d = new Date(unix * 1000);
-  return d.toISOString().split('T')[0];
-};
-
-const formatPeriodLabel = (start?: number | null, end?: number | null) => {
-  const startStr = formatDateFromUnix(start);
-  const endStr = formatDateFromUnix(end);
-  if (startStr && endStr) return `${startStr} - ${endStr}`;
-  return startStr || endStr || 'Current period';
 };
 
 async function getUserEmail(userId?: string | null, fallbackEmail?: string | null) {
@@ -92,29 +75,33 @@ async function sendSubscriptionEmail({
   const email = await getUserEmail(userId, fallbackEmail);
   if (!email) return;
   const planName = plan === 'veteran' ? 'Veteran Membership' : plan === 'legend' ? 'Legend Membership' : 'VarsityHub Subscription';
-  const billingPeriod = plan === 'legend' ? 'Annual plan' : 'Monthly plan';
+  const perks = plan === 'veteran'
+    ? ['Add unlimited teams beyond the first two', 'Priority scheduling support']
+    : plan === 'legend'
+      ? ['Unlimited teams included', 'Annual discounted pricing']
+      : ['Premium access activated'];
   try {
-    await sendPaymentReceiptEmail({
+    await sendBillingNoticeEmail({
       to: email,
+      type: 'payment_succeeded',
       planName,
-      amount: formatUsd(totalCents) || (plan === 'legend' ? '$20.00' : '$0.00'),
-      billingPeriod,
+      amount: formatUsd(totalCents),
+      perks,
     });
   } catch (err) {
     console.warn('[payments] Unable to send subscription email:', (err as any)?.message || err);
   }
 }
 
-function calculatePriceCents(isoDates: string[]): number {
-  if (!isoDates.length) return 0;
-  return calculateAdPriceCents(isoDates).totalCents;
-}
+// Ad pricing now uses the shared helper from utils/adPricing.ts
+// This ensures consistent pricing calculation ($5 weekday, $8 weekend per week block)
+// and proper week-block grouping (multiple dates in same week = single charge)
 
 const membershipPlans = ['veteran', 'legend'] as const;
 type MembershipPlan = typeof membershipPlans[number];
 
 const membershipPriceIds: Record<MembershipPlan, string | undefined> = {
-  veteran: 'price_1SVcqtGJt8CsPE1EtTs2QpO1',
+  veteran: process.env.STRIPE_PRICE_VETERAN,
   legend: process.env.STRIPE_PRICE_LEGEND,
 };
 
@@ -208,13 +195,6 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
         },
       }];
 
-  // Log price selection for debugging
-  if (hasExplicitPriceId) {
-    debugLog(`[payments] Creating ${chosen} subscription checkout with price ID: ${normalizedPriceId} (quantity: ${chosen === 'veteran' ? billableQuantity : 1})`);
-  } else {
-    debugLog(`[payments] Creating ${chosen} subscription checkout with fallback price_data (no configured price ID)`);
-  }
-
   const appBase = process.env.APP_BASE_URL || (process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000');
   // Use deep links for mobile app redirects
   const appScheme = 'varsityhubmobile';
@@ -252,14 +232,13 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
   }
 
   const session = await stripe.checkout.sessions.create(sessionConfig);
-  debugLog(`[payments] Stripe session created: ${session.id} for user ${req.user!.id}, plan ${chosen}`);
 
   // Log subscription transaction
   const currentUser = await prisma.user.findUnique({ 
     where: { id: req.user!.id },
     select: { email: true }
   });
-  const amount = chosen === 'veteran' ? 150 * billableQuantity : 2000; // Veteran billed only for additional teams
+  const amount = chosen === 'veteran' ? 150 * billableQuantity : 2000; // Veteran: $1.50/month per additional team, Legend: $20.00/year
   await logTransaction({
     transactionType: 'SUBSCRIPTION_PURCHASE',
     status: 'PENDING',
@@ -294,6 +273,7 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
       return res.json({ url, session_id: sessionId });
     } catch (err: any) {
       const status = typeof err?.statusCode === 'number' ? err.statusCode : 500;
+      captureException(err, { context: 'stripe_checkout_error', plan });
       return res.status(status).json({ error: err?.message || 'Unable to start subscription checkout' });
     }
   }
@@ -303,21 +283,22 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
   // Ensure ad exists
   const ad = await prisma.ad.findUnique({ where: { id: String(ad_id) } });
   if (!ad) return res.status(404).json({ error: 'Ad not found' });
-  const adType = (ad as { type?: string | null }).type || '';
 
-  // Map ad.type to Stripe price ID
-  const adTypeToPriceId: Record<string, string> = {
-    'Fri-Sun Advertising': 'price_1SNFXxGJt8CsPE1ECbmJRQDa',
-    'Mond-Thurs Advertising': 'price_1SNFWzGJt8CsPE1EIikRsZif',
-  };
-  const priceId = adTypeToPriceId[adType];
-  if (!priceId) {
-    return res.status(400).json({ error: 'Unsupported ad type for Stripe payment', adType });
-  }
+  // No global conflicts: allow multiple ads on the same date.
+
+  // Use shared ad pricing helper for consistent calculation
+  // Groups dates into week blocks: $5/week for Mon-Thu, $8/week for Fri-Sun
+  const pricingResult = calculateAdPriceCents(isoDates);
+  const subtotal = pricingResult.totalCents;
+  if (subtotal <= 0) return res.status(400).json({ error: 'Invalid amount' });
 
   // Calculate sales tax based on ad's target zip code
-  const subtotal = calculatePriceCents(isoDates);
   const taxCents = ad.target_zip_code ? calculateSalesTax(subtotal, ad.target_zip_code) : 0;
+  
+  // Calculate total before discount
+  const subtotalWithTax = subtotal + taxCents;
+
+  // Apply promo code if provided (discount applies to subtotal, not tax)
   let discount = 0;
   let appliedCode: string | null = null;
   if (promo_code && typeof promo_code === 'string') {
@@ -326,8 +307,13 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
     discount = preview.discount_cents;
     appliedCode = preview.code;
   }
+
+  // Total = (subtotal - discount) + tax
+  // Total = (subtotal - discount) + tax
   const total = Math.max(0, subtotal - discount + taxCents);
+  // If free after discount, finalize immediately without Stripe Checkout
   if (total === 0) {
+    // Record redemption and create reservations
     if (appliedCode) {
       await redeemPromo({ code: appliedCode, subtotalCents: subtotal, userId: req.user!.id, service: 'booking', orderId: `FREE-${Date.now()}` });
     }
@@ -339,19 +325,93 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
     } catch (e) {}
     return res.json({ free: true });
   }
+
+  // Use deep links for mobile app redirects
   const appScheme = 'varsityhubmobile';
   const success = `${appScheme}://payment-success?session_id={CHECKOUT_SESSION_ID}&type=ad`;
   const cancel = `${appScheme}://payment-cancel`;
-  const session = await stripe.checkout.sessions.create({
+
+  // Check if Stripe Price IDs are configured for ads (optional, fallback to price_data)
+  const weekdayPriceId = process.env.STRIPE_PRICE_AD_WEEKDAY?.trim() || '';
+  const weekendPriceId = process.env.STRIPE_PRICE_AD_WEEKEND?.trim() || '';
+  const hasPriceIds = weekdayPriceId && weekendPriceId && 
+                      /^price_/.test(weekdayPriceId) && /^price_/.test(weekendPriceId);
+
+  // CRITICAL: When using Price IDs, Stripe doesn't automatically add tax/discount
+  // If tax or discount exists, we must use price_data to include them in the total
+  // Otherwise we'd underbill by charging only base price without tax/discount
+  const hasTaxOrDiscount = taxCents > 0 || discount > 0;
+
+  let lineItems: any[] = [];
+
+  if (hasPriceIds && !hasTaxOrDiscount) {
+    // Use Stripe Price IDs when available AND no tax/discount (can't add tax/discount to Price IDs easily)
+    debugLog('[payments] Using Stripe Price IDs for ad checkout', {
+      weekdayBlocks: pricingResult.weekdayBlocks,
+      weekendBlocks: pricingResult.weekendBlocks,
+      tax: taxCents,
+      discount,
+    });
+    lineItems = [
+      ...(pricingResult.weekdayBlocks > 0 ? [{
+        price: weekdayPriceId,
+        quantity: pricingResult.weekdayBlocks,
+      }] : []),
+      ...(pricingResult.weekendBlocks > 0 ? [{
+        price: weekendPriceId,
+        quantity: pricingResult.weekendBlocks,
+      }] : []),
+    ];
+    
+    // If no blocks selected (shouldn't happen, but defensive), fall back to price_data
+    if (lineItems.length === 0) {
+      debugLog('[payments] No blocks found, falling back to price_data');
+      lineItems = [{
+        quantity: 1,
+        price_data: {
+          currency: 'usd',
+          unit_amount: total,
+          product_data: {
+            name: 'Ad Reservation',
+            description: `${isoDates.join(', ')}`,
+          },
+        },
+      }];
+    }
+  } else {
+    // Use dynamic price_data when:
+    // - Price IDs not configured, OR
+    // - Tax or discount exists (Price IDs can't easily include tax/discount)
+    if (hasTaxOrDiscount && hasPriceIds) {
+      debugLog('[payments] Tax/discount detected - using price_data instead of Price IDs to include tax/discount in total', {
+        tax: taxCents,
+        discount,
+        total,
+        subtotal,
+      });
+    } else {
+      debugLog('[payments] Using dynamic price_data for ad checkout (Price IDs not configured)');
+    }
+    
+    lineItems = [{
+      quantity: 1,
+      price_data: {
+        currency: 'usd',
+        unit_amount: total, // Total includes tax and discount already calculated
+        product_data: {
+          name: 'Ad Reservation',
+          description: `${isoDates.join(', ')}${discount > 0 ? ` (${formatUsd(discount)} discount applied)` : ''}${taxCents > 0 ? ` + ${formatUsd(taxCents)} tax` : ''}`,
+        },
+      },
+    }];
+  }
+
+  const sessionConfig: Stripe.Checkout.SessionCreateParams = {
     mode: 'payment',
     success_url: success,
     cancel_url: cancel,
-    line_items: [
-      {
-        price: priceId,
-        quantity: 1,
-      },
-    ],
+    line_items: lineItems as any,
+    // Useful metadata for webhook
     metadata: {
       ad_id: String(ad_id),
       dates: JSON.stringify(isoDates),
@@ -360,8 +420,22 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
       tax_cents: String(taxCents),
       promo_code: appliedCode || '',
       discount_cents: String(discount || 0),
+      weekday_blocks: String(pricingResult.weekdayBlocks),
+      weekend_blocks: String(pricingResult.weekendBlocks),
     },
-  });
+  };
+
+  // If using Price IDs and there's a tax, we can't easily add it to Price ID line items
+  // Stripe's automatic_tax feature could be used if enabled, but for now we fall back to price_data
+  // This is already handled above (hasTaxOrDiscount check)
+  
+  // Note: If Stripe automatic tax is enabled in your Stripe account, you could set:
+  // sessionConfig.automatic_tax = { enabled: true };
+  // This would calculate and add tax automatically for Price IDs
+
+  const session = await stripe.checkout.sessions.create(sessionConfig);
+
+  // Log transaction
   const currentUser = await prisma.user.findUnique({ 
     where: { id: req.user!.id },
     select: { email: true }
@@ -389,29 +463,6 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
     userAgent: req.get('user-agent'),
   });
 
-  // Schedule payment reminder email 6 hours later if checkout not completed
-  const delayMs = 6 * 60 * 60 * 1000; // 6 hours
-  const checkoutLink = session.url || `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/checkout?ad_id=${ad_id}`;
-  
-  await emailQueue.add(
-    'payments.checkout_abandoned',
-    {
-      to: ad.contact_email,
-      advertiser_name: ad.contact_name,
-      business_name: ad.business_name,
-      total_cost: total / 100, // Convert cents to dollars
-      checkout_link: checkoutLink,
-      hours_remaining: 18, // 24 hour expiry - 6 hours already passed
-      session_id: session.id, // Track to cancel if paid
-    },
-    { 
-      delay: delayMs, 
-      attempts: 1, // Only send once
-      jobId: `payment-reminder-${session.id}`, // Unique job ID for easy cancellation
-    }
-  );
-  debugLog(`[payments] Scheduled payment reminder for ${ad.contact_email} (6 hours)`);
-
   return res.json({ url: session.url });
 });
 
@@ -431,6 +482,7 @@ paymentsRouter.post('/webhook', async (req, res) => {
     event = stripe.webhooks.constructEvent((req as any).body, sig as string, webhookSecret);
   } catch (err: any) {
     console.error('Stripe webhook signature verification failed:', err?.message || err);
+    captureException(err, { context: 'stripe_webhook_verification_failed' });
     return res.status(400).send('Webhook Error: Invalid signature');
   }
 
@@ -440,6 +492,7 @@ paymentsRouter.post('/webhook', async (req, res) => {
       await finalizeFromSession(session);
     } catch (e) {
       console.warn('Error finalizing session in webhook:', (e as any)?.message || e);
+      captureException(e as Error, { context: 'stripe_webhook_finalize_failed', sessionId: session.id });
     }
   }
   
@@ -447,13 +500,11 @@ paymentsRouter.post('/webhook', async (req, res) => {
   if (event.type === 'invoice.payment_succeeded') {
     const invoice = event.data.object as Stripe.Invoice;
     if (invoice.customer_email && invoice.subscription) {
-      const firstLine = invoice.lines.data[0];
-      await sendPaymentReceiptEmail({
+      await sendBillingNoticeEmail({
         to: invoice.customer_email,
-        planName: firstLine?.description || 'VarsityHub Subscription',
-        amount: formatUsd(typeof invoice.amount_paid === 'number' ? invoice.amount_paid : invoice.total),
-        billingPeriod: formatPeriodLabel(firstLine?.period?.start, firstLine?.period?.end),
-        invoiceUrl: invoice.hosted_invoice_url || invoice.invoice_pdf || undefined,
+        type: 'payment_succeeded',
+        amount: `$${(invoice.amount_paid / 100).toFixed(2)}`,
+        planName: invoice.lines.data[0]?.description || 'VarsityHub Subscription',
       }).catch(err => console.warn('[billing-email] payment_succeeded failed:', err));
     }
   }
@@ -461,21 +512,10 @@ paymentsRouter.post('/webhook', async (req, res) => {
   if (event.type === 'invoice.payment_failed') {
     const invoice = event.data.object as Stripe.Invoice;
     if (invoice.customer_email) {
-      const paymentError = (invoice as Stripe.Invoice & { last_payment_error?: { message?: string } }).last_payment_error;
-      const amount = invoice.amount_due ? formatUsd(invoice.amount_due) : '$0.00';
-      const failedDate = new Date(invoice.created * 1000).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-      const retryDate = invoice.next_payment_attempt ? new Date(invoice.next_payment_attempt * 1000).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'within 3 days';
-      
-      await sendPaymentFailedEmail({
+      await sendBillingNoticeEmail({
         to: invoice.customer_email,
-        userName: 'User',
-        paymentMethodLast4: '****',
-        failedAmount: amount,
-        failedDate: failedDate,
+        type: 'payment_failed',
         planName: invoice.lines.data[0]?.description || 'VarsityHub Subscription',
-        retryDate: retryDate,
-        updatePaymentLink: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/billing/payment-methods`,
-        contactSupportLink: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/support`,
       }).catch(err => console.warn('[billing-email] payment_failed failed:', err));
     }
   }
@@ -484,10 +524,10 @@ paymentsRouter.post('/webhook', async (req, res) => {
     const subscription = event.data.object as Stripe.Subscription;
     const customer = await stripe.customers.retrieve(subscription.customer as string).catch(() => null);
     if (customer && !customer.deleted && customer.email) {
-      await sendSubscriptionCanceledEmail({
+      await sendBillingNoticeEmail({
         to: customer.email,
+        type: 'subscription_canceled',
         planName: subscription.items.data[0]?.price?.nickname || 'VarsityHub Subscription',
-        renewalDate: formatDateFromUnix(subscription.current_period_end) || undefined,
       }).catch(err => console.warn('[billing-email] subscription_canceled failed:', err));
     }
   }
@@ -496,13 +536,11 @@ paymentsRouter.post('/webhook', async (req, res) => {
     const subscription = event.data.object as Stripe.Subscription;
     const customer = await stripe.customers.retrieve(subscription.customer as string).catch(() => null);
     if (customer && !customer.deleted && customer.email && subscription.status === 'active') {
-      const item = subscription.items.data[0];
-      const amountCents = (item?.price?.unit_amount || 0) * (item?.quantity || 1);
-      await sendPaymentReceiptEmail({
+      await sendBillingNoticeEmail({
         to: customer.email,
-        planName: item?.price?.nickname || 'VarsityHub Subscription',
-        amount: formatUsd(amountCents) || '$0.00',
-        billingPeriod: subscription.cancel_at_period_end ? 'Final period' : 'Current period',
+        type: 'subscription_renewed',
+        amount: `$${((subscription.items.data[0]?.price?.unit_amount || 0) / 100).toFixed(2)}`,
+        planName: subscription.items.data[0]?.price?.nickname || 'VarsityHub Subscription',
       }).catch(err => console.warn('[billing-email] subscription_renewed failed:', err));
     }
   }
@@ -596,20 +634,38 @@ paymentsRouter.post('/update-subscription-quantity', expressPkg.json(), requireV
     if (!subscriptionId) {
       return res.status(400).json({ error: 'No active subscription found' });
     }
-    
+
+    // CRITICAL: Verify user actually owns this many teams before updating payment
+    const actualTeamCount = await prisma.teamMembership.count({
+      where: {
+        user_id: userId,
+        role: 'owner',
+        status: 'active'
+      }
+    });
+
+    if (team_count !== actualTeamCount) {
+      return res.status(400).json({
+        error: 'Team count mismatch',
+        message: `You currently own ${actualTeamCount} team${actualTeamCount !== 1 ? 's' : ''} but requested to pay for ${team_count}. You can only pay for teams you own.`,
+        owned_teams: actualTeamCount,
+        requested_teams: team_count
+      });
+    }
+
     try {
       const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-      
-      if (subscription.status !== 'active') {
+
+      if (subscription.status !== 'active' && subscription.status !== 'trialing') {
         return res.status(400).json({ error: 'Subscription is not active' });
       }
-      
+
       // Update the quantity of the subscription item
       const subscriptionItem = subscription.items.data[0];
       if (!subscriptionItem) {
         return res.status(400).json({ error: 'No subscription item found' });
       }
-      
+
       await stripe.subscriptionItems.update(subscriptionItem.id, {
         quantity: billable,
       });
@@ -659,7 +715,7 @@ paymentsRouter.get('/debug/subscription-status', requireVerified as any, async (
 
     // Check if there's a mismatch
     const hasPaidPlan = storedPlan !== 'rookie';
-    const hasValidStripeSubscription = stripeStatus === 'active';
+    const hasValidStripeSubscription = stripeStatus === 'active' || stripeStatus === 'trialing';
     const mismatch = hasPaidPlan && !hasValidStripeSubscription;
 
     return res.json({
@@ -706,20 +762,20 @@ paymentsRouter.get('/subscription/summary', requireVerified as any, async (req: 
         if (sub.current_period_end) current_period_end = new Date(sub.current_period_end * 1000).toISOString();
         const item = sub.items.data[0];
         quantity = item?.quantity ?? null;
-        if (typeof quantity === 'number') monthly_cost = Number((quantity * 1.5).toFixed(2));
+        if (typeof quantity === 'number') monthly_cost = Number((quantity * 2.5).toFixed(2));
       } catch (err) {
         console.warn('[payments] Failed to retrieve summary subscription:', (err as any)?.message || err);
       }
     } else if (plan === 'legend') {
-      // Annual cost fixed at $20.00
-      annual_cost = 20;
+      // Annual cost fixed at $19.99
+      annual_cost = 19.99;
       // status can be determined if subscription id exists
       if (subscriptionId && process.env.STRIPE_SECRET_KEY) {
         try {
           const sub = await stripe.subscriptions.retrieve(subscriptionId);
           status = sub.status;
           if (sub.current_period_end) current_period_end = new Date(sub.current_period_end * 1000).toISOString();
-        } catch {}
+        } catch (_error) {}
       }
     }
 
@@ -911,7 +967,7 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
     : Number(meta.total_cents || transactionLog?.total_cents || 0) || 0;
   const ad_id = meta.ad_id || '';
   let dates: string[] = [];
-  try { dates = JSON.parse(String(meta.dates || '[]')); } catch {}
+  try { dates = JSON.parse(String(meta.dates || '[]')); } catch (_error) {}
   if (ad_id && Array.isArray(dates) && dates.length) {
     debugLog('[payments] Processing ad reservation payment', {
       ad_id,
@@ -936,14 +992,6 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
         session_id: session.id,
         status: 'active'
       });
-      
-      // Cancel the payment reminder email since payment was completed
-      const jobId = `payment-reminder-${session.id}`;
-      const job = await emailQueue.getJob(jobId);
-      if (job) {
-        await job.remove();
-        debugLog(`[payments] Cancelled payment reminder email (job ${jobId})`);
-      }
       
       // Update transaction log to COMPLETED
       await updateTransactionStatus(session.id, 'COMPLETED', {
@@ -1003,13 +1051,6 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
         const current = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } });
         const existingPrefs = (current?.preferences && typeof current.preferences === 'object') ? (current.preferences as any) : {};
         const prefs: any = { ...existingPrefs, plan };
-        
-        // CRITICAL: Set role='coach' for any membership purchase (veteran/legend)
-        // This is required for Step 4 (organization creation) and allows coaches to manage orgs
-        if (plan === 'veteran' || plan === 'legend') {
-          prefs.role = 'coach';
-        }
-        
         if (session.subscription) {
           try {
             const sub = await stripe.subscriptions.retrieve(String(session.subscription));
@@ -1026,8 +1067,28 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
         if (session.customer) {
           prefs.stripe_customer_id = String(session.customer);
         }
-        await prisma.user.update({ where: { id: userId }, data: { preferences: prefs } });
-        console.info('[payments] membership finalize', { userId, plan, subscription_id: prefs.subscription_id, subscription_period_end: prefs.subscription_period_end });
+        
+        // Update max_teams and subscription_tier based on plan
+        const maxTeams = getMaxTeamsForPlan(plan);
+        const subscriptionTier = plan === 'rookie' ? 'free' : plan === 'veteran' ? 'premium' : 'pro';
+        
+        await prisma.user.update({ 
+          where: { id: userId }, 
+          data: { 
+            preferences: prefs,
+            max_teams: maxTeams ?? 999, // Use 999 as unlimited (null not supported by Int type)
+            subscription_tier: subscriptionTier,
+            subscription_status: 'active'
+          } 
+        });
+        console.info('[payments] membership finalize', { 
+          userId, 
+          plan, 
+          max_teams: maxTeams ?? 999,
+          subscription_tier: subscriptionTier,
+          subscription_id: prefs.subscription_id, 
+          subscription_period_end: prefs.subscription_period_end 
+        });
         
         // Update transaction log to COMPLETED
         await updateTransactionStatus(session.id, 'COMPLETED', {

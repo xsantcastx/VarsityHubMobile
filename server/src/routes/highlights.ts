@@ -24,17 +24,29 @@ highlightsRouter.get('/', async (req: AuthedRequest, res) => {
   } as const;
 
   // Top 10 national posts (increased from 3)
+  // Only include posts with media (highlights should be visual)
   let nationalTop = await prisma.post.findMany({
-    where: { country_code: country, created_at: { gte: since } },
+    where: { 
+      country_code: country, 
+      created_at: { gte: since },
+      media_url: { not: null }, // Only posts with media
+      deleted_at: null,
+    },
     orderBy: [{ upvotes_count: 'desc' }, { created_at: 'desc' }],
     take: 10,
     select: baseSelect,
   });
   
   // Fill with global top posts if not enough national posts
+  // Only include posts with media
   if (nationalTop.length < 10) {
     const fill = await prisma.post.findMany({
-      where: { created_at: { gte: since }, id: { notIn: nationalTop.map((p) => p.id) } },
+      where: { 
+        created_at: { gte: since }, 
+        id: { notIn: nationalTop.map((p) => p.id) },
+        media_url: { not: null }, // Only posts with media
+        deleted_at: null,
+      },
       orderBy: [{ upvotes_count: 'desc' }, { created_at: 'desc' }],
       take: 10 - nationalTop.length,
       select: baseSelect,
@@ -51,15 +63,28 @@ highlightsRouter.get('/', async (req: AuthedRequest, res) => {
       const dLat = RADIUS_KM / kmPerDegLat;
       const dLng = RADIUS_KM / kmPerDegLng;
       local = await prisma.post.findMany({
-        where: { created_at: { gte: since }, country_code: country, lat: { gte: lat - dLat, lte: lat + dLat }, lng: { gte: lng - dLng, lte: lng + dLng } },
+        where: { 
+          created_at: { gte: since }, 
+          country_code: country, 
+          lat: { gte: lat - dLat, lte: lat + dLat }, 
+          lng: { gte: lng - dLng, lte: lng + dLng },
+          media_url: { not: null }, // Only posts with media
+          deleted_at: null,
+        },
         orderBy: [{ upvotes_count: 'desc' }, { created_at: 'desc' }],
         take: Math.min(limit, 100),
         select: baseSelect,
       });
     } else {
       // Get more national posts for better variety
+      // Only include posts with media
       local = await prisma.post.findMany({
-        where: { country_code: country, created_at: { gte: since } },
+        where: { 
+          country_code: country, 
+          created_at: { gte: since },
+          media_url: { not: null }, // Only posts with media
+          deleted_at: null,
+        },
         orderBy: [{ upvotes_count: 'desc' }, { created_at: 'desc' }],
         take: Math.min(limit, 100),
         select: baseSelect,
@@ -73,8 +98,15 @@ highlightsRouter.get('/', async (req: AuthedRequest, res) => {
   const ids10 = nationalTop.map((p) => p.id);
 
   // Larger candidate pool for better variety
+  // Only include posts with media (highlights should be visual)
   const pool = await prisma.post.findMany({
-    where: { country_code: country, created_at: { gte: since }, id: { notIn: ids10 } },
+    where: { 
+      country_code: country, 
+      created_at: { gte: since }, 
+      id: { notIn: ids10 },
+      media_url: { not: null }, // Only posts with media
+      deleted_at: null,
+    },
     orderBy: [{ created_at: 'desc' }],
     take: 500, // Increased pool size
     select: baseSelect,

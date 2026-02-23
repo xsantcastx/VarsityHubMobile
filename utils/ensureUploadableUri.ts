@@ -12,8 +12,8 @@ import * as ImageManipulator from 'expo-image-manipulator';
 export async function ensureUploadableUri(uri: string, mimeType?: string): Promise<{ uri: string; mimeType?: string }> {
   const isPhoto = mimeType ? mimeType.startsWith('image') : uri.toLowerCase().endsWith('.jpg') || uri.toLowerCase().endsWith('.jpeg') || uri.toLowerCase().endsWith('.png');
   
-  // For images: re-encode to compress (works with file:// URIs)
-  if (isPhoto && uri.startsWith('file://')) {
+  // For images: re-encode to compress and ensure it's a local file
+  if (isPhoto) {
     try {
       if (__DEV__) console.log('[media] Re-encoding image for compression...');
       const manip = await ImageManipulator.manipulateAsync(uri, [], { compress: 0.9, format: ImageManipulator.SaveFormat.JPEG });

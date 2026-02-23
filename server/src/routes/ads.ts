@@ -1,12 +1,33 @@
 import { Router } from 'express';
-import { debugLog } from '../lib/debugLog.js';
 import { getZipCoordinates, haversineDistance } from '../lib/geoUtils.js';
+import { geocodeLocation } from '../lib/geocoding.js';
 import { prisma } from '../lib/prisma.js';
-import { emailQueue } from '../lib/queue.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
 import { requireVerified } from '../middleware/requireVerified.js';
+import { debugLog } from '../lib/debugLog.js';
 import { calculateAdPriceDollars } from '../utils/adPricing.js';
+
+/**
+ * Get coordinates for a ZIP code with fallback to Google Geocoding API
+ * First tries the static lookup table, then falls back to API if not found
+ */
+async function getZipCoordinatesWithFallback(zipCode: string): Promise<{ lat: number; lon: number } | null> {
+  // Try static lookup first (faster, no API call)
+  const staticResult = getZipCoordinates(zipCode);
+  if (staticResult) {
+    return staticResult;
+  }
+
+  // Fall back to Google Geocoding API for ZIP codes not in static table
+  debugLog('[ads] ZIP code not in static table, trying Google Geocoding:', zipCode);
+  const geocodeResult = await geocodeLocation(zipCode);
+  if (geocodeResult) {
+    return { lat: geocodeResult.latitude, lon: geocodeResult.longitude };
+  }
+
+  return null;
+}
 
 export const adsRouter = Router();
 
@@ -337,33 +358,10 @@ adsRouter.post('/reservations', requireVerified as any, async (req, res) => {
     skipDuplicates: true,
   });
 
+  // Use shared ad pricing helper for consistent calculation
+  // Mon-Thu = $5.00 per week block, Fri-Sun = $8.00 per week block
+  // Properly groups dates into week blocks (multiple dates in same week = single charge)
   const totalPrice = calculateAdPriceDollars(isoDates);
-
-  // Fetch ad details for email
-  const ad = await prisma.ad.findUnique({
-    where: { id: String(ad_id) },
-  });
-
-  // Queue reservation received email
-  if (ad && ad.contact_email) {
-    const checkoutLink = `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/checkout?ad_id=${ad_id}`;
-    
-    await emailQueue.add(
-      'ads.reservation_received',
-      {
-        to: ad.contact_email,
-        advertiser_name: ad.contact_name,
-        business_name: ad.business_name,
-        reserved_dates: isoDates,
-        total_cost: totalPrice,
-        target_zip: ad.target_zip_code,
-        checkout_link: checkoutLink,
-        ad_preview_url: ad.banner_url || undefined,
-      },
-      { attempts: 3, backoff: { type: 'exponential', delay: 2000 } }
-    );
-    debugLog(`[ads] Queued reservation email for ${ad.contact_email}`);
-  }
 
   return res.status(201).json({ ok: true, reserved: createdMany.count, dates: isoDates, price: totalPrice });
 });
@@ -383,14 +381,14 @@ adsRouter.get('/alternative-zips', async (req: AuthedRequest, res) => {
   
   const zipCode = String(zip);
   const dateList = String(dates).split(',').map(d => d.trim());
-  
-  // Get coordinates for the requested zip
-  const originCoords = getZipCoordinates(zipCode);
+
+  // Get coordinates for the requested zip (with Google Geocoding fallback)
+  const originCoords = await getZipCoordinatesWithFallback(zipCode);
   if (!originCoords) {
-    return res.status(400).json({ error: 'Invalid zip code or coordinates not found' });
+    return res.status(400).json({ error: 'Could not find coordinates for ZIP code. Please verify the ZIP code is valid.' });
   }
-  
-  // Get all ads within approximate range (we'll use all ads for simplicity, 
+
+  // Get all ads within approximate range (we'll use all ads for simplicity,
   // but in production you'd want to filter by geographic bounds first)
   const allAds = await prisma.ad.findMany({
     where: {
@@ -401,15 +399,16 @@ adsRouter.get('/alternative-zips', async (req: AuthedRequest, res) => {
       target_zip_code: true,
     },
   });
-  
+
   // Calculate distances and group by zip code
   const zipDistances: Map<string, number> = new Map();
-  
+
   for (const ad of allAds) {
     if (!ad.target_zip_code) continue; // Skip ads without zip codes
     if (ad.target_zip_code === zipCode) continue; // Skip the original zip
     if (zipDistances.has(ad.target_zip_code)) continue; // Already calculated
-    
+
+    // Use sync lookup for iteration (to avoid too many API calls)
     const adCoords = getZipCoordinates(ad.target_zip_code);
     if (!adCoords) continue;
     

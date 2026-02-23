@@ -4,7 +4,6 @@ import { notifyNewMessage } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
-import { buildConversationId } from '../lib/messageHelpers.js';
 
 export const messagesRouter = Router();
 
@@ -122,7 +121,8 @@ toId = u.id;
 
 let convId = conversation_id;
 if (!convId && toId) {
-convId = buildConversationId(meId, toId);
+const pair = [meId, toId].sort();
+convId = `dm:${pair[0]}__${pair[1]}`;
 }
 
 // Prevent messaging if either user has blocked the other
@@ -139,34 +139,30 @@ return res.status(403).json({ error: 'MESSAGE_BLOCKED', message: 'Messaging is d
 }
 
  // AGE POLICY: Under-18 users may only message accounts they follow
- try {
-   const me = await prisma.user.findUnique({ where: { id: meId }, select: { preferences: true } });
-   const recipient = await prisma.user.findUnique({ where: { id: toId! }, select: { preferences: true } });
-   const senderDob = (me?.preferences as any)?.dob;
-   if (senderDob) {
-     const age = (() => {
-       const d = new Date(String(senderDob));
-       const now = new Date();
-       let a = now.getFullYear() - d.getFullYear();
-       const m = now.getMonth() - d.getMonth();
-       if (m < 0 || (m === 0 && now.getDate() < d.getDate())) a--;
-       return a;
-     })();
-     if (age < 18) {
-       // Check follow relationship (minor must follow recipient)
-       const follows = await prisma.follows.findUnique({
-         where: { follower_id_following_id: { follower_id: meId, following_id: toId! } }
+ // CRITICAL: Removed try-catch to prevent bypass via error triggering
+ const me = await prisma.user.findUnique({ where: { id: meId }, select: { preferences: true } });
+ const senderDob = (me?.preferences as any)?.dob;
+ if (senderDob) {
+   const age = (() => {
+     const d = new Date(String(senderDob));
+     const now = new Date();
+     let a = now.getFullYear() - d.getFullYear();
+     const m = now.getMonth() - d.getMonth();
+     if (m < 0 || (m === 0 && now.getDate() < d.getDate())) a--;
+     return a;
+   })();
+   if (age < 18) {
+     // Check follow relationship (minor must follow recipient)
+     const follows = await prisma.follows.findUnique({
+       where: { follower_id_following_id: { follower_id: meId, following_id: toId! } }
+     });
+     if (!follows) {
+       return res.status(403).json({
+         error: 'AGE_POLICY_BLOCKED',
+         message: 'Users under 18 can only message accounts they follow.'
        });
-       if (!follows) {
-         return res.status(403).json({
-           error: 'AGE_POLICY_BLOCKED',
-           message: 'Users under 18 can only message accounts they follow.'
-         });
-       }
      }
    }
- } catch (e) {
-   console.warn('[messages][age-policy] check failed', e);
  }
 
 const created = await prisma.message.create({
@@ -179,16 +175,36 @@ content
 include: { sender: { select: baseUserSelect }, recipient: { select: baseUserSelect } },
 });
 
-// Send push notification to recipient
-try {
-  await notifyNewMessage(
-    toId!,
-    meId,
-    created.sender?.display_name || 'Someone',
-    content
-  );
-} catch (e) {
-  console.error('Failed to send message notification:', e);
+// Create in-app notification and send push notification to recipient
+// Only notify if recipient is different from sender (prevent self-notifications)
+if (toId !== meId) {
+  try {
+    // Create in-app notification record
+    // Note: message_id column doesn't exist in database yet, storing message info in meta instead
+    await (prisma as any).notification.create({
+      data: {
+        user_id: toId!,
+        actor_id: meId,
+        type: 'MESSAGE',
+        // message_id removed - column doesn't exist in database yet
+        meta: {
+          conversation_id: convId!,
+          message_id: created.id, // Store in meta for now
+          preview: content.substring(0, 100),
+        },
+      },
+    });
+    
+    // Send push notification
+    await notifyNewMessage(
+      toId!,
+      meId,
+      created.sender?.display_name || 'Someone',
+      content
+    );
+  } catch (e) {
+    console.error('Failed to send message notification:', e);
+  }
 }
 
 return res.status(201).json(created);

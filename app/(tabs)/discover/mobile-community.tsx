@@ -93,6 +93,7 @@ export default function CommunityDiscoverScreen() {
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [createEventModalOpen, setCreateEventModalOpen] = useState(false);
+  const [isCreatingGame, setIsCreatingGame] = useState(false);
   // Vertical viewer state
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
@@ -142,13 +143,31 @@ export default function CommunityDiscoverScreen() {
     try {
       const gamesData = await Game.list('-date');
       let normalizedGames = Array.isArray(gamesData) ? gamesData : [];
-      const zip = user?.preferences?.zip_code ? String(user.preferences.zip_code) : '';
+      
+      // Filter out past events by default
+      const now = new Date();
+      normalizedGames = normalizedGames.filter((g: any) => {
+        if (!g.date) return true; // Keep games without dates
+        const gameDate = new Date(g.date);
+        return !isNaN(gameDate.getTime()) && gameDate >= now;
+      });
+      
+      const zip = user?.preferences?.zip_code ? String(user.preferences.zip_code).trim() : '';
       if (zip) {
+        // Normalize zip code (remove dashes, spaces)
+        const normalizedZip = zip.replace(/[-\s]/g, '').toLowerCase();
         const withZip: GameItem[] = [];
         const withoutZip: GameItem[] = [];
         normalizedGames.forEach((g) => {
           const hay = `${(g as any)?.location || ''} ${(g as any)?.address || ''} ${(g as any)?.city || ''}`.toLowerCase();
-          if (hay.includes(zip.toLowerCase())) withZip.push(g); else withoutZip.push(g);
+          // Extract zip codes from location string and check if any match
+          const zipMatches = hay.match(/\b\d{5}(?:-\d{4})?\b/g);
+          const hasMatchingZip = zipMatches?.some(z => z.replace(/[-\s]/g, '').startsWith(normalizedZip.slice(0, 5)));
+          if (hasMatchingZip || hay.includes(normalizedZip)) {
+            withZip.push(g);
+          } else {
+            withoutZip.push(g);
+          }
         });
         normalizedGames = [...withZip, ...withoutZip];
       }
@@ -156,7 +175,12 @@ export default function CommunityDiscoverScreen() {
       setZipDirectory(buildZipDirectory(normalizedGames));
     } catch (gameError) {
       if (__DEV__) console.error('Discover load: failed to fetch games', gameError);
-      setError('Unable to load events right now. Pull to refresh to retry.');
+      const errorMsg = gameError instanceof Error ? gameError.message : 'Unknown error';
+      if (errorMsg.includes('network') || errorMsg.includes('fetch')) {
+        setError('Network error. Please check your connection and try again.');
+      } else {
+        setError('Unable to load events right now. Pull to refresh to retry.');
+      }
       setGames([]);
       setZipDirectory([]);
     }
@@ -173,6 +197,14 @@ export default function CommunityDiscoverScreen() {
         const postsPage = await Post.listPage(undefined, 20, '-created_date');
         items = Array.isArray(postsPage.items) ? postsPage.items : [];
       }
+      if (items.length === 0) {
+        try {
+          const fallback = await Post.list('-created_at', 20);
+          items = Array.isArray(fallback) ? fallback : [];
+        } catch {
+          items = [];
+        }
+      }
       const followingOnly = items.filter((p: any) => p && (p.is_following_author || p.is_following));
       const nonFollowing = items.filter((p: any) => !(p && (p.is_following_author || p.is_following)));
       setFollowingPosts(followingOnly.slice(0, 12));
@@ -182,13 +214,32 @@ export default function CommunityDiscoverScreen() {
       try {
         const school = user?.preferences?.school || user?.school || null;
         const league = user?.preferences?.league || user?.league || null;
-        const zipQ = user?.preferences?.zip_code ? String(user.preferences.zip_code) : '';
+        const zipQ = user?.preferences?.zip_code ? String(user.preferences.zip_code).trim() : '';
+        
         if (school || league) {
           const q = String(school || league);
-          const members = await Team.allMembers(q);
-          const arr = Array.isArray(members) ? members : (Array.isArray((members as any)?.items) ? (members as any).items : []);
-          setNearbyPeople(arr.slice(0, 20));
+          try {
+            const members = await Team.allMembers(q);
+            const arr = Array.isArray(members) ? members : (Array.isArray((members as any)?.items) ? (members as any).items : []);
+            setNearbyPeople(arr.slice(0, 20));
+          } catch (teamError) {
+            if (__DEV__) console.warn('Discover load: team members failed', teamError);
+            // Fallback to zip code if team members fails
+            if (zipQ) {
+              try {
+                const users = await User.listAll(zipQ, 30);
+                const arr = Array.isArray(users) ? users : (Array.isArray((users as any)?.items) ? (users as any).items : []);
+                setNearbyPeople(arr.slice(0, 20));
+              } catch {
+                setNearbyPeople([]);
+              }
+            } else {
+              setNearbyPeople([]);
+            }
+          }
         } else if (zipQ) {
+          // Note: User.listAll is admin-only, so this will return empty array for regular users
+          // This is handled gracefully in api/entities.ts
           const users = await User.listAll(zipQ, 30);
           const arr = Array.isArray(users) ? users : (Array.isArray((users as any)?.items) ? (users as any).items : []);
           setNearbyPeople(arr.slice(0, 20));
@@ -202,6 +253,15 @@ export default function CommunityDiscoverScreen() {
     } catch (personalizationError) {
       if (__DEV__) console.warn('Discover load: personalization failed', personalizationError);
       setPersonalizationNotice('Personalized suggestions are temporarily unavailable. Pull to refresh to try again.');
+      try {
+        const fallback = await Post.list('-created_at', 20);
+        const items = Array.isArray(fallback) ? fallback : [];
+        setFollowingPosts([]);
+        setDiscoverPosts(items.slice(0, 12));
+      } catch {
+        setFollowingPosts([]);
+        setDiscoverPosts([]);
+      }
     }
   }, []);
 
@@ -237,18 +297,58 @@ export default function CommunityDiscoverScreen() {
   }, [load]);
 
   const handleQuickGameSave = useCallback(async (data: QuickGameData) => {
+    if (isCreatingGame) return; // Prevent duplicate submissions
+    setIsCreatingGame(true);
     try {
+      // Validate date format
+      if (!data.date || !/^\d{4}-\d{2}-\d{2}$/.test(data.date)) {
+        throw new Error('Invalid date format. Please use YYYY-MM-DD format.');
+      }
+
       // Parse date and time
       const [year, month, day] = data.date.split('-').map(Number);
+      
+      // Validate date values
+      if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
+        throw new Error('Invalid date values.');
+      }
+      if (month < 1 || month > 12 || day < 1 || day > 31) {
+        throw new Error('Invalid date values. Month must be 1-12, day must be 1-31.');
+      }
+
+      // Parse time with more flexible regex
       const timeParts = data.time.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
-      if (!timeParts) throw new Error('Invalid time format');
+      if (!timeParts) {
+        throw new Error('Invalid time format. Please use HH:MM AM/PM format.');
+      }
+      
       let hours = parseInt(timeParts[1], 10);
       const minutes = parseInt(timeParts[2], 10);
       const isPM = timeParts[3].toUpperCase() === 'PM';
+      
+      // Validate time values
+      if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
+        throw new Error('Invalid time values.');
+      }
+      if (hours < 1 || hours > 12 || minutes < 0 || minutes > 59) {
+        throw new Error('Invalid time values. Hours must be 1-12, minutes must be 0-59.');
+      }
+      
+      // Convert to 24-hour format
       if (isPM && hours !== 12) hours += 12;
       if (!isPM && hours === 12) hours = 0;
       
       const gameDateTime = new Date(Date.UTC(year, month - 1, day, hours, minutes));
+      
+      // Validate resulting date
+      if (isNaN(gameDateTime.getTime())) {
+        throw new Error('Invalid date. Please check the date and time values.');
+      }
+      
+      // Check if date is in the past
+      if (gameDateTime < new Date()) {
+        throw new Error('Cannot create events in the past. Please select a future date and time.');
+      }
 
       // Create game payload
       const gamePayload: Record<string, any> = {
@@ -314,6 +414,14 @@ export default function CommunityDiscoverScreen() {
         gamePayload.appearance = data.appearance;
       }
 
+      // Validate required fields before API call
+      if (!gamePayload.title || gamePayload.title.trim().length === 0) {
+        throw new Error('Event title is required.');
+      }
+      if (!gamePayload.date) {
+        throw new Error('Event date is required.');
+      }
+
       // Create game using the API
       await Game.create(gamePayload);
 
@@ -328,20 +436,50 @@ export default function CommunityDiscoverScreen() {
       }
     } catch (error) {
       if (__DEV__) console.error('Error adding quick game:', error);
-      if (typeof alert !== 'undefined') {
-        alert(`Failed to add event: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      
+      // Provide specific error messages
+      let errorMessage = 'Failed to add event.';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      } else if (error && typeof error === 'object' && 'message' in error) {
+        errorMessage = String(error.message);
       }
+      
+      if (typeof alert !== 'undefined') {
+        alert(errorMessage);
+      }
+    } finally {
+      setIsCreatingGame(false);
     }
-  }, [load]);
+  }, [load, isCreatingGame]);
 
   const filtered = useMemo(() => {
     if (!query) return games;
-    const q = query.toLowerCase().trim();
-    const zip = q.match(/\b\d{5}\b/);
-    if (zip) {
-      return games.filter((g) => (g.location || '').toLowerCase().includes(zip[0]));
+    
+    // Sanitize and limit query length
+    const q = query.trim().slice(0, 100).toLowerCase();
+    if (q.length === 0) return games;
+    
+    // Check for zip code (5 digits, optionally with dash and 4 more digits)
+    const zipMatch = q.match(/\b\d{5}(?:-\d{4})?\b/);
+    if (zipMatch) {
+      const zip = zipMatch[0].replace(/[-\s]/g, '').slice(0, 5);
+      return games.filter((g) => {
+        const location = `${g.location || ''} ${(g as any)?.address || ''} ${(g as any)?.city || ''}`.toLowerCase();
+        // Extract zip codes from location and check if any match
+        const locationZips = location.match(/\b\d{5}(?:-\d{4})?\b/g);
+        return locationZips?.some(lz => lz.replace(/[-\s]/g, '').startsWith(zip)) || location.includes(zip);
+      });
     }
-    return games.filter((g) => (g.title || '').toLowerCase().includes(q) || (g.location || '').toLowerCase().includes(q));
+    
+    // Regular keyword search
+    return games.filter((g) => {
+      const title = (g.title || '').toLowerCase();
+      const location = (g.location || '').toLowerCase();
+      return title.includes(q) || location.includes(q);
+    });
   }, [games, query]);
 
   const zipSuggestions = useMemo(() => {
@@ -462,12 +600,17 @@ export default function CommunityDiscoverScreen() {
           }}
           markedDates={useMemo(() => {
             const marked: Record<string, any> = {};
-            // Mark all dates with events
+            const now = new Date();
+            // Mark only future dates with events
             games.forEach(game => {
               if (game.date) {
-                const dateKey = new Date(game.date).toISOString().split('T')[0];
-                if (!marked[dateKey]) {
-                  marked[dateKey] = { marked: true, dotColor: Colors[colorScheme].tint };
+                const gameDate = new Date(game.date);
+                // Only mark future events
+                if (!isNaN(gameDate.getTime()) && gameDate >= now) {
+                  const dateKey = gameDate.toISOString().split('T')[0];
+                  if (!marked[dateKey]) {
+                    marked[dateKey] = { marked: true, dotColor: Colors[colorScheme].tint };
+                  }
                 }
               }
             });
@@ -503,8 +646,10 @@ export default function CommunityDiscoverScreen() {
       {selectedDate && (() => {
         const gamesOnDate = games.filter(g => {
           if (!g.date) return false;
-          const gameDate = new Date(g.date).toISOString().split('T')[0];
-          return gameDate === selectedDate;
+          const gameDate = new Date(g.date);
+          // Only show future events on selected date
+          if (isNaN(gameDate.getTime()) || gameDate < new Date()) return false;
+          return gameDate.toISOString().split('T')[0] === selectedDate;
         });
         
         if (gamesOnDate.length === 0) return null;
@@ -549,9 +694,7 @@ export default function CommunityDiscoverScreen() {
 
       {/* Quick Actions Dashboard */}
       <View style={[styles.coachDashboard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-        <Text style={[styles.coachTitle, { color: Colors[colorScheme].text }]}>
-          Quick Actions {__DEV__ && me?.preferences?.role && `(${me.preferences.role})`}
-        </Text>
+        <Text style={[styles.coachTitle, { color: Colors[colorScheme].text }]}>Quick Actions</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12 }}>
           {/* Role-based actions */}
           {me?.preferences?.role === 'coach' ? (
@@ -604,9 +747,9 @@ export default function CommunityDiscoverScreen() {
                 style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: 12 }]}
                 onPress={() => void router.push('/favorites')}
               >
-                <Ionicons name="heart" size={24} color={Colors[colorScheme].tint} />
-                <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>My Teams</Text>
-                <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Teams you follow</Text>
+                <Ionicons name="bookmark" size={24} color={Colors[colorScheme].tint} />
+                <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Saved Post</Text>
+                <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Saved posts</Text>
               </Pressable>
             </>
           )}
@@ -837,7 +980,7 @@ export default function CommunityDiscoverScreen() {
           ListHeaderComponent={ListHeader}
           renderItem={({ item }) => (
             <Pressable
-              style={styles.card}
+              style={[styles.card, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
               onPress={() => void router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(item.id) } })}
             >
               <View style={styles.hero}>
@@ -851,14 +994,14 @@ export default function CommunityDiscoverScreen() {
                 })()}
               </View>
               <View style={styles.cardContent}>
-                <Text style={styles.cardTitle}>{item.title ? String(item.title) : 'Game'}</Text>
-                <Text style={styles.cardMeta}>{item.location ? String(item.location) : 'TBD'}</Text>
+                <Text style={[styles.cardTitle, { color: Colors[colorScheme].text }]}>{item.title ? String(item.title) : 'Game'}</Text>
+                <Text style={[styles.cardMeta, { color: Colors[colorScheme].mutedText }]}>{item.location ? String(item.location) : 'TBD'}</Text>
                 {(() => {
                   const labels = deriveTeamLabels(item);
                   return (
                     <View style={styles.teamRow}>
                       <View style={styles.teamPill}><Text style={styles.teamPillText}>{labels.teamA}</Text></View>
-                      <Text style={styles.vsText}>vs</Text>
+                      <Text style={[styles.vsText, { color: Colors[colorScheme].mutedText }]}>vs</Text>
                       <View style={styles.teamPillAlt}><Text style={styles.teamPillAltText}>{labels.teamB}</Text></View>
                     </View>
                   );

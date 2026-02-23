@@ -32,6 +32,36 @@ export default function Step7Profile() {
 
   const styles = useMemo(() => createStyles(colorScheme), [colorScheme]);
 
+  // CRITICAL: For coaches, IMMEDIATELY redirect if steps 2-6 not completed
+  // This is a hard guard - coaches CANNOT access step 7 without completing required steps
+  useEffect(() => {
+    if (ob.role === 'coach' && !returnToConfirmation) {
+      const hasStep2 = !!(ob.username && ob.dob && (ob.zip || ob.zip_code));
+      const hasStep3 = !!ob.plan;
+      const hasStep4 = !!(ob.team_id || ob.organization_id);
+      
+      // IMMEDIATE redirect - don't even render the screen
+      if (!hasStep2) {
+        console.warn('[Step7] BLOCKED: Coach missing Step 2 - redirecting to Step 2');
+        setProgress(1);
+        router.replace('/onboarding/step-2-basic');
+        return;
+      }
+      if (!hasStep3) {
+        console.warn('[Step7] BLOCKED: Coach missing Step 3 - redirecting to Step 3');
+        setProgress(2);
+        router.replace('/onboarding/step-3-plan');
+        return;
+      }
+      if (!hasStep4) {
+        console.warn('[Step7] BLOCKED: Coach missing Step 4 - redirecting to Step 4');
+        setProgress(3);
+        router.replace('/onboarding/step-4-organization');
+        return;
+      }
+    }
+  }, [ob.role, ob.username, ob.dob, ob.zip, ob.zip_code, ob.plan, ob.team_id, ob.organization_id, returnToConfirmation, router, setProgress]);
+
   useEffect(() => {
     setAvatar(ob.avatar_url ?? null);
     setUsername(ob.username ?? '');
@@ -111,7 +141,7 @@ export default function Step7Profile() {
         preferences: { sports_interests: interests } 
       });
       
-      setProgress(5); // step-8 is index 5
+      setProgress(6); // step-8 is index 6 in stepRoutes array
       if (returnToConfirmation) {
         router.replace('/onboarding/step-10-confirmation');
       } else {
@@ -127,7 +157,7 @@ export default function Step7Profile() {
 
   return (
     <OnboardingLayout
-      step={6}
+      step={7}
       title="Create Your Profile"
       subtitle="Add a profile picture, bio, and interests to help others connect with you"
     >
@@ -361,7 +391,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     fontWeight: '500',
   },
   interestChipTextSelected: {
-    color: colorScheme === 'dark' ? '#000000' : '#FFFFFF',
+    color: colorScheme === 'dark' ? Colors[colorScheme].text : '#FFFFFF',
   },
   
   continueSection: {
@@ -371,7 +401,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   // Legacy styles (keeping for compatibility)
   label: { fontWeight: '700', marginBottom: 4, color: Colors[colorScheme].text },
   chip: { borderWidth: StyleSheet.hairlineWidth, borderColor: Colors[colorScheme].border, color: Colors[colorScheme].text, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999 },
-  chipSelected: { backgroundColor: Colors[colorScheme].tint, color: colorScheme === 'dark' ? '#000000' : 'white', borderColor: Colors[colorScheme].tint },
+  chipSelected: { backgroundColor: Colors[colorScheme].tint, color: colorScheme === 'dark' ? Colors[colorScheme].text : '#FFFFFF', borderColor: Colors[colorScheme].tint },
 });
 
 

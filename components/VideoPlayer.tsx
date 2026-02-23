@@ -22,7 +22,10 @@ export function VideoPlayer({
 }: VideoPlayerProps) {
   const player = useVideoPlayer(uri, (p) => {
     if (autoPlay && !paused) {
-      try { p.play(); } catch {}
+      try { p.play(); } catch (e) {
+        // Video player may not be ready yet - non-critical
+        if (__DEV__) console.warn('[VideoPlayer] Initial play failed:', e);
+      }
     }
   });
 
@@ -39,7 +42,10 @@ export function VideoPlayer({
       } else if (autoPlay) {
         player.play();
       }
-    } catch {}
+    } catch (e) {
+      // Video state change failed - non-critical
+      if (__DEV__) console.warn('[VideoPlayer] Play/pause state change failed:', e);
+    }
   }, [paused, player, autoPlay]);
 
   // Restart video when autoPlay changes from false to true
@@ -47,7 +53,10 @@ export function VideoPlayer({
     if (!player || !autoPlay || paused) return;
     try {
       player.replay();
-    } catch {}
+    } catch (e) {
+      // Replay failed - non-critical
+      if (__DEV__) console.warn('[VideoPlayer] Replay failed:', e);
+    }
   }, [autoPlay, player, paused]);
 
   return (

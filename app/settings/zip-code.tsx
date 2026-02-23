@@ -1,10 +1,13 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Stack, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { useState, useEffect } from 'react';
+import { Alert, ScrollView, StyleSheet, Text, useColorScheme } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
+import { useUserProfile } from '@/hooks/useUser';
+import { Colors } from '@/constants/Colors';
 
 function isValidZip(v: string) {
   const us = /^\d{5}$/;
@@ -14,30 +17,53 @@ function isValidZip(v: string) {
 
 export default function ZipCodeScreen() {
   const router = useRouter();
-  const [zip, setZip] = useState('');
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+  const { zipCode, refresh: refreshUserProfile } = useUserProfile();
+  const [zip, setZip] = useState(zipCode || '');
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => { void (async () => { try { const me: any = await User.me(); setZip(String(me?.preferences?.zip_code || '')); } catch {} })(); }, []);
+  useEffect(() => {
+    if (zipCode && !zip) {
+      setZip(zipCode);
+    }
+  }, [zipCode, zip]);
 
   const onSave = async () => {
     const v = zip.trim();
     if (v && !isValidZip(v)) { Alert.alert('Invalid ZIP/Postal Code'); return; }
     setSaving(true);
-    try { await User.updatePreferences({ zip_code: v || null }); router.back(); } catch (e: any) { Alert.alert('Save failed', e?.message || 'Could not save'); } finally { setSaving(false); }
+    try {
+      await User.updatePreferences({ zip_code: v || null });
+      // Refresh user profile to reflect the change
+      await refreshUserProfile().catch((error) => {
+        console.warn('[zip-code] Failed to refresh user profile after save:', error);
+      });
+      router.back();
+    } catch (e: any) {
+      console.error('[zip-code] Failed to save ZIP code:', e);
+      Alert.alert('Save failed', e?.message || 'Could not save');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
-    <View style={styles.container}>
-      <Stack.Screen options={{ title: 'ZIP Code' }} />
-      <Text style={styles.title}>ZIP / Postal Code</Text>
-      <Input placeholder="94105" value={zip} onChangeText={setZip} keyboardType="number-pad" style={{ marginBottom: 12 }} />
-      <Button onPress={onSave} disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
-    </View>
+    <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#111827' : '#FFFFFF' }]} edges={['bottom']}>
+      <Stack.Screen options={{ title: 'ZIP Code', headerBackTitle: 'Back', headerShown: true }} />
+      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
+        <Text style={[styles.title, { color: Colors[colorScheme ?? 'light'].text }]}>ZIP / Postal Code</Text>
+        <Input placeholder="94105" value={zip} onChangeText={setZip} keyboardType="number-pad" style={{ marginBottom: 12 }} />
+        <Button onPress={onSave} disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: 'white' },
+  container: { flex: 1 },
+  content: { flex: 1 },
+  contentContainer: { padding: 16, paddingTop: 24 },
   title: { fontSize: 20, fontWeight: '700', marginBottom: 12 },
 });
 

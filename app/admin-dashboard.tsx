@@ -41,25 +41,12 @@ export default function AdminDashboardScreen() {
     setError(null);
     
     try {
-      const token = await (await import('@/api/auth')).loadToken();
-      const apiUrl = getApiBaseUrl();
+      const _token = await (await import('@/api/auth')).loadToken();
+      const _apiUrl = getApiBaseUrl();
       
-      const response = await fetch(`${apiUrl}/admin/dashboard`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (response.status === 403) {
-        throw new Error('Access denied (admin only)');
-      }
-
-      if (!response.ok) {
-        throw new Error('Failed to load dashboard');
-      }
-
-      const data = await response.json();
+      // Use API client instead of direct fetch
+      const { httpGet } = await import('@/api/http');
+      const data = await httpGet('/admin/dashboard');
       setStats(data);
     } catch (e: any) {
       setError(e?.message || 'Failed to load dashboard');
@@ -132,7 +119,7 @@ export default function AdminDashboardScreen() {
 
   return (
     <SafeAreaView 
-      style={[styles.container, { backgroundColor: colorScheme === 'dark' ? '#0B1120' : '#F3F4F6' }]} 
+      style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} 
       edges={['top']}
     >
       <Stack.Screen 

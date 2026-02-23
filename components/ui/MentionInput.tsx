@@ -1,10 +1,13 @@
 import { User } from '@/api/entities';
+import { Colors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 interface MentionUser {
   id: string;
+  username?: string;
   display_name: string;
   avatar_url?: string;
 }
@@ -34,6 +37,8 @@ export function MentionInput({
   const [mentionStart, setMentionStart] = useState(-1);
   const inputRef = useRef<TextInput>(null);
   const searchTimeoutRef = useRef<any>(null);
+  const colorScheme = useColorScheme() ?? 'light';
+  const theme = Colors[colorScheme];
 
   const searchUsers = async (query: string) => {
     if (query.length < 1) {
@@ -96,7 +101,7 @@ export function MentionInput({
     
     const beforeMention = value.substring(0, mentionStart);
     const afterMention = value.substring(mentionStart + currentMention.length + 1);
-    const newText = `${beforeMention}@${user.display_name} ${afterMention}`;
+    const newText = `${beforeMention}@${user.username || user.display_name || 'user'} ${afterMention}`;
     
     onChangeText(newText);
     setShowSuggestions(false);
@@ -125,32 +130,32 @@ export function MentionInput({
         value={value}
         onChangeText={handleTextChange}
         placeholder={placeholder}
-        placeholderTextColor={placeholderTextColor}
+        placeholderTextColor={placeholderTextColor ?? theme.mutedText}
         multiline={multiline}
         style={[styles.input, style]}
         maxLength={maxLength}
       />
       
       {showSuggestions && suggestions.length > 0 && (
-        <View style={styles.suggestionsContainer}>
+        <View style={[styles.suggestionsContainer, { backgroundColor: theme.card }]}>
           <View style={styles.suggestionsList}>
             {suggestions.slice(0, 4).map((item) => (
               <Pressable 
                 key={item.id}
-                style={styles.suggestionItem} 
+                style={[styles.suggestionItem, { borderBottomColor: theme.border }]} 
                 onPress={() => insertMention(item)}
               >
                 <View style={styles.avatarContainer}>
                   {item.avatar_url ? (
                     <Image source={{ uri: item.avatar_url }} style={styles.avatar} />
                   ) : (
-                    <View style={styles.avatarPlaceholder}>
-                      <Ionicons name="person" size={16} color="#6B7280" />
+                    <View style={[styles.avatarPlaceholder, { backgroundColor: theme.surface }]}>
+                      <Ionicons name="person" size={16} color={theme.mutedText} />
                     </View>
                   )}
                 </View>
                 <View style={styles.userInfo}>
-                  <Text style={styles.displayName}>@{item.display_name}</Text>
+                  <Text style={[styles.displayName, { color: theme.text }]}>@{item.username || item.display_name || 'user'}</Text>
                 </View>
               </Pressable>
             ))}

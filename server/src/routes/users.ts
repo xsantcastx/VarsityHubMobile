@@ -1,33 +1,18 @@
 import { Router } from 'express';
 import { notifyNewFollower } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
-import { emailQueue } from '../lib/queue.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
+import { mentionsSearchLimiter, userLookupLimiter } from '../middleware/rateLimiters.js';
 
 export const usersRouter = Router();
-const APP_BASE_URL = (process.env.APP_BASE_URL || 'https://varsityhub.app').replace(/\/$/, '');
-
-const MS_IN_DAY = 24 * 60 * 60 * 1000;
-function formatJoinDuration(createdAt?: Date | null): string {
-  if (!createdAt || Number.isNaN(createdAt.getTime?.())) return 'recently';
-  const diffDays = Math.max(0, Math.floor((Date.now() - createdAt.getTime()) / MS_IN_DAY));
-  if (diffDays >= 365) {
-    const years = Math.floor(diffDays / 365);
-    return `${years} year${years === 1 ? '' : 's'} ago`;
-  }
-  if (diffDays >= 30) {
-    const months = Math.floor(diffDays / 30);
-    return `${months} month${months === 1 ? '' : 's'} ago`;
-  }
-  if (diffDays >= 7) {
-    const weeks = Math.floor(diffDays / 7);
-    return `${weeks} week${weeks === 1 ? '' : 's'} ago`;
-  }
-  if (diffDays <= 1) return 'today';
-  return `${diffDays} days ago`;
-}
+const publicUserSelect = {
+  id: true,
+  username: true,
+  display_name: true,
+  avatar_url: true,
+};
 
 // List users (admin only)
 usersRouter.get('/', requireAdmin as any, async (req, res) => {
@@ -37,14 +22,14 @@ usersRouter.get('/', requireAdmin as any, async (req, res) => {
   const where: any = {};
   if (q) where.OR = [
     { email: { contains: q, mode: 'insensitive' } },
-    { display_name: { contains: q, mode: 'insensitive' } },
+    { username: { contains: q, mode: 'insensitive' } }, // Search by username only
   ];
   if (banned) where.banned = true;
   const rows = await prisma.user.findMany({
     where,
     take: limit,
     orderBy: { created_at: 'desc' },
-    select: { id: true, email: true, display_name: true, email_verified: true, banned: true, created_at: true },
+    select: { id: true, email: true, username: true, email_verified: true, banned: true, created_at: true },
   });
   return res.json(rows);
 });
@@ -65,7 +50,7 @@ usersRouter.post('/:id/unban', requireAdmin as any, async (req, res) => {
 // Full user detail with ads and their reservation dates (admin only)
 usersRouter.get('/:id/full', requireAdmin as any, async (req, res) => {
   const id = String(req.params.id);
-  const user = await prisma.user.findUnique({ where: { id }, select: { id: true, email: true, display_name: true, email_verified: true, banned: true, created_at: true } });
+  const user = await prisma.user.findUnique({ where: { id }, select: { id: true, email: true, username: true, email_verified: true, banned: true, created_at: true } });
   if (!user) return res.status(404).json({ error: 'Not found' });
   const ads = await prisma.ad.findMany({ where: { user_id: id }, orderBy: { created_at: 'desc' } });
   const adIds = ads.map(a => a.id);
@@ -82,7 +67,7 @@ usersRouter.get('/:id/full', requireAdmin as any, async (req, res) => {
 // CSV export of user's ads and reservations
 usersRouter.get('/:id/export', requireAdmin as any, async (req, res) => {
   const id = String(req.params.id);
-  const user = await prisma.user.findUnique({ where: { id }, select: { id: true, email: true, display_name: true } });
+  const user = await prisma.user.findUnique({ where: { id }, select: { id: true, email: true, username: true } });
   if (!user) return res.status(404).send('Not found');
   const ads = await prisma.ad.findMany({ where: { user_id: id }, orderBy: { created_at: 'desc' } });
   const adIds = ads.map(a => a.id);
@@ -139,7 +124,7 @@ function mapPostForPayload(post: any) {
     bookmarks_count: post._count?.bookmarks ?? 0,
     created_at: post.created_at instanceof Date ? post.created_at.toISOString() : post.created_at,
     author: post.author
-      ? { id: post.author.id, display_name: post.author.display_name, avatar_url: post.author.avatar_url }
+      ? { id: post.author.id, username: post.author.username, avatar_url: post.author.avatar_url }
       : null,
   };
 }
@@ -153,11 +138,11 @@ usersRouter.get('/:id/posts', async (req, res) => {
 
   const orderBy = sortParamToOrder(sort);
   const query: any = {
-    where: { author_id: id },
+    where: { author_id: id, deleted_at: null },
     take: limit + 1,
     orderBy,
     include: {
-      author: { select: { id: true, display_name: true, avatar_url: true } },
+      author: { select: { id: true, username: true, avatar_url: true } },
       _count: { select: { comments: true, bookmarks: true } },
     },
   };
@@ -168,7 +153,7 @@ usersRouter.get('/:id/posts', async (req, res) => {
 
   const payload = items.map(mapPostForPayload);
   const counts = {
-    posts: await prisma.post.count({ where: { author_id: id } }),
+    posts: await prisma.post.count({ where: { author_id: id, deleted_at: null } }),
     likes: await prisma.postUpvote.count({ where: { user_id: id } }),
     comments: await prisma.comment.count({ where: { author_id: id } as any }),
     reposts: 0,
@@ -213,7 +198,7 @@ usersRouter.get('/:id/interactions', async (req, res) => {
 
   // Sorting
   if (sort === 'most_upvoted') {
-    const likeCounts = await prisma.post.findMany({ where: { id: { in: list.map(i => i.post_id) } }, select: { id: true, upvotes_count: true } });
+  const likeCounts = await prisma.post.findMany({ where: { id: { in: list.map(i => i.post_id) }, deleted_at: null }, select: { id: true, upvotes_count: true } });
     const likeMap = new Map(likeCounts.map(p => [p.id, p.upvotes_count || 0]));
     list.sort((a, b) => (likeMap.get(b.post_id)! - likeMap.get(a.post_id)!));
   } else if (sort === 'most_commented') {
@@ -239,7 +224,7 @@ usersRouter.get('/:id/interactions', async (req, res) => {
 
   const postIds = page.map(i => i.post_id);
   const posts = postIds.length ? await prisma.post.findMany({
-    where: { id: { in: postIds } },
+    where: { id: { in: postIds }, deleted_at: null },
     include: { author: { select: { id: true, display_name: true, avatar_url: true } }, _count: { select: { comments: true, bookmarks: true } } },
   }) : [];
   // Preserve order of page
@@ -247,7 +232,7 @@ usersRouter.get('/:id/interactions', async (req, res) => {
   const ordered = postIds.map(id => byId.get(id)).filter(Boolean).map(mapPostForPayload);
 
   const counts = {
-    posts: await prisma.post.count({ where: { author_id: id } }),
+    posts: await prisma.post.count({ where: { author_id: id, deleted_at: null } }),
     likes: await prisma.postUpvote.count({ where: { user_id: id } }),
     comments: await prisma.comment.count({ where: { author_id: id } as any }),
     reposts: 0,
@@ -257,26 +242,59 @@ usersRouter.get('/:id/interactions', async (req, res) => {
   return res.json({ items: ordered, nextCursor, counts });
 });
 
-// Delete own account (soft-delete)
+// Delete own account (soft-delete with anonymization)
 usersRouter.delete('/me', requireAuth as any, async (req: AuthedRequest, res) => {
   const id = req.user!.id;
   const ts = Date.now();
   const deletedEmail = `deleted+${id}+${ts}@example.com`;
   try {
-    await prisma.user.update({
-      where: { id },
-      data: {
-        banned: true,
-        email: deletedEmail,
-        password_hash: `deleted:${ts}:${Math.random().toString(36).slice(2)}`,
-        display_name: null,
-        avatar_url: null,
-        bio: null,
-      },
+    // Use transaction to ensure atomicity
+    await prisma.$transaction(async (tx) => {
+      // Anonymize user data
+      await tx.user.update({
+        where: { id },
+        data: {
+          banned: true,
+          email: deletedEmail,
+          password_hash: `deleted:${ts}:${Math.random().toString(36).slice(2)}`,
+          display_name: null,
+          username: null,
+          avatar_url: null,
+          bio: null,
+          preferences: {}, // Clear preferences
+        },
+      });
+      
+      // Anonymize posts (set author to null or keep but mark as deleted)
+      // Note: We keep posts but remove author reference for privacy
+      // If you want to delete posts, uncomment:
+      // await tx.post.deleteMany({ where: { author_id: id } });
+      
+      // Remove follows (both directions)
+      await tx.follows.deleteMany({
+        where: {
+          OR: [
+            { follower_id: id },
+            { following_id: id }
+          ]
+        }
+      });
+      
+      // Remove upvotes and bookmarks (user's interactions)
+      await tx.postUpvote.deleteMany({ where: { user_id: id } });
+      await tx.postBookmark.deleteMany({ where: { user_id: id } });
+      
+      // Anonymize comments (or delete them)
+      // Option 1: Delete comments
+      await tx.comment.deleteMany({ where: { author_id: id } as any });
+      // Option 2: Keep comments but anonymize (if you want to preserve discussion)
+      // await tx.comment.updateMany({ where: { author_id: id }, data: { author_id: null } });
     });
-    return res.json({ deleted: true });
-  } catch (e) {
-    return res.status(500).json({ error: 'Failed to delete account' });
+    
+    return res.json({ deleted: true, message: 'Account deleted successfully' });
+  } catch (e: any) {
+    console.error('Account deletion error:', e);
+    return res.status(500).json({ error: 'Failed to delete account', message: e?.message || 'Unknown error' });
   }
 });
 
@@ -303,10 +321,20 @@ usersRouter.get('/username-available', requireAuth as any, async (req: AuthedReq
 });
 
 // Lookup user by email (for onboarding authorized users flow)
-usersRouter.get('/lookup', async (req, res) => {
+// CRITICAL: Requires authentication and rate limiting to prevent email enumeration
+usersRouter.get('/lookup', requireAuth as any, userLookupLimiter, async (req: AuthedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
   const email = String((req.query as any).email || '').trim().toLowerCase();
-  if (!email || !email.includes('@')) return res.status(400).json({ error: 'Invalid email' });
-  const u = await prisma.user.findUnique({ where: { email }, select: { id: true, email: true, display_name: true } });
+  if (!email || !email.includes('@')) {
+    return res.status(400).json({ error: 'Invalid email' });
+  }
+
+  const u = await prisma.user.findUnique({
+    where: { email },
+    select: { id: true, email: true, display_name: true }
+  });
+
   if (!u) return res.status(404).json({ error: 'Not found' });
   return res.json(u);
 });
@@ -327,62 +355,32 @@ usersRouter.post('/:id/follow', requireAuth as any, async (req: AuthedRequest, r
         following_id,
       },
     });
-    const [followerUser, athleteUser, followerFollowingCount] = await Promise.all([
-      prisma.user.findUnique({
-        where: { id: follower_id },
-        select: { display_name: true, username: true, created_at: true },
-      }),
-      prisma.user.findUnique({
-        where: { id: following_id },
-        select: { display_name: true, username: true, email: true },
-      }),
-      prisma.follows.count({ where: { follower_id } }),
-    ]);
     // Create follow notification for the recipient
     try {
-      await (prisma as any).notification.create({
-        data: {
-          user_id: following_id,
-          actor_id: follower_id,
-          type: 'FOLLOW' as any,
-        },
-      });
-      
-      // Send push notification
-      if (followerUser) {
-        await notifyNewFollower(
-          following_id,
-          follower_id,
-          followerUser.display_name || followerUser.username || 'Someone'
-        );
+      if (follower_id !== following_id) {
+        await (prisma as any).notification.create({
+          data: {
+            user_id: following_id,
+            actor_id: follower_id,
+            type: 'FOLLOW' as any,
+          },
+        });
+        
+        // Send push notification
+        const follower = await prisma.user.findUnique({ 
+          where: { id: follower_id }, 
+          select: { display_name: true } 
+        });
+        if (follower) {
+          await notifyNewFollower(
+            following_id,
+            follower_id,
+            follower.display_name || 'Someone'
+          );
+        }
       }
     } catch (e) {
       console.error('Failed to send follow notification:', e);
-    }
-    if (athleteUser?.email) {
-      const profileUrl = `${APP_BASE_URL}/user-profile?id=${encodeURIComponent(follower_id)}`;
-      const followBackLink = `${profileUrl}&follow_back=1`;
-      const dmLink = `${APP_BASE_URL}/messages/new?to=${encodeURIComponent(follower_id)}`;
-      const followerStats = `Joined ${formatJoinDuration(
-        followerUser?.created_at || null
-      )}, follows ${followerFollowingCount} athlete${followerFollowingCount === 1 ? '' : 's'}`;
-      try {
-        await emailQueue.add(
-          'follows.athlete_followed',
-          {
-            to: athleteUser.email,
-            athlete_name: athleteUser.display_name || athleteUser.username || 'Athlete',
-            follower_name: followerUser?.display_name || followerUser?.username || 'New supporter',
-            follower_profile_url: profileUrl,
-            follow_back_link: followBackLink,
-            dm_link: dmLink,
-            follower_stats: followerStats,
-          },
-          { attempts: 3, backoff: { type: 'exponential', delay: 2000 } }
-        );
-      } catch (error) {
-        console.error('[users] Failed to enqueue follower email:', error);
-      }
     }
     // Return is_following_author for caller
     res.status(201).json({ is_following_author: true });
@@ -412,7 +410,7 @@ usersRouter.delete('/:id/follow', requireAuth as any, async (req: AuthedRequest,
 });
 
 // Get followers
-usersRouter.get('/:id/followers', async (req: AuthedRequest, res) => {
+usersRouter.get('/:id/followers', requireAuth as any, async (req: AuthedRequest, res) => {
   const { id } = req.params;
   const currentUserId = req.user?.id;
   const limit = Math.min(parseInt(String(req.query.limit || '20'), 10) || 20, 50);
@@ -422,7 +420,7 @@ usersRouter.get('/:id/followers', async (req: AuthedRequest, res) => {
     where: { following_id: id },
     take: limit + 1,
     cursor: cursor ? { follower_id_following_id: { follower_id: cursor, following_id: id } } : undefined,
-    include: { follower: true },
+    include: { follower: { select: publicUserSelect } },
   });
 
   const users = follows.slice(0, limit).map(f => f.follower);
@@ -446,7 +444,7 @@ usersRouter.get('/:id/followers', async (req: AuthedRequest, res) => {
 });
 
 // Get following
-usersRouter.get('/:id/following', async (req: AuthedRequest, res) => {
+usersRouter.get('/:id/following', requireAuth as any, async (req: AuthedRequest, res) => {
   const { id } = req.params;
   const currentUserId = req.user?.id;
   const limit = Math.min(parseInt(String(req.query.limit || '20'), 10) || 20, 50);
@@ -456,7 +454,7 @@ usersRouter.get('/:id/following', async (req: AuthedRequest, res) => {
     where: { follower_id: id },
     take: limit + 1,
     cursor: cursor ? { follower_id_following_id: { follower_id: id, following_id: cursor } } : undefined,
-    include: { following: true },
+    include: { following: { select: publicUserSelect } },
   });
 
   const users = follows.slice(0, limit).map(f => f.following);
@@ -480,7 +478,7 @@ usersRouter.get('/:id/following', async (req: AuthedRequest, res) => {
 });
 
 // Search users for mentions/tagging
-usersRouter.get('/search/mentions', requireAuth as any, async (req: AuthedRequest, res) => {
+usersRouter.get('/search/mentions', requireAuth as any, mentionsSearchLimiter as any, async (req: AuthedRequest, res) => {
   const currentUserId = req.user!.id;
   const query = String((req.query as any).q || '').trim().toLowerCase();
   const limit = Math.min(parseInt(String((req.query as any).limit || '10'), 10) || 10, 20);
@@ -498,8 +496,6 @@ usersRouter.get('/search/mentions', requireAuth as any, async (req: AuthedReques
           OR: [
             // Search by username
             { username: { contains: query, mode: 'insensitive' } },
-            // Search by display name
-            { display_name: { contains: query, mode: 'insensitive' } },
             // Search by email (for team invites)
             { email: { contains: query, mode: 'insensitive' } }
           ]
@@ -510,7 +506,6 @@ usersRouter.get('/search/mentions', requireAuth as any, async (req: AuthedReques
       id: true,
       username: true,
       display_name: true,
-      email: true,
       avatar_url: true,
       email_verified: true,
     },
@@ -523,9 +518,8 @@ usersRouter.get('/search/mentions', requireAuth as any, async (req: AuthedReques
   // Ensure all fields have safe defaults (no null values that will crash React Native)
   const safeUsers = users.map(user => ({
     id: user.id,
-    username: user.username || user.email?.split('@')[0] || 'user',
-    display_name: user.display_name || user.username || user.email?.split('@')[0] || 'User',
-    email: user.email,
+    username: user.username || user.display_name || 'user',
+    display_name: user.display_name || user.username || 'User',
     avatar_url: user.avatar_url,
     email_verified: user.email_verified,
   }));
@@ -544,16 +538,18 @@ usersRouter.get('/:id', async (req: AuthedRequest, res) => {
     where: { id },
     select: {
       id: true,
+      username: true,
       display_name: true,
       avatar_url: true,
       bio: true,
       created_at: true,
+      preferences: true,
     },
   });
   if (!user) return res.status(404).json({ error: 'Not found' });
 
   const [posts_count, followers_count, following_count, rel] = await Promise.all([
-    prisma.post.count({ where: { author_id: id } }),
+    prisma.post.count({ where: { author_id: id, deleted_at: null } }),
     prisma.follows.count({ where: { following_id: id } }),
     prisma.follows.count({ where: { follower_id: id } }),
     currentUserId
@@ -564,12 +560,21 @@ usersRouter.get('/:id', async (req: AuthedRequest, res) => {
       : Promise.resolve(null),
   ]);
 
+  const prefs = (user.preferences || {}) as any;
+  const is_parent = prefs?.is_parent === true;
+
   return res.json({
-    ...user,
+    id: user.id,
+    username: user.username,
+    display_name: user.display_name,
+    avatar_url: user.avatar_url,
+    bio: user.bio,
+    created_at: user.created_at,
     posts_count,
     followers_count,
     following_count,
     is_following: Boolean(rel),
+    is_parent, // Include parent status for coaches viewing profiles
   });
 });
 

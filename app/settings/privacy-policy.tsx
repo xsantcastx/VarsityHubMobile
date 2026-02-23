@@ -1,194 +1,103 @@
-import { Colors } from '@/constants/Colors';
-import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
-import { Ionicons } from '@expo/vector-icons';
 import { Stack } from 'expo-router';
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Colors } from '@/constants/Colors';
 
 export default function PrivacyPolicyScreen() {
-  const colorScheme = useCustomColorScheme();
-  const theme = Colors[colorScheme];
-
-  const openExternalLink = (url: string) => {
-    Linking.openURL(url).catch(_err => {/* Failed to open URL */});
-  };
+  const colorScheme = useColorScheme() ?? 'light';
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'bottom']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['bottom']}>
       <Stack.Screen options={{ title: 'Privacy Policy' }} />
-      
       <ScrollView contentContainerStyle={styles.content}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Ionicons name="shield-checkmark" size={48} color={theme.tint} />
-          <Text style={[styles.title, { color: theme.text }]}>Privacy Policy</Text>
-          <Text style={[styles.subtitle, { color: theme.mutedText }]}>
-            Last updated: November 4, 2025
-          </Text>
-        </View>
+        <Text style={[styles.updatedAt, { color: Colors[colorScheme].mutedText }]}>
+          Last updated: January 19, 2025
+        </Text>
 
-        {/* Placeholder Content */}
-        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <View style={styles.iconRow}>
-            <Ionicons name="document-text-outline" size={24} color={theme.tint} />
-            <Text style={[styles.cardTitle, { color: theme.text }]}>Privacy Policy Coming Soon</Text>
-          </View>
-          <Text style={[styles.cardText, { color: theme.mutedText }]}>
-            Our full Privacy Policy is currently being finalized. This document will outline how we collect, use, and protect your personal information.
-          </Text>
-        </View>
+        <PolicySection colorScheme={colorScheme} title="Introduction"
+          body={'VarsityHub ("we", "our", or "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our mobile application.'} />
 
-        {/* What We Collect */}
-        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <View style={styles.iconRow}>
-            <Ionicons name="information-circle-outline" size={24} color={theme.tint} />
-            <Text style={[styles.cardTitle, { color: theme.text }]}>Information We Collect</Text>
-          </View>
-          <Text style={[styles.cardText, { color: theme.mutedText }]}>
-            • Account information (email, username, display name){'\n'}
-            • Profile data (bio, avatar, preferences){'\n'}
-            • Content you create (posts, comments, media){'\n'}
-            • Usage data and analytics{'\n'}
-            • Device information
-          </Text>
-        </View>
+        <PolicySection colorScheme={colorScheme} title="Personal Information We Collect"
+          body={'• Account Information: Email address, username, phone number (optional)\n• Profile Information: Avatar, bio, sports interests, team affiliations\n• Authentication: Google OAuth or Apple Sign-In credentials\n• User-Generated Content: Posts, comments, messages, photos, and videos\n• Team and game information you create\n• Event RSVPs and attendance data'} />
 
-        {/* How We Use Your Data */}
-        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <View style={styles.iconRow}>
-            <Ionicons name="lock-closed-outline" size={24} color={theme.tint} />
-            <Text style={[styles.cardTitle, { color: theme.text }]}>How We Use Your Data</Text>
-          </View>
-          <Text style={[styles.cardText, { color: theme.mutedText }]}>
-            • To provide and improve our services{'\n'}
-            • To personalize your experience{'\n'}
-            • To communicate important updates{'\n'}
-            • To ensure platform safety{'\n'}
-            • To analyze usage patterns
-          </Text>
-        </View>
+        <PolicySection colorScheme={colorScheme} title="Automatically Collected Information"
+          body={'• Device Information: Device type, operating system, unique device identifiers\n• Usage Data: App features used, interactions, time spent in app\n• Location Data: Approximate location (when you enable location services) for event mapping'} />
 
-        {/* Your Rights */}
-        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <View style={styles.iconRow}>
-            <Ionicons name="hand-right-outline" size={24} color={theme.tint} />
-            <Text style={[styles.cardTitle, { color: theme.text }]}>Your Rights</Text>
-          </View>
-          <Text style={[styles.cardText, { color: theme.mutedText }]}>
-            • Access your personal data{'\n'}
-            • Request data deletion{'\n'}
-            • Opt-out of marketing communications{'\n'}
-            • Update your information{'\n'}
-            • Export your data
-          </Text>
-        </View>
+        <PolicySection colorScheme={colorScheme} title="Payment Information"
+          body="Payment processing is handled by Stripe. We do not store credit card numbers. We retain transaction records for subscription management." />
 
-        {/* Contact Information */}
-        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <View style={styles.iconRow}>
-            <Ionicons name="mail-outline" size={24} color={theme.tint} />
-            <Text style={[styles.cardTitle, { color: theme.text }]}>Contact Us</Text>
-          </View>
-          <Text style={[styles.cardText, { color: theme.mutedText }]}>
-            If you have questions about our privacy practices, please contact us:
-          </Text>
-          <Pressable 
-            onPress={() => openExternalLink('mailto:privacy@varsityhub.com')}
-            style={styles.linkButton}
-          >
-            <Text style={[styles.linkText, { color: theme.tint }]}>privacy@varsityhub.com</Text>
-          </Pressable>
-        </View>
+        <PolicySection colorScheme={colorScheme} title="How We Use Your Information"
+          body={'We use the collected information to:\n• Provide, maintain, and improve the VarsityHub service\n• Process your subscription payments\n• Send you notifications about events, messages, and app updates\n• Display nearby events on the map (if location enabled)\n• Personalize your experience\n• Respond to your comments and questions\n• Detect and prevent fraud or abuse'} />
 
-        {/* External Policy Link (when ready) */}
-        <Pressable 
-          style={[styles.externalLinkButton, { backgroundColor: theme.tint }]}
-          onPress={() => openExternalLink('https://limeprod.com/VarsityHubPrivacy')}
-        >
-          <Text style={styles.externalLinkText}>View Full Policy on Web</Text>
-          <Ionicons name="open-outline" size={18} color="#ffffff" />
-        </Pressable>
+        <PolicySection colorScheme={colorScheme} title="Information Sharing"
+          body={'We do not sell your personal information. We share information only:\n• With Your Consent: When you choose to share content publicly or with specific teams\n• Service Providers: Stripe (payment processing), Cloudinary (image/video hosting), Railway (server hosting), Google (OAuth authentication and Maps)\n• Legal Requirements: When required by law or to protect rights and safety'} />
 
-        <Text style={[styles.footer, { color: theme.mutedText }]}>
-          By using VarsityHub, you agree to our Privacy Policy and Terms of Service.
+        <PolicySection colorScheme={colorScheme} title="Data Storage and Security"
+          body={'• Your data is encrypted in transit using HTTPS\n• We use industry-standard security measures to protect your information\n• Data is stored on secure servers provided by Railway (PostgreSQL database)'} />
+
+        <PolicySection colorScheme={colorScheme} title="Your Rights and Choices"
+          body={'You have the right to:\n• Access: Request a copy of your personal data\n• Correction: Update incorrect information in your profile settings\n• Deletion: Delete your account and associated data from Settings\n• Opt-Out: Disable location services or push notifications in your device settings\n• Data Portability: Request your data in a portable format\n\nTo exercise these rights, contact us at: support@varsityhub.app'} />
+
+        <PolicySection colorScheme={colorScheme} title="Children's Privacy"
+          body="VarsityHub is intended for users 13 years and older. We do not knowingly collect information from children under 13. If we discover such collection, we will delete it immediately." />
+
+        <PolicySection colorScheme={colorScheme} title="Third-Party Services"
+          body={'Our app integrates with:\n• Google Maps: For event location display (subject to Google Privacy Policy)\n• Google Sign-In / Apple Sign-In: For authentication\n• Stripe: For payment processing (subject to Stripe Privacy Policy)'} />
+
+        <PolicySection colorScheme={colorScheme} title="Push Notifications"
+          body="You can control push notifications in your device settings. We send notifications for new messages, event reminders, team updates, and subscription status changes." />
+
+        <PolicySection colorScheme={colorScheme} title="International Users"
+          body="VarsityHub is operated in the United States. By using the app, you consent to the transfer of your information to the United States." />
+
+        <PolicySection colorScheme={colorScheme} title="Changes to This Policy"
+          body="We may update this Privacy Policy periodically. We will notify you of significant changes via in-app notification or email to your registered address." />
+
+        <PolicySection colorScheme={colorScheme} title="Contact Us"
+          body="If you have questions about this Privacy Policy, email us at support@varsityhub.app." />
+
+        <Text style={[styles.footer, { color: Colors[colorScheme].mutedText }]}>
+          © 2026 VarsityHub. All rights reserved.
         </Text>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
+function PolicySection({
+  title,
+  body,
+  colorScheme,
+}: {
+  title: string;
+  body: string;
+  colorScheme: 'light' | 'dark';
+}) {
+  return (
+    <View style={[styles.section, { borderColor: Colors[colorScheme].border, backgroundColor: Colors[colorScheme].card }]}>
+      <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>{title}</Text>
+      <Text style={[styles.sectionBody, { color: Colors[colorScheme].mutedText }]}>{body}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  content: {
-    padding: 20,
-    paddingBottom: 40,
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '800',
-    marginTop: 12,
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  card: {
-    marginBottom: 16,
-    padding: 16,
+  container: { flex: 1 },
+  content: { padding: 16, gap: 12, paddingBottom: 32 },
+  updatedAt: { fontSize: 12, marginBottom: 4 },
+  footer: { fontSize: 12, textAlign: 'center', marginTop: 16 },
+  section: {
+    borderWidth: StyleSheet.hairlineWidth,
     borderRadius: 12,
-    borderWidth: 1,
-  },
-  iconRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 12,
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    flex: 1,
-  },
-  cardText: {
-    fontSize: 15,
-    lineHeight: 22,
-  },
-  linkButton: {
-    marginTop: 8,
     padding: 12,
-    borderRadius: 8,
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    gap: 6,
   },
-  linkText: {
-    fontSize: 15,
-    fontWeight: '600',
-    textDecorationLine: 'underline',
-  },
-  externalLinkButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    padding: 16,
-    borderRadius: 12,
-    marginTop: 8,
-    marginBottom: 24,
-  },
-  externalLinkText: {
-    color: '#ffffff',
+  sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
   },
-  footer: {
-    fontSize: 12,
-    textAlign: 'center',
-    lineHeight: 18,
+  sectionBody: {
+    fontSize: 14,
+    lineHeight: 20,
   },
 });

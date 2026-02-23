@@ -25,7 +25,11 @@ import { captureException } from '@/utils/sentry';
 import { Ionicons } from '@expo/vector-icons';
 import * as AppleAuthentication from 'expo-apple-authentication';
 
-const { AppleAuthenticationButton, AppleAuthenticationButtonType, AppleAuthenticationButtonStyle } = AppleAuthentication;
+const {
+  AppleAuthenticationButton,
+  AppleAuthenticationButtonType,
+  AppleAuthenticationButtonStyle,
+} = AppleAuthentication;
 
 export default function SignInScreen() {
   const router = useRouter();
@@ -49,36 +53,60 @@ export default function SignInScreen() {
     setError(null);
     try {
       const res: any = await User.loginViaEmailPassword(email, password);
-      
+
       if (!res?.access_token) {
         const errMsg = `Invalid login response: missing access_token. Response keys: ${Object.keys(res || {}).join(', ')}`;
         captureException(new Error(errMsg), { tags: { context: 'email-password-login', userId: email } });
-        setError('Invalid login response');
+        setError('Invalid login response from server');
+        setLoading(false);
         return;
       }
 
       // If email verification is needed, call checkAuth with pendingVerification flag
-      // AuthProvider will detect and navigate to /verify-email
       if (res?.needs_verification) {
-        await checkAuth({ email, pendingVerification: true });
-        // AuthProvider routing will handle the navigation to /verify-email
+        try {
+          await checkAuth({ email, pendingVerification: true });
+        } catch (authError) {
+          // Token is saved, AuthProvider will handle routing on next render
+          if (__DEV__) console.log('[sign-in] checkAuth after verification login:', authError);
+        }
+        setLoading(false);
         return;
       }
 
       // Otherwise, refresh auth state - AuthProvider will handle routing
-      await checkAuth();
+      try {
+        await checkAuth();
+      } catch (authError) {
+        // Token is saved, let AuthProvider handle routing
+        // Don't show error - token is valid, routing will happen
+        if (__DEV__) console.log('[sign-in] checkAuth after email login:', authError);
+      }
     } catch (e: any) {
       const errMsg = e?.message || 'Login failed';
+      const status = e?.status || e?.response?.status;
+      
+      // Show user-friendly error messages
+      if (status === 401) {
+        setError('Invalid email or password. Please try again.');
+      } else if (status === 429) {
+        setError('Too many login attempts. Please wait a moment and try again.');
+      } else if (status === 403) {
+        setError('This account has been banned. Please contact support.');
+      } else if (errMsg.includes('Network') || errMsg.includes('timeout') || errMsg.includes('fetch')) {
+        setError('Unable to connect to server. Please check your internet connection.');
+      } else {
+        setError(errMsg || 'Login failed. Please try again.');
+      }
+      
       // Capture error with context
       captureException(
         typeof e === 'string' ? new Error(e) : e,
         {
           tags: { context: 'email-password-login', userId: email },
-          extra: { response: e?.data?.error || e?.response?.data },
+          extra: { response: e?.data?.error || e?.response?.data, status },
         }
       );
-      
-      setError(errMsg);
     } finally {
       setLoading(false);
     }
@@ -92,34 +120,45 @@ export default function SignInScreen() {
     setError(null);
     try {
       const response: any = await signInWithGoogle();
-      
-      if (!response?.user?.email && !response?.email) {
-        const errMsg = `Google sign-in failed: missing email in response. Response: ${JSON.stringify(response).substring(0, 200)}`;
+
+      if (!response?.access_token) {
+        const errMsg = `Google sign-in failed: missing access_token. Response: ${JSON.stringify(response).substring(0, 200)}`;
         captureException(new Error(errMsg), { tags: { context: 'google-signin' } });
-        setError('Failed to retrieve email from Google');
+        setError('Failed to complete Google sign-in. Please try again.');
         return;
       }
 
       // Call checkAuth to set user state; AuthProvider will handle routing
-      await checkAuth();
-      // AuthProvider will detect onboarding_completed and route accordingly
+      try {
+        await checkAuth();
+      } catch (authError: any) {
+        console.warn('[sign-in] checkAuth after Google login failed:', authError?.message);
+        setError('Sign-in succeeded but we could not load your profile. Please try again.');
+      }
     } catch (e: any) {
       // Silently ignore user cancellation
       if (e?.code === 'CANCELLED' || e?.message === 'GOOGLE_SIGN_IN_CANCELLED') {
         return;
       }
-      
+
       const message = e?.message || 'Google sign in failed';
       if (typeof message === 'string' && message.toLowerCase().includes('cancel')) {
         return;
+      }
+      
+      // Show user-friendly error
+      if (message.includes('Network') || message.includes('timeout') || message.includes('fetch')) {
+        setError('Unable to connect to server. Please check your internet connection.');
+      } else if (message.includes('not configured')) {
+        setError('Google sign-in is not configured. Please use email/password login.');
+      } else {
+        setError(message || 'Google sign-in failed. Please try again.');
       }
       
       captureException(
         typeof e === 'string' ? new Error(e) : e,
         { tags: { context: 'google-signin' } }
       );
-      
-      setError(message);
     }
   };
 
@@ -131,21 +170,25 @@ export default function SignInScreen() {
     setError(null);
     try {
       const response: any = await signInWithApple();
-      
-      if (!response?.user && !response?.email) {
-        const errMsg = `Apple sign-in: missing user in response. Response: ${JSON.stringify(response).substring(0, 200)}`;
+
+      if (!response?.access_token) {
+        const errMsg = `Apple sign-in failed: missing access_token. Response: ${JSON.stringify(response).substring(0, 200)}`;
         captureException(new Error(errMsg), { tags: { context: 'apple-signin' } });
-        setError('Failed to complete sign-in. Please try again.');
+        setError('Failed to complete Apple sign-in. Please try again.');
         return;
       }
 
       // Call checkAuth to set user state; AuthProvider will handle routing
-      await checkAuth();
-      // AuthProvider will detect onboarding_completed and route accordingly
+      try {
+        await checkAuth();
+      } catch (authError: any) {
+        console.warn('[sign-in] checkAuth after Apple login failed:', authError?.message);
+        setError('Sign-in succeeded but we could not load your profile. Please try again.');
+      }
     } catch (e: any) {
       const message = e?.message || 'Apple sign in failed';
       const code = String(e?.code || '').toLowerCase();
-      
+
       // Silently ignore user cancellation (not an error)
       if (
         message.toLowerCase().includes('cancel') ||
@@ -156,12 +199,19 @@ export default function SignInScreen() {
         return;
       }
       
+      // Show user-friendly error
+      if (message.includes('Network') || message.includes('timeout') || message.includes('fetch')) {
+        setError('Unable to connect to server. Please check your internet connection.');
+      } else if (message.includes('not available') || message.includes('simulator')) {
+        setError('Apple sign-in is not available in simulator. Please use email/password login.');
+      } else {
+        setError(message || 'Apple sign-in failed. Please try again.');
+      }
+
       captureException(
         typeof e === 'string' ? new Error(e) : e,
         { tags: { context: 'apple-signin' } }
       );
-      
-      setError(message);
     }
   };
 
@@ -179,9 +229,19 @@ export default function SignInScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.header}>
-            <View style={[styles.logoContainer, { backgroundColor: 'transparent', shadowColor: 'transparent', shadowOpacity: 0, elevation: 0 }]}>
+            <View style={[
+              styles.logoContainer, 
+              { 
+                backgroundColor: colorScheme === 'dark' ? '#2C2C2E' : '#FFFFFF',
+                shadowColor: '#000000',
+                shadowOpacity: 0.15,
+                shadowOffset: { width: 0, height: 4 },
+                shadowRadius: 12,
+                elevation: 6,
+              }
+            ]}>
               <Image
-                source={require('../assets/images/no-background-logo.svg')}
+                source={{ uri: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765655742/6C37232F-74BC-4486-95A1-7EE208A63D06_aj2j8k.png' }}
                 style={styles.logo}
                 contentFit="contain"
               />
@@ -192,7 +252,7 @@ export default function SignInScreen() {
 
           <View style={[styles.card, { backgroundColor: palette.elevated, borderColor: palette.border }]}>
             {error ? (
-              <Text style={[styles.error, { color: '#b91c1c' }]}>{error}</Text>
+              <Text style={[styles.error, { color: palette.destructive }]}>{error}</Text>
             ) : null}
 
             {Platform.OS === 'ios' ? (
@@ -207,7 +267,7 @@ export default function SignInScreen() {
 
             {googleReady ? (
               <Pressable
-                style={[styles.googleButton, googleLoading && styles.buttonDisabled]}
+                style={[styles.googleButton, googleLoading && styles.buttonDisabled, { backgroundColor: palette.card, borderColor: palette.border }]}
                 onPress={handleGoogleLogin}
                 disabled={googleLoading}
                 accessibilityRole="button"
@@ -216,27 +276,35 @@ export default function SignInScreen() {
                 {googleLoading ? (
                   <ActivityIndicator size="small" color="#4285F4" />
                 ) : (
-                  <Text style={styles.googleButtonText}>Continue with Google</Text>
+                  <Text style={[styles.googleButtonText, { color: palette.text }]}>Continue with Google</Text>
                 )}
               </Pressable>
             ) : (
               <View
-                style={[styles.googleButton, styles.disabledGoogleButton]}
+                style={[styles.googleButton, styles.disabledGoogleButton, { backgroundColor: palette.surface, borderColor: palette.border }]}
                 accessibilityRole="text"
                 accessibilityLabel="Google sign in not available"
               >
-                <Ionicons name="logo-google" size={20} color="#94a3b8" style={styles.googleIcon} />
+                <Ionicons name="logo-google" size={20} color={palette.mutedText} style={styles.googleIcon} />
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.googleButtonText, { color: palette.mutedText }]}>Google sign in unavailable</Text>
-                  <Text style={[styles.googleButtonSubtext, { color: palette.mutedText }]}>Configure Google OAuth client IDs to enable one-tap login.</Text>
+                <Text style={[styles.googleButtonText, { color: palette.mutedText }]}>Google sign in unavailable</Text>
+                  <Text style={[styles.googleButtonSubtext, { color: palette.mutedText }]}>
+                    Configure Google OAuth client IDs to enable one-tap login.
+                  </Text>
                 </View>
               </View>
             )}
 
+            <View style={styles.divider}>
+              <View style={[styles.dividerLine, { backgroundColor: palette.border }]} />
+              <Text style={[styles.dividerText, { color: palette.mutedText }]}>or</Text>
+              <View style={[styles.dividerLine, { backgroundColor: palette.border }]} />
+            </View>
+
             <View style={styles.fieldSpacing}>
               <Text style={[styles.label, { color: palette.mutedText }]}>Email</Text>
               <Input
-                placeholder="you@email.com"
+                placeholder="name@school.edu"
                 value={email}
                 onChangeText={setEmail}
                 autoCapitalize="none"
@@ -312,23 +380,18 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   logoContainer: {
-    width: 168,
-    height: 132,
-    borderRadius: 0,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
     paddingHorizontal: 0,
     paddingVertical: 0,
-    shadowOpacity: 0,
-    shadowOffset: { width: 0, height: 0 },
-    shadowRadius: 0,
-    elevation: 0,
   },
   logo: {
-    width: 168,
-    height: 120,
-    resizeMode: 'contain',
+    width: 88,
+    height: 88,
   },
   title: {
     fontSize: 24,
@@ -352,17 +415,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'transparent', // Will be overridden with palette.card
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#E5E7EB',
+    borderColor: 'transparent', // Will be overridden with palette.border
     borderRadius: 12,
     paddingVertical: 12,
     paddingHorizontal: 16,
     gap: 8,
   },
   disabledGoogleButton: {
-    backgroundColor: '#F3F4F6',
-    borderColor: '#E5E7EB',
+    backgroundColor: 'transparent', // Will be overridden with palette.surface
+    borderColor: 'transparent', // Will be overridden with palette.border
   },
   buttonDisabled: {
     opacity: 0.6,
@@ -373,20 +436,7 @@ const styles = StyleSheet.create({
   googleButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#374151',
-  },
-  appleFallbackButton: {
-    height: 44,
-    width: '100%',
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    marginBottom: 10,
-  },
-  appleFallbackText: {
-    fontSize: 16,
-    fontWeight: '600',
+    color: 'transparent', // Will be overridden with palette.text
   },
   googleButtonSubtext: {
     fontSize: 12,
@@ -445,7 +495,3 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
-
-
-
-

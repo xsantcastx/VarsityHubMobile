@@ -36,6 +36,20 @@ export default function ResetPasswordScreen() {
       setError('Enter your email and reset code.');
       return;
     }
+    
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+    
+    // Validate reset code format (typically 6 digits or alphanumeric)
+    if (trimmedCode.length < 4 || trimmedCode.length > 20) {
+      setError('Reset code format is invalid. Please check your email for the correct code.');
+      return;
+    }
+    
     if (password.length < 8) {
       setError('Password must be at least 8 characters.');
       return;

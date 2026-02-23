@@ -5,7 +5,6 @@ import { useShareLink } from '@/hooks/useShareLink';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { retryWithBackoff } from '@/utils/retryWithBackoff';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
 import { format } from 'date-fns';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
@@ -19,10 +18,12 @@ import { getApiBaseUrl } from '../../api/http';
 import MatchBanner from '../components/MatchBanner';
 
 // @ts-ignore JS exports
-import { Event, Game, Team, User } from '@/api/entities';
+import { Event, Game, Post, Team, User } from '@/api/entities';
+import settings from '@/api/settings';
 import { uploadFile } from '@/api/upload';
 import VideoPlayer from '@/components/VideoPlayer';
 import GameVerticalFeedScreen from './GameVerticalFeedScreen';
+import { applyClearVote, applyVoteSelection, buildVoteSummary, parseVoteSummary, type VoteOption, type VoteSummary } from './voteSummary';
 
 import type { ColorValue } from 'react-native';
 const PLACEHOLDER_GRADIENT: readonly [ColorValue, ColorValue, ...ColorValue[]] = ['#1e293b', '#1d4ed8', '#38bdf8'];
@@ -33,6 +34,7 @@ const isSampleId = (id?: string | null) => !!id && /^sample-/i.test(String(id));
 type MediaItem = {
   id: string;
   url: string;
+  thumbnail_url?: string;
   kind: 'photo' | 'video';
   created_at?: string;
   caption?: string | null;
@@ -365,33 +367,6 @@ type GameVM = {
   isPast: boolean;
 };
 
-type VoteSummary = {
-  teamA: number;
-  teamB: number;
-  total: number;
-  pctA: number;
-  pctB: number;
-  userVote: "A" | "B" | null;
-};
-
-type VoteOption = 'A' | 'B';
-
-const buildVoteSummary = (teamA: number, teamB: number, userVote: VoteOption | null): VoteSummary => {
-  const safeA = Math.max(0, teamA);
-  const safeB = Math.max(0, teamB);
-  const total = safeA + safeB;
-  const pctA = total ? Math.round((safeA / total) * 100) : 0;
-  const pctB = total ? 100 - pctA : 0;
-  return { teamA: safeA, teamB: safeB, total, pctA, pctB, userVote };
-};
-
-const parseVoteSummary = (payload: any): VoteSummary => {
-  const teamA = typeof payload?.teamA === 'number' ? payload.teamA : 0;
-  const teamB = typeof payload?.teamB === 'number' ? payload.teamB : 0;
-  const userVote: VoteOption | null = payload?.userVote === 'A' || payload?.userVote === 'B' ? payload.userVote : null;
-  return buildVoteSummary(teamA, teamB, userVote);
-};
-
 const ensureIso = (value: any) => {
   if (!value) return null;
   if (typeof value === 'string') return value;
@@ -420,18 +395,24 @@ const computeIsPast = (iso?: string | null) => {
   return d.getTime() < Date.now();
 };
 
-const canAddStory = (eventIso?: string | null) => {
-  // Stories can only be added within 24 hours before the event starts
-  if (!eventIso) return false;
+const canAddStory = (eventIso?: string | null, gameId?: string | null) => {
+  // Sample events can always add stories (no time restriction)
+  if (isSampleId(gameId)) return true;
+
+  // Without an event date, allow uploading — no window to enforce client-side
+  if (!eventIso) return true;
   const eventDate = new Date(eventIso);
-  if (Number.isNaN(eventDate.getTime())) return false;
-  
+  if (Number.isNaN(eventDate.getTime())) return true;
+
   const now = Date.now();
   const eventTime = eventDate.getTime();
-  const twentyFourHoursBeforeEvent = eventTime - (24 * 60 * 60 * 1000);
-  
-  // Can add story if we're within 24 hours before the event and event hasn't passed
-  return now >= twentyFourHoursBeforeEvent && now <= eventTime;
+  // Match the server's geofencing window:
+  // 24 hours before the event up to 12 hours after it ends.
+  // Previously this blocked once the event started (now <= eventTime), which
+  // prevented users at the venue from adding stories during the game.
+  const windowStart = eventTime - 24 * 60 * 60 * 1000;
+  const windowEnd   = eventTime + 12 * 60 * 60 * 1000;
+  return now >= windowStart && now <= windowEnd;
 };
 
 const capCount = (count?: number | null, capacity?: number | null) => {
@@ -466,6 +447,8 @@ const pickBannerFromArrays = (vm: Partial<GameVM>, media: MediaItem[]) => {
 };
 
 const GameDetailsScreen = () => {
+  // Define isTestEnv at the top so all hooks can use it
+  const isTestEnv = typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'test';
   const { id, eventId } = useLocalSearchParams<{ id: string; teamId?: string; eventId?: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -539,7 +522,7 @@ const GameDetailsScreen = () => {
   useEffect(() => {
     AccessibilityInfo.isReduceMotionEnabled().then((v) => setPrefersReducedMotion(!!v)).catch(() => {});
     const ev = AccessibilityInfo.addEventListener?.('reduceMotionChanged', (v: boolean) => setPrefersReducedMotion(!!v));
-    return () => { try { ev?.remove?.(); } catch {} };
+    return () => { try { ev?.remove?.(); } catch (error) { if (__DEV__) console.warn('[GameDetails] Accessibility listener cleanup error:', error); } };
   }, []);
 
   // update display percentages from animated numeric values
@@ -550,8 +533,8 @@ const GameDetailsScreen = () => {
     numAnimA.setValue(displayPctA);
     numAnimB.setValue(displayPctB);
     return () => {
-      try { numAnimA.removeListener(idA); } catch {}
-      try { numAnimB.removeListener(idB); } catch {}
+      try { numAnimA.removeListener(idA); } catch (error) { if (__DEV__) console.warn('[GameDetails] Animation listener cleanup error:', error); }
+      try { numAnimB.removeListener(idB); } catch (error) { if (__DEV__) console.warn('[GameDetails] Animation listener cleanup error:', error); }
     };
   }, [displayPctA, displayPctB, numAnimA, numAnimB]);
 
@@ -562,13 +545,14 @@ const GameDetailsScreen = () => {
 
   // Tick every second to update countdown/live status (paused while stories viewer is open)
   useEffect(() => {
+    if (isTestEnv) return;
     const t = setInterval(() => {
       if (!viewerOpenRef.current) {
         setNowTs(Date.now());
       }
     }, 1000);
     return () => clearInterval(t);
-  }, []);
+  }, [isTestEnv]);
 
   const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const y = event.nativeEvent.contentOffset.y;
@@ -743,7 +727,16 @@ const GameDetailsScreen = () => {
         const dateIso = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString();
         
         // Sample media/stories for demo carousel
-        const sampleMedia = [
+        const sampleMedia: MediaItem[] = [
+          {
+            id: 'story-video-1',
+            url: 'https://storage.googleapis.com/static.varsityhub.app/videos/sample-highlight-1.mp4',
+            thumbnail_url: 'https://storage.googleapis.com/static.varsityhub.app/videos/sample-highlight-1-thumb.jpg',
+            kind: 'video' as const,
+            created_at: new Date(Date.now() - 35 * 60 * 1000).toISOString(),
+            caption: 'Check out this awesome highlight! 🚀',
+            user_id: 'sample-user-0',
+          },
           {
             id: 'story-1',
             url: 'https://images.unsplash.com/photo-1546519638-68e109498ffc?w=400',
@@ -786,6 +779,37 @@ const GameDetailsScreen = () => {
           },
         ];
         
+        let samplePosts: any[] = [];
+        let serverPostsLoaded = false;
+        try {
+          const res: any = await Post.feedForGame(gameIdValue, { limit: 100, sort: 'newest' });
+          if (Array.isArray(res)) {
+            samplePosts = res;
+            serverPostsLoaded = true;
+          } else if (Array.isArray(res?.items)) {
+            samplePosts = res.items;
+            serverPostsLoaded = true;
+          }
+        } catch (err: any) {
+          if (__DEV__) console.warn('[game-details] sample posts load failed:', err?.message);
+        }
+        try {
+          const cached = await settings.getJson<Record<string, any[]>>(settings.SETTINGS_KEYS.SAMPLE_EVENT_POSTS, {} as any);
+          const localPosts = Array.isArray(cached[gameIdValue]) ? cached[gameIdValue] : [];
+          const seen = new Set<string>();
+          const merged: any[] = [];
+          const priority = serverPostsLoaded ? [...samplePosts, ...localPosts] : [...localPosts, ...samplePosts];
+          for (const post of priority) {
+            const key = String(post?.id ?? post?.media_url ?? post?.created_at ?? '');
+            if (!key || seen.has(key)) continue;
+            seen.add(key);
+            merged.push(post);
+          }
+          samplePosts = merged.length > 0 ? merged : samplePosts;
+        } catch (err: any) {
+          if (__DEV__) console.warn('[game-details] sample cache merge failed:', err?.message);
+        }
+
         const vmPayload: GameVM = {
           id: gameIdValue,
           gameId: gameIdValue,
@@ -802,7 +826,7 @@ const GameDetailsScreen = () => {
           rsvpCount: null,
           userRsvped: false,
           teams: [],
-          posts: [],
+          posts: samplePosts,
           media: sampleMedia,
           reviewsCount: null,
           isPast: false,
@@ -812,49 +836,47 @@ const GameDetailsScreen = () => {
       }
 
       try {
+        console.log('[GameDetails] loadGameById() — fetching summary for', gameIdValue);
         const summary: any = await retryWithBackoff(() => Game.summary(gameIdValue), {
-          maxRetries: 2,
+          maxRetries: 0,
           initialDelayMs: 800,
           maxDelayMs: 4000,
         }).catch((err: any) => {
-          // Treat 404 as missing summary without escalating
+          console.warn('[GameDetails] summary fetch failed:', { status: err?.status, message: err?.message });
           if (err && err.status === 404) return null;
+          // Treat transport / infra failures as recoverable and fall back to Game.get.
+          if (err?.status === 0 || err?.status === 408 || err?.isNetworkError || err?.status >= 500) {
+            console.warn('[game-details] summary unavailable, falling back to game record:', err?.message);
+            return null;
+          }
           throw err;
         });
+        console.log('[GameDetails] summary result:', summary ? 'ok' : 'null');
+
         let gameRecord: any = null;
-        let postsData: any = [];
-        let mediaData: any = [];
         if (!summary) {
+          console.log('[GameDetails] no summary — trying Game.get() fallback');
           // Only attempt record fetch if summary missing; suppress 404 noise
           gameRecord = await retryWithBackoff(() => Game.get(gameIdValue), {
-            maxRetries: 2,
+            maxRetries: 0,
             initialDelayMs: 800,
             maxDelayMs: 4000,
           }).catch((err: any) => {
+            console.warn('[GameDetails] Game.get() fallback failed:', { status: err?.status, message: err?.message });
             if (err && err.status === 404) return null;
             console.warn('Game record fetch failed:', err?.message || err);
             return null;
           });
+          console.log('[GameDetails] Game.get() result:', gameRecord ? 'ok' : 'null');
         }
         // If neither summary nor record exists, bail out to show error UI
         if (!summary && !gameRecord) {
+          console.warn('[GameDetails] Both summary and gameRecord are null — throwing "Game not found"');
           throw new Error('Game not found');
         }
-        if (summary || gameRecord) {
-          // Posts/media only fetched when a real game exists to avoid extra 404 logs
-          [postsData, mediaData] = await Promise.all([
-            Game.posts(gameIdValue, { limit: 100 }).catch(() => summary?.posts || []),
-            Game.media(gameIdValue).catch(() => summary?.media || []),
-          ]);
-          // Ensure mediaData is always an array
-          if (!Array.isArray(mediaData)) {
-            mediaData = (mediaData as any)?.items || [];
-          }
-          // Ensure postsData is always an array
-          if (!Array.isArray(postsData)) {
-            postsData = (postsData as any)?.items || [];
-          }
-        }
+
+        const postsData: any[] = Array.isArray(summary?.posts) ? summary.posts : [];
+        const mediaData: any[] = Array.isArray(summary?.media) ? summary.media : [];
 
       let eventIdValue: string | null = null;
       let location: string | null = null;
@@ -940,31 +962,36 @@ const GameDetailsScreen = () => {
       if (!bannerCandidate && summary?.event?.banner_url) bannerCandidate = summary.event.banner_url;
       if (!bannerCandidate && gameRecord?.banner_url) bannerCandidate = gameRecord.banner_url; // Fallback to game banner
 
-      let eventDetails: any = null;
+      let deferredEventPromise: Promise<any> | null = null;
+      let deferredRsvpPromise: Promise<any> | null = null;
+      let deferredPostsPromise: Promise<any> | null = null;
+      let deferredMediaPromise: Promise<any> | null = null;
       if (eventIdValue) {
-        eventDetails = await retryWithBackoff(() => Event.get(eventIdValue), {
-          maxRetries: 2,
+        // Do not block first render on event-detail hydration.
+        deferredEventPromise = retryWithBackoff(() => Event.get(eventIdValue), {
+          maxRetries: 0,
           initialDelayMs: 800,
           maxDelayMs: 4000,
         }).catch(() => null);
-        if (eventDetails) {
-          if (!location) location = eventDetails.location || null;
-          if (!bannerCandidate) bannerCandidate = eventDetails.banner_url || null;
-          if (!appearance) appearance = (eventDetails as any)?.appearance ?? null;
-          if (typeof eventDetails.capacity === 'number' && capacity == null) capacity = eventDetails.capacity;
-          if (typeof eventDetails.attendees_count === 'number' && rsvpCount == null) rsvpCount = eventDetails.attendees_count;
-        }
-        const rsvp = await retryWithBackoff(() => Event.rsvpStatus(eventIdValue), {
-          maxRetries: 2,
+
+        // Do not block first render on RSVP status; hydrate it asynchronously.
+        deferredRsvpPromise = retryWithBackoff(() => Event.rsvpStatus(eventIdValue), {
+          maxRetries: 0,
           initialDelayMs: 800,
           maxDelayMs: 4000,
         }).catch(() => null);
-        if (rsvp) {
-          rsvpCount = typeof rsvp.count === 'number' ? rsvp.count : rsvpCount;
-          capacity = typeof rsvp.capacity === 'number' ? rsvp.capacity : capacity;
-          userRsvped = 'going' in rsvp ? Boolean(rsvp.going) : Boolean((rsvp as any).attending);
-        }
       }
+      // Do not block first render on posts/media.
+      deferredPostsPromise = retryWithBackoff(() => Post.feedForGame(gameIdValue, { limit: 20, sort: 'newest' }), {
+        maxRetries: 0,
+        initialDelayMs: 800,
+        maxDelayMs: 4000,
+      }).catch(() => null);
+      deferredMediaPromise = retryWithBackoff(() => Game.media(gameIdValue), {
+        maxRetries: 0,
+        initialDelayMs: 800,
+        maxDelayMs: 4000,
+      }).catch(() => null);
 
       const vmPayload: GameVM = {
         id: gameIdValue,
@@ -983,15 +1010,80 @@ const GameDetailsScreen = () => {
         rsvpCount: rsvpCount ?? null,
         userRsvped,
         teams,
-        posts: Array.isArray(postsData) ? postsData : postsData?.items || [],
-        media: Array.isArray(mediaData) ? mediaData : [],
+        posts: postsData,
+        media: mediaData,
         reviewsCount,
         isPast,
       };
 
       setVm(vmPayload);
-      } catch (error) {
-        console.error('Error in loadGameById:', error);
+
+      if (eventIdValue && deferredEventPromise) {
+        void deferredEventPromise.then((eventDetails: any) => {
+          if (!eventDetails) return;
+          setVm((prev) => {
+            if (!prev || prev.gameId !== gameIdValue) return prev;
+            return {
+              ...prev,
+              location: prev.location || eventDetails.location || null,
+              bannerUrl: prev.bannerUrl || eventDetails.banner_url || null,
+              appearance: prev.appearance || (eventDetails as any)?.appearance || null,
+              capacity:
+                typeof prev.capacity === 'number'
+                  ? prev.capacity
+                  : (typeof eventDetails.capacity === 'number' ? eventDetails.capacity : prev.capacity),
+              rsvpCount:
+                typeof prev.rsvpCount === 'number'
+                  ? prev.rsvpCount
+                  : (typeof eventDetails.attendees_count === 'number' ? eventDetails.attendees_count : prev.rsvpCount),
+            };
+          });
+        });
+      }
+
+      if (eventIdValue && deferredRsvpPromise) {
+        void deferredRsvpPromise.then((rsvp: any) => {
+          if (!rsvp) return;
+          setVm((prev) => {
+            if (!prev || prev.gameId !== gameIdValue) return prev;
+            return {
+              ...prev,
+              rsvpCount: typeof rsvp.count === 'number' ? rsvp.count : prev.rsvpCount,
+              capacity: typeof rsvp.capacity === 'number' ? rsvp.capacity : prev.capacity,
+              userRsvped: 'going' in rsvp ? Boolean(rsvp.going) : Boolean((rsvp as any).attending),
+            };
+          });
+        });
+      }
+      if (deferredPostsPromise) {
+        void deferredPostsPromise.then((postsResult: any) => {
+          if (!postsResult) return;
+          const nextPosts = Array.isArray(postsResult) ? postsResult : postsResult?.items;
+          if (!Array.isArray(nextPosts)) return;
+          setVm((prev) => {
+            if (!prev || prev.gameId !== gameIdValue) return prev;
+            return { ...prev, posts: nextPosts };
+          });
+        });
+      }
+      if (deferredMediaPromise) {
+        void deferredMediaPromise.then((mediaResult: any) => {
+          if (!mediaResult) return;
+          const nextMedia = Array.isArray(mediaResult) ? mediaResult : mediaResult?.items;
+          if (!Array.isArray(nextMedia)) return;
+          setVm((prev) => {
+            if (!prev || prev.gameId !== gameIdValue) return prev;
+            return { ...prev, media: nextMedia };
+          });
+        });
+      }
+      } catch (error: any) {
+        console.error('[GameDetails] loadGameById() inner catch:', {
+          message: error?.message,
+          status: error?.status,
+          data: error?.data,
+          name: error?.name,
+        });
         throw error; // Re-throw to be caught by outer try-catch
       }
     },
@@ -1005,7 +1097,6 @@ const GameDetailsScreen = () => {
         replaceToCanonicalGame(String(event.game_id));
         return;
       }
-      const rsvp = await Event.rsvpStatus(eventIdValue).catch(() => null);
       const dateIso = ensureIso(event?.date) ?? new Date().toISOString();
       const vmPayload: GameVM = {
         id: `event-${eventIdValue}`,
@@ -1019,9 +1110,9 @@ const GameDetailsScreen = () => {
         coverImageUrl: event?.cover_image_url || null,
         homeTeam: null,
         awayTeam: null,
-        capacity: event?.capacity ?? (typeof rsvp?.capacity === 'number' ? rsvp?.capacity : null),
-        rsvpCount: typeof rsvp?.count === 'number' ? rsvp?.count : event?.attendees_count ?? null,
-        userRsvped: rsvp ? Boolean(rsvp.going ?? rsvp.attending) : false,
+        capacity: event?.capacity ?? null,
+        rsvpCount: event?.attendees_count ?? null,
+        userRsvped: false,
         teams: [],
         posts: [],
         media: [],
@@ -1029,6 +1120,24 @@ const GameDetailsScreen = () => {
         isPast: computeIsPast(dateIso),
       };
       setVm(vmPayload);
+
+      // Hydrate RSVP in the background so event details can render immediately.
+      void retryWithBackoff(() => Event.rsvpStatus(eventIdValue), {
+        maxRetries: 0,
+        initialDelayMs: 800,
+        maxDelayMs: 4000,
+      }).then((rsvp: any) => {
+        if (!rsvp) return;
+        setVm((prev) => {
+          if (!prev || prev.eventId !== eventIdValue || prev.gameId) return prev;
+          return {
+            ...prev,
+            rsvpCount: typeof rsvp.count === 'number' ? rsvp.count : prev.rsvpCount,
+            capacity: typeof rsvp.capacity === 'number' ? rsvp.capacity : prev.capacity,
+            userRsvped: Boolean(rsvp.going ?? rsvp.attending),
+          };
+        });
+      }).catch(() => {});
     },
     [replaceToCanonicalGame],
   );
@@ -1087,7 +1196,7 @@ const GameDetailsScreen = () => {
               setStoryBusy(true);
               const pickerOptions: any = {
                 quality: 0.9,
-                mediaTypes: ImagePicker.MediaTypeOptions.All,
+                mediaTypes: ['images', 'videos'],
                 allowsEditing: false,
                 exif: false,
                 // On iOS, use the PhotoPicker (not the deprecated deprecated UIImagePickerController)
@@ -1118,22 +1227,33 @@ const GameDetailsScreen = () => {
                   return { ...prev, media: [newItem, ...(prev.media || [])] } as GameVM;
                 });
               } else {
+                if (!vm.gameId) throw new Error('No game ID');
+                const gameId = vm.gameId; // type guard
                 const storyPayload: any = { media_url: mediaUrl };
                 if (location?.latitude && location?.longitude) {
                   storyPayload.location = { lat: location.latitude, lng: location.longitude, source: 'device' };
                 }
-                await Game.addStory(vm.gameId, storyPayload);
+                await Game.addStory(gameId, storyPayload);
                 try {
-                  await loadGameById(vm.gameId);
-                  Alert.alert('Added', isSampleId(vm.gameId) ? 'Story added (demo only).' : 'Story added to this game.');
+                  await loadGameById(gameId);
+                  Alert.alert('Added', isSampleId(gameId) ? 'Story added (demo only).' : 'Story added to this game.');
                 } catch (reloadErr: any) {
                   console.warn('[story] Camera - reload failed but story was uploaded:', reloadErr);
                   Alert.alert('Added', 'Story added to this game. Refresh to see it.');
                 }
               }
             } catch (err: any) {
-              console.error('Story upload error:', err);
-              Alert.alert('Unable to add story', err?.message || 'Please try again.');
+              const status = err?.status;
+              const message = String(err?.message || err?.data?.error || '');
+              if (status === 401 || /unauthorized/i.test(message)) {
+                Alert.alert('Session expired', 'Please sign in again to upload stories.', [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Sign In', onPress: () => void router.push('/sign-in') },
+                ]);
+              } else {
+                console.error('Story upload error:', err);
+                Alert.alert('Unable to add story', err?.message || 'Please try again.');
+              }
             } finally {
               setStoryBusy(false);
             }
@@ -1146,7 +1266,7 @@ const GameDetailsScreen = () => {
               setStoryBusy(true);
               const pickerOptions: any = {
                 quality: 0.9,
-                mediaTypes: ImagePicker.MediaTypeOptions.All,
+                mediaTypes: ['images', 'videos'],
                 allowsEditing: false,
                 exif: false,
                 // On iOS, use the PhotoPicker (not the deprecated deprecated UIImagePickerController)
@@ -1176,22 +1296,33 @@ const GameDetailsScreen = () => {
                   return { ...prev, media: [newItem, ...(prev.media || [])] } as GameVM;
                 });
               } else {
+                if (!vm.gameId) throw new Error('No game ID');
+                const gameId = vm.gameId; // type guard
                 const storyPayload: any = { media_url: mediaUrl };
                 if (location?.latitude && location?.longitude) {
                   storyPayload.location = { lat: location.latitude, lng: location.longitude, source: 'device' };
                 }
-                await Game.addStory(vm.gameId, storyPayload);
+                await Game.addStory(gameId, storyPayload);
                 try {
-                  await loadGameById(vm.gameId);
-                  Alert.alert('Added', isSampleId(vm.gameId) ? 'Story added (demo only).' : 'Story added to this game.');
+                  await loadGameById(gameId);
+                  Alert.alert('Added', isSampleId(gameId) ? 'Story added (demo only).' : 'Story added to this game.');
                 } catch (reloadErr: any) {
                   console.warn('[story] Gallery - reload failed but story was uploaded:', reloadErr);
                   Alert.alert('Added', 'Story added to this game. Refresh to see it.');
                 }
               }
             } catch (err: any) {
-              console.error('Story upload error:', err);
-              Alert.alert('Unable to add story', err?.message || 'Please try again.');
+              const status = err?.status;
+              const message = String(err?.message || err?.data?.error || '');
+              if (status === 401 || /unauthorized/i.test(message)) {
+                Alert.alert('Session expired', 'Please sign in again to upload stories.', [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Sign In', onPress: () => void router.push('/sign-in') },
+                ]);
+              } else {
+                console.error('Story upload error:', err);
+                Alert.alert('Unable to add story', err?.message || 'Please try again.');
+              }
             } finally {
               setStoryBusy(false);
             }
@@ -1203,7 +1334,7 @@ const GameDetailsScreen = () => {
         }
       ]
     );
-  }, [loadGameById, storyBusy, vm?.gameId, location?.latitude, location?.longitude, permissionGranted, requestPermission, needsPreciseAccuracy, openSettings]);
+  }, [loadGameById, storyBusy, vm?.gameId, location?.latitude, location?.longitude, permissionGranted, requestPermission, needsPreciseAccuracy, openSettings, router]);
 
   const _refreshVotes = useCallback(async () => {
     // Event-only pages (no gameId) get local vote state
@@ -1237,7 +1368,9 @@ const GameDetailsScreen = () => {
     async (isRefresh = false) => {
       const gameIdValue = id ? String(id) : null;
       const eventIdValue = eventId ? String(eventId) : null;
+      console.log('[GameDetails] load() called', { gameIdValue, eventIdValue, isRefresh });
       if (!gameIdValue && !eventIdValue) {
+        console.warn('[GameDetails] load() — no id or eventId, aborting');
         setError('Missing game or event id.');
         setVm(null);
         setLoading(false);
@@ -1246,21 +1379,33 @@ const GameDetailsScreen = () => {
       }
       if (isRefresh) setRefreshing(true); else setLoading(true);
       setError(null);
-      
-      // Load teams data
-      await loadTeams();
-      
+
+      // Load team directory in background; it should not block event/game rendering.
+      void loadTeams();
+
       try {
         if (gameIdValue) {
           await loadGameById(gameIdValue);
         } else if (eventIdValue) {
           await loadVirtualFromEvent(eventIdValue);
         }
-      } catch (err) {
-        console.error('Failed to load game details', err);
-        setError('Unable to load game details. Please try again.');
+        console.log('[GameDetails] load() — done, vm should be set');
+      } catch (err: any) {
+        console.error('[GameDetails] load() — CAUGHT ERROR:', {
+          message: err?.message,
+          status: err?.status,
+          data: err?.data,
+          stack: err?.stack,
+        });
+        const message = String(err?.message || '');
+        if (message.toLowerCase().includes('timed out')) {
+          setError('Loading is taking too long. Pull to refresh and try again.');
+        } else {
+          setError(`Unable to load. ${message || 'Please try again.'}`);
+        }
         setVm(null);
       } finally {
+        console.log('[GameDetails] load() — finally: clearing loading state');
         if (isRefresh) setRefreshing(false); else setLoading(false);
       }
     },
@@ -1271,23 +1416,7 @@ const GameDetailsScreen = () => {
     void load();
   }, [load]);
 
-  useEffect(() => {
-    void _refreshVotes();
-  }, [_refreshVotes]);
-
-  useEffect(() => {
-    setVoteSummary(null);
-  }, [vm?.gameId]);
-
-  useFocusEffect(
-    useCallback(() => {
-      void _refreshVotes();
-      const interval = setInterval(() => {
-        void _refreshVotes();
-      }, 10000);
-      return () => clearInterval(interval);
-    }, [_refreshVotes]),
-  );
+  // ...existing code...
 
   useEffect(() => {
     const total = _voteSummary?.total ?? 0;
@@ -1312,6 +1441,10 @@ const GameDetailsScreen = () => {
 
   const onToggleRsvp = useCallback(async () => {
     if (!vm?.eventId || rsvpBusy) return;
+    if (!canRsvpNow) {
+      Alert.alert('RSVP closed', 'You can only RSVP before kickoff.');
+      return;
+    }
     // snapshot current vm for potential rollback
     const snapshot = vm;
     const nextDesired = !vm.userRsvped;
@@ -1331,7 +1464,7 @@ const GameDetailsScreen = () => {
     setRsvpBusy(true);
     try {
       const res: any = await retryWithBackoff(() => Event.rsvp(vm.eventId!, nextDesired), {
-        maxRetries: 2,
+        maxRetries: 0,
         initialDelayMs: 800,
         maxDelayMs: 4000,
       });
@@ -1347,15 +1480,21 @@ const GameDetailsScreen = () => {
       });
       // notify user of success
       Alert.alert('RSVP updated', nextDesired ? 'You are marked as going.' : 'You are no longer marked as going.');
-    } catch (err) {
-      console.error('Failed to toggle RSVP', err);
+    } catch (err: any) {
       // rollback optimistic update
       setVm(snapshot);
+      const status = err?.status;
+      const message = String(err?.message || err?.data?.error || '');
+      if (status === 400 && /event has passed/i.test(message)) {
+        Alert.alert('RSVP closed', 'This event has already started or ended.');
+        return;
+      }
+      console.error('Failed to toggle RSVP', err);
       Alert.alert('RSVP', 'Unable to update RSVP right now. Please try again.');
     } finally {
       setRsvpBusy(false);
     }
-  }, [vm, rsvpBusy]);
+  }, [canRsvpNow, vm, rsvpBusy]);
 
   const shareContextLines = useMemo(() => {
     if (!vm) return [];
@@ -1398,16 +1537,7 @@ const GameDetailsScreen = () => {
       let rollback: VoteSummary | null = null;
       setVoteSummary((prev) => {
         rollback = prev ? { ...prev } : null;
-        const baseline = prev ?? buildVoteSummary(0, 0, null);
-        if (baseline.userVote === team) {
-          return baseline; // No change
-        }
-        let nextA = baseline.teamA;
-        let nextB = baseline.teamB;
-        if (baseline.userVote === 'A') nextA = Math.max(0, nextA - 1);
-        if (baseline.userVote === 'B') nextB = Math.max(0, nextB - 1);
-        if (team === 'A') nextA += 1; else nextB += 1;
-        return buildVoteSummary(nextA, nextB, team);
+        return applyVoteSelection(prev, team);
       });
 
       // For event-only or sample games, just update local state and don't call API
@@ -1450,13 +1580,19 @@ const GameDetailsScreen = () => {
     const isEventOnly = !vm?.gameId && vm?.eventId;
 
     let rollback: VoteSummary | null = null;
+    let hasVoteToClear = false;
     setVoteSummary((prev) => {
-      if (!prev?.userVote) return prev; // Nothing to clear
+      // Early return if there's no vote to clear
+      if (!prev?.userVote) {
+        return prev;
+      }
+      hasVoteToClear = true;
       rollback = { ...prev };
-      const nextA = prev.userVote === 'A' ? Math.max(0, prev.teamA - 1) : prev.teamA;
-      const nextB = prev.userVote === 'B' ? Math.max(0, prev.teamB - 1) : prev.teamB;
-      return buildVoteSummary(nextA, nextB, null);
+      return applyClearVote(prev);
     });
+
+    // Early return if there's no vote to clear - prevents unnecessary API calls
+    if (!hasVoteToClear) return;
 
     // For event-only or sample games, just update local state and don't call API
     if (isEventOnly || (vm?.gameId && isSampleId(vm.gameId))) {
@@ -1677,7 +1813,7 @@ const renderBanner = () => {
         leftColor={(homeTeamObj as any)?.color}
         rightColor={(awayTeamObj as any)?.color}
         goingCount={goingCount}
-        onGoingPress={onToggleRsvp}
+        onGoingPress={canRsvpNow ? onToggleRsvp : openRsvpSheet}
       />
     ) : (
       <LinearGradient colors={PLACEHOLDER_GRADIENT} style={styles.bannerImage} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
@@ -1703,7 +1839,7 @@ const renderBanner = () => {
                 ]}
                 accessibilityRole="button"
                 accessibilityLabel="Event RSVP"
-                accessibilityHint={rsvpChipLabel}
+                accessibilityHint={rsvpChipLabel ?? undefined}
               >
                 <Ionicons
                   name={gamePhase === 'upcoming' ? (vm?.userRsvped ? 'checkmark-circle' : 'add-circle-outline') : 'lock-closed'}
@@ -1914,9 +2050,12 @@ const renderBanner = () => {
               onPress={() => setViewer({ visible: true, url: item.url, kind: isVideo ? 'video' : 'photo' })}
             >
               {isVideo ? (
-                <View style={[styles.mediaThumbContent, styles.mediaVideo]}>
-                  <Ionicons name="play" size={24} color={Colors[colorScheme].text} />
-                </View>
+                <>
+                  <Image source={{ uri: item.thumbnail_url || item.url }} style={styles.mediaThumbContent} contentFit="cover" />
+                  <View style={[styles.mediaThumbContent, styles.mediaVideo]}>
+                    <Ionicons name="play" size={24} color="#fff" />
+                  </View>
+                </>
               ) : (
                 <Image source={{ uri: item.url }} style={styles.mediaThumbContent} contentFit="cover" />
               )}
@@ -1932,6 +2071,7 @@ const renderBanner = () => {
       <Stack.Screen options={{ headerShown: false }} />
       
       <Animated.View
+        pointerEvents="box-none"
         style={[styles.headerWrap, { top: insets.top, transform: [{ translateY: headerTranslateY }], opacity: headerOpacity }]}
         onLayout={(e) => {
           const h = e.nativeEvent.layout.height;
@@ -1982,9 +2122,9 @@ const renderBanner = () => {
               {/* Add Story Section */}
               <View style={styles.secondaryActionsRow}>
                 <Pressable
-                  style={[styles.actionBtn, (!vm?.gameId || storyBusy || !canAddStory(vm?.date)) ? styles.actionBtnDisabled : null]}
+                  style={[styles.actionBtn, (!vm?.gameId || storyBusy || !canAddStory(vm?.date, vm?.gameId)) ? styles.actionBtnDisabled : null]}
                   onPress={handleAddStory}
-                  disabled={!vm?.gameId || storyBusy || !canAddStory(vm?.date)}
+                  disabled={!vm?.gameId || storyBusy || !canAddStory(vm?.date, vm?.gameId)}
                 >
                   <Ionicons 
                     name={storyBusy ? "checkmark-circle-outline" : "add-circle-outline"} 
@@ -2031,11 +2171,11 @@ const renderBanner = () => {
                 {renderStoriesCarousel()}
               </View>
 
+              {renderVoteSection()}
+
               <View style={styles.section}>
                 {displayDescription ? <Text style={styles.bodyText}>{displayDescription}</Text> : <Text style={styles.muted}>No description yet.</Text>}
               </View>
-
-              {renderVoteSection()}
 
               {/* Posts Section */}
               <View
@@ -2057,9 +2197,10 @@ const renderBanner = () => {
                         Alert.alert('Create Post', 'Reload this event before creating a post.');
                         return;
                       }
+                      // Directly navigate to create-post with gameId - defaults to 'post' type
                       void router.push({
-                        pathname: '/create-post',
-                        params: { gameId: String(targetGameId), type: 'highlight' },
+                        pathname: '/(tabs)/create-post',
+                        params: { gameId: String(targetGameId), type: 'post' },
                       } as any);
                     }}
                   >
@@ -2074,8 +2215,11 @@ const renderBanner = () => {
                        {(vm?.posts || [])
                          .filter((_: any, index: number) => index % 2 === 0)
                          .map((post: any, index: number) => {
-                           const thumb = post.media_url;
-                           const isVideo = !!thumb && VIDEO_EXT.test(thumb);
+                           const mediaUrl = post.media_url || post.mediaUrl || null;
+                           const previewUrl = post.preview_url || post.thumbnail_url || post.previewUrl || null;
+                           const mediaType = typeof post.media_type === 'string' ? post.media_type.toLowerCase() : null;
+                           const isVideo = mediaType === 'video' || (!!mediaUrl && VIDEO_EXT.test(mediaUrl));
+                           const thumb = previewUrl || (!isVideo ? mediaUrl : null);
                            const likes = post.upvotes_count ?? 0;
                            const comments = post.comments_count ?? post._count?.comments ?? 0;
                            // Vary heights: alternate between tall, medium, and short
@@ -2090,6 +2234,11 @@ const renderBanner = () => {
                                {thumb ? (
                                  <View style={styles.gridImageContainer}>
                                    <Image source={{ uri: thumb }} style={styles.gridImage} contentFit="cover" />
+                                   <View style={styles.gridImageOverlay} />
+                                 </View>
+                               ) : isVideo && mediaUrl ? (
+                                 <View style={styles.gridImageContainer}>
+                                   <VideoPlayer uri={mediaUrl} style={styles.gridImage} nativeControls={false} />
                                    <View style={styles.gridImageOverlay} />
                                  </View>
                                ) : (
@@ -2134,8 +2283,11 @@ const renderBanner = () => {
                        {(vm?.posts || [])
                          .filter((_: any, index: number) => index % 2 === 1)
                          .map((post: any, index: number) => {
-                           const thumb = post.media_url;
-                           const isVideo = !!thumb && VIDEO_EXT.test(thumb);
+                           const mediaUrl = post.media_url || post.mediaUrl || null;
+                           const previewUrl = post.preview_url || post.thumbnail_url || post.previewUrl || null;
+                           const mediaType = typeof post.media_type === 'string' ? post.media_type.toLowerCase() : null;
+                           const isVideo = mediaType === 'video' || (!!mediaUrl && VIDEO_EXT.test(mediaUrl));
+                           const thumb = previewUrl || (!isVideo ? mediaUrl : null);
                            const likes = post.upvotes_count ?? 0;
                            const comments = post.comments_count ?? post._count?.comments ?? 0;
                            // Offset the height pattern for visual variety
@@ -2150,6 +2302,11 @@ const renderBanner = () => {
                                {thumb ? (
                                  <View style={styles.gridImageContainer}>
                                    <Image source={{ uri: thumb }} style={styles.gridImage} contentFit="cover" />
+                                   <View style={styles.gridImageOverlay} />
+                                 </View>
+                               ) : isVideo && mediaUrl ? (
+                                 <View style={styles.gridImageContainer}>
+                                   <VideoPlayer uri={mediaUrl} style={styles.gridImage} nativeControls={false} />
                                    <View style={styles.gridImageOverlay} />
                                  </View>
                                ) : (
@@ -2646,7 +2803,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     backgroundColor: `${Colors[colorScheme].tint}10`,
   },
   voteLabelAboveText: {
-    color: '#6B7280',
+    color: Colors[colorScheme].mutedText,
     fontWeight: '600',
     fontSize: 12,
   },
@@ -2664,7 +2821,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     marginTop: 0,
     marginBottom: 16,
     textAlign: 'center',
-    color: '#6B7280',
+    color: Colors[colorScheme].mutedText,
     fontWeight: '600',
     fontSize: 13,
     paddingHorizontal: 12,
@@ -2674,7 +2831,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   voteFloatPill: {
     position: 'absolute',
     top: -18,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors[colorScheme].card,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 999,
@@ -2688,12 +2845,12 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   },
   voteFloatLeft: { left: 28 },
   voteFloatRight: { right: 28 },
-  voteFloatText: { color: '#0f172a', fontWeight: '700', fontSize: 12, textAlign: 'center' },
+  voteFloatText: { color: Colors[colorScheme].text, fontWeight: '700', fontSize: 12, textAlign: 'center' },
 
   teamLinkButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F3F4F6',
+    backgroundColor: Colors[colorScheme].surface,
     padding: 8,
     borderRadius: 8,
     marginVertical: 4,
@@ -2748,7 +2905,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     marginHorizontal: 4,
   },
   viewAllButton: {
-    backgroundColor: '#F3F4F6',
+    backgroundColor: Colors[colorScheme].surface,
     padding: 12,
     borderRadius: 8,
     alignItems: 'center',
@@ -2817,8 +2974,8 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   },
   rsvpOn: { backgroundColor: '#c7d2fe', borderColor: '#818cf8' },
   rsvpDisabled: { opacity: 0.6 },
-  rsvpText: { fontWeight: '700', color: '#2563EB' },
-  rsvpTextOn: { color: '#0f172a' },
+  rsvpText: { fontWeight: '700', color: Colors[colorScheme].tint },
+  rsvpTextOn: { color: Colors[colorScheme].text },
   rsvpTopInline: { paddingHorizontal: 10, paddingVertical: 6 },
   rsvpTextInline: { fontSize: 13 },
   finalChip: {
@@ -2950,7 +3107,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   mediaGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   mediaThumb: { width: '31%', aspectRatio: 1, borderRadius: 12, overflow: 'hidden', backgroundColor: '#e2e8f0' },
   mediaThumbContent: { flex: 1 },
-  mediaVideo: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#0f172a' },
+  mediaVideo: { alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0, 0, 0, 0.4)' },
   storiesWrap: { marginTop: 16, marginBottom: 8 },
   storiesRow: { paddingHorizontal: 16, paddingVertical: 12, gap: 12 },
   storyItem: { 

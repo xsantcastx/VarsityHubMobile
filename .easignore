@@ -1,10 +1,77 @@
+# Keep this list largely in sync with .gitignore so the EAS upload only contains what
+# the builders need. Anything excluded here is re-created by the build machines.
+
 .git
 .gitignore
-node_modules
-.expo
-.expo-shared
-.idea
-.vscode
+
+# Dependencies
+node_modules/
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+pnpm-debug.log
+
+# Expo / Metro artifacts
+.expo/
+.expo-shared/
+dist/
+web-build/
+expo-env.d.ts
+.metro-health-check*
+.metro-cache/
+
+# Native build outputs
+android/
+ios/
+android/.gradle/
+android/.idea/
+android/.cxx/
+android/app/build/
+android/app/.cxx/
+android/build/
+ios/Pods/
+ios/Pods/**
+ios/DerivedData/
+ios/build/
+ios/V*/Build/
+ios/*.xcworkspace/xcuserdata/
+
+# Secrets and certificates
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Local environment files
+.env
+.env*.local
+.env.production
+.env.railway*
+server/.env*
+
+# Backend not required in the client bundle
+server/
+# Note: tools/ is needed for postinstall scripts
+
+# Large unnecessary files
+.snyk-cache/
+server/ios/
+*.tar.gz
+
+# Misc system clutter
+.DS_Store
+*.orig.*
+*.pem
+*.xcuserstate
+*.xcworkspace
+*.xcuserdatad
+*.xcsettings
+
+# Documentation and auxiliary resources (not required by the mobile build)
+docs/
+
+# Build artifacts
 *.log
 *.tmp
 *.lock
@@ -13,27 +80,22 @@ node_modules
 build
 build-output.log
 build_output.log
-dist
 coverage
 playwright-report
 test-results
-.DS_Store
-ios/build
-ios/Pods
-android/app/build
-android/.gradle
-android/.idea
-android/.cxx
-server/node_modules
-server/.env
-docs
 overnight-logs-*
 overnight-*
-*.xcuserstate
-*.xcworkspace
-*.xcuserdatad
-*.xcsettings
 *.zip
 *.tgz
 *.tar
 *.tar.gz
+
+# One-off local artifacts
+changes.pdf
+overnight.log
+midnight-health.json
+overnight-audit.sh
+
+# Backup config files that might confuse EAS
+app.config.js.backup
+app.config.*.backup

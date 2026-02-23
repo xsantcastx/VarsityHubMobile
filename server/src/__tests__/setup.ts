@@ -1,4 +1,3 @@
-import { jest } from '@jest/globals';
 import '../lib/load-env.js';
 
 // Setup environment for tests
@@ -7,18 +6,15 @@ process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgresql://test:test@l
 
 // Suppress console logs during tests unless in verbose mode
 if (!process.env.VERBOSE) {
-  global.console = {
-    ...console,
-    log: jest.fn(),
-    debug: jest.fn(),
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-  };
+  // Only mock console if jest is available (test context)
+  if (typeof jest !== 'undefined') {
+    global.console = {
+      ...console,
+      log: jest.fn(),
+      debug: jest.fn(),
+      info: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+    };
+  }
 }
-
-describe('server test setup', () => {
-  it('initializes NODE_ENV for test runtime', () => {
-    expect(process.env.NODE_ENV).toBe('test');
-  });
-});

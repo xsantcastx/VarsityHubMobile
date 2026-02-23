@@ -1,122 +1,101 @@
-/**
- * Geocoding API Routes
- * 
- * Endpoints for geocoding locations and managing coordinates.
- */
-
-import express from 'express';
-import {
-    autocompletePlaces,
-    clearGeocodeCache,
-    geocodeAllEvents,
-    geocodeAllGames,
-    geocodeEvent,
-    geocodeGame,
-    geocodeLocation,
-    getCacheStats,
-} from '../lib/geocoding.js';
-import { prisma } from '../lib/prisma.js';
+import axios from 'axios';
+import dotenv from 'dotenv';
+import { Router } from 'express';
+import { z } from 'zod';
+import { clearGeocodeCache, geocodeAllEvents, geocodeAllGames, geocodeEvent, getCacheStats } from '../lib/geocoding.js';
 import type { AuthedRequest } from '../middleware/auth.js';
+import { requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 
-const router = express.Router();
+dotenv.config();
 
-/**
- * Middleware to check if user is admin
- */
-const requireAdmin = async (req: AuthedRequest, res: express.Response, next: express.NextFunction) => {
-  if (!req.user?.id) {
-    return res.status(401).json({ error: 'Authentication required' });
-  }
+export const geocodingRouter = Router();
 
+const geocodeSchema = z.object({
+  location: z.string().min(2, 'Location must be at least 2 characters'),
+});
+
+geocodingRouter.post('/location', requireAuth, async (req: AuthedRequest, res) => {
   try {
-    const user = await prisma.user.findUnique({
-      where: { id: req.user.id },
-      select: { email: true },
+    const { location } = geocodeSchema.parse(req.body);
+    const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+
+    if (!apiKey) {
+      console.error('Geocoding error: GOOGLE_MAPS_API_KEY is not set.');
+      return res.status(500).json({ error: 'Server configuration error' });
+    }
+
+    const response = await axios.get('https://maps.googleapis.com/maps/api/geocode/json', {
+      params: {
+        address: location,
+        key: apiKey,
+      },
     });
 
-    if (!user || user.email !== 'admin@varsityhub.com') {
-      return res.status(403).json({ error: 'Admin access required' });
+    if (response.data.status !== 'OK' || !response.data.results[0]) {
+      console.warn(`Geocoding for "${location}" failed with status: ${response.data.status}`);
+      return res.status(404).json({ error: 'Location not found' });
     }
 
-    next();
+    const { lat, lng } = response.data.results[0].geometry.location;
+    const formatted_address = response.data.results[0].formatted_address;
+
+    return res.json({
+      latitude: lat,
+      longitude: lng,
+      formatted_address,
+    });
   } catch (error) {
-    console.error('Error checking admin status:', error);
-    return res.status(500).json({ error: 'Failed to verify admin status' });
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Invalid input', details: error.errors });
+    }
+    console.error('Geocoding request failed:', error);
+    return res.status(500).json({ error: 'An unexpected error occurred' });
   }
-};
+});
 
-/**
- * GET /geocoding/autocomplete
- * Fetch Google Places autocomplete suggestions for a location query
- */
-router.get('/autocomplete', requireAuth as any, async (req: AuthedRequest, res) => {
+const autocompleteSchema = z.object({
+  input: z.string().min(1),
+  sessiontoken: z.string().optional(),
+});
+
+geocodingRouter.get('/autocomplete', requireAuth, async (req: AuthedRequest, res) => {
   try {
-    const q = String((req.query as any).q || '').trim();
-    const limit = Math.min(parseInt(String((req.query as any).limit || '6'), 10) || 6, 10);
+    const { input, sessiontoken } = autocompleteSchema.parse(req.query);
+    const apiKey = process.env.GOOGLE_MAPS_API_KEY;
 
-    if (q.length < 3) {
-      return res.status(400).json({ error: 'Query must be at least 3 characters.' });
+    if (!apiKey) {
+      console.error('Autocomplete error: GOOGLE_MAPS_API_KEY is not set.');
+      return res.status(500).json({ error: 'Server configuration error' });
     }
 
-    const suggestions = await autocompletePlaces(q, limit);
+    const response = await axios.get('https://maps.googleapis.com/maps/api/place/autocomplete/json', {
+      params: {
+        input,
+        key: apiKey,
+        types: '(cities)',
+        sessiontoken,
+      },
+    });
+
+    if (response.data.status !== 'OK') {
+      console.warn(`Autocomplete for "${input}" failed with status: ${response.data.status}`);
+      return res.status(500).json({ error: 'Failed to fetch place suggestions' });
+    }
+
+    const suggestions = response.data.predictions.map((p: any) => ({
+      description: p.description,
+      place_id: p.place_id,
+      structured_formatting: p.structured_formatting,
+    }));
+
     return res.json({ suggestions });
   } catch (error) {
-    console.error('Error fetching autocomplete suggestions:', error);
-    return res.status(500).json({ error: 'Failed to fetch suggestions' });
-  }
-});
-
-/**
- * POST /geocoding/location
- * Geocode a single location string
- * 
- * Body: { location: string }
- * Returns: { latitude: number, longitude: number, formatted_address?: string } | null
- */
-router.post('/location', requireAuth as any, async (req: AuthedRequest, res) => {
-  try {
-    const { location } = req.body;
-
-    if (!location || typeof location !== 'string') {
-      return res.status(400).json({ error: 'Location string required' });
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Invalid input', details: error.errors });
     }
-
-    const result = await geocodeLocation(location);
-    
-    if (!result) {
-      return res.status(404).json({ error: 'Could not geocode location' });
-    }
-
-    return res.json(result);
-  } catch (error) {
-    console.error('Error geocoding location:', error);
-    return res.status(500).json({ error: 'Failed to geocode location' });
-  }
-});
-
-/**
- * POST /geocoding/game/:gameId
- * Geocode a specific game (admin only)
- * 
- * Optional body: { location?: string }
- * Returns: Updated game
- */
-router.post('/game/:gameId', requireAdmin as any, async (req: AuthedRequest, res) => {
-  try {
-    const { gameId } = req.params;
-    const { location } = req.body;
-
-    const result = await geocodeGame(gameId, location);
-
-    if (!result) {
-      return res.status(404).json({ error: 'Could not geocode game' });
-    }
-
-    return res.json(result);
-  } catch (error) {
-    console.error('Error geocoding game:', error);
-    return res.status(500).json({ error: 'Failed to geocode game' });
+    console.error('Autocomplete request failed:', error);
+    return res.status(500).json({ error: 'An unexpected error occurred' });
   }
 });
 
@@ -127,7 +106,7 @@ router.post('/game/:gameId', requireAdmin as any, async (req: AuthedRequest, res
  * Optional body: { location?: string }
  * Returns: Updated event
  */
-router.post('/event/:eventId', requireAdmin as any, async (req: AuthedRequest, res) => {
+geocodingRouter.post('/event/:eventId', requireAdmin as any, async (req: AuthedRequest, res) => {
   try {
     const { eventId } = req.params;
     const { location } = req.body;
@@ -152,7 +131,7 @@ router.post('/event/:eventId', requireAdmin as any, async (req: AuthedRequest, r
  * Optional body: { limit?: number }
  * Returns: { count: number }
  */
-router.post('/batch/games', requireAdmin as any, async (req: AuthedRequest, res) => {
+geocodingRouter.post('/batch/games', requireAdmin as any, async (req: AuthedRequest, res) => {
   try {
     const { limit = 100 } = req.body;
 
@@ -172,7 +151,7 @@ router.post('/batch/games', requireAdmin as any, async (req: AuthedRequest, res)
  * Optional body: { limit?: number }
  * Returns: { count: number }
  */
-router.post('/batch/events', requireAdmin as any, async (req: AuthedRequest, res) => {
+geocodingRouter.post('/batch/events', requireAdmin as any, async (req: AuthedRequest, res) => {
   try {
     const { limit = 100 } = req.body;
 
@@ -191,7 +170,7 @@ router.post('/batch/events', requireAdmin as any, async (req: AuthedRequest, res
  * 
  * Returns: { size: number, entries: Array }
  */
-router.get('/cache/stats', requireAdmin as any, async (req: AuthedRequest, res) => {
+geocodingRouter.get('/cache/stats', requireAdmin as any, async (req: AuthedRequest, res) => {
   try {
     const stats = getCacheStats();
     return res.json(stats);
@@ -207,7 +186,7 @@ router.get('/cache/stats', requireAdmin as any, async (req: AuthedRequest, res) 
  * 
  * Returns: { success: true }
  */
-router.delete('/cache', requireAdmin as any, async (req: AuthedRequest, res) => {
+geocodingRouter.delete('/cache', requireAdmin as any, async (req: AuthedRequest, res) => {
   try {
     clearGeocodeCache();
     return res.json({ success: true, message: 'Cache cleared' });
@@ -217,4 +196,4 @@ router.delete('/cache', requireAdmin as any, async (req: AuthedRequest, res) => 
   }
 });
 
-export default router;
+export default geocodingRouter;

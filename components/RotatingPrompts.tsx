@@ -171,12 +171,6 @@ function getCategoryColor(category: Prompt['category']): string {
   }
 }
 
-/**
- * Compact inline version for smaller spaces
- */
-export function RotatingPromptsInline({ prompts }: { prompts?: Prompt[] }) {
-  return <RotatingPrompts prompts={prompts} showIcon={false} compact={true} interval={4000} />;
-}
 
 /**
  * Prompt presets for different contexts

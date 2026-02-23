@@ -3,7 +3,23 @@ import multer from 'multer';
 import fs from 'node:fs';
 import path from 'node:path';
 import { isCloudinaryConfigured, uploadBufferToCloudinary } from '../lib/cloudinary.js';
-import { debugLog } from '../lib/debugLog.js';
+import { captureException } from '../lib/sentry.js';
+import { requireAuth } from '../middleware/requireAuth.js';
+import { uploadLimiter } from '../middleware/rateLimiters.js';
+import { signMediaPath } from '../lib/mediaAccess.js';
+
+const debugLog = (...args: Parameters<typeof console.log>) => {
+  if (process.env.ENABLE_SERVER_DEBUG_LOGS === 'true' || process.env.NODE_ENV !== 'production') {
+    console.log(...args);
+  }
+};
+
+// Force Cloudinary in production, otherwise uploads will be lost on deploy
+if (process.env.NODE_ENV === 'production' && !isCloudinaryConfigured()) {
+  const errorMessage = 'CRITICAL: Cloudinary is not configured for production. File uploads will fail. Set CLOUDINARY_URL environment variable.';
+  console.error(errorMessage);
+  throw new Error(errorMessage);
+}
 
 // Extend Request type to include multer file
 interface MulterRequest extends Request {
@@ -33,14 +49,12 @@ const diskStorage = multer.diskStorage({
   },
 });
 
-const memoryStorage = multer.memoryStorage();
-
-// Choose storage based on configuration
-const storage = useCloudinary ? memoryStorage : diskStorage;
+// Choose storage based on configuration. In production, we MUST use memoryStorage for Cloudinary.
+const storage = useCloudinary ? multer.memoryStorage() : diskStorage;
 
 const upload = multer({
   storage,
-  limits: { fileSize: 25 * 1024 * 1024 }, // 25MB
+  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB limit for videos/images
   fileFilter: (_req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
     const ok = file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/');
     if (!ok) return cb(new Error('Only image or video files are allowed'));
@@ -51,7 +65,7 @@ const upload = multer({
 // General file upload (no restrictions)
 const fileUpload = multer({
   storage,
-  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB for general files
+  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB for general files
 });
 
 export const uploadsRouter = Router();
@@ -67,13 +81,45 @@ uploadsRouter.use((req, res, next) => {
   next();
 });
 
+uploadsRouter.get('/sign', requireAuth as any, (req: MulterRequest, res) => {
+  const rawPath = String((req.query as any).path || '').trim();
+  if (!rawPath) {
+    return res.status(400).json({ error: 'path is required' });
+  }
+  if (!rawPath.startsWith('/uploads/')) {
+    return res.status(400).json({ error: 'path must start with /uploads/' });
+  }
+  if (rawPath.includes('..')) {
+    return res.status(400).json({ error: 'invalid path' });
+  }
+
+  try {
+    const signed = signMediaPath(rawPath);
+    const base = `${req.protocol}://${req.get('host')}`;
+    const signedUrl = `${base}${signed.path}?token=${signed.token}&exp=${signed.exp}`;
+    return res.json({ ...signed, signed_url: signedUrl });
+  } catch (error: any) {
+    console.error('[uploads] Failed to sign media path:', error);
+    return res.status(500).json({ error: 'Failed to sign media URL' });
+  }
+});
+
 // Original media upload endpoint (images/videos only)
-uploadsRouter.post('/', upload.single('file'), async (req: MulterRequest, res, next) => {
+uploadsRouter.post('/', requireAuth as any, uploadLimiter as any, upload.single('file'), async (req: MulterRequest, res, next) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+  // Enforce Cloudinary in production
+  if (process.env.NODE_ENV === 'production' && !useCloudinary) {
+    const error = new Error('Server is not configured for file uploads in production.');
+    captureException(error);
+    return res.status(500).json({ error: 'File upload service is unavailable.' });
+  }
+
   try {
     // Cloudinary response has different structure
     let url: string;
     let type: string;
+    let signedUrl: string | undefined;
   
     if (useCloudinary) {
       const cloudResult = await uploadBufferToCloudinary(req.file, {
@@ -94,6 +140,12 @@ uploadsRouter.post('/', upload.single('file'), async (req: MulterRequest, res, n
       const base = `${req.protocol}://${req.get('host')}`;
       url = `${base}${rel}`;
       type = req.file.mimetype.startsWith('video/') ? 'video' : 'image';
+      try {
+        const signed = signMediaPath(rel);
+        signedUrl = `${base}${signed.path}?token=${signed.token}&exp=${signed.exp}`;
+      } catch (error) {
+        console.warn('[uploads] Unable to sign media URL:', (error as any)?.message || error);
+      }
       
       if (process.env.NODE_ENV !== 'production') {
         debugLog('[uploads] Local disk upload:', {
@@ -108,23 +160,26 @@ uploadsRouter.post('/', upload.single('file'), async (req: MulterRequest, res, n
     
     res.status(201).json({ 
       url, 
+      signed_url: signedUrl || undefined,
       type, 
       mime: req.file.mimetype, 
       size: req.file.size,
       storage: useCloudinary ? 'cloudinary' : 'local'
     });
   } catch (error) {
+    captureException(error as Error, { context: 'media_upload_error', path: req.path });
     next(error);
   }
 });
 
 // General file upload endpoint (all file types)
-uploadsRouter.post('/files', fileUpload.single('file'), async (req: MulterRequest, res, next) => {
+uploadsRouter.post('/files', requireAuth as any, uploadLimiter as any, fileUpload.single('file'), async (req: MulterRequest, res, next) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
   try {
     // Cloudinary response has different structure
     let url: string;
     let type: string;
+    let signedUrl: string | undefined;
   
     if (useCloudinary) {
       const cloudResult = await uploadBufferToCloudinary(req.file, { resourceType: 'auto' });
@@ -142,6 +197,12 @@ uploadsRouter.post('/files', fileUpload.single('file'), async (req: MulterReques
       const rel = `/uploads/${req.file.filename}`;
       const base = `${req.protocol}://${req.get('host')}`;
       url = `${base}${rel}`;
+      try {
+        const signed = signMediaPath(rel);
+        signedUrl = `${base}${signed.path}?token=${signed.token}&exp=${signed.exp}`;
+      } catch (error) {
+        console.warn('[uploads] Unable to sign file URL:', (error as any)?.message || error);
+      }
       
       // Determine file type based on MIME type
       if (req.file.mimetype.startsWith('image/')) type = 'image';
@@ -154,6 +215,7 @@ uploadsRouter.post('/files', fileUpload.single('file'), async (req: MulterReques
     
     res.status(201).json({ 
       url, 
+      signed_url: signedUrl || undefined,
       type, 
       mime: req.file.mimetype, 
       size: req.file.size,
@@ -161,6 +223,7 @@ uploadsRouter.post('/files', fileUpload.single('file'), async (req: MulterReques
       storage: useCloudinary ? 'cloudinary' : 'local'
     });
   } catch (error) {
+    captureException(error as Error, { context: 'file_upload_error', path: req.path });
     next(error);
   }
 });
@@ -174,9 +237,14 @@ uploadsRouter.use((err: any, req: Request, res: Response, next: NextFunction) =>
     path: req.path,
   });
   
+  // Capture in Sentry for non-client errors
+  if (err.code !== 'LIMIT_FILE_SIZE' && err.message !== 'Only image or video files are allowed') {
+    captureException(err, { context: 'upload_middleware_error', path: req.path });
+  }
+  
   // Multer errors
   if (err.code === 'LIMIT_FILE_SIZE') {
-    return res.status(413).json({ error: 'File too large. Maximum size is 50MB.' });
+    return res.status(413).json({ error: 'File too large. Maximum size is 100MB.' });
   }
   
   if (err.message === 'Only image or video files are allowed') {

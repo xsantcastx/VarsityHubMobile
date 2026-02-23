@@ -9,8 +9,11 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { ErrorToastContainer } from '@/components/ErrorToast';
 import { OfflineBanner } from '@/components/OfflineBanner';
+import { Colors } from '@/constants/Colors';
 import { AuthProvider } from '@/context/AuthProvider';
+import { PostCacheProvider } from '@/context/PostCacheContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { ThemeProvider } from '@/hooks/useCustomColorScheme';
 import { initSentry } from '@/utils/sentry';
@@ -25,7 +28,7 @@ if (!isExpoGo) {
 const devLog = (...args: unknown[]) => {
   if (__DEV__) {
     // eslint-disable-next-line no-console
-    console.log(...args);
+    if (__DEV__) console.log(...args);
   }
 };
 
@@ -37,20 +40,10 @@ if (Platform.OS === 'web' && __DEV__) {
   void import('@/utils/testingMonitor.web')
     .then(({ testingMonitor }) => {
       testingMonitor.start();
-      devLog('🔍 Web Testing Monitor Active - Tracking all errors');
+      devLog('Web Testing Monitor Active - Tracking all errors');
     })
     .catch(error => devLog('Testing monitor failed to start', error));
 }
-
-// Dev-only smoke test disabled - use Sentry dashboard to verify
-// if (__DEV__) {
-//   try {
-//     captureBreadcrumb('Dev smoke test', 'diagnostic', { screen: 'RootLayout' });
-//     setTimeout(() => {
-//       captureException(new Error('Sentry smoke test: dev boot'));
-//     }, 300);
-//   } catch {}
-// }
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -68,6 +61,9 @@ export default function RootLayout() {
       'Require cycle:',
       'PushNotificationIOS has been extracted',
       'Invariant Violation: `new NativeEventEmitter()',
+      // Reanimated warning triggered by expo-router navigation transition internals
+      'animations-in-inline-styling',
+      '[Reanimated] Tried to access',
     ]);
     if (Platform.OS === 'web') {
       LogBox.ignoreLogs([
@@ -93,10 +89,10 @@ export default function RootLayout() {
   // Handle notification taps
   useEffect(() => {
     if (isExpoGo || !Notifications) return;
-    
-    const subscription = Notifications.addNotificationResponseReceivedListener(response => {
+
+    const subscription = Notifications.addNotificationResponseReceivedListener((response: any) => {
       const data = response.notification.request.content.data;
-      
+
       if (!data || !data.type) {
         devLog('[Notifications] Received notification with no data');
         return;
@@ -148,7 +144,7 @@ export default function RootLayout() {
 
   if (!loaded) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colorScheme === 'dark' ? '#0B1120' : 'white' }}>
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors[colorScheme ?? 'light'].background }}>
         <ActivityIndicator />
       </View>
     );
@@ -158,43 +154,34 @@ export default function RootLayout() {
     <ErrorBoundary>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <ThemeProvider>
-          <AuthProvider navReady={!!navState?.key}>
-            <NavigationThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-              <OfflineBanner />
-              <Stack screenOptions={{ headerShown: false }}>
-                <Stack.Screen name="index" options={{ headerShown: false }} />
-                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                <Stack.Screen name="create-post" options={{ headerShown: false }} />
-                <Stack.Screen name="edit-profile" options={{ headerShown: false }} />
-                <Stack.Screen name="post-detail" options={{ headerShown: false }} />
-                <Stack.Screen name="user-profile" options={{ headerShown: false }} />
-                <Stack.Screen name="team-profile" options={{ headerShown: false }} />
-                <Stack.Screen name="team-hub" options={{ headerShown: false }} />
-                <Stack.Screen name="team-contacts" options={{ headerShown: false }} />
-                <Stack.Screen name="game-detail" options={{ headerShown: false }} />
-                <Stack.Screen name="highlights" options={{ headerShown: false }} />
-                <Stack.Screen name="messages" options={{ headerShown: false }} />
-                <Stack.Screen name="message-thread" options={{ headerShown: false }} />
-                <Stack.Screen name="followers" options={{ headerShown: false }} />
-                <Stack.Screen name="following" options={{ headerShown: false }} />
-                <Stack.Screen name="create-team" options={{ headerShown: false }} />
-                <Stack.Screen name="edit-team" options={{ headerShown: false }} />
-                <Stack.Screen name="manage-teams" options={{ headerShown: false }} />
-                <Stack.Screen name="my-team" options={{ headerShown: false }} />
-                <Stack.Screen name="sign-in" options={{ headerShown: false }} />
-                <Stack.Screen name="sign-up" options={{ headerShown: false }} />
-                <Stack.Screen name="verify-email" options={{ headerShown: false }} />
-                <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
-                <Stack.Screen name="reset" options={{ headerShown: false }} />
-                <Stack.Screen name="reset-password" options={{ headerShown: false }} />
-                <Stack.Screen name="payment-success" options={{ headerShown: false }} />
-                <Stack.Screen name="payment-cancel" options={{ headerShown: false }} />
-                <Stack.Screen name="onboarding" options={{ headerShown: false }} />
-                <Stack.Screen name="+not-found" />
-              </Stack>
-              <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
-            </NavigationThemeProvider>
-          </AuthProvider>
+          <PostCacheProvider>
+            <AuthProvider navReady={!!navState?.key}>
+              <NavigationThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+                <OfflineBanner />
+                <ErrorToastContainer />
+                <Stack screenOptions={{ headerShown: false }}>
+                  <Stack.Screen name="index" options={{ headerShown: false }} />
+                  <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                  {/* Auth screens - lazy loaded */}
+                  <Stack.Screen name="sign-in" options={{ headerShown: false }} />
+                  <Stack.Screen name="sign-up" options={{ headerShown: false }} />
+                  <Stack.Screen name="verify" options={{ headerShown: false }} />
+                  <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
+                  <Stack.Screen name="reset" options={{ headerShown: false }} />
+                  <Stack.Screen name="reset-password" options={{ headerShown: false }} />
+                  {/* Payment screens - lazy loaded */}
+                  <Stack.Screen name="payment-success" options={{ headerShown: false }} />
+                  <Stack.Screen name="payment-cancel" options={{ headerShown: false }} />
+                  {/* Onboarding - lazy loaded */}
+                  <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+                  {/* Settings and other screens - lazy loaded */}
+                  <Stack.Screen name="settings" options={{ headerShown: false }} />
+                  <Stack.Screen name="+not-found" />
+                </Stack>
+                <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+              </NavigationThemeProvider>
+            </AuthProvider>
+          </PostCacheProvider>
         </ThemeProvider>
       </GestureHandlerRootView>
     </ErrorBoundary>

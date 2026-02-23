@@ -80,19 +80,42 @@ export default function TabLayout() {
   <Tabs.Screen name="discover/mobile-community" options={hiddenTab} />
   <Tabs.Screen name="discover/game/index" options={hiddenTab} />
   <Tabs.Screen name="discover/game/[id]" options={hiddenTab} />
+  {/* Admin screens - hidden but accessible with tab bar */}
   <Tabs.Screen name="admin-ads" options={hiddenTab} />
   <Tabs.Screen name="admin-messages" options={hiddenTab} />
   <Tabs.Screen name="admin-teams" options={hiddenTab} />
   <Tabs.Screen name="admin-users" options={hiddenTab} />
   <Tabs.Screen name="admin-user-detail" options={hiddenTab} />
+  {/* Ad screens - hidden but accessible with tab bar */}
   <Tabs.Screen name="ad-calendar" options={hiddenTab} />
   <Tabs.Screen name="edit-ad" options={hiddenTab} />
+  <Tabs.Screen name="my-ads" options={hiddenTab} />
+  <Tabs.Screen name="submit-ad" options={hiddenTab} />
+  {/* Game/Event screens - hidden but accessible with tab bar */}
   <Tabs.Screen name="game-detail" options={hiddenTab} />
   <Tabs.Screen name="game-photos" options={hiddenTab} />
   <Tabs.Screen name="game-highlights" options={hiddenTab} />
   <Tabs.Screen name="game-reviews" options={hiddenTab} />
-  <Tabs.Screen name="my-ads" options={hiddenTab} />
-  <Tabs.Screen name="submit-ad" options={hiddenTab} />
+  {/* Common navigation screens - hidden but accessible with tab bar */}
+  <Tabs.Screen name="create-post" options={hiddenTab} />
+  <Tabs.Screen name="post-detail" options={hiddenTab} />
+  <Tabs.Screen name="user-profile" options={hiddenTab} />
+  <Tabs.Screen name="team-profile" options={hiddenTab} />
+  <Tabs.Screen name="team-hub" options={hiddenTab} />
+  <Tabs.Screen name="team-contacts" options={hiddenTab} />
+  <Tabs.Screen name="edit-profile" options={hiddenTab} />
+  <Tabs.Screen name="create-team" options={hiddenTab} />
+  <Tabs.Screen name="edit-team" options={hiddenTab} />
+  <Tabs.Screen name="manage-teams" options={hiddenTab} />
+  <Tabs.Screen name="my-team" options={hiddenTab} />
+  <Tabs.Screen name="message-thread" options={hiddenTab} />
+  <Tabs.Screen name="followers" options={hiddenTab} />
+  <Tabs.Screen name="following" options={hiddenTab} />
+  <Tabs.Screen name="organization" options={hiddenTab} />
+  <Tabs.Screen name="event-detail" options={hiddenTab} />
+  <Tabs.Screen name="create-fan-event" options={hiddenTab} />
+  <Tabs.Screen name="event-approvals" options={hiddenTab} />
+  <Tabs.Screen name="verify-email" options={hiddenTab} />
       <Tabs.Screen
         name="profile/index"
         options={{

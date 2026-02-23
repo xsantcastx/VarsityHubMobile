@@ -15,8 +15,7 @@ import {
     ActivityIndicator,
     Pressable,
     StyleSheet,
-    Text,
-    View
+    Text
 } from 'react-native';
 
 interface StoryCameraButtonProps {
@@ -200,45 +199,6 @@ export function StoryCameraButton({
   );
 }
 
-/**
- * Story capture with timer indicator
- */
-export function StoryCameraWithTimer({ onCapture }: { onCapture: (mediaUri: string) => void }) {
-  const [showTimer, setShowTimer] = useState(false);
-
-  const handleCapture = (uri: string, type: 'photo' | 'video') => {
-    if (type === 'photo') {
-      // Show 24-hour timer for Stories
-      setShowTimer(true);
-      setTimeout(() => setShowTimer(false), 3000);
-    }
-    onCapture(uri);
-  };
-
-  return (
-    <View style={styles.timerContainer}>
-      <StoryCameraButton onCapture={handleCapture} variant="button" />
-      {showTimer && (
-        <View style={styles.timerBadge}>
-          <Ionicons name="time-outline" size={14} color="#FFFFFF" />
-          <Text style={styles.timerText}>Expires in 24h</Text>
-        </View>
-      )}
-    </View>
-  );
-}
-
-/**
- * Compact Story button for headers/toolbars
- */
-export function StoryCameraCompact({ onCapture }: { onCapture: (uri: string) => void }) {
-  return (
-    <StoryCameraButton
-      onCapture={(uri) => onCapture(uri)}
-      variant="icon"
-    />
-  );
-}
 
 const styles = StyleSheet.create({
   button: {
@@ -293,27 +253,5 @@ const styles = StyleSheet.create({
   },
   iconButtonDisabled: {
     opacity: 0.5,
-  },
-  timerContainer: {
-    position: 'relative',
-  },
-  timerBadge: {
-    position: 'absolute',
-    bottom: -24,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    backgroundColor: '#7C3AED',
-    borderRadius: 12,
-  },
-  timerText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#FFFFFF',
   },
 });

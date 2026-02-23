@@ -2,14 +2,36 @@ import { Router } from 'express';
 import {
     sendBillingNoticeEmail,
     sendContentModerationEmail,
+    sendEndOfDayTransactionReport,
+    sendJoinRequestApproved,
+    sendJoinRequestDenied,
+    sendJoinRequestToAdmin,
     sendOrganizationApprovalEmail,
     sendOrganizationDenialEmail,
     sendOrganizationInviteEmail,
     sendPasswordResetEmail,
-    sendSecurityAlertEmail,
     sendTeamInviteEmail,
     sendVerificationEmail,
+    sendAccountWarningEmail,
+    sendContentRemovedEmail,
+    sendAccountSuspension7DaysEmail,
+    sendAccountSuspension45DaysEmail,
+    sendAccountPermanentBanEmail,
+    sendLoginFromNewDeviceEmail,
+    sendAccountRecoveryEmail,
+    sendEventSubmissionReceivedEmail,
+    sendEventApprovedEmail,
+    sendEventDeniedEmail,
+    sendEventReminderEmail,
+    sendEventUpdatedEmail,
+    sendEventCanceledEmail,
+    sendEventRsvpConfirmedEmail,
+    sendRosterThresholdAlertEmail,
+    sendPaymentFailedEmail,
+    sendSubscriptionExpiringEmail,
+    sendReportResolutionEmail,
 } from '../lib/email.js';
+import { getEndOfDayReport } from '../lib/transactionLogger.js';
 
 const router = Router();
 
@@ -70,36 +92,25 @@ router.post('/org-invite', async (req, res) => {
 });
 
 router.post('/join-admin', async (req, res) => {
-  // PHASE 1: Minimal accurate data from current backend schema
-  // See docs/EMAIL_TEMPLATE_FUTURE_PHASE2.md for full vision requiring team/role/seat tracking
   const {
     adminEmail = 'admin@example.com',
     adminName = 'Director Johnson',
     requesterName = 'John Smith',
-    requesterEmail = 'john@example.com',
     organizationName = 'Texas Elite Sports',
     message = 'I would love to volunteer as a coach.',
-    requestId = 'req_123',
-    requestedAt = new Date().toISOString(),
-    approveUrl = 'https://varsityhub.app/org/req_123/approve',
-    denyUrl = 'https://varsityhub.app/org/req_123/deny',
+    requestId = 'req_test_123',
     orgLogoUrl,
   } = req.body || {};
-  // DISABLED: sendJoinRequestToAdmin - template removed from approved list
-  // const ok = await sendJoinRequestToAdmin({
-  //   adminEmail,
-  //   adminName,
-  //   requesterName,
-  //   requesterEmail,
-  //   organizationName,
-  //   message,
-  //   requestId,
-  //   requestedAt,
-  //   approveUrl,
-  //   denyUrl,
-  //   orgLogoUrl,
-  // });
-  return res.json({ ok: false, message: 'Template disabled' });
+  const ok = await sendJoinRequestToAdmin({
+    adminEmail,
+    adminName,
+    requesterName,
+    organizationName,
+    message,
+    requestId,
+    orgLogoUrl,
+  });
+  return res.json({ ok });
 });
 
 router.post('/join-approved', async (req, res) => {
@@ -110,15 +121,14 @@ router.post('/join-approved', async (req, res) => {
     adminName = 'Director Johnson',
     orgLogoUrl,
   } = req.body || {};
-  // DISABLED: sendJoinRequestApproved - template removed from approved list
-  // const ok = await sendJoinRequestApproved({
-  //   userEmail,
-  //   userName,
-  //   organizationName,
-  //   adminName,
-  //   orgLogoUrl,
-  // });
-  return res.json({ ok: false, message: 'Template disabled' });
+  const ok = await sendJoinRequestApproved({
+    userEmail,
+    userName,
+    organizationName,
+    adminName,
+    orgLogoUrl,
+  });
+  return res.json({ ok });
 });
 
 router.post('/join-denied', async (req, res) => {
@@ -129,15 +139,14 @@ router.post('/join-denied', async (req, res) => {
     reason = 'We are currently at capacity.',
     orgLogoUrl,
   } = req.body || {};
-  // DISABLED: sendJoinRequestDenied - template removed from approved list
-  // const ok = await sendJoinRequestDenied({
-  //   userEmail,
-  //   userName,
-  //   organizationName,
-  //   reason,
-  //   orgLogoUrl,
-  // });
-  return res.json({ ok: false, message: 'Template disabled' });
+  const ok = await sendJoinRequestDenied({
+    userEmail,
+    userName,
+    organizationName,
+    reason,
+    orgLogoUrl,
+  });
+  return res.json({ ok });
 });
 
 router.post('/moderation', async (req, res) => {
@@ -192,20 +201,247 @@ router.post('/org-denial', async (req, res) => {
   return res.json({ ok });
 });
 
-router.post('/security-alert', async (req, res) => {
-  const {
-    to = 'user@example.com',
-    alertType = 'password_change',
-    ipAddress = '203.0.113.42',
-    location = 'Stamford, CT',
-    manageUrl,
-  } = req.body || {};
-  const ok = await sendSecurityAlertEmail({
+router.post('/transaction-report', async (req, res) => {
+  const { to = 'emancero@varsityhub.app', date } = req.body || {};
+  
+  try {
+    // Get report for specified date or today
+    const reportDate = date ? new Date(date) : undefined;
+    const report = await getEndOfDayReport(reportDate);
+    
+    const ok = await sendEndOfDayTransactionReport({
+      to,
+      report,
+    });
+    
+    return res.json({ 
+      ok, 
+      reportDate: report.date,
+      summary: report.summary,
+      message: ok ? 'Transaction report sent successfully' : 'Failed to send transaction report'
+    });
+  } catch (error) {
+    console.error('[test-emails] Transaction report test failed:', error);
+    return res.status(500).json({ 
+      ok: false, 
+      error: (error as any).message || 'Unknown error' 
+    });
+  }
+});
+
+// Test endpoints for new email templates
+router.post('/account-warning', async (req, res) => {
+  const { to = 'test@example.com', userName = 'Test User', warningReason = 'Violation of community guidelines' } = req.body || {};
+  const ok = await sendAccountWarningEmail({ to, userName, warningReason });
+  return res.json({ ok });
+});
+
+router.post('/content-removed', async (req, res) => {
+  const { to = 'test@example.com', userName = 'Test User', contentType = 'post', removalReason = 'Violated guidelines' } = req.body || {};
+  const ok = await sendContentRemovedEmail({ to, userName, contentType, removalReason });
+  return res.json({ ok });
+});
+
+router.post('/suspension-7days', async (req, res) => {
+  const futureDate = new Date();
+  futureDate.setDate(futureDate.getDate() + 7);
+  const { to = 'test@example.com', userName = 'Test User', reason = 'Repeated violations' } = req.body || {};
+  const ok = await sendAccountSuspension7DaysEmail({
     to,
-    alertType,
-    ipAddress,
-    location,
-    manageUrl,
+    userName,
+    suspensionReason: reason,
+    suspensionEndDate: futureDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+  });
+  return res.json({ ok });
+});
+
+router.post('/suspension-45days', async (req, res) => {
+  const futureDate = new Date();
+  futureDate.setDate(futureDate.getDate() + 45);
+  const { to = 'test@example.com', userName = 'Test User', reason = 'Severe violations' } = req.body || {};
+  const ok = await sendAccountSuspension45DaysEmail({
+    to,
+    userName,
+    suspensionReason: reason,
+    suspensionEndDate: futureDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+  });
+  return res.json({ ok });
+});
+
+router.post('/permanent-ban', async (req, res) => {
+  const { to = 'test@example.com', userName = 'Test User', reason = 'Severe and repeated violations' } = req.body || {};
+  const ok = await sendAccountPermanentBanEmail({ to, userName, banReason: reason });
+  return res.json({ ok });
+});
+
+router.post('/login-new-device', async (req, res) => {
+  const { to = 'test@example.com', userName = 'Test User', deviceType = 'iPhone 14 Pro', deviceLocation = 'San Francisco, CA' } = req.body || {};
+  const ok = await sendLoginFromNewDeviceEmail({
+    to,
+    userName,
+    deviceType,
+    deviceLocation,
+    loginTime: new Date().toLocaleString(),
+  });
+  return res.json({ ok });
+});
+
+router.post('/account-recovery', async (req, res) => {
+  const { to = 'test@example.com', userName = 'Test User' } = req.body || {};
+  const ok = await sendAccountRecoveryEmail(to, userName, new Date().toLocaleString());
+  return res.json({ ok });
+});
+
+router.post('/event-submission-received', async (req, res) => {
+  const { to = 'test@example.com', coachName = 'Test Coach', eventName = 'Test Event' } = req.body || {};
+  const ok = await sendEventSubmissionReceivedEmail({
+    to,
+    coachName,
+    eventName,
+    eventDate: '2025-02-15',
+    eventTime: '7:00 PM',
+    eventLocation: 'Test Location',
+    statusLink: 'https://varsityhub.app/events/my-events',
+  });
+  return res.json({ ok });
+});
+
+router.post('/event-approved', async (req, res) => {
+  const { to = 'test@example.com', coachName = 'Test Coach', eventName = 'Test Event' } = req.body || {};
+  const ok = await sendEventApprovedEmail({
+    to,
+    coachName,
+    eventName,
+    eventDate: '2025-02-15',
+    eventTime: '7:00 PM',
+    eventLocation: 'Test Location',
+    eventId: 'test-event-123',
+    eventLink: 'https://varsityhub.app/event-detail?id=test-event-123',
+  });
+  return res.json({ ok });
+});
+
+router.post('/event-denied', async (req, res) => {
+  const { to = 'test@example.com', coachName = 'Test Coach', eventName = 'Test Event', reason = 'Event conflicts' } = req.body || {};
+  const ok = await sendEventDeniedEmail({
+    to,
+    coachName,
+    eventName,
+    denialReason: reason,
+    resubmitLink: 'https://varsityhub.app/create-fan-event',
+    supportLink: 'mailto:support@varsityhub.app',
+  });
+  return res.json({ ok });
+});
+
+router.post('/event-reminder', async (req, res) => {
+  const { to = 'test@example.com', recipientName = 'Test User', eventName = 'Test Event' } = req.body || {};
+  const ok = await sendEventReminderEmail({
+    to,
+    recipientName,
+    eventName,
+    eventDate: '2025-02-15',
+    eventTime: '7:00 PM',
+    eventLocation: 'Test Location',
+    eventId: 'test-event-123',
+    checkInLink: 'https://varsityhub.app/event-detail?id=test-event-123',
+    calendarLink: 'https://varsityhub.app/event-detail?id=test-event-123',
+    directionsLink: 'https://varsityhub.app/event-detail?id=test-event-123',
+    preferencesLink: 'https://varsityhub.app/settings',
+  });
+  return res.json({ ok });
+});
+
+router.post('/event-updated', async (req, res) => {
+  const { to = 'test@example.com', recipientName = 'Test User', eventName = 'Test Event' } = req.body || {};
+  const ok = await sendEventUpdatedEmail({
+    to,
+    recipientName,
+    eventName,
+    eventDate: '2025-02-15',
+    eventId: 'test-event-123',
+    eventDetailLink: 'https://varsityhub.app/event-detail?id=test-event-123',
+    changeSummary: 'Event time updated',
+  });
+  return res.json({ ok });
+});
+
+router.post('/event-canceled', async (req, res) => {
+  const { to = 'test@example.com', recipientName = 'Test User', eventName = 'Test Event', reason = 'Weather' } = req.body || {};
+  const ok = await sendEventCanceledEmail({
+    to,
+    recipientName,
+    eventName,
+    eventDate: '2025-02-15',
+    cancelReason: reason,
+    upcomingEventsLink: 'https://varsityhub.app/events',
+    contactOrganizerLink: 'mailto:support@varsityhub.app',
+  });
+  return res.json({ ok });
+});
+
+router.post('/event-rsvp-confirmed', async (req, res) => {
+  const { to = 'test@example.com', userName = 'Test User', eventName = 'Test Event' } = req.body || {};
+  const ok = await sendEventRsvpConfirmedEmail({
+    to,
+    userName,
+    eventName,
+    eventDate: '2025-02-15',
+    eventTime: '7:00 PM',
+    eventLocation: 'Test Location',
+    eventLink: 'https://varsityhub.app/event-detail?id=test-event-123',
+  });
+  return res.json({ ok });
+});
+
+router.post('/roster-threshold', async (req, res) => {
+  const { to = 'test@example.com', coachName = 'Test Coach', teamName = 'Test Team', rosterCount = 25 } = req.body || {};
+  const ok = await sendRosterThresholdAlertEmail({
+    to,
+    coachName,
+    teamName,
+    rosterCount,
+    thresholdCost: 5.00,
+    manageBillingUrl: 'https://varsityhub.app/settings/manage-subscription',
+  });
+  return res.json({ ok });
+});
+
+router.post('/payment-failed', async (req, res) => {
+  const { to = 'test@example.com', userName = 'Test User', amount = '$49.99' } = req.body || {};
+  const ok = await sendPaymentFailedEmail({
+    to,
+    userName,
+    amount,
+    paymentDate: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+  });
+  return res.json({ ok });
+});
+
+router.post('/subscription-expiring', async (req, res) => {
+  const futureDate = new Date();
+  futureDate.setDate(futureDate.getDate() + 7);
+  const { to = 'test@example.com', userName = 'Test User', planName = 'Veteran Plan' } = req.body || {};
+  const ok = await sendSubscriptionExpiringEmail({
+    to,
+    userName,
+    planName,
+    expiresDate: futureDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+    daysRemaining: 7,
+    renewalPrice: '$1.50/month',
+  });
+  return res.json({ ok });
+});
+
+router.post('/report-resolved', async (req, res) => {
+  const { to = 'test@example.com', userName = 'Test User', resolutionStatus = 'resolved' } = req.body || {};
+  const ok = await sendReportResolutionEmail({
+    to,
+    userName,
+    reportId: 'test-report-123',
+    reportType: 'spam',
+    resolutionStatus,
+    resolutionReason: resolutionStatus === 'resolved' ? 'Content was removed' : 'No violation found',
   });
   return res.json({ ok });
 });

@@ -64,7 +64,15 @@ export type AppConfig = {
 };
 
 const config: AppConfig = {
-  apiUrl: normalizeUrl(readEnv('EXPO_PUBLIC_API_URL', DEFAULT_API_URL) || DEFAULT_API_URL),
+  // Force production URL - ignore localhost even if set
+  apiUrl: (() => {
+    const envUrl = readEnv('EXPO_PUBLIC_API_URL');
+    if (envUrl && envUrl.includes('localhost')) {
+      // Ignore localhost, use production
+      return DEFAULT_API_URL;
+    }
+    return normalizeUrl(envUrl || DEFAULT_API_URL);
+  })(),
   forceRemoteApi: readBoolean('EXPO_PUBLIC_FORCE_REMOTE_API', true),
   nodeEnv: readEnv('EXPO_PUBLIC_NODE_ENV', __DEV__ ? 'development' : 'production'),
   appScheme: readEnv('EXPO_PUBLIC_APP_SCHEME', 'varsityhubmobile') || 'varsityhubmobile',

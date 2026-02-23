@@ -24,7 +24,7 @@ const OPTIONS: { key: Intent; label: string; icon: keyof typeof Ionicons.glyphMa
 export default function Step8Interests() {
   const router = useRouter();
   const { setProgress, setState: setOB, state: ob } = useOnboarding();
-  const colorScheme = useColorScheme();
+  const colorScheme = useColorScheme() ?? 'light';
   const [sel, setSel] = useState<Intent[]>([]);
   const [saving, setSaving] = useState(false);
 
@@ -49,7 +49,7 @@ export default function Step8Interests() {
       // Then save to backend
       await User.updatePreferences({ primary_intents: sel });
       
-      setProgress(6); // step-9 is index 6
+      setProgress(7); // step-9 is index 7 in stepRoutes array
       
       // Continue to step 9 (features)
       router.push('/onboarding/step-9-features');
@@ -62,7 +62,7 @@ export default function Step8Interests() {
 
   return (
     <OnboardingLayout
-      step={7}
+      step={8}
       title="What interests you most?"
       subtitle="Select the features you'd like to explore"
     >

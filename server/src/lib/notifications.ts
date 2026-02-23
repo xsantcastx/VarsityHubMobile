@@ -24,10 +24,6 @@ export {
 import { Expo, ExpoPushMessage } from 'expo-server-sdk';
 import { prisma } from './prisma.js';
 import { debugLog } from './debugLog.js';
-import {
-  buildNewMessageNotificationPayload,
-  buildPostInteractionNotificationPayload,
-} from './notificationHelpers.js';
 
 const expo = new Expo();
 
@@ -106,8 +102,16 @@ export async function notifyNewMessage(
   senderName: string,
   messagePreview: string
 ): Promise<void> {
-  const payload = buildNewMessageNotificationPayload(senderId, senderName, messagePreview);
-  await sendPushNotification(recipientId, payload.title, payload.body, payload.data);
+  await sendPushNotification(
+    recipientId,
+    `New message from ${senderName}`,
+    messagePreview.substring(0, 100),
+    {
+      type: 'new_message',
+      sender_id: senderId,
+      screen: 'messages',
+    }
+  );
 }
 
 /**
@@ -125,8 +129,38 @@ export async function notifyPostInteraction(
     return;
   }
 
-  const payload = buildPostInteractionNotificationPayload(interactionType, actorId, actorName, postId);
-  await sendPushNotification(postAuthorId, payload.title, payload.body, payload.data);
+  // Check if user has disabled comments & upvotes notifications
+  if (interactionType === 'like' || interactionType === 'comment') {
+    const user = await prisma.user.findUnique({
+      where: { id: postAuthorId },
+      select: { preferences: true },
+    });
+    const prefs = user?.preferences as any;
+    if (prefs?.notifications?.comments_upvotes === false) {
+      debugLog(`Comments & upvotes notifications disabled for user ${postAuthorId}`);
+      return;
+    }
+  }
+
+  const titles = {
+    like: `${actorName} liked your post`,
+    comment: `${actorName} commented on your post`,
+    share: `${actorName} shared your post`,
+  };
+
+  await sendPushNotification(
+    postAuthorId,
+    titles[interactionType],
+    `Tap to view`,
+    {
+      type: 'post_interaction',
+      interaction_type: interactionType,
+      actor_id: actorId,
+      post_id: postId,
+      screen: 'post-detail',
+      post_id_param: postId,
+    }
+  );
 }
 
 /**
@@ -194,6 +228,14 @@ export async function notifyUpcomingGames(hoursBeforeGame: number): Promise<void
   for (const event of upcomingEvents) {
     for (const rsvp of event.rsvps) {
       const user = rsvp.user;
+      
+      // Check if user has disabled game/event reminders
+      const prefs = user.preferences as any;
+      if (prefs?.notifications?.game_event_reminders === false) {
+        debugLog(`Game reminders disabled for user ${user.id}, skipping notification`);
+        continue;
+      }
+      
       const title = hoursBeforeGame === 12 
         ? `Game reminder: ${event.title}` 
         : `Game starting soon: ${event.title}`;

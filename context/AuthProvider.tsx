@@ -216,11 +216,20 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       } catch (err: any) {
         setUser(null);
         // Don't clear onboarding flag on auth error - keep it for when user logs back in
+        // Only throw if it's not a 401 (unauthorized) - 401 is expected when not logged in
+        if (err?.status !== 401) {
+          console.error('[AuthProvider] checkAuth error:', err);
+        }
         throw err;
       }
     },
     [setupPushNotifications, hasCompletedOnboarding]
   );
+
+  const checkAuthRef = React.useRef(checkAuth);
+  React.useEffect(() => {
+    checkAuthRef.current = checkAuth;
+  }, [checkAuth]);
 
   // Sign out
   const signOut = useCallback(async () => {
@@ -282,7 +291,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       // 3. Check auth status
       console.log('[AuthProvider] Checking authentication...');
       try {
-        await checkAuth();
+        await checkAuthRef.current();
         console.log('[AuthProvider] Auth check successful');
       } catch (err: any) {
         console.log('[AuthProvider] Auth check failed (user not logged in):', err.message);
@@ -300,7 +309,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     return () => {
       mounted = false;
     };
-  }, [navReady, checkHealth, checkAuth]);
+  }, [navReady, checkHealth]);
 
   // Safety timeout - force initialization complete after 5 seconds
   useEffect(() => {

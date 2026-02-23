@@ -1,3 +1,4 @@
+import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 import { Ionicons } from '@expo/vector-icons';
@@ -61,30 +62,15 @@ export default function AdminReportsScreen() {
     setError(null);
     
     try {
-      const token = await (await import('@/api/auth')).loadToken();
-      const apiUrl = getApiBaseUrl();
+      const _token = await (await import('@/api/auth')).loadToken();
+      const _apiUrl = getApiBaseUrl();
       
-      const [reportsRes, statsRes] = await Promise.all([
-        fetch(`${apiUrl}/admin/reports?status=${filterStatus}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        }),
-        fetch(`${apiUrl}/admin/reports/stats`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        }),
+      // Use API client instead of direct fetch
+      const { httpGet } = await import('@/api/http');
+      const [reportsData, statsData] = await Promise.all([
+        httpGet(`/admin/reports?status=${filterStatus}`),
+        httpGet('/admin/reports/stats'),
       ]);
-
-      if (!reportsRes.ok || !statsRes.ok) {
-        throw new Error('Failed to load reports');
-      }
-
-      const reportsData = await reportsRes.json();
-      const statsData = await statsRes.json();
       
       setReports(reportsData.reports || []);
       setStats(statsData);
@@ -124,21 +110,9 @@ export default function AdminReportsScreen() {
 
   const updateReportStatus = async (reportId: string, status: string, resolutionNote?: string) => {
     try {
-      const token = await (await import('@/api/auth')).loadToken();
-      const apiUrl = getApiBaseUrl();
-      
-      const response = await fetch(`${apiUrl}/admin/reports/${reportId}`, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ status, resolution_note: resolutionNote }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to update report');
-      }
+      // Use API client instead of direct fetch
+      const { httpPatch } = await import('@/api/http');
+      await httpPatch(`/admin/reports/${reportId}`, { status, resolution_note: resolutionNote });
 
       await loadReports(true);
       Alert.alert('Success', 'Report updated successfully');
@@ -154,26 +128,12 @@ export default function AdminReportsScreen() {
     }
 
     try {
-      const token = await (await import('@/api/auth')).loadToken();
-      const apiUrl = getApiBaseUrl();
-      
-      const response = await fetch(`${apiUrl}/admin/reports/bulk-update`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          report_ids: Array.from(selectedReports), 
-          status 
-        }),
+      // Use API client instead of direct fetch
+      const { httpPost } = await import('@/api/http');
+      const data = await httpPost('/admin/reports/bulk-update', { 
+        report_ids: Array.from(selectedReports), 
+        status 
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to update reports');
-      }
-
-      const data = await response.json();
       setSelectedReports(new Set());
       await loadReports(true);
       Alert.alert('Success', `Updated ${data.updated} reports`);
@@ -198,26 +158,17 @@ export default function AdminReportsScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              const token = await (await import('@/api/auth')).loadToken();
-              const apiUrl = getApiBaseUrl();
+              const _token = await (await import('@/api/auth')).loadToken();
+              const _apiUrl = getApiBaseUrl();
               
-              const response = await fetch(`${apiUrl}/admin/reports/bulk-delete`, {
-                method: 'POST',
-                headers: {
-                  'Authorization': `Bearer ${token}`,
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ report_ids: Array.from(selectedReports) }),
+              // Use API client instead of direct fetch
+              const { httpPost } = await import('@/api/http');
+              const data: any = await httpPost('/admin/reports/bulk-delete', {
+                report_ids: Array.from(selectedReports),
               });
-
-              if (!response.ok) {
-                throw new Error('Failed to delete reports');
-              }
-
-              const data = await response.json();
               setSelectedReports(new Set());
               await loadReports(true);
-              Alert.alert('Success', `Deleted ${data.deleted} reports`);
+              Alert.alert('Success', `Deleted ${data?.deleted ?? selectedReports.size} reports`);
             } catch (e: any) {
               Alert.alert('Error', e?.message || 'Failed to delete reports');
             }
@@ -266,7 +217,7 @@ export default function AdminReportsScreen() {
               color={isSelected ? '#3B82F6' : (colorScheme === 'dark' ? '#9CA3AF' : '#6B7280')} 
             />
             <View style={{ marginLeft: 12 }}>
-              <Text style={[styles.reporterName, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
+              <Text style={[styles.reporterName, { color: Colors[colorScheme].text }]}>
                 {report.reporter_name}
               </Text>
               <Text style={[styles.reporterEmail, { color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280' }]}>
@@ -277,7 +228,7 @@ export default function AdminReportsScreen() {
           <StatusBadge status={report.status} />
         </View>
 
-        <Text style={[styles.reportSubject, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
+        <Text style={[styles.reportSubject, { color: Colors[colorScheme].text }]}>
           {report.subject}
         </Text>
         
@@ -289,7 +240,7 @@ export default function AdminReportsScreen() {
         </Text>
 
         <View style={styles.reportFooter}>
-          <Text style={[styles.reportDate, { color: colorScheme === 'dark' ? '#6B7280' : '#9CA3AF' }]}>
+          <Text style={[styles.reportDate, { color: Colors[colorScheme].mutedText }]}>
             {new Date(report.created_at).toLocaleDateString()} {new Date(report.created_at).toLocaleTimeString()}
           </Text>
           <View style={styles.reportActions}>
@@ -328,7 +279,7 @@ export default function AdminReportsScreen() {
         edges={['top']}
         style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colorScheme === 'dark' ? '#0F172A' : '#F9FAFB' }}
       >
-        <Text style={{ color: colorScheme === 'dark' ? '#ECEDEE' : '#111827', fontSize: 18, fontWeight: '600', paddingHorizontal: 24, textAlign: 'center' }}>
+        <Text style={{ color: Colors[colorScheme].text, fontSize: 18, fontWeight: '600', paddingHorizontal: 24, textAlign: 'center' }}>
           Admin access required
         </Text>
       </SafeAreaView>
@@ -338,7 +289,7 @@ export default function AdminReportsScreen() {
   return (
     <SafeAreaView 
       edges={['top']}
-      style={{ flex: 1, backgroundColor: colorScheme === 'dark' ? '#0F172A' : '#F9FAFB' }}
+      style={{ flex: 1, backgroundColor: Colors[colorScheme].background }}
     >
       <Stack.Screen options={{ headerShown: false }} />
       
@@ -350,34 +301,34 @@ export default function AdminReportsScreen() {
         }
       >
         {/* Header */}
-        <View style={[styles.header, { backgroundColor: colorScheme === 'dark' ? '#1E293B' : 'white' }]}>
-          <Pressable onPress={() => void router.back()} style={styles.backButton}>
+        <View style={[styles.header, { backgroundColor: Colors[colorScheme].card, borderBottomColor: Colors[colorScheme].border }]}>
+          <Pressable onPress={() => router.back()} style={styles.backButton}>
             <Ionicons 
               name="arrow-back" 
               size={24} 
-              color={colorScheme === 'dark' ? '#ECEDEE' : '#111827'} 
+              color={Colors[colorScheme].text} 
             />
           </Pressable>
-          <Text style={[styles.headerTitle, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
+          <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>
             Abuse Reports
           </Text>
           <View style={styles.headerRight}>
             <Ionicons 
               name="alert-circle-outline" 
               size={24} 
-              color={colorScheme === 'dark' ? '#9CA3AF' : '#6B7280'} 
+              color={Colors[colorScheme].mutedText} 
             />
           </View>
         </View>
 
         {loading && !refreshing ? (
           <View style={styles.centerContainer}>
-            <ActivityIndicator size="large" color="#3B82F6" />
+            <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
           </View>
         ) : error ? (
           <View style={styles.centerContainer}>
-            <Ionicons name="alert-circle" size={48} color="#EF4444" />
-            <Text style={[styles.errorText, { color: colorScheme === 'dark' ? '#F87171' : '#EF4444' }]}>
+            <Ionicons name="alert-circle" size={48} color={Colors.light.destructive} />
+            <Text style={[styles.errorText, { color: Colors[colorScheme].destructive }]}>
               {error}
             </Text>
             <Pressable style={styles.retryButton} onPress={() => void loadReports()}>
@@ -389,27 +340,27 @@ export default function AdminReportsScreen() {
             {/* Stats */}
             {stats && (
               <View style={styles.statsContainer}>
-                <View style={[styles.statBox, { backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white' }]}>
+                <View style={[styles.statBox, { backgroundColor: Colors[colorScheme].card }]}>
                   <Text style={[styles.statNumber, { color: '#F59E0B' }]}>{stats.pending}</Text>
-                  <Text style={[styles.statLabel, { color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280' }]}>
+                  <Text style={[styles.statLabel, { color: Colors[colorScheme].mutedText }]}>
                     Pending
                   </Text>
                 </View>
-                <View style={[styles.statBox, { backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white' }]}>
+                <View style={[styles.statBox, { backgroundColor: Colors[colorScheme].card }]}>
                   <Text style={[styles.statNumber, { color: '#10B981' }]}>{stats.resolved}</Text>
-                  <Text style={[styles.statLabel, { color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280' }]}>
+                  <Text style={[styles.statLabel, { color: Colors[colorScheme].mutedText }]}>
                     Resolved
                   </Text>
                 </View>
-                <View style={[styles.statBox, { backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white' }]}>
+                <View style={[styles.statBox, { backgroundColor: Colors[colorScheme].card }]}>
                   <Text style={[styles.statNumber, { color: '#6B7280' }]}>{stats.dismissed}</Text>
-                  <Text style={[styles.statLabel, { color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280' }]}>
+                  <Text style={[styles.statLabel, { color: Colors[colorScheme].mutedText }]}>
                     Dismissed
                   </Text>
                 </View>
-                <View style={[styles.statBox, { backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white' }]}>
-                  <Text style={[styles.statNumber, { color: '#3B82F6' }]}>{stats.total}</Text>
-                  <Text style={[styles.statLabel, { color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280' }]}>
+                <View style={[styles.statBox, { backgroundColor: Colors[colorScheme].card }]}>
+                  <Text style={[styles.statNumber, { color: Colors[colorScheme].tint }]}>{stats.total}</Text>
+                  <Text style={[styles.statLabel, { color: Colors[colorScheme].mutedText }]}>
                     Total
                   </Text>
                 </View>
@@ -425,8 +376,8 @@ export default function AdminReportsScreen() {
                     styles.filterTab,
                     {
                       backgroundColor: filterStatus === status
-                        ? '#3B82F6'
-                        : (colorScheme === 'dark' ? '#1F2937' : 'white'),
+                        ? Colors[colorScheme].tint
+                        : Colors[colorScheme].card,
                     },
                   ]}
                   onPress={() => setFilterStatus(status)}
@@ -436,8 +387,8 @@ export default function AdminReportsScreen() {
                       styles.filterTabText,
                       {
                         color: filterStatus === status
-                          ? 'white'
-                          : (colorScheme === 'dark' ? '#9CA3AF' : '#6B7280'),
+                          ? Colors.dark.text
+                          : Colors[colorScheme].mutedText,
                       },
                     ]}
                   >
@@ -449,8 +400,8 @@ export default function AdminReportsScreen() {
 
             {/* Bulk Actions */}
             {selectedReports.size > 0 && (
-              <View style={[styles.bulkActionsBar, { backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white' }]}>
-                <Text style={[styles.bulkActionsText, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
+              <View style={[styles.bulkActionsBar, { backgroundColor: Colors[colorScheme].card }]}>
+                <Text style={[styles.bulkActionsText, { color: Colors[colorScheme].text }]}>
                   {selectedReports.size} selected
                 </Text>
                 <View style={styles.bulkActionsButtons}>
@@ -489,9 +440,9 @@ export default function AdminReportsScreen() {
                   <Ionicons 
                     name="document-text-outline" 
                     size={64} 
-                    color={colorScheme === 'dark' ? '#6B7280' : '#9CA3AF'} 
+                    color={Colors[colorScheme].mutedText} 
                   />
-                  <Text style={[styles.emptyStateText, { color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280' }]}>
+                  <Text style={[styles.emptyStateText, { color: Colors[colorScheme].mutedText }]}>
                     No reports found
                   </Text>
                 </View>

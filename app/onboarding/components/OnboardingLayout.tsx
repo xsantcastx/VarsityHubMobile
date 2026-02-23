@@ -22,7 +22,7 @@ interface OnboardingLayoutProps {
 
 export default function OnboardingLayout({
   step,
-  totalSteps = 9,
+  totalSteps = 10,
   title,
   subtitle,
   children,
@@ -36,7 +36,7 @@ export default function OnboardingLayout({
   loading,
 }: OnboardingLayoutProps) {
   const router = useRouter();
-  const colorScheme = useColorScheme();
+  const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
   const insets = useSafeAreaInsets();
 
