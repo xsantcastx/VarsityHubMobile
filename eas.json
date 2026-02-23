@@ -5,59 +5,66 @@
   },
   "build": {
     "development": {
+      "node": "20.19.4",
       "developmentClient": true,
       "distribution": "internal",
+      "channel": "development",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api-production-8ac3.up.railway.app",
-        "EXPO_PUBLIC_FORCE_REMOTE_API": "1",
-        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "316424843313-kte6qvms4kbmsii5o0b0o3jjndhs709s.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "316424843313-n0i9t49uoh2e9038m5b927vrm9cv77qr.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "316424843313-3r9h72gqse6va030qr17lmll8ia3b9vb.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID": "316424843313-3r9h72gqse6va030qr17lmll8ia3b9vb.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_FORCE_PROXY": "0"
+        "NODE_ENV": "development",
+        "SENTRY_ORG": "varsity-hub",
+        "SENTRY_PROJECT": "varsity-hub-mobile",
+        "SENTRY_ALLOW_FAILURE": "true",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       },
       "ios": {
-        "resourceClass": "m-medium"
+        "resourceClass": "m-medium",
+        "buildConfiguration": "Debug"
       },
       "android": {
-        "resourceClass": "medium"
+        "resourceClass": "medium",
+        "buildType": "apk"
       }
     },
     "preview": {
+      "node": "20.19.4",
       "distribution": "internal",
+      "channel": "preview",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api-production-8ac3.up.railway.app",
-        "EXPO_PUBLIC_FORCE_REMOTE_API": "1",
-        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "316424843313-kte6qvms4kbmsii5o0b0o3jjndhs709s.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "316424843313-n0i9t49uoh2e9038m5b927vrm9cv77qr.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "316424843313-3r9h72gqse6va030qr17lmll8ia3b9vb.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID": "316424843313-3r9h72gqse6va030qr17lmll8ia3b9vb.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_FORCE_PROXY": "0"
+        "NODE_ENV": "production",
+        "SENTRY_ORG": "varsity-hub",
+        "SENTRY_PROJECT": "varsity-hub-mobile",
+        "SENTRY_ALLOW_FAILURE": "true",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       },
       "ios": {
         "resourceClass": "m-medium"
       },
       "android": {
-        "resourceClass": "medium"
+        "resourceClass": "medium",
+        "buildType": "apk"
       }
     },
     "production": {
+      "node": "20.19.4",
       "distribution": "store",
       "autoIncrement": true,
+      "channel": "production",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api-production-8ac3.up.railway.app",
-        "EXPO_PUBLIC_FORCE_REMOTE_API": "1",
-        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "316424843313-kte6qvms4kbmsii5o0b0o3jjndhs709s.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "316424843313-n0i9t49uoh2e9038m5b927vrm9cv77qr.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "316424843313-3r9h72gqse6va030qr17lmll8ia3b9vb.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID": "316424843313-3r9h72gqse6va030qr17lmll8ia3b9vb.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_FORCE_PROXY": "0"
+        "NODE_ENV": "production",
+        "SENTRY_ORG": "varsity-hub",
+        "SENTRY_PROJECT": "varsity-hub-mobile",
+        "SENTRY_ALLOW_FAILURE": "true",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       },
       "ios": {
-        "resourceClass": "m-medium"
+        "resourceClass": "m-medium",
+        "buildConfiguration": "Release",
+        "credentialsSource": "remote"
       },
       "android": {
-        "resourceClass": "medium"
+        "resourceClass": "medium",
+        "buildType": "app-bundle",
+        "credentialsSource": "remote"
       }
     }
   },
@@ -65,7 +72,7 @@
     "production": {
       "ios": {
         "appleId": "sanchezemil82@gmail.com",
-        "ascAppId": "6754257357",
+        "ascAppId": "6758405187",
         "appleTeamId": "B5H8F69RW5"
       },
       "android": {
