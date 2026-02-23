@@ -1,12 +1,12 @@
-name: Railway Health Check
+name: Railway Health Check (DISABLED)
 
 on:
-  schedule:
-    # Run every hour
-    - cron: '0 * * * *'
   workflow_dispatch:
-  push:
-    branches: [main]
+  # Temporarily disabled to stop email spam
+  # schedule:
+  #   - cron: '0 * * * *'
+  # push:
+  #   branches: [main]
 
 jobs:
   health-check:

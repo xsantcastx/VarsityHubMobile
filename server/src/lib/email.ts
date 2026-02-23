@@ -2,6 +2,7 @@ import sgMail, { MailDataRequired } from '@sendgrid/mail';
 import fs from 'node:fs';
 import path from 'node:path';
 import { debugLog } from './debugLog.js';
+import { getAppBaseUrl } from './env.js';
 import { captureMessage } from './sentry.js';
 
 // RFC-ish email validation used by tests and runtime guards
@@ -28,7 +29,6 @@ export function sanitizeInput(input: unknown): string {
 
 const SENDGRID_API_KEY: string | undefined = process.env.SENDGRID_API_KEY;
 const EMAIL_FROM = process.env.EMAIL_FROM || process.env.FROM_EMAIL || 'noreply@varsityhub.app';
-const APP_BASE_URL = (process.env.APP_BASE_URL || 'https://varsityhub.app').replace(/\/$/, '');
 const EMAIL_PROVIDER = (process.env.EMAIL_PROVIDER || 'sendgrid').toLowerCase();
 
 function isMockProvider(): boolean {
@@ -441,7 +441,7 @@ export async function sendVerificationEmail(
   code: string,
   userName?: string
 ): Promise<boolean> {
-  const verificationLink = `${APP_BASE_URL}/verify-email?code=${encodeURIComponent(code)}&email=${encodeURIComponent(email)}`;
+  const verificationLink = `${getAppBaseUrl()}/verify-email?code=${encodeURIComponent(code)}&email=${encodeURIComponent(email)}`;
   return sendTemplateEmail('VERIFICATION', 'verification', email, {
     verification_code: code,
     verification_link: verificationLink,
@@ -492,7 +492,7 @@ export async function sendOrganizationApprovalEmail(params: {
 }): Promise<boolean> {
   return sendTemplateEmail('ORG_APPROVAL', 'organization approval', params.to, {
     org_name: params.organizationName,
-    dashboard_url: params.dashboardLink || `${APP_BASE_URL}/organizations`,
+    dashboard_url: params.dashboardLink || `${getAppBaseUrl()}/organizations`,
     logo_image: params.orgLogoUrl || undefined,
   });
 }
@@ -542,7 +542,7 @@ export async function sendBillingNoticeEmail(params: {
     notice_type: params.type,
     plan_name: params.planName,
     amount: params.amount || '$0.00',
-    manage_url: params.manageUrl || `${APP_BASE_URL}/billing`,
+    manage_url: params.manageUrl || `${getAppBaseUrl()}/billing`,
     team_name: params.teamName || undefined,
     org_name: params.orgName || undefined,
     perks: params.perks && params.perks.length ? params.perks : undefined,
@@ -572,8 +572,8 @@ export async function sendCoachOnboardingEmail(params: {
     team_name: params.teamName || 'Your VarsityHub Team',
     organization_name: params.organizationName || 'Your program',
     plan_features: coachPlanBenefits[params.plan],
-    dashboard_url: params.dashboardUrl || `${APP_BASE_URL}/manage-teams`,
-    support_url: `${APP_BASE_URL}/support`,
+    dashboard_url: params.dashboardUrl || `${getAppBaseUrl()}/manage-teams`,
+    support_url: `${getAppBaseUrl()}/support`,
   });
 }
 
@@ -585,8 +585,8 @@ export async function sendFanWelcomeEmail(params: {
 }): Promise<boolean> {
   return sendTemplateEmail('FAN_WELCOME', 'fan welcome', params.to, {
     fan_name: params.fanName,
-    featured_team_link: params.featuredTeamLink || `${APP_BASE_URL}/teams`,
-    explore_link: params.exploreLink || `${APP_BASE_URL}/discover`,
+    featured_team_link: params.featuredTeamLink || `${getAppBaseUrl()}/teams`,
+    explore_link: params.exploreLink || `${getAppBaseUrl()}/discover`,
   });
 }
 
@@ -614,7 +614,7 @@ export async function sendSubscriptionCanceledEmail(params: {
   return sendTemplateEmail('SUBSCRIPTION_CANCELED', 'subscription canceled', params.to, {
     plan_name: params.planName,
     renewal_date: params.renewalDate || 'End of current billing period',
-    reactivate_url: params.reactivateUrl || `${APP_BASE_URL}/billing`,
+    reactivate_url: params.reactivateUrl || `${getAppBaseUrl()}/billing`,
   });
 }
 
@@ -631,7 +631,7 @@ export async function sendPlanLimitWarningEmail(params: {
     resource_type: params.resourceType,
     used_count: params.used,
     limit: typeof params.limit === 'number' ? params.limit : 'Unlimited',
-    upgrade_url: params.upgradeUrl || `${APP_BASE_URL}/upgrade?from=${params.resourceType}_limit`,
+    upgrade_url: params.upgradeUrl || `${getAppBaseUrl()}/upgrade?from=${params.resourceType}_limit`,
   });
 }
 
@@ -649,10 +649,10 @@ export async function sendSecurityAlertEmail(params: {
     alert_type: params.alertType,
     ip_address: params.ipAddress || '',
     location: params.location || '',
-    manage_url: params.manageUrl || `${APP_BASE_URL}/settings/security`,
-    secure_account_link: params.secureAccountLink || `${APP_BASE_URL}/settings/security`,
-    change_password_link: params.changePasswordLink || `${APP_BASE_URL}/reset-password`,
-    contact_support_link: params.contactSupportLink || `${APP_BASE_URL}/support`,
+    manage_url: params.manageUrl || `${getAppBaseUrl()}/settings/security`,
+    secure_account_link: params.secureAccountLink || `${getAppBaseUrl()}/settings/security`,
+    change_password_link: params.changePasswordLink || `${getAppBaseUrl()}/reset-password`,
+    contact_support_link: params.contactSupportLink || `${getAppBaseUrl()}/support`,
   });
 }
 // Legacy exports kept for callers; route to the active invitation helpers
@@ -672,8 +672,8 @@ export async function sendTeamInviteEmail(params: {
     teamName: params.teamName,
     inviterName: params.inviterName,
     role: params.role,
-    acceptLink: params.teamHeroUrl || `${APP_BASE_URL}/team-invites`,
-    declineLink: params.teamHeroUrl || `${APP_BASE_URL}/team-invites`,
+    acceptLink: params.teamHeroUrl || `${getAppBaseUrl()}/team-invites`,
+    declineLink: params.teamHeroUrl || `${getAppBaseUrl()}/team-invites`,
   });
 }
 
@@ -691,8 +691,8 @@ export async function sendOrganizationInviteEmail(params: {
     organizationName: params.organizationName,
     inviterName: params.inviterName,
     role: params.role,
-    acceptLink: `${APP_BASE_URL}/organization-invites`,
-    declineLink: `${APP_BASE_URL}/organization-invites`,
+    acceptLink: `${getAppBaseUrl()}/organization-invites`,
+    declineLink: `${getAppBaseUrl()}/organization-invites`,
   });
 }
 
@@ -1967,7 +1967,7 @@ export async function sendEventDecisionEmail(params: {
     eventDate: params.eventDate || '',
     denialReason: params.reason || 'Please update the event and resubmit.',
     resubmitLink: params.resubmitLink || params.reviewUrl,
-    supportLink: params.supportLink || `${APP_BASE_URL}/support`,
+    supportLink: params.supportLink || `${getAppBaseUrl()}/support`,
     organizationName: params.organizationName || 'VarsityHub',
   });
 }
@@ -2048,7 +2048,7 @@ export async function sendRosterThresholdAlertEmail(params: {
     team_name: params.teamName,
     current_roster_count: params.rosterCount,
     max_roster_count: params.maxRosterCount ?? 15,
-    upgrade_link: params.manageBillingUrl || `${APP_BASE_URL}/billing`,
+    upgrade_link: params.manageBillingUrl || `${getAppBaseUrl()}/billing`,
     threshold_cost: params.thresholdCost ? formatCurrency(params.thresholdCost) : undefined,
   });
 }
@@ -2124,8 +2124,8 @@ export async function sendPostHighlightEmail(params: {
     milestone_number: params.milestoneNumber,
     post_preview_url: params.postPreviewUrl || undefined,
     post_title: params.postTitle || 'Your post',
-    share_link: params.shareLink || `${APP_BASE_URL}/share`,
-    reactions_link: params.reactionsLink || `${APP_BASE_URL}/notifications`,
+    share_link: params.shareLink || `${getAppBaseUrl()}/share`,
+    reactions_link: params.reactionsLink || `${getAppBaseUrl()}/notifications`,
   });
 }
 

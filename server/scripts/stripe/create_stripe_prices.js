@@ -1,7 +1,12 @@
+import 'dotenv/config';
 import Stripe from 'stripe';
 
-// Initialize Stripe with the test secret key
-const stripe = new Stripe('sk_test_51S5t0kRuB2a0vFjp0bdj2NbzkDp6ACVhtWU48TXtNuviL0wnJxxIx0eBgg6whwiM9gJkNiqnINPbSQHqV9qRIxfe00KEwuxjwZ');
+const secretKey = process.env.STRIPE_SECRET_KEY;
+if (!secretKey) {
+  console.error('❌ STRIPE_SECRET_KEY is required. Set it in server/.env or your environment.');
+  process.exit(1);
+}
+const stripe = new Stripe(secretKey);
 
 async function createTestPrices() {
   try {

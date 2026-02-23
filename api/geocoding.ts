@@ -1,4 +1,3 @@
-import { getConfig } from '@/config/env';
 import { httpGet, httpPost } from './http';
 
 export interface GeocodingResult {
@@ -61,51 +60,17 @@ export async function autocompleteLocations(query: string, limit: number = 6): P
     return cached.suggestions.slice(0, limit);
   }
 
-  // Prefer client-side Google fallback first when key is available to avoid noisy backend failures
-  const mapsKey = getConfig().mapsKey;
-  const fetchGoogleSuggestions = async (): Promise<PlaceSuggestion[]> => {
-    if (!mapsKey) return [];
-    try {
-      const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(trimmed)}&types=geocode&components=country:us&key=${encodeURIComponent(mapsKey)}`;
-      const res = await fetch(url);
-      const data: any = await res.json();
-      const predictions: any[] = Array.isArray(data?.predictions) ? data.predictions : [];
-      return predictions.map((p) => ({
-        description: p.description,
-        place_id: p.place_id,
-        structured_formatting: {
-          main_text: p.structured_formatting?.main_text,
-          secondary_text: p.structured_formatting?.secondary_text,
-        },
-      }));
-    } catch (_e2) {
-      return [];
-    }
-  };
-
-  // Try Google first (if key present) to avoid surfacing backend errors to the user
-  const googleFirst = await fetchGoogleSuggestions();
-  if (googleFirst.length > 0) {
-    suggestionCache.set(normalized, { timestamp: Date.now(), suggestions: googleFirst });
-    return googleFirst.slice(0, limit);
-  }
-
-  // Backend autocomplete remains as a secondary source
   try {
     const res: any = await httpGet(`/geocoding/autocomplete?q=${encodeURIComponent(trimmed)}&limit=${limit}`);
     const suggestions: PlaceSuggestion[] = Array.isArray(res?.suggestions) ? res.suggestions : [];
-    if (suggestions.length > 0) {
-      suggestionCache.set(normalized, { timestamp: Date.now(), suggestions });
-      return suggestions.slice(0, limit);
+    suggestionCache.set(normalized, { timestamp: Date.now(), suggestions });
+    return suggestions.slice(0, limit);
+  } catch (error: any) {
+    // If endpoint doesn't exist, return empty array
+    if (error?.message?.includes('Cannot GET') || error?.status === 404) {
+      console.log('[geocoding] Autocomplete endpoint not available, returning empty results');
+      return [];
     }
-  } catch (_e) {
-    // Fall back to Google if backend fails or returns an error
-    const googleSuggestions = await fetchGoogleSuggestions();
-    if (googleSuggestions.length > 0) {
-      suggestionCache.set(normalized, { timestamp: Date.now(), suggestions: googleSuggestions });
-      return googleSuggestions.slice(0, limit);
-    }
+    throw error;
   }
-
-  return [];
 }

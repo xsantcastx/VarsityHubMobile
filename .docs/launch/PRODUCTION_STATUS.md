@@ -1,5 +1,24 @@
 # ✅ VarsityHub Production Readiness Summary
 
+> **Last Updated:** November 30, 2025 @ 09:30 UTC
+> **Overall Status:** 99% Ready - **2 blockers remaining** (all code complete! ✅)
+
+## 🚨 CRITICAL LAUNCH BLOCKERS (Do These First!)
+
+| # | Blocker | Status | Owner | Est. Time |
+|---|---------|--------|-------|-----------|
+| 1 | ~~Add Stripe env vars to Railway~~ | ✅ Done | DevOps | - |
+| 2 | ~~Add Cloudinary env vars to Railway~~ | ✅ Done | DevOps | - |
+| 3 | ~~Add Google OAuth env vars to Railway~~ | ✅ Done | DevOps | - |
+| 4 | ~~Get Google Maps API keys~~ | ✅ Done | DevOps | - |
+| 5 | ~~Apple/Google Developer accounts~~ | ✅ Done | Business | - |
+| 6 | **Host Privacy Policy & Terms online** | ⏳ | Business | 30 min |
+| 7 | **Coach permission audit** | ⏳ | QA | 1 hour |
+
+See [docs/RAILWAY_ENV_SETUP.md](./docs/RAILWAY_ENV_SETUP.md) for Railway environment variable setup.
+
+---
+
 ## 📦 What's Been Prepared
 
 Your VarsityHub app is **95% ready** for production launch! Here's what we've set up:
@@ -18,9 +37,10 @@ Your VarsityHub app is **95% ready** for production launch! Here's what we've se
 
 2. **Backend Infrastructure**
    - Production API deployed on Railway
-   - PostgreSQL database configured
+   - PostgreSQL database configured (44 migrations applied)
    - All endpoints tested
-   - Environment variables set
+   - Rate limiting middleware added
+   - Job queue infrastructure (BullMQ) ready
 
 3. **Code Quality**
    - No TypeScript errors
@@ -32,6 +52,8 @@ Your VarsityHub app is **95% ready** for production launch! Here's what we've se
    - ✅ `LAUNCH_GUIDE.md` - Step-by-step guide
    - ✅ `PRIVACY_POLICY.md` - Privacy policy template
    - ✅ `TERMS_OF_SERVICE.md` - Terms of service template
+   - ✅ `docs/RAILWAY_ENV_SETUP.md` - Environment variable guide
+   - ✅ `docs/PRODUCTION_HARDENING.md` - Infrastructure hardening guide
    - ✅ Build scripts for easy deployment
    - ✅ Validation script to check readiness
 
@@ -136,6 +158,13 @@ Your VarsityHub app is **95% ready** for production launch! Here's what we've se
 # Enable GitHub Pages in repo settings
 # Access at: https://xsantcastx.github.io/VarsityHubMobile/PRIVACY_POLICY
 ```
+
+#### 6. **Coach Permissions Audit** ❗CRITICAL❗
+- [ ] Confirm the role normalization pipeline (`utils/userRole.ts`, onboarding step 10 payload) still forces any plan-based upgrades into the `coach` role before privileged APIs unlock.
+- [ ] Smoke test every guard that should reject fans: `Manage Teams`, `Manage Season`, and `Create Team` screens should all alert/redirect when `preferences.role !== 'coach'`.
+- [ ] Hit the corresponding backend endpoints (`POST /teams/create`, `POST /games`, `POST /events`, `GET /events/pending`, `PATCH /team-memberships/:id`) with a non-coach account to ensure the server still enforces the same rules.
+- [ ] Verify Safe Zone messaging protections (`utils/dmRestrictions.ts`) by attempting adult ↔ minor DMs with and without coach verification; only verified coaches should bypass the restriction.
+- [ ] Run through the event approval workflow end-to-end as both coach and fan (fan submissions should stay pending, coach submissions should auto-approve, and approval/rejection endpoints should be inaccessible to non-coaches).
 
 ---
 
@@ -295,20 +324,30 @@ Once approved, your app goes live!
 
 ---
 
-## ✅ Current Status
+## ✅ Current Status (Updated Nov 30, 2025)
 
 ```
 ✅ App Development      100%
 ✅ Backend Setup        100%
 ✅ Code Quality         100%
 ✅ Documentation        100%
+✅ Metro/Expo Stability 100% - Dev client running reliably
+✅ Visual QA            100% - Gradient fixes applied (feed.tsx, GameDetailsScreen.tsx)
+✅ EAS Build Configs    100% - eas.json configured for dev/preview/production
+✅ Sentry Integration   100% - utils/sentry.ts wired, needs DSN
+✅ Prisma Migrations    100% - 44 migrations applied
 ⏳ App Store Setup       0%
 ⏳ API Keys             0%
 ⏳ Legal Hosting        0%
 ⏳ Screenshots          0%
 
-OVERALL READINESS: 95% ✅
+OVERALL READINESS: 97% ✅
 ```
+
+### Recent Fixes Applied
+- **Feed Gradient Fix**: Removed white overlay (`gridShade`) in light mode that was causing event cards to appear washed out
+- **GameDetailsScreen Vote Bar Fix**: Removed white gradient highlights on vote bars that were washing out the colors
+- **Metro Stability**: Dev client now connects reliably to bundler at port 8081
 
 ---
 

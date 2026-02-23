@@ -13,7 +13,7 @@ export interface EventMapData {
 
 export interface EventMapProps {
   events: EventMapData[];
-  onEventPress?: (eventId: string) => void;
+  onEventPress?: (eventId: string, eventType?: string) => void;
   initialRegion?: Region;
   showUserLocation?: boolean;
 }

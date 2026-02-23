@@ -1,5 +1,4 @@
 import { Advertisement } from '@/api/entities';
-import { BackHeader } from '@/components/ui/BackHeader';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,6 +7,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { BackHeader } from '@/components/ui/BackHeader';
 
 export default function AdConfirmationScreen() {
   const router = useRouter();
@@ -24,17 +24,37 @@ export default function AdConfirmationScreen() {
 
   useEffect(() => {
     if (params.ad_id) {
-      Advertisement.get(params.ad_id)
+      // Validate ad_id format (should be a valid CUID or UUID)
+      const adId = params.ad_id.trim();
+      if (!adId || adId.length < 10) {
+        console.error('[AdConfirmation] Invalid ad_id format:', adId);
+        setLoading(false);
+        // Continue with defaults - user can still see confirmation
+        return;
+      }
+      
+      Advertisement.get(adId)
         .then(data => {
+          if (!data || !data.id) {
+            throw new Error('Invalid ad data received');
+          }
           setAdDetails(data);
           setLoading(false);
         })
         .catch(err => {
-          console.error('Failed to load ad details:', err);
+          console.error('[AdConfirmation] Failed to load ad details:', err);
           setLoading(false);
+          // Continue with params/defaults - non-blocking error
         });
+    } else {
+      // No ad_id provided - require manual params
+      if (!params.businessName && !params.selectedDates && !params.totalAmount) {
+        console.warn('[AdConfirmation] Missing ad_id and manual params');
+        // Still show confirmation with defaults - non-blocking
+      }
+      setLoading(false);
     }
-  }, [params.ad_id]);
+  }, [params.ad_id, params.businessName, params.selectedDates, params.totalAmount]);
   
   const businessName = adDetails?.business_name || params.businessName || 'Your Business';
   const selectedDates = params.selectedDates || 'your selected dates';
@@ -65,8 +85,8 @@ export default function AdConfirmationScreen() {
         >
           {/* Success Animation */}
           <View style={styles.animationContainer}>
-            <View style={[styles.successCircle, { backgroundColor: colorScheme === 'dark' ? Colors[colorScheme].success : '#D1FAE5', shadowColor: Colors[colorScheme].success }]}> 
-              <Ionicons name="checkmark-circle" size={100} color={Colors[colorScheme].success} />
+            <View style={[styles.successCircle, { backgroundColor: colorScheme === 'dark' ? '#065F46' : '#D1FAE5' }]}>
+              <Ionicons name="checkmark-circle" size={100} color="#10B981" />
             </View>
           </View>
 
@@ -76,7 +96,7 @@ export default function AdConfirmationScreen() {
               🎉 Your Ad is Live!
             </Text>
             <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>
-              Your payment was successful, and your ad campaign is now active.
+              Your payment was successful and your ad campaign is now active.
             </Text>
           </View>
 
@@ -167,16 +187,16 @@ export default function AdConfirmationScreen() {
         {/* Action Buttons */}
         <View style={styles.actions}>
           <Pressable
-            style={[styles.primaryButton, { backgroundColor: Colors[colorScheme].success, shadowColor: Colors[colorScheme].success }]}
+            style={[styles.primaryButton, { backgroundColor: '#10B981' }]}
             onPress={() => void router.replace('/(tabs)/my-ads')}
           >
-            <Ionicons name="briefcase" size={20} color={Colors[colorScheme].onTint} />
-            <Text style={[styles.primaryButtonText, { color: Colors[colorScheme].onTint }]}>View My Ads</Text>
+            <Ionicons name="briefcase" size={20} color="#ffffff" />
+            <Text style={styles.primaryButtonText}>View My Ads</Text>
           </Pressable>
 
           <Pressable
             style={[styles.secondaryButton, { borderColor: Colors[colorScheme].border, backgroundColor: Colors[colorScheme].card }]}
-            onPress={() => void router.replace('/(tabs)/feed')}
+            onPress={() => void router.replace('/(tabs)')}
           >
             <Ionicons name="home" size={20} color={Colors[colorScheme].text} />
             <Text style={[styles.secondaryButtonText, { color: Colors[colorScheme].text }]}>
@@ -340,16 +360,11 @@ export default function AdConfirmationScreen() {
     gap: 8,
     paddingVertical: 16,
     borderRadius: 12,
-    shadowColor: '#10B981',
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
   },
   primaryButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
     color: '#ffffff',
-    fontSize: 17,
-    fontWeight: '700',
   },
   secondaryButton: {
     flexDirection: 'row',
@@ -361,7 +376,7 @@ export default function AdConfirmationScreen() {
     borderWidth: 1,
   },
   secondaryButtonText: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '600',
   },
   supportLink: {
@@ -373,6 +388,5 @@ export default function AdConfirmationScreen() {
   },
   supportText: {
     fontSize: 14,
-    fontWeight: '600',
   },
 });

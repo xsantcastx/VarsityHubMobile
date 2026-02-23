@@ -51,7 +51,7 @@ export default function Step10Confirmation() {
       },
       {
         label: 'Basic Info',
-        completed: !!(ob.display_name && ob.dob && (ob.zip || ob.zip_code)),
+        completed: !!(ob.username && ob.dob && (ob.zip || ob.zip_code)),
         required: true,
         route: '/onboarding/step-2-basic',
         description: 'Set username, date of birth, and location'
@@ -66,14 +66,14 @@ export default function Step10Confirmation() {
       {
         label: 'Plan Selected',
         completed: !!ob.plan,
-        required: false, // No longer required for coaches
+        required: isCoach, // Only required for coaches
         route: '/onboarding/step-3-plan',
         description: 'Choose your subscription plan (coaches only)'
       },
       {
         label: 'Page Created',
         completed: !!(ob.team_name || ob.organization_name),
-        required: false, // No longer required for coaches
+        required: isCoach, // Only required for coaches
         route: '/onboarding/step-4-organization',
         description: 'Create your team or organization page (coaches only)'
       },
@@ -86,22 +86,22 @@ export default function Step10Confirmation() {
       },
       {
         label: 'Authorized Users',
-        completed: true, // Always mark as complete so users can skip
+        completed: Array.isArray(ob.authorized) && ob.authorized.length > 0,
         required: false,
         route: '/onboarding/step-6-authorized-users',
         description: 'Manage authorized users (optional, coaches only)'
       },
       {
         label: 'Interests Set',
-        completed: true, // Always mark as complete so users can skip
+        completed: !!(ob.primary_intents && ob.primary_intents.length > 0),
         required: false,
         route: '/onboarding/step-8-interests',
         description: 'Set your personalization preferences'
       },
       {
         label: 'Features Configured',
-        completed: true, // Always mark as complete to allow continuation
-        required: false, // No longer required
+        completed: ob.messaging_policy_accepted === true,
+        required: isCoach, // Fans skip step 9; only coaches must complete features
         route: '/onboarding/step-9-features',
         description: 'Configure app features and permissions'
       },
@@ -134,48 +134,54 @@ export default function Step10Confirmation() {
   };
 
   const onComplete = async () => {
-    // Allow users to complete onboarding even if required steps aren't done
     if (!completion.allRequiredComplete) {
-      const incompleteSteps = completion.checks
-        .filter(check => check.required && !check.completed)
-        .map(check => check.label)
-        .join(', ');
-      
-      Alert.alert(
-        'Setup Incomplete', 
-        `The following required steps are incomplete: ${incompleteSteps}. You can finish onboarding now and complete these later in Settings.`,
-        [
-          { text: 'Finish Onboarding', onPress: () => proceedWithCompletion(), style: 'default' },
-          { text: 'Go Back', style: 'cancel' }
-        ]
-      );
+      Alert.alert('Setup Incomplete', 'Please complete all required steps before continuing.');
       return;
     }
-    await proceedWithCompletion();
-  };
 
-  const proceedWithCompletion = async () => {
     setCompleting(true);
     try {
       // Debug: log final payload
       try { // eslint-disable-next-line no-console
       } catch {}
-      // Ensure basic preferences (role etc.) persisted before finalizing onboarding
+      // CRITICAL: Ensure role is persisted before finalizing onboarding
+      // This is a safety net in case step-1 didn't save it properly
       try {
         const prefsPatch: any = {};
-        if (ob.role) prefsPatch.role = ob.role;
-        if (ob.display_name) prefsPatch.display_name = ob.display_name;
+        // Role is REQUIRED - must be set before completing onboarding
+        if (ob.role) {
+          prefsPatch.role = ob.role;
+        } else {
+          // If role is missing from onboarding state, fetch from server
+          try {
+            const me: any = await checkAuth();
+            if (me?.preferences?.role) {
+              prefsPatch.role = me.preferences.role;
+              setOB((prev) => ({ ...prev, role: me.preferences.role }));
+            } else {
+              throw new Error('Role not set. Please go back to step 1 and select your role.');
+            }
+          } catch {
+            throw new Error('Failed to verify role. Please go back to step 1 and select your role.');
+          }
+        }
+        // Username is saved directly to user.username, not preferences
         if (ob.dob) prefsPatch.dob = ob.dob;
         if (typeof ob.zip_code !== 'undefined') prefsPatch.zip_code = ob.zip_code;
         if (Object.keys(prefsPatch).length > 0) {
           await User.updatePreferences(prefsPatch);
         }
           try {
-            const me: any = await User.me();
+            const me: any = await checkAuth();
             // eslint-disable-next-line no-console
             // Merge server prefs into onboarding state if present
             if (me?.preferences) setOB((prev) => ({ ...(prev || {}), ...(me.preferences || {}) } as any));
-          } catch {}
+          } catch (error: any) {
+            if (__DEV__) {
+              console.warn('[OnboardingStep10] Failed to load user preferences:', error?.message || error);
+            }
+            // Continue without merging preferences
+          }
       } catch (e) {
         // best-effort; continue to complete onboarding
         // eslint-disable-next-line no-console
@@ -184,11 +190,94 @@ export default function Step10Confirmation() {
       
       // Send complete onboarding state - all fields
       // IMPORTANT: Fans should NOT have plans
-      const completionPayload = {
+      // CRITICAL: Role MUST be included - fail if missing
+      if (!ob.role) {
+        throw new Error('Role is required. Please go back to step 1 and select your role (Fan or Coach).');
+      }
+      
+      // CRITICAL: For paid plans, verify payment completed before allowing onboarding completion
+      if (isCoach && ob.plan !== 'rookie') {
+        try {
+          const me: any = await checkAuth();
+          const prefs = me?.preferences || {};
+          
+          // Check if payment is still pending
+          if (prefs.payment_pending === true) {
+            Alert.alert(
+              'Payment Required',
+              'Please complete your payment before finishing setup. You can complete payment in Settings → Manage Subscription, or return to Step 3 to select the free Rookie plan.',
+              [
+                {
+                  text: 'Go to Settings',
+                  onPress: () => router.push('/settings/manage-subscription'),
+                },
+                {
+                  text: 'Select Free Plan',
+                  onPress: () => router.push('/onboarding/step-3-plan?returnToConfirmation=true'),
+                },
+                { text: 'Cancel', style: 'cancel' },
+              ]
+            );
+            setCompleting(false);
+            return;
+          }
+          
+          // Check if subscription ID exists (payment completed)
+          // For Veteran/Legend plans, we need either subscription_id or payment_pending: false
+          // Note: We're already inside the ob.plan !== 'rookie' block, so no need to check again
+          if (!prefs.subscription_id && prefs.payment_pending !== false) {
+            // Payment might still be processing - give user options
+            Alert.alert(
+              'Payment Processing',
+              'Your payment is still processing. Please wait a moment and try again, or check your subscription status in Settings.',
+              [
+                {
+                  text: 'Check Status',
+                  onPress: () => router.push('/settings/manage-subscription'),
+                },
+                { 
+                  text: 'Retry', 
+                  onPress: () => {
+                    setCompleting(false);
+                    setTimeout(() => void onComplete(), 500);
+                  }
+                },
+                { text: 'Cancel', style: 'cancel' },
+              ]
+            );
+            setCompleting(false);
+            return;
+          }
+        } catch (err) {
+          console.warn('Failed to check payment status:', err);
+          // If we can't check payment status, warn user but allow them to proceed
+          // This prevents blocking users due to network issues
+          Alert.alert(
+            'Payment Status Unavailable',
+            'Unable to verify payment status. If you have completed payment, you can proceed. Otherwise, please check your subscription in Settings.',
+            [
+              {
+                text: 'Check Settings',
+                onPress: () => router.push('/settings/manage-subscription'),
+              },
+              {
+                text: 'Proceed Anyway',
+                onPress: () => {
+                  // Continue with completion
+                },
+                style: 'default',
+              },
+              { text: 'Cancel', style: 'cancel' },
+            ]
+          );
+          // Don't return - allow user to proceed if they choose
+        }
+      }
+      
+      const completionPayload: Record<string, any> = {
         // Core identity fields
-        role: ob.role,
-        username: ob.username,
-        display_name: ob.display_name,
+        role: ob.role, // REQUIRED - must be 'fan' or 'coach'
+        username: ob.username, // Only username (with @) - no display_name
         affiliation: ob.affiliation,
         dob: ob.dob,
         zip: ob.zip,
@@ -227,21 +316,28 @@ export default function Step10Confirmation() {
       // Log the payload before sending
       
       // Final submission to backend - mark onboarding as complete
+      // PATCH: Guarantee coach role and onboarding_completed for coach users
+      if (isCoach) {
+        if (!completionPayload.role || completionPayload.role !== 'coach') {
+          completionPayload.role = 'coach';
+        }
+        completionPayload.onboarding_completed = true;
+      }
       await User.completeOnboarding(completionPayload);
       
       // CRITICAL: Validate server confirmed completion BEFORE clearing local state
       const updatedUser: any = await checkAuth();
       
-      if (updatedUser?.preferences?.onboarding_completed !== true) {
+      if ((updatedUser?.preferences as any)?.onboarding_completed !== true) {
         throw new Error('Server did not confirm onboarding completion. Please try again.');
       }
       
       // Server confirmed success - now safe to clear local state
       await markOnboardingCompleteLocally();
-      clearOnboarding();
+      void clearOnboarding();
       
       // Navigate to main app
-      router.replace('/(tabs)/feed');
+      router.replace('/(tabs)');
     } catch (e: any) {
       const errorMessage = e?.message || 'Failed to complete onboarding';
       
@@ -268,7 +364,7 @@ export default function Step10Confirmation() {
 
   return (
     <OnboardingLayout
-      step={9}
+      step={10}
       title="Almost Ready!"
       subtitle="Review your setup before completing onboarding"
       showBackButton={false}
@@ -330,7 +426,11 @@ export default function Step10Confirmation() {
                   ]}>
                     {check.label}
                   </Text>
-                  {/* No more Required badge for coaches, just show incomplete */}
+                  {check.required && !check.completed && (
+                    <View style={styles.requiredBadge}>
+                      <Text style={styles.requiredBadgeText}>Required</Text>
+                    </View>
+                  )}
                   {!check.completed && (
                     <Ionicons 
                       name="chevron-forward" 
@@ -365,7 +465,7 @@ export default function Step10Confirmation() {
               <Text style={styles.summaryValue}>
                 {ob.plan === 'rookie' ? 'Rookie (Free)' : 
                  ob.plan === 'veteran' ? 'Veteran ($1.50/month per team)' : 
-                ob.plan === 'legend' ? 'Legend ($19.99/year unlimited)' : 'Not selected'}
+                 ob.plan === 'legend' ? 'Legend ($20/year unlimited)' : 'Not selected'}
               </Text>
             </View>
           )}
@@ -394,7 +494,7 @@ export default function Step10Confirmation() {
           <View style={styles.warningCard}>
             <Ionicons name="warning" size={20} color={colorScheme === 'dark' ? '#ef4444' : '#DC2626'} />
             <Text style={styles.warningText}>
-              Some required setup steps are incomplete. You can finish onboarding now and complete these later in Settings.
+              Some required setup steps are incomplete. Please finish these before completing onboarding.
             </Text>
           </View>
         )}
@@ -404,11 +504,11 @@ export default function Step10Confirmation() {
           <PrimaryButton 
             label={completing ? 'Completing Setup...' : 'Complete Setup'} 
             onPress={onComplete} 
-            disabled={completing} 
+            disabled={completing || !completion.allRequiredComplete} 
             loading={completing} 
           />
           <Text style={styles.completeHelpText}>
-            You can finish any missing steps later in Settings. You'll be taken to your dashboard after completing setup.
+            You'll be taken to your dashboard after completing setup
           </Text>
         </View>
     </OnboardingLayout>

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { debugLog } from '../lib/debugLog.js';
+import { getAppBaseUrl } from '../lib/env.js';
 import {
     sendAthleteInvitationEmail,
     sendInvitationDeclinedEmail,
@@ -29,10 +30,9 @@ import { requireVerified } from '../middleware/requireVerified.js';
 
 export const teamsRouter = Router();
 
-const APP_BASE_URL = (process.env.APP_BASE_URL || 'https://varsityhub.app').replace(/\/$/, '');
-const MANAGE_BILLING_URL = process.env.MANAGE_BILLING_URL || `${APP_BASE_URL}/billing`;
-const STAFF_ONBOARDING_URL = process.env.STAFF_ONBOARDING_URL || `${APP_BASE_URL}/onboarding/staff`;
-const STAFF_MANAGE_URL_BASE = (process.env.MANAGE_STAFF_URL || `${APP_BASE_URL}/teams`).replace(/\/$/, '');
+const MANAGE_BILLING_URL = process.env.MANAGE_BILLING_URL || `${getAppBaseUrl()}/billing`;
+const STAFF_ONBOARDING_URL = process.env.STAFF_ONBOARDING_URL || `${getAppBaseUrl()}/onboarding/staff`;
+const STAFF_MANAGE_URL_BASE = (process.env.MANAGE_STAFF_URL || `${getAppBaseUrl()}/teams`).replace(/\/$/, '');
 const STAFF_INVITE_EXPIRY_DAYS =
   Number.parseInt(process.env.STAFF_INVITE_EXPIRY_DAYS ?? '', 10) || 7;
 const ROSTER_THRESHOLD = Number.parseInt(process.env.ROSTER_ALERT_THRESHOLD ?? '', 10) || 15;
@@ -120,7 +120,7 @@ async function queueStaffInviteEmails({
   coachEmail?: string | null;
 }): Promise<void> {
   if (!inviteeEmail) return;
-  const inviteLink = `${APP_BASE_URL}/team-invites?invite=${encodeURIComponent(inviteId)}`;
+  const inviteLink = `${getAppBaseUrl()}/team-invites?invite=${encodeURIComponent(inviteId)}`;
   try {
     await emailQueue.add(
       'staff.invited_to_team',
@@ -240,8 +240,8 @@ async function queueSeasonWrapUpEmails(team: {
     },
   });
 
-  const seasonHighlightsUrl = `${APP_BASE_URL}/teams/${encodeURIComponent(team.id)}?tab=highlights`;
-  const nextSeasonUrl = `${APP_BASE_URL}/teams/${encodeURIComponent(team.id)}/season-setup`;
+  const seasonHighlightsUrl = `${getAppBaseUrl()}/teams/${encodeURIComponent(team.id)}?tab=highlights`;
+  const nextSeasonUrl = `${getAppBaseUrl()}/teams/${encodeURIComponent(team.id)}/season-setup`;
 
   await Promise.all(
     owners.map((membership) => {
@@ -756,7 +756,7 @@ teamsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
       max_teams: maxTeams,
       current_plan: plan,
       upgrade_required: true,
-      upgrade_url: `${process.env.APP_BASE_URL}/upgrade?from=team_limit`
+      upgrade_url: `${getAppBaseUrl()}/upgrade?from=team_limit`
     });
   }
   
@@ -1201,8 +1201,8 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
               inviterName: inviter?.display_name || 'Team Owner',
               teamName: team.name,
               role: inv.role,
-              acceptLink: `${APP_BASE_URL}/team-invites?invite=${team.id}`,
-              declineLink: `${APP_BASE_URL}/team-invites/${team.id}/decline`,
+              acceptLink: `${getAppBaseUrl()}/team-invites?invite=${team.id}`,
+              declineLink: `${getAppBaseUrl()}/team-invites/${team.id}/decline`,
             });
           } catch {
             /* ignore */
@@ -1282,8 +1282,8 @@ teamsRouter.post('/:id/invite', requireVerified as any, async (req: AuthedReques
         coachName: inviter?.display_name || 'Team Owner',
         teamName: team.name,
         sport: team.sport || 'athletics',
-        acceptLink: `${APP_BASE_URL}/team-invites?invite=${invite.id}`,
-        declineLink: `${APP_BASE_URL}/team-invites/${invite.id}/decline`,
+        acceptLink: `${getAppBaseUrl()}/team-invites?invite=${invite.id}`,
+        declineLink: `${getAppBaseUrl()}/team-invites/${invite.id}/decline`,
       });
     } else {
       // Send standard team invitation
@@ -1293,8 +1293,8 @@ teamsRouter.post('/:id/invite', requireVerified as any, async (req: AuthedReques
         inviterName: inviter?.display_name || 'Team Owner',
         teamName: team.name,
         role: role || 'member',
-        acceptLink: `${APP_BASE_URL}/team-invites?invite=${invite.id}`,
-        declineLink: `${APP_BASE_URL}/team-invites/${invite.id}/decline`,
+        acceptLink: `${getAppBaseUrl()}/team-invites?invite=${invite.id}`,
+        declineLink: `${getAppBaseUrl()}/team-invites/${invite.id}/decline`,
       });
     }
   } catch (e) {
@@ -1411,8 +1411,8 @@ teamsRouter.post('/invites/:inviteId/accept', async (req: AuthedRequest, res) =>
           teamName: team.name,
           organizationName: teamDetails?.organization?.name || 'your organization',
           joinedDate: joinedDate,
-          viewTeamLink: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/teams/${invite.team_id}/roster`,
-          manageStaffLink: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/teams/${invite.team_id}/settings`,
+          viewTeamLink: `${getAppBaseUrl()}/teams/${invite.team_id}/roster`,
+          manageStaffLink: `${getAppBaseUrl()}/teams/${invite.team_id}/settings`,
         }).catch((err: Error) => {
           console.error('[teams] Failed to send staff member joined email:', err);
         })
@@ -1542,8 +1542,8 @@ teamsRouter.post('/invites/:inviteId/decline', async (req: AuthedRequest, res) =
       role: invite.role,
       declinedDate: declinedDate,
       reasonProvided: reason ? String(reason).trim() : undefined,
-      viewTeamUrl: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/teams/${invite.team.id}`,
-      resendInvitationUrl: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/teams/${invite.team.id}/invite`,
+      viewTeamUrl: `${getAppBaseUrl()}/teams/${invite.team.id}`,
+      resendInvitationUrl: `${getAppBaseUrl()}/teams/${invite.team.id}/invite`,
     }).catch((err: Error) => {
       console.error('[teams] Failed to send invitation declined email:', err);
     });
@@ -1645,7 +1645,7 @@ teamsRouter.patch('/:id/members/:userId', requireVerified as any, async (req: Au
       newRole: newRole,
       assignedBy: requester?.display_name || 'Team Manager',
       assignedDate: assignmentDate,
-      dashboardLink: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/teams/${team.id}`,
+      dashboardLink: `${getAppBaseUrl()}/teams/${team.id}`,
     }).catch((err: Error) => {
       console.error('[teams] Failed to send role assignment email:', err);
     });
@@ -1755,7 +1755,7 @@ teamsRouter.delete('/:id/members/:userId', requireVerified as any, async (req: A
         updateType: 'member_removed',
         playerName: memberToRemove.user.display_name || memberToRemove.user.email || 'User',
         updateDate: formattedRemovalDate,
-        viewRosterLink: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/teams/${team.id}/roster`,
+        viewRosterLink: `${getAppBaseUrl()}/teams/${team.id}/roster`,
       }).catch((err: Error) => {
         console.error('[teams] Failed to send roster update email:', err);
       })

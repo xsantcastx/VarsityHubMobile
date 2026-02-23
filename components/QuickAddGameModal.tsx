@@ -1,12 +1,12 @@
-import { uploadFile } from '@/api/upload';
+import { useMediaUpload } from '@/hooks/useMediaUpload';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useTeamOptions } from '@/hooks/useTeamOptions';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
-import type { ReactNode } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import {
     Alert,
     Image,
@@ -22,7 +22,6 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ViewShot, { captureRef } from 'react-native-view-shot';
-import { getApiBaseUrl } from '../api/http';
 import MatchBanner from '../app/components/MatchBanner';
 import AppearancePicker, { AppearancePreset } from './AppearancePicker';
 import ImageEditor from './ImageEditor';
@@ -48,7 +47,7 @@ interface QuickAddGameModalProps {
   };
 }
 
-export type EventType = 'game' | 'fundraiser' | 'watch_party' | 'team_trip' | 'pep_rally' | 'banquet' | 'other';
+export type EventType = 'game' | 'fundraiser' | 'watch_party' | 'team_trip' | 'meeting' | 'other';
 
 export interface QuickGameData {
   id?: string; // Add id for editing
@@ -65,7 +64,6 @@ export interface QuickGameData {
   isCompetitive?: boolean; // Whether this is a competitive game or general event
   expectedAttendance?: number; // Expected number of attendees
   eventType?: EventType; // Type of event (game, fundraiser, watch_party, etc.)
-  title?: string; // Event title for non-competitive events
   description?: string; // Event description
   // Event type-specific fields
   donationGoal?: number; // For fundraisers
@@ -139,8 +137,7 @@ export function buildQuickGameData({
   awayVenueLat,
   awayVenueLng,
 }: BuildQuickGameDataParams): QuickGameData {
-  const trimmedCurrentTeam = currentTeam.trim();
-  const trimmedEventTitle = eventTitle?.trim();
+  const trimmedCurrentTeam = isCompetitive ? currentTeam.trim() : eventTitle.trim();
   const trimmedOpponent = isCompetitive ? opponent.trim() : '';
   const trimmedWatchLocation = watchLocation?.trim();
   const trimmedDestination = destination?.trim();
@@ -148,11 +145,9 @@ export function buildQuickGameData({
   const trimmedAwayVenue = awayVenue?.trim();
   const parsedDescription = eventDescription?.trim();
 
-  const effectiveCurrentTeam = isCompetitive ? trimmedCurrentTeam : (trimmedEventTitle || trimmedCurrentTeam);
-
   return {
     id,
-    currentTeam: effectiveCurrentTeam,
+    currentTeam: trimmedCurrentTeam,
     currentTeamId: currentTeamId || '',
     opponent: trimmedOpponent,
     opponentTeamId: isCompetitive ? (opponentTeamId || '') : '',
@@ -162,7 +157,6 @@ export function buildQuickGameData({
     isCompetitive,
     expectedAttendance,
     eventType: isCompetitive ? 'game' : eventType,
-    title: trimmedEventTitle || undefined,
     description: parsedDescription || undefined,
     donationGoal,
     watchLocation: trimmedWatchLocation || undefined,
@@ -200,17 +194,16 @@ const EVENT_TYPES: { value: EventType; label: string; icon: keyof typeof Ionicon
   { value: 'fundraiser', label: 'Fundraiser', icon: 'cash-outline', description: 'Fundraising event' },
   { value: 'watch_party', label: 'Watch Party', icon: 'tv-outline', description: 'Watch game together' },
   { value: 'team_trip', label: 'Team Trip', icon: 'bus-outline', description: 'Travel or field trip' },
+  { value: 'meeting', label: 'Meeting', icon: 'people-outline', description: 'Team meeting or practice' },
   { value: 'other', label: 'Other', icon: 'ellipsis-horizontal-outline', description: 'Other event type' },
-  { value: 'pep_rally', label: 'Pep Rally', icon: 'megaphone-outline', description: 'Team pep rally or spirit event' },
-  { value: 'banquet', label: 'Banquet', icon: 'restaurant-outline', description: 'Team banquet or celebration' },
 ];
 
 export default function QuickAddGameModal({ visible, onClose, onSave, currentTeamName, currentTeamId, userRole = 'fan', initialData }: QuickAddGameModalProps) {
   const colorScheme = useColorScheme() ?? 'light';
   const insets = useSafeAreaInsets();
-  // Only load teams when modal is visible to avoid auth errors during onboarding
-  const { teams: rawTeams } = useTeamOptions(visible);
-  
+  const { teams: rawTeams } = useTeamOptions(true);
+  const { upload: uploadMedia } = useMediaUpload();
+
   const [showCurrentTeamPicker, setShowCurrentTeamPicker] = useState(false);
   const [showOpponentPicker, setShowOpponentPicker] = useState(false);
   
@@ -432,10 +425,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
         newErrors.awayVenue = 'Away venue location is required';
       }
     } else {
-      // Non-competitive events must be tied to a team and have a title
-      if (!currentTeam.trim()) {
-        newErrors.currentTeam = 'Team selection is required';
-      }
+      // Non-competitive events need event title
       if (!eventTitle.trim()) {
         newErrors.currentTeam = 'Event title is required';
       }
@@ -509,7 +499,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
           try {
             setUploadingBanner(true);
             const uri = await captureRef(viewShotRef, { format: 'png', quality: 0.9 });
-            const uploaded = await uploadFile(getApiBaseUrl(), uri, 'match-banner.png', 'image/png');
+            const uploaded = await uploadMedia(uri, 'match-banner.png', 'image/png');
             const url = uploaded?.url || uploaded?.path || null;
             if (url) {
               finalData.banner_url = url;
@@ -567,7 +557,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
       }
 
       const pickerResult = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [16, 9],
         quality: 0.9,
@@ -591,7 +581,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
       }
 
       const pickerResult = await ImagePicker.launchCameraAsync({
-        mediaTypes: ['images'],
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [16, 9],
         quality: 0.9,
@@ -610,7 +600,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
     setUploadingCustomBanner(true);
     try {
       // Upload using dynamic API base
-      const uploaded = await uploadFile(getApiBaseUrl(), uri, 'custom-banner.jpg', 'image/jpeg');
+      const uploaded = await uploadMedia(uri, 'custom-banner.jpg', 'image/jpeg');
       
       const url = uploaded?.url || uploaded?.path;
       
@@ -797,29 +787,29 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
               )}
 
               {/* Team/Event Selection - Different for competitive vs non-competitive */}
-              {/* Show team picker for all events */}
-              <View style={styles.formSection}>
-                <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Your Team</Text>
-                <Pressable
-                  style={[styles.input, { 
-                    backgroundColor: Colors[colorScheme].surface,
-                    borderColor: errors.currentTeam ? '#EF4444' : Colors[colorScheme].border,
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                  }]}
-                  onPress={() => setShowCurrentTeamPicker(true)}
-                >
-                  <Text style={[{ color: currentTeam ? Colors[colorScheme].text : Colors[colorScheme].mutedText }]}>
-                    {currentTeam || 'Select your team'}
-                  </Text>
-                  <Ionicons name="chevron-down" size={20} color={Colors[colorScheme].mutedText} />
-                </Pressable>
-                {errors.currentTeam && <Text style={styles.errorText}>{errors.currentTeam}</Text>}
-              </View>
-
-              {/* Non-competitive: Show event title text field */}
-              {!isCompetitive && (
+              {isCompetitive ? (
+                // Competitive: Show team picker
+                <View style={styles.formSection}>
+                  <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Your Team</Text>
+                  <Pressable
+                    style={[styles.input, { 
+                      backgroundColor: Colors[colorScheme].surface,
+                      borderColor: errors.currentTeam ? '#EF4444' : Colors[colorScheme].border,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                    }]}
+                    onPress={() => setShowCurrentTeamPicker(true)}
+                  >
+                    <Text style={[{ color: currentTeam ? Colors[colorScheme].text : Colors[colorScheme].mutedText }]}>
+                      {currentTeam || 'Select your team'}
+                    </Text>
+                    <Ionicons name="chevron-down" size={20} color={Colors[colorScheme].mutedText} />
+                  </Pressable>
+                  {errors.currentTeam && <Text style={styles.errorText}>{errors.currentTeam}</Text>}
+                </View>
+              ) : (
+                // Non-competitive: Show event title text field
                 <View style={styles.formSection}>
                   <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Event Title</Text>
                   <TextInput
@@ -835,7 +825,9 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
                     maxLength={100}
                   />
                   {errors.currentTeam && <Text style={styles.errorText}>{errors.currentTeam}</Text>}
-                  <Text style={[styles.helperText, { color: Colors[colorScheme].mutedText }]}>Give your event a descriptive name</Text>
+                  <Text style={[styles.helperText, { color: Colors[colorScheme].mutedText }]}>
+                    Give your event a descriptive name
+                  </Text>
                 </View>
               )}
 
@@ -1319,7 +1311,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
       setEditorVisible(false);
       setUploadingBanner(true);
       try {
-        const uploaded = await uploadFile(getApiBaseUrl(), uri, 'edited-banner.png', 'image/png');
+        const uploaded = await uploadMedia(uri, 'edited-banner.png', 'image/png');
         const url = uploaded?.url || uploaded?.path || null;
         if (url) setBannerUrl(url);
       } catch (e) {

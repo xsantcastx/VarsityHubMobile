@@ -1,17 +1,14 @@
 name: Expo Doctor
 
-env:
-  SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-  SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-  SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
-  SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
-
 on:
   workflow_dispatch:
   push:
-    branches: ["**"]
-  pull_request:
-    branches: ["**"]
+    paths:
+      - app.json
+      - package.json
+      - package-lock.json
+      - metro.config.js
+      - .github/workflows/expo-doctor.yml
 
 jobs:
   doctor:
@@ -39,12 +36,3 @@ jobs:
 
       - name: Expo Doctor
         run: npx expo-doctor
-
-      - name: Snyk Code (optional)
-        if: always()
-        uses: snyk/actions/node@master
-        with:
-          command: code test --severity-threshold=medium
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        continue-on-error: true

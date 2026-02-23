@@ -5,12 +5,13 @@ import { HapticTab } from '@/components/HapticTab';
 import CenterTabButton from '@/components/ui/CenterTabButton';
 import { IconSymbol } from '@/components/ui/IconSymbol';
 import TabBarBackground from '@/components/ui/TabBarBackground';
-import { Colors } from '@/constants/Colors';
+import { getColors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const insets = useSafeAreaInsets();
+  const colors = getColors(colorScheme);
   const hiddenTab = {
     href: null,
   } as const;
@@ -18,10 +19,10 @@ export default function TabLayout() {
 
   return (
     <Tabs
-      initialRouteName="feed/index"
+      detachInactiveScreens={false}
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        tabBarInactiveTintColor: colorScheme === 'dark' ? '#D1D5DB' : Colors[colorScheme ?? 'light'].tabIconDefault,
+        tabBarActiveTintColor: colors.tint,
+        tabBarInactiveTintColor: colorScheme === 'dark' ? '#D1D5DB' : colors.tabIconDefault,
         headerShown: false,
         tabBarShowLabel: true,
         tabBarLabelStyle: { 
@@ -32,8 +33,8 @@ export default function TabLayout() {
           height: Math.max(64, 56 + insets.bottom),
           paddingBottom: Math.max(10, insets.bottom),
           paddingTop: 6,
-          backgroundColor: colorScheme === 'dark' ? 'transparent' : Colors[colorScheme ?? 'light'].card,
-          borderTopColor: colorScheme === 'dark' ? 'transparent' : Colors[colorScheme ?? 'light'].border,
+          backgroundColor: colorScheme === 'dark' ? 'transparent' : colors.card,
+          borderTopColor: colorScheme === 'dark' ? 'transparent' : colors.border,
           borderTopWidth: 1,
         },
       }}>
@@ -71,6 +72,7 @@ export default function TabLayout() {
         }}
       />
   {/* Hidden screens within (tabs) that should not appear as tabs */}
+  <Tabs.Screen name="index" options={hiddenTab} />
   <Tabs.Screen name="notifications/index" options={hiddenTab} />
   <Tabs.Screen name="messages/index" options={hiddenTab} />
   {/* Hide nested game routes under Feed */}
@@ -80,20 +82,42 @@ export default function TabLayout() {
   <Tabs.Screen name="discover/mobile-community" options={hiddenTab} />
   <Tabs.Screen name="discover/game/index" options={hiddenTab} />
   <Tabs.Screen name="discover/game/[id]" options={hiddenTab} />
+  {/* Admin screens - hidden but accessible with tab bar */}
   <Tabs.Screen name="admin-ads" options={hiddenTab} />
   <Tabs.Screen name="admin-messages" options={hiddenTab} />
   <Tabs.Screen name="admin-teams" options={hiddenTab} />
   <Tabs.Screen name="admin-users" options={hiddenTab} />
   <Tabs.Screen name="admin-user-detail" options={hiddenTab} />
+  {/* Ad screens - hidden but accessible with tab bar */}
   <Tabs.Screen name="ad-calendar" options={hiddenTab} />
   <Tabs.Screen name="edit-ad" options={hiddenTab} />
+  <Tabs.Screen name="my-ads" options={hiddenTab} />
+  <Tabs.Screen name="submit-ad" options={hiddenTab} />
+  {/* Game/Event screens - hidden but accessible with tab bar */}
   <Tabs.Screen name="game-detail" options={hiddenTab} />
   <Tabs.Screen name="game-photos" options={hiddenTab} />
   <Tabs.Screen name="game-highlights" options={hiddenTab} />
   <Tabs.Screen name="game-reviews" options={hiddenTab} />
-  <Tabs.Screen name="my-ads" options={hiddenTab} />
-  <Tabs.Screen name="submit-ad" options={hiddenTab} />
-  <Tabs.Screen name="team-page" options={hiddenTab} />
+  {/* Common navigation screens - hidden but accessible with tab bar */}
+  <Tabs.Screen name="create-post" options={hiddenTab} />
+  <Tabs.Screen name="post-detail" options={hiddenTab} />
+  <Tabs.Screen name="user-profile" options={hiddenTab} />
+  <Tabs.Screen name="team-profile" options={hiddenTab} />
+  <Tabs.Screen name="team-hub" options={hiddenTab} />
+  <Tabs.Screen name="team-contacts" options={hiddenTab} />
+  <Tabs.Screen name="edit-profile" options={hiddenTab} />
+  <Tabs.Screen name="create-team" options={hiddenTab} />
+  <Tabs.Screen name="edit-team" options={hiddenTab} />
+  <Tabs.Screen name="manage-teams" options={hiddenTab} />
+  <Tabs.Screen name="my-team" options={hiddenTab} />
+  <Tabs.Screen name="message-thread" options={hiddenTab} />
+  <Tabs.Screen name="followers" options={hiddenTab} />
+  <Tabs.Screen name="following" options={hiddenTab} />
+  <Tabs.Screen name="organization" options={hiddenTab} />
+  <Tabs.Screen name="event-detail" options={hiddenTab} />
+  <Tabs.Screen name="create-fan-event" options={hiddenTab} />
+  <Tabs.Screen name="event-approvals" options={hiddenTab} />
+  <Tabs.Screen name="verify-email" options={hiddenTab} />
       <Tabs.Screen
         name="profile/index"
         options={{
@@ -105,4 +129,6 @@ export default function TabLayout() {
     </Tabs>
   );
 }
+
+
 

@@ -1,5 +1,6 @@
 import { User } from '@/api/entities';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
+import { usePaginatedQuery } from './usePaginatedQuery';
 import type { PostsCounts } from './useProfilePosts';
 
 export type InteractionType = 'all' | 'like' | 'comment' | 'repost' | 'save';
@@ -19,92 +20,41 @@ export interface UseProfileInteractionsResult {
 
 /**
  * Hook for managing user's interactions (likes, comments, etc.) with pagination
- * Includes filtering by interaction type and request-in-flight guards
  */
 export function useProfileInteractions(
   sort: InteractionSort = 'newest',
   initialType: InteractionType = 'all'
 ): UseProfileInteractionsResult {
-  const [interactions, setInteractions] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [cursor, setCursor] = useState<string | null>(null);
-  const [hasMore, setHasMore] = useState(true);
-  const [counts, setCounts] = useState<PostsCounts | null>(null);
   const [type, setType] = useState<InteractionType>(initialType);
-  const requestInFlight = useRef(false);
 
-  const refresh = useCallback(async (userId: string) => {
-    // Prevent concurrent requests
-    if (requestInFlight.current) {
-      return;
-    }
-
-    requestInFlight.current = true;
-    setLoading(true);
-
-    try {
-      const page = await User.interactionsForProfile(String(userId), {
-        limit: 10,
+  const fetchPage = useCallback(
+    async (params: { userId: string }, opts: { limit: number; cursor?: string | null }) => {
+      const page = await User.interactionsForProfile(String(params.userId), {
+        limit: opts.limit,
         type,
         sort,
+        cursor: opts.cursor ?? undefined,
       });
+      return {
+        items: page.items ?? [],
+        nextCursor: page.nextCursor ?? null,
+        counts: page.counts ?? null,
+      };
+    },
+    [type, sort]
+  );
 
-      setInteractions(page.items || []);
-      setCursor(page.nextCursor || null);
-      setHasMore(Boolean(page.nextCursor));
-
-      if (page.counts) {
-        setCounts(page.counts);
-      }
-    } catch (error: any) {
-      console.error('[useProfileInteractions] Failed to refresh interactions:', error);
-      // Don't throw - let parent handle via error state
-    } finally {
-      requestInFlight.current = false;
-      setLoading(false);
-    }
-  }, [type, sort]);
-
-  const loadMore = useCallback(async (userId: string) => {
-    if (loading || !hasMore || requestInFlight.current) {
-      return;
-    }
-
-    requestInFlight.current = true;
-    setLoading(true);
-
-    try {
-      const page = await User.interactionsForProfile(String(userId), {
-        limit: 10,
-        type,
-        sort,
-        cursor: cursor || undefined,
-      });
-
-      setInteractions((prev) => [...prev, ...(page.items || [])]);
-      setCursor(page.nextCursor || null);
-      setHasMore(Boolean(page.nextCursor));
-
-      if (page.counts) {
-        setCounts(page.counts);
-      }
-    } catch (error: any) {
-      console.error('[useProfileInteractions] Failed to load more interactions:', error);
-    } finally {
-      requestInFlight.current = false;
-      setLoading(false);
-    }
-  }, [cursor, hasMore, loading, type, sort]);
+  const result = usePaginatedQuery<unknown, { userId: string }>(fetchPage, { limit: 10 });
 
   return {
-    interactions,
-    loading,
-    hasMore,
-    cursor,
-    counts,
+    interactions: result.items as any[],
+    loading: result.loading,
+    hasMore: result.hasMore,
+    cursor: result.cursor,
+    counts: result.counts as PostsCounts | null,
     type,
     setType,
-    refresh,
-    loadMore,
+    refresh: (userId: string) => result.refresh({ userId }),
+    loadMore: (userId: string) => result.loadMore({ userId }),
   };
 }

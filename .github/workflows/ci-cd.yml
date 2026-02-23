@@ -1,10 +1,11 @@
-name: CI/CD - Lint, Type Check, and Tests
+name: CI/CD - Extended Checks with Server Tests
 
 on:
+  workflow_dispatch:
+  # Re-enabled but only for PRs to reduce noise (main CI handles push)
   pull_request:
     branches: [main, develop]
-  push:
-    branches: [main, develop]
+  # Push triggers are handled by ci.yml to avoid duplicate runs
 
 jobs:
   lint-and-typecheck:
@@ -17,7 +18,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
           cache: 'npm'
 
       - name: Install dependencies
@@ -59,7 +60,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
           cache: 'npm'
 
       - name: Install dependencies
@@ -106,7 +107,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
           cache: 'npm'
 
       - name: Install dependencies (root & server)
@@ -142,7 +143,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
           cache: 'npm'
 
       - name: Install dependencies

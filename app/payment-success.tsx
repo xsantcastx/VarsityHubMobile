@@ -1,15 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { User } from '@/api/entities';
-// @ts-ignore
-import { httpPost } from '@/api/http';
+import { useAuth } from '@/context/AuthProvider';
 import PrimaryButton from '@/components/ui/PrimaryButton';
+import { usePaymentFinalize } from '@/hooks/usePaymentFinalize';
 
 export default function PaymentSuccessScreen() {
+  const { checkAuth } = useAuth();
+  const { finalizeSession } = usePaymentFinalize();
   const router = useRouter();
   const params = useLocalSearchParams<{ session_id?: string; type?: string }>();
   const [loading, setLoading] = useState(true);
@@ -35,11 +36,27 @@ export default function PaymentSuccessScreen() {
     const verifyPayment = async () => {
       try {
         setLastVerificationAt(new Date());
+        
+        // Validate session_id format (Stripe session IDs start with 'cs_' or 'sess_')
+        if (params.session_id) {
+          const sessionId = params.session_id.trim();
+          if (!sessionId || (!sessionId.startsWith('cs_') && !sessionId.startsWith('sess_'))) {
+            setError('Invalid payment session. Please contact support if you completed payment.');
+            setLoading(false);
+            return;
+          }
+        } else {
+          // Missing session_id - show error with recovery options
+          setError('Payment session information is missing. If you completed payment, please contact support.');
+          setLoading(false);
+          return;
+        }
+        
         if (params.session_id) {
           // For ad payments, manually finalize the session
           if (isAdPayment) {
             try {
-              await httpPost('/payments/finalize-session', { session_id: params.session_id });
+              await finalizeSession(params.session_id);
             } catch (finalizeErr) {
               console.warn('[payment-success] Failed to finalize session:', finalizeErr);
               // Continue anyway - webhook might have already processed it
@@ -54,7 +71,7 @@ export default function PaymentSuccessScreen() {
             // For subscriptions, verify by checking user's plan and payment flag
             // Retry up to maxVerificationAttempts times (polling for webhook completion)
             try {
-              const me = await User.me();
+              const me = await checkAuth();
               const plan = me?.preferences?.plan;
               const pending = me?.preferences?.payment_pending;
               
@@ -65,7 +82,7 @@ export default function PaymentSuccessScreen() {
                 // Webhook might still be processing, retry after 2 seconds
                 if (__DEV__) {
                   // eslint-disable-next-line no-console
-                  console.log(
+                  if (__DEV__) console.log(
                     `[payment-success] Retrying verification (attempt ${verificationAttempt + 1}/${maxVerificationAttempts})...`
                   );
                 }
@@ -82,12 +99,12 @@ export default function PaymentSuccessScreen() {
             } catch (error) {
               // If user fetch fails on last attempt, show error
               if (verificationAttempt >= maxVerificationAttempts - 1) {
-                console.error('[payment-success] User.me() failed after retries:', error);
+                console.error('[payment-success] checkAuth() failed after retries:', error);
                 setError('Unable to verify payment. Please contact support.');
                 setLoading(false);
               } else {
                 // Retry on error
-                console.warn('[payment-success] User.me() failed, retrying...', error);
+                console.warn('[payment-success] checkAuth() failed, retrying...', error);
                 clearRetryTimeout();
                 retryTimeoutRef.current = setTimeout(() => {
                   setVerificationAttempt((attempt) => attempt + 1);
@@ -109,14 +126,24 @@ export default function PaymentSuccessScreen() {
     };
   }, [params.session_id, isAdPayment, verificationAttempt, router]);
 
-  const handleContinue = () => {
+  const handleContinue = useCallback(async () => {
     // Navigate to the appropriate next step based on payment type
     if (isAdPayment) {
-      router.push('/(tabs)/my-ads'); // Redirect to My Ads tab after ad payment
-    } else {
-      router.replace('/(tabs)/feed'); // Redirect to feed after subscription payment
+      router.replace('/(tabs)/my-ads');
+      return;
     }
-  };
+    // For subscription: if onboarding incomplete, return to onboarding (step 4) to create org
+    try {
+      const me: any = await checkAuth();
+      if (me?.preferences?.onboarding_completed === false) {
+        router.replace('/onboarding/step-4-organization');
+        return;
+      }
+    } catch {
+      // Best-effort; continue to feed if check fails
+    }
+    router.replace('/(tabs)/feed');
+  }, [router]);
 
   const handleCreateTeam = () => {
     router.replace('/create-team');
@@ -130,14 +157,15 @@ export default function PaymentSuccessScreen() {
     
     try {
       setLastVerificationAt(new Date());
-      const me = await User.me();
+      const me = await checkAuth();
       if (me?.preferences?.payment_pending === false) {
         setSessionVerified(true);
       } else {
         setError('Payment verification still pending. Please try again in a moment.');
       }
-    } catch {
-      setError('Unable to verify payment status');
+    } catch (error) {
+      console.error('[payment-success] Retry verification failed:', error);
+      setError('Unable to verify payment status. Please contact support if this persists.');
     } finally {
       setLoading(false);
     }
@@ -191,7 +219,7 @@ export default function PaymentSuccessScreen() {
               <Text style={styles.successTitle}>Payment Successful!</Text>
               <Text style={styles.successText}>
                 {isAdPayment 
-                  ? 'Your ad payment was processed successfully. Your reservation is confirmed and will appear in "My Ads".'
+                  ? 'Your ad payment has been processed successfully. Your ad reservation is now confirmed and will appear in "My Ads"!'
                   : 'Your subscription has been activated. You can now create additional teams and access premium features.'}
               </Text>
               {isAdPayment && (

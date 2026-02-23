@@ -19,6 +19,7 @@ type Notif = {
   actor?: { id: string; display_name?: string | null; avatar_url?: string | null } | null;
   post?: { id: string; content?: string | null; media_url?: string | null } | null;
   comment?: { id: string; content?: string | null; post_id?: string | null } | null;
+  message?: { id: string; content?: string | null; conversation_id?: string | null } | null;
 };
 
 export default function NotificationsScreen() {
@@ -70,12 +71,14 @@ export default function NotificationsScreen() {
     if (!hasUnread || markingAll) return;
     setMarkingAll(true);
     const now = new Date().toISOString();
-    // Optimistic
-    setItems((prev) => prev.map((n) => n.read_at ? n : { ...n, read_at: now }));
+    const previousItems = items;
+    const updatedItems = items.map((n) => (n.read_at ? n : { ...n, read_at: now }));
+    setItems(updatedItems);
     try {
       await Notification.markAllRead();
-    } catch {
-      // non-fatal; keep optimistic state for now
+    } catch (err) {
+      console.error('Failed to mark all notifications as read', err);
+      setItems(previousItems);
     } finally {
       setMarkingAll(false);
     }
@@ -88,17 +91,31 @@ export default function NotificationsScreen() {
       ? `${item.actor?.display_name || 'Someone'} upvoted your post`
       : item.type === 'COMMENT'
       ? `${item.actor?.display_name || 'Someone'} commented on your post`
+      : item.type === 'MESSAGE'
+      ? `${item.actor?.display_name || 'Someone'} sent you a message`
+      : item.type === 'TEAM_INVITE'
+      ? `${item.actor?.display_name || 'Someone'} invited you to a team`
       : 'Notification';
     const onPress = () => {
       if (item.type === 'FOLLOW' && item.actor?.id) {
         router.push(`/user-profile?id=${encodeURIComponent(item.actor.id)}`);
       } else if ((item.type === 'UPVOTE' || item.type === 'COMMENT') && item.post?.id) {
         router.push(`/post-detail?id=${encodeURIComponent(item.post.id)}`);
+      } else if (item.type === 'MESSAGE' && item.message?.conversation_id) {
+        router.push(`/message-thread?conversation_id=${encodeURIComponent(item.message.conversation_id)}`);
+      } else if (item.type === 'TEAM_INVITE' && item.actor?.id) {
+        router.push(`/user-profile?id=${encodeURIComponent(item.actor.id)}`);
       }
       // Mark read optimistically
       if (!item.read_at) {
-        setItems((prev) => prev.map((n) => n.id === item.id ? { ...n, read_at: new Date().toISOString() } : n));
-        Notification.markRead(item.id).catch(() => {});
+        const previousItems = items;
+        const now = new Date().toISOString();
+        const updated = items.map((n) => (n.id === item.id ? { ...n, read_at: now } : n));
+        setItems(updated);
+        Notification.markRead(item.id).catch((err) => {
+          console.error('Failed to mark notification as read', err);
+          setItems(previousItems);
+        });
       }
     };
     return (
@@ -111,8 +128,12 @@ export default function NotificationsScreen() {
           )}
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={S.title}>{title}</Text>
-          {item.post?.content ? <Text numberOfLines={1} style={S.subtitle}>{item.post.content}</Text> : null}
+          <Text style={[S.title, { color: Colors[colorScheme].text }]}>{title}</Text>
+          {item.post?.content ? (
+            <Text numberOfLines={1} style={[S.subtitle, { color: Colors[colorScheme].mutedText }]}>{item.post.content}</Text>
+          ) : item.message?.content ? (
+            <Text numberOfLines={1} style={[S.subtitle, { color: Colors[colorScheme].mutedText }]}>{item.message.content}</Text>
+          ) : null}
         </View>
       </Pressable>
     );
@@ -140,8 +161,8 @@ export default function NotificationsScreen() {
         <View style={S.center}><ActivityIndicator /></View>
       ) : error && items.length === 0 ? (
         <View style={S.center}>
-          <Text style={{ color: '#EF4444', marginBottom: 12 }}>{error}</Text>
-          <Pressable style={S.retryButton} onPress={() => void load(null, false).catch(() => {})}>
+          <Text style={{ color: Colors[colorScheme].destructive, marginBottom: 12 }}>{error}</Text>
+          <Pressable style={[S.retryButton, { backgroundColor: Colors[colorScheme].tint }]} onPress={() => void load(null, false).catch(() => {})}>
             <Text style={S.retryText}>Retry</Text>
           </Pressable>
         </View>
@@ -153,7 +174,7 @@ export default function NotificationsScreen() {
           ListHeaderComponent={hasUnread ? (
             <View style={S.headerRow}>
               <Pressable style={S.markAllBtn} onPress={onMarkAllRead} disabled={markingAll}>
-                <Text style={S.markAllText}>{markingAll ? 'Marking…' : 'Mark all as read'}</Text>
+                <Text style={[S.markAllText, { color: Colors[colorScheme].text }]}>{markingAll ? 'Marking…' : 'Mark all as read'}</Text>
               </Pressable>
             </View>
           ) : null}
@@ -200,10 +221,10 @@ const S = StyleSheet.create({
   rowUnread: { backgroundColor: '#F9FAFB' },
   avatarWrap: { width: 40, height: 40, borderRadius: 20, overflow: 'hidden' },
   avatar: { width: 40, height: 40, borderRadius: 20 },
-  title: { fontWeight: '700', color: '#111827' },
-  subtitle: { color: '#6B7280', marginTop: 2 },
+  title: { fontWeight: '700', color: 'transparent' }, // Will be overridden with Colors[colorScheme].text
+  subtitle: { color: 'transparent', marginTop: 2 }, // Will be overridden with Colors[colorScheme].mutedText
   markAllBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: '#F3F4F6', borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB' },
-  markAllText: { color: '#111827', fontWeight: '700' },
+  markAllText: { color: 'transparent', fontWeight: '700' }, // Will be overridden with Colors[colorScheme].text
   retryButton: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, backgroundColor: '#3B82F6' },
   retryText: { color: '#FFFFFF', fontWeight: '600' },
 });

@@ -4,13 +4,10 @@ import * as WebBrowser from 'expo-web-browser';
 import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-// @ts-ignore
-import { getApiBaseUrl, getAuthToken } from '@/api/http';
 import { addWeeks, format, startOfToday } from 'date-fns';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { Calendar, DateData } from 'react-native-calendars';
-// @ts-ignore JS exports
-import { Advertisement } from '@/api/entities';
+import { useAdCalendar } from '@/hooks/useAdCalendar';
 
 const weekdayRate = 5.00;   // Per week (Mon-Thu slot)
 const weekendRate = 8.00;   // Per week (Fri-Sun slot)
@@ -113,7 +110,7 @@ function calculatePrice(selectedISO: Set<string>): number {
     weekSlots.add(getWeekIdentifier(d));
   }
   
-  // Calculate price: $5 per weekday week slot (Mon-Thu), $8 per weekend week slot (Fri-Sun)
+  // Calculate price: $8 per weekday week slot, $10 per weekend week slot
   let total = 0;
   for (const slot of weekSlots) {
     if (slot.endsWith('-weekday')) {
@@ -134,93 +131,24 @@ export default function AdCalendarScreen() {
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
-  const [reserved, setReserved] = useState<Set<string>>(new Set());
-  const [fullDates, setFullDates] = useState<Set<string>>(new Set()); // Dates with 3/3 slots filled
-  const [_dateAvailability, setDateAvailability] = useState<Record<string, { slotsUsed: number; slotsRemaining: number }>>({});
   const [promo, setPromo] = useState('');
   const [preview, setPreview] = useState<any>(null);
   const [promoBusy, setPromoBusy] = useState(false);
   const [promoError, setPromoError] = useState<string | null>(null);
-  const [_taxRate, _setTaxRate] = useState(0); // Tax rate as decimal
-  const [zipCode, setZipCode] = useState<string>('');
   const [alternatives, setAlternatives] = useState<Array<{ zip: string; distance: number }>>([]);
   const [showingAlternatives, setShowingAlternatives] = useState(false);
-  
-  // Load reserved dates for THIS ad only (allow other ads to share dates)
-  // AND load date availability to block fully booked dates
-  React.useEffect(() => {
-    let mounted = true;
-    void (async () => {
-      try {
-        if (!adId) {
-          // No adId yet (new ad flow) => nothing to disable
-          if (mounted) setReserved(new Set());
-          return;
-        }
-        const res: any = await Advertisement.reservationsForAd(String(adId));
-        if (!mounted) return;
-        const dates = Array.isArray(res?.dates) ? res.dates : [];
-        setReserved(new Set<string>(dates));
-        
-        // Get zip code and load availability
-        if (res?.ad?.target_zip_code) {
-          const zip = res.ad.target_zip_code;
-          setZipCode(zip);
-          
-          // Load availability for next 8 weeks
-          await loadAvailability(zip);
-        }
-      } catch {
-        if (mounted) setReserved(new Set());
-      }
-    })();
-    return () => { mounted = false; };
-  }, [adId]);
 
-  const loadAvailability = async (zip: string) => {
-    try {
-      const from = todayISO();
-      const to = maxDateISO();
-      
-      const base = getApiBaseUrl();
-      const headers: any = { 'Content-Type': 'application/json' };
-      const token = getAuthToken();
-      if (token) headers.Authorization = `Bearer ${token}`;
-      
-      const r = await fetch(
-        `${base.replace(/\/$/, '')}/ads/availability?zip=${encodeURIComponent(zip)}&from=${from}&to=${to}`,
-        { method: 'GET', headers }
-      );
-      
-      if (!r.ok) {
-        if (__DEV__) console.warn('Failed to load availability:', r.status);
-        return;
-      }
-      
-      const data = await r.json();
-      
-      if (data?.availability) {
-        const fullDatesSet = new Set<string>();
-        const availabilityMap: Record<string, { slotsUsed: number; slotsRemaining: number }> = {};
-        
-        Object.entries(data.availability).forEach(([dateISO, info]: [string, any]) => {
-          availabilityMap[dateISO] = {
-            slotsUsed: info.slotsUsed || 0,
-            slotsRemaining: info.slotsRemaining || 0,
-          };
-          
-          if (!info.available || info.slotsRemaining <= 0) {
-            fullDatesSet.add(dateISO);
-          }
-        });
-        
-        setDateAvailability(availabilityMap);
-        setFullDates(fullDatesSet);
-      }
-    } catch (e) {
-      if (__DEV__) console.error('Error loading availability:', e);
-    }
-  };
+  const {
+    reserved,
+    fullDates,
+    zipCode,
+    paymentsStatus,
+    paymentsStatusLoading,
+    paymentsStatusError,
+    applyPromo: applyPromoApi,
+    fetchAlternatives: fetchAlternativesApi,
+    startCheckout,
+  } = useAdCalendar(adId || undefined);
 
   const price = useMemo(() => calculatePrice(selected), [selected]);
   const taxCents = useMemo(() => {
@@ -238,6 +166,9 @@ export default function AdCalendarScreen() {
     return afterDiscount + taxCents;
   }, [price, taxCents, preview?.valid, preview?.discount_cents]);
   const effective = useMemo(() => (effectiveCents / 100), [effectiveCents]);
+  const paymentsTemporarilyDisabled = paymentsStatus?.stripe_configured === false;
+  const showPaymentsWarning = (!paymentsStatusLoading && paymentsTemporarilyDisabled) || (!!paymentsStatusError && !paymentsTemporarilyDisabled);
+  const payButtonDisabled = submitting || selected.size === 0 || paymentsTemporarilyDisabled;
 
   const marked = useMemo(() => {
     const obj: Record<string, { selected: boolean; selectedColor?: string } | { disabled: boolean } | any> = {};
@@ -385,55 +316,39 @@ export default function AdCalendarScreen() {
     setPromoBusy(true);
     try {
       const subtotalCents = Math.round(price * 100);
-      const base = getApiBaseUrl();
-      const headers: any = { 'Content-Type': 'application/json' };
-      const token = getAuthToken();
-      if (token) headers.Authorization = `Bearer ${token}`;
-      const r = await fetch(`${base.replace(/\/$/, '')}/promos/preview`, {
-        method: 'POST', headers, body: JSON.stringify({ code: promo, subtotal_cents: subtotalCents, service: 'booking' })
-      });
-      const text = await r.text();
-      const data = text ? JSON.parse(text) : null;
-      if (!r.ok) throw new Error(data?.error || `HTTP ${r.status}`);
-      if (!data?.valid) { setPreview(null); setPromoError(data?.reason || 'invalid'); }
-      else setPreview(data);
+      const data = await applyPromoApi(promo, subtotalCents);
+      if (!data?.valid) {
+        setPreview(null);
+        setPromoError(data?.reason || 'invalid');
+      } else {
+        setPreview(data);
+      }
     } catch (e: any) {
       setPreview(null);
       setPromoError(e?.message || 'Failed to apply promo');
-    } finally { setPromoBusy(false); }
+    } finally {
+      setPromoBusy(false);
+    }
   };
 
   const fetchAlternativeZips = async (dates: string[]) => {
     if (!zipCode || dates.length === 0) return;
-    
-    try {
-      const base = getApiBaseUrl();
-      const headers: any = { 'Content-Type': 'application/json' };
-      const token = getAuthToken();
-      if (token) headers.Authorization = `Bearer ${token}`;
-      
-      const dateString = dates.join(',');
-      const r = await fetch(`${base.replace(/\/$/, '')}/ads/alternative-zips?zip=${zipCode}&dates=${dateString}`, {
-        method: 'GET',
-        headers,
-      });
-      
-      if (!r.ok) {
-        if (__DEV__) console.warn('Failed to fetch alternative zips:', r.status);
-        return;
-      }
-      
-      const data = await r.json();
-      if (data?.alternatives && Array.isArray(data.alternatives)) {
-        setAlternatives(data.alternatives);
-        setShowingAlternatives(true);
-      }
-    } catch (e: any) {
-      if (__DEV__) console.error('Error fetching alternative zips:', e);
+    const alts = await fetchAlternativesApi(zipCode, dates);
+    if (alts.length > 0) {
+      setAlternatives(alts);
+      setShowingAlternatives(true);
     }
   };
 
   const handlePayment = async () => {
+    if (paymentsTemporarilyDisabled) {
+      Alert.alert(
+        'Payments Unavailable',
+        'Ads checkout is temporarily disabled while payments are being configured. Please try again later.'
+      );
+      return;
+    }
+
     if (!adId || selected.size === 0) {
       Alert.alert('Select at least one date');
       return;
@@ -453,59 +368,33 @@ export default function AdCalendarScreen() {
     setSubmitting(true);
     try {
       const dates = Array.from(selected).sort((a, b) => (a < b ? -1 : 1));
-      const base = getApiBaseUrl();
-      const headers: any = { 'Content-Type': 'application/json' };
-      const token = getAuthToken();
-      if (token) headers.Authorization = `Bearer ${token}`;
-      const r = await fetch(`${base.replace(/\/$/, '')}/payments/checkout`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ ad_id: String(adId), dates, promo_code: promo || undefined }),
-      });
-      const txt = await r.text();
-      const data = txt ? JSON.parse(txt) : null;
-      if (!r.ok) throw new Error(data?.error || `HTTP ${r.status}`);
+      const data: any = await startCheckout(String(adId), dates, promo || undefined);
       if (data?.free) {
         Alert.alert('Success!', 'Your ad reservation was completed with the promo discount.', [
           { text: 'View My Ads', onPress: () => router.replace('/(tabs)/my-ads') }
         ]);
-      } else if (data?.url) {
-        // Show info before opening browser
+        return;
+      }
+      if (data?.url) {
         Alert.alert(
           'Complete Payment',
-          'You\'ll be redirected to Stripe to complete your payment. After payment, return to this app to see your active ads.',
+          'You\'ll be redirected to Stripe to complete your payment. After payment, the app will automatically reopen to a confirmation screen.',
           [
             {
               text: 'Continue to Payment',
               onPress: async () => {
                 try {
+                  setSubmitting(true);
                   await WebBrowser.openBrowserAsync(String(data.url));
-                  
-                  // Reset submitting state
-                  setSubmitting(false);
-                  
-                  // Get ad details for confirmation screen
-                  const adData = await Advertisement.get(adId).catch(() => null);
-                  const businessName = adData?.business_name || 'Your Business';
-                  const datesText = sortedDates.length > 0 
-                    ? `${sortedDates.length} ${sortedDates.length === 1 ? 'day' : 'days'}`
-                    : 'selected dates';
-                  
-                  // Redirect to confirmation screen with ad details
-                  router.replace({
-                    pathname: '/ad-confirmation',
-                    params: {
-                      ad_id: adId,
-                      businessName,
-                      selectedDates: datesText,
-                      totalAmount: `$${effective.toFixed(2)}`,
-                    }
-                  } as any);
-                  
+                  Alert.alert(
+                    'Check Payment Status',
+                    'If you completed checkout, a confirmation screen should appear shortly. If you canceled the payment, you can reopen checkout from this screen.',
+                  );
                 } catch (browserErr) {
-                  if (__DEV__) console.error('Browser error:', browserErr);
-                  setSubmitting(false);
+                  console.error('Browser error:', browserErr);
                   Alert.alert('Error', 'Could not open payment page. Please try again.');
+                } finally {
+                  setSubmitting(false);
                 }
               }
             },
@@ -516,11 +405,14 @@ export default function AdCalendarScreen() {
             }
           ]
         );
+        return;
       }
+      throw new Error('Unexpected checkout response');
     } catch (err) {
       if (__DEV__) console.error('Failed to start checkout:', err);
       const msg = (err as any)?.message || 'An error occurred starting checkout.';
       Alert.alert('Error', msg);
+    } finally {
       setSubmitting(false);
     }
   };
@@ -551,6 +443,33 @@ export default function AdCalendarScreen() {
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
         >
+        {showPaymentsWarning && (
+          <View
+            style={[
+              styles.paymentBanner,
+              paymentsTemporarilyDisabled ? styles.paymentBannerError : styles.paymentBannerMuted,
+            ]}
+          >
+            <Text
+              style={[
+                styles.paymentBannerTitle,
+                { color: paymentsTemporarilyDisabled ? '#92400E' : Colors[colorScheme].text },
+              ]}
+            >
+              {paymentsTemporarilyDisabled ? 'Payments unavailable' : 'Payment status unknown'}
+            </Text>
+            <Text
+              style={[
+                styles.paymentBannerText,
+                { color: paymentsTemporarilyDisabled ? '#92400E' : Colors[colorScheme].mutedText },
+              ]}
+            >
+              {paymentsTemporarilyDisabled
+                ? 'Checkout is disabled until our payment provider is configured. Please try again later.'
+                : paymentsStatusError || 'We could not confirm payment readiness. You can still attempt checkout, but it may fail until connectivity improves.'}
+            </Text>
+          </View>
+        )}
         {zipCode && (
           <View style={[styles.card, { backgroundColor: colorScheme === 'dark' ? '#1E3A8A' : '#EFF6FF', borderColor: colorScheme === 'dark' ? '#3B82F6' : '#BFDBFE' }]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -690,54 +609,6 @@ export default function AdCalendarScreen() {
           </View>
           <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>Each ad slot is priced per week. Select multiple dates to see your total.</Text>
           
-          {/* Weekly pricing explanation */}
-          <View style={{ 
-            marginTop: 12, 
-            padding: 14, 
-            backgroundColor: '#FEF9C3',
-            borderRadius: 10,
-            borderWidth: 2,
-            borderColor: '#FCD34D',
-            borderLeftWidth: 6,
-          }}>
-            <Text style={{ fontSize: 14, color: '#713F12', lineHeight: 20, fontWeight: '600' }}>
-              💡 <Text style={{ fontWeight: '800' }}>Pricing Note:</Text> Weekly slots apply to Mon–Thu (weekday) or Fri–Sun (weekend). Booking a date reserves your ad for that <Text style={{ fontWeight: '800', textDecorationLine: 'underline' }}>entire week's slot</Text> at the listed price.
-            </Text>
-            <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#FDE68A' }}>
-              <Text style={{ fontSize: 13, color: '#92400E', lineHeight: 18 }}>
-                <Text style={{ fontWeight: '700' }}>Example:</Text> Selecting any Monday = ${weekdayRate.toFixed(2)} for Mon, Tue, Wed, Thu that week.
-              </Text>
-              <Text style={{ fontSize: 13, color: '#92400E', lineHeight: 18, marginTop: 4 }}>
-                <Text style={{ fontWeight: '700' }}>Example:</Text> Selecting any Friday = ${weekendRate.toFixed(2)} for Fri, Sat, Sun that week.
-              </Text>
-            </View>
-          </View>
-
-          {/* IMPORTANT: Mid-week purchase notice */}
-          <View style={{ 
-            marginTop: 12, 
-            padding: 14, 
-            backgroundColor: '#FEE2E2',
-            borderRadius: 10,
-            borderWidth: 2,
-            borderColor: '#EF4444',
-            borderLeftWidth: 6,
-          }}>
-            <Text style={{ fontSize: 14, color: '#7F1D1D', lineHeight: 20, fontWeight: '700', marginBottom: 8 }}>
-              ⚠️ <Text style={{ fontWeight: '900', fontSize: 15 }}>IMPORTANT:</Text> Mid-Week Purchases
-            </Text>
-            <Text style={{ fontSize: 13, color: '#991B1B', lineHeight: 19 }}>
-              If you book ad space in the <Text style={{ fontWeight: '800' }}>middle of a week</Text> (e.g., Wednesday or Saturday), you will <Text style={{ fontWeight: '800', textDecorationLine: 'underline' }}>still pay the full weekly rate</Text> for the remaining days in that week's slot.
-            </Text>
-            <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#FCA5A5' }}>
-              <Text style={{ fontSize: 12, color: '#7F1D1D', lineHeight: 17 }}>
-                <Text style={{ fontWeight: '700' }}>Example:</Text> Booking on Wednesday = ${weekdayRate.toFixed(2)} for Wed + Thu only (not prorated).
-              </Text>
-              <Text style={{ fontSize: 12, color: '#7F1D1D', lineHeight: 17, marginTop: 3 }}>
-                <Text style={{ fontWeight: '700' }}>Example:</Text> Booking on Saturday = ${weekendRate.toFixed(2)} for Sat + Sun only (not prorated).
-              </Text>
-            </View>
-          </View>
         </View>
 
         <View style={[styles.card, { backgroundColor: Colors[colorScheme].card }]}>
@@ -875,16 +746,32 @@ export default function AdCalendarScreen() {
           </View>
 
           <Pressable
-            disabled={submitting || selected.size === 0}
+            disabled={payButtonDisabled}
             onPress={handlePayment}
-            style={[styles.payBtn, { backgroundColor: Colors[colorScheme].tint }, (submitting || selected.size === 0) && styles.payBtnDisabled]}
+            style={[
+              styles.payBtn,
+              { backgroundColor: Colors[colorScheme].tint },
+              payButtonDisabled && styles.payBtnDisabled,
+            ]}
           >
             {submitting ? (
               <ActivityIndicator />
             ) : (
-              <Text style={styles.payBtnText}>Pay ${effective.toFixed(2)}</Text>
+              <Text style={styles.payBtnText}>
+                {paymentsTemporarilyDisabled ? 'Checkout unavailable' : `Pay $${effective.toFixed(2)}`}
+              </Text>
             )}
           </Pressable>
+          {paymentsTemporarilyDisabled && (
+            <Text
+              style={[
+                styles.paymentBannerHelp,
+                { color: colorScheme === 'dark' ? '#FCA5A5' : '#B91C1C' },
+              ]}
+            >
+              Payments are temporarily disabled while Stripe is configured. Please try again later.
+            </Text>
+          )}
         </View>
       </ScrollView>
       </View>
@@ -928,6 +815,36 @@ const styles = StyleSheet.create({
     padding: 16, 
     gap: 16,
     paddingBottom: Platform.OS === 'ios' ? 34 : 24, // Extra padding for iOS home indicator
+  },
+  paymentBanner: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 12,
+  },
+  paymentBannerError: {
+    backgroundColor: '#FEF3C7',
+    borderColor: '#F59E0B',
+  },
+  paymentBannerMuted: {
+    backgroundColor: '#E0F2FE',
+    borderColor: '#38BDF8',
+  },
+  paymentBannerTitle: {
+    fontWeight: '700',
+    fontSize: 14,
+    marginBottom: 4,
+    color: '#1F2937',
+  },
+  paymentBannerText: {
+    fontSize: 13,
+    color: '#374151',
+    lineHeight: 18,
+  },
+  paymentBannerHelp: {
+    marginTop: 8,
+    fontSize: 12,
+    color: '#B91C1C',
+    textAlign: 'center',
   },
   card: {
     borderRadius: 16,

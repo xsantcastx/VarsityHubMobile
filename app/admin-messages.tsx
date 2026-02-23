@@ -1,31 +1,33 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
+import { Ionicons } from '@expo/vector-icons';
 import { Stack } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
-import { Message as MsgApi, User } from '@/api/entities';
+import { Message as MsgApi } from '@/api/entities';
+import { useAuth } from '@/context/AuthProvider';
 
 export default function AdminMessagesScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const { isAdmin, loading: adminLoading } = useRequireAdmin();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<any[]>([]);
 
   const load = useCallback(async () => {
-      if (!isAdmin) return;
+      if (!isAdmin || !user) return;
     setLoading(true); setError(null);
     try {
-      await User.me();
       const list = await MsgApi.listAll(200);
       setItems(Array.isArray(list) ? list : []);
     } catch (e: any) {
       setError(e?.status === 403 ? 'Access denied (admin only).' : (e?.message || 'Failed to load messages'));
     } finally { setLoading(false); }
-  }, [isAdmin]);
+  }, [isAdmin, user]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -49,7 +51,17 @@ export default function AdminMessagesScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
       <Stack.Screen options={{ title: 'Admin · All Messages' }} />
       {loading ? <View style={{ padding: 24, alignItems: 'center' }}><ActivityIndicator /></View> : null}
-      {error ? <Text style={[styles.error, { color: Colors[colorScheme].mutedText }]}>{error}</Text> : null}
+      {error ? (
+        <View style={{ padding: 24, alignItems: 'center' }}>
+          <Text style={[styles.error, { color: Colors[colorScheme].destructive }]}>{error}</Text>
+          <Pressable
+            style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12, backgroundColor: Colors[colorScheme].tint }}
+            onPress={() => void load()}
+          >
+            <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '600' }}>Try Again</Text>
+          </Pressable>
+        </View>
+      ) : null}
       {!loading && !error && (
         <FlatList
           data={items}
@@ -74,5 +86,12 @@ const styles = StyleSheet.create({
   row: { padding: 12, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth },
   msg: { fontWeight: '600' },
   meta: {},
-  error: { padding: 12 },
+  error: { fontWeight: '600' },
+  stateContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
+  },
+  stateText: { marginTop: 12, fontSize: 14 },
 });

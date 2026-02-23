@@ -1,15 +1,17 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useDeviceLocation } from '@/hooks/useDeviceLocation';
+import { showLocationDeniedAlert } from '@/utils/locationAlerts';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
-import { Game, Post, Search, Team, User } from '@/api/entities';
+import { Game, Post, Team, User } from '@/api/entities';
+import { useAuth } from '@/context/AuthProvider';
 import EventMap, { EventMapData } from '@/components/EventMap';
 import PostCard from '@/components/PostCard';
 import QuickAddGameModal, { QuickGameData } from '@/components/QuickAddGameModal';
@@ -17,19 +19,9 @@ import { Calendar } from 'react-native-calendars';
 import GameVerticalFeedScreen, { type FeedPost } from '../../game-details/GameVerticalFeedScreen';
 
 
-type GameItem = { id: string; title?: string; date?: string | null; location?: string; latitude?: number | null; longitude?: number | null; cover_image_url?: string; banner_url?: string | null };
+type GameItem = { id: string; title?: string; date?: string; location?: string; latitude?: number | null; longitude?: number | null; cover_image_url?: string; banner_url?: string | null };
 
 type ZipDirectoryEntry = { zip: string; count: number };
-
-type UniversalSearchResults = {
-  users: Array<{ id: string; display_name?: string | null; username?: string | null; avatar_url?: string | null; bio?: string | null; role?: string | null }>;
-  teams: Array<{ id: string; name?: string | null; logo_url?: string | null; city?: string | null; state?: string | null; sport?: string | null; members_count?: number | null }>;
-  organizations: Array<{ id: string; name?: string | null; logo_url?: string | null; location?: string | null; sport?: string | null; org_type?: string | null; teams_count?: number | null }>;
-  games: Array<{ id: string; title?: string | null; location?: string | null; date?: string | null; cover_image_url?: string | null; teams?: { home?: string | null; away?: string | null } | null }>;
-  posts: Array<{ id: string; title?: string | null; content?: string | null; media_url?: string | null; created_at?: string | null; upvotes_count?: number | null; type?: string | null }>;
-  highlights: Array<{ id: string; title?: string | null; content?: string | null; media_url?: string | null; created_at?: string | null; upvotes_count?: number | null; type?: string | null }>;
-  events: Array<{ id: string; title?: string | null; description?: string | null; location?: string | null; date?: string | null; cover_image_url?: string | null; event_type?: string | null }>;
-};
 
 const ZIP_REGEX = /\b\d{5}\b/g;
 
@@ -87,15 +79,12 @@ export default function CommunityDiscoverScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
-  const isDark = colorScheme === 'dark';
+  const { user: authUser } = useAuth();
   const { location: _location, loading: _locLoading, error: _locError, permissionGranted, requestPermission, needsPreciseAccuracy, openSettings } = useDeviceLocation();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [games, setGames] = useState<GameItem[]>([]);
   const [query, setQuery] = useState('');
-  const [searching, setSearching] = useState(false);
-  const [searchError, setSearchError] = useState<string | null>(null);
-  const [searchResults, setSearchResults] = useState<UniversalSearchResults | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [me, setMe] = useState<any>(null);
   const [zipDirectory, setZipDirectory] = useState<ZipDirectoryEntry[]>([]);
@@ -107,13 +96,13 @@ export default function CommunityDiscoverScreen() {
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [createEventModalOpen, setCreateEventModalOpen] = useState(false);
+  const [isCreatingGame, setIsCreatingGame] = useState(false);
   // Vertical viewer state
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
   const [viewerPosts, setViewerPosts] = useState<FeedPost[]>([]);
   const [precisionBannerDismissed, setPrecisionBannerDismissed] = useState(false);
   const [personalizationNotice, setPersonalizationNotice] = useState<string | null>(null);
-  const searchDebounceRef = useRef<NodeJS.Timeout | null>(null);
   const showPrecisionBanner = Platform.OS === 'android' && permissionGranted && needsPreciseAccuracy && !precisionBannerDismissed;
 
   const toFeedPost = useCallback((p: any): FeedPost => {
@@ -157,29 +146,44 @@ export default function CommunityDiscoverScreen() {
     try {
       const gamesData = await Game.list('-date');
       let normalizedGames = Array.isArray(gamesData) ? gamesData : [];
-      const zip = user?.preferences?.zip_code ? String(user.preferences.zip_code) : '';
+      
+      // Filter out past events by default
+      const now = new Date();
+      normalizedGames = normalizedGames.filter((g: any) => {
+        if (!g.date) return true; // Keep games without dates
+        const gameDate = new Date(g.date);
+        return !isNaN(gameDate.getTime()) && gameDate >= now;
+      });
+      
+      const zip = user?.preferences?.zip_code ? String(user.preferences.zip_code).trim() : '';
       if (zip) {
+        // Normalize zip code (remove dashes, spaces)
+        const normalizedZip = zip.replace(/[-\s]/g, '').toLowerCase();
         const withZip: GameItem[] = [];
         const withoutZip: GameItem[] = [];
         normalizedGames.forEach((g) => {
           const hay = `${(g as any)?.location || ''} ${(g as any)?.address || ''} ${(g as any)?.city || ''}`.toLowerCase();
-          if (hay.includes(zip.toLowerCase())) withZip.push(g); else withoutZip.push(g);
+          // Extract zip codes from location string and check if any match
+          const zipMatches = hay.match(/\b\d{5}(?:-\d{4})?\b/g);
+          const hasMatchingZip = zipMatches?.some(z => z.replace(/[-\s]/g, '').startsWith(normalizedZip.slice(0, 5)));
+          if (hasMatchingZip || hay.includes(normalizedZip)) {
+            withZip.push(g);
+          } else {
+            withoutZip.push(g);
+          }
         });
         normalizedGames = [...withZip, ...withoutZip];
       }
       setGames(normalizedGames);
       setZipDirectory(buildZipDirectory(normalizedGames));
     } catch (gameError) {
-      if (__DEV__) {
-        console.error('Discover load: failed to fetch games', gameError);
-        if (gameError?.response) {
-          console.error('API response:', gameError.response);
-        }
-        if (gameError?.message) {
-          console.error('API error message:', gameError.message);
-        }
+      if (__DEV__) console.error('Discover load: failed to fetch games', gameError);
+      const errorMsg = gameError instanceof Error ? gameError.message : 'Unknown error';
+      if (errorMsg.includes('network') || errorMsg.includes('fetch')) {
+        setError('Network error. Please check your connection and try again.');
+      } else {
+        setError('Unable to load events right now. Pull to refresh to retry.');
       }
-      setError('Unable to load events right now. Pull to refresh to retry.');
       setGames([]);
       setZipDirectory([]);
     }
@@ -196,6 +200,14 @@ export default function CommunityDiscoverScreen() {
         const postsPage = await Post.listPage(undefined, 20, '-created_date');
         items = Array.isArray(postsPage.items) ? postsPage.items : [];
       }
+      if (items.length === 0) {
+        try {
+          const fallback = await Post.list('-created_at', 20);
+          items = Array.isArray(fallback) ? fallback : [];
+        } catch {
+          items = [];
+        }
+      }
       const followingOnly = items.filter((p: any) => p && (p.is_following_author || p.is_following));
       const nonFollowing = items.filter((p: any) => !(p && (p.is_following_author || p.is_following)));
       setFollowingPosts(followingOnly.slice(0, 12));
@@ -205,13 +217,32 @@ export default function CommunityDiscoverScreen() {
       try {
         const school = user?.preferences?.school || user?.school || null;
         const league = user?.preferences?.league || user?.league || null;
-        const zipQ = user?.preferences?.zip_code ? String(user.preferences.zip_code) : '';
+        const zipQ = user?.preferences?.zip_code ? String(user.preferences.zip_code).trim() : '';
+        
         if (school || league) {
           const q = String(school || league);
-          const members = await Team.allMembers(q);
-          const arr = Array.isArray(members) ? members : (Array.isArray((members as any)?.items) ? (members as any).items : []);
-          setNearbyPeople(arr.slice(0, 20));
+          try {
+            const members = await Team.allMembers(q);
+            const arr = Array.isArray(members) ? members : (Array.isArray((members as any)?.items) ? (members as any).items : []);
+            setNearbyPeople(arr.slice(0, 20));
+          } catch (teamError) {
+            if (__DEV__) console.warn('Discover load: team members failed', teamError);
+            // Fallback to zip code if team members fails
+            if (zipQ) {
+              try {
+                const users = await User.listAll(zipQ, 30);
+                const arr = Array.isArray(users) ? users : (Array.isArray((users as any)?.items) ? (users as any).items : []);
+                setNearbyPeople(arr.slice(0, 20));
+              } catch {
+                setNearbyPeople([]);
+              }
+            } else {
+              setNearbyPeople([]);
+            }
+          }
         } else if (zipQ) {
+          // Note: User.listAll is admin-only, so this will return empty array for regular users
+          // This is handled gracefully in api/entities.ts
           const users = await User.listAll(zipQ, 30);
           const arr = Array.isArray(users) ? users : (Array.isArray((users as any)?.items) ? (users as any).items : []);
           setNearbyPeople(arr.slice(0, 20));
@@ -225,6 +256,15 @@ export default function CommunityDiscoverScreen() {
     } catch (personalizationError) {
       if (__DEV__) console.warn('Discover load: personalization failed', personalizationError);
       setPersonalizationNotice('Personalized suggestions are temporarily unavailable. Pull to refresh to try again.');
+      try {
+        const fallback = await Post.list('-created_at', 20);
+        const items = Array.isArray(fallback) ? fallback : [];
+        setFollowingPosts([]);
+        setDiscoverPosts(items.slice(0, 12));
+      } catch {
+        setFollowingPosts([]);
+        setDiscoverPosts([]);
+      }
     }
   }, []);
 
@@ -233,14 +273,8 @@ export default function CommunityDiscoverScreen() {
     setError(null);
     setPersonalizationNotice(null);
 
-    let user: any = null;
-    try {
-      user = await User.me();
-      setMe(user);
-    } catch (err) {
-      if (__DEV__) console.warn('Discover load: unable to fetch user', err);
-      setMe(null);
-    }
+    const user: any = authUser ?? null;
+    setMe(user);
 
     await Promise.allSettled([
       loadGames(user),
@@ -248,68 +282,11 @@ export default function CommunityDiscoverScreen() {
     ]);
 
     if (!silent) setLoading(false);
-  }, [loadGames, loadPersonalization]);
+  }, [loadGames, loadPersonalization, authUser]);
 
   useEffect(() => {
     void load().catch(() => {});
   }, [load]);
-
-  useEffect(() => {
-    if (searchDebounceRef.current) {
-      clearTimeout(searchDebounceRef.current);
-    }
-    const trimmed = query.trim();
-    if (trimmed.length < 2) {
-      setSearchResults(null);
-      setSearchError(null);
-      setSearching(false);
-      return;
-    }
-    setSearching(true);
-    setSearchError(null);
-    searchDebounceRef.current = setTimeout(() => {
-      Search.universal(trimmed, { limit: 6 })
-        .then((res: any) => {
-          const normalizeDate = (value: string | Date | null | undefined) => {
-            if (!value) return undefined;
-            if (typeof value === 'string') return value;
-            try {
-              return value.toISOString();
-            } catch {
-              return undefined;
-            }
-          };
-          setSearchResults({
-            users: Array.isArray(res?.users) ? res.users : [],
-            teams: Array.isArray(res?.teams) ? res.teams : [],
-            organizations: Array.isArray(res?.organizations) ? res.organizations : [],
-            games: Array.isArray(res?.games)
-              ? res.games.map((g: any) => ({ ...g, date: normalizeDate(g?.date ?? g?.created_at) }))
-              : [],
-            posts: Array.isArray(res?.posts)
-              ? res.posts.map((p: any) => ({ ...p, created_at: normalizeDate(p?.created_at) }))
-              : [],
-            highlights: Array.isArray(res?.highlights)
-              ? res.highlights.map((h: any) => ({ ...h, created_at: normalizeDate(h?.created_at) }))
-              : [],
-            events: Array.isArray(res?.events)
-              ? res.events.map((e: any) => ({ ...e, date: normalizeDate(e?.date) }))
-              : [],
-          });
-          setSearchError(null);
-        })
-        .catch((err: any) => {
-          setSearchResults(null);
-          setSearchError(err?.message || 'Search failed');
-        })
-        .finally(() => setSearching(false));
-    }, 250);
-    return () => {
-      if (searchDebounceRef.current) {
-        clearTimeout(searchDebounceRef.current);
-      }
-    };
-  }, [query]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -317,18 +294,58 @@ export default function CommunityDiscoverScreen() {
   }, [load]);
 
   const handleQuickGameSave = useCallback(async (data: QuickGameData) => {
+    if (isCreatingGame) return; // Prevent duplicate submissions
+    setIsCreatingGame(true);
     try {
+      // Validate date format
+      if (!data.date || !/^\d{4}-\d{2}-\d{2}$/.test(data.date)) {
+        throw new Error('Invalid date format. Please use YYYY-MM-DD format.');
+      }
+
       // Parse date and time
       const [year, month, day] = data.date.split('-').map(Number);
+      
+      // Validate date values
+      if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
+        throw new Error('Invalid date values.');
+      }
+      if (month < 1 || month > 12 || day < 1 || day > 31) {
+        throw new Error('Invalid date values. Month must be 1-12, day must be 1-31.');
+      }
+
+      // Parse time with more flexible regex
       const timeParts = data.time.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
-      if (!timeParts) throw new Error('Invalid time format');
+      if (!timeParts) {
+        throw new Error('Invalid time format. Please use HH:MM AM/PM format.');
+      }
+      
       let hours = parseInt(timeParts[1], 10);
       const minutes = parseInt(timeParts[2], 10);
       const isPM = timeParts[3].toUpperCase() === 'PM';
+      
+      // Validate time values
+      if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
+        throw new Error('Invalid time values.');
+      }
+      if (hours < 1 || hours > 12 || minutes < 0 || minutes > 59) {
+        throw new Error('Invalid time values. Hours must be 1-12, minutes must be 0-59.');
+      }
+      
+      // Convert to 24-hour format
       if (isPM && hours !== 12) hours += 12;
       if (!isPM && hours === 12) hours = 0;
       
       const gameDateTime = new Date(Date.UTC(year, month - 1, day, hours, minutes));
+      
+      // Validate resulting date
+      if (isNaN(gameDateTime.getTime())) {
+        throw new Error('Invalid date. Please check the date and time values.');
+      }
+      
+      // Check if date is in the past
+      if (gameDateTime < new Date()) {
+        throw new Error('Cannot create events in the past. Please select a future date and time.');
+      }
 
       // Create game payload
       const gamePayload: Record<string, any> = {
@@ -394,6 +411,14 @@ export default function CommunityDiscoverScreen() {
         gamePayload.appearance = data.appearance;
       }
 
+      // Validate required fields before API call
+      if (!gamePayload.title || gamePayload.title.trim().length === 0) {
+        throw new Error('Event title is required.');
+      }
+      if (!gamePayload.date) {
+        throw new Error('Event date is required.');
+      }
+
       // Create game using the API
       await Game.create(gamePayload);
 
@@ -408,27 +433,51 @@ export default function CommunityDiscoverScreen() {
       }
     } catch (error) {
       if (__DEV__) console.error('Error adding quick game:', error);
-      if (typeof alert !== 'undefined') {
-        alert(`Failed to add event: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      
+      // Provide specific error messages
+      let errorMessage = 'Failed to add event.';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      } else if (error && typeof error === 'object' && 'message' in error) {
+        errorMessage = String(error.message);
       }
+      
+      if (typeof alert !== 'undefined') {
+        alert(errorMessage);
+      }
+    } finally {
+      setIsCreatingGame(false);
     }
-  }, [load]);
+  }, [load, isCreatingGame]);
 
   const filtered = useMemo(() => {
     if (!query) return games;
-    const q = query.toLowerCase().trim();
-    const zip = q.match(/\b\d{5}\b/);
-    if (zip) {
-      return games.filter((g) => (g.location || '').toLowerCase().includes(zip[0]));
+    
+    // Sanitize and limit query length
+    const q = query.trim().slice(0, 100).toLowerCase();
+    if (q.length === 0) return games;
+    
+    // Check for zip code (5 digits, optionally with dash and 4 more digits)
+    const zipMatch = q.match(/\b\d{5}(?:-\d{4})?\b/);
+    if (zipMatch) {
+      const zip = zipMatch[0].replace(/[-\s]/g, '').slice(0, 5);
+      return games.filter((g) => {
+        const location = `${g.location || ''} ${(g as any)?.address || ''} ${(g as any)?.city || ''}`.toLowerCase();
+        // Extract zip codes from location and check if any match
+        const locationZips = location.match(/\b\d{5}(?:-\d{4})?\b/g);
+        return locationZips?.some(lz => lz.replace(/[-\s]/g, '').startsWith(zip)) || location.includes(zip);
+      });
     }
-    return games.filter((g) => (g.title || '').toLowerCase().includes(q) || (g.location || '').toLowerCase().includes(q));
+    
+    // Regular keyword search
+    return games.filter((g) => {
+      const title = (g.title || '').toLowerCase();
+      const location = (g.location || '').toLowerCase();
+      return title.includes(q) || location.includes(q);
+    });
   }, [games, query]);
-
-  const listGames = useMemo(() => {
-    const trimmed = query.trim();
-    if (trimmed.length >= 2 && searchResults?.games) return searchResults.games;
-    return filtered;
-  }, [filtered, query, searchResults]);
 
   const zipSuggestions = useMemo(() => {
     if (!zipSuggestionsOpen) return [] as ZipDirectoryEntry[];
@@ -440,17 +489,6 @@ export default function CommunityDiscoverScreen() {
   }, [zipSuggestionsOpen, query, zipDirectory]);
 
   const shouldShowZipSuggestions = zipSuggestionsOpen && zipSuggestions.length > 0;
-  const hasSearchQuery = query.trim().length >= 2;
-  const searchResultCount = useMemo(
-    () => (searchResults
-      ? (searchResults.users?.length || 0)
-        + (searchResults.teams?.length || 0)
-        + (searchResults.organizations?.length || 0)
-        + (searchResults.games?.length || 0)
-        + (searchResults.posts?.length || 0)
-      : 0),
-    [searchResults],
-  );
 
   const handleToggleViewMode = useCallback(async () => {
     const newMode: typeof viewMode = viewMode === 'list' ? 'map' : 'list';
@@ -458,7 +496,7 @@ export default function CommunityDiscoverScreen() {
       if (!permissionGranted) {
         const granted = await requestPermission();
         if (!granted) {
-          Alert.alert('Location Permission', 'Enable location to view the map and see nearby events.');
+          showLocationDeniedAlert('discovery');
           return;
         }
       }
@@ -551,200 +589,25 @@ export default function CommunityDiscoverScreen() {
         </View>
       ) : null}
 
-      {hasSearchQuery ? (
-        <View style={[styles.searchResultsCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-          <View style={styles.searchResultsHeader}>
-            <Text style={[styles.searchResultsTitle, { color: Colors[colorScheme].text }]}>Search results</Text>
-            {searching ? (
-              <ActivityIndicator size="small" color={Colors[colorScheme].tint} />
-            ) : (
-              <Text style={[styles.searchResultsMeta, { color: Colors[colorScheme].mutedText }]}>
-                {searchResultCount > 0 ? `${searchResultCount} matches` : 'No matches yet'}
-              </Text>
-            )}
-          </View>
-
-          {searchError ? (
-            <Text style={[styles.searchResultsError, { color: '#b91c1c' }]}>{searchError}</Text>
-          ) : (
-            <>
-              {searchResults?.users?.length ? (
-                <View style={styles.searchSection}>
-                  <Text style={[styles.searchSectionTitle, { color: Colors[colorScheme].mutedText }]}>Users</Text>
-                  {searchResults.users.slice(0, 4).map((u) => (
-                    <Pressable
-                      key={u.id}
-                      style={[styles.searchRow, { borderColor: Colors[colorScheme].border }]}
-                      onPress={() => void router.push(`/user-profile?id=${u.id}`)}
-                    >
-                      <View style={styles.searchAvatar}>
-                        {u.avatar_url ? (
-                          <Image source={{ uri: String(u.avatar_url) }} style={styles.searchAvatar} contentFit="cover" />
-                        ) : (
-                          <LinearGradient colors={['#1e293b', '#0f172a']} style={styles.searchAvatar} />
-                        )}
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.searchRowTitle, { color: Colors[colorScheme].text }]} numberOfLines={1}>
-                          {u.display_name || 'User'}
-                        </Text>
-                        <Text style={[styles.searchRowMeta, { color: Colors[colorScheme].mutedText }]} numberOfLines={1}>
-                          {u.username ? `@${u.username}` : 'Profile'}{u.role ? ` • ${u.role}` : ''}
-                        </Text>
-                      </View>
-                      <Ionicons name="chevron-forward" size={16} color={Colors[colorScheme].mutedText} />
-                    </Pressable>
-                  ))}
-                </View>
-              ) : null}
-
-              {searchResults?.teams?.length ? (
-                <View style={styles.searchSection}>
-                  <Text style={[styles.searchSectionTitle, { color: Colors[colorScheme].mutedText }]}>Teams</Text>
-                  {searchResults.teams.slice(0, 4).map((t) => (
-                    <Pressable
-                      key={t.id}
-                      style={[styles.searchRow, { borderColor: Colors[colorScheme].border }]}
-                      onPress={() => void router.push(`/team-profile?id=${t.id}`)}
-                    >
-                      <View style={styles.searchAvatar}>
-                        {t.logo_url ? (
-                          <Image source={{ uri: String(t.logo_url) }} style={styles.searchAvatar} contentFit="cover" />
-                        ) : (
-                          <LinearGradient colors={['#0f172a', '#1e293b']} style={styles.searchAvatar} />
-                        )}
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.searchRowTitle, { color: Colors[colorScheme].text }]} numberOfLines={1}>
-                          {t.name || 'Team'}
-                        </Text>
-                        <Text style={[styles.searchRowMeta, { color: Colors[colorScheme].mutedText }]} numberOfLines={1}>
-                          {[t.city, t.state].filter(Boolean).join(', ') || 'Team page'}
-                          {t.members_count ? ` • ${t.members_count} members` : ''}
-                        </Text>
-                      </View>
-                      <Ionicons name="chevron-forward" size={16} color={Colors[colorScheme].mutedText} />
-                    </Pressable>
-                  ))}
-                </View>
-              ) : null}
-
-              {searchResults?.organizations?.length ? (
-                <View style={styles.searchSection}>
-                  <Text style={[styles.searchSectionTitle, { color: Colors[colorScheme].mutedText }]}>Organizations</Text>
-                  {searchResults.organizations.slice(0, 4).map((o) => (
-                    <Pressable
-                      key={o.id}
-                      style={[styles.searchRow, { borderColor: Colors[colorScheme].border }]}
-                      onPress={() => void router.push(`/organization?id=${o.id}`)}
-                    >
-                      <View style={styles.searchAvatar}>
-                        {o.logo_url ? (
-                          <Image source={{ uri: String(o.logo_url) }} style={styles.searchAvatar} contentFit="cover" />
-                        ) : (
-                          <LinearGradient colors={['#0f172a', '#1e293b']} style={styles.searchAvatar} />
-                        )}
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.searchRowTitle, { color: Colors[colorScheme].text }]} numberOfLines={1}>
-                          {o.name || 'Organization'}
-                        </Text>
-                        <Text style={[styles.searchRowMeta, { color: Colors[colorScheme].mutedText }]} numberOfLines={1}>
-                          {o.location || o.org_type || 'Org page'}
-                          {o.teams_count ? ` • ${o.teams_count} teams` : ''}
-                        </Text>
-                      </View>
-                      <Ionicons name="chevron-forward" size={16} color={Colors[colorScheme].mutedText} />
-                    </Pressable>
-                  ))}
-                </View>
-              ) : null}
-
-              {searchResults?.posts?.length ? (
-                <View style={styles.searchSection}>
-                  <Text style={[styles.searchSectionTitle, { color: Colors[colorScheme].mutedText }]}>Posts</Text>
-                  {searchResults.posts.slice(0, 3).map((p) => (
-                    <Pressable
-                      key={p.id}
-                      style={[styles.searchRow, { borderColor: Colors[colorScheme].border }]}
-                      onPress={() => void router.push(`/post-detail?id=${p.id}`)}
-                    >
-                      <View style={[styles.searchAvatar, { borderRadius: 8 }]}>
-                        {p.media_url ? (
-                          <Image source={{ uri: String(p.media_url) }} style={styles.searchAvatar} contentFit="cover" />
-                        ) : (
-                          <LinearGradient colors={['#1e293b', '#0f172a']} style={styles.searchAvatar} />
-                        )}
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.searchRowTitle, { color: Colors[colorScheme].text }]} numberOfLines={1}>
-                          {p.title || p.content || 'Post'}
-                        </Text>
-                        <Text style={[styles.searchRowMeta, { color: Colors[colorScheme].mutedText }]} numberOfLines={1}>
-                          {p.upvotes_count ? `${p.upvotes_count} upvotes • ` : ''}{p.created_at ? new Date(p.created_at).toLocaleDateString() : 'Post detail'}
-                        </Text>
-                      </View>
-                      <Ionicons name="chevron-forward" size={16} color={Colors[colorScheme].mutedText} />
-                    </Pressable>
-                  ))}
-                </View>
-              ) : null}
-
-              {searchResults?.games?.length ? (
-                <View style={styles.searchSection}>
-                  <Text style={[styles.searchSectionTitle, { color: Colors[colorScheme].mutedText }]}>Games</Text>
-                  {searchResults.games.slice(0, 4).map((g) => (
-                    <Pressable
-                      key={g.id}
-                      style={[styles.searchRow, { borderColor: Colors[colorScheme].border }]}
-                      onPress={() => void router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(g.id) } })}
-                    >
-                      <View style={[styles.searchAvatar, { borderRadius: 8 }]}>
-                        {g.cover_image_url ? (
-                          <Image source={{ uri: String(g.cover_image_url) }} style={styles.searchAvatar} contentFit="cover" />
-                        ) : (
-                          <LinearGradient colors={['#111827', '#1f2937']} style={styles.searchAvatar} />
-                        )}
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.searchRowTitle, { color: Colors[colorScheme].text }]} numberOfLines={1}>
-                          {g.title || 'Game'}
-                        </Text>
-                        <Text style={[styles.searchRowMeta, { color: Colors[colorScheme].mutedText }]} numberOfLines={1}>
-                          {g.location || 'Location TBA'}
-                        </Text>
-                      </View>
-                      <Ionicons name="chevron-forward" size={16} color={Colors[colorScheme].mutedText} />
-                    </Pressable>
-                  ))}
-                </View>
-              ) : null}
-            </>
-          )}
-        </View>
-      ) : null}
-
       {/* Calendar - Right below search */}
       <View style={styles.calendarSection}>
         <Calendar
-          style={[
-            styles.calendar,
-            {
-              backgroundColor: Colors[colorScheme].card,
-              borderColor: Colors[colorScheme].border,
-            },
-          ]}
           onDayPress={(day) => {
             setSelectedDate(day.dateString);
           }}
           markedDates={useMemo(() => {
             const marked: Record<string, any> = {};
-            // Mark all dates with events
+            const now = new Date();
+            // Mark only future dates with events
             games.forEach(game => {
               if (game.date) {
-                const dateKey = new Date(game.date).toISOString().split('T')[0];
-                if (!marked[dateKey]) {
-                  marked[dateKey] = { marked: true, dotColor: Colors[colorScheme].tint };
+                const gameDate = new Date(game.date);
+                // Only mark future events
+                if (!isNaN(gameDate.getTime()) && gameDate >= now) {
+                  const dateKey = gameDate.toISOString().split('T')[0];
+                  if (!marked[dateKey]) {
+                    marked[dateKey] = { marked: true, dotColor: Colors[colorScheme].tint };
+                  }
                 }
               }
             });
@@ -759,16 +622,16 @@ export default function CommunityDiscoverScreen() {
             return marked;
           }, [games, selectedDate, colorScheme])}
           theme={{
-            backgroundColor: Colors[colorScheme].card,
-            calendarBackground: Colors[colorScheme].card,
-            textSectionTitleColor: isDark ? '#F8FAFC' : Colors[colorScheme].text,
+            backgroundColor: Colors[colorScheme].background,
+            calendarBackground: Colors[colorScheme].background,
+            textSectionTitleColor: Colors[colorScheme].text,
             selectedDayBackgroundColor: Colors[colorScheme].tint,
             selectedDayTextColor: Colors[colorScheme].background,
             todayTextColor: Colors[colorScheme].tint,
-            dayTextColor: isDark ? '#F8FAFC' : Colors[colorScheme].text,
-            textDisabledColor: isDark ? '#475569' : Colors[colorScheme].mutedText,
+            dayTextColor: Colors[colorScheme].text,
+            textDisabledColor: Colors[colorScheme].mutedText,
             arrowColor: Colors[colorScheme].tint,
-            monthTextColor: isDark ? '#F8FAFC' : Colors[colorScheme].text,
+            monthTextColor: Colors[colorScheme].text,
             textDayFontWeight: '500',
             textMonthFontWeight: '800',
             textDayHeaderFontWeight: '600',
@@ -780,8 +643,10 @@ export default function CommunityDiscoverScreen() {
       {selectedDate && (() => {
         const gamesOnDate = games.filter(g => {
           if (!g.date) return false;
-          const gameDate = new Date(g.date).toISOString().split('T')[0];
-          return gameDate === selectedDate;
+          const gameDate = new Date(g.date);
+          // Only show future events on selected date
+          if (isNaN(gameDate.getTime()) || gameDate < new Date()) return false;
+          return gameDate.toISOString().split('T')[0] === selectedDate;
         });
         
         if (gamesOnDate.length === 0) return null;
@@ -861,11 +726,11 @@ export default function CommunityDiscoverScreen() {
               {/* Fan actions */}
               <Pressable 
                 style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30' }]}
-                onPress={() => void router.push('/create-pitch-event')}
+                onPress={() => void router.push('/create-fan-event')}
               >
-                <Text style={{ fontSize: 24, marginRight: 6 }}>🎉</Text>
-                <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Pitch Event</Text>
-                <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Propose an event for your team</Text>
+                <Ionicons name="people" size={24} color={Colors[colorScheme].tint} />
+                <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Fan Event</Text>
+                <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Watch parties & meetups</Text>
               </Pressable>
               <Pressable 
                 style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: 12 }]}
@@ -879,9 +744,9 @@ export default function CommunityDiscoverScreen() {
                 style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: 12 }]}
                 onPress={() => void router.push('/favorites')}
               >
-                <Ionicons name="heart" size={24} color={Colors[colorScheme].tint} />
-                <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Favorites</Text>
-                <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Posts, highlights you saved</Text>
+                <Ionicons name="bookmark" size={24} color={Colors[colorScheme].tint} />
+                <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Saved Post</Text>
+                <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Saved posts</Text>
               </Pressable>
             </>
           )}
@@ -1107,12 +972,12 @@ export default function CommunityDiscoverScreen() {
         /* List View */
         <FlatList
           style={{ flex: 1 }}
-          data={listGames}
+          data={filtered}
           keyExtractor={(item) => String(item.id)}
           ListHeaderComponent={ListHeader}
           renderItem={({ item }) => (
             <Pressable
-              style={styles.card}
+              style={[styles.card, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
               onPress={() => void router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(item.id) } })}
             >
               <View style={styles.hero}>
@@ -1126,14 +991,14 @@ export default function CommunityDiscoverScreen() {
                 })()}
               </View>
               <View style={styles.cardContent}>
-                <Text style={styles.cardTitle}>{item.title ? String(item.title) : 'Game'}</Text>
-                <Text style={styles.cardMeta}>{item.location ? String(item.location) : 'TBD'}</Text>
+                <Text style={[styles.cardTitle, { color: Colors[colorScheme].text }]}>{item.title ? String(item.title) : 'Game'}</Text>
+                <Text style={[styles.cardMeta, { color: Colors[colorScheme].mutedText }]}>{item.location ? String(item.location) : 'TBD'}</Text>
                 {(() => {
                   const labels = deriveTeamLabels(item);
                   return (
                     <View style={styles.teamRow}>
                       <View style={styles.teamPill}><Text style={styles.teamPillText}>{labels.teamA}</Text></View>
-                      <Text style={styles.vsText}>vs</Text>
+                      <Text style={[styles.vsText, { color: Colors[colorScheme].mutedText }]}>vs</Text>
                       <View style={styles.teamPillAlt}><Text style={styles.teamPillAltText}>{labels.teamB}</Text></View>
                     </View>
                   );
@@ -1185,9 +1050,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: 'hidden',
   },
-  calendar: {
-    borderWidth: StyleSheet.hairlineWidth,
-  },
   searchBox: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 48, borderRadius: 12, paddingHorizontal: 12, marginBottom: 8, borderWidth: StyleSheet.hairlineWidth },
   searchInput: { flex: 1, height: 44 },
   viewToggle: { width: 48, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: StyleSheet.hairlineWidth, marginBottom: 8 },
@@ -1217,17 +1079,6 @@ const styles = StyleSheet.create({
   zipSuggestionItem: { paddingHorizontal: 16, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   zipSuggestionZip: { fontWeight: '700', color: '#111827', fontSize: 15 },
   zipSuggestionCount: { color: '#6b7280', fontSize: 12 },
-  searchResultsCard: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 12, padding: 12, marginBottom: 12, gap: 4 },
-  searchResultsHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
-  searchResultsTitle: { fontSize: 16, fontWeight: '800' },
-  searchResultsMeta: { fontSize: 13 },
-  searchResultsError: { fontSize: 13, fontWeight: '600' },
-  searchSection: { marginTop: 6 },
-  searchSectionTitle: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 4 },
-  searchRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderTopWidth: StyleSheet.hairlineWidth },
-  searchAvatar: { width: 44, height: 44, borderRadius: 22, overflow: 'hidden' },
-  searchRowTitle: { fontSize: 15, fontWeight: '700' },
-  searchRowMeta: { fontSize: 13 },
   followingCard: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, borderWidth: StyleSheet.hairlineWidth, marginTop: 4, marginBottom: 10 },
   followingText: { color: '#1e3a8a', fontWeight: '700' },
   followingBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: '#1D4ED8' },

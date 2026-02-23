@@ -10,6 +10,15 @@ Five automated sweeps run every night (or on-demand) to build Day 3 QA confidenc
 4. **TypeScript Type Check** — Verify zero errors remain
 5. **npm Audit Summary** — Security vulnerability tracking
 
+**Plus Front-End Visibility Tests** (optional, requires app running):
+6. **Front-End Visibility** — UI component rendering, visual regressions, accessibility
+
+**Plus Strength & Organization Tasks** (new, code quality focused):
+7. **Unused Imports Cleanup** — Finds and reports unused imports
+8. **Console.log Audit** — Identifies console statements for cleanup
+9. **Database Query Performance** — Analyzes slow queries and missing indexes
+10. **Floating Promises Analysis** — Finds unhandled async operations
+
 All results are logged to `overnight-results/` with dated filenames for easy comparison.
 
 ---
@@ -57,6 +66,17 @@ npx tsc --noEmit
 
 # npm audit
 npm audit --json
+
+# Front-end visibility tests (requires app running)
+./scripts/overnight-frontend-visibility.sh
+
+# Strength & Organization tasks (code quality)
+./scripts/overnight-strength-organization.sh
+# Or run individual tasks:
+./scripts/overnight-unused-imports.sh
+./scripts/overnight-console-cleanup.sh
+./scripts/overnight-db-performance.sh
+./scripts/overnight-floating-promises.sh
 ```
 
 ### Option D: 24/7 Health Sampler
@@ -72,6 +92,36 @@ AUTH_TOKEN=abc EXTRA_ENDPOINTS="GET /support/ping" ./overnight-health-check.sh
 **Output:** `overnight-health-YYYYMMDD-HHMMSS/health.log` with HTTP codes and payloads (it warns if `/health` doesn’t report `stripe`, `smtp`, `sentry`, `database` as `true`).
 
 Use it as a cron job alongside the sweeps to catch downtime immediately.
+
+### Option E: Front-End Visibility Tests
+Automated UI visibility checks using Playwright. Verifies component rendering, navigation, empty states, and accessibility.
+
+```bash
+./scripts/overnight-frontend-visibility.sh
+```
+
+**Output:** `overnight-results/frontend-visibility-*.log` + screenshots in `visibility-screenshots/`
+
+See `FRONTEND_VISIBILITY_OVERNIGHT.md` for detailed documentation.
+
+### Option F: Real-World Functionality Tests
+End-to-end tests of actual app functionality (auth, posts, teams, messaging, payments). Tests API endpoints and business logic.
+
+```bash
+API_URL=http://localhost:4000 ./scripts/overnight-functionality.sh
+```
+
+**Output:** `overnight-results/functionality-*.log` + summary JSON
+
+**What it tests:**
+- User registration/login
+- Post creation and feed
+- Team creation (coach features)
+- Game/Event creation
+- Direct messaging
+- API health checks
+
+See `REAL_WORLD_FUNCTIONALITY_OVERNIGHT.md` for detailed documentation.
 
 ---
 

@@ -5,7 +5,10 @@
     "github.vscode-github-actions",
     "ms-azuretools.vscode-docker",
     "msjsdiag.vscode-react-native",
-    "expo.vscode-expo-tools"
+    "expo.vscode-expo-tools",
+    "dbaeumer.vscode-eslint",
+    "christian-kohler.npm-intellisense",
+    "eamodio.gitlens"
   ],
   "unwantedRecommendations": []
 }

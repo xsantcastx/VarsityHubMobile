@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { debugLog } from '../lib/debugLog.js';
+import { getAppBaseUrl } from '../lib/env.js';
 import { getZipCoordinates, haversineDistance } from '../lib/geoUtils.js';
 import { prisma } from '../lib/prisma.js';
 import { emailQueue } from '../lib/queue.js';
@@ -360,7 +361,7 @@ adsRouter.post('/reservations', requireVerified as any, async (req, res) => {
 
   // Queue reservation received email
   if (ad && ad.contact_email) {
-    const checkoutLink = `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/checkout?ad_id=${ad_id}`;
+    const checkoutLink = `${getAppBaseUrl()}/checkout?ad_id=${ad_id}`;
     
     await emailQueue.add(
       'ads.reservation_received',

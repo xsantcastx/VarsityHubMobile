@@ -1,0 +1,270 @@
+name: Environment & Configuration Audit (DISABLED)
+
+on:
+  workflow_dispatch:
+  # Temporarily disabled to stop email spam
+  # schedule:
+  #   - cron: '0 9 * * 1'
+  # push:
+  #   paths:
+  #     - .env.example
+  #     - server/.env.example
+  #     - scripts/check-env-alignment.js
+
+jobs:
+  audit-github-secrets:
+    name: Verify GitHub Secrets
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check mobile app secrets
+        id: mobile
+        run: |
+          echo "## Mobile App Environment Variables" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          required_vars=(
+            "EXPO_PUBLIC_API_URL"
+            "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID"
+            "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID"
+            "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY"
+          )
+          
+          missing=0
+          for var in "${required_vars[@]}"; do
+            if [ -z "${!var}" ]; then
+              echo "- ❌ \`$var\` is missing" >> $GITHUB_STEP_SUMMARY
+              missing=$((missing + 1))
+            else
+              echo "- ✅ \`$var\` is set" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+          
+          echo "missing=$missing" >> $GITHUB_OUTPUT
+
+      - name: Check Railway secrets
+        id: railway
+        env:
+          DATABASE_URL: ${{ secrets.RAILWAY_DATABASE_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+        run: |
+          echo "## Railway Production Secrets" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          required_vars=(
+            "DATABASE_URL"
+            "JWT_SECRET"
+            "SENDGRID_API_KEY"
+            "STRIPE_SECRET_KEY"
+          )
+          
+          missing=0
+          for var in "${required_vars[@]}"; do
+            if [ -z "${!var}" ]; then
+              echo "- ❌ \`$var\` is missing" >> $GITHUB_STEP_SUMMARY
+              missing=$((missing + 1))
+            else
+              echo "- ✅ \`$var\` is set (first 4 chars: ${!var:0:4}...)" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+          
+          echo "missing=$missing" >> $GITHUB_OUTPUT
+
+      - name: Fail if secrets missing
+        run: |
+          if [ "${{ steps.mobile.outputs.missing }}" -gt 0 ] || [ "${{ steps.railway.outputs.missing }}" -gt 0 ]; then
+            echo "❌ Missing required environment variables"
+            exit 1
+          else
+            echo "✅ All required environment variables are set"
+            exit 0
+          fi
+
+  audit-railway-services:
+    name: Verify Railway Service Health
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+      
+      - name: Check Railway API health
+        id: health
+        run: |
+          response=$(curl -sf https://api-production-8ac3.up.railway.app/health || echo '{"error":"unreachable"}')
+          
+          echo "## Railway Service Health" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```json' >> $GITHUB_STEP_SUMMARY
+          echo "$response" | jq '.' 2>/dev/null || echo "$response" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          status=$(echo "$response" | jq -r '.status' 2>/dev/null || echo "unknown")
+          ready=$(echo "$response" | jq -r '.ready' 2>/dev/null || echo "unknown")
+          
+          if [ "$status" = "ok" ]; then
+            echo "health_status=ok" >> $GITHUB_OUTPUT
+            echo "✅ **Status**: Healthy" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "health_status=failed" >> $GITHUB_OUTPUT
+            echo "❌ **Status**: Unhealthy ($status)" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "🔄 **Ready**: $ready" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Parse individual service statuses
+          database_ok=$(echo "$response" | jq -r '.database // "unknown"')
+          sendgrid_ok=$(echo "$response" | jq -r '.sendgrid // "unknown"')
+          cloudinary_ok=$(echo "$response" | jq -r '.cloudinary // "unknown"')
+          stripe_ok=$(echo "$response" | jq -r '.stripe // "unknown"')
+          
+          echo "### Service Status" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Database
+          if [ "$database_ok" = "connected" ] || [ "$database_ok" = "ok" ]; then
+            echo "✅ **Database**: Connected" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Database**: $database_ok" >> $GITHUB_STEP_SUMMARY
+            echo "   - Check DATABASE_URL" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # SendGrid
+          if [ "$sendgrid_ok" = "configured" ] || [ "$sendgrid_ok" = "ok" ]; then
+            echo "✅ **SendGrid**: Configured" >> $GITHUB_STEP_SUMMARY
+          elif [ "$sendgrid_ok" = "templates_missing" ]; then
+            echo "⚠️ **SendGrid**: API key set, but templates missing" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **SendGrid**: $sendgrid_ok" >> $GITHUB_STEP_SUMMARY
+            echo "   - Check SENDGRID_API_KEY" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Cloudinary
+          if [ "$cloudinary_ok" = "configured" ] || [ "$cloudinary_ok" = "ok" ]; then
+            echo "✅ **Cloudinary**: Configured" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Cloudinary**: $cloudinary_ok" >> $GITHUB_STEP_SUMMARY
+            echo "   - Check CLOUDINARY_* variables" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Stripe
+          if [ "$stripe_ok" = "configured" ] || [ "$stripe_ok" = "ok" ]; then
+            echo "✅ **Stripe**: Configured" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Stripe**: $stripe_ok" >> $GITHUB_STEP_SUMMARY
+            echo "   - Check STRIPE_SECRET_KEY" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Create alert if services unhealthy
+        if: steps.health.outputs.health_status == 'failed'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = '⚠️ Railway Service Health Check Failed';
+            const body = `## Railway API Health Issue
+            
+            **Date**: ${new Date().toISOString()}
+            **Service**: ${{ github.event.inputs.service || 'api' }}
+            
+            The Railway API health endpoint is not responding correctly.
+            
+            ### Troubleshooting Steps
+            1. Check Railway Dashboard: https://railway.app/project/capable-trust
+            2. Verify environment variables are set correctly
+            3. Review deployment logs for errors
+            4. Test manually: https://api-production-8ac3.up.railway.app/health
+            
+            ### Expected Response
+            \`\`\`json
+            {"status":"ok","ready":true,"database":"connected",...}
+            \`\`\`
+            
+            ---
+            Auto-generated by Environment Audit workflow`;
+            
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: ['railway', 'infrastructure']
+            });
+            
+            const existingIssue = issues.data.find(issue => issue.title === title);
+            
+            if (!existingIssue) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                labels: ['railway', 'infrastructure', 'urgent']
+              });
+            }
+
+  check-env-alignment:
+    name: Verify Local Env Alignment
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run env alignment check
+        continue-on-error: true
+        run: |
+          if [ -f "scripts/check-env-alignment.js" ]; then
+            node scripts/check-env-alignment.js >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️  scripts/check-env-alignment.js not found" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Check .env files exist
+        run: |
+          echo "## Local Environment Files" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -f ".env.example" ]; then
+            echo "- ✅ \`.env.example\` exists ($(wc -l < .env.example) lines)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ❌ \`.env.example\` missing" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ -f "server/.env.example" ]; then
+            echo "- ✅ \`server/.env.example\` exists ($(wc -l < server/.env.example) lines)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ❌ \`server/.env.example\` missing" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  audit-summary:
+    name: Audit Summary
+    runs-on: ubuntu-latest
+    needs: [audit-github-secrets, audit-railway-services, check-env-alignment]
+    if: always()
+    
+    steps:
+      - name: Generate summary
+        run: |
+          echo "## 🔍 Environment Audit Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Date**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Results:" >> $GITHUB_STEP_SUMMARY
+          echo "- GitHub Secrets: ${{ needs.audit-github-secrets.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Railway Services: ${{ needs.audit-railway-services.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Env Alignment: ${{ needs.check-env-alignment.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "💡 **Tip**: Run this audit manually from Actions → Environment Audit → Run workflow" >> $GITHUB_STEP_SUMMARY

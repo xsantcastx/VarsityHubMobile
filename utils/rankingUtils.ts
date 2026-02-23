@@ -18,6 +18,7 @@ export interface HighlightItem {
   lat?: number;
   lng?: number;
   country_code?: string;
+  sport?: string;
   _count?: {
     comments: number;
   };

@@ -1,7 +1,21 @@
 # Production Readiness Checklist
 
-**Current Status:** Pre-Production (Staging/Beta Ready)
-**Target:** Full Production Launch
+**Current Status:** Pre-Production (Staging/Beta Ready)  
+**Target:** Full Production Launch  
+**Last Updated:** November 30, 2025 @ 08:00 UTC
+
+## 🚨 CRITICAL BLOCKERS (Before Production)
+
+| Blocker | Status | Action Required |
+|---------|--------|-----------------|
+| Stripe env vars | ✅ Done | Already configured in Railway |
+| Cloudinary env vars | ✅ Done | `varsityhub` cloud configured |
+| Google OAuth env vars | ⏳ | Add `GOOGLE_OAUTH_CLIENT_IDS` to Railway |
+| Google Maps API keys | ⏳ | Add keys to app.json for iOS/Android |
+| Apple Developer Account | ✅ Done | Enrolled and confirmed |
+| Google Play Console | ✅ Done | Enrolled and confirmed |
+| Privacy/Terms hosted | ⏳ | Deploy to public URLs (GitHub Pages works) |
+| Coach permissions audit | ⏳ | Run through checklist below |
 
 ## ✅ Completed (Staging Ready)
 
@@ -21,6 +35,11 @@
 - [x] Deferred organization loading to unblock core profile
 - [x] Aligned user-profile error handling with profile screen
 - [x] Added token cleanup on 401 responses
+- [x] **Rate limiting middleware** - Granular rate limiters for posts, messages, auth, reports
+- [x] **Job queue infrastructure** - BullMQ queues for notifications, emails, analytics
+- [x] **Content reporting flow** - POST /reports endpoint for abuse reports
+- [x] **Deep linking** - utils/deepLinks.ts for parsing incoming links
+- [x] **Enhanced sharing** - utils/share.ts with deep link generation
 
 ---
 
@@ -107,19 +126,33 @@
 ### 5. Missing Infrastructure
 **Priority: MEDIUM**
 
-- [ ] **Configure Cloudinary**
-  - Get production credentials
+- [ ] **Configure Cloudinary** ⚠️ CRITICAL
+  - Get production credentials from cloudinary.com
+  - Add to Railway: `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`
   - Test image/video uploads
-  - Set up CDN caching
+
+- [x] **Configure Stripe** ✅ ALREADY DONE
+  - ✅ `STRIPE_SECRET_KEY` set in Railway
+  - ✅ `STRIPE_WEBHOOK_SECRET` set in Railway  
+  - ✅ `STRIPE_PRICE_VETERAN` = price_1SCd6HRuB2a0vFjp1QlboTEv
+  - ✅ `STRIPE_PRICE_LEGEND` = price_1SCd6IRuB2a0vFjpQOSdctN4
+  - Ad checkout and subscriptions ready
+
+- [ ] **Configure Google OAuth** ⚠️ CRITICAL
+  - Add to Railway: `GOOGLE_OAUTH_CLIENT_IDS`
+  - Test Google sign-in flow
+
+- [ ] **Configure Redis (Optional)**
+  - Add to Railway: `REDIS_URL` (Upstash recommended)
+  - Enables: Job queues, scheduled tasks, notifications
 
 - [ ] **Configure Twilio (Optional)**
   - SMS verification for phone auth
   - Alternative: Email-only for MVP
 
-- [ ] **Configure Sentry**
-  - Error tracking in production
-  - Performance monitoring
-  - User feedback integration
+- [ ] **Sentry already configured**
+  - ✅ Server DSN set
+  - ✅ Mobile DSN in utils/sentry.ts
 
 ### 6. User Experience Polish
 **Priority: MEDIUM**

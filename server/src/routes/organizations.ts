@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { debugLog } from '../lib/debugLog.js';
+import { getAppBaseUrl } from '../lib/env.js';
 import {
     sendOrganizationInvitationEmail,
     sendPlanLimitWarningEmail,
@@ -329,7 +330,7 @@ organizationsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res
       max_organizations: orgLimit,
       current_plan: plan,
       upgrade_required: true,
-      upgrade_url: `${process.env.APP_BASE_URL}/upgrade?from=org_limit`
+      upgrade_url: `${getAppBaseUrl()}/upgrade?from=org_limit`
     });
   }
   const parsed = createOrganizationSchema.safeParse(req.body);
@@ -461,7 +462,7 @@ organizationsRouter.post('/create', requireAuth as any, async (req: AuthedReques
       max_organizations: orgLimit,
       current_plan: plan,
       upgrade_required: true,
-      upgrade_url: `${process.env.APP_BASE_URL}/upgrade?from=org_limit`
+      upgrade_url: `${getAppBaseUrl()}/upgrade?from=org_limit`
     });
   }
 
@@ -558,8 +559,8 @@ organizationsRouter.post('/create', requireAuth as any, async (req: AuthedReques
           inviterName: inviter?.display_name || 'An organizer',
           organizationName: organization.name,
           role: inv.role,
-          acceptLink: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/organization-invites?invite=${organization.id}`,
-          declineLink: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/organization-invites/${organization.id}/decline`,
+          acceptLink: `${getAppBaseUrl()}/organization-invites?invite=${organization.id}`,
+          declineLink: `${getAppBaseUrl()}/organization-invites/${organization.id}/decline`,
         }).catch(() => false)
       ));
     }
@@ -633,8 +634,8 @@ organizationsRouter.post('/:id/invite', requireAuth as any, async (req: AuthedRe
       inviterName: inviter?.display_name || 'An organizer',
       organizationName: org.name,
       role: role || 'member',
-      acceptLink: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/organization-invites?invite=${invite.id}`,
-      declineLink: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/organization-invites/${invite.id}/decline`,
+      acceptLink: `${getAppBaseUrl()}/organization-invites?invite=${invite.id}`,
+      declineLink: `${getAppBaseUrl()}/organization-invites/${invite.id}/decline`,
     }).catch(() => false);
   }
   
@@ -712,8 +713,8 @@ organizationsRouter.post('/invites/:inviteId/accept', requireAuth as any, async 
           teamName: invite.organization.name,
           joinedDate: joinedDate,
           organizationName: invite.organization.name,
-          viewTeamLink: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/organizations/${invite.organization_id}/members`,
-          manageStaffLink: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/organizations/${invite.organization_id}/staff`,
+          viewTeamLink: `${getAppBaseUrl()}/organizations/${invite.organization_id}/members`,
+          manageStaffLink: `${getAppBaseUrl()}/organizations/${invite.organization_id}/staff`,
         }).catch((err: Error) => {
           console.error('[organizations] Failed to send staff member joined email:', err);
         })

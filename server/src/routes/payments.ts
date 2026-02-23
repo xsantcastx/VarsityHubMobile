@@ -1,6 +1,7 @@
 import expressPkg, { Router } from 'express';
 import Stripe from 'stripe';
 import { debugLog } from '../lib/debugLog.js';
+import { getAppBaseUrl } from '../lib/env.js';
 import {
     sendBillingNoticeEmail,
     sendPaymentFailedEmail,
@@ -19,6 +20,14 @@ import { calculateAdPriceCents } from '../utils/adPricing.js';
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', { apiVersion: '2024-06-20' });
 
 export const paymentsRouter = Router();
+
+// Config status for client-side payment readiness check
+paymentsRouter.get('/config', (_req, res) => {
+  res.json({
+    stripe_configured: !!process.env.STRIPE_SECRET_KEY,
+    has_webhook_secret: !!process.env.STRIPE_WEBHOOK_SECRET,
+  });
+});
 
 const formatUsd = (cents?: number | null) => {
   if (typeof cents !== 'number' || Number.isNaN(cents)) return '';
@@ -223,7 +232,7 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
     debugLog(`[payments] Creating ${chosen} ${legendOneTime ? 'one-time payment' : 'subscription'} checkout with fallback price_data (no configured price ID)`);
   }
 
-  const appBase = process.env.APP_BASE_URL || (process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000');
+  const appBase = getAppBaseUrl();
   // Use deep links for mobile app redirects
   const appScheme = 'varsityhubmobile';
   const success = `${appScheme}://payment-success?session_id={CHECKOUT_SESSION_ID}&type=subscription`;
@@ -416,7 +425,7 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
 
   // Schedule payment reminder email 15 minutes later if checkout not completed (1-hour hold total)
   const delayMs = 15 * 60 * 1000; // 15 minutes
-  const checkoutLink = session.url || `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/checkout?ad_id=${ad_id}`;
+  const checkoutLink = session.url || `${getAppBaseUrl()}/checkout?ad_id=${ad_id}`;
   
   await emailQueue.add(
     'payments.checkout_abandoned',
@@ -507,8 +516,8 @@ paymentsRouter.post('/webhook', async (req, res) => {
         failedDate: failedDate,
         planName: invoice.lines.data[0]?.description || 'VarsityHub Subscription',
         retryDate: retryDate,
-        updatePaymentLink: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/billing/payment-methods`,
-        contactSupportLink: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/support`,
+        updatePaymentLink: `${getAppBaseUrl()}/billing/payment-methods`,
+        contactSupportLink: `${getAppBaseUrl()}/support`,
       }).catch(err => console.warn('[billing-email] payment_failed failed:', err));
     }
   }

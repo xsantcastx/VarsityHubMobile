@@ -58,8 +58,8 @@ ALLOWED_ORIGINS=*
 APP_SCHEME=varsityhubmobile
 
 # Stripe
-STRIPE_SECRET_KEY=sk_test_51S5t0kRuB2a0vFjp0bdj2NbzkDp6ACVhtWU48TXtNuviL0wnJxxIx0eBgg6whwiM9gJkNiqnINPbSQHqV9qRIxfe00KEwuxjwZ
-STRIPE_WEBHOOK_SECRET=whsec_8f60823f31adfb85a3616a110e6a3d97fcfb529f8c0868a67a83b1d69edc833a
+STRIPE_SECRET_KEY=sk_test_xxx  # Set from Stripe Dashboard; never commit real keys
+STRIPE_WEBHOOK_SECRET=whsec_xxx  # Set from Stripe Dashboard
 STRIPE_PRICE_VETERAN=price_1SCd6HRuB2a0vFjp1QlboTEv
 STRIPE_PRICE_LEGEND=price_1SCd6IRuB2a0vFjpQOSdctN4
 

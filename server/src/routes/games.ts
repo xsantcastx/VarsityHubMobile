@@ -304,6 +304,24 @@ gamesRouter.post('/', requireAuth as any, requireVerified as any, async (req: Au
       }
     }
 
+    // Fallback: resolve coordinates from venue_place_id when we have place ID but no coords
+    const needsCoords = (gameData.latitude == null || gameData.longitude == null) && gameData.venue_place_id;
+    if (needsCoords) {
+      try {
+        const { getPlaceDetails } = await import('../lib/geocoding.js');
+        const details = await getPlaceDetails(gameData.venue_place_id);
+        if (details?.latitude != null && details?.longitude != null) {
+          gameData.latitude = details.latitude;
+          gameData.longitude = details.longitude;
+          gameData.venue_lat = details.latitude;
+          gameData.venue_lng = details.longitude;
+          debugLog(`✅ Resolved coords from place_id: ${gameData.venue_place_id} → ${details.latitude}, ${details.longitude}`);
+        }
+      } catch (err) {
+        console.warn('Place details resolution failed, continuing without coordinates:', err);
+      }
+    }
+
     // Approval workflow: Check if user is a coach/manager OR if user is admin
     let isCoach = false;
     

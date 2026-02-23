@@ -1,6 +1,5 @@
-import { Colors } from '@/constants/Colors';
 import React from 'react';
-import { Pressable, StyleSheet, Text, TextStyle, ViewStyle, useColorScheme } from 'react-native';
+import { Pressable, StyleSheet, StyleProp, Text, TextStyle, ViewStyle } from 'react-native';
 
 type Variant = 'default' | 'outline' | 'ghost';
 type Size = 'sm' | 'md' | 'lg' | 'icon';
@@ -11,9 +10,8 @@ export interface ButtonProps {
   disabled?: boolean;
   variant?: Variant;
   size?: Size;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
   textStyle?: TextStyle;
-  accessibilityLabel?: string;
 }
 
 export function Button({
@@ -24,15 +22,13 @@ export function Button({
   size = 'md',
   style,
   textStyle,
-  accessibilityLabel,
 }: ButtonProps) {
-  const colorScheme = useColorScheme() ?? 'light';
   const vs = getVariantStyles(variant);
   const ss = getSizeStyles(size);
   const content = React.Children.map(children, (child) => {
     if (typeof child === 'string' || typeof child === 'number') {
       return (
-        <Text style={[styles.text, vs.text(colorScheme), ss.text, textStyle]}>{String(child)}</Text>
+        <Text style={[styles.text, vs.text, ss.text, textStyle]}>{String(child)}</Text>
       );
     }
     return child;
@@ -42,8 +38,7 @@ export function Button({
     <Pressable
       onPress={onPress}
       disabled={disabled}
-      accessibilityLabel={accessibilityLabel}
-      style={[styles.base, vs.container(colorScheme), ss.container, disabled && styles.disabled, style]}
+      style={[styles.base, vs.container, ss.container, disabled && styles.disabled, style]}
     >
       {content}
     </Pressable>
@@ -66,20 +61,11 @@ const styles = StyleSheet.create({
 function getVariantStyles(variant: Variant) {
   switch (variant) {
     case 'outline':
-      return { 
-        container: (cs: 'light'|'dark') => ({ backgroundColor: 'transparent', borderColor: Colors[cs].border }), 
-        text: (cs: 'light'|'dark') => ({ color: Colors[cs].text }) 
-      };
+      return { container: { backgroundColor: 'transparent', borderColor: '#D1D5DB' }, text: { color: '#111827' } };
     case 'ghost':
-      return { 
-        container: () => ({ backgroundColor: 'transparent', borderColor: 'transparent' }), 
-        text: (cs: 'light'|'dark') => ({ color: Colors[cs].tint }) 
-      };
+      return { container: { backgroundColor: 'transparent', borderColor: 'transparent' }, text: { color: '#111827' } };
     default:
-      return { 
-        container: (cs: 'light'|'dark') => ({ backgroundColor: Colors[cs].tint, borderColor: Colors[cs].tint }), 
-        text: () => ({ color: 'white' }) 
-      };
+      return { container: { backgroundColor: '#111827', borderColor: '#111827' }, text: { color: 'white' } };
   }
 }
 
@@ -97,3 +83,4 @@ function getSizeStyles(size: Size): { container: ViewStyle; text: TextStyle } {
 }
 
 export default Button;
+

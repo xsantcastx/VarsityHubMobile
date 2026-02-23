@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, useColorScheme, View } from 'react-native';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
+import { useAuth } from '@/context/AuthProvider';
 
 type OnboardingAction = {
   icon: keyof typeof Ionicons.glyphMap;
@@ -21,6 +22,7 @@ type CoachTier = 'rookie' | 'veteran' | 'legend';
 export default function RoleOnboardingScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
+  const { user } = useAuth();
   const [accountType, setAccountType] = useState<AccountType | null>(null);
   const [coachTier, setCoachTier] = useState<CoachTier | null>(null);
   const [zipCode, setZipCode] = useState('');
@@ -31,15 +33,18 @@ export default function RoleOnboardingScreen() {
   const logTelemetry = (event: string, data?: Record<string, unknown>) => {
     if (__DEV__) {
       // eslint-disable-next-line no-console
-      console.log(`[RoleOnboarding] ${event}`, data || {});
+      if (__DEV__) console.log(`[RoleOnboarding] ${event}`, data || {});
     }
   };
 
   useEffect(() => {
-    void (async () => {
-      try {
-        const me: any = await User.me();
-        const userRole = me?.role;
+    if (!user) {
+      setShowAccountSelection(true);
+      return;
+    }
+    const me: any = user;
+    try {
+      const userRole = me?.role;
         const subscriptionTier = me?.subscription_tier;
         
         // Determine account type (fan or coach)
@@ -68,15 +73,14 @@ export default function RoleOnboardingScreen() {
           logTelemetry('prefill-zip', { zip: hasZip });
         }
         
-        // If no account type, show selection screen
-        if (!userRole) {
-          setShowAccountSelection(true);
-        }
-      } catch {
+      // If no account type, show selection screen
+      if (!userRole) {
         setShowAccountSelection(true);
       }
-    })();
-  }, []);
+    } catch {
+      setShowAccountSelection(true);
+    }
+  }, [user]);
 
   const validateZipCode = (zip: string): boolean => {
     // US ZIP code: 5 digits or 5+4 format
@@ -797,5 +801,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     marginBottom: 4,
+  },
+  accountUpgradeNote: {
+    marginTop: 8,
+    fontSize: 12,
+    fontStyle: 'italic',
+    textAlign: 'center',
   },
 });

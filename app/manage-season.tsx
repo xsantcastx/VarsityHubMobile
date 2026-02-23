@@ -8,6 +8,7 @@ import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, T
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Game as GameAPI, Team as TeamAPI } from '@/api/entities';
+import { useAuth } from '@/context/AuthProvider';
 import AddGameModal, { GameFormData } from '@/components/AddGameModal';
 import BulkScheduleModal from '@/components/BulkScheduleModal';
 import QuickAddGameModal, { QuickGameData } from '@/components/QuickAddGameModal';
@@ -75,6 +76,7 @@ export default function ManageSeasonScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const params = useLocalSearchParams<{ teamId?: string }>();
+  const { user } = useAuth();
 
   // Modal state for universal action modal
   const [actionModal, setActionModal] = useState<{
@@ -104,22 +106,14 @@ export default function ManageSeasonScreen() {
   const [currentTeam, setCurrentTeam] = useState<{ id: string; name: string } | null>(null);
   const [managedTeams, setManagedTeams] = useState<Array<{ id: string; name: string }>>([]);
   const [teamSelectorOpen, setTeamSelectorOpen] = useState<boolean>(false);
-  const [error, setError] = useState<{ message: string; timestamp: number } | null>(null);
-  const [errorVisible, setErrorVisible] = useState(false);
 
   // Guard: restrict to coach role
   useEffect(() => {
-    void (async () => {
-      try {
-        // @ts-ignore JS exports
-        const { User } = await import('@/api/entities');
-        const me: any = await User.me();
-        if (me?.preferences?.role !== 'coach') {
-          router.replace('/(tabs)/feed');
-        }
-      } catch {}
-    })().catch(() => {});
-  }, [router]);
+    const role = (user as any)?.preferences?.role;
+    if (user && role !== 'coach') {
+      router.replace('/(tabs)');
+    }
+  }, [user, router]);
 
   const loadTeam = useCallback(async () => {
     setLoading(true);
@@ -149,9 +143,6 @@ export default function ManageSeasonScreen() {
       }
     } catch (error) {
       console.error('Error loading team:', error);
-      const msg = error instanceof Error ? error.message : 'Failed to load team';
-      setError({ message: msg, timestamp: Date.now() });
-      setErrorVisible(true);
     } finally {
       setLoading(false);
     }
@@ -182,39 +173,7 @@ export default function ManageSeasonScreen() {
         : [];
       
       // Convert backend games to local Game format
-      const convertedGames: Game[] = relevantGames.map((game: any) => {
-        const resolvedType: Game['type'] =
-          game.game_type === 'neutral' || game.type === 'neutral'
-            ? 'neutral'
-            : game.home_team && game.home_team !== 'Away Team'
-              ? 'home'
-              : 'away';
-
-        const rawStatus = String(game.status || game.game_status || game.event_status || '').toLowerCase();
-        let normalizedStatus: Game['status'] = 'upcoming';
-        switch (rawStatus) {
-          case 'completed':
-          case 'final':
-            normalizedStatus = 'completed';
-            break;
-          case 'cancelled':
-          case 'canceled':
-            normalizedStatus = 'cancelled';
-            break;
-          case 'pending':
-            normalizedStatus = 'pending';
-            break;
-          case 'in-progress':
-          case 'in_progress':
-            normalizedStatus = 'in-progress';
-            break;
-          case 'live':
-            normalizedStatus = 'live';
-            break;
-          default:
-            normalizedStatus = 'upcoming';
-        }
-
+      const convertedGames = relevantGames.map((game: any) => {
         const converted: Game = {
           id: game.id,
           homeTeam: game.home_team || null,
@@ -227,12 +186,11 @@ export default function ManageSeasonScreen() {
             hour12: true
           }) : '7:00 PM',
           location: game.location || 'TBD',
-          type: resolvedType,
-          status: normalizedStatus,
+          type: (game.home_team && game.home_team !== 'Away Team' ? 'home' : 'away'),
+          status: 'upcoming',
           banner_url: game.banner_url || undefined, // Include banner URL from backend
           cover_image_url: game.cover_image_url || undefined, // Include cover image URL from backend
         };
-        
         return converted;
       });
       
@@ -243,8 +201,12 @@ export default function ManageSeasonScreen() {
         ? 'Server is busy, please try again in a moment'
         : 'Failed to load games from server';
       
-      setError({ message: errorMessage, timestamp: Date.now() });
-      setErrorVisible(true);
+      setActionModal({
+        visible: true,
+        title: 'Error',
+        message: errorMessage,
+        options: [{ label: 'OK', onPress: () => {}, color: undefined }],
+      });
     } finally {
       setLoading(false);
     }
@@ -425,16 +387,19 @@ export default function ManageSeasonScreen() {
     setShowQuickAddModal(true);
   };
 
-  const handleEditGame = (game: Game) => {
-    setEditingGame(game);
-    setShowQuickAddModal(true);
+  const handleEditGame = (game: GameCardGame) => {
+    const localGame = games.find(g => g.id === game.id);
+    if (localGame) {
+      setEditingGame(localGame);
+      setShowQuickAddModal(true);
+    }
   };
 
-  const handleDeleteGame = (game: Game) => {
+  const handleDeleteGame = (game: GameCardGame) => {
     setActionModal({
       visible: true,
       title: 'Delete Game',
-      message: `Are you sure you want to delete the game vs ${game.opponent}?`,
+      message: `Are you sure you want to delete the game vs ${game.opponent || game.opponent_name || 'opponent'}?`,
       options: [
         { label: 'Cancel', onPress: () => {}, color: undefined },
         { label: 'Delete', isDestructive: true, onPress: async () => {
@@ -448,9 +413,12 @@ export default function ManageSeasonScreen() {
                 options: [{ label: 'OK', onPress: () => {}, color: undefined }],
               });
             } catch (error) {
-              const msg = error instanceof Error ? error.message : 'Failed to delete game';
-              setError({ message: msg, timestamp: Date.now() });
-              setErrorVisible(true);
+              setActionModal({
+                visible: true,
+                title: 'Error',
+                message: 'Failed to delete game. Please try again.',
+                options: [{ label: 'OK', onPress: () => {}, color: undefined }],
+              });
               console.error('Error deleting game:', error);
             }
           }
@@ -459,16 +427,18 @@ export default function ManageSeasonScreen() {
     });
   };
 
-  const handleChangeGameStatus = (game: Game) => {
+  const handleChangeGameStatus = (game: GameCardGame) => {
+    const localGame = games.find(g => g.id === game.id);
+    if (!localGame) return;
     const statusOptions = [
       { label: 'Upcoming', value: 'upcoming' as const },
       { label: 'Completed', value: 'completed' as const },
       { label: 'Cancelled', value: 'cancelled' as const },
-    ].filter(option => option.value !== game.status);
+    ].filter(option => option.value !== localGame.status);
     setActionModal({
       visible: true,
       title: 'Change Status',
-      message: `Current status: ${game.status}`,
+      message: `Current status: ${localGame.status}`,
       options: [
         { label: 'Cancel', onPress: () => {}, color: undefined },
         ...statusOptions.map(option => ({
@@ -489,18 +459,19 @@ export default function ManageSeasonScreen() {
     });
   };
 
-  const handleGamePress = (game: Game) => {
+  const handleGamePress = (game: GameCardGame) => {
     router.push({
       pathname: '/(tabs)/feed/game/[id]',
       params: { id: game.id }
     });
   };
 
-  const handleGameLongPress = (game: Game) => {
+  const handleGameLongPress = (game: GameCardGame) => {
+    const _localGame = games.find(g => g.id === game.id);
     setActionModal({
       visible: true,
       title: 'Game Options',
-      message: `${game.opponent} - ${game.date}`,
+      message: `${game.opponent || game.opponent_name || 'Game'} - ${game.date || game.scheduled_date || ''}`,
       options: [
         { label: 'Cancel', onPress: () => {}, color: undefined },
         { label: 'Edit', onPress: () => handleEditGame(game) },
@@ -527,9 +498,12 @@ export default function ManageSeasonScreen() {
       });
     } catch (error: any) {
       console.error('Error approving game:', error);
-      const msg = error?.message || 'We could not approve this game';
-      setError({ message: msg, timestamp: Date.now() });
-      setErrorVisible(true);
+      setActionModal({
+        visible: true,
+        title: 'Approval Failed',
+        message: error?.message || 'We could not approve this game. Please try again.',
+        options: [{ label: 'OK', onPress: () => {} }],
+      });
     }
   };
 
@@ -556,9 +530,12 @@ export default function ManageSeasonScreen() {
               });
             } catch (error: any) {
               console.error('Error rejecting game:', error);
-              const msg = error?.message || 'We could not reject this game';
-              setError({ message: msg, timestamp: Date.now() });
-              setErrorVisible(true);
+              setActionModal({
+                visible: true,
+                title: 'Rejection Failed',
+                message: error?.message || 'We could not reject this game. Please try again.',
+                options: [{ label: 'OK', onPress: () => {} }],
+              });
             }
           },
         },
@@ -698,8 +675,8 @@ export default function ManageSeasonScreen() {
 
 
       // Save to backend API (create or update)
-      const savedGame = isEditing 
-        ? await GameAPI.update(gameData.id, gamePayload)
+      const savedGame = isEditing
+        ? await GameAPI.update(gameData.id!, gamePayload)
         : await GameAPI.create(gamePayload);
       
       // Create local game object for immediate UI update
@@ -746,8 +723,12 @@ export default function ManageSeasonScreen() {
       console.error('Error message:', error?.message);
       const details = error?.data?.issues ? `\nDetails: ${JSON.stringify(error.data.issues)}` : '';
       const errorMsg = (error?.data?.error || error?.data?.message || error?.message || 'Unknown error') + details;
-      setError({ message: `Failed to add event: ${errorMsg}`, timestamp: Date.now() });
-      setErrorVisible(true);
+      setActionModal({
+        visible: true,
+        title: 'Error',
+        message: `Failed to add event: ${errorMsg}`,
+        options: [{ label: 'OK', onPress: () => {}, color: undefined }],
+      });
     }
   };
 
@@ -874,9 +855,12 @@ export default function ManageSeasonScreen() {
       });
       
     } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Unknown error';
-      setError({ message: `Failed to create bulk games: ${msg}`, timestamp: Date.now() });
-      setErrorVisible(true);
+      setActionModal({
+        visible: true,
+        title: 'Error',
+        message: `Failed to create bulk games: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        options: [{ label: 'OK', onPress: () => {}, color: undefined }],
+      });
       console.error('Error creating bulk games:', error);
     }
   };
@@ -979,8 +963,6 @@ export default function ManageSeasonScreen() {
       setPromptValue(promptModal.defaultValue || '');
     }
   }, [promptModal.visible, promptModal.defaultValue]);
-
-  const nextGame = upcomingGames[0];
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}> 
@@ -1125,31 +1107,15 @@ export default function ManageSeasonScreen() {
         </View>
       )}
 
-      {/* Quick actions */}
+      {/* Quick Actions - SIMPLIFIED: Add Event Only */}
       <View style={[styles.quickActionsCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-        <View style={styles.quickActions}>
-          <Pressable 
-            style={[styles.quickActionButton, { backgroundColor: Colors[colorScheme].tint }]}
-            onPress={handleAddGame}
-          >
-            <Ionicons name="add-outline" size={18} color="#fff" />
-            <Text style={styles.quickActionText}>Quick Add</Text>
-          </Pressable>
-          <Pressable 
-            style={[styles.quickActionButton, { backgroundColor: colorScheme === 'dark' ? '#1F2937' : '#E5E7EB' }]}
-            onPress={() => setShowAddGameModal(true)}
-          >
-            <Ionicons name="create-outline" size={18} color={colorScheme === 'dark' ? '#E5E7EB' : '#111827'} />
-            <Text style={[styles.quickActionText, { color: colorScheme === 'dark' ? '#E5E7EB' : '#111827' }]}>Full Event</Text>
-          </Pressable>
-          <Pressable 
-            style={[styles.quickActionButton, { backgroundColor: colorScheme === 'dark' ? '#0F172A' : '#D1FAE5' }]}
-            onPress={() => setShowBulkScheduleModal(true)}
-          >
-            <Ionicons name="cloud-upload-outline" size={18} color={Colors[colorScheme].tint} />
-            <Text style={[styles.quickActionText, { color: Colors[colorScheme].tint }]}>Bulk Import</Text>
-          </Pressable>
-        </View>
+        <Pressable 
+          style={[styles.quickActionButton, { backgroundColor: Colors[colorScheme].tint }]}
+          onPress={handleAddGame}
+        >
+          <Ionicons name="add-outline" size={20} color="#fff" />
+          <Text style={styles.quickActionText}>Add Event</Text>
+        </Pressable>
       </View>
 
       {/* Season snapshot */}
@@ -1165,17 +1131,15 @@ export default function ManageSeasonScreen() {
             </Text>
           </View>
           <View style={styles.settingsButton}>
-            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12, textAlign: 'center' }}>
-              {getWinPercentage()}%
-            </Text>
+            <Text style={{ color: '#fff', fontWeight: '700' }}>{getWinPercentage()}%</Text>
           </View>
         </View>
         <View style={styles.statsGrid}>
           {[
             { label: 'Wins', value: seasonStats.wins },
             { label: 'Losses', value: seasonStats.losses },
-            { label: 'Games', value: seasonStats.totalGames },
-            { label: 'Next', value: nextGame ? nextGame.opponent ?? 'TBD' : 'TBD' },
+            { label: 'Points For', value: seasonStats.pointsFor },
+            { label: 'Points Against', value: seasonStats.pointsAgainst },
           ].map((stat) => (
             <View key={stat.label} style={styles.statItem}>
               <Text style={styles.statNumber}>{stat.value}</Text>
@@ -1183,14 +1147,6 @@ export default function ManageSeasonScreen() {
             </View>
           ))}
         </View>
-        {nextGame && (
-          <View style={styles.nextGamePill}>
-            <Ionicons name="location-outline" size={14} color="#fff" />
-            <Text style={styles.nextGameText}>
-              Next: {nextGame.opponent} • {nextGame.date} @ {nextGame.time}
-            </Text>
-          </View>
-        )}
       </View>
 
       {/* Tab controls */}
@@ -1704,7 +1660,7 @@ export default function ManageSeasonScreen() {
         userRole="coach"
         initialData={editingGame ? {
           id: editingGame.id,
-          opponent: editingGame.opponent,
+          opponent: editingGame.opponent || '',
           date: editingGame.date,
           time: editingGame.time,
           type: editingGame.type === 'neutral' ? 'home' : editingGame.type, // Convert neutral to home for editing
@@ -1722,49 +1678,6 @@ export default function ManageSeasonScreen() {
         currentTeamName={currentTeam?.name || 'My Team'}
         currentTeamId={params.teamId || ''}
       />
-
-      {/* Error Toast */}
-      {errorVisible && error && (
-        <View
-          style={{
-            position: 'absolute',
-            bottom: 20,
-            left: 16,
-            right: 16,
-            backgroundColor: '#EF4444',
-            padding: 16,
-            borderRadius: 12,
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 12,
-            shadowColor: '#000',
-            shadowOpacity: 0.3,
-            shadowRadius: 8,
-            shadowOffset: { width: 0, height: 2 },
-            elevation: 5,
-            zIndex: 1000,
-          }}
-        >
-          <Ionicons name="alert-circle" size={20} color="#fff" />
-          <Text
-            style={{
-              flex: 1,
-              color: '#fff',
-              fontSize: 14,
-              fontWeight: '500',
-            }}
-            numberOfLines={2}
-          >
-            {error.message}
-          </Text>
-          <Pressable
-            onPress={() => setErrorVisible(false)}
-            style={{ padding: 4 }}
-          >
-            <Ionicons name="close" size={18} color="#fff" />
-          </Pressable>
-        </View>
-      )}
     </SafeAreaView>
   );
 }
@@ -1839,22 +1752,6 @@ const styles = StyleSheet.create({
     opacity: 0.8,
     textTransform: 'uppercase',
   },
-  nextGamePill: {
-    marginTop: 10,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    backgroundColor: 'rgba(0,0,0,0.12)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    alignSelf: 'flex-start',
-  },
-  nextGameText: {
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: '600',
-  },
   quickActionsCard: {
     marginHorizontal: 16,
     marginBottom: 16,
@@ -1863,11 +1760,9 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
   },
   quickActions: {
-    flexDirection: 'row',
     gap: 12,
   },
   quickActionButton: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,

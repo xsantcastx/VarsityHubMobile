@@ -159,12 +159,12 @@ npx tsc --noEmit --skipLibCheck
 Ensure these environment variables are set:
 ```
 # Server (.env)
-STRIPE_SECRET_KEY=sk_live_51RtgdG...
+STRIPE_SECRET_KEY=sk_live_xxx  # Set from Stripe Dashboard; never commit real keys
 STRIPE_PRICE_VETERAN=price_1SGKDDGJt8CsPE1EY6aFs7Hz
 STRIPE_PRICE_LEGEND=price_1SKO8lGJt8CsPE1E7RmXJblX
 
 # Mobile (.env)
-EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_51RtgdG...
+EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_xxx  # Set from Stripe Dashboard
 EXPO_PUBLIC_API_URL=https://api-production-8ac3.up.railway.app
 ```
 

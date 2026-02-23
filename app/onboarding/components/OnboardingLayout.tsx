@@ -12,6 +12,8 @@ interface OnboardingLayoutProps {
   children: ReactNode;
   onBack?: () => void;
   onBackPress?: () => void;
+  /** Explicit route for back button - use when step progression uses replace() so router.back() would skip previous step */
+  backRoute?: string;
   showBackButton?: boolean;
   emailVerified?: boolean;
   onVerifyEmail?: () => void;
@@ -22,12 +24,13 @@ interface OnboardingLayoutProps {
 
 export default function OnboardingLayout({
   step,
-  totalSteps = 9,
+  totalSteps = 10,
   title,
   subtitle,
   children,
   onBack,
   onBackPress,
+  backRoute,
   showBackButton = true,
   emailVerified,
   onVerifyEmail,
@@ -36,7 +39,7 @@ export default function OnboardingLayout({
   loading,
 }: OnboardingLayoutProps) {
   const router = useRouter();
-  const colorScheme = useColorScheme();
+  const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
   const insets = useSafeAreaInsets();
 
@@ -45,6 +48,9 @@ export default function OnboardingLayout({
       onBackPress();
     } else if (onBack) {
       onBack();
+    } else if (backRoute) {
+      // Explicit previous step - onboarding uses replace() so back must go to specific route
+      router.replace(backRoute as any);
     } else if (router.canGoBack()) {
       router.back();
     } else {

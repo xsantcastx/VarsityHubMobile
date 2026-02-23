@@ -195,6 +195,10 @@ async function main() {
   }
 
   // --- Ad & reservations ---
+  const today = new Date();
+  const isoDate = (d: Date) => new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+
+  // Draft ad (for testing ad creation flow)
   const ad = await prisma.ad.create({
     data: {
       user_id: u1.id,
@@ -209,13 +213,37 @@ async function main() {
       payment_status: 'unpaid',
     },
   });
-
-  const today = new Date();
-  const isoDate = (d: Date) => new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
   const d1 = new Date(today); d1.setDate(today.getDate() + 2);
   const d2 = new Date(today); d2.setDate(today.getDate() + 5);
   await prisma.adReservation.createMany({
     data: [isoDate(d1), isoDate(d2)].map((d) => ({ ad_id: ad.id, date: d })),
+    skipDuplicates: true,
+  });
+
+  // Featured ad: paid + approved + TODAY's reservation - appears in feed
+  const featuredAd = await prisma.ad.create({
+    data: {
+      user_id: u1.id,
+      contact_name: 'Local Sports Shop',
+      contact_email: 'shop@example.com',
+      business_name: 'Varsity Sports Shop',
+      banner_url: 'https://images.unsplash.com/photo-1461896836934-ff607b4f0c67?q=80&w=1280',
+      target_url: 'https://instagram.com/varsityhub_',
+      target_zip_code: null, // Show to all
+      radius: 45,
+      description: 'Gear up for the season. Balls, jerseys, and more.',
+      status: 'approved',
+      payment_status: 'paid',
+    },
+  });
+  const todayUTC = isoDate(today);
+  const futureDates = [todayUTC];
+  for (let i = 1; i <= 7; i++) {
+    const d = new Date(today); d.setDate(today.getDate() + i);
+    futureDates.push(isoDate(d));
+  }
+  await prisma.adReservation.createMany({
+    data: futureDates.map((date) => ({ ad_id: featuredAd.id, date })),
     skipDuplicates: true,
   });
 

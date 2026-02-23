@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { sendEventDecisionEmail, sendEventRsvpConfirmedEmail } from '../lib/email.js';
 import { cancelGameReminders, scheduleGameReminders, sendPushNotification } from '../lib/notifications.js';
+import { getAppBaseUrl } from '../lib/env.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { authMiddleware } from '../middleware/auth.js';
@@ -61,7 +62,7 @@ const serializeEvent = (event: any, opts: { includeGame?: boolean; rsvpCount?: n
 
 const TEAM_MANAGEMENT_ROLES = ['owner', 'manager', 'coach', 'assistant_coach'];
 
-const appBaseUrl = (process.env.APP_BASE_URL || 'https://varsityhub.app').replace(/\/$/, '');
+const appBaseUrl = getAppBaseUrl();
 
 const formatEventDateLabel = (value?: Date | string | null) => {
   if (!value) return undefined;

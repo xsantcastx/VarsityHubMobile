@@ -79,7 +79,7 @@ class TestingMonitor {
 
     // Capture network errors
     const originalFetch = window.fetch;
-    window.fetch = async (...args: Parameters<typeof fetch>) => {
+    window.fetch = (async (...args: Parameters<typeof fetch>) => {
       try {
         const response = await originalFetch(...args);
         if (!response.ok) {
@@ -101,7 +101,7 @@ class TestingMonitor {
         });
         throw error;
       }
-    };
+    }) as typeof window.fetch;
 
     console.log('🔍 Testing Monitor Started - All errors will be logged');
   }

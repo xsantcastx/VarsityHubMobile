@@ -15,6 +15,8 @@ import request from 'supertest';
 import { createTestApp } from '../src/__tests__/testApp.js';
 import { prisma as sharedPrisma } from '../src/lib/prisma.js';
 
+const makeTestHash = (label: string) => `hash-${label}-${process.pid}`;
+
 const isCi = `${process.env.CI ?? ''}`.toLowerCase() === 'true';
 const shouldSkipIntegration =
   isCi ||
@@ -140,7 +142,7 @@ describeIntegration('OAuth Sign-In Integration Tests', () => {
 
   describe('POST /auth/google', () => {
     it('should create new user with valid Google token', async () => {
-      const response = (request(app) as any)
+      const response = await (request(app) as any)
         .post('/auth/google')
         .send({ id_token: 'valid-google-token' })
         .expect(200);
@@ -156,7 +158,7 @@ describeIntegration('OAuth Sign-In Integration Tests', () => {
     });
 
     it('should return 400 for invalid token format', async () => {
-      const response = (request(app) as any)
+      const response = await (request(app) as any)
         .post('/auth/google')
         .send({ id_token: '' })
         .expect(400);
@@ -165,7 +167,7 @@ describeIntegration('OAuth Sign-In Integration Tests', () => {
     });
 
     it('should return 400 for missing email in Google credential', async () => {
-      const response = (request(app) as any)
+      const response = await (request(app) as any)
         .post('/auth/google')
         .send({ id_token: 'invalid-email-google-token' })
         .expect(400);
@@ -174,7 +176,7 @@ describeIntegration('OAuth Sign-In Integration Tests', () => {
     });
 
     it('should return 400 for unverified email', async () => {
-      const response = (request(app) as any)
+      const response = await (request(app) as any)
         .post('/auth/google')
         .send({ id_token: 'unverified-email-google-token' })
         .expect(400);
@@ -183,7 +185,7 @@ describeIntegration('OAuth Sign-In Integration Tests', () => {
     });
 
     it('should return 401 for invalid Google token', async () => {
-      const response = (request(app) as any)
+      const response = await (request(app) as any)
         .post('/auth/google')
         .send({ id_token: 'invalid-token' })
         .expect(401);
@@ -203,7 +205,7 @@ describeIntegration('OAuth Sign-In Integration Tests', () => {
       });
 
       // Sign in with Google
-      const response = (request(app) as any)
+      const response = await (request(app) as any)
         .post('/auth/google')
         .send({ id_token: 'valid-google-token' })
         .expect(200);
@@ -220,12 +222,12 @@ describeIntegration('OAuth Sign-In Integration Tests', () => {
     });
 
     it('should return same user on second Google sign-in', async () => {
-      const firstResponse = (request(app) as any)
+      const firstResponse = await (request(app) as any)
         .post('/auth/google')
         .send({ id_token: 'valid-google-token' })
         .expect(200);
 
-      const secondResponse = (request(app) as any)
+      const secondResponse = await (request(app) as any)
         .post('/auth/google')
         .send({ id_token: 'valid-google-token' })
         .expect(200);
@@ -240,7 +242,7 @@ describeIntegration('OAuth Sign-In Integration Tests', () => {
     const simToken = `sim-${simTokenUserId}`;
 
     it('should create new user with simulator Apple token', async () => {
-      const response = (request(app) as any)
+      const response = await (request(app) as any)
         .post('/auth/apple')
         .send({ identity_token: simToken })
         .expect(200);
@@ -254,7 +256,7 @@ describeIntegration('OAuth Sign-In Integration Tests', () => {
     });
 
     it('should return 400 for empty identity token', async () => {
-      const response = (request(app) as any)
+      const response = await (request(app) as any)
         .post('/auth/apple')
         .send({ identity_token: '' })
         .expect(400);
@@ -263,7 +265,7 @@ describeIntegration('OAuth Sign-In Integration Tests', () => {
     });
 
     it('should return 400 for missing identity token', async () => {
-      const response = (request(app) as any)
+      const response = await (request(app) as any)
         .post('/auth/apple')
         .send({})
         .expect(400);
@@ -286,7 +288,7 @@ describeIntegration('OAuth Sign-In Integration Tests', () => {
       });
 
       // Sign in with Apple
-      const response = (request(app) as any)
+      const response = await (request(app) as any)
         .post('/auth/apple')
         .send({ identity_token: `sim-${appleId}` })
         .expect(200);
@@ -298,12 +300,12 @@ describeIntegration('OAuth Sign-In Integration Tests', () => {
     it('should return same user on second Apple sign-in', async () => {
       const token = `sim-repeat-test-${Date.now()}`;
       
-      const firstResponse = (request(app) as any)
+      const firstResponse = await (request(app) as any)
         .post('/auth/apple')
         .send({ identity_token: token })
         .expect(200);
 
-      const secondResponse = (request(app) as any)
+      const secondResponse = await (request(app) as any)
         .post('/auth/apple')
         .send({ identity_token: token })
         .expect(200);
@@ -315,7 +317,7 @@ describeIntegration('OAuth Sign-In Integration Tests', () => {
     it('should create user with generated email if not provided', async () => {
       const appleId = `sim-noemail-${Date.now()}`;
       
-      const response = (request(app) as any)
+      const response = await (request(app) as any)
         .post('/auth/apple')
         .send({ identity_token: `sim-${appleId}` })
         .expect(200);
@@ -332,21 +334,21 @@ describeIntegration('OAuth Sign-In Integration Tests', () => {
       const appleId = `sim-cross-${Date.now()}`;
 
       // Sign up with email first
-      const signupResponse = (request(app) as any)
+      const signupResponse = await (request(app) as any)
         .post('/auth/register')
         .send({
           email,
           password: process.env.TEST_PASSWORD || `P@${Math.random().toString(36).slice(2, 10)}!9`,
           display_name: 'Test User',
         })
-        .expect(200);
+        .expect(201);
 
       const userId = signupResponse.body.user.id;
 
       // Link Google (but this uses different email, so won't link)
       // Instead, test linking with same email
 
-      const appleResponse = (request(app) as any)
+      const appleResponse = await (request(app) as any)
         .post('/auth/apple')
         .send({ identity_token: `sim-${appleId}` })
         .expect(200);
@@ -355,7 +357,7 @@ describeIntegration('OAuth Sign-In Integration Tests', () => {
     });
 
     it('should set email_verified when signing in with OAuth', async () => {
-      const response = (request(app) as any)
+      const response = await (request(app) as any)
         .post('/auth/google')
         .send({ id_token: googleToken })
         .expect(200);
@@ -398,7 +400,7 @@ describeIntegration('OAuth Sign-In Integration Tests', () => {
 
   describe('Onboarding Flow', () => {
     it('should set needs_onboarding to false for new Google user', async () => {
-      const response = (request(app) as any)
+      const response = await (request(app) as any)
         .post('/auth/google')
         .send({ id_token: (process.env.TEST_GOOGLE_VALID_TOKEN || 'valid-google-token') })
         .expect(200);
@@ -409,7 +411,7 @@ describeIntegration('OAuth Sign-In Integration Tests', () => {
     it('should set needs_onboarding to false for new Apple user', async () => {
       const token = `sim-onboard-${Date.now()}`;
       
-      const response = (request(app) as any)
+      const response = await (request(app) as any)
         .post('/auth/apple')
         .send({ identity_token: token })
         .expect(200);
@@ -418,7 +420,7 @@ describeIntegration('OAuth Sign-In Integration Tests', () => {
     });
 
     it('should set default role to fan for new users', async () => {
-      const response = (request(app) as any)
+      const response = await (request(app) as any)
         .post('/auth/google')
         .send({ id_token: 'valid-google-token' })
         .expect(200);
@@ -429,7 +431,7 @@ describeIntegration('OAuth Sign-In Integration Tests', () => {
 
   describe('Token Generation & Authentication', () => {
     it('should return valid JWT token from Google sign-in', async () => {
-      const response = (request(app) as any)
+      const response = await (request(app) as any)
         .post('/auth/google')
         .send({ id_token: 'valid-google-token' })
         .expect(200);
@@ -443,7 +445,7 @@ describeIntegration('OAuth Sign-In Integration Tests', () => {
     it('should return valid JWT token from Apple sign-in', async () => {
       const token = `sim-jwt-${Date.now()}`;
       
-      const response = (request(app) as any)
+      const response = await (request(app) as any)
         .post('/auth/apple')
         .send({ identity_token: token })
         .expect(200);
@@ -455,14 +457,14 @@ describeIntegration('OAuth Sign-In Integration Tests', () => {
     });
 
     it('should be able to use token to access /me endpoint', async () => {
-      const signInResponse = (request(app) as any)
+      const signInResponse = await (request(app) as any)
         .post('/auth/google')
         .send({ id_token: 'valid-google-token' })
         .expect(200);
 
       const token = signInResponse.body.access_token;
 
-      const meResponse = (request(app) as any)
+      const meResponse = await (request(app) as any)
         .get('/me')
         .set('Authorization', `Bearer ${token}`)
         .expect(200);
@@ -478,7 +480,7 @@ describeIntegration('OAuth Sign-In Integration Tests', () => {
       const originalFetch2 = global.fetch;
       global.fetch = jest.fn(() => Promise.reject(new Error('Network error'))) as any;
 
-      const response = (request(app) as any)
+      const response = await (request(app) as any)
         .post('/auth/google')
         .send({ id_token: 'valid-google-token' })
         .expect(500);
@@ -490,7 +492,7 @@ describeIntegration('OAuth Sign-In Integration Tests', () => {
 
     it('should return 500 on unexpected Apple auth error', async () => {
       // This would require database error injection in a real test
-      const response = (request(app) as any)
+      const response = await (request(app) as any)
         .post('/auth/apple')
         .send({ identity_token: 'sim-error-token' });
 
@@ -499,7 +501,7 @@ describeIntegration('OAuth Sign-In Integration Tests', () => {
     });
 
     it('should handle invalid JSON payload', async () => {
-      const response = (request(app) as any)
+      const response = await (request(app) as any)
         .post('/auth/google')
         .set('Content-Type', 'application/json')
         .send('invalid json')
@@ -511,7 +513,7 @@ describeIntegration('OAuth Sign-In Integration Tests', () => {
 
   describe('Security Considerations', () => {
     it('should not expose sensitive user data', async () => {
-      const response = (request(app) as any)
+      const response = await (request(app) as any)
         .post('/auth/google')
         .send({ id_token: 'valid-google-token' })
         .expect(200);
@@ -529,7 +531,7 @@ describeIntegration('OAuth Sign-In Integration Tests', () => {
     });
 
     it('should validate email addresses are lowercase', async () => {
-      const response = (request(app) as any)
+      const response = await (request(app) as any)
         .post('/auth/google')
         .send({ id_token: 'valid-google-token' })
         .expect(200);
@@ -538,7 +540,7 @@ describeIntegration('OAuth Sign-In Integration Tests', () => {
     });
 
     it('should not accept missing payload fields', async () => {
-      const response = (request(app) as any)
+      const response = await (request(app) as any)
         .post('/auth/google')
         .send({})
         .expect(400);
@@ -549,7 +551,7 @@ describeIntegration('OAuth Sign-In Integration Tests', () => {
 
   describe('Database Consistency', () => {
     it('should create user with all required fields', async () => {
-      const response = (request(app) as any)
+      const response = await (request(app) as any)
         .post('/auth/google')
         .send({ id_token: 'valid-google-token' })
         .expect(200);
@@ -566,12 +568,12 @@ describeIntegration('OAuth Sign-In Integration Tests', () => {
     });
 
     it('should not create duplicate users for same Google ID', async () => {
-      const response1 = (request(app) as any)
+      const response1 = await (request(app) as any)
         .post('/auth/google')
         .send({ id_token: 'valid-google-token' })
         .expect(200);
 
-      const response2 = (request(app) as any)
+      const response2 = await (request(app) as any)
         .post('/auth/google')
         .send({ id_token: 'valid-google-token' })
         .expect(200);
@@ -585,7 +587,7 @@ describeIntegration('OAuth Sign-In Integration Tests', () => {
     });
 
     it('should maintain referential integrity with preferences', async () => {
-      const response = (request(app) as any)
+      const response = await (request(app) as any)
         .post('/auth/apple')
         .send({ identity_token: `sim-integrity-${Date.now()}` })
         .expect(200);

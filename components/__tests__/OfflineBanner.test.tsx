@@ -12,6 +12,10 @@ jest.mock('@/hooks/useColorScheme', () => ({
   useColorScheme: jest.fn(() => 'light'),
 }));
 
+jest.mock('@/hooks/useNetworkStatus', () => ({
+  useNetworkStatus: jest.fn(() => ({ isOffline: false })),
+}));
+
 const mockedUseAuth = useAuth as jest.MockedFunction<typeof useAuth>;
 
 const createAuthMock = (overrides: Partial<AuthContextType> = {}): AuthContextType => ({

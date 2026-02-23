@@ -1,1 +1,2 @@
-export { default } from "@/features/events/screens/GameDetailScreen";
+export { default } from './game-details/GameDetailsScreen';
+

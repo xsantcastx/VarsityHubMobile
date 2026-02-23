@@ -79,7 +79,7 @@ const googleClientConfig = (opts: { shouldUseProxy: boolean }) => {
 };
 
 const FORCE_PROXY_FLAG = appConfig.google.forceProxy;
-const FALLBACK_PROJECT_FULL_NAME = '@lime_prod/VarsityHubMobile';
+const FALLBACK_PROJECT_FULL_NAME = '@varsity-hub/varsityhub';
 const expoConfig: any = Constants.expoConfig ?? {};
 const expoSlug: string | undefined = expoConfig.slug || expoConfig.name;
 const expoOwner: string | undefined = expoConfig.owner;
@@ -106,10 +106,26 @@ if (PROJECT_FULL_NAME && sessionUrlProvider?.getRedirectUrl) {
 export function useGoogleAuth() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const proxyRequested = FORCE_PROXY_FLAG || Constants.appOwnership === null;
+  // Use Expo auth proxy in Expo Go to avoid redirect_uri_mismatch (proxy URL is stable)
+  const isExpoGo = Constants.appOwnership === 'expo';
+  const proxyRequested = FORCE_PROXY_FLAG || isExpoGo || Constants.appOwnership === null;
   const shouldUseProxy = proxyRequested && !!PROJECT_FULL_NAME;
 
-  const clients = useMemo(() => googleClientConfig({ shouldUseProxy }), [shouldUseProxy]);
+  const clients = useMemo(() => {
+    const c = googleClientConfig({ shouldUseProxy });
+    // When using Expo proxy (HTTPS redirect), Google requires the WEB client—iOS/Android clients
+    // only accept custom scheme. Force web/expo client so redirect_uri matches.
+    if (shouldUseProxy && c.webClientId) {
+      return {
+        androidClientId: c.webClientId,
+        iosClientId: c.webClientId,
+        webClientId: c.webClientId,
+        expoClientId: c.expoClientId || c.webClientId,
+        forceWebClient: false,
+      } as const;
+    }
+    return c;
+  }, [shouldUseProxy]);
   const isConfigured = useMemo(
     () => Boolean(clients.androidClientId || clients.iosClientId || clients.webClientId || clients.expoClientId),
     [clients],
@@ -177,7 +193,7 @@ export function useGoogleAuth() {
         iosClientId: clients.iosClientId || undefined,
         webClientId: clients.webClientId || undefined,
         clientId: clients.expoClientId || undefined,
-      };
+      } as Google.GoogleAuthRequestConfig;
     }
     
     // If not configured, provide placeholder values that satisfy the hook
@@ -223,6 +239,22 @@ export function useGoogleAuth() {
         throw err;
       }
       
+      // Handle OAuth error responses (e.g. redirect_uri_mismatch from Google)
+      const errParams = (response as any)?.params || (response as any)?.authentication;
+      const oauthError = typeof errParams?.error === 'string' ? errParams.error : null;
+      const oauthErrorDesc = typeof errParams?.error_description === 'string' ? errParams.error_description : null;
+
+      if (oauthError === 'redirect_uri_mismatch' || (oauthErrorDesc && oauthErrorDesc.toLowerCase().includes('redirect_uri'))) {
+        const helpMsg = 'Google Sign-In failed: redirect URI mismatch. Add the redirect URI to your Google Cloud Console OAuth client. See .docs/GOOGLE_OAUTH_SETUP.md for the exact URIs.';
+        logError('[google-auth]', helpMsg, { redirectUri, oauthError, oauthErrorDesc });
+        throw new Error(helpMsg);
+      }
+      if (oauthError) {
+        const msg = oauthErrorDesc || oauthError || `Google error: ${oauthError}`;
+        logError('[google-auth]', msg, response);
+        throw new Error(msg);
+      }
+
       // Handle other non-success responses
       if (response.type !== 'success' || !response.authentication?.idToken) {
         const errorMsg = `Google sign-in failed: ${response.type}`;
@@ -239,8 +271,19 @@ export function useGoogleAuth() {
       if (err?.code === 'CANCELLED' || err?.message === 'GOOGLE_SIGN_IN_CANCELLED') {
         throw err;
       }
-      
-      const message = err?.message || 'Unable to sign in with Google';
+
+      // Detect redirect_uri_mismatch from various error sources
+      let message = err?.message || 'Unable to sign in with Google';
+      const errStr = String(message).toLowerCase();
+      const bodyStr = typeof err?.body === 'string' ? err.body : JSON.stringify(err?.data || err?.response || {});
+      if (
+        errStr.includes('redirect_uri') ||
+        errStr.includes('redirect_uri_mismatch') ||
+        bodyStr.toLowerCase().includes('redirect_uri_mismatch')
+      ) {
+        message = `Google Sign-In failed: redirect URI mismatch. Add this exact URI to your Web OAuth client in Google Cloud Console: ${redirectUri}`;
+      }
+
       logError('[google-auth] Error:', message, err);
       setError(message);
       throw err instanceof Error ? err : new Error(message);

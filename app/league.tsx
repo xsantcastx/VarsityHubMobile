@@ -1,7 +1,7 @@
 import { Event, Organization, Team } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
-import { useCustomColorScheme } from '@/shared/hooks/useCustomColorScheme';
+import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -355,7 +355,7 @@ export default function LeagueScreen() {
   const handleTeamPress = (team: LeagueTeam) => {
     // Navigate to team page (with Feed/Schedule/Roster)
     router.push({
-      pathname: '/(tabs)/team-page',
+      pathname: '/team-page',
       params: { 
         id: team.id,
         name: team.name,

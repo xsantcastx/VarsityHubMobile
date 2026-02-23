@@ -2,7 +2,6 @@ import PrimaryButton from '@/components/ui/PrimaryButton';
 import { Colors } from '@/constants/Colors';
 import { Type } from '@/ui/tokens';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, StyleSheet, Switch, Text, View, useColorScheme } from 'react-native';
@@ -12,13 +11,14 @@ import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding } from '@/context/OnboardingContext';
 import * as Device from 'expo-device';
 import * as Location from 'expo-location';
+import { showLocationDeniedAlert } from '@/utils/locationAlerts';
 import OnboardingLayout from './components/OnboardingLayout';
 
 export default function Step9Features() {
   const router = useRouter();
-  const colorScheme = useColorScheme();
+  const colorScheme = useColorScheme() ?? 'light';
   const { state: ob, setState: setOB, setProgress } = useOnboarding();
-  const { registerPushToken, user } = useAuth();
+  const { registerPushToken, user, checkAuth } = useAuth();
   const [locationEnabled, setLocationEnabled] = useState(false);
   // Push notifications can't be provisioned on iOS Simulator, so default to off there
   const [notificationsEnabled, setNotificationsEnabled] = useState(Device.isDevice);
@@ -67,14 +67,10 @@ export default function Step9Features() {
       if (status === 'granted') {
         setLocationEnabled(true);
       } else {
-        Alert.alert(
-          'Permission Denied', 
-          'Location access is needed to find local games and events. You can enable this later in your device settings.',
-          [{ text: 'OK' }]
-        );
+        showLocationDeniedAlert('onboarding');
       }
     } catch {
-      Alert.alert('Error', 'Unable to request location permission. You can enable this later in settings.');
+      showLocationDeniedAlert('onboarding');
     }
   };
 
@@ -111,9 +107,6 @@ export default function Step9Features() {
   );
 
   const onContinue = async () => {
-    // SECURITY: Prevent double submission
-    if (saving) return;
-    
     setSaving(true);
     try {
       // Save to context
@@ -141,7 +134,7 @@ export default function Step9Features() {
         // Only add fields that exist in onboarding state
         if (ob.role) payload.role = ob.role;
         if (ob.username) payload.username = ob.username;
-        if (ob.display_name) payload.display_name = ob.display_name;
+        // Username is saved separately, not in this payload
         if (ob.dob) payload.dob = ob.dob;
         if (ob.zip) payload.zip = ob.zip;
         if (ob.zip_code) payload.zip_code = ob.zip_code;
@@ -154,7 +147,7 @@ export default function Step9Features() {
         await User.completeOnboarding(payload);
         
         // CRITICAL: Validate server confirmed completion
-        const updatedUser: any = await User.me();
+        const updatedUser: any = await checkAuth();
         if (updatedUser?.preferences?.onboarding_completed !== true) {
           throw new Error('Server did not confirm onboarding completion');
         }
@@ -165,8 +158,7 @@ export default function Step9Features() {
       }
       
       // For coaches, go to confirmation page
-      setProgress(7);
-      await AsyncStorage.setItem('@onboarding_progress', '8');
+      setProgress(8); // step-10 is index 8 in stepRoutes array
       router.replace('/onboarding/step-10-confirmation');
     } catch (e: any) {
       Alert.alert('Failed to save settings', e?.message || 'Please try again');
@@ -177,9 +169,10 @@ export default function Step9Features() {
 
   return (
     <OnboardingLayout
-      step={8}
+      step={9}
       title="Explore Features"
       subtitle="Configure your privacy and notification preferences"
+      backRoute="/onboarding/step-8-interests"
     >
       <Stack.Screen options={{ headerShown: false }} />
 
@@ -306,7 +299,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     backgroundColor: '#3b82f6',
   },
   redIconContainer: {
-    backgroundColor: Colors.dark.danger,
+    backgroundColor: '#ef4444',
   },
   featureContent: {
     flex: 1,

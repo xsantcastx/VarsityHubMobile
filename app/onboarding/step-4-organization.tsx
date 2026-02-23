@@ -1,26 +1,28 @@
+import { Input } from '@/components/ui/input';
 import PrimaryButton from '@/components/ui/PrimaryButton';
 import { Colors } from '@/constants/Colors';
-import { Input } from '@/shared/components';
 import { Type } from '@/ui/tokens';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useColorScheme, View } from 'react-native';
 // @ts-ignore
 import { Organization, Team } from '@/api/entities';
 import { autocompleteLocations, PlaceSuggestion } from '@/api/geocoding';
 import { httpPost } from '@/api/http';
+import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { useOrganizationSearch } from '@/hooks/useOrganizationSearch';
 import OnboardingLayout from './components/OnboardingLayout';
 
 export default function Step4Organization() {
   const router = useRouter();
-  const colorScheme = useColorScheme();
+  const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
   const params = useLocalSearchParams<{ returnToConfirmation?: string }>();
   const returnToConfirmation = params.returnToConfirmation === 'true';
+  const { checkAuth } = useAuth();
   const { state: ob, setState: setOB, setProgress } = useOnboarding();
   
   // Form state
@@ -35,35 +37,51 @@ export default function Step4Organization() {
   
   // Search/Join state
   const [showSearch, setShowSearch] = useState(false);
-  const [searchZip, setSearchZip] = useState(ob.zip || '');
+  const [searchZip, setSearchZip] = useState(ob.zip || ob.zip_code || '');
   const { organizations: nearbyOrgs, loading: searching, search: searchOrganizations, clear: clearOrganizations } = useOrganizationSearch(false);
   const [requestingJoin, setRequestingJoin] = useState(false);
   const [joinMessage, setJoinMessage] = useState('');
   const [selectedOrg, setSelectedOrg] = useState<any>(null);
   const [showTypePicker, setShowTypePicker] = useState(false);
-  const searchTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [selectedPlace, setSelectedPlace] = useState<PlaceSuggestion | null>(null);
   const [selectedPlaceZip, setSelectedPlaceZip] = useState<string | null>(null);
   const [locationSuggestions, setLocationSuggestions] = useState<PlaceSuggestion[]>([]);
   const [locationQuerying, setLocationQuerying] = useState(false);
   const [locationTouched, setLocationTouched] = useState(false);
-  const locationTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const locationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [emailVerified, setEmailVerified] = useState<boolean | null>(null);
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
 
   const styles = useMemo(() => createStyles(colorScheme), [colorScheme]);
 
-  // Check email verification status
+  // Fan guard: coaches only - redirect fans to profile step
   useEffect(() => {
-    void (async () => {
-      try {
-        const me: any = await (await import('@/api/entities')).User.me();
-        setEmailVerified(me?.email_verified ?? null);
-      } catch {
-        // ignore
-      }
-    })();
-  }, []);
+    if (ob.role === 'fan') {
+      setProgress(5);
+      router.replace('/onboarding/step-7-profile');
+    }
+  }, [ob.role, router, setProgress]);
+
+  const checkEmailVerified = useCallback(async () => {
+    try {
+      const me: any = await checkAuth();
+      setEmailVerified(me?.email_verified ?? null);
+    } catch {
+      // ignore
+    }
+  }, [checkAuth]);
+
+  useEffect(() => {
+    void checkEmailVerified();
+  }, [checkEmailVerified]);
+
+  // Re-check when returning from verify-email so coaches aren't stuck
+  useFocusEffect(
+    useCallback(() => {
+      void checkEmailVerified();
+    }, [checkEmailVerified])
+  );
 
   // Check if user already has a team or organization in the database
   useEffect(() => {
@@ -84,9 +102,11 @@ export default function Step4Organization() {
             team_name: firstTeam.name 
           }));
           
-          // Auto-skip this step if team already exists
-          if (!e2e) {
-            setProgress(5); // step-6
+          // DON'T auto-skip - let user see step 4 even if team exists
+          // They can still review/update organization info
+          // Only skip in E2E tests
+          if (e2e) {
+            setProgress(4); // step-6 is index 4
             if (returnToConfirmation) {
               router.replace('/onboarding/step-10-confirmation');
             } else {
@@ -109,9 +129,11 @@ export default function Step4Organization() {
               organization_name: firstOrg.name 
             }));
             
-            // Auto-skip this step if org already exists
-            if (!e2e) {
-              setProgress(5); // step-6
+            // DON'T auto-skip - let user see step 4 even if org exists
+            // They can still review/update organization info
+            // Only skip in E2E tests
+            if (e2e) {
+              setProgress(4); // step-6 is index 4
               if (returnToConfirmation) {
                 router.replace('/onboarding/step-10-confirmation');
               } else {
@@ -176,11 +198,8 @@ export default function Step4Organization() {
     if (alreadyExists) return true;
     
     // All coaches need organization fields
-    // Allow proceeding with a manually typed location if no autocomplete selection was made
-    const hasNameAndType = orgName.trim().length > 0 && !!orgType;
-    const hasLocation = !!selectedPlace || (locationTouched && location.trim().length >= 3);
-    return hasNameAndType && hasLocation;
-  }, [orgName, orgType, saving, alreadyExists, selectedPlace, locationTouched, location]);
+    return orgName.trim().length > 0 && !!orgType && !!selectedPlace;
+  }, [orgName, orgType, saving, alreadyExists, selectedPlace]);
 
   // Format organization type for display (capitalize & friendly term mapping)
   const formatOrgType = (raw?: string) => {
@@ -332,15 +351,15 @@ export default function Step4Organization() {
                 setProgress(7);
                 router.replace('/onboarding/step-10-confirmation');
               } else {
-                setProgress(5);
-                router.push('/onboarding/step-6-authorized-users');
+                setProgress(4); // step-6 is index 4 (NOT step 7)
+                router.replace('/onboarding/step-6-authorized-users');
               }
             }
           }
         ]
       );
-    } catch (error: any) {
-      Alert.alert('Request Failed', error?.data?.error || error?.message || 'Failed to send join request');
+    } catch {
+      Alert.alert('Request Failed', "We couldn't send your join request. Check your connection and try again.");
     } finally {
       setSaving(false);
       setRequestingJoin(false);
@@ -350,8 +369,7 @@ export default function Step4Organization() {
   };
 
   const onContinue = async () => {
-    // SECURITY: Prevent double submission
-    if (!canContinue || saving) return;
+    if (!canContinue) return;
     
     // Guard: require email verification before creating org
     if (emailVerified === false && !alreadyExists) {
@@ -359,7 +377,7 @@ export default function Step4Organization() {
         'Email Verification Required',
         'Please verify your email address before creating an organization.',
         [
-          { text: 'Verify Now', onPress: () => router.push('/verify-email') },
+          { text: 'Verify Now', onPress: () => router.push({ pathname: '/verify-email', params: { returnTo: '/onboarding/step-4-organization' } }) },
           { text: 'Cancel', style: 'cancel' }
         ]
       );
@@ -368,13 +386,14 @@ export default function Step4Organization() {
     
     setSaving(true);
     try {
-      // If team/org already exists, just navigate to next step
+      // If team/org already exists, still navigate to step 6 (not step 7)
+      // User should still see step 4 to review, but can continue to step 6
       if (alreadyExists) {
         if (returnToConfirmation) {
           setProgress(7);
           router.replace('/onboarding/step-10-confirmation');
         } else {
-          setProgress(5); // step-6
+          setProgress(4); // step-6 is index 4 (NOT step 7 which is index 5)
           router.push('/onboarding/step-6-authorized-users');
         }
         return;
@@ -384,17 +403,16 @@ export default function Step4Organization() {
       const locationLabel = selectedPlace?.description || location.trim();
       const desc = `${orgType === 'school' ? 'School' : 'Organization'}` + (locationLabel ? ` in ${locationLabel}` : '');
       // Create an organization using the dedicated API
+      // Server expects flat location fields (string), not nested object
       const payload: any = {
         name: orgName.trim(),
         description: desc,
         org_type: orgType,
-        location: locationLabel,
-        formatted_address: selectedPlace?.description,
-        place_id: selectedPlace?.place_id,
+        location: locationLabel || undefined,
+        formatted_address: selectedPlace?.description || undefined,
+        place_id: selectedPlace?.place_id || undefined,
         zip_code: (selectedPlaceZip || searchZip.trim()) || undefined,
       };
-      // include plan if present in onboarding state
-      if (ob.plan) payload.plan = ob.plan;
 
       const org = await Organization.createOrganization(payload);
       setOB((prev) => ({ 
@@ -410,23 +428,21 @@ export default function Step4Organization() {
         'Organization Created!',
         `"${orgName.trim()}" has been created successfully.`,
         [{ text: 'Continue', onPress: () => {
-          // If onboarding indicates payment is pending, persist that to server preferences
           void (async () => {
             try {
               if (ob.payment_pending) {
                 await (await import('@/api/entities')).User.updatePreferences({ payment_pending: true });
               }
-            } catch (e) {
-              console.warn('Failed to persist payment_pending flag:', (e as any)?.message || e);
-            }
-            
-            // Navigate to next step
-            if (returnToConfirmation) {
-              setProgress(7);
-              router.replace('/onboarding/step-10-confirmation');
-            } else {
-              setProgress(5); // step-6
-              router.push('/onboarding/step-6-authorized-users');
+            } catch (err: unknown) {
+              console.warn('Failed to persist payment_pending flag:', (err as Error)?.message ?? err);
+            } finally {
+              if (returnToConfirmation) {
+                setProgress(7);
+                router.replace('/onboarding/step-10-confirmation');
+              } else {
+                setProgress(4);
+                router.replace('/onboarding/step-6-authorized-users');
+              }
             }
           })();
         }}]
@@ -444,12 +460,12 @@ export default function Step4Organization() {
           'Authentication Required',
           'Please verify your email address or log in again to continue.',
           [
-            { text: 'Verify Email', onPress: () => router.push('/verify-email') },
+            { text: 'Verify Email', onPress: () => router.push({ pathname: '/verify-email', params: { returnTo: '/onboarding/step-4-organization' } }) },
             { text: 'Cancel', style: 'cancel' }
           ]
         );
       } else {
-        Alert.alert('Failed to create page', e?.message || 'Please verify your email and try again');
+        Alert.alert('Failed to create page', "We couldn't create your page. Please verify your email first, then try again.");
       }
     } finally { 
       setSaving(false); 
@@ -461,6 +477,7 @@ export default function Step4Organization() {
       step={4}
       title={pageConfig.title}
       subtitle={pageConfig.subtitle}
+      backRoute="/onboarding/step-3-plan"
     >
       <Stack.Screen options={{ headerShown: false }} />
       
@@ -637,18 +654,11 @@ export default function Step4Organization() {
                       ))}
                     </ScrollView>
                   )}
-                  {searchZip.trim().length >= 2 && !searching && nearbyOrgs.length === 0 && (
-                    <View style={{ paddingVertical: 16, paddingHorizontal: 12, backgroundColor: isDark ? '#1F2937' : '#F3F4F6', borderRadius: 8, marginTop: 8 }}>
-                      <Text style={{ color: isDark ? '#9CA3AF' : '#6B7280', fontSize: 14, textAlign: 'center' }}>
-                        No organizations found matching "{searchZip}". Try searching by a different name or zip code, or use the Create New button instead.
-                      </Text>
-                    </View>
-                  )}
                 </View>
               </>
             )}
 
-        {!showSearch && !showTypePicker && (
+        {!showSearch && (
           <>
             <Text style={styles.label}>Location</Text>
             <View style={styles.locationFieldWrapper}>
@@ -658,35 +668,26 @@ export default function Step4Organization() {
                 placeholder="Start typing an address, school, or city" 
                 autoCapitalize="words"
                 autoCorrect={false}
-                testID="location-input"
               />
               {locationQuerying && (
                 <ActivityIndicator size="small" color={Colors[colorScheme].tint} style={styles.locationSpinner} />
               )}
-              {(locationTouched || locationQuerying) && (
-                <View style={styles.locationDebug}>
-                  <Text style={styles.locationDebugText}>
-                    {locationQuerying ? 'Fetching suggestions…' : `Suggestions: ${locationSuggestions.length}`}
-                  </Text>
-                </View>
-              )}
               {locationSuggestions.length > 0 && (
-                <View style={styles.dropdownMenu}>
+                <View style={styles.locationSuggestionList}>
                   {locationSuggestions.map((suggestion, index) => (
                     <Pressable
                       key={suggestion.place_id}
                       style={[
-                        styles.dropdownItem,
-                        index === 0 && styles.dropdownItemFirst,
-                        index === locationSuggestions.length - 1 && styles.dropdownItemLast,
+                        styles.locationSuggestionItem,
+                        index === locationSuggestions.length - 1 && styles.locationSuggestionItemLast,
                       ]}
                       onPress={() => handleSelectLocation(suggestion)}
                     >
-                      <Text style={styles.dropdownMainText}>
+                      <Text style={styles.locationSuggestionMain}>
                         {suggestion.structured_formatting?.main_text || suggestion.description}
                       </Text>
                       {suggestion.structured_formatting?.secondary_text ? (
-                        <Text style={styles.dropdownSecondaryText}>
+                        <Text style={styles.locationSuggestionSecondary}>
                           {suggestion.structured_formatting.secondary_text}
                         </Text>
                       ) : null}
@@ -696,7 +697,7 @@ export default function Step4Organization() {
               )}
             </View>
             {!selectedPlace && locationTouched && (
-              <Text style={styles.inputHelperText}>Selecting a suggested location is recommended for accuracy, but you can continue with a manual location.</Text>
+              <Text style={styles.inputHelperText}>Select a suggested location to continue.</Text>
             )}
             {duplicateWarning && (
               <View style={styles.duplicateWarningBox}>
@@ -868,7 +869,7 @@ export default function Step4Organization() {
                 )}
                 {(ob.plan === 'legend') && (
                   <>
-                    <View style={styles.benefitRow}><Ionicons name="trophy" size={14} color={colorScheme === 'dark' ? '#93C5FD' : '#1E3A8A'} /><Text style={styles.benefitItem}>$19.99/year unlimited teams</Text></View>
+                    <View style={styles.benefitRow}><Ionicons name="trophy" size={14} color={colorScheme === 'dark' ? '#93C5FD' : '#1E3A8A'} /><Text style={styles.benefitItem}>$20/year unlimited teams</Text></View>
                     <View style={styles.benefitRow}><Ionicons name="infinite" size={14} color={colorScheme === 'dark' ? '#93C5FD' : '#1E3A8A'} /><Text style={styles.benefitItem}>Unlimited authorized users</Text></View>
                     <View style={styles.benefitRow}><Ionicons name="star" size={14} color={colorScheme === 'dark' ? '#93C5FD' : '#1E3A8A'} /><Text style={styles.benefitItem}>Premium features</Text></View>
                   </>
@@ -917,67 +918,37 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   locationFieldWrapper: {
     position: 'relative',
     marginBottom: 8,
-    zIndex: 100,
-  },
-  locationDebug: {
-    marginTop: 6,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    alignSelf: 'flex-start',
-    borderRadius: 8,
-    backgroundColor: colorScheme === 'dark' ? 'rgba(59,130,246,0.15)' : 'rgba(59,130,246,0.10)',
-  },
-  locationDebugText: {
-    fontSize: 12,
-    color: colorScheme === 'dark' ? '#BFDBFE' : '#1D4ED8',
   },
   locationSpinner: {
     position: 'absolute',
     right: 12,
     top: 12,
-    zIndex: 10,
   },
-  dropdownMenu: {
-    position: 'absolute',
-    top: 48,
-    left: 0,
-    right: 0,
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    elevation: 4,
-    zIndex: 100,
-    maxHeight: 200,
+  locationSuggestionList: {
+    marginTop: 6,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors[colorScheme].border,
+    borderRadius: 12,
+    backgroundColor: Colors[colorScheme].surface,
+    overflow: 'hidden',
   },
-  dropdownItem: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+  locationSuggestionItem: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors[colorScheme].border,
   },
-  dropdownItemFirst: {
-    borderTopLeftRadius: 10,
-    borderTopRightRadius: 10,
-  },
-  dropdownItemLast: {
+  locationSuggestionItemLast: {
     borderBottomWidth: 0,
-    borderBottomLeftRadius: 10,
-    borderBottomRightRadius: 10,
   },
-  dropdownMainText: {
-    fontSize: 16,
+  locationSuggestionMain: {
+    fontSize: 15,
     fontWeight: '600',
-    color: '#222',
+    color: Colors[colorScheme].text,
   },
-  dropdownSecondaryText: {
+  locationSuggestionSecondary: {
     fontSize: 13,
-    color: '#6B7280',
+    color: Colors[colorScheme].mutedText,
     marginTop: 2,
   },
   inputHelperText: {
@@ -1546,7 +1517,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     color: Colors[colorScheme].mutedText,
   },
   joinButton: {
-    backgroundColor: Colors.light.success,
+    backgroundColor: '#22c55e',
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 8,

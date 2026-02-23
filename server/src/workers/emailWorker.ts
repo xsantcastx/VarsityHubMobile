@@ -1,4 +1,5 @@
 import { debugLog } from '../lib/debugLog.js';
+import { getAppBaseUrl } from '../lib/env.js';
 import {
     sendAccountRecoveryEmail,
     sendAdGoesLiveEmail,
@@ -443,7 +444,7 @@ emailQueue.process('events.canceled', async (job) => {
     organizationName: 'VarsityHub',
     cancelReason: jobData.cancellation_reason,
     rescheduleInfo: undefined,
-    upcomingEventsLink: jobData.manage_event_url || `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/events`,
+    upcomingEventsLink: jobData.manage_event_url || `${getAppBaseUrl()}/events`,
     contactOrganizerLink: jobData.contact_support_url,
   });
 

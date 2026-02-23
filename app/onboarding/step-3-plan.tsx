@@ -1,11 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, Pressable, StyleSheet, Text, TextInput, View, useColorScheme } from 'react-native';
 // @ts-ignore
-import { Subscriptions, User } from '@/api/entities';
+import { Payments, Subscriptions, User } from '@/api/entities';
 import { PLAN_DEFINITIONS, Plan } from '@/constants/plans';
+import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding } from '@/context/OnboardingContext';
 import OnboardingLayout from './components/OnboardingLayout';
 
@@ -30,9 +31,26 @@ const PLAN_OPTIONS: PlanOption[] = Object.values(PLAN_DEFINITIONS).map((plan) =>
   features: plan.features,
 }));
 
-function PlanCard({ option, selected, onPress, onContinue, saving }: { option: PlanOption; selected: boolean; onPress: () => void; onContinue?: () => void; saving?: boolean }) {
-  const colorScheme = useColorScheme();
+function PlanCard({
+  option,
+  selected,
+  onPress,
+  onContinue,
+  saving,
+  disabled,
+  disabledReason,
+}: {
+  option: PlanOption;
+  selected: boolean;
+  onPress: () => void;
+  onContinue?: () => void;
+  saving?: boolean;
+  disabled?: boolean;
+  disabledReason?: string | null;
+}) {
+  const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
+  const continueDisabled = saving || disabled;
   
   // Icon mapping - using Ionicons
   const getIconName = (): any => {
@@ -48,34 +66,6 @@ function PlanCard({ option, selected, onPress, onContinue, saving }: { option: P
     }
   };
   
-  // Emblem color mapping per plan (bronze/silver/gold)
-  const getIconColor = (): string => {
-    switch (option.id) {
-      case 'rookie':
-        return '#CD7F32'; // Bronze
-      case 'veteran':
-        return '#9CA3AF'; // Silver
-      case 'legend':
-        return '#F59E0B'; // Brighter gold to match button
-      default:
-        return '#2563EB';
-    }
-  };
-  
-  // Side button color mapping by plan
-  const getSideButtonColor = (): string => {
-    switch (option.id) {
-      case 'rookie':
-        return '#CD7F32'; // Bronze
-      case 'veteran':
-        return '#9CA3AF'; // Silver
-      case 'legend':
-        return '#F59E0B'; // Brighter gold for Legend
-      default:
-        return '#1E3A8A';
-    }
-  };
-
   return (
     <View style={styles.cardWrapper}>
       <Pressable onPress={onPress} style={[
@@ -87,7 +77,7 @@ function PlanCard({ option, selected, onPress, onContinue, saving }: { option: P
       ]}>
       <View style={styles.cardHeader}>
         <View style={styles.titleRow}>
-          <Ionicons name={getIconName()} size={24} color={getIconColor()} />
+          <Ionicons name={getIconName()} size={24} color={isDark ? '#60A5FA' : '#2563EB'} />
           <Text style={[styles.cardTitle, { color: isDark ? '#F9FAFB' : '#111827' }]}>{option.name}</Text>
         </View>
       </View>
@@ -102,19 +92,22 @@ function PlanCard({ option, selected, onPress, onContinue, saving }: { option: P
       {selected && onContinue && (
         <Pressable 
           onPress={onContinue}
-          disabled={saving}
-          style={[styles.sideButton, { backgroundColor: getSideButtonColor() }]}
+          disabled={continueDisabled}
+          style={styles.sideButton}
         >
           {saving ? (
             <ActivityIndicator color="white" size="small" />
           ) : (
             <>
-              <Text style={styles.sideButtonText}>Continue</Text>
+              <Text style={styles.sideButtonText}>{continueDisabled && disabledReason ? 'Unavailable' : 'Continue'}</Text>
               <Text style={styles.sideButtonArrow}>→</Text>
             </>
           )}
         </Pressable>
       )}
+      {selected && continueDisabled && disabledReason ? (
+        <Text style={styles.sideButtonDisabledText}>{disabledReason}</Text>
+      ) : null}
     </View>
   );
 }
@@ -123,14 +116,23 @@ export default function Step3Plan() {
   const router = useRouter();
   const params = useLocalSearchParams<{ returnToConfirmation?: string }>();
   const returnToConfirmation = params.returnToConfirmation === 'true';
+  const { checkAuth } = useAuth();
   const { state: ob, setState: setOB, setProgress } = useOnboarding();
+
+  // Fan guard: coaches only - redirect fans to profile step
+  useEffect(() => {
+    if (ob.role === 'fan') {
+      setProgress(5);
+      router.replace('/onboarding/step-7-profile');
+    }
+  }, [ob.role, router, setProgress]);
   const [plan, setPlan] = useState<Plan | null>(ob.plan ?? null);
   const [saving, setSaving] = useState(false);
-  const colorScheme = useColorScheme();
+  const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
   
   // Team count for Veteran plan
-  const [teamCount, setTeamCount] = useState<number>(3); // Minimum 3 teams for Veteran
+  const [teamCount, setTeamCount] = useState<number>(2); // First 2 teams free
   const [showTeamCountModal, setShowTeamCountModal] = useState(false);
   
   // Email verification states
@@ -140,12 +142,42 @@ export default function Step3Plan() {
   const [resending, setResending] = useState(false);
   const [verificationError, setVerificationError] = useState<string | null>(null);
   const [verificationInfo, setVerificationInfo] = useState<string | null>(null);
+  const [paymentsStatus, setPaymentsStatus] = useState<{ stripe_configured?: boolean; has_webhook_secret?: boolean } | null>(null);
+  const [paymentsStatusLoading, setPaymentsStatusLoading] = useState(true);
+  const [paymentsStatusError, setPaymentsStatusError] = useState<string | null>(null);
+  // Only disable paid plans when backend explicitly says Stripe is NOT configured
+  const paymentsTemporarilyDisabled = paymentsStatus != null && paymentsStatus.stripe_configured === false;
+  const showPaymentsWarning =
+    (!paymentsStatusLoading && paymentsTemporarilyDisabled) ||
+    (!!paymentsStatusError && !paymentsTemporarilyDisabled);
+  const paymentsWarningMessage = paymentsTemporarilyDisabled
+    ? 'Coach plan checkout is temporarily unavailable while payments are being configured. You can continue with the Rookie plan or try again later.'
+    : paymentsStatusError;
+
+  const fetchPaymentsStatus = useCallback(async () => {
+    setPaymentsStatusLoading(true);
+    setPaymentsStatusError(null);
+    try {
+      const status = await Payments.configStatus();
+      setPaymentsStatus(status);
+    } catch {
+      setPaymentsStatusError('Unable to confirm payment readiness. You can still try checkout — choose Rookie if it fails.');
+      // Optimistic: allow paid plans when fetch fails (network/server may be transient)
+      setPaymentsStatus(null);
+    } finally {
+      setPaymentsStatusLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchPaymentsStatus();
+  }, [fetchPaymentsStatus]);
 
   const navigateNext = () => {
     if (returnToConfirmation) {
       router.replace('/onboarding/step-10-confirmation');
     } else {
-      router.push('/onboarding/step-4-organization');
+      router.replace('/onboarding/step-4-organization');
     }
   };
 
@@ -190,8 +222,14 @@ export default function Step3Plan() {
   };
 
   const onContinue = async () => {
-    // SECURITY: Prevent double submission
-    if (!plan || saving) return;
+    if (!plan) return;
+    if (plan !== 'rookie' && paymentsTemporarilyDisabled) {
+      Alert.alert(
+        'Payments unavailable',
+        'Coach plans cannot be purchased until payments are configured. Please try again later or continue with the Rookie plan.'
+      );
+      return;
+    }
     
     // If Veteran plan and haven't confirmed team count yet, show modal
     if (plan === 'veteran' && !showTeamCountModal) {
@@ -203,7 +241,7 @@ export default function Step3Plan() {
     try {
       // Prevent duplicate subscriptions: check current user's saved plan first
       try {
-        const me: any = await User.me();
+        const me: any = await checkAuth();
         const currentPlan = me?.preferences?.plan ?? 'rookie'; // Default to rookie if no plan
         
         // If already subscribed to the same plan, warn and continue
@@ -295,10 +333,21 @@ export default function Step3Plan() {
           Alert.alert('Payment', 'Unable to start checkout. You can continue and set up billing later.');
         }
         
-        // Mark payment as required and block navigation
-        setOB((prev) => ({ ...prev, payment_required: true, plan: 'rookie', payment_pending: false }));
-        Alert.alert('Payment required', 'You must complete payment to continue.');
-        // Do NOT call navigateNext(); block progression
+        // On payment failure, default to rookie plan so they can continue
+        const fallbackPlan = 'rookie';
+        setOB((prev) => ({ ...prev, plan: fallbackPlan, payment_pending: false, payment_required: false }));
+        setPlan(fallbackPlan);
+        
+        // Save rookie plan to backend so onboarding can complete
+        try {
+          await User.updatePreferences({ plan: fallbackPlan, payment_pending: false });
+        } catch (updateErr) {
+          console.warn('Failed to save fallback rookie plan:', updateErr);
+        }
+        
+        // Allow navigation to continue with rookie plan
+        setProgress(3);
+        navigateNext();
       }
     } finally {
       setSaving(false);
@@ -315,16 +364,43 @@ export default function Step3Plan() {
       step={3}
       title="Choose Your Plan"
       subtitle="Select the plan that fits your needs"
+      backRoute="/onboarding/step-2-basic"
     >
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.content}>
+        {showPaymentsWarning && paymentsWarningMessage ? (
+          <View
+            style={[
+              styles.paymentBanner,
+              paymentsTemporarilyDisabled ? styles.paymentBannerError : styles.paymentBannerInfo,
+            ]}
+          >
+            <Text
+              style={[
+                styles.paymentBannerText,
+                paymentsTemporarilyDisabled
+                  ? { color: '#92400E' }
+                  : { color: colorScheme === 'dark' ? '#E0F2FE' : '#1F2937' },
+              ]}
+            >
+              {paymentsWarningMessage}
+            </Text>
+            {paymentsStatusError && !paymentsStatusLoading ? (
+              <Pressable onPress={() => void fetchPaymentsStatus()} style={styles.retryButton}>
+                <Text style={styles.retryButtonText}>Retry</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
         {PLAN_OPTIONS.map((option) => (
           <PlanCard
             key={option.id}
-            option={option}
+            option={option as PlanOption}
             selected={plan === option.id}
-            onPress={() => handleSelectPlan(option.id)}
+            onPress={() => handleSelectPlan(option.id as Plan)}
             onContinue={plan === option.id ? onContinue : undefined}
+            disabled={option.id !== 'rookie' && paymentsTemporarilyDisabled}
+            disabledReason={option.id !== 'rookie' && paymentsTemporarilyDisabled ? 'Checkout unavailable' : undefined}
             saving={saving}
           />
         ))}
@@ -437,7 +513,7 @@ export default function Step3Plan() {
                   styles.teamCountButton,
                   { backgroundColor: isDark ? '#374151' : '#F3F4F6', borderColor: isDark ? '#4B5563' : '#E5E7EB' }
                 ]}
-                onPress={() => setTeamCount(Math.max(3, teamCount - 1))}
+                onPress={() => setTeamCount(Math.max(2, teamCount - 1))}
               >
                 <Text style={[styles.teamCountButtonText, { color: isDark ? '#F9FAFB' : '#111827' }]}>−</Text>
               </Pressable>
@@ -471,6 +547,15 @@ export default function Step3Plan() {
               <Pressable
                 style={[styles.modalButton, styles.verifyButton, { backgroundColor: isDark ? '#2563EB' : '#111827' }]}
                 onPress={() => {
+                  // Validate minimum 3 teams for Veteran plan (2 free + 1 paid minimum)
+                  if (plan === 'veteran' && teamCount < 3) {
+                    Alert.alert(
+                      'Minimum Teams Required',
+                      'Veteran plan requires at least 3 teams (first 2 free, then $1.50/month per additional team).',
+                      [{ text: 'OK', onPress: () => setTeamCount(3) }]
+                    );
+                    return;
+                  }
                   setShowTeamCountModal(false);
                   void onContinue();
                 }}
@@ -483,7 +568,7 @@ export default function Step3Plan() {
                 onPress={() => {
                   setShowTeamCountModal(false);
                   setPlan(null);
-                  setOB((prev) => ({ ...prev, plan: null }));
+                  setOB((prev) => ({ ...prev, plan: undefined }));
                 }}
               >
                 <Text style={[styles.cancelButtonText, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Cancel</Text>
@@ -499,6 +584,38 @@ export default function Step3Plan() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: 16, paddingBottom: 28 },
+  paymentBanner: {
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  paymentBannerError: {
+    backgroundColor: '#FEF3C7',
+    borderColor: '#F59E0B',
+  },
+  paymentBannerInfo: {
+    backgroundColor: '#DBEAFE',
+    borderColor: '#3B82F6',
+  },
+  paymentBannerText: {
+    fontSize: 13,
+    color: '#1F2937',
+    lineHeight: 18,
+  },
+  retryButton: {
+    marginTop: 8,
+    alignSelf: 'flex-start',
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    backgroundColor: 'rgba(59, 130, 246, 0.2)',
+  },
+  retryButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#2563EB',
+  },
   cardWrapper: {
     flexDirection: 'row',
     marginBottom: 12,
@@ -564,6 +681,13 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 20,
     fontWeight: '700',
+  },
+  sideButtonDisabledText: {
+    color: '#DC2626',
+    fontSize: 12,
+    marginLeft: 12,
+    marginTop: 4,
+    maxWidth: 140,
   },
   
   // Modal styles

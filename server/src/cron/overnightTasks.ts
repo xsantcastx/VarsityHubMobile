@@ -1,5 +1,6 @@
 import cron from 'node-cron';
 import { debugLog } from '../lib/debugLog.js';
+import { getAppBaseUrl } from '../lib/env.js';
 import { prisma } from '../lib/prisma.js';
 import { emailQueue } from '../lib/queue.js';
 
@@ -168,7 +169,7 @@ export function startAdGoLiveCheck() {
           ad_title: ad.business_name,
           target_zip: ad.target_zip_code,
           live_until: lastDate ? lastDate.toISOString() : '',
-          analytics_dashboard_url: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/ads/${ad.id}/analytics`,
+          analytics_dashboard_url: `${getAppBaseUrl()}/ads/${ad.id}/analytics`,
           ad_preview_url: ad.banner_url || undefined,
         });
 

@@ -10,13 +10,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import * as Linking from 'expo-linking';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
 
 interface BannerAdProps {
   bannerUrl?: string | null;
   targetUrl?: string | null;
   businessName?: string;
   description?: string;
-  fitMode?: 'letterbox' | 'fill' | 'stretch';
+  fitMode?: 'rotate' | 'fill' | 'stretch' | 'letterbox' | `rotate:${number}`;
   aspectRatio?: number;
   onPress?: () => void; // Optional override for click behavior
 }
@@ -72,7 +73,7 @@ export function BannerAd({
               }
             } catch (error) {
               console.error('Error opening ad link:', error);
-              Alert.alert('Error', 'Failed to open link. Please try again.');
+              Alert.alert('Link', "We couldn't open that link. Check your connection and try again.");
             }
           },
         },
@@ -80,8 +81,20 @@ export function BannerAd({
     );
   };
 
+  const parseRotate = (mode?: string | null) => {
+    if (!mode) return { base: 'fill', rotation: 0 };
+    if (mode.startsWith('rotate:')) {
+      const raw = Number(mode.split(':')[1]);
+      return { base: 'rotate', rotation: Number.isFinite(raw) ? raw : 0 };
+    }
+    return { base: mode, rotation: 0 };
+  };
+
+  const { base, rotation } = parseRotate(fitMode || 'fill');
+
   const getContentFit = (): 'contain' | 'cover' | 'fill' => {
-    switch (fitMode) {
+    switch (base) {
+      case 'rotate':
       case 'letterbox':
         return 'contain'; // Fits entire image, may show bars
       case 'stretch':
@@ -92,8 +105,41 @@ export function BannerAd({
     }
   };
 
-  // If no banner URL, show placeholder
-  if (!bannerUrl) {
+  const getRotateFitScale = (angleDeg: number, width: number, height: number) => {
+    if (!width || !height) return 1;
+    const rad = (Math.abs(angleDeg) % 360) * (Math.PI / 180);
+    const cos = Math.abs(Math.cos(rad));
+    const sin = Math.abs(Math.sin(rad));
+    const rotatedWidth = width * cos + height * sin;
+    const rotatedHeight = width * sin + height * cos;
+    const scaleX = width / rotatedWidth;
+    const scaleY = height / rotatedHeight;
+    return Math.min(scaleX, scaleY, 1);
+  };
+
+  const [layout, setLayout] = useState({ width: 0, height: 0 });
+  const rotateScale = useMemo(() => {
+    if (base !== 'rotate' || !rotation) return 1;
+    return getRotateFitScale(rotation, layout.width, layout.height);
+  }, [base, rotation, layout.width, layout.height]);
+
+  const isValidBannerUrl = useMemo(() => {
+    if (!bannerUrl || typeof bannerUrl !== 'string') return false;
+    const trimmed = bannerUrl.trim();
+    if (!trimmed || trimmed === 'undefined' || trimmed === 'null') return false;
+    try {
+      new URL(trimmed);
+      return trimmed.startsWith('http://') || trimmed.startsWith('https://');
+    } catch {
+      return false;
+    }
+  }, [bannerUrl]);
+
+  const [imageError, setImageError] = useState(false);
+  const handleImageError = useCallback(() => setImageError(true), []);
+
+  // If no valid banner URL or image failed to load, show placeholder
+  if (!isValidBannerUrl || imageError) {
     return (
       <View
         style={[
@@ -144,16 +190,31 @@ export function BannerAd({
           opacity: pressed ? 0.8 : 1,
         },
       ]}
+      onLayout={(e) => {
+        const { width, height } = e.nativeEvent.layout;
+        if (width && height && (layout.width !== width || layout.height !== height)) {
+          setLayout({ width, height });
+        }
+      }}
       onPress={handlePress}
       android_ripple={{ color: 'rgba(0, 0, 0, 0.1)' }}
     >
       <Image
-        source={{ uri: bannerUrl }}
-        style={styles.image}
+        source={{ uri: bannerUrl!.trim() }}
+        style={[
+          styles.image,
+          base === 'rotate' && rotation !== 0 && {
+            transform: [{ scale: rotateScale }, { rotate: `${rotation}deg` }],
+          },
+        ]}
         contentFit={getContentFit()}
+        onError={handleImageError}
       />
 
-
+      {/* "Ad" Badge */}
+      <View style={styles.adBadge}>
+        <Text style={styles.adBadgeText}>Ad</Text>
+      </View>
 
       {/* External Link Indicator - Only show if there's a target URL */}
       {targetUrl && (

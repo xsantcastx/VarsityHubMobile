@@ -5,7 +5,7 @@
  * Allows coaches to select and upgrade their subscription
  */
 
-import { getApiBaseUrl, getAuthToken } from '@/api/http';
+import { useSubscription } from '@/hooks/useSubscription';
 import { CoachTier, CoachTierBadge, CoachTierBenefits } from '@/components/CoachTierBadge';
 import CustomActionModal from '@/components/CustomActionModal';
 import { Colors } from '@/constants/Colors';
@@ -29,6 +29,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 export default function SubscriptionPaywallScreen() {
   const _router = useRouter();
   const router = useRouter();
+  const { subscribe } = useSubscription();
   const colorScheme = useColorScheme() ?? 'light';
   const [selectedTier, setSelectedTier] = useState<CoachTier>('veteran');
   const [loading, setLoading] = useState(false);
@@ -62,27 +63,7 @@ export default function SubscriptionPaywallScreen() {
 
     setLoading(true);
     try {
-      // Call backend to create Stripe checkout session
-      const base = getApiBaseUrl();
-      const headers: any = { 'Content-Type': 'application/json' };
-      const token = getAuthToken();
-      if (token) headers.Authorization = `Bearer ${token}`;
-      
-      const response = await fetch(`${base.replace(/\/$/, '')}/payments/subscribe`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ 
-          plan: selectedTier,
-          promo_code: promoCode.trim() || undefined 
-        }),
-      });
-      
-      const text = await response.text();
-      const data = text ? JSON.parse(text) : null;
-      
-      if (!response.ok) {
-        throw new Error(data?.error || `HTTP ${response.status}`);
-      }
+      const data: any = await subscribe(selectedTier, promoCode.trim() || undefined);
       
       if (data?.url) {
         // Open Stripe checkout in browser
@@ -360,7 +341,7 @@ const styles = StyleSheet.create({
   popularBadge: {
     position: 'absolute',
     top: -8,
-    backgroundColor: Colors.light.danger,
+    backgroundColor: '#DC2626',
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 4,

@@ -11,23 +11,40 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 import * as Device from 'expo-device';
-import * as Notifications from 'expo-notifications';
 import { useRouter, useSegments } from 'expo-router';
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 // @ts-ignore JS exports
 import auth from '@/api/auth';
+import { clearAllOnLogout } from '@/api/settings';
 import { User } from '@/api/entities';
 import { httpGet } from '@/api/http';
+import { clearOnboardingStorage } from './OnboardingContext';
+
+// Conditionally import notifications only if not in Expo Go
+const isExpoGo = Constants.executionEnvironment === 'storeClient';
+let Notifications: any = null;
+if (!isExpoGo) {
+  Notifications = require('expo-notifications');
+}
 
 interface AuthUser {
   id: string;
   email: string;
   username?: string;
+  display_name?: string;
+  avatar_url?: string;
+  is_verified?: boolean;
+  email_verified?: boolean;
   role?: string;
-  is_admin?: boolean;
+  country_code?: string;
   preferences?: {
     onboarding_completed?: boolean;
+    role?: string;
+    country_code?: string;
+    plan?: string;
+    payment_pending?: boolean;
   };
 }
 
@@ -38,7 +55,7 @@ export interface AuthContextType {
   healthOk: boolean;
   healthError: string | null;
   isAdmin: boolean;
-  checkAuth: (options?: { email?: string; pendingVerification?: boolean }) => Promise<void>;
+  checkAuth: (options?: { email?: string; pendingVerification?: boolean }) => Promise<AuthUser | null | void>;
   signOut: () => Promise<void>;
   registerPushToken: () => Promise<boolean>;
   markOnboardingCompleteLocally: () => Promise<void>;
@@ -67,7 +84,6 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
   const [healthError, setHealthError] = useState<string | null>(null);
   const [initializing, setInitializing] = useState(true);
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState<boolean>(false);
-  const attemptedOnboardingSyncRef = React.useRef(false);
 
   const ONBOARDING_COMPLETE_KEY = '@onboarding_completed_once';
   
@@ -83,7 +99,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
   }, [segments]);
 
   // Derived state
-  const isAdmin = Boolean(user?.is_admin);
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
 
   // Check backend health (once on startup)
   const checkHealth = useCallback(async () => {
@@ -105,6 +121,13 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
   // Register for push notifications
   const setupPushNotifications = useCallback(async (userId: string) => {
     if (!userId) return false;
+    
+    // Skip push notifications in Expo Go
+    if (isExpoGo || !Notifications) {
+      console.log('[PushNotifications] Skipping setup in Expo Go environment');
+      return false;
+    }
+    
     if (!Device.isDevice) {
       console.log('[PushNotifications] Skipping setup on simulator/emulator');
       return false;
@@ -186,27 +209,15 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         setUser(me);
         setPendingVerificationEmail(null); // Clear pending email after successful auth
 
-        // Sync onboarding flag (prefer server true; fall back to local true if server missing/false)
+        // ALWAYS sync local flag with server truth
         const serverComplete = me?.preferences?.onboarding_completed === true;
-        if (serverComplete) {
-          if (!hasCompletedOnboarding) {
-            setHasCompletedOnboarding(true);
-            await AsyncStorage.setItem(ONBOARDING_COMPLETE_KEY, 'true');
-          }
-        } else if (hasCompletedOnboarding) {
-          // Local says complete but server missing/false – trust local to avoid re-onboarding loops
-          // Best-effort patch to server once per session
-          if (!attemptedOnboardingSyncRef.current) {
-            attemptedOnboardingSyncRef.current = true;
-            try {
-              await User.updatePreferences({ onboarding_completed: true });
-              me.preferences = { ...(me.preferences || {}), onboarding_completed: true };
-            } catch (err) {
-              console.warn('[Auth] Failed to resync onboarding_completed to server:', err);
-            }
-          }
+        if (serverComplete && !hasCompletedOnboarding) {
           setHasCompletedOnboarding(true);
-          me.preferences = { ...(me.preferences || {}), onboarding_completed: true };
+          await AsyncStorage.setItem(ONBOARDING_COMPLETE_KEY, 'true');
+        } else if (!serverComplete && hasCompletedOnboarding) {
+          // Server says incomplete but local says complete - trust server, clear local
+          setHasCompletedOnboarding(false);
+          await AsyncStorage.removeItem(ONBOARDING_COMPLETE_KEY);
         }
 
         // Setup push notifications after successful auth
@@ -216,28 +227,51 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       } catch (err: any) {
         setUser(null);
         // Don't clear onboarding flag on auth error - keep it for when user logs back in
+        // Only throw if it's not a 401 (unauthorized) - 401 is expected when not logged in
+        if (err?.status !== 401) {
+          console.error('[AuthProvider] checkAuth error:', err);
+        }
         throw err;
       }
     },
     [setupPushNotifications, hasCompletedOnboarding]
   );
 
-  // Sign out
+  // Sign out - clear ALL tokens, cached data, and stored credentials
+  const signOutRef = React.useRef<() => Promise<void>>(() => Promise.resolve());
   const signOut = useCallback(async () => {
     try {
       await auth.logout();
+      await clearAllOnLogout();
+      await clearOnboardingStorage();
+      await AsyncStorage.removeItem(ONBOARDING_COMPLETE_KEY);
+      // Clear team-contacts cached data (team_messages_*, team-*-files)
+      const keys = await AsyncStorage.getAllKeys().catch(() => []);
+      const toRemove = keys.filter(
+        (k) => k.startsWith('team_messages_') || (k.startsWith('team-') && k.endsWith('-files'))
+      );
+      if (toRemove.length > 0) await AsyncStorage.multiRemove(toRemove).catch(() => {});
     } catch (error) {
       console.warn('[auth] Failed to clear persisted session during sign out:', error);
     } finally {
       setUser(null);
       setPendingVerificationEmail(null);
       setHasCompletedOnboarding(false);
-      attemptedOnboardingSyncRef.current = false;
-      await AsyncStorage.removeItem(ONBOARDING_COMPLETE_KEY);
       lastPushRegistrationRef.current = null;
       router.replace('/sign-in');
     }
   }, [router]);
+
+  signOutRef.current = signOut;
+
+  // Register session-expired handler: when 401 + refresh fails, redirect to sign-in
+  useEffect(() => {
+    const { setOnSessionExpired } = require('@/api/auth');
+    setOnSessionExpired(() => {
+      void signOutRef.current();
+    });
+    return () => setOnSessionExpired(null);
+  }, []);
 
   const registerPushToken = useCallback(async () => {
     if (!user?.id) return false;

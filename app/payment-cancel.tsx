@@ -15,7 +15,7 @@ export default function PaymentCancelScreen() {
 
   const handleContinue = () => {
     // Navigate to feed (they can try payment later)
-    router.replace('/(tabs)/feed');
+    router.replace('/(tabs)');
   };
 
   return (
@@ -23,7 +23,12 @@ export default function PaymentCancelScreen() {
       <Stack.Screen options={{ 
         title: 'Payment Cancelled',
         headerShown: true,
-        gestureEnabled: true
+        gestureEnabled: true,
+        headerLeft: () => (
+          <Pressable onPress={() => router.back()} style={{ padding: 8 }} hitSlop={8}>
+            <Ionicons name="chevron-back" size={24} color="#111827" />
+          </Pressable>
+        )
       }} />
       <SafeAreaView style={styles.container}>
         <View style={styles.content}>

@@ -1,5 +1,5 @@
+import { Input } from '@/components/ui/input';
 import PrimaryButton from '@/components/ui/PrimaryButton';
-import { Input } from '@/shared/components';
 // Segmented replaced by wheel picker for roles
 import { Type } from '@/ui/tokens';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,7 +24,7 @@ export default function Step6AuthorizedUsers() {
   const router = useRouter();
   const params = useLocalSearchParams<{ returnToConfirmation?: string }>();
   const returnToConfirmation = params.returnToConfirmation === 'true';
-  const { state: ob, setState: setOB, setProgress } = useOnboarding();
+  const { state: ob, setState: setOB, progress, setProgress } = useOnboarding();
   const colorScheme = useColorScheme() ?? 'light';
   const [email, setEmail] = useState('');
   const [assignTeam, setAssignTeam] = useState('');
@@ -61,13 +61,20 @@ export default function Step6AuthorizedUsers() {
     }
     // Organization roles are simpler: owner | manager | member
     switch (r) {
-      case 'Coach':
       case 'Manager':
-        return 'manager'; // allow invited coaches/managers to create team pages
+        return 'manager';
       default:
         return 'member';
     }
   };
+
+  // Fans must not see this step - redirect to profile
+  useEffect(() => {
+    if (ob.role === 'fan') {
+      setProgress(5);
+      router.replace('/onboarding/step-7-profile');
+    }
+  }, [ob.role, router, setProgress]);
 
   useEffect(() => {
     if (Array.isArray(ob.authorized) && ob.authorized.length) {
@@ -83,8 +90,8 @@ export default function Step6AuthorizedUsers() {
       case 'rookie':
         return {
           name: 'Rookie',
-          maxUsers: 3,
-          description: 'Add up to 3 authorized users (Coach, Manager, Assistant, Equipment, or Health & Wellness) to help manage your team',
+          maxUsers: 1,
+          description: 'Add 1 authorized user (Coach, Manager, Assistant, Equipment, or Health & Wellness) to help manage your team',
           allowedRoles: ['Coach', 'Manager', 'Assistant', 'Equipment', 'Health and Wellness'] as TeamRole[]
         };
       case 'veteran':
@@ -173,13 +180,50 @@ export default function Step6AuthorizedUsers() {
   };
 
   const onContinue = () => {
+    if (__DEV__) console.warn('[STEP-6] Continue clicked, current progress:', progress);
+    if (__DEV__) console.warn('[STEP-6] Current state:', JSON.stringify(ob, null, 2));
+    
+    // Save authorized users to state
     setOB((prev) => ({ ...prev, authorized: list }));
+    
     if (returnToConfirmation) {
+      if (__DEV__) console.warn('[STEP-6] Returning to confirmation');
       setProgress(7);
       router.replace('/onboarding/step-10-confirmation');
     } else {
-      setProgress(5); // Advance to Step 7
-      router.push('/onboarding/step-7-profile');
+      // CRITICAL: Validate coach has completed steps 2-4 before allowing step 7
+      if (ob.role === 'coach') {
+        const hasStep2 = !!(ob.username && ob.dob && (ob.zip || ob.zip_code));
+        const hasStep3 = !!ob.plan;
+        const hasStep4 = !!(ob.team_id || ob.organization_id);
+        
+        if (__DEV__) console.warn('[STEP-6] Coach validation:', { hasStep2, hasStep3, hasStep4 });
+        
+        if (!hasStep2) {
+          if (__DEV__) console.warn('[STEP-6] Missing Step 2, redirecting');
+          setProgress(1);
+          router.replace('/onboarding/step-2-basic');
+          return;
+        }
+        if (!hasStep3) {
+          if (__DEV__) console.warn('[STEP-6] Missing Step 3, redirecting');
+          setProgress(2);
+          router.replace('/onboarding/step-3-plan');
+          return;
+        }
+        if (!hasStep4) {
+          if (__DEV__) console.warn('[STEP-6] Missing Step 4, redirecting');
+          setProgress(3);
+          router.replace('/onboarding/step-4-organization');
+          return;
+        }
+      }
+      
+      // All validations passed - advance to Step 7
+      if (__DEV__) console.warn('[STEP-6] ✅ All validations passed, advancing to Step 7 (progress: 5)');
+      setProgress(5); // Advance to Step 7 (index 5 in stepRoutes)
+      // Use replace to prevent back navigation issues
+      router.replace('/onboarding/step-7-profile');
     }
   };
 
@@ -190,17 +234,41 @@ export default function Step6AuthorizedUsers() {
         setProgress(7);
         router.replace('/onboarding/step-10-confirmation');
       } else {
+        // CRITICAL: Validate coach has completed steps 2-4 before allowing step 7
+        if (ob.role === 'coach') {
+          const hasStep2 = !!(ob.username && ob.dob && (ob.zip || ob.zip_code));
+          const hasStep3 = !!ob.plan;
+          const hasStep4 = !!(ob.team_id || ob.organization_id);
+          
+          if (!hasStep2) {
+            setProgress(1);
+            router.replace('/onboarding/step-2-basic');
+            return;
+          }
+          if (!hasStep3) {
+            setProgress(2);
+            router.replace('/onboarding/step-3-plan');
+            return;
+          }
+          if (!hasStep4) {
+            setProgress(3);
+            router.replace('/onboarding/step-4-organization');
+            return;
+          }
+        }
+        
         setProgress(5); // Advance to Step 7
-        router.push('/onboarding/step-7-profile');
+        router.replace('/onboarding/step-7-profile');
       }
     }
   };
 
   return (
     <OnboardingLayout
-      step={5}
+      step={6}
       title="Add Authorized Users"
       subtitle={planInfo.description}
+      backRoute="/onboarding/step-4-organization"
     >
       <Stack.Screen options={{ headerShown: false }} />
 
@@ -241,8 +309,20 @@ export default function Step6AuthorizedUsers() {
               placeholder="coach@example.com" 
               autoCapitalize="none" 
               keyboardType="email-address" 
-              style={styles.textInput}
+              style={{ marginBottom: 12 }} 
             />
+
+            {ob.plan !== 'rookie' && (
+              <>
+                <Text style={styles.label}>Assign to Team (optional)</Text>
+                <Input 
+                  value={assignTeam} 
+                  onChangeText={setAssignTeam} 
+                  placeholder="e.g., Varsity Football" 
+                  style={{ marginBottom: 12 }} 
+                />
+              </>
+            )}
 
             <Text style={styles.label}>Role</Text>
             <Pressable
@@ -255,14 +335,6 @@ export default function Step6AuthorizedUsers() {
               <Ionicons name="chevron-down" size={18} color={Colors[colorScheme].mutedText} />
             </Pressable>
             <View style={{ height: 12 }} />
-
-            <Text style={styles.label}>Assign to Team (optional)</Text>
-            <Input 
-              value={assignTeam} 
-              onChangeText={setAssignTeam} 
-              placeholder="e.g., Varsity Football" 
-              style={styles.textInput}
-            />
 
             <PrimaryButton 
               label={adding ? 'Adding…' : 'Add User'}
@@ -418,19 +490,11 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 12,
-    backgroundColor: '#fff',
-    borderColor: '#111827',
   },
   selectFieldText: {
-    color: '#111827',
+    color: Colors[colorScheme].text,
     fontSize: 14,
     fontWeight: '600',
-  },
-  textInput: {
-    marginBottom: 12,
-    backgroundColor: '#fff',
-    color: '#111827',
-    borderColor: '#111827',
   },
   
   usersList: {

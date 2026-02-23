@@ -5,10 +5,15 @@ import { Stack } from 'expo-router';
 import { useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, useColorScheme } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useUser } from '@/hooks/useUser';
+import { useAuth } from '@/context/AuthProvider';
+import { Colors } from '@/constants/Colors';
 
 export default function ResetPasswordScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+  const { refresh: refreshUser } = useUser();
+  const { checkAuth } = useAuth();
   const [current, setCurrent] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -23,7 +28,12 @@ export default function ResetPasswordScreen() {
     setSaving(true);
     try {
       await auth.changePassword(currentValue, p);
-      Alert.alert('Password updated', 'Your password has been changed.');
+      // Refresh user data in both useUser hook and AuthProvider
+      await Promise.all([
+        refreshUser().catch(() => {}), // Refresh useUser hook
+        checkAuth().catch(() => {}), // Refresh AuthProvider state
+      ]);
+      Alert.alert('Password updated', 'Your password has been changed. A confirmation email has been sent to your account.');
       setCurrent('');
       setPassword('');
       setConfirm('');
@@ -35,13 +45,13 @@ export default function ResetPasswordScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#111827' : '#FFFFFF' }]} edges={['bottom']}>
-      <Stack.Screen options={{ title: 'Reset Password', headerBackTitle: 'Back' }} />
+      <Stack.Screen options={{ title: 'Change Password', headerBackTitle: 'Back', headerShown: true }} />
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-        <Text style={[styles.label, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Current Password</Text>
+        <Text style={[styles.label, { color: Colors[colorScheme ?? 'light'].mutedText }]}>Current Password</Text>
         <Input placeholder="Enter current password" value={current} onChangeText={setCurrent} secureTextEntry style={{ marginBottom: 16 }} />
-        <Text style={[styles.label, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>New Password</Text>
+        <Text style={[styles.label, { color: Colors[colorScheme ?? 'light'].mutedText }]}>New Password</Text>
         <Input placeholder="At least 8 characters" value={password} onChangeText={setPassword} secureTextEntry style={{ marginBottom: 16 }} />
-        <Text style={[styles.label, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Confirm Password</Text>
+        <Text style={[styles.label, { color: Colors[colorScheme ?? 'light'].mutedText }]}>Confirm Password</Text>
         <Input placeholder="Re-enter your password" value={confirm} onChangeText={setConfirm} secureTextEntry style={{ marginBottom: 24 }} />
         <Button onPress={onSave} disabled={saving}>{saving ? 'Saving…' : 'Update Password'}</Button>
       </ScrollView>

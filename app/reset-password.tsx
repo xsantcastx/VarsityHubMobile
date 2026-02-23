@@ -1,1 +1,1 @@
-export { default } from '@/features/auth/screens/ResetPasswordScreen';
+export { default } from './reset';

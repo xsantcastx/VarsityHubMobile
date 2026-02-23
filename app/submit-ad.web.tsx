@@ -1,14 +1,19 @@
 import settings from '@/api/settings';
 import { BannerUpload } from '@/components/BannerUpload';
+import { Colors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
-import { Advertisement as AdsApi, User } from '@/api/entities';
+import { Advertisement as AdsApi } from '@/api/entities';
+import { useAuth } from '@/context/AuthProvider';
 
 // Web version: ReachMapPreview removed (maps not supported on web)
+
+type BannerFitValue = 'rotate' | 'fill' | 'stretch' | `rotate:${number}`;
 
 type DraftAd = {
   id: string;
@@ -16,7 +21,7 @@ type DraftAd = {
   contact_name: string;
   contact_email: string;
   banner_url?: string;
-  banner_fit_mode?: string;
+  banner_fit_mode?: BannerFitValue;
   target_url?: string;
   zip_code: string;
   description?: string;
@@ -28,15 +33,19 @@ type DraftAd = {
 export default function SubmitAdScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const colorScheme = useColorScheme() ?? 'light';
+  const theme = Colors[colorScheme];
+  const { user } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [business, setBusiness] = useState('');
   const [zip, setZip] = useState('');
   const [bannerUrl, setBannerUrl] = useState<string | null>(null);
-  const [bannerFitMode, setBannerFitMode] = useState<'letterbox' | 'fill' | 'stretch'>('fill');
+  const [bannerFitMode, setBannerFitMode] = useState<BannerFitValue>('fill');
   const [targetUrl, setTargetUrl] = useState('');
   const [desc, setDesc] = useState('');
   const [busy, setBusy] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const canSubmit = useMemo(() => {
     // Website link is required; description is optional
@@ -48,7 +57,7 @@ export default function SubmitAdScreen() {
 
   const handleBannerChange = (
     uri: string,
-    fitMode: 'letterbox' | 'fill' | 'stretch',
+    fitMode: BannerFitValue,
     _position?: { x: number; y: number }
   ) => {
     setBannerUrl(uri);
@@ -58,16 +67,14 @@ export default function SubmitAdScreen() {
   const submit = async () => {
     if (!canSubmit || busy) return;
     setBusy(true);
+    setSubmitError(null);
     try {
-      let currentUserId: string | null = null;
+      const me: any = user ?? null;
+      let currentUserId: string | null = me?.id ? String(me.id) : null;
       let normalizedEmail = email.trim().toLowerCase();
-      try {
-        const me: any = await User.me();
-        currentUserId = me?.id ? String(me.id) : null;
-        if (!normalizedEmail && typeof me?.email === 'string') {
-          normalizedEmail = me.email.trim().toLowerCase();
-        }
-      } catch {}
+      if (!normalizedEmail && typeof me?.email === 'string') {
+        normalizedEmail = me.email.trim().toLowerCase();
+      }
 
       // Try server-side creation first
       let serverId: string | null = null;
@@ -88,7 +95,11 @@ export default function SubmitAdScreen() {
         if (typeof created?.contact_email === 'string') {
           normalizedEmail = created.contact_email.trim().toLowerCase();
         }
-      } catch {}
+      } catch (e: any) {
+        console.error('[submit-ad] AdsApi.create failed:', e);
+        setSubmitError('Failed to submit your ad. Please try again.');
+        return;
+      }
 
       const adId = serverId || `local-${Date.now()}-${Math.round(Math.random() * 1e6)}`;
       // Keep a local copy so My Ads can show offline
@@ -120,7 +131,10 @@ export default function SubmitAdScreen() {
             await settings.setJson(baseKey, legacyFiltered);
           }
         }
-      } catch {}
+      } catch (err: any) {
+        console.error('[submit-ad] Failed to save local draft for offline use:', err);
+        // Non-blocking: ad was created successfully; user still navigates to ad-calendar
+      }
 
       router.push({ pathname: '/ad-calendar', params: { adId } });
     } catch (e: any) {
@@ -134,14 +148,14 @@ export default function SubmitAdScreen() {
   const bottomPadding = useMemo(() => Math.max(insets.bottom + 16, 32), [insets.bottom]);
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['bottom']}>
       <Stack.Screen 
         options={{ 
           title: 'Submit Ad', 
           headerShown: true,
           headerLeft: () => (
             <Pressable onPress={() => void router.back()} style={{ padding: 8 }} accessibilityLabel="Go back">
-              <Ionicons name="arrow-back" size={24} color="#111827" />
+              <Ionicons name="arrow-back" size={24} color={theme.text} />
             </Pressable>
           ),
         }} 
@@ -160,53 +174,57 @@ export default function SubmitAdScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.header}>
-            <Text style={styles.title}>Submit a Local Ad</Text>
-            <Text style={styles.subtitle}>
+            <Text style={[styles.title, { color: theme.text }]}>Submit a Local Ad</Text>
+            <Text style={[styles.subtitle, { color: theme.mutedText }]}>
               Promote your business to local teams and families. Continue to pick your campaign dates.
             </Text>
           </View>
 
-          <View style={styles.card}>
-            <Text style={styles.label}>Your Name *</Text>
+          <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <Text style={[styles.label, { color: theme.text }]}>Your Name *</Text>
             <TextInput 
               value={name} 
               onChangeText={setName} 
               placeholder="Jane Doe" 
-              style={styles.input} 
+              style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]} 
+              placeholderTextColor={theme.mutedText}
               autoCapitalize="words" 
             />
 
-            <Text style={styles.label}>Email Address *</Text>
+            <Text style={[styles.label, { color: theme.text }]}>Email Address *</Text>
             <TextInput 
               value={email} 
               onChangeText={setEmail} 
-              placeholder="jane@business.com" 
-              style={styles.input} 
+              placeholder="you@business.com" 
+              style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]} 
+              placeholderTextColor={theme.mutedText}
               keyboardType="email-address" 
               autoCapitalize="none" 
             />
 
-            <Text style={styles.label}>Business Name *</Text>
+            <Text style={[styles.label, { color: theme.text }]}>Business Name *</Text>
             <TextInput 
               value={business} 
               onChangeText={setBusiness} 
               placeholder="Downtown Pizza & Grill" 
-              style={styles.input} 
+              style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]} 
+              placeholderTextColor={theme.mutedText}
             />
 
-            <Text style={styles.label}>Target Zip Code *</Text>
+            <Text style={[styles.label, { color: theme.text }]}>Target Zip Code *</Text>
             <TextInput 
               value={zip} 
               onChangeText={setZip} 
               placeholder="90210" 
-              style={styles.input} 
+              style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]} 
+              placeholderTextColor={theme.mutedText}
               keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'} 
               maxLength={10} 
             />
 
             {/* Map preview not available on web */}
 
-            <Text style={styles.label}>Ad Banner *</Text>
+            <Text style={[styles.label, { color: theme.text }]}>Ad Banner *</Text>
             <BannerUpload 
               value={bannerUrl || ''} 
               onChange={handleBannerChange}
@@ -214,37 +232,46 @@ export default function SubmitAdScreen() {
               required={true}
             />
             {!bannerUrl && (
-              <Text style={styles.muted}>Banner image is required for your ad</Text>
+              <Text style={[styles.muted, { color: theme.mutedText }]}>Banner image is required for your ad</Text>
             )}
 
-            <Text style={styles.label}>Website Link *</Text>
+            <Text style={[styles.label, { color: theme.text }]}>Website Link *</Text>
             <TextInput
               value={targetUrl}
               onChangeText={setTargetUrl}
               placeholder="https://yourwebsite.com"
-              style={styles.input}
+              style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
+              placeholderTextColor={theme.mutedText}
               keyboardType="url"
               autoCapitalize="none"
               autoCorrect={false}
             />
             {targetUrl.trim() && (
-              <Text style={styles.helperText}>
+              <Text style={[styles.helperText, { color: theme.mutedText }]}>
                 🔗 Users can tap your ad to visit this website
               </Text>
             )}
 
-            <Text style={styles.label}>Description (Optional)</Text>
+            <Text style={[styles.label, { color: theme.text }]}>Description (Optional)</Text>
             <TextInput
               value={desc}
               onChangeText={setDesc}
               placeholder="Tell us about your business or message..."
-              style={[styles.input, styles.textArea]}
+              style={[styles.input, styles.textArea, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
+              placeholderTextColor={theme.mutedText}
               multiline
               numberOfLines={4}
               textAlignVertical="top"
             />
             {/* Description is optional */}
           </View>
+
+          {submitError ? (
+            <View style={[styles.errorBanner, { backgroundColor: '#FEF2F2', borderColor: '#FECACA' }]}>
+              <Ionicons name="alert-circle" size={20} color="#DC2626" />
+              <Text style={[styles.errorBannerText, { color: '#DC2626' }]}>{submitError}</Text>
+            </View>
+          ) : null}
 
           <Pressable 
             onPress={submit} 
@@ -344,6 +371,20 @@ const styles = StyleSheet.create({
   },
   ctaDisabled: { 
     opacity: 0.5 
+  },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginBottom: 16,
+  },
+  errorBannerText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
   },
   ctaText: { 
     color: 'white', 

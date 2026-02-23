@@ -1,16 +1,17 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { usePostCache } from '@/context/PostCacheContext';
+import * as Haptics from 'expo-haptics';
 import AppLinks from '@/utils/links';
 import { Ionicons } from '@expo/vector-icons';
 import { Image as ExpoImage } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
     FlatList,
-    PanResponder,
     Platform,
     Pressable,
     RefreshControl,
@@ -22,16 +23,17 @@ import {
     TextInput,
     View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore legacy export shape
-import { Event, Highlights, Organization, Team, User } from '@/api/entities';
+import { Event, Highlights, Organization, Post, Team, User } from '@/api/entities';
+import { useAuth } from '@/context/AuthProvider';
 // Clipboard is dynamically imported only when needed to avoid crashes
 // if the dev client wasn't built with the native module.
-import RankingBadge, { type RankingType } from '../components/RankingBadge';
-import { HighlightItem } from '../utils/rankingUtils';
+import { formatCount, getCountryFlag, timeAgo } from '@/utils/format';
+import { calculateRanking, HighlightItem } from '../utils/rankingUtils';
 
 type TabType = 'trending' | 'recent' | 'top';
-const CARD_HEIGHT = 170;
+const CARD_HEIGHT = 220;
 
 const mapHighlightItem = (input: any): HighlightItem | null => {
   if (!input) return null;
@@ -59,61 +61,61 @@ const mapHighlightItem = (input: any): HighlightItem | null => {
     lat: typeof input.lat === 'number' ? input.lat : undefined,
     lng: typeof input.lng === 'number' ? input.lng : undefined,
     country_code: typeof input.country_code === 'string' ? input.country_code : undefined,
+    sport: typeof input.sport === 'string' ? input.sport : undefined,
     _score: typeof input._score === 'number' ? input._score : undefined,
   };
 };
 
-const timeAgo = (value?: string | Date | null) => {
-  if (!value) return '';
-  const ts = typeof value === 'string' ? new Date(value).getTime() : new Date(value).getTime();
-  const diff = Math.max(0, Date.now() - ts) / 1000;
-  const days = Math.floor(diff / 86400);
-  if (days >= 30) return '1 month ago';
-  if (days >= 7) return `${Math.floor(days / 7)}w ago`;
-  if (days >= 1) return `${days}d ago`;
-  const hours = Math.floor(diff / 3600);
-  if (hours >= 1) return `${hours}h ago`;
-  const minutes = Math.floor(diff / 60);
-  if (minutes >= 1) return `${minutes}m ago`;
-  return 'now';
-};
 
-const formatCount = (value?: number | null) => {
-  if (!value) return '0';
-  if (value >= 1000000) return `${(value / 1000000).toFixed(1).replace(/\.0$/, '')}M`;
-  if (value >= 1000) return `${(value / 1000).toFixed(1).replace(/\.0$/, '')}K`;
-  return String(value);
-};
+const getSportCategory = (sport?: string, title?: string | null, content?: string | null) => {
+  // First, check if sport is explicitly provided from backend
+  if (sport) {
+    const sportLower = sport.toLowerCase();
+    if (sportLower.includes('football')) return { name: 'Football', icon: '🏈', color: '#8B5A2B' };
+    if (sportLower.includes('basketball')) return { name: 'Basketball', icon: '🏀', color: '#FF6B35' };
+    if (sportLower.includes('baseball')) return { name: 'Baseball', icon: '⚾', color: '#2E8B57' };
+    if (sportLower.includes('soccer')) return { name: 'Soccer', icon: '⚽', color: '#4169E1' };
+    if (sportLower.includes('hockey')) return { name: 'Hockey', icon: '🏒', color: '#1C1C1C' };
+    if (sportLower.includes('tennis')) return { name: 'Tennis', icon: '🎾', color: '#228B22' };
+    if (sportLower.includes('volleyball')) return { name: 'Volleyball', icon: '🏐', color: '#FF1744' };
+    if (sportLower.includes('wrestling')) return { name: 'Wrestling', icon: '🤼', color: '#7B1FA2' };
+    if (sportLower.includes('track')) return { name: 'Track & Field', icon: '🏃', color: '#FF9800' };
+    if (sportLower.includes('swimming')) return { name: 'Swimming', icon: '🏊', color: '#0288D1' };
+    if (sportLower.includes('golf')) return { name: 'Golf', icon: '⛳', color: '#558B2F' };
+    if (sportLower.includes('lacrosse')) return { name: 'Lacrosse', icon: '🥍', color: '#D32F2F' };
+    // Return the sport name as-is if it doesn't match known patterns
+    return { name: sport, icon: '🏆', color: '#FF6B35' };
+  }
 
-const getCountryFlag = (countryCode?: string | null) => {
-  const flags: { [key: string]: string } = {
-    'US': '🇺🇸', 'CA': '🇨🇦', 'GB': '🇬🇧', 'AU': '🇦🇺', 'DE': '🇩🇪',
-    'FR': '🇫🇷', 'IT': '🇮🇹', 'ES': '🇪🇸', 'BR': '🇧🇷', 'MX': '🇲🇽',
-  };
-  return flags[countryCode || ''] || '🌍';
-};
-
-const getSportCategory = (title?: string | null, content?: string | null) => {
-  const text = (title + ' ' + content || '').toLowerCase();
+  // Fallback: Parse from title/content
+  const text = ((title || '') + ' ' + (content || '')).toLowerCase();
   if (text.includes('football') || text.includes('nfl')) return { name: 'Football', icon: '🏈', color: '#8B5A2B' };
   if (text.includes('basketball') || text.includes('nba')) return { name: 'Basketball', icon: '🏀', color: '#FF6B35' };
   if (text.includes('baseball') || text.includes('mlb')) return { name: 'Baseball', icon: '⚾', color: '#2E8B57' };
   if (text.includes('soccer') || text.includes('fifa')) return { name: 'Soccer', icon: '⚽', color: '#4169E1' };
   if (text.includes('hockey') || text.includes('nhl')) return { name: 'Hockey', icon: '🏒', color: '#1C1C1C' };
   if (text.includes('tennis')) return { name: 'Tennis', icon: '🎾', color: '#228B22' };
+  if (text.includes('volleyball')) return { name: 'Volleyball', icon: '🏐', color: '#FF1744' };
+  if (text.includes('wrestling')) return { name: 'Wrestling', icon: '🤼', color: '#7B1FA2' };
+  if (text.includes('track')) return { name: 'Track & Field', icon: '🏃', color: '#FF9800' };
+  if (text.includes('swimming')) return { name: 'Swimming', icon: '🏊', color: '#0288D1' };
+  if (text.includes('golf')) return { name: 'Golf', icon: '⛳', color: '#558B2F' };
+  if (text.includes('lacrosse')) return { name: 'Lacrosse', icon: '🥍', color: '#D32F2F' };
+
   return { name: 'Sports', icon: '🏆', color: '#FF6B35' };
 };
 
-const HighlightCard = React.memo(({ 
+const HighlightCard = ({ 
   item, 
   index = 0,
   currentTab = 'trending',
   nationalTop = [],
-  ranked: _ranked = [],
-  userLocation: _userLocation,
+  ranked = [],
+  userLocation,
   onPress,
   onAuthorPress,
-  colorScheme 
+  colorScheme,
+  onUpvote
 }: { 
   item: HighlightItem; 
   index?: number;
@@ -123,85 +125,45 @@ const HighlightCard = React.memo(({
   userLocation?: { lat: number; lng: number };
   onPress: (item: HighlightItem) => void;
   onAuthorPress?: (authorId: string) => void;
-  colorScheme: 'light' | 'dark' 
+  colorScheme: 'light' | 'dark';
+  onUpvote?: (item: HighlightItem) => void;
 }) => {
   const isVideo = item.media_url ? /\.(mp4|mov|webm|m4v|avi)$/i.test(item.media_url) : false;
-  // Fix: define showNumberedRank and rankNumber for numbered badge logic
-  let showNumberedRank = false;
-  if (currentTab === 'top' && Array.isArray(nationalTop) && index < 3) {
-    showNumberedRank = true;
-  }
-  // You may want to adjust this logic to match your ranking system
+  const category = getSportCategory(item.sport, item.title, item.content);
   const hasMedia = !!item.media_url;
-  const category = getSportCategory(item.title, item.content);
-  const ranking: { show: boolean; type: RankingType; position: number } = {
-    show: false,
-    type: 'trending',
-    position: 0,
-  };
-  const {
-    actionButtonBg,
-    actionButtonBorder,
-    upvoteColor,
-    mutedIconColor,
-    statTextColor,
-    shareColor,
-  } = React.useMemo(() => {
-    const theme = Colors[colorScheme as keyof typeof Colors] ?? Colors.light;
-    return {
-      actionButtonBg: theme.surface,
-      actionButtonBorder: theme.border,
-      upvoteColor: '#3B82F6',
-      mutedIconColor: theme.mutedText,
-      statTextColor: theme.text,
-      shareColor: '#06b6d4',
-    };
-  }, [colorScheme]);
+  
+  // Calculate ranking for this item
+  const _ranking = calculateRanking(item, index, currentTab, nationalTop, ranked, userLocation);
+  
+  // Show numbered ranking for Trending (top 3) and Top (1-10)
+  const showNumberedRank = (currentTab === 'trending' && index < 3) || (currentTab === 'top' && index < 10);
+  const rankNumber = index + 1;
+  
   return (
-    <Pressable style={[styles.card, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border, marginBottom: 18 }]} onPress={() => onPress(item)}>
-      {/* Numbered Ranking Badge - always inside card, never overlapping */}
-      {/* Subtle Top 10 Badge (non-invasive) */}
-      {currentTab === 'top' && index < 10 && (
-        <View style={{
-          position: 'absolute',
-          top: 10,
-          left: 10,
-          backgroundColor: 'rgba(0,0,0,0.10)',
-          borderRadius: 8,
-          paddingHorizontal: 7,
-          paddingVertical: 2,
-          zIndex: 10,
-        }}>
-          <Text style={{
-            fontWeight: '700',
-            fontSize: 13,
-            // Metallic gold gradient effect (fallback to gold if not supported)
-            color: '#FFD700', // Gold
-            textShadowColor: '#B8860B',
-            textShadowOffset: { width: 0, height: 1 },
-            textShadowRadius: 2,
-          }}>#{index + 1}</Text>
-        </View>
-      )}
+    <Pressable style={[styles.card, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]} onPress={() => onPress(item)}>
       <View style={styles.cardContainer}>
         {/* Media Section */}
         <View style={styles.mediaSection}>
+          {/* Numbered Ranking Badge for Top 3 (Trending) or Top 10 - positioned relative to media */}
+          {showNumberedRank && (
+            <View style={[
+              styles.numberBadge, 
+              { 
+                backgroundColor: index === 0 ? '#FFD700' : index === 1 ? '#C0C0C0' : index === 2 ? '#CD7F32' : '#2563EB'
+              }
+            ]}>
+              <Text style={styles.numberBadgeText}>#{rankNumber}</Text>
+            </View>
+          )}
           {hasMedia ? (
             <View style={styles.mediaContainer}>
-              <ExpoImage source={{ uri: item.media_url }} style={styles.mediaImage} contentFit="cover" />
+              <ExpoImage source={{ uri: item.media_url }} style={styles.mediaImage} contentFit="contain" />
               {isVideo && (
                 <View style={styles.videoOverlay}>
                   <View style={styles.playButton}>
                     <Ionicons name="play" size={24} color="#fff" />
                   </View>
                 </View>
-              )}
-              {/* Ranking Badge - Show ONLY if NOT showing circle badge */}
-              {ranking.show && !showNumberedRank && (
-                <RankingBadge 
-                  type={ranking.type} 
-                  position={ranking.position}
-                />
               )}
               {/* Live badge for recent posts */}
               {item.created_at && new Date(item.created_at).getTime() > Date.now() - 3600000 && (
@@ -219,13 +181,6 @@ const HighlightCard = React.memo(({
                 <Text style={styles.categoryIcon}>{category.icon}</Text>
                 <Text style={styles.noMediaText}>Text Post</Text>
               </View>
-              {/* Ranking Badge - Show ONLY if NOT showing circle badge */}
-              {ranking.show && !showNumberedRank && (
-                <RankingBadge 
-                  type={ranking.type} 
-                  position={ranking.position}
-                />
-              )}
             </LinearGradient>
           )}
         </View>
@@ -234,7 +189,7 @@ const HighlightCard = React.memo(({
         <View style={styles.contentSection}>
           {/* Header */}
           <View style={styles.cardHeader}>
-            <View style={[styles.categoryBadge, { backgroundColor: category.color }]}> 
+            <View style={[styles.categoryBadge, { backgroundColor: category.color }]}>
               <Text style={styles.categoryText}>{category.name}</Text>
             </View>
             <Text style={styles.countryFlag}>{getCountryFlag(item.country_code)}</Text>
@@ -268,51 +223,35 @@ const HighlightCard = React.memo(({
               </Text>
               <Ionicons name="chevron-forward" size={14} color={Colors[colorScheme].tabIconDefault} />
             </View>
-            <Text style={styles.timeText}>{timeAgo(item.created_at)}</Text>
+            <Text style={[styles.timeText, { color: Colors[colorScheme].mutedText }]}>{timeAgo(item.created_at)}</Text>
           </Pressable>
 
           {/* Stats Row */}
           <View style={styles.statsRow}>
             <Pressable 
-              style={[styles.actionButton, { backgroundColor: actionButtonBg, borderColor: actionButtonBorder }]}
-              onPress={async (e) => {
+              style={styles.actionButton}
+              onPress={(e) => {
                 e.stopPropagation();
-                if (item.id == null) return;
-                // Optimistic UI update
-                try {
-                  // @ts-ignore legacy export shape
-                  const r = await (await import('@/api/entities')).Post.toggleUpvote(item.id);
-                  // Update upvotes_count and has_upvoted on the item
-                  if (typeof r === 'object' && (typeof r.count === 'number' || typeof r.upvotes_count === 'number')) {
-                    item.upvotes_count = typeof r.count === 'number' ? r.count : r.upvotes_count;
-                  } else {
-                    // fallback: increment/decrement
-                    item.upvotes_count = (item.upvotes_count || 0) + 1;
-                  }
-                  // Optionally, you could trigger a re-render by updating state in parent if needed
-                } catch (err) {
-                  console.error('Upvote failed', err);
-                  Alert.alert('Upvote Failed', 'Could not upvote this post. Please try again.');
-                }
+                onUpvote?.(item);
               }}
             >
-              <Ionicons name="arrow-up" size={20} color={upvoteColor} />
-              <Text style={[styles.statText, { color: upvoteColor, fontWeight: '700' }]}>{formatCount(item.upvotes_count || 0)}</Text>
+              <Ionicons name="arrow-up" size={18} color="#2563EB" />
+              <Text style={[styles.statText, { color: '#2563EB', fontWeight: '700' }]}>{formatCount(item.upvotes_count || 0)}</Text>
             </Pressable>
             
             <Pressable 
-              style={[styles.actionButton, { backgroundColor: actionButtonBg, borderColor: actionButtonBorder }]}
+              style={styles.actionButton}
               onPress={(e) => {
                 e.stopPropagation();
                 onPress(item); // Navigate to post detail to see comments
               }}
             >
-              <Ionicons name="chatbubble" size={18} color={mutedIconColor} />
-              <Text style={[styles.statText, { color: statTextColor, fontWeight: '700' }]}>{formatCount(item._count?.comments || 0)}</Text>
+              <Ionicons name="chatbubble" size={16} color="#6B7280" />
+              <Text style={[styles.statText, { color: Colors[colorScheme].mutedText, fontWeight: '600' }]}>{formatCount(item._count?.comments || 0)}</Text>
             </Pressable>
             
             <Pressable 
-              style={[styles.actionButton, { backgroundColor: actionButtonBg, borderColor: actionButtonBorder }]}
+              style={styles.actionButton}
               onPress={async (e) => {
                 e.stopPropagation();
                 try {
@@ -329,18 +268,21 @@ const HighlightCard = React.memo(({
                     } else {
                       Alert.alert('Share Failed', 'Clipboard unavailable in this build.');
                     }
-                  } catch {}
+                  } catch (error) {
+                    // Silently fail - instrumentation is optional
+                    if (__DEV__) console.warn('[highlights] Instrumentation error:', error);
+                  }
                 }
               }}
             >
-              <Ionicons name="share-outline" size={18} color={shareColor} />
-              <Text style={[styles.statText, { color: shareColor, fontWeight: '700' }]}>Share</Text>
+              <Ionicons name="share-outline" size={16} color="#10B981" />
+              <Text style={[styles.statText, { color: Colors[colorScheme].mutedText, fontWeight: '600' }]}>Share</Text>
             </Pressable>
             
             {item._score && (
-              <View style={[styles.actionButton, { backgroundColor: actionButtonBg, borderColor: actionButtonBorder }]}> 
-                <Ionicons name="trending-up" size={18} color={shareColor} />
-                <Text style={[styles.statText, { color: statTextColor, fontWeight: '700' }]}>{Math.round(item._score)}</Text>
+              <View style={[styles.actionButton, { opacity: 0.7 }]}>
+                <Ionicons name="trending-up" size={16} color="#10B981" />
+                <Text style={[styles.statText, { color: Colors[colorScheme].mutedText }]}>{Math.round(item._score)}</Text>
               </View>
             )}
           </View>
@@ -348,32 +290,19 @@ const HighlightCard = React.memo(({
       </View>
     </Pressable>
   );
-});
+};
 
 const TabButton = ({ title, active, onPress, colorScheme }: { title: string; active: boolean; onPress: () => void; colorScheme: 'light' | 'dark' }) => (
-  <Pressable 
-    style={[
-      styles.tabButton, 
-      active && { 
-        backgroundColor: Colors[colorScheme].tint,
-        borderColor: Colors[colorScheme].tint,
-      },
-      !active && { 
-        backgroundColor: Colors[colorScheme].surface,
-        borderColor: Colors[colorScheme].border,
-      }
-    ]} 
-    onPress={onPress}
-  >
-    <Text style={[styles.tabText, { color: active ? '#fff' : Colors[colorScheme].text }]}>
-      {title}
-    </Text>
+  <Pressable style={[styles.tabButton, active && [styles.activeTab, { backgroundColor: Colors[colorScheme].tint }], !active && { backgroundColor: Colors[colorScheme].surface }]} onPress={onPress}>
+    <Text style={[styles.tabText, active && [styles.activeTabText, { color: Colors[colorScheme].background }], !active && { color: Colors[colorScheme].text, opacity: 0.7 }]}>{title}</Text>
   </Pressable>
 );
 
 export default function HighlightsScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme() ?? 'light';
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -391,48 +320,13 @@ export default function HighlightsScreen() {
     posts: HighlightItem[];
   }>({ teams: [], events: [], users: [], organizations: [], posts: [] });
   const [searching, setSearching] = useState(false);
-  const panResponderRef = useRef<any>(null);
-  const swipeStartXRef = useRef(0);
-
-  // Setup swipe gesture handler
-  useEffect(() => {
-    panResponderRef.current = PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderGrant: (evt) => {
-        swipeStartXRef.current = evt.nativeEvent.pageX;
-      },
-      onPanResponderRelease: (evt) => {
-        const currentX = evt.nativeEvent.pageX;
-        const diff = swipeStartXRef.current - currentX;
-        const minSwipeDistance = 50;
-
-        if (Math.abs(diff) > minSwipeDistance) {
-          if (diff > 0) {
-            // Swiped left - go to next tab
-            const tabs: TabType[] = ['trending', 'recent', 'top'];
-            const currentIdx = tabs.indexOf(activeTab);
-            if (currentIdx < tabs.length - 1) {
-              setActiveTab(tabs[currentIdx + 1]);
-            }
-          } else {
-            // Swiped right - go to previous tab
-            const tabs: TabType[] = ['trending', 'recent', 'top'];
-            const currentIdx = tabs.indexOf(activeTab);
-            if (currentIdx > 0) {
-              setActiveTab(tabs[currentIdx - 1]);
-            }
-          }
-        }
-      },
-    });
-  }, [activeTab]);
+  const postCache = usePostCache();
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const me: any = await User.me().catch(() => null);
+      const me: any = user ?? null;
       const country = (me?.preferences?.country_code || 'US').toUpperCase();
       
       // Location preference lookup: coordinates live under me.preferences
@@ -457,6 +351,9 @@ export default function HighlightsScreen() {
       const rawNationalTop = Array.isArray(payload?.nationalTop) ? payload.nationalTop : [];
       const rawRanked = Array.isArray(payload?.ranked) ? payload.ranked : [];
       
+      // Cache all the raw posts for faster loading when navigating to post detail
+      postCache.setBatch([...rawNationalTop, ...rawRanked]);
+      
       setNationalTop(rawNationalTop.map(mapHighlightItem).filter(Boolean) as HighlightItem[]);
       setRanked(rawRanked.map(mapHighlightItem).filter(Boolean) as HighlightItem[]);
       
@@ -477,15 +374,17 @@ export default function HighlightsScreen() {
       
       setHighlights(uniqueHighlights);
     } catch (e: any) {
-      console.error('Highlights load failed', e);
-      console.error('Error details:', e?.response?.data || e?.message || e);
+      if (__DEV__) {
+        console.error('[Highlights] Load failed:', e);
+        console.error('[Highlights] Error details:', e?.response?.data || e?.message || e);
+      }
       setError('Unable to load highlights.');
       setHighlights([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [postCache, user]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -493,7 +392,13 @@ export default function HighlightsScreen() {
   }, [load]);
 
   useEffect(() => {
-    void load();
+    let mounted = true;
+    const loadData = async () => {
+      await load();
+      if (!mounted) return;
+    };
+    void loadData();
+    return () => { mounted = false; };
   }, [load]);
 
   // Global search function for teams, events, users, and posts
@@ -507,10 +412,22 @@ export default function HighlightsScreen() {
     setSearching(true);
     try {
       const [teamsRes, eventsRes, usersRes, orgsRes] = await Promise.all([
-        Team.list(query, false, { limit: 5 }).catch(() => []),
-        Event.filter({ q: query, approval_status: 'approved' }, 'date', 5).catch(() => []),
-        User.listAll(query, 5).catch(() => []),
-        Organization.list(query, 5).catch(() => []),
+        Team.list(query, false, { limit: 5 }).catch((error: any) => {
+          if (__DEV__) console.warn('[Highlights] Team search failed:', error?.message || error);
+          return [];
+        }),
+        Event.filter({ q: query, approval_status: 'approved' }, 'date', 5).catch((error: any) => {
+          if (__DEV__) console.warn('[Highlights] Event search failed:', error?.message || error);
+          return [];
+        }),
+        User.listAll(query, 5).catch((error: any) => {
+          if (__DEV__) console.warn('[Highlights] User search failed:', error?.message || error);
+          return [];
+        }),
+        Organization.list(query, 5).catch((error: any) => {
+          if (__DEV__) console.warn('[Highlights] Organization search failed:', error?.message || error);
+          return [];
+        }),
       ]);
 
       const teams = Array.isArray(teamsRes) ? teamsRes.slice(0, 5) : [];
@@ -530,8 +447,11 @@ export default function HighlightsScreen() {
       }).slice(0, 10);
 
       setSearchResults({ teams, events, users, organizations, posts });
-    } catch (err) {
-      console.error('Search failed:', err);
+    } catch (err: any) {
+      if (__DEV__) {
+        console.error('[Highlights] Search failed:', err?.message || err);
+      }
+      setSearchResults({ teams: [], events: [], users: [], organizations: [], posts: [] });
     } finally {
       setSearching(false);
     }
@@ -544,16 +464,6 @@ export default function HighlightsScreen() {
     }, 300);
     return () => clearTimeout(timer);
   }, [searchQuery, performGlobalSearch]);
-
-  const handleHighlightPress = useCallback((item: HighlightItem) => {
-    // Navigate to post detail screen
-    router.push(`/post-detail?id=${item.id}`);
-  }, [router]);
-
-  const handleAuthorPress = useCallback((authorId: string) => {
-    // Navigate to user profile
-    router.push(`/user-profile?id=${authorId}`);
-  }, [router]);
 
   const getFilteredHighlights = useCallback(() => {
     let filtered = [...highlights];
@@ -611,7 +521,61 @@ export default function HighlightsScreen() {
     
   }, [highlights, activeTab]);
 
-  const renderHighlight = useCallback(({ item, index }: { item: HighlightItem; index: number }) => (
+  const handleHighlightPress = useCallback((item: HighlightItem, index?: number) => {
+    try {
+      // Navigate to post-detail with all highlights for swipe navigation
+      const filtered = getFilteredHighlights();
+      const targetIndex = index !== undefined ? index : filtered.findIndex(h => h.id === item.id);
+      const postIds = filtered.map(h => h.id).filter(Boolean).join(',');
+      
+      if (postIds && filtered.length > 0) {
+        router.push(`/post-detail?postIds=${postIds}&index=${Math.max(0, targetIndex)}`);
+      } else {
+        // Fallback to single post if no filtered highlights
+        router.push(`/post-detail?id=${item.id}`);
+      }
+    } catch (error) {
+      console.error('Navigation error in handleHighlightPress:', error);
+      // Fallback to single post navigation on error
+      router.push(`/post-detail?id=${item.id}`);
+    }
+  }, [router, getFilteredHighlights]);
+
+  const handleAuthorPress = useCallback((authorId: string) => {
+    // Navigate to user profile
+    router.push(`/user-profile?id=${authorId}`);
+  }, [router]);
+
+  const handleUpvote = useCallback(async (item: HighlightItem) => {
+    try {
+      // Haptic feedback for user interaction
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+      
+      const r: any = await Post.toggleUpvote(item.id);
+      
+      // Success haptic
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      
+      // Update upvotes count optimistically in state
+      setHighlights((prev) =>
+        prev.map((h) =>
+          h.id === item.id
+            ? { ...h, upvotes_count: r?.count ?? (h.upvotes_count || 0) + 1 }
+            : h
+        )
+      );
+    } catch (error) {
+      // Error haptic
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+      
+      if (__DEV__) {
+        console.warn('[Highlights] Failed to toggle upvote:', error);
+      }
+      Alert.alert('Error', 'Unable to upvote at this time');
+    }
+  }, []);
+
+  const renderHighlight = ({ item, index }: { item: HighlightItem; index: number }) => (
     <HighlightCard 
       item={item} 
       index={index}
@@ -619,11 +583,12 @@ export default function HighlightsScreen() {
       nationalTop={nationalTop}
       ranked={ranked}
       userLocation={userLocation}
-      onPress={handleHighlightPress}
-      onAuthorPress={handleAuthorPress}
-      colorScheme={colorScheme} 
+      onPress={() => handleHighlightPress(item, index)}
+      // onAuthorPress intentionally omitted to disable profile navigation from highlights feed
+      colorScheme={colorScheme}
+      onUpvote={handleUpvote}
     />
-  ), [activeTab, nationalTop, ranked, userLocation, handleHighlightPress, handleAuthorPress, colorScheme]);
+  );
 
   if (loading) {
     return (
@@ -657,66 +622,131 @@ export default function HighlightsScreen() {
   const filteredHighlights = getFilteredHighlights();
 
   return (
-    <SafeAreaView style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]}> 
+    <SafeAreaView style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]} edges={['bottom', 'left', 'right']}>
       <StatusBar barStyle={colorScheme === 'dark' ? "light-content" : "dark-content"} backgroundColor={Colors[colorScheme].background} />
       <Stack.Screen options={{ title: 'Highlights', headerShown: false }} />
-
-      {/* Back Button */}
-      <View style={styles.backButtonContainer}>
-        <Pressable onPress={() => router.back()} style={{ flexDirection: 'row', alignItems: 'center' }} accessibilityLabel="Go back">
-          <Ionicons name="chevron-back" size={28} color={Colors[colorScheme].tint} />
-          <Text style={{ color: Colors[colorScheme].tint, fontSize: 17, fontWeight: '600', marginLeft: 2 }}>Back</Text>
-        </Pressable>
-      </View>
-
-      {/* Bold Title Right Under Dynamic Island */}
-      <View style={[styles.titleContainer, { backgroundColor: Colors[colorScheme].background }]}> 
-        <Text style={[styles.boldTitle, { color: Colors[colorScheme].text }]}>Highlights</Text>
-      </View>
       
-      {/* Search Bar */}
-      <View style={[styles.searchContainer, { backgroundColor: Colors[colorScheme].background, borderColor: Colors[colorScheme].border }]}>
-        <Ionicons name="search" size={20} color={Colors[colorScheme].tabIconDefault} />
-        <TextInput
-          style={[styles.searchInput, { color: Colors[colorScheme].text }]}
-          placeholder="Search teams, events, users, organizations, posts..."
-          placeholderTextColor={Colors[colorScheme].tabIconDefault}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
-        {searchQuery.length > 0 && (
-          <Pressable onPress={() => setSearchQuery('')}>
-            <Ionicons name="close-circle" size={20} color={Colors[colorScheme].tabIconDefault} />
-          </Pressable>
-        )}
-      </View>
+      {/* Custom Header */}
+      <View style={[styles.header, { paddingTop: insets.top, backgroundColor: Colors[colorScheme].card, borderBottomColor: Colors[colorScheme].border }]}>
+        {/* Back button and title */}
+        <View style={styles.headerRow}>
+          {/* Back button removed for main highlights page */}
+          <Text style={[styles.headerTitleText, { color: Colors[colorScheme].text }]} numberOfLines={1}>
+            Highlights
+          </Text>
+          <View style={styles.headerSpacer} />
+        </View>
+        {/* Search Bar */}
+        <View style={{ zIndex: 10 }}>
+          <View style={[styles.searchContainer, { backgroundColor: Colors[colorScheme].background, borderColor: Colors[colorScheme].border }]}> 
+            <Ionicons name="search" size={20} color={Colors[colorScheme].tabIconDefault} />
+            <TextInput
+              style={[styles.searchInput, { color: Colors[colorScheme].text }]}
+              placeholder="Search users, teams, or organizations by name or username..."
+              placeholderTextColor={Colors[colorScheme].tabIconDefault}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              autoCorrect={false}
+              autoCapitalize="none"
+            />
+            {searchQuery.length > 0 && (
+              <Pressable onPress={() => setSearchQuery('')}>
+                <Ionicons name="close-circle" size={20} color={Colors[colorScheme].tabIconDefault} />
+              </Pressable>
+            )}
+          </View>
+          {/* Dropdown recommendations */}
+          {searchQuery.length > 0 && !searching && (
+            <View style={{
+              position: 'absolute',
+              top: 48,
+              left: 0,
+              right: 0,
+              backgroundColor: Colors[colorScheme].background,
+              borderColor: Colors[colorScheme].border,
+              borderWidth: 1,
+              borderTopWidth: 0,
+              borderRadius: 8,
+              shadowColor: '#000',
+              shadowOpacity: 0.08,
+              shadowRadius: 8,
+              elevation: 2,
+              zIndex: 20,
+              maxHeight: 180,
+            }}>
+              {/* Users */}
+              {searchResults.users.slice(0, 2).map((user) => (
+                <Pressable
+                  key={user.id}
+                  style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: Colors[colorScheme].border }}
+                  onPress={() => setSearchQuery(user.display_name || user.username || user.email)}
+                >
+                  <Text style={{ color: Colors[colorScheme].text }}>
+                    👤 {user.display_name || user.username || user.email}
+                  </Text>
+                </Pressable>
+              ))}
+              {/* Teams */}
+              {searchResults.teams.slice(0, 2).map((team) => (
+                <Pressable
+                  key={team.id}
+                  style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: Colors[colorScheme].border }}
+                  onPress={() => setSearchQuery(team.name)}
+                >
+                  <Text style={{ color: Colors[colorScheme].text }}>
+                    🏫 {team.name}
+                  </Text>
+                </Pressable>
+              ))}
+              {/* Organizations */}
+              {searchResults.organizations.slice(0, 2).map((org) => (
+                <Pressable
+                  key={org.id}
+                  style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: Colors[colorScheme].border }}
+                  onPress={() => setSearchQuery(org.name)}
+                >
+                  <Text style={{ color: Colors[colorScheme].text }}>
+                    🏆 {org.name}
+                  </Text>
+                </Pressable>
+              ))}
+              {/* No recommendations */}
+              {searchResults.users.length === 0 && searchResults.teams.length === 0 && searchResults.organizations.length === 0 && (
+                <View style={{ padding: 12 }}>
+                  <Text style={{ color: Colors[colorScheme].tabIconDefault }}>No recommendations</Text>
+                </View>
+              )}
+            </View>
+          )}
+        </View>
 
-      {/* Tabs */}
-      <ScrollView 
-        horizontal 
-        showsHorizontalScrollIndicator={false} 
-        style={styles.tabsContainer}
-        contentContainerStyle={styles.tabsContent}
-      >
-        <TabButton 
-          title="🔥 Trending" 
-          active={activeTab === 'trending'} 
-          onPress={() => setActiveTab('trending')} 
-          colorScheme={colorScheme}
-        />
-        <TabButton 
-          title="🕐 Recent" 
-          active={activeTab === 'recent'} 
-          onPress={() => setActiveTab('recent')} 
-          colorScheme={colorScheme}
-        />
-        <TabButton 
-          title="👑 Top" 
-          active={activeTab === 'top'} 
-          onPress={() => setActiveTab('top')} 
-          colorScheme={colorScheme}
-        />
-      </ScrollView>
+        {/* Tabs */}
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false} 
+          style={styles.tabsContainer}
+          contentContainerStyle={styles.tabsContent}
+        >
+          <TabButton 
+            title="🔥 Trending" 
+            active={activeTab === 'trending'} 
+            onPress={() => setActiveTab('trending')} 
+            colorScheme={colorScheme}
+          />
+          <TabButton 
+            title="🕐 Recent" 
+            active={activeTab === 'recent'} 
+            onPress={() => setActiveTab('recent')} 
+            colorScheme={colorScheme}
+          />
+          <TabButton 
+            title="👑 Top" 
+            active={activeTab === 'top'} 
+            onPress={() => setActiveTab('top')} 
+            colorScheme={colorScheme}
+          />
+        </ScrollView>
+      </View>
 
       {/* Show search results when searching */}
       {searchQuery.trim() ? (
@@ -818,7 +848,8 @@ export default function HighlightsScreen() {
                     userLocation={userLocation}
                     onPress={handleHighlightPress}
                     onAuthorPress={handleAuthorPress}
-                    colorScheme={colorScheme} 
+                    colorScheme={colorScheme}
+                    onUpvote={handleUpvote}
                   />
                 ))}
               </View>
@@ -861,6 +892,7 @@ export default function HighlightsScreen() {
           }
         />
       )}
+
     </SafeAreaView>
   );
 }
@@ -868,31 +900,6 @@ export default function HighlightsScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-  },
-  titleContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 4,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  boldTitle: {
-    fontSize: 32,
-    fontWeight: '800',
-  },
-  divider: {
-    height: 1,
-  },
-  backButtonContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: 'transparent',
-  },
-  tabsContainer: {
-    marginBottom: 8,
-    zIndex: 100,
-    backgroundColor: 'transparent',
-    elevation: 5,
   },
   loadingContainer: {
     flex: 1,
@@ -929,14 +936,37 @@ const styles = StyleSheet.create({
   },
   header: {
     borderBottomWidth: 1,
-    paddingBottom: 0,
+    paddingBottom: 8,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 56,
+    paddingHorizontal: 16,
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: -12,
+  },
+  headerTitleText: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginHorizontal: 16,
+  },
+  headerSpacer: {
+    width: 44,
   },
   headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingBottom: 8,
+    paddingBottom: 16,
   },
   headerTitle: {
     fontSize: 28,
@@ -960,10 +990,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginHorizontal: 16,
-    marginBottom: 8,
-    marginTop: 4,
+    marginBottom: 12,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderRadius: 12,
     borderWidth: 1,
     gap: 8,
@@ -996,31 +1025,24 @@ const styles = StyleSheet.create({
     marginTop: 6,
     fontStyle: 'italic',
   },
+  tabsContainer: {
+    paddingHorizontal: 16,
+  },
   tabsContent: {
     gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
+    paddingVertical: 4,
   },
   tabButton: {
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    minHeight: 36,
-    borderWidth: 1.5,
   },
   activeTab: {},
   tabText: {
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
   },
-  activeTabText: {
-    color: '#fff',
-    fontWeight: '800',
-  },
+  activeTabText: {},
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -1038,13 +1060,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   list: {
-    padding: 12,
-    paddingTop: 0,
-    paddingBottom: 24,
+    padding: 16,
+    paddingBottom: 32,
   },
   card: {
-    borderRadius: 14,
-    marginBottom: 12,
+    borderRadius: 16,
+    marginBottom: 16,
     overflow: 'hidden',
     ...Platform.select({
       ios: {
@@ -1063,15 +1084,20 @@ const styles = StyleSheet.create({
   },
   mediaSection: {
     width: '40%',
+    position: 'relative',
   },
   mediaContainer: {
     width: '100%',
     height: '100%',
     position: 'relative',
+    backgroundColor: '#000', // Black background for images to show properly with contain mode
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   mediaImage: {
     width: '100%',
     height: '100%',
+    backgroundColor: 'transparent',
   },
   noMediaContent: {
     flex: 1,
@@ -1110,7 +1136,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 8,
     left: 8,
-    backgroundColor: Colors.light.danger,
+    backgroundColor: '#DC2626',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 4,
@@ -1123,9 +1149,7 @@ const styles = StyleSheet.create({
   contentSection: {
     flex: 1,
     padding: 16,
-    paddingBottom: 12,
     justifyContent: 'space-between',
-    display: 'flex',
   },
   cardHeader: {
     flexDirection: 'row',
@@ -1182,15 +1206,13 @@ const styles = StyleSheet.create({
   },
   timeText: {
     fontSize: 11,
-    color: '#9CA3AF',
+    // color: Uses dynamic color in JSX
     fontWeight: '500',
   },
   statsRow: {
     flexDirection: 'row',
     gap: 12,
     alignItems: 'center',
-    marginTop: 8,
-    flexWrap: 'wrap',
   },
   stat: {
     flexDirection: 'row',
@@ -1201,27 +1223,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'transparent',
-    minHeight: 36,
+    backgroundColor: 'rgba(37, 99, 235, 0.1)',
     ...Platform.select({
       ios: {
         shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.15,
-        shadowRadius: 3,
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
       },
       android: {
-        elevation: 3,
+        elevation: 2,
       },
     }),
   },
   statText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#6B7280',
+    fontSize: 12,
+    fontWeight: '600',
+    // color: Uses dynamic color in JSX
   },
   numberBadge: {
     position: 'absolute',

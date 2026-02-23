@@ -4,9 +4,8 @@
  */
 
 import { sendSubscriptionExpiringEmail } from '../lib/email.js';
+import { getAppBaseUrl } from '../lib/env.js';
 import { prisma } from '../lib/prisma.js';
-
-const APP_BASE_URL = (process.env.APP_BASE_URL || 'https://varsityhub.app').replace(/\/$/, '');
 
 /**
  * Check for subscriptions expiring in 7 days and send email alerts
@@ -92,8 +91,8 @@ export async function checkExpiringSubscriptions() {
           daysRemaining: String(daysUntilExpiry),
           renewalPrice: plan === 'legend' ? '$20/year' : '$0/month',
           featuresLosing: ['Access to premium features', 'Team management tools'],
-          renewLink: `${APP_BASE_URL}/billing/renew`,
-          manageSubscriptionLink: `${APP_BASE_URL}/billing`,
+          renewLink: `${getAppBaseUrl()}/billing/renew`,
+          manageSubscriptionLink: `${getAppBaseUrl()}/billing`,
         });
         
         // Update preferences to track email sent

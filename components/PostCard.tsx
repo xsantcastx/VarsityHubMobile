@@ -1,13 +1,15 @@
-import { Post, User } from '@/api/entities';
+import { useAuth } from '@/context/AuthProvider';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { usePostCard } from '@/hooks/usePostCard';
 import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Alert, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+
+import RankingBadge from './RankingBadge';
 import VideoPlayer from './VideoPlayer';
 
 type PostCardProps = {
@@ -19,98 +21,43 @@ type PostCardProps = {
 };
 
 export default function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated }: PostCardProps) {
+  // Determine badge type and position
+  // Example: post.rankingType: 'trending' | 'recent' | 'top', post.rank: number
+  const rankingType = post.rankingType || null; // e.g., 'trending', 'recent', 'top'
+  const rank = typeof post.rank === 'number' ? post.rank : null;
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
-  const [bookmarked, setBookmarked] = useState<boolean>(!!post.has_bookmarked);
-  const [bookmarksCount, setBookmarksCount] = useState<number>(post.bookmarks_count || 0);
-  const [upvotesCount, setUpvotesCount] = useState<number>(post.upvotes_count || 0);
+  const theme = Colors[colorScheme];
   const [pressed, setPressed] = useState(false);
-  const [currentUser, setCurrentUser] = useState<any>(null);
   const [showActionsMenu, setShowActionsMenu] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
-  const [editContent, setEditContent] = useState(post.content || '');
-  const [editTitle, setEditTitle] = useState(post.title || '');
-  const [updating, setUpdating] = useState(false);
 
-  // Load current user to check ownership
-  useEffect(() => {
-    const loadUser = async () => {
-      try {
-        const user = await User.me();
-        setCurrentUser(user);
-      } catch {
-        // User not logged in or error occurred
-        setCurrentUser(null);
-      }
-    };
-    void loadUser();
-  }, []);
-
-  const onUpvote = async () => {
-    try {
-      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-      const r: any = await Post.toggleUpvote(String(post.id));
-      if (r && typeof r.count === 'number') {
-        setUpvotesCount(r.count);
-      }
-    } catch {}
-  };
-  const onBookmark = async () => {
-    try {
-      void Haptics.selectionAsync().catch(() => {});
-      const r: any = await Post.toggleBookmark(String(post.id));
-      if (r && typeof r.bookmarks_count === 'number') {
-        setBookmarksCount(r.bookmarks_count);
-      }
-      if (r && typeof r.bookmarked === 'boolean') setBookmarked(r.bookmarked);
-    } catch {}
-  };
-
-  const handleDeletePost = async () => {
-    Alert.alert(
-      'Delete Post',
-      'Are you sure you want to delete this post? This action cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await Post.delete(String(post.id));
-              onDeleted?.(String(post.id));
-              Alert.alert('Success', 'Post deleted successfully');
-            } catch (error: any) {
-              Alert.alert('Error', error.message || 'Failed to delete post');
-            }
-          }
-        }
-      ]
-    );
-  };
-
-  const handleEditPost = async () => {
-    if (!editContent.trim() && !editTitle.trim()) {
-      Alert.alert('Error', 'Post must have content or title');
-      return;
-    }
-    setUpdating(true);
-    try {
-      const updateData: { content?: string; title?: string } = {};
-      if (editContent.trim()) updateData.content = editContent.trim();
-      if (editTitle.trim()) updateData.title = editTitle.trim();
-      
-      await Post.update(String(post.id), updateData);
-      const updatedPost = { ...post, ...updateData };
-      onUpdated?.(updatedPost);
+  const {
+    upvotesCount,
+    bookmarksCount,
+    bookmarked,
+    updating,
+    editContent,
+    setEditContent,
+    editTitle,
+    setEditTitle,
+    onUpvote,
+    onBookmark,
+    handleDeletePost,
+    handleEditPost,
+  } = usePostCard({
+    postId: String(post.id),
+    post,
+    onDeleted,
+    onUpdated,
+    onEditSuccess: () => {
       setEditModalVisible(false);
       Alert.alert('Success', 'Post updated successfully');
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to update post');
-    } finally {
-      setUpdating(false);
-    }
-  };
+    },
+  });
+
+  const { user: currentUserFromAuth } = useAuth();
+  const currentUser = currentUserFromAuth;
 
   // Check if current user is the author of this post
   const isAuthor = currentUser && post.author_id && String(currentUser.id) === String(post.author_id);
@@ -148,6 +95,7 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
   );
 
   return (
+    <View style={{ position: 'relative' }}>
     <Pressable
       onPress={onPress}
       onPressIn={() => setPressed(true)}
@@ -161,11 +109,24 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
         pressed && styles.containerPressed
       ]}
     >
+      {/* Top-left round rank badge (e.g. #1, #2, #3, ...), only if rank is present */}
+      {typeof rank === 'number' && (
+        <View style={{ position: 'absolute', top: 8, left: 8, zIndex: 20, backgroundColor: '#FFD600', borderRadius: 999, width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: '#fff' }}>
+          <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 20 }}>{`#${rank + 1}`}</Text>
+        </View>
+      )}
+      {/* Top-right badge for category (Trending/Top/Recent) */}
+      {rankingType && (
+        <RankingBadge type={rankingType} position={typeof rank === 'number' ? rank + 1 : undefined} style={{ position: 'absolute', top: 8, right: 8, zIndex: 20 }} />
+      )}
+
+      {/* Card content */}
+      <View>
       {showAuthorHeader && author ? (
         <View style={styles.authorRow}>
           <Pressable
             style={styles.authorInfo}
-            onPress={() => { if (!author?.id) return; void void router.push({ pathname: '/user-profile', params: { id: String(author.id), username: author.display_name || 'User' } });
+            onPress={() => { if (!author?.id) return; void void router.push({ pathname: '/user-profile', params: { id: String(author.id), username: author.username || 'User' } });
             }}
           >
             <View style={styles.authorAvatarWrap}>
@@ -175,7 +136,9 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
                 <LinearGradient colors={["#1e293b", "#0f172a"]} style={styles.authorAvatar} />
               )}
             </View>
-            <Text numberOfLines={1} style={[styles.authorName, { color: Colors[colorScheme].text }]}>{author?.display_name || 'User'}</Text>
+            <Text numberOfLines={1} style={[styles.authorName, { color: Colors[colorScheme].text }]}>
+              {author?.username ? `@${author.username}` : 'User'}
+            </Text>
           </Pressable>
           {isAuthor && (
             <Pressable
@@ -272,7 +235,7 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
           style={styles.modalOverlay}
           onPress={() => setShowActionsMenu(false)}
         >
-          <View style={styles.actionsMenu}>
+          <View style={[styles.actionsMenu, { backgroundColor: theme.card }]}>
             <Pressable
               style={styles.actionItem}
               onPress={() => {
@@ -288,7 +251,7 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
               style={styles.actionItem}
               onPress={() => {
                 setShowActionsMenu(false);
-                void handleDeletePost().catch(() => {});
+                handleDeletePost();
               }}
             >
               <Ionicons name="trash" size={20} color="#dc2626" />
@@ -304,7 +267,7 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
         animationType="slide"
         onRequestClose={() => setEditModalVisible(false)}
       >
-        <View style={styles.editModal}>
+        <View style={[styles.editModal, { backgroundColor: theme.background }]}>
           <View style={styles.editHeader}>
             <Pressable onPress={() => setEditModalVisible(false)}>
               <Text style={styles.cancelButton}>Cancel</Text>
@@ -335,7 +298,10 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
           </View>
         </View>
       </Modal>
+      {/* This closes the card content View */}
+      </View>
     </Pressable>
+    </View>
   );
 }
 

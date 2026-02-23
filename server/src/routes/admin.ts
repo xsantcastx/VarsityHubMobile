@@ -5,7 +5,7 @@ import {
   getTransactionBySession,
   getTransactionSummary
 } from '../lib/transactionLogger.js';
-import { requireAdmin as requireAdminMiddleware } from '../middleware/requireAdmin.js';
+import { isEmailAdmin, requireAdmin as requireAdminMiddleware } from '../middleware/requireAdmin.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 
 const adminRouter = express.Router();
@@ -181,13 +181,7 @@ async function requireAdmin(req: AuthedRequest, res: express.Response, next: exp
       select: { email: true }
     });
 
-    // Check if user is admin using ADMIN_EMAILS environment variable
-    const adminEmails = (process.env.ADMIN_EMAILS || '')
-      .split(',')
-      .map(e => e.trim().toLowerCase())
-      .filter(Boolean);
-
-    if (!user || !adminEmails.includes(user.email?.toLowerCase() || '')) {
+    if (!user || !isEmailAdmin(user.email)) {
       return res.status(403).json({ error: 'Admin access required' });
     }
 

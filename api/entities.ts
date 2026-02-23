@@ -1,6 +1,6 @@
 // Local REST client wrappers. Swaps out Base44 for a self-hosted API.
 import auth from './auth';
-import { httpDelete, httpGet, httpPatch, httpPost, httpPut } from './http';
+import { httpDelete, httpGet, httpPatch, httpPost, httpPostLongTimeout, httpPut } from './http';
 
 export const User = {
   me: () => auth.me(),
@@ -17,17 +17,21 @@ export const User = {
   verifyEmail: (code: string) => auth.verifyEmail(code),
   usernameAvailable: (username: string) => httpGet('/users/username-available?username=' + encodeURIComponent(username)),
   lookupByEmail: (email: string) => httpGet('/users/lookup?email=' + encodeURIComponent(email)),
-  lookupByIdentifier: (identifier: string) => {
-    const trimmed = identifier.trim();
-    const param = trimmed.includes('@') ? `email=${encodeURIComponent(trimmed)}` : `username=${encodeURIComponent(trimmed)}`;
-    return httpGet('/users/lookup?' + param);
-  },
-  listAll: (q?: string, limit: number = 100, banned?: boolean) => {
-    const qq: string[] = [];
-    if (q) qq.push('q=' + encodeURIComponent(q));
-    if (banned) qq.push('banned=1');
-    qq.push('limit=' + String(limit));
-    return httpGet('/users' + (qq.length ? '?' + qq.join('&') : ''));
+  listAll: async (q?: string, limit: number = 100, banned?: boolean) => {
+    try {
+      const qq: string[] = [];
+      if (q) qq.push('q=' + encodeURIComponent(q));
+      if (banned) qq.push('banned=1');
+      qq.push('limit=' + String(limit));
+      return await httpGet('/users' + (qq.length ? '?' + qq.join('&') : ''));
+    } catch (error: any) {
+      // If admin-only, return empty array instead of throwing
+      if (error?.message?.includes('Admin only') || error?.status === 403) {
+        console.log('[User.listAll] Admin-only endpoint, returning empty results');
+        return [];
+      }
+      throw error;
+    }
   },
   ban: (id: string) => httpPost('/users/' + encodeURIComponent(id) + '/ban', {}),
   unban: (id: string) => httpPost('/users/' + encodeURIComponent(id) + '/unban', {}),
@@ -60,25 +64,19 @@ export const User = {
   getPublic: (id: string) => httpGet('/users/' + encodeURIComponent(id)),
   // Search users for mentions
   searchForMentions: (query: string, limit: number = 10) => httpGet('/users/search/mentions?q=' + encodeURIComponent(query) + '&limit=' + String(limit)),
+  // Lookup user by username
+  lookupByUsername: (username: string) => httpGet('/users/lookup?username=' + encodeURIComponent(username)),
   // Block/unblock users
   block: (id: string) => httpPost('/users/' + encodeURIComponent(id) + '/block', {}),
   unblock: (id: string) => httpDelete('/users/' + encodeURIComponent(id) + '/block'),
   blockedUsers: () => httpGet('/users/blocked'),
 };
 
-export const Search = {
-  universal: (q: string, options?: { limit?: number }) => {
-    const params: string[] = ['q=' + encodeURIComponent(q)];
-    if (typeof options?.limit === 'number') params.push('limit=' + encodeURIComponent(String(options.limit)));
-    const qs = params.length ? '?' + params.join('&') : '';
-    return httpGet('/search' + qs);
-  },
-};
-
 export const Game = {
   list: (
     sort?: string,
     options?: {
+      cursor?: string | null;
       limit?: number;
       lat?: number;
       lng?: number;
@@ -91,6 +89,7 @@ export const Game = {
   ) => {
     const params: string[] = [];
     if (sort) params.push(`sort=${encodeURIComponent(sort)}`);
+    if (options?.cursor) params.push(`cursor=${encodeURIComponent(options.cursor)}`);
     if (typeof options?.limit === 'number') params.push(`limit=${encodeURIComponent(String(options.limit))}`);
     if (typeof options?.lat === 'number') params.push(`lat=${encodeURIComponent(String(options.lat))}`);
     if (typeof options?.lng === 'number') params.push(`lng=${encodeURIComponent(String(options.lng))}`);
@@ -122,7 +121,7 @@ export const Game = {
   setApprovalStatus: (id: string, approval: 'approved' | 'rejected') =>
     httpPut(`/games/${encodeURIComponent(id)}/approve`, { approval_status: approval }),
   stories: (id: string) => httpGet(`/games/${encodeURIComponent(id)}/stories`),
-  addStory: (id: string, data: { media_url: string; caption?: string }) => httpPost(`/games/${encodeURIComponent(id)}/stories`, data),
+  addStory: (id: string, data: { media_url: string; caption?: string; location?: { lat: number; lng: number; source?: 'device' | 'places' | 'zip' | 'derived' } }) => httpPost(`/games/${encodeURIComponent(id)}/stories`, data),
 };
 
 
@@ -151,7 +150,7 @@ export const Post = {
     const res = await httpGet('/posts' + (q.length ? '?' + q.join('&') : ''));
     return normalizePostItems(res);
   },
-  create: (data: any) => httpPost('/posts', data),
+  create: (data: any) => httpPostLongTimeout('/posts', data),
   filter: async (where: { game_id?: string; type?: string; user_id?: string } = {}, sort?: string, limit: number = 20) => {
     const q: string[] = [];
     if (sort) q.push('sort=' + encodeURIComponent(sort));
@@ -200,12 +199,23 @@ export const Post = {
   },
   // Additional helpers used in UI
   trendingPage: async (cursor?: string | null, limit: number = 20) => {
-    const q: string[] = [];
-    if (cursor) q.push('cursor=' + encodeURIComponent(cursor));
-    if (limit) q.push('limit=' + String(limit));
-    const res = await httpGet('/posts/trending' + (q.length ? '?' + q.join('&') : ''));
-    // normalize to page shape
-    return normalizePostPage(res);
+    try {
+      const q: string[] = [];
+      if (cursor) q.push('cursor=' + encodeURIComponent(cursor));
+      if (limit) q.push('limit=' + String(limit));
+      const res = await httpGet('/posts/trending' + (q.length ? '?' + q.join('&') : ''));
+      // normalize to page shape
+      return normalizePostPage(res);
+    } catch (error: any) {
+      // If trending endpoint doesn't exist, fallback to regular posts sorted by created_at
+      console.log('[Post.trendingPage] Trending endpoint not available, falling back to recent posts');
+      const q: string[] = [];
+      if (cursor) q.push('cursor=' + encodeURIComponent(cursor));
+      if (limit) q.push('limit=' + String(limit));
+      q.push('sort=-created_at'); // Sort by most recent
+      const res = await httpGet('/posts' + (q.length ? '?' + q.join('&') : ''));
+      return normalizePostPage(res);
+    }
   },
   createCollage: (data: any) => httpPost('/posts/collage', data),
   get: (id: string) => httpGet('/posts/' + encodeURIComponent(id)),
@@ -214,12 +224,17 @@ export const Post = {
   deleteComment: (postId: string, commentId: string) => httpDelete(`/posts/${encodeURIComponent(postId)}/comments/${encodeURIComponent(commentId)}`),
   updateComment: (postId: string, commentId: string, content: string) => httpPatch(`/posts/${encodeURIComponent(postId)}/comments/${encodeURIComponent(commentId)}`, { content }),
   delete: (id: string) => httpDelete('/posts/' + encodeURIComponent(id)),
+  restore: (id: string) => httpPost(`/posts/${encodeURIComponent(id)}/restore`, {}),
   update: (id: string, data: { content?: string; title?: string }) => httpPatch('/posts/' + encodeURIComponent(id), data),
   toggleUpvote: (id: string) => httpPost(`/posts/${encodeURIComponent(id)}/upvote`, {}),
   toggleBookmark: (id: string) => httpPost(`/posts/${encodeURIComponent(id)}/bookmark`, {}),
+  getByEvent: (eventId: string) => httpGet(`/posts?event_id=${encodeURIComponent(eventId)}`),
+  createPoll: (id: string, data: { options: string[], expires_at?: string }) => httpPost(`/posts/${encodeURIComponent(id)}/poll`, data),
+  voteOnPoll: (id: string, optionId: string) => httpPost(`/posts/${encodeURIComponent(id)}/poll/vote`, { option_id: optionId }),
 };
 
 export const Event = {
+  create: (data: any) => httpPost('/events', data),
   filter: (where: { status?: string; approval_status?: string; event_type?: string; q?: string } = {}, sort?: string, limit?: number) => {
     const q: string[] = [];
     if (where.status) q.push('status=' + encodeURIComponent(where.status));
@@ -227,32 +242,13 @@ export const Event = {
     if (where.event_type) q.push('event_type=' + encodeURIComponent(where.event_type));
     if (where.q) q.push('q=' + encodeURIComponent(where.q));
     if (sort) q.push('sort=' + encodeURIComponent(sort));
-    if (typeof limit === 'number') q.push('limit=' + encodeURIComponent(String(limit)));
+    if (typeof limit === 'number') q.push('limit=' + String(limit));
     return httpGet('/events' + (q.length ? '?' + q.join('&') : ''));
   },
   get: (id: string) => httpGet('/events/' + encodeURIComponent(id)),
   rsvpStatus: (id: string) => httpGet(`/events/${encodeURIComponent(id)}/rsvp`),
   rsvp: (id: string, going?: boolean) => httpPost(`/events/${encodeURIComponent(id)}/rsvp`, typeof going === 'boolean' ? { going } : {}),
   myRsvps: () => httpGet('/events/my-rsvps'),
-  pitch: (data: {
-    title: string;
-    date: string;
-    location?: string;
-    latitude?: number;
-    longitude?: number;
-    description?: string;
-    event_type?: string;
-    linked_league?: string;
-    max_attendees?: number;
-    contact_info?: string;
-    banner_url?: string;
-    game_id?: string;
-    team_hint?: string;
-  }) => httpPost('/events/pitch', data),
-  listPitches: () => httpGet('/events/pitches'),
-  approvePitch: (id: string) => httpPut(`/events/pitches/${encodeURIComponent(id)}/approve`, {}),
-  rejectPitch: (id: string, reason?: string) =>
-    httpPut(`/events/pitches/${encodeURIComponent(id)}/reject`, reason ? { reason } : {}),
 };
 
 export const Message = {
@@ -333,9 +329,6 @@ export const Organization = {
   },
   approveJoinRequest: (requestId: string) => httpPost(`/organizations/join-requests/${encodeURIComponent(requestId)}/approve`, {}),
   rejectJoinRequest: (requestId: string, reason?: string) => httpPost(`/organizations/join-requests/${encodeURIComponent(requestId)}/reject`, { reason }),
-  follow: (id: string) => httpPost(`/organizations/${encodeURIComponent(id)}/follow`, {}),
-  unfollow: (id: string) => httpDelete(`/organizations/${encodeURIComponent(id)}/follow`),
-  followers: (id: string) => httpGet(`/organizations/${encodeURIComponent(id)}/followers`),
 };
 
 export const Team = {
@@ -344,7 +337,7 @@ export const Team = {
     if (q) params.push(`q=${encodeURIComponent(q)}`);
     if (mine) params.push('mine=1');
     if (options?.directory) params.push('directory=1');
-    if (typeof options?.limit === 'number') params.push(`limit=${encodeURIComponent(String(options.limit))}`);
+    if (typeof options?.limit === 'number') params.push(`limit=${String(options.limit)}`);
     const qs = params.length ? '?' + params.join('&') : '';
     return httpGet('/teams' + qs);
   },
@@ -405,9 +398,6 @@ export const Team = {
   myInvites: () => httpGet('/teams/invites/me'),
   acceptInvite: (inviteId: string) => httpPost(`/teams/invites/${encodeURIComponent(inviteId)}/accept`, {}),
   declineInvite: (inviteId: string) => httpPost(`/teams/invites/${encodeURIComponent(inviteId)}/decline`, {}),
-  follow: (teamId: string) => httpPost(`/teams/${encodeURIComponent(teamId)}/follow`, {}),
-  unfollow: (teamId: string) => httpDelete(`/teams/${encodeURIComponent(teamId)}/follow`),
-  followers: (teamId: string) => httpGet(`/teams/${encodeURIComponent(teamId)}/followers`),
   updateMember: (
     teamId: string,
     userId: string,
@@ -417,26 +407,17 @@ export const Team = {
     httpDelete(`/teams/${encodeURIComponent(teamId)}/members/${encodeURIComponent(userId)}`, reason ? { reason } : undefined),
   delete: (id: string) => httpDelete('/teams/' + encodeURIComponent(id)),
   limits: () => httpGet('/teams/limits'),
+  follow: (id: string) => httpPost(`/teams/${encodeURIComponent(id)}/follow`, {}),
+  unfollow: (id: string) => httpDelete(`/teams/${encodeURIComponent(id)}/follow`),
 };
 
 export const Support = {
-  contact: (data: { name: string; email: string; subject: string; message: string }) => httpPost('/support/contact', data),
+  contact: (data: { name: string; email: string; subject: string; message: string; from_email?: string }) => httpPost('/support/contact', data),
   feedback: (data: { user_id?: string; category: 'bug' | 'idea' | 'other'; message: string; screenshot_url?: string }) => httpPost('/support/feedback', data),
 };
 
-export const HostingRequests = {
-  create: (data: {
-    organization_name: string;
-    contact_name?: string;
-    contact_email?: string;
-    venue?: string;
-    requested_dates?: string;
-    notes?: string;
-  }) => httpPost('/hosting-requests', data),
-  listMine: () => httpGet('/hosting-requests/mine'),
-  listAll: () => httpGet('/hosting-requests'),
-  updateStatus: (id: string, status: 'pending' | 'approved' | 'denied', notes?: string) =>
-    httpPatch(`/hosting-requests/${encodeURIComponent(id)}/status`, { status, notes }),
+export const Payments = {
+  configStatus: () => httpGet('/payments/config'),
 };
 
 export const Subscriptions = {
@@ -450,6 +431,8 @@ export const Subscriptions = {
 
 export const TeamMemberships = {
   create: (data: { team_id: string; user_id: string; role?: string }) => httpPost('/team-memberships', data),
+  update: (membershipId: string, data: { role?: string; custom_position?: string }) => httpPatch(`/team-memberships/${encodeURIComponent(membershipId)}`, data),
+  delete: (membershipId: string) => httpDelete(`/team-memberships/${encodeURIComponent(membershipId)}`),
 };
 
 export const TeamInvites = {
@@ -457,13 +440,29 @@ export const TeamInvites = {
 };
 
 export const Notification = {
-  listPage: (cursor?: string | null, limit: number = 20, unreadOnly: boolean = false) => {
-    const params: string[] = [];
-    params.push('limit=' + encodeURIComponent(String(limit)));
-    if (cursor) params.push('cursor=' + encodeURIComponent(cursor));
-    if (unreadOnly) params.push('unread=1');
-    const qs = params.length ? '?' + params.join('&') : '';
-    return httpGet('/notifications' + qs);
+  listPage: async (cursor?: string | null, limit: number = 20, unreadOnly: boolean = false) => {
+    try {
+      const params: string[] = [];
+      params.push('limit=' + encodeURIComponent(String(limit)));
+      if (cursor) params.push('cursor=' + encodeURIComponent(cursor));
+      if (unreadOnly) params.push('unread=1');
+      const qs = params.length ? '?' + params.join('&') : '';
+      // Use shorter timeout for notification polling (10 seconds)
+      const timeout = limit === 1 && unreadOnly ? 10000 : 30000;
+      return await httpGet('/notifications' + qs, {}, timeout);
+    } catch (error: any) {
+      // If unauthorized (not logged in), return empty page
+      if (error?.message?.includes('Unauthorized') || error?.status === 401) {
+        console.log('[Notification.listPage] Not authenticated, returning empty results');
+        return { items: [], cursor: null, nextCursor: null };
+      }
+      // If timeout or network error, return empty page for polling requests
+      if (limit === 1 && unreadOnly && (error?.message?.includes('timeout') || error?.message?.includes('Aborted'))) {
+        if (__DEV__) console.warn('[Notification.listPage] Poll timeout, returning empty results');
+        return { items: [], cursor: null, nextCursor: null };
+      }
+      throw error;
+    }
   },
   markRead: (id: string) => httpPost(`/notifications/${encodeURIComponent(id)}/read`, {}),
   markAllRead: () => httpPost('/notifications/mark-read-all', {}),
@@ -491,7 +490,7 @@ export const Advertisement = {
   get: (id: string) => httpGet('/ads/' + encodeURIComponent(id)),
   update: (id: string, data: any) => httpPut('/ads/' + encodeURIComponent(id), data),
   delete: (id: string) => httpDelete('/ads/' + encodeURIComponent(id)),
-  forFeed: (dateISO?: string, zip?: string, limit: number = 2) => {
+  forFeed: (dateISO?: string, zip?: string, limit: number = 1) => {
     const q: string[] = [];
     if (dateISO) q.push('date=' + encodeURIComponent(dateISO));
     if (zip) q.push('zip=' + encodeURIComponent(zip));

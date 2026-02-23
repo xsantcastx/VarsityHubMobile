@@ -18,7 +18,6 @@ android/build/
 android/.gradle/
 server/android/build/
 server/android/.gradle/
-android/app/debug.keystore
 
 # Uploads (user-generated content)
 server/uploads/*
@@ -39,6 +38,16 @@ expo-env.d.ts
 *.key
 *.mobileprovision
 
+# Google Play / EAS submit (NEVER commit)
+service-account-key.json
+*-service-account*.json
+
+# Android release signing (NEVER commit these!)
+android/keystore.properties
+android/*.keystore
+android/app/*.keystore
+!android/app/debug.keystore
+
 # Metro
 .metro-health-check*
 
@@ -46,6 +55,8 @@ expo-env.d.ts
 npm-debug.*
 yarn-debug.*
 yarn-error.*
+*.log
+*.tmp
 
 # macOS
 .DS_Store
@@ -61,12 +72,6 @@ server/.env
 server/.env.production
 server/.env.railway
 server/.env.railway.api
-
-# Python virtual environments
-.venv/
-venv/
-ENV/
-env/
 
 # typescript
 *.tsbuildinfo
@@ -87,9 +92,15 @@ overnight-results/
 build-*.ipa
 ENV_ALIGNMENT_REPORT.md
 
-# Consolidated build artifacts and logs (local only, not in version control)
+# Logs directory
+.logs/
 logs/
-artifacts/
+*.log
+*.txt
+!package.json
+!tsconfig.json
+!*.config.*
+!README*.txt
 
 # Test/output artifacts
 coverage/
@@ -97,4 +108,22 @@ coverage-*/
 playwright-report/
 test-results/
 *.coverage
-build/
+
+# Local audit artifacts
+overnight.log
+midnight-health.json
+overnight-audit.sh
+
+# Overnight automation directories
+overnight-*/
+overnight-health-*/
+overnight-logs-*/
+
+# Snyk Security Extension - AI Rules (auto-generated)
+.github/instructions/snyk_rules.instructions.md
+
+# Snyk Security Extension - AI Rules (auto-generated)
+.cursor/rules/snyk_rules.mdc
+.env.bak
+builds/
+credentials.json

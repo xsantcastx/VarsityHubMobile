@@ -4,10 +4,11 @@ import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Image, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Image, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Message, User } from '@/api/entities';
+import { useAuth } from '@/context/AuthProvider';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 
@@ -43,6 +44,7 @@ export default function MessagesScreen() {
   const params = useLocalSearchParams<{ sharePost?: string }>();
   const sharePostId = params?.sharePost ? String(params.sharePost) : undefined;
   const colorScheme = useColorScheme();
+  const { user: authUser } = useAuth();
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -70,10 +72,7 @@ export default function MessagesScreen() {
     setLoading(true);
     setError(null);
     try {
-      try {
-        const u = await User.me();
-        setMe(u);
-      } catch {}
+      setMe(authUser ?? null);
 
       const result: UIMsg[] | { _isNotModified: boolean } = await (Message.list
         ? Message.list('-created_at', 50)
@@ -84,16 +83,11 @@ export default function MessagesScreen() {
       }
     } catch (e: any) {
       console.error('Failed to load messages', e);
-      if (e?.status === 401) {
-        setError('Please sign in to view your messages.');
-        setMessages([]);
-      } else {
-        setError('Unable to load messages.');
-      }
+      setError('Unable to load messages.');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [authUser]);
 
   // Load on mount
   useEffect(() => {
@@ -111,18 +105,18 @@ export default function MessagesScreen() {
   // Group messages into conversations
   const conversations = useMemo((): Conversation[] => {
     if (!me) return [];
-    
+
     const convMap = new Map<string, Conversation>();
-    
+
     messages.forEach(msg => {
       const mine = msg.sender_id === me.id;
       const other = mine ? msg.recipient : msg.sender;
-      
+
       if (!other || !other.id) return;
-      
+
       // Use conversation_id or create key from other user's id
       const convKey = msg.conversation_id || `user-${other.id}`;
-      
+
       if (!convMap.has(convKey)) {
         convMap.set(convKey, {
           id: convKey,
@@ -143,9 +137,9 @@ export default function MessagesScreen() {
         }
       }
     });
-    
+
     // Sort by last message date
-    return Array.from(convMap.values()).sort((a, b) => 
+    return Array.from(convMap.values()).sort((a, b) =>
       new Date(b.lastMessage.created_at).getTime() - new Date(a.lastMessage.created_at).getTime()
     );
   }, [messages, me]);
@@ -173,13 +167,27 @@ export default function MessagesScreen() {
     const search = async () => {
       setSearchingUsers(true);
       try {
+        // Check authentication before searching
+        if (!me || !me.id) {
+          Alert.alert('Login Required', 'Please log in to search for users.');
+          setSearchResults([]);
+          return;
+        }
         const users = await User.listAll(searchUserQuery, 20);
         if (mounted && Array.isArray(users)) {
           // Filter out current user
           setSearchResults(users.filter((u: MiniUser) => u.id !== me?.id));
         }
-      } catch (e) {
-        console.error('User search failed', e);
+      } catch (e: any) {
+        // Silently handle admin-only restriction
+        if (e?.message?.includes('Admin only')) {
+          // Admin-only feature - silently ignore
+        } else if (e?.status === 401 || e?.message?.toLowerCase().includes('unauthorized')) {
+          Alert.alert('Login Required', 'You must be logged in to search for users.');
+          setSearchResults([]);
+        } else {
+          console.error('User search failed', e);
+        }
       } finally {
         if (mounted) setSearchingUsers(false);
       }
@@ -207,6 +215,11 @@ export default function MessagesScreen() {
   };
 
   const startConversation = (user: MiniUser) => {
+    // When starting a conversation, immediately clear the sharePost param
+    // so the compose modal doesn't re-open on its own.
+    if (sharePostId) {
+      router.setParams({ sharePost: '' });
+    }
     setComposeOpen(false);
     setSearchUserQuery('');
     setSearchResults([]);
@@ -236,12 +249,12 @@ export default function MessagesScreen() {
     const hasUnread = item.unreadCount > 0;
 
     return (
-      <Pressable 
+      <Pressable
         style={[
-          styles.conversationRow, 
+          styles.conversationRow,
           hasUnread && styles.conversationUnread,
           { borderBottomColor: Colors[colorScheme].border }
-        ]} 
+        ]}
         onPress={() => openThread(item)}
       >
         <View style={styles.avatarContainer}>
@@ -254,15 +267,15 @@ export default function MessagesScreen() {
           )}
           {hasUnread && <View style={styles.unreadDot} />}
         </View>
-        
+
         <View style={styles.conversationContent}>
           <View style={styles.conversationHeader}>
-            <Text 
+            <Text
               style={[
-                styles.conversationName, 
+                styles.conversationName,
                 { color: Colors[colorScheme].text },
                 hasUnread && styles.conversationNameBold
-              ]} 
+              ]}
               numberOfLines={1}
             >
               {name}
@@ -271,14 +284,14 @@ export default function MessagesScreen() {
               {formatTime(item.lastMessage.created_at)}
             </Text>
           </View>
-          
+
           <View style={styles.messagePreviewRow}>
-            <Text 
+            <Text
               style={[
-                styles.messagePreview, 
+                styles.messagePreview,
                 { color: Colors[colorScheme].tabIconDefault },
                 hasUnread && styles.messagePreviewBold
-              ]} 
+              ]}
               numberOfLines={2}
             >
               {item.lastMessage.content || 'No message content'}
@@ -299,8 +312,8 @@ export default function MessagesScreen() {
     const avatar = item.avatar_url;
 
     return (
-      <Pressable 
-        style={[styles.userSearchRow, { borderBottomColor: Colors[colorScheme].border }]} 
+      <Pressable
+        style={[styles.userSearchRow, { borderBottomColor: Colors[colorScheme].border }]}
         onPress={() => startConversation(item)}
       >
         {avatar ? (
@@ -326,7 +339,7 @@ export default function MessagesScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['bottom']}>
       <Stack.Screen options={{ headerShown: false }} />
-      
+
       {/* Enhanced header with gradient and safe area */}
       <LinearGradient
         colors={colorScheme === 'dark' ? ['#1e293b', '#0f172a'] : ['#ffffff', '#f8fafc']}
@@ -362,17 +375,8 @@ export default function MessagesScreen() {
 
       <View style={styles.contentContainer}>
         {loading && <View style={styles.center}><ActivityIndicator /></View>}
-        {error && !loading && (
-          <View style={styles.errorBox}>
-            <Text style={styles.error}>{error}</Text>
-            {error.includes('sign in') && (
-              <Pressable style={[styles.errorButton, { backgroundColor: Colors[colorScheme].tint }]} onPress={() => router.push('/sign-in')}>
-                <Text style={styles.errorButtonText}>Go to Sign In</Text>
-              </Pressable>
-            )}
-          </View>
-        )}
-        
+        {error && !loading && <Text style={styles.error}>{error}</Text>}
+
         {!loading && filtered.length === 0 && !error && (
           <View style={styles.emptyState}>
             <Ionicons name="chatbubbles-outline" size={64} color={Colors[colorScheme].tabIconDefault} />
@@ -383,8 +387,8 @@ export default function MessagesScreen() {
               {query ? 'Try a different search term' : 'Start a conversation to get connected'}
             </Text>
             {!query && (
-              <Pressable 
-                style={[styles.emptyButton, { backgroundColor: Colors[colorScheme].tint }]} 
+              <Pressable
+                style={[styles.emptyButton, { backgroundColor: Colors[colorScheme].tint }]}
                 onPress={() => setComposeOpen(true)}
               >
                 <Text style={styles.emptyButtonText}>Start Messaging</Text>
@@ -405,8 +409,8 @@ export default function MessagesScreen() {
 
       {/* Floating compose button */}
       {!loading && (
-        <Pressable 
-          style={[styles.fab, { backgroundColor: Colors[colorScheme].tint, bottom: insets.bottom + 16 }]} 
+        <Pressable
+          style={[styles.fab, { backgroundColor: Colors[colorScheme].tint, bottom: insets.bottom + 16 }]}
           onPress={() => setComposeOpen(true)}
         >
           <Ionicons name="create-outline" size={24} color="white" />
@@ -428,7 +432,7 @@ export default function MessagesScreen() {
             <View style={[styles.searchContainer, { backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)', marginHorizontal: 16, marginBottom: 8 }]}>
               <Ionicons name="search" size={20} color={Colors[colorScheme].tabIconDefault} />
               <TextInput
-                placeholder="Search users by name or email..."
+                placeholder="Search users by username..."
                 placeholderTextColor={Colors[colorScheme].tabIconDefault}
                 value={searchUserQuery}
                 onChangeText={setSearchUserQuery}
@@ -472,7 +476,7 @@ export default function MessagesScreen() {
                   Search for someone
                 </Text>
                 <Text style={[styles.emptySubtitle, { color: Colors[colorScheme].tabIconDefault }]}>
-                  Type a name or email to find users
+                  Type a username to find users
                 </Text>
               </View>
             )}
@@ -556,15 +560,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   center: { paddingVertical: 32, alignItems: 'center' },
-  errorBox: { paddingHorizontal: 16, paddingVertical: 8, gap: 8 },
-  error: { color: '#b91c1c', marginBottom: 8, paddingHorizontal: 0 },
-  errorButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 10,
-    alignSelf: 'flex-start',
-  },
-  errorButtonText: { color: 'white', fontWeight: '700' },
+  error: { color: '#b91c1c', marginBottom: 8, paddingHorizontal: 16 },
   conversationRow: {
     flexDirection: 'row',
     alignItems: 'center',

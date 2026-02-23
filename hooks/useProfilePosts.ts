@@ -1,5 +1,6 @@
 import { User } from '@/api/entities';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback } from 'react';
+import { usePaginatedQuery } from './usePaginatedQuery';
 
 export interface PostsCounts {
   posts: number;
@@ -22,82 +23,34 @@ export interface UseProfilePostsResult {
 
 /**
  * Hook for managing user's posts with pagination
- * Includes request-in-flight guards to prevent duplicate fetches
  */
 export function useProfilePosts(sort: 'newest' | 'most_upvoted' | 'most_commented' = 'newest'): UseProfilePostsResult {
-  const [posts, setPosts] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [cursor, setCursor] = useState<string | null>(null);
-  const [hasMore, setHasMore] = useState(true);
-  const [counts, setCounts] = useState<PostsCounts | null>(null);
-  const requestInFlight = useRef(false);
-
-  const refresh = useCallback(async (userId: string) => {
-    // Prevent concurrent requests
-    if (requestInFlight.current) {
-      return;
-    }
-    
-    requestInFlight.current = true;
-    setLoading(true);
-
-    try {
-      const page = await User.postsForProfile(String(userId), { limit: 10, sort });
-      
-      setPosts(page.items || []);
-      setCursor(page.nextCursor || null);
-      setHasMore(Boolean(page.nextCursor));
-      
-      if (page.counts) {
-        setCounts(page.counts);
-      }
-    } catch (error: any) {
-      console.error('[useProfilePosts] Failed to refresh posts:', error);
-      // Don't throw - let parent handle via error state
-    } finally {
-      requestInFlight.current = false;
-      setLoading(false);
-    }
-  }, [sort]);
-
-  const loadMore = useCallback(async (userId: string) => {
-    if (loading || !hasMore || requestInFlight.current) {
-      return;
-    }
-
-    requestInFlight.current = true;
-    setLoading(true);
-
-    try {
-      const page = await User.postsForProfile(String(userId), {
-        limit: 10,
+  const fetchPage = useCallback(
+    async (params: { userId: string }, opts: { limit: number; cursor?: string | null }) => {
+      const page = await User.postsForProfile(String(params.userId), {
+        limit: opts.limit,
         sort,
-        cursor: cursor || undefined,
+        cursor: opts.cursor ?? undefined,
       });
+      return {
+        items: page.items ?? [],
+        nextCursor: page.nextCursor ?? null,
+        counts: page.counts ?? null,
+      };
+    },
+    [sort]
+  );
 
-      setPosts((prev) => [...prev, ...(page.items || [])]);
-      setCursor(page.nextCursor || null);
-      setHasMore(Boolean(page.nextCursor));
-
-      if (page.counts) {
-        setCounts(page.counts);
-      }
-    } catch (error: any) {
-      console.error('[useProfilePosts] Failed to load more posts:', error);
-    } finally {
-      requestInFlight.current = false;
-      setLoading(false);
-    }
-  }, [cursor, hasMore, loading, sort]);
+  const result = usePaginatedQuery<unknown, { userId: string }>(fetchPage, { limit: 10 });
 
   return {
-    posts,
-    loading,
-    hasMore,
-    cursor,
-    counts,
-    refresh,
-    loadMore,
-    setPosts,
+    posts: result.items as any[],
+    loading: result.loading,
+    hasMore: result.hasMore,
+    cursor: result.cursor,
+    counts: result.counts as PostsCounts | null,
+    refresh: (userId: string) => result.refresh({ userId }),
+    loadMore: (userId: string) => result.loadMore({ userId }),
+    setPosts: result.setItems as React.Dispatch<React.SetStateAction<any[]>>,
   };
 }

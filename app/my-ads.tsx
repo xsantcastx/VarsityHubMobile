@@ -7,7 +7,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
-import { Advertisement as AdsApi, User } from '@/api/entities';
+import { Advertisement as AdsApi } from '@/api/entities';
+import { useAuth } from '@/context/AuthProvider';
 import settings from '@/api/settings';
 import { BackHeader } from '@/components/ui/BackHeader';
 
@@ -29,30 +30,13 @@ type ManagedAd = {
 export default function MyAdsScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
+  const { user, loading: authLoading } = useAuth();
+  const userId = user?.id ? String(user.id) : null;
+  const userLoaded = !authLoading;
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [ads, setAds] = useState<ManagedAd[]>([]);
   const [datesByAd, setDatesByAd] = useState<Record<string, string[]>>({});
-  const [userId, setUserId] = useState<string | null>(null);
-  const [userLoaded, setUserLoaded] = useState(false);
-
-  useEffect(() => {
-    let mounted = true;
-    void (async () => {
-      try {
-        const me: any = await User.me();
-        if (!mounted) return;
-        setUserId(me?.id ? String(me.id) : null);
-      } catch {
-        if (!mounted) return;
-        setUserId(null);
-      } finally {
-        if (mounted) setUserLoaded(true);
-      }
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, []);
 
   const getLocalAdsKey = useCallback(() => {
     const base = settings.SETTINGS_KEYS.LOCAL_ADS;
@@ -61,12 +45,19 @@ export default function MyAdsScreen() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       let serverAds: any[] | null = null;
       try {
         const s = await AdsApi.listMine();
         serverAds = Array.isArray(s) ? s : [];
-      } catch { serverAds = null; }
+      } catch (err: any) {
+        const msg = err?.isNetworkError || err?.status === 0
+          ? 'Unable to connect. Please check your internet and try again.'
+          : 'Failed to load your ads. Please try again.';
+        setError(msg);
+        serverAds = null;
+      }
 
       const localAds = await settings.getJson<ManagedAd[]>(getLocalAdsKey(), []);
       const combined: ManagedAd[] = [];
@@ -102,7 +93,12 @@ export default function MyAdsScreen() {
       const map: Record<string, string[]> = {};
       for (const [id, dates] of entries) map[id] = dates;
       setDatesByAd(map);
-    } finally { setLoading(false); }
+    } catch {
+      setError("We couldn't load your ads. Pull to refresh or try again later.");
+      setAds([]);
+    } finally {
+      setLoading(false);
+    }
   }, [getLocalAdsKey]);
 
   useEffect(() => {
@@ -126,19 +122,10 @@ export default function MyAdsScreen() {
                 // Delete from server
                 await AdsApi.delete(id);
                 
-                // Remove from scoped local storage
-                const list = await settings.getJson<ManagedAd[]>(getLocalAdsKey(), []);
+                // Also remove from local storage
+                const list = await settings.getJson<ManagedAd[]>(settings.SETTINGS_KEYS.LOCAL_ADS, []);
                 const next = list.filter((a) => a.id !== id);
-                await settings.setJson(getLocalAdsKey(), next);
-                
-                // Also clean up legacy unscoped storage if user is logged in
-                if (userId) {
-                  const legacyList = await settings.getJson<ManagedAd[]>(settings.SETTINGS_KEYS.LOCAL_ADS, []);
-                  const legacyNext = legacyList.filter((a) => a.id !== id);
-                  if (legacyNext.length !== legacyList.length) {
-                    await settings.setJson(settings.SETTINGS_KEYS.LOCAL_ADS, legacyNext);
-                  }
-                }
+                await settings.setJson(settings.SETTINGS_KEYS.LOCAL_ADS, next);
                 
                 // Reload the list
                 await load();
@@ -146,7 +133,7 @@ export default function MyAdsScreen() {
                 Alert.alert('Success', 'Ad deleted successfully');
               } catch (error) {
                 console.error('[my-ads2] Error deleting ad:', error);
-                Alert.alert('Error', 'Failed to delete ad. Please try again.');
+                Alert.alert('Delete Ad', "We couldn't remove this ad. Try again or check your connection.");
               }
             })();
           }
@@ -404,8 +391,21 @@ export default function MyAdsScreen() {
             <Text style={[styles.loadingText, { color: Colors[colorScheme].mutedText }]}>Loading your ads...</Text>
           </View>
         )}
+
+        {!loading && error && (
+          <View style={styles.errorContainer}>
+            <Ionicons name="alert-circle-outline" size={48} color="#DC2626" />
+            <Text style={[styles.errorText, { color: Colors[colorScheme].text }]}>{error}</Text>
+            <Pressable
+              style={[styles.retryButton, { backgroundColor: Colors[colorScheme].tint }]}
+              onPress={() => void load()}
+            >
+              <Text style={styles.retryButtonText}>Try Again</Text>
+            </Pressable>
+          </View>
+        )}
         
-        {!loading && ads.length === 0 ? (
+        {!loading && !error && ads.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Ionicons name="megaphone-outline" size={80} color={Colors[colorScheme].mutedText} />
             <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text }]}>No Ads Yet</Text>
@@ -422,7 +422,7 @@ export default function MyAdsScreen() {
           </View>
         ) : null}
         
-        {!loading && ads.length > 0 && (
+        {!loading && !error && ads.length > 0 && (
           <FlatList
             data={ads}
             keyExtractor={(a) => a.id}
@@ -669,6 +669,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingTop: 60,
+  },
+  errorContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+    paddingTop: 60,
+  },
+  errorText: {
+    fontSize: 16,
+    textAlign: 'center',
+    marginTop: 16,
+    marginBottom: 24,
+  },
+  retryButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
   loadingText: {
     marginTop: 12,

@@ -11,7 +11,7 @@ export function Switch(props: SwitchProps) {
         false: colorScheme === 'dark' ? Colors.dark.border : Colors.light.border,
         true: colorScheme === 'dark' ? Colors.dark.tint : Colors.light.tint,
       }}
-      thumbColor={props.value ? (colorScheme === 'dark' ? '#FFFFFF' : '#FFFFFF') : (colorScheme === 'dark' ? '#9CA3AF' : '#F3F4F6')}
+      thumbColor={props.value ? Colors.light.card : Colors[colorScheme].mutedText}
       ios_backgroundColor={colorScheme === 'dark' ? Colors.dark.border : Colors.light.border}
       {...props}
     />

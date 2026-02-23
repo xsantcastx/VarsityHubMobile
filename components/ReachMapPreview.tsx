@@ -2,9 +2,10 @@ import { geocodeLocation } from '@/api/geocoding';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import MapView, { Circle, Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Circle, Marker } from 'react-native-maps';
+import { getMapProvider } from '@/utils/maps';
 
 interface ReachMapPreviewProps {
   zipCode: string;
@@ -29,11 +30,13 @@ export function ReachMapPreview({ zipCode, radiusKm = 15 }: ReachMapPreviewProps
   const [location, setLocation] = useState<GeoLocation | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const requestIdRef = useRef(0);
 
   useEffect(() => {
     // Only geocode if we have a valid-looking ZIP code
     const trimmed = zipCode.trim();
-    if (!trimmed || trimmed.length < 3) {
+    const cleaned = trimmed.replace(/\s+/g, '');
+    if (!cleaned || cleaned.length < 5) {
       setLocation(null);
       setError(null);
       return;
@@ -42,15 +45,16 @@ export function ReachMapPreview({ zipCode, radiusKm = 15 }: ReachMapPreviewProps
     let mounted = true;
     setLoading(true);
     setError(null);
+    const requestId = ++requestIdRef.current;
 
     const timers: Array<ReturnType<typeof setTimeout>> = [];
     const MAX_ATTEMPTS = 3;
 
     const geocodeZip = async (attempt: number) => {
       try {
-        const result = await geocodeLocation(trimmed);
+        const result = await geocodeLocation(cleaned);
 
-        if (!mounted) return;
+        if (!mounted || requestId !== requestIdRef.current) return;
 
         if (result) {
           setLocation({
@@ -60,24 +64,23 @@ export function ReachMapPreview({ zipCode, radiusKm = 15 }: ReachMapPreviewProps
           setError(null);
         } else {
           setLocation(null);
-          setError('Map preview unavailable');
+          setError('ZIP code not found');
         }
         setLoading(false);
       } catch (err: any) {
-        if (!mounted) return;
-        // Silent fail - don't block user
+        if (!mounted || requestId !== requestIdRef.current) return;
+        console.error('Geocoding error:', err);
 
-        // Check if it's a 404 (not found) or 500 (server/config error)
-        if (err?.status === 404) {
+        if (err?.status === 401 || err?.status === 403) {
           setLocation(null);
-          setError(null); // Don't show error, just skip map
+          setError('Sign in to preview reach area');
           setLoading(false);
           return;
         }
 
-        if (err?.status === 500) {
+        if (err?.status === 404) {
           setLocation(null);
-          setError(null); // Don't show error, just skip map
+          setError('ZIP code not found');
           setLoading(false);
           return;
         }
@@ -89,7 +92,7 @@ export function ReachMapPreview({ zipCode, radiusKm = 15 }: ReachMapPreviewProps
           return;
         }
 
-        setError('Map preview unavailable');
+        setError('Unable to locate ZIP code');
         setLocation(null);
         setLoading(false);
       }
@@ -135,8 +138,8 @@ export function ReachMapPreview({ zipCode, radiusKm = 15 }: ReachMapPreviewProps
       {/* Map Container */}
       <View style={styles.mapWrapper}>
         {loading && (
-          <View style={styles.loadingOverlay}>
-            <ActivityIndicator size="large" color="#10B981" />
+          <View style={[styles.loadingOverlay, { backgroundColor: Colors[colorScheme].background }]}>
+            <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
             <Text style={[styles.loadingText, { color: Colors[colorScheme].mutedText }]}>
               Locating ZIP code...
             </Text>
@@ -144,22 +147,20 @@ export function ReachMapPreview({ zipCode, radiusKm = 15 }: ReachMapPreviewProps
         )}
 
         {error && !loading && (
-          <View style={styles.errorOverlay}>
-            <Ionicons name="alert-circle" size={48} color="#EF4444" />
+          <View style={[styles.errorOverlay, { backgroundColor: Colors[colorScheme].background }]}>
+            <Ionicons name="alert-circle" size={48} color={Colors[colorScheme].destructive} />
             <Text style={[styles.errorText, { color: Colors[colorScheme].mutedText }]}>
               {error}
             </Text>
             <Text style={[styles.errorHint, { color: Colors[colorScheme].mutedText }]}>
-              {error.includes('preview') 
-                ? 'Your ad will still work - the map is just a preview' 
-                : 'Please enter a valid US or Canadian ZIP code'}
+              Please enter a valid US or Canadian ZIP code
             </Text>
           </View>
         )}
 
         {location && !loading && (
           <MapView
-            provider={PROVIDER_GOOGLE}
+            provider={getMapProvider()}
             style={styles.map}
             initialRegion={{
               latitude: location.latitude,
@@ -167,12 +168,11 @@ export function ReachMapPreview({ zipCode, radiusKm = 15 }: ReachMapPreviewProps
               latitudeDelta: 0.5, // Adjust zoom level to show the full circle
               longitudeDelta: 0.5,
             }}
-            region={{
-              latitude: location.latitude,
-              longitude: location.longitude,
-              latitudeDelta: 0.5,
-              longitudeDelta: 0.5,
-            }}
+            scrollEnabled={true}
+            zoomEnabled={true}
+            pitchEnabled={false}
+            rotateEnabled={false}
+            followsUserLocation={false}
           >
             {/* Center Marker */}
             <Marker
@@ -180,8 +180,8 @@ export function ReachMapPreview({ zipCode, radiusKm = 15 }: ReachMapPreviewProps
               title={`ZIP ${zipCode}`}
               description="Your ad targeting center"
             >
-              <View style={styles.markerContainer}>
-                <Ionicons name="business" size={24} color="#10B981" />
+              <View style={[styles.markerContainer, { backgroundColor: Colors[colorScheme].card }]}>
+                <Ionicons name="business" size={24} color={Colors[colorScheme].tint} />
               </View>
             </Marker>
 
@@ -197,7 +197,7 @@ export function ReachMapPreview({ zipCode, radiusKm = 15 }: ReachMapPreviewProps
         )}
 
         {!location && !loading && !error && (
-          <View style={styles.placeholderOverlay}>
+          <View style={[styles.placeholderOverlay, { backgroundColor: Colors[colorScheme].background }]}>
             <Ionicons name="map-outline" size={48} color={Colors[colorScheme].mutedText} />
             <Text style={[styles.placeholderText, { color: Colors[colorScheme].mutedText }]}>
               Enter a ZIP code to preview reach area

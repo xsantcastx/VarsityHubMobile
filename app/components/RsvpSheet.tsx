@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 export type RsvpSheetProps = {
   visible: boolean;
@@ -8,9 +8,10 @@ export type RsvpSheetProps = {
   capacity?: number | null;
   isGoing?: boolean;
   onToggleRsvp: () => Promise<void> | void;
+  busy?: boolean;
 };
 
-export default function RsvpSheet({ visible, onClose, goingCount = 0, capacity = null, isGoing = false, onToggleRsvp }: RsvpSheetProps) {
+export default function RsvpSheet({ visible, onClose, goingCount = 0, capacity = null, isGoing = false, onToggleRsvp, busy = false }: RsvpSheetProps) {
   const remaining = useMemo(() => (typeof capacity === 'number' ? Math.max(0, capacity - (goingCount || 0)) : null), [capacity, goingCount]);
 
   return (
@@ -25,8 +26,16 @@ export default function RsvpSheet({ visible, onClose, goingCount = 0, capacity =
           {typeof remaining === 'number' && <Text style={styles.metaMuted}>{remaining} spots remaining</Text>}
 
           <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
-            <Pressable style={[styles.primaryBtn]} onPress={onToggleRsvp}>
-              <Text style={styles.primaryBtnText}>{isGoing ? 'Cancel RSVP' : 'Confirm RSVP'}</Text>
+            <Pressable
+              style={[styles.primaryBtn, busy && { opacity: 0.6 }]}
+              onPress={onToggleRsvp}
+              disabled={busy}
+            >
+              {busy ? (
+                <ActivityIndicator size="small" color="white" />
+              ) : (
+                <Text style={styles.primaryBtnText}>{isGoing ? 'Cancel RSVP' : 'Confirm RSVP'}</Text>
+              )}
             </Pressable>
             <Pressable style={styles.outlineBtn} onPress={onClose}>
               <Text style={styles.outlineBtnText}>Close</Text>

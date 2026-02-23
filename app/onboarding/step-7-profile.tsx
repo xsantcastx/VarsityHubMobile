@@ -1,5 +1,5 @@
+import { Input } from '@/components/ui/input';
 import PrimaryButton from '@/components/ui/PrimaryButton';
-import { Input } from '@/shared/components';
 import { Type } from '@/ui/tokens';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -8,7 +8,6 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Image, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
 // @ts-ignore
-import { loadToken } from '@/api/auth';
 import { User } from '@/api/entities';
 import { uploadFile } from '@/api/upload';
 import { Colors } from '@/constants/Colors';
@@ -32,6 +31,36 @@ export default function Step7Profile() {
   const [uploading, setUploading] = useState(false);
 
   const styles = useMemo(() => createStyles(colorScheme), [colorScheme]);
+
+  // CRITICAL: For coaches, IMMEDIATELY redirect if steps 2-6 not completed
+  // This is a hard guard - coaches CANNOT access step 7 without completing required steps
+  useEffect(() => {
+    if (ob.role === 'coach' && !returnToConfirmation) {
+      const hasStep2 = !!(ob.username && ob.dob && (ob.zip || ob.zip_code));
+      const hasStep3 = !!ob.plan;
+      const hasStep4 = !!(ob.team_id || ob.organization_id);
+      
+      // IMMEDIATE redirect - don't even render the screen
+      if (!hasStep2) {
+        console.warn('[Step7] BLOCKED: Coach missing Step 2 - redirecting to Step 2');
+        setProgress(1);
+        router.replace('/onboarding/step-2-basic');
+        return;
+      }
+      if (!hasStep3) {
+        console.warn('[Step7] BLOCKED: Coach missing Step 3 - redirecting to Step 3');
+        setProgress(2);
+        router.replace('/onboarding/step-3-plan');
+        return;
+      }
+      if (!hasStep4) {
+        console.warn('[Step7] BLOCKED: Coach missing Step 4 - redirecting to Step 4');
+        setProgress(3);
+        router.replace('/onboarding/step-4-organization');
+        return;
+      }
+    }
+  }, [ob.role, ob.username, ob.dob, ob.zip, ob.zip_code, ob.plan, ob.team_id, ob.organization_id, returnToConfirmation, router, setProgress]);
 
   useEffect(() => {
     setAvatar(ob.avatar_url ?? null);
@@ -82,9 +111,6 @@ export default function Step7Profile() {
   };
 
   const onContinue = async () => {
-    // SECURITY: Prevent double submission
-    if (saving) return;
-    
     // Validate username is required
     if (!username || username.trim().length === 0) {
       Alert.alert('Username Required', 'Please enter a username to continue.');
@@ -98,7 +124,6 @@ export default function Step7Profile() {
 
     setSaving(true);
     try {
-      await loadToken();
       // Save to context
       setOB((prev) => ({ 
         ...prev, 
@@ -116,7 +141,7 @@ export default function Step7Profile() {
         preferences: { sports_interests: interests } 
       });
       
-      setProgress(5); // step-8 is index 5
+      setProgress(6); // step-8 is index 6 in stepRoutes array
       if (returnToConfirmation) {
         router.replace('/onboarding/step-10-confirmation');
       } else {
@@ -132,9 +157,10 @@ export default function Step7Profile() {
 
   return (
     <OnboardingLayout
-      step={6}
+      step={7}
       title="Create Your Profile"
       subtitle="Add a profile picture, bio, and interests to help others connect with you"
+      backRoute={ob.role === 'coach' ? '/onboarding/step-6-authorized-users' : '/onboarding/step-2-basic'}
     >
       <Stack.Screen options={{ headerShown: false }} />
 
@@ -181,7 +207,7 @@ export default function Step7Profile() {
         <Input 
           value={username} 
           onChangeText={setUsername} 
-          placeholder="e.g. @varsity.hub"
+          placeholder="e.g., shamgod_00"
           autoCapitalize="none"
           style={styles.usernameInput}
         />
@@ -366,7 +392,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     fontWeight: '500',
   },
   interestChipTextSelected: {
-    color: colorScheme === 'dark' ? '#000000' : '#FFFFFF',
+    color: colorScheme === 'dark' ? Colors[colorScheme].text : '#FFFFFF',
   },
   
   continueSection: {
@@ -376,7 +402,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   // Legacy styles (keeping for compatibility)
   label: { fontWeight: '700', marginBottom: 4, color: Colors[colorScheme].text },
   chip: { borderWidth: StyleSheet.hairlineWidth, borderColor: Colors[colorScheme].border, color: Colors[colorScheme].text, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999 },
-  chipSelected: { backgroundColor: Colors[colorScheme].tint, color: colorScheme === 'dark' ? '#000000' : 'white', borderColor: Colors[colorScheme].tint },
+  chipSelected: { backgroundColor: Colors[colorScheme].tint, color: colorScheme === 'dark' ? Colors[colorScheme].text : '#FFFFFF', borderColor: Colors[colorScheme].tint },
 });
 
 

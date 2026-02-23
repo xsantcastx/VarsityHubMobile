@@ -1,10 +1,12 @@
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding } from '@/context/OnboardingContext';
+import { STEP_ROUTES, nextIncompleteStep } from '@/context/onboardingReducer';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import OnboardingLayout from './components/OnboardingLayout';
@@ -32,7 +34,7 @@ function RoleCard({
   saving?: boolean;
   roleType?: 'fan' | 'coach';
 }) {
-  const colorScheme = useColorScheme();
+  const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
 
   // Silver for Fan, gold for Coach
@@ -120,10 +122,11 @@ function RoleCard({
 }
 
 export default function Step1Role() {
+  const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, checkAuth } = useAuth();
   const params = useLocalSearchParams<{ returnToConfirmation?: string }>();
-  const { state: ob, setState: setOB, setProgress } = useOnboarding();
+  const { state: ob, setState: setOB, setProgress, clearOnboarding, dispatch, canNavigate, nextStep: calculateNextStep } = useOnboarding();
   const [role, setRole] = useState<UserRole | null>(null);
   const [saving, setSaving] = useState(false);
   const [emailVerified, setEmailVerified] = useState<boolean | null>(null);
@@ -137,67 +140,123 @@ export default function Step1Role() {
   }, [user, router]);
 
   useEffect(() => {
-    if (ob.role) setRole(ob.role);
-  }, [ob.role]);
+    // Load role from onboarding state if available
+    if (ob.role) {
+      setRole(ob.role);
+    } else if (user) {
+      // If not in onboarding state, use preferences from auth context
+      const roleFromUser = (user as any)?.preferences?.role;
+      if (roleFromUser === 'fan' || roleFromUser === 'coach') {
+        setRole(roleFromUser);
+        setOB((prev) => ({ ...prev, role: roleFromUser }));
+      }
+    }
+  }, [ob.role, setOB, user]);
 
   // Check email verification status on mount and when screen focuses
   useFocusEffect(
     useCallback(() => {
       void (async () => {
         try {
-          const me: any = await User.me();
+          const me: any = await checkAuth();
           setEmailVerified(me?.email_verified ?? null);
         } catch (error) {
           console.error('Failed to check email verification:', error);
         }
       })();
-    }, [])
+    }, [checkAuth])
   );
 
   const returnToConfirmation = params.returnToConfirmation === 'true';
 
   const onContinue = async () => {
     if (!role) return;
+    
+    // Prevent double-tap race condition
+    if (!canNavigate || saving) {
+      if (__DEV__) console.warn('[STEP-1] Navigation blocked - saving or already navigating');
+      return;
+    }
+    
     setSaving(true);
+    dispatch({ type: 'SAVE_START' });
+    
     try {
-      setOB((prev) => ({ ...prev, role }));
+      // Only clear state when SWITCHING from fan to coach (not when continuing as coach)
+      // This prevents losing progress for returning coaches
+      const wasCoachBefore = ob.role === 'coach';
+
+      if (role === 'coach' && !wasCoachBefore) {
+        // User is switching TO coach - clear state to ensure full onboarding
+        if (__DEV__) console.warn('[COACH ONBOARDING] 🔄 SWITCHING TO COACH - CLEARING STATE');
+        await clearOnboarding();
+        dispatch({ type: 'INIT_FROM_PROFILE', profile: { role: 'coach' } });
+        setOB({ role: 'coach' });
+      } else if (role === 'coach') {
+        // Already a coach - just continue where they left off
+        if (__DEV__) console.warn('[COACH ONBOARDING] ✅ Continuing as coach (preserving state)');
+        dispatch({ type: 'UPDATE_DRAFT', data: { role: 'coach' } });
+        setOB((prev) => ({ ...prev, role: 'coach' }));
+      } else {
+        dispatch({ type: 'UPDATE_DRAFT', data: { role } });
+        setOB((prev) => ({ ...prev, role }));
+      }
+      
       // Persist role to server so the schema/preferences reflect the user's selection
       try {
         await User.updatePreferences({ role });
         // Re-fetch me to confirm server saved the preference and help downstream code react
         try {
-          const me: any = await User.me();
-          // eslint-disable-next-line no-console
+          const me: any = await checkAuth();
           // If server agrees on the role, ensure onboarding state reflects it (no-op if same)
-          if (me?.preferences?.role) setOB((prev) => ({ ...(prev || {}), role: me.preferences.role }));
+          if (me?.preferences?.role) {
+            setOB((prev) => ({ ...(prev || {}), role: me.preferences.role }));
+            dispatch({ type: 'UPDATE_DRAFT', data: { role: me.preferences.role } });
+          }
         } catch {
           // ignore; best-effort
         }
       } catch (error) {
         if (__DEV__) {
-          // eslint-disable-next-line no-console
           console.warn('[Onboarding][Step1] failed to persist role to server', error);
         }
       }
-      try {
-        // eslint-disable-next-line no-console
-      } catch {}
       
       // If we came from confirmation, go back there
       if (returnToConfirmation) {
+        dispatch({ type: 'SET_STEP', stepIndex: 8, reason: 'RETURN_TO_CONFIRMATION' });
+        setProgress(8);
         router.replace('/onboarding/step-10-confirmation');
       } else {
-        // Route based on role selection for normal onboarding flow
-        if (role === 'fan') {
-          // Fan gets lightest setup - skip to profile
-          setProgress(5); // step-7 is index 5
-          router.push('/onboarding/step-7-profile');
-        } else {
-          // Coach/Organizer gets full onboarding with teams and subscriptions
-          setProgress(1); // step-2 is index 1
-          router.push('/onboarding/step-2-basic');
+        // Use reducer to calculate next step deterministically
+        const updatedState = { ...ob, role };
+        const nextStepIndex = calculateNextStep();
+        const nextRoute = STEP_ROUTES[nextStepIndex] || STEP_ROUTES[0];
+        
+        if (__DEV__) {
+          // eslint-disable-next-line no-console
+          console.log('[STEP-1] Navigation after role selection:', {
+            role,
+            wasCoachBefore,
+            nextStepIndex,
+            nextRoute,
+            calculatedNext: nextIncompleteStep(updatedState, role),
+          });
         }
+        
+        // Save role and navigate to calculated next step
+        dispatch({ 
+          type: 'SAVE_SUCCESS', 
+          data: { role } 
+        });
+        setProgress(nextStepIndex);
+        router.replace(nextRoute as any);
       }
+    } catch (error) {
+      if (__DEV__) {
+        console.error('[STEP-1] Error during continue:', error);
+      }
+      dispatch({ type: 'SAVE_FAIL', error: error as Error });
     } finally {
       setSaving(false);
     }
@@ -262,6 +321,20 @@ export default function Step1Role() {
           'Organize seasons, rosters, and schedules',
         ]}
       />
+
+      <View style={styles.consentRow}>
+        <Text style={[styles.consentText, { color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280' }]}>
+          By continuing, you agree to our{' '}
+          <Text style={styles.consentLink} onPress={() => WebBrowser.openBrowserAsync('https://varsityhub.app/privacy')}>
+            Privacy Policy
+          </Text>
+          {' '}and{' '}
+          <Text style={styles.consentLink} onPress={() => WebBrowser.openBrowserAsync('https://varsityhub.app/terms')}>
+            Terms of Service
+          </Text>
+          .
+        </Text>
+      </View>
     </OnboardingLayout>
   );
 }
@@ -350,6 +423,21 @@ const styles = StyleSheet.create({
     writingDirection: 'ltr',
     transform: [{ rotate: '0deg' }],
     textAlign: 'center',
+  },
+  consentRow: {
+    marginTop: 20,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+  },
+  consentText: {
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  consentLink: {
+    textDecorationLine: 'underline',
+    fontWeight: '600',
+    color: '#3B82F6',
   },
 });
 

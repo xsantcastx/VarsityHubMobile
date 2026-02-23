@@ -18,7 +18,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MatchBanner from '../app/components/MatchBanner';
 import ImageEditor from './ImageEditor';
-import { getApiBaseUrl } from '../api/http';
+import { useMediaUpload } from '@/hooks/useMediaUpload';
 
 interface AddGameModalProps {
   visible: boolean;
@@ -52,7 +52,8 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
   const colorScheme = useColorScheme() ?? 'light';
   const insets = useSafeAreaInsets();
   const { teams: rawTeams, loading: loadingTeams } = useTeamOptions(true);
-  
+  const { upload: uploadMedia } = useMediaUpload();
+
   const [showCurrentTeamPicker, setShowCurrentTeamPicker] = useState(false);
   const [showOpponentPicker, setShowOpponentPicker] = useState(false);
   const [opponentSearchQuery, setOpponentSearchQuery] = useState('');
@@ -507,7 +508,7 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
       setEditorVisible(false);
       // Upload edited image and set as cover or banner in formData
       try {
-        const uploaded = await (await import('@/api/upload')).uploadFile(getApiBaseUrl(), uri, 'edited-banner.png', 'image/png');
+        const uploaded = await uploadMedia(uri, 'edited-banner.png', 'image/png');
         const url = uploaded?.url || uploaded?.path || null;
         if (url) {
           setFormData(prev => ({ ...prev, banner_url: url }));

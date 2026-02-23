@@ -141,7 +141,7 @@ Implemented comprehensive team count tracking and billing validation for Veteran
 ## Environment Variables Required
 
 ```
-STRIPE_SECRET_KEY=sk_live_51RtgdG...
+STRIPE_SECRET_KEY=sk_live_xxx  # Set from Stripe Dashboard; never commit real keys
 STRIPE_PRICE_VETERAN=price_1SGKDDGJt8CsPE1EY6aFs7Hz
 ```
 

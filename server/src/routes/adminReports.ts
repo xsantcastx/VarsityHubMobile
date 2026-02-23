@@ -7,12 +7,12 @@ import {
     sendContentRemovedEmail,
     sendReportResolutionEmail,
 } from '../lib/email.js';
+import { getAppBaseUrl } from '../lib/env.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
 
 export const adminReportsRouter = Router();
-const APP_BASE_URL = (process.env.APP_BASE_URL || 'https://varsityhub.app').replace(/\/$/, '');
 const APPEALS_EMAIL = process.env.APPEALS_EMAIL || 'customerservice@varsityhub.app';
 const SUSPENSION_DAYS = 60;
 const POLICY_BAN_DAYS = 45;
@@ -84,7 +84,7 @@ async function queueReportResolutionEmail(report: any, status: string, resolutio
     year: 'numeric',
     timeZone: 'America/Chicago',
   });
-  const detailLink = `${APP_BASE_URL}/reports/${report.id}`;
+  const detailLink = `${getAppBaseUrl()}/reports/${report.id}`;
   
   try {
     await sendReportResolutionEmail({
@@ -94,7 +94,7 @@ async function queueReportResolutionEmail(report: any, status: string, resolutio
       reportType: report.subject || 'report',
       resolutionStatus: (status === 'resolved' || status === 'dismissed') ? status : 'resolved',
       resolutionReason: resolutionNote || 'Our Trust & Safety team reviewed your report.',
-      appealUrl: `${APP_BASE_URL}/support/appeal`,
+      appealUrl: `${getAppBaseUrl()}/support/appeal`,
       submitDate: submitDate,
       resolutionDate: resolutionDate,
     });

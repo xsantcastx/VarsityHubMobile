@@ -61,8 +61,23 @@ export const SETTINGS_KEYS = {
   NOTIFY_MSG: 'notify_messages',
   NOTIFY_FOLLOW: 'notify_followers',
   LOCAL_ADS: 'local_ads', // stored drafts of submitted local ads
+  POST_DRAFT: 'post_draft', // draft for create post
 };
 
+/** Clear all settings from storage. Call on logout so no previous session persists. */
+export async function clearAllOnLogout(): Promise<void> {
+  const keys = Object.values(SETTINGS_KEYS);
+  try {
+    if (Platform.OS === 'web') {
+      keys.forEach((k) => {
+        try { window.localStorage.removeItem(prefix + k); } catch {}
+      });
+    } else {
+      await Promise.all(keys.map((k) => SecureStore.deleteItemAsync(prefix + k).catch(() => {})));
+    }
+  } catch {}
+}
+
 export default {
-  getBool, setBool, getJson, setJson, getString, setString, SETTINGS_KEYS,
+  getBool, setBool, getJson, setJson, getString, setString, SETTINGS_KEYS, clearAllOnLogout,
 };

@@ -24,7 +24,6 @@ const Input = React.forwardRef<TextInput, TextInputProps>((props, ref) => {
         props.style,
       ]}
       placeholderTextColor={Colors[colorScheme].mutedText}
-      autoComplete="off"
     />
   );
 });

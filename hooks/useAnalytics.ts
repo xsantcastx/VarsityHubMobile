@@ -1,17 +1,6 @@
-import { useCallback } from 'react';
-
-export type AnalyticsEventPayload = Record<string, any>;
-
-export const useAnalytics = () => {
-  const trackTap = useCallback((eventName: string, _payload: AnalyticsEventPayload = {}) => {
-    try {
-      // Reserved for real analytics sink
-    } catch {
-      // Swallow logging errors – analytics should never break the UX.
-    }
-  }, []);
-
-  return { trackTap };
-};
-
-export default useAnalytics;
+export function useAnalytics() {
+  return {
+    track: (_name: string, _props?: Record<string, unknown>) => {},
+    identify: (_id: string, _traits?: Record<string, unknown>) => {},
+  };
+}

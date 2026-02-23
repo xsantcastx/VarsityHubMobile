@@ -1,40 +1,42 @@
 /**
- * Test app factory for integration tests
- * Creates an Express app instance with proper setup and teardown
+ * Minimal Express app for integration tests.
+ * Mounts auth routes and essential middleware without Sentry, email, queue, cron, etc.
  */
-
 import cors from 'cors';
-import express, { Express } from 'express';
-import helmet from 'helmet';
+import express, { NextFunction, Request, Response } from 'express';
+import rateLimit from 'express-rate-limit';
+import { authMiddleware } from '../middleware/auth.js';
+import { authRouter } from '../routes/auth.js';
 
-/**
- * Creates a minimal Express app for testing
- * Does NOT start server or initialize background workers
- */
-export function createTestApp(): Express {
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10000,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const noStore = (_req: Request, res: Response, next: NextFunction) => {
+  res.set('Cache-Control', 'no-store, private');
+  res.set('Pragma', 'no-cache');
+  res.set('Vary', 'Authorization, Origin');
+  next();
+};
+
+const delegateToAuth = (path: string) => (req: Request, res: Response, next: NextFunction) => {
+  const r = { ...req, url: path } as Request;
+  authRouter.handle(r, res, next);
+};
+
+export function createTestApp(): express.Express {
   const app = express();
-
-  // Minimal middleware setup for testing
-  app.use(helmet({ contentSecurityPolicy: false }));
+  app.disable('x-powered-by');
   app.use(cors({ origin: true, credentials: false }));
   app.use(express.json());
-
-  // Routes would be imported dynamically in actual use
-  // For now, provide minimal test structure
-
-  // Health check endpoint
-  app.get('/health', (req, res) => {
-    res.json({ status: 'ok', env: 'test' });
-  });
-
-  // Simple /me endpoint for token validation tests
-  app.get('/me', (req, res) => {
-    const user = (req as any).user;
-    if (!user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-    res.json(user);
-  });
-
+  app.use(authMiddleware);
+  app.use('/auth', authLimiter, authRouter);
+  app.get('/me', noStore, delegateToAuth('/me'));
+  app.patch('/me/preferences', noStore, delegateToAuth('/me/preferences'));
+  app.patch('/me', noStore, delegateToAuth('/me'));
+  app.post('/me/complete-onboarding', noStore, delegateToAuth('/me/complete-onboarding'));
   return app;
 }

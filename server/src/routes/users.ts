@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { getAppBaseUrl } from '../lib/env.js';
 import { notifyNewFollower } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
 import { emailQueue } from '../lib/queue.js';
@@ -7,7 +8,6 @@ import { requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 
 export const usersRouter = Router();
-const APP_BASE_URL = (process.env.APP_BASE_URL || 'https://varsityhub.app').replace(/\/$/, '');
 
 const MS_IN_DAY = 24 * 60 * 60 * 1000;
 function formatJoinDuration(createdAt?: Date | null): string {
@@ -377,9 +377,9 @@ usersRouter.post('/:id/follow', requireAuth as any, async (req: AuthedRequest, r
       console.error('Failed to send follow notification:', e);
     }
     if (athleteUser?.email) {
-      const profileUrl = `${APP_BASE_URL}/user-profile?id=${encodeURIComponent(follower_id)}`;
+      const profileUrl = `${getAppBaseUrl()}/user-profile?id=${encodeURIComponent(follower_id)}`;
       const followBackLink = `${profileUrl}&follow_back=1`;
-      const dmLink = `${APP_BASE_URL}/messages/new?to=${encodeURIComponent(follower_id)}`;
+      const dmLink = `${getAppBaseUrl()}/messages/new?to=${encodeURIComponent(follower_id)}`;
       const followerStats = `Joined ${formatJoinDuration(
         followerUser?.created_at || null
       )}, follows ${followerFollowingCount} athlete${followerFollowingCount === 1 ? '' : 's'}`;

@@ -1,0 +1,1193 @@
+import { getColors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
+import { Ionicons } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { Stack, useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+    ActivityIndicator,
+    Alert,
+    Image,
+    Modal,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
+import { useAuth } from '@/context/AuthProvider';
+import { Game } from '@/api/entities';
+import { autocompleteLocations, PlaceSuggestion } from '@/api/geocoding';
+import { useFollowedTeams } from '@/hooks/useFollowedTeams';
+
+const EVENT_TYPES = [
+  { value: 'game', label: 'Game/Match', icon: 'trophy' },
+  { value: 'watch_party', label: 'Watch Party', icon: 'tv' },
+  { value: 'fundraiser', label: 'Fundraiser', icon: 'cash' },
+  { value: 'team_meeting', label: 'Pep Rallies', icon: 'people' },
+  { value: 'bbq', label: 'BBQ/Social', icon: 'restaurant' },
+  { value: 'other', label: 'Other', icon: 'ellipsis-horizontal' },
+];
+
+export default function CreateFanEventScreen() {
+  const colorScheme = useColorScheme() ?? 'light';
+  const colors = getColors(colorScheme);
+  const router = useRouter();
+  
+  const { teams: rawTeams, loading: _teamsLoading } = useFollowedTeams();
+  const [roleCheckDone, setRoleCheckDone] = useState(false);
+
+  const { user } = useAuth();
+
+  // Block fans: only coaches can create events (API also enforces)
+  useEffect(() => {
+    if (!user) return;
+    const role = (user as any)?.preferences?.role;
+    if (role !== 'coach') {
+      router.replace('/(tabs)' as any);
+      return;
+    }
+    setRoleCheckDone(true);
+  }, [user, router]);
+
+  
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [eventType, setEventType] = useState<string>('game'); // Default to game
+  const [location, setLocation] = useState('');
+  const [locationSuggestions, setLocationSuggestions] = useState<PlaceSuggestion[]>([]);
+  const [locationQuerying, setLocationQuerying] = useState(false);
+  const [locationTouched, setLocationTouched] = useState(false);
+  const [selectedPlace, setSelectedPlace] = useState<PlaceSuggestion | null>(null);
+  const locationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [date, setDate] = useState(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)); // Default to next week
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [errors, setErrors] = useState<{[key: string]: string}>({});
+  
+  // Game-specific fields
+  const [currentTeam, setCurrentTeam] = useState('My Team');
+  const [currentTeamId, setCurrentTeamId] = useState('');
+  const [opponent, setOpponent] = useState('');
+  const [opponentTeamId, setOpponentTeamId] = useState('');
+  const [gameType, setGameType] = useState<'home' | 'away'>('home');
+  const [showTeamPicker, setShowTeamPicker] = useState(false);
+  const [showOpponentPicker, setShowOpponentPicker] = useState(false);
+  const [opponentSearchText, setOpponentSearchText] = useState('');
+  const [showManualOpponentInput, setShowManualOpponentInput] = useState(false);
+  const [manualOpponentName, setManualOpponentName] = useState('');
+  
+  const teams = useMemo(() => {
+    if (!Array.isArray(rawTeams) || rawTeams.length === 0) {
+      return [{ id: 'my-team', name: 'My Team', logo: undefined as string | undefined }];
+    }
+    return rawTeams.map((team: any) => ({
+      id: String(team.id),
+      name: team.name || 'Unknown Team',
+      logo: (team.logo_url || team.avatar_url || undefined) as string | undefined,
+    }));
+  }, [rawTeams]);
+  
+  const getFilteredOpponentTeams = () => {
+    // Only filter from followed teams (already loaded from /follows/teams)
+    return teams
+      .filter(team => team.name !== currentTeam)
+      .filter(team => 
+        opponentSearchText === '' || 
+        team.name.toLowerCase().includes(opponentSearchText.toLowerCase())
+      );
+  };
+
+  // Google Maps location autocomplete
+  const requestLocationSuggestions = useCallback((text: string) => {
+    if (locationTimerRef.current) {
+      clearTimeout(locationTimerRef.current);
+      locationTimerRef.current = null;
+    }
+    
+    if (text.length < 3) {
+      setLocationSuggestions([]);
+      setLocationQuerying(false);
+      return;
+    }
+    
+    setLocationQuerying(true);
+    locationTimerRef.current = setTimeout(async () => {
+      try {
+        const suggestions = await autocompleteLocations(text, 6);
+        setLocationSuggestions(suggestions);
+      } catch (error) {
+        console.warn('Location autocomplete failed:', error);
+        setLocationSuggestions([]);
+      } finally {
+        setLocationQuerying(false);
+      }
+    }, 300); // Debounce 300ms
+  }, []);
+
+  const handleLocationChange = useCallback((text: string) => {
+    setLocation(text);
+    setLocationTouched(true);
+    setSelectedPlace(null);
+    setErrors(prev => ({ ...prev, location: '' }));
+    
+    if (text.length >= 3) {
+      requestLocationSuggestions(text);
+    } else {
+      setLocationSuggestions([]);
+    }
+  }, [requestLocationSuggestions]);
+
+  const handleSelectLocation = useCallback((suggestion: PlaceSuggestion) => {
+    setLocation(suggestion.description);
+    setSelectedPlace(suggestion);
+    setLocationSuggestions([]);
+    setLocationQuerying(false);
+    setLocationTouched(true);
+    setErrors(prev => ({ ...prev, location: '' }));
+  }, []);
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (locationTimerRef.current) {
+        clearTimeout(locationTimerRef.current);
+      }
+    };
+  }, []);
+  
+  const validateForm = (): boolean => {
+    const newErrors: {[key: string]: string} = {};
+    
+    if (eventType === 'game') {
+      // Games require team and opponent
+      if (!currentTeam.trim()) {
+        newErrors.currentTeam = 'Your team is required';
+      }
+      if (!opponent.trim()) {
+        newErrors.opponent = 'Opponent team is required';
+      }
+    } else {
+      // Other events require title
+      if (!title.trim()) {
+        newErrors.title = 'Event title is required';
+      }
+    }
+    
+    if (!location.trim()) {
+      newErrors.location = 'Location is required';
+    }
+    // Note: We allow manual location entry even if not selected from suggestions
+    // The backend will handle geocoding if needed
+    
+    if (date < new Date()) {
+      newErrors.date = 'Event date cannot be in the past';
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+  
+  const handleSubmit = async () => {
+    if (!validateForm()) {
+      return;
+    }
+    
+    setSubmitting(true);
+    
+    try {
+      // Parse date and time to create ISO datetime
+      const gameDateTime = new Date(date);
+      
+      if (eventType === 'game') {
+        // Create game with opponent
+        const homeTeamId = gameType === 'home' ? currentTeamId : opponentTeamId;
+        const awayTeamId = gameType === 'home' ? opponentTeamId : currentTeamId;
+        
+        const loc = selectedPlace?.description || location;
+        const gamePayload: Record<string, any> = {
+          title: `${gameType === 'home' ? currentTeam : opponent} vs ${gameType === 'home' ? opponent : currentTeam}`,
+          date: gameDateTime.toISOString(),
+          location: loc,
+          venue_address: loc,
+          venue_place_id: selectedPlace?.place_id,
+          description: description || undefined,
+          event_type: 'game',
+          ...(loc ? { autoGeocode: true } : {}),
+        };
+        
+        // Add team fields
+        gamePayload.home_team = gameType === 'home' ? currentTeam : opponent;
+        gamePayload.away_team = gameType === 'home' ? opponent : currentTeam;
+        
+        if (homeTeamId) gamePayload.home_team_id = homeTeamId;
+        if (awayTeamId) {
+          gamePayload.away_team_id = awayTeamId;
+        } else if (gameType === 'home' ? opponent : currentTeam) {
+          gamePayload.away_team_name = gameType === 'home' ? opponent : currentTeam;
+        }
+        
+        await Game.create(gamePayload);
+      } else {
+        // Create regular event (non-game)
+        const loc = selectedPlace?.description || location;
+        const eventData = {
+          title,
+          description,
+          event_type: eventType,
+          location: loc,
+          venue_address: loc,
+          venue_place_id: selectedPlace?.place_id,
+          date: gameDateTime.toISOString(),
+          ...(loc ? { autoGeocode: true } : {}),
+        };
+        
+        // Use Game.create for consistency (it handles both games and events)
+        await Game.create(eventData);
+      }
+      
+      Alert.alert(
+        'Event Submitted!',
+        'Your event has been submitted for approval. You\'ll be notified when it\'s reviewed.',
+        [{ text: 'OK', onPress: () => router.back() }]
+      );
+    } catch (e: any) {
+      const errorCode = e?.code || e?.data?.code;
+      const errorMessage = e?.message || e?.data?.message;
+      
+      if (errorCode === 'EVENT_LIMIT_EXCEEDED') {
+        Alert.alert(
+          'Event Limit Reached',
+          errorMessage || "You've reached your limit of 3 pending events. Upgrade to create more.",
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Upgrade', onPress: () => router.push('/billing') },
+          ]
+        );
+      } else {
+        // Show more detailed error message
+        const detailedError = errorMessage || e?.data?.message || e?.message || 'Failed to create event. Please try again.';
+        console.error('[CreateFanEvent] Create event error:', {
+          error: e,
+          errorMessage,
+          errorCode,
+          eventType,
+        });
+        Alert.alert('Error', detailedError);
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+  
+  const handleDateChange = (event: any, selectedDate?: Date) => {
+    if (Platform.OS === 'android') {
+      setShowDatePicker(false);
+    }
+    if (selectedDate) {
+      setDate(selectedDate);
+      if (Platform.OS === 'ios') {
+        setShowDatePicker(false);
+      }
+    }
+  };
+  
+  const handleTimeChange = (event: any, selectedDate?: Date) => {
+    if (Platform.OS === 'android') {
+      setShowTimePicker(false);
+    }
+    if (selectedDate) {
+      const newDate = new Date(date);
+      newDate.setHours(selectedDate.getHours());
+      newDate.setMinutes(selectedDate.getMinutes());
+      setDate(newDate);
+      if (Platform.OS === 'ios') {
+        setShowTimePicker(false);
+      }
+    }
+  };
+  
+  const isGameEvent = eventType === 'game';
+  
+  if (!roleCheckDone) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['bottom']}>
+        <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+          <ActivityIndicator size="large" color={colors.tint} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['bottom']}>
+      <Stack.Screen 
+        options={{ 
+          title: 'Create Event', 
+          headerShown: true,
+          headerBackTitle: 'Back',
+          headerBackVisible: true,
+        }} 
+      />
+      
+      <KeyboardAwareScreen style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={[styles.title, { color: colors.text }]}>
+            Create Community Event
+          </Text>
+          <Text style={[styles.subtitle, { color: colors.mutedText }]}>
+            Share local sports events, watch parties, fundraisers, and more with your community
+          </Text>
+        </View>
+        
+        {/* Event Type */}
+        <View style={styles.section}>
+          <Text style={[styles.label, { color: colors.text }]}>Event Type *</Text>
+          <View style={styles.typeGrid}>
+            {EVENT_TYPES.map((type) => (
+              <Pressable
+                key={type.value}
+                style={[
+                  styles.typeButton,
+                  { 
+                    backgroundColor: colors.card,
+                    borderColor: eventType === type.value ? colors.tint : colors.border,
+                  },
+                  eventType === type.value && styles.typeButtonActive,
+                ]}
+                onPress={() => {
+                  setEventType(type.value);
+                  if (type.value !== 'game') {
+                    // Reset game-specific fields
+                    setOpponent('');
+                    setOpponentTeamId('');
+                  }
+                }}
+              >
+                <Ionicons 
+                  name={type.icon as any} 
+                  size={24} 
+                  color={eventType === type.value ? colors.tint : colors.text} 
+                />
+                <Text 
+                  style={[
+                    styles.typeLabel, 
+                    { color: eventType === type.value ? colors.tint : colors.text }
+                  ]}
+                >
+                  {type.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+        
+        {/* Game-specific fields: Your Team */}
+        {isGameEvent && (
+          <View style={styles.section}>
+            <Text style={[styles.label, { color: colors.text }]}>Your Team *</Text>
+            <Pressable
+              style={[
+                styles.input,
+                { 
+                  backgroundColor: colors.card,
+                  borderColor: errors.currentTeam ? '#DC2626' : colors.border,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                },
+              ]}
+              onPress={() => setShowTeamPicker(true)}
+            >
+              <Text style={[{ color: currentTeam ? colors.text : colors.mutedText }]}>
+                {currentTeam}
+              </Text>
+              <Ionicons name="chevron-down" size={20} color={colors.mutedText} />
+            </Pressable>
+            {errors.currentTeam && <Text style={styles.errorText}>{errors.currentTeam}</Text>}
+          </View>
+        )}
+        
+        {/* Game-specific fields: Opponent */}
+        {isGameEvent && (
+          <View style={styles.section}>
+            <Text style={[styles.label, { color: colors.text }]}>Opponent Team *</Text>
+            <Pressable
+              style={[
+                styles.input,
+                { 
+                  backgroundColor: colors.card,
+                  borderColor: errors.opponent ? '#DC2626' : colors.border,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                },
+              ]}
+              onPress={() => setShowOpponentPicker(true)}
+            >
+              <Text style={[{ color: opponent ? colors.text : colors.mutedText }]}>
+                {opponent || 'Select opponent team'}
+              </Text>
+              <Ionicons name="chevron-down" size={20} color={colors.mutedText} />
+            </Pressable>
+            {errors.opponent && <Text style={styles.errorText}>{errors.opponent}</Text>}
+          </View>
+        )}
+        
+        {/* Game Type (Home/Away) - Only for games */}
+        {isGameEvent && (
+          <View style={styles.section}>
+            <Text style={[styles.label, { color: colors.text }]}>Game Type</Text>
+            <View style={styles.gameTypeRow}>
+              <Pressable
+                style={[
+                  styles.gameTypeButton,
+                  {
+                    backgroundColor: gameType === 'home' ? colors.tint : colors.card,
+                    borderColor: gameType === 'home' ? colors.tint : colors.border,
+                  }
+                ]}
+                onPress={() => setGameType('home')}
+              >
+                <Ionicons name="home" size={20} color={gameType === 'home' ? '#fff' : colors.text} />
+                <Text style={[
+                  styles.gameTypeText,
+                  { color: gameType === 'home' ? '#fff' : colors.text }
+                ]}>
+                  Home Game
+                </Text>
+              </Pressable>
+              
+              <Pressable
+                style={[
+                  styles.gameTypeButton,
+                  {
+                    backgroundColor: gameType === 'away' ? colors.tint : colors.card,
+                    borderColor: gameType === 'away' ? colors.tint : colors.border,
+                  }
+                ]}
+                onPress={() => setGameType('away')}
+              >
+                <Ionicons name="airplane" size={20} color={gameType === 'away' ? '#fff' : colors.text} />
+                <Text style={[
+                  styles.gameTypeText,
+                  { color: gameType === 'away' ? '#fff' : colors.text }
+                ]}>
+                  Away Game
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
+        
+        {/* Title - Only for non-game events */}
+        {!isGameEvent && (
+          <View style={styles.section}>
+            <Text style={[styles.label, { color: colors.text }]}>Event Title *</Text>
+            <TextInput
+              style={[
+                styles.input,
+                { 
+                  backgroundColor: colors.card,
+                  borderColor: errors.title ? '#DC2626' : colors.border,
+                  color: colors.text,
+                },
+              ]}
+              placeholder="e.g., Varsity Football Watch Party"
+              placeholderTextColor={colors.mutedText}
+              value={title}
+              onChangeText={setTitle}
+            />
+            {errors.title && <Text style={styles.errorText}>{errors.title}</Text>}
+          </View>
+        )}
+        
+        {/* Description */}
+        <View style={styles.section}>
+          <Text style={[styles.label, { color: colors.text }]}>Description</Text>
+          <TextInput
+            style={[
+              styles.textArea,
+              { 
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+                color: colors.text,
+              },
+            ]}
+            placeholder="Describe your event..."
+            placeholderTextColor={colors.mutedText}
+            value={description}
+            onChangeText={setDescription}
+            multiline
+            numberOfLines={4}
+            textAlignVertical="top"
+          />
+        </View>
+        
+        {/* Date & Time */}
+        <View style={styles.section}>
+          <Text style={[styles.label, { color: colors.text }]}>Date & Time *</Text>
+          <View style={styles.dateTimeRow}>
+            <Pressable
+              style={[
+                styles.dateTimeButton,
+                { 
+                  backgroundColor: colors.card,
+                  borderColor: errors.date ? '#DC2626' : colors.border,
+                },
+              ]}
+              onPress={() => setShowDatePicker(true)}
+            >
+              <Ionicons name="calendar" size={20} color={colors.mutedText} />
+              <Text style={[styles.dateTimeText, { color: colors.text }]}>
+                {date.toLocaleDateString()}
+              </Text>
+            </Pressable>
+            
+            <Pressable
+              style={[
+                styles.dateTimeButton,
+                { 
+                  backgroundColor: colors.card,
+                  borderColor: colors.border,
+                },
+              ]}
+              onPress={() => setShowTimePicker(true)}
+            >
+              <Ionicons name="time" size={20} color={colors.mutedText} />
+              <Text style={[styles.dateTimeText, { color: colors.text }]}>
+                {date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </Text>
+            </Pressable>
+          </View>
+          {errors.date && <Text style={styles.errorText}>{errors.date}</Text>}
+        </View>
+        
+        {showDatePicker && (
+          <DateTimePicker
+            value={date}
+            mode="date"
+            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            onChange={handleDateChange}
+            minimumDate={new Date()}
+          />
+        )}
+        
+        {showTimePicker && (
+          <DateTimePicker
+            value={date}
+            mode="time"
+            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            onChange={handleTimeChange}
+          />
+        )}
+        
+        {/* Location with Google Maps Autocomplete */}
+        <View style={styles.section}>
+          <Text style={[styles.label, { color: colors.text }]}>Location *</Text>
+          <View style={styles.locationFieldWrapper}>
+            <TextInput
+              style={[
+                styles.input,
+                { 
+                  backgroundColor: colors.card,
+                  borderColor: errors.location ? '#DC2626' : colors.border,
+                  color: colors.text,
+                },
+              ]}
+              placeholder="Start typing an address, venue, or city"
+              placeholderTextColor={colors.mutedText}
+              value={location}
+              onChangeText={handleLocationChange}
+              autoCapitalize="words"
+              autoCorrect={false}
+            />
+            {locationQuerying && (
+              <ActivityIndicator size="small" color={colors.tint} style={styles.locationSpinner} />
+            )}
+            {locationSuggestions.length > 0 && (
+              <View style={[styles.locationSuggestionList, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                {locationSuggestions.map((suggestion, index) => (
+                  <Pressable
+                    key={suggestion.place_id}
+                    style={[
+                      styles.locationSuggestionItem,
+                      { borderBottomColor: colors.border },
+                      index === locationSuggestions.length - 1 && styles.locationSuggestionItemLast,
+                    ]}
+                    onPress={() => handleSelectLocation(suggestion)}
+                  >
+                    <Ionicons name="location" size={16} color={colors.tint} style={{ marginRight: 8 }} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.locationSuggestionMain, { color: colors.text }]}>
+                        {suggestion.structured_formatting?.main_text || suggestion.description}
+                      </Text>
+                      {suggestion.structured_formatting?.secondary_text && (
+                        <Text style={[styles.locationSuggestionSecondary, { color: colors.mutedText }]}>
+                          {suggestion.structured_formatting.secondary_text}
+                        </Text>
+                      )}
+                    </View>
+                  </Pressable>
+                ))}
+              </View>
+            )}
+          </View>
+          {errors.location && <Text style={styles.errorText}>{errors.location}</Text>}
+          {!selectedPlace && locationTouched && location.length >= 3 && locationSuggestions.length === 0 && !locationQuerying && (
+            <Text style={[styles.inputHelperText, { color: colors.mutedText }]}>
+              Tip: Select a suggested location for better accuracy, or continue typing to enter manually
+            </Text>
+          )}
+        </View>
+        
+        {/* Info Box */}
+        <View style={[styles.infoBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Ionicons name="information-circle" size={20} color={colors.tint} />
+          <Text style={[styles.infoText, { color: colors.mutedText }]}>
+            Fan-submitted events will be reviewed by coaches or admins before appearing publicly.
+          </Text>
+        </View>
+        
+        {/* Submit Button */}
+        <Pressable
+          style={[
+            styles.submitButton,
+            { backgroundColor: colors.tint },
+            submitting && styles.submitButtonDisabled,
+          ]}
+          onPress={handleSubmit}
+          disabled={submitting}
+        >
+          {submitting ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Text style={styles.submitButtonText}>Create Event</Text>
+          )}
+        </Pressable>
+        
+        <View style={{ height: 40 }} />
+      </KeyboardAwareScreen>
+      
+      {/* Team Picker Modal */}
+      <Modal
+        visible={showTeamPicker}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowTeamPicker(false)}
+      >
+        <View style={styles.pickerOverlay}>
+          <View style={[styles.pickerContainer, { backgroundColor: colors.background }]}>
+            <View style={styles.pickerHeader}>
+              <Pressable onPress={() => setShowTeamPicker(false)}>
+                <Text style={[styles.pickerHeaderButton, { color: colors.text }]}>Cancel</Text>
+              </Pressable>
+              <Text style={[styles.pickerTitle, { color: colors.text }]}>Select Your Team</Text>
+              <View style={{ width: 50 }} />
+            </View>
+            <ScrollView style={styles.pickerList}>
+              {teams.map((team) => (
+                <Pressable
+                  key={team.id}
+                  style={[
+                    styles.pickerItem,
+                    { borderBottomColor: colors.border },
+                    currentTeam === team.name && { backgroundColor: colors.surface }
+                  ]}
+                  onPress={() => {
+                    setCurrentTeam(team.name);
+                    setCurrentTeamId(team.id);
+                    setShowTeamPicker(false);
+                  }}
+                >
+                  <View style={styles.pickerItemContent}>
+                    {team.logo && (
+                      <Image source={{ uri: team.logo }} style={styles.teamLogo} />
+                    )}
+                    <Text style={[styles.pickerItemText, { color: colors.text }]}>
+                      {team.name}
+                    </Text>
+                  </View>
+                  {currentTeam === team.name && (
+                    <Ionicons name="checkmark" size={20} color={colors.tint} />
+                  )}
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+      
+      {/* Opponent Picker Modal */}
+      <Modal
+        visible={showOpponentPicker}
+        transparent
+        animationType="slide"
+        onRequestClose={() => {
+          setShowOpponentPicker(false);
+          setOpponentSearchText('');
+          setShowManualOpponentInput(false);
+          setManualOpponentName('');
+        }}
+      >
+        <View style={styles.pickerOverlay}>
+          <View style={[styles.pickerContainer, { backgroundColor: colors.background }]}>
+            <View style={styles.pickerHeader}>
+              <Pressable onPress={() => {
+                setShowOpponentPicker(false);
+                setOpponentSearchText('');
+                setShowManualOpponentInput(false);
+                setManualOpponentName('');
+              }}>
+                <Text style={[styles.pickerHeaderButton, { color: colors.text }]}>Cancel</Text>
+              </Pressable>
+              <Text style={[styles.pickerTitle, { color: colors.text }]}>Select Opponent</Text>
+              <View style={{ width: 50 }} />
+            </View>
+            
+            {/* Search Bar - Only searches teams, not users */}
+            <View style={[styles.searchContainer, { borderBottomColor: colors.border }]}>
+              <Ionicons name="search-outline" size={20} color={colors.mutedText} />
+              <TextInput
+                style={[styles.searchInput, { color: colors.text }]}
+                placeholder="Search teams you follow..."
+                placeholderTextColor={colors.mutedText}
+                value={opponentSearchText}
+                onChangeText={setOpponentSearchText}
+                autoCapitalize="words"
+              />
+              {opponentSearchText.length > 0 && (
+                <Pressable onPress={() => setOpponentSearchText('')}>
+                  <Ionicons name="close-circle" size={20} color={colors.mutedText} />
+                </Pressable>
+              )}
+            </View>
+            
+            <ScrollView style={styles.pickerList}>
+              {showManualOpponentInput ? (
+                <View style={[styles.manualInputContainer, { backgroundColor: colors.surface, borderColor: colors.border, margin: 16 }]}>
+                  <Text style={[styles.manualInputLabel, { color: colors.text }]}>Enter Opponent Team Name</Text>
+                  <TextInput
+                    style={[styles.manualInput, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
+                    placeholder="Team name"
+                    placeholderTextColor={colors.mutedText}
+                    value={manualOpponentName || opponentSearchText}
+                    onChangeText={(text) => {
+                      setManualOpponentName(text);
+                      setOpponentSearchText(text);
+                    }}
+                    autoCapitalize="words"
+                    autoFocus
+                  />
+                  <View style={styles.manualInputActions}>
+                    <Pressable
+                      style={[styles.manualInputButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                      onPress={() => {
+                        setShowManualOpponentInput(false);
+                        setManualOpponentName('');
+                      }}
+                    >
+                      <Text style={[styles.manualInputButtonText, { color: colors.text }]}>Cancel</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[styles.manualInputButton, { backgroundColor: colors.tint }]}
+                      onPress={() => {
+                        const finalName = (manualOpponentName || opponentSearchText).trim();
+                        if (finalName) {
+                          setOpponent(finalName);
+                          setOpponentTeamId(''); // No team ID for manual entry
+                          setOpponentSearchText('');
+                          setShowManualOpponentInput(false);
+                          setManualOpponentName('');
+                          setShowOpponentPicker(false);
+                        }
+                      }}
+                    >
+                      <Text style={styles.manualInputButtonText}>Add</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              ) : (
+                <>
+                  {getFilteredOpponentTeams().map((team) => (
+                    <Pressable
+                      key={team.id}
+                      style={[
+                        styles.pickerItem,
+                        { borderBottomColor: colors.border },
+                        opponent === team.name && { backgroundColor: colors.surface }
+                      ]}
+                      onPress={() => {
+                        setOpponent(team.name);
+                        setOpponentTeamId(team.id);
+                        setOpponentSearchText('');
+                        setShowOpponentPicker(false);
+                        setShowManualOpponentInput(false);
+                      }}
+                    >
+                      <View style={styles.pickerItemContent}>
+                        {team.logo && (
+                          <Image source={{ uri: team.logo }} style={styles.teamLogo} />
+                        )}
+                        <Text style={[styles.pickerItemText, { color: colors.text }]}>
+                          {team.name}
+                        </Text>
+                      </View>
+                      {opponent === team.name && (
+                        <Ionicons name="checkmark" size={20} color={colors.tint} />
+                      )}
+                    </Pressable>
+                  ))}
+                  {getFilteredOpponentTeams().length === 0 && opponentSearchText.length > 0 && (
+                    <Pressable
+                      style={[styles.pickerItem, { borderBottomColor: colors.border }]}
+                      onPress={() => {
+                        setManualOpponentName(opponentSearchText);
+                        setShowManualOpponentInput(true);
+                      }}
+                    >
+                      <View style={styles.pickerItemContent}>
+                        <Ionicons name="add-circle-outline" size={20} color={colors.tint} />
+                        <Text style={[styles.pickerItemText, { color: colors.tint }]}>
+                          Add "{opponentSearchText}" as opponent
+                        </Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={20} color={colors.mutedText} />
+                    </Pressable>
+                  )}
+                  {getFilteredOpponentTeams().length === 0 && opponentSearchText.length === 0 && (
+                    <View style={styles.noResultsContainer}>
+                      <Text style={[styles.noResultsText, { color: colors.mutedText }]}>
+                        Search for a team or add manually
+                      </Text>
+                      <Pressable
+                        style={[styles.pickerItem, { borderBottomColor: colors.border, marginTop: 16 }]}
+                        onPress={() => {
+                          setShowManualOpponentInput(true);
+                        }}
+                      >
+                        <View style={styles.pickerItemContent}>
+                          <Ionicons name="add-circle-outline" size={20} color={colors.tint} />
+                          <Text style={[styles.pickerItemText, { color: colors.tint }]}>
+                            Add Opponent Manually
+                          </Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={20} color={colors.mutedText} />
+                      </Pressable>
+                    </View>
+                  )}
+                </>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 16,
+  },
+  header: {
+    marginBottom: 24,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  section: {
+    marginBottom: 20,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  typeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  typeButton: {
+    flex: 1,
+    minWidth: '48%',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 2,
+    alignItems: 'center',
+    gap: 4,
+  },
+  typeButtonActive: {
+    borderWidth: 2,
+  },
+  typeLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  input: {
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    fontSize: 16,
+  },
+  textArea: {
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    fontSize: 16,
+    minHeight: 100,
+  },
+  dateTimeRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  dateTimeButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  dateTimeText: {
+    fontSize: 16,
+    flex: 1,
+  },
+  gameTypeRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  gameTypeButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 2,
+  },
+  gameTypeText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  errorText: {
+    fontSize: 12,
+    color: '#DC2626',
+    marginTop: 4,
+  },
+  infoBox: {
+    flexDirection: 'row',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 8,
+    marginBottom: 20,
+  },
+  infoText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  submitButton: {
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  submitButtonDisabled: {
+    opacity: 0.6,
+  },
+  submitButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  pickerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  pickerContainer: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '80%',
+  },
+  pickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  pickerHeaderButton: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  pickerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    gap: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+  },
+  pickerList: {
+    maxHeight: 400,
+  },
+  pickerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  pickerItemContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  teamLogo: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
+  pickerItemText: {
+    fontSize: 16,
+  },
+  noResultsContainer: {
+    padding: 32,
+    alignItems: 'center',
+  },
+  noResultsText: {
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  manualEntryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  manualEntryButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  manualInputContainer: {
+    padding: 16,
+    margin: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 12,
+  },
+  manualInputLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  manualInput: {
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    fontSize: 16,
+  },
+  manualInputActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+  },
+  manualInputButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+  manualInputButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  locationFieldWrapper: {
+    position: 'relative',
+  },
+  locationSpinner: {
+    position: 'absolute',
+    right: 12,
+    top: 12,
+  },
+  locationSuggestionList: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    marginTop: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    maxHeight: 200,
+    zIndex: 1000,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  locationSuggestionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  locationSuggestionItemLast: {
+    borderBottomWidth: 0,
+  },
+  locationSuggestionMain: {
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  locationSuggestionSecondary: {
+    fontSize: 13,
+    marginTop: 2,
+  },
+  inputHelperText: {
+    fontSize: 12,
+    marginTop: 4,
+  },
+});

@@ -1,20 +1,27 @@
-name: Deploy Guard (Health Check)
+name: Deploy Guard - Pre-Merge Health Check
 
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
+  # Re-enabled: Runs before merging to main to verify Railway is healthy
   pull_request:
+    branches: [main]
+    types: [opened, synchronize, ready_for_review]
+  # Only run on push to main (final gate before deploy)
+  push:
     branches: [main]
 
 jobs:
   pre-deploy-health-check:
-    name: Verify Railway Health Before Merge
+    name: Railway Health Check Before Merge
     runs-on: ubuntu-latest
     
-    # Allow manual override with warning in case of emergency
-    # (comment "FORCE_DEPLOY" to override)
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
 
       - name: Check for force override
         id: force
@@ -26,58 +33,88 @@ jobs:
             echo "force=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Run health check
+      - name: Run Railway health check
         id: health
         continue-on-error: ${{ steps.force.outputs.force == 'true' }}
         run: |
-          bash scripts/railway-health-check.sh --ci
-          echo "status=$?" >> $GITHUB_OUTPUT
+          response=$(curl -sf https://api-production-8ac3.up.railway.app/health || echo '{"error":"unreachable"}')
+          status=$(echo "$response" | jq -r '.status' 2>/dev/null || echo "unknown")
+          
+          if [ "$status" = "ok" ]; then
+            echo "status=ok" >> $GITHUB_OUTPUT
+            echo "exit_code=0" >> $GITHUB_OUTPUT
+            exit 0
+          else
+            echo "status=failed" >> $GITHUB_OUTPUT
+            echo "exit_code=1" >> $GITHUB_OUTPUT
+            exit 1
+          fi
 
       - name: Generate health report
         if: always()
         run: |
+          response=$(curl -sf https://api-production-8ac3.up.railway.app/health || echo '{"error":"unreachable"}')
+          
           echo "## Railway Health Status" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          bash scripts/railway-health-check.sh >> $GITHUB_STEP_SUMMARY 2>&1 || true
-
-      - name: Health check result
-        if: steps.force.outputs.force == 'false'
-        run: |
-          if [ "${{ steps.health.outputs.status }}" -eq 0 ]; then
-            echo "✅ Railway API is healthy. Safe to merge."
-            exit 0
+          echo '```json' >> $GITHUB_STEP_SUMMARY
+          echo "$response" | jq '.' 2>/dev/null || echo "$response" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          status=$(echo "$response" | jq -r '.status' 2>/dev/null || echo "unknown")
+          if [ "$status" = "ok" ]; then
+            echo "✅ **Status**: Healthy - Safe to merge" >> $GITHUB_STEP_SUMMARY
           else
-            echo "❌ Railway API is unhealthy. Do not merge."
-            echo ""
-            echo "Debugging steps:"
-            echo "1. Check Railway dashboard: https://railway.app/project/capable-trust"
-            echo "2. Review API logs in Railway"
-            echo "3. Run locally: bash scripts/railway-health-check.sh"
-            echo ""
-            echo "To force merge (emergency only):"
-            echo "  git commit --amend -m \"... FORCE_DEPLOY\""
-            exit 1
+            echo "❌ **Status**: Unhealthy - Do not merge" >> $GITHUB_STEP_SUMMARY
           fi
 
+      - name: Block merge if unhealthy
+        if: steps.force.outputs.force == 'false' && steps.health.outputs.status != 'ok'
+        run: |
+          echo "❌ Railway API health check failed"
+          echo ""
+          echo "The /health endpoint is not responding with status:ok"
+          echo ""
+          echo "Debugging steps:"
+          echo "1. Check Railway dashboard: https://railway.app/project/capable-trust"
+          echo "2. Review API logs in Railway"
+          echo "3. Test manually: curl https://api-production-8ac3.up.railway.app/health"
+          echo ""
+          echo "To force merge (emergency only):"
+          echo "  git commit --amend -m \"your message FORCE_DEPLOY\""
+          exit 1
+
       - name: Force deploy warning
-        if: steps.force.outputs.force == 'true' && steps.health.outputs.status != '0'
+        if: steps.force.outputs.force == 'true' && steps.health.outputs.status != 'ok'
         run: |
           echo "⚠️  WARNING: Forcing merge despite Railway health check failure"
-          echo "This may cause issues. Review the logs above."
+          echo "This may cause production issues. Review the logs above carefully."
 
       - name: Comment on PR
         if: github.event_name == 'pull_request' && always()
         uses: actions/github-script@v7
         with:
           script: |
-            const health = ${{ steps.health.outputs.status }};
-            const statusEmoji = health === 0 ? '✅' : '❌';
-            const statusText = health === 0 ? 'healthy' : 'unhealthy';
+            const status = '${{ steps.health.outputs.status }}';
+            const statusEmoji = status === 'ok' ? '✅' : '❌';
+            const statusText = status === 'ok' ? 'healthy' : 'unhealthy';
+            const forced = '${{ steps.force.outputs.force }}' === 'true';
+            
+            let body = `${statusEmoji} **Railway API Status:** ${statusText}\n\n`;
+            
+            if (status === 'ok') {
+              body += 'The API is healthy. Safe to merge.';
+            } else if (forced) {
+              body += '⚠️ **FORCE_DEPLOY detected** - Health check bypassed. Proceed with caution.';
+            } else {
+              body += '❌ The API is unhealthy. Fix issues before merging.\n\n**Troubleshooting:**\n1. Check Railway dashboard\n2. Review deployment logs\n3. Test: https://api-production-8ac3.up.railway.app/health';
+            }
             
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `${statusEmoji} **Railway API Status:** ${statusText}\n\nThe API is currently ${statusText}. ${health === 0 ? 'Safe to merge.' : 'Review the health check logs before merging.'}`,
+              body: body
             });
 

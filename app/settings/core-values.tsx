@@ -1,1 +1,2 @@
-export { default } from './terms-of-service';
+export { default } from '../core-values';
+

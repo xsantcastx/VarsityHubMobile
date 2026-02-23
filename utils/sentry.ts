@@ -1,6 +1,6 @@
 // CRITICAL: Polyfill __extends IMMEDIATELY, before any imports or require calls
 // This must run first because imports themselves may need __extends
-const g = global as any;
+const g = (typeof global !== 'undefined' ? global : (typeof globalThis !== 'undefined' ? globalThis : {})) as any;
 if (typeof g.__extends !== 'function') {
   g.__extends = function (d: any, b: any) {
     if (typeof Object.setPrototypeOf === 'function') {
@@ -8,7 +8,7 @@ if (typeof g.__extends !== 'function') {
     } else {
       (d as any).__proto__ = b;
     }
-    function __() {
+    function __(this: { constructor: unknown }) {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : ((__.prototype = b.prototype), new (__ as any)());
@@ -26,17 +26,9 @@ if (tslibMod && typeof tslibMod.__extends !== 'function') {
   tslibMod.__extends = g.__extends;
 }
 
-// Use require so the shim executes before sentry-expo is evaluated
+// Use @sentry/react-native (installed); sentry-expo is deprecated for Expo SDK 50+
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const Sentry = require('sentry-expo');
-
-// Native methods are available via Sentry.Native; type as any to avoid missing type declarations
-const SentryNative = ((Sentry as any).Native || Sentry) as {
-  setTag?: (key: string, value: string) => void;
-  setContext?: (key: string, context: Record<string, any>) => void;
-  captureException?: (error: any) => void;
-  addBreadcrumb?: (crumb: { message: string; category: string; level?: string; data?: Record<string, any> }) => void;
-};
+const Sentry = require('@sentry/react-native');
 
 const appConfig = getConfig();
 const SENTRY_DSN = appConfig.sentryDsn || '';
@@ -67,7 +59,7 @@ export function initSentry() {
       environment: appConfig.nodeEnv || 'development',
       debug: false,
       tracesSampleRate: 0.2, // 20% of transactions for performance monitoring
-      beforeSend(event, hint) {
+      beforeSend(event: any, hint: any) {
         // Disable error reporting in development to avoid blocking UI
         if (__DEV__) {
           return null; // Drop all events in dev mode
@@ -88,9 +80,9 @@ export function initSentry() {
 
     // Tag with platform and version for filtering
     try {
-      SentryNative.setTag('platform', Platform.OS);
-      SentryNative.setTag('app_version', Constants.expoConfig?.version || '1.0.0');
-      SentryNative.setTag('expo_version', Constants.expoConfig?.sdkVersion || 'unknown');
+      Sentry.setTag?.('platform', Platform.OS);
+      Sentry.setTag?.('app_version', Constants.expoConfig?.version || '1.0.0');
+      Sentry.setTag?.('expo_version', Constants.expoConfig?.sdkVersion || 'unknown');
     } catch (e) {
       // Silently ignore tag errors
     }
@@ -115,9 +107,9 @@ export function captureException(error: Error | unknown, context?: Record<string
   console.error('[sentry] Capturing exception:', error);
   try {
     if (context) {
-      SentryNative.setContext('custom', context);
+      Sentry.setContext?.('custom', context);
     }
-    SentryNative.captureException(error);
+    Sentry.captureException?.(error);
   } catch {
     // ignore capture failures
   }
@@ -132,7 +124,7 @@ export function captureBreadcrumb(message: string, category: string, data?: Reco
   }
 
   try {
-    SentryNative.addBreadcrumb({
+    Sentry.addBreadcrumb?.({
       message,
       category,
       level: 'info',
@@ -176,7 +168,7 @@ export async function testSentryConnection(): Promise<{ success: boolean; messag
 
     // Capture a test exception
     const testError = new Error('🔍 Sentry test event - if you see this in your Sentry dashboard, connectivity is working!');
-    SentryNative.captureException(testError);
+    Sentry.captureException?.(testError);
 
     console.log('[sentry] Test event sent successfully');
     return {

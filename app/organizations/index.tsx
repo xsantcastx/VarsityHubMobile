@@ -1,57 +1,18 @@
-import { getConfig } from '@/config/env';
 import { Colors } from '@/constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useMemo } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
-import { ensureSeededOrganizations } from '@/data/seedOrganizations';
-
-interface Organization {
-  id: string;
-  name: string;
-  description?: string | null;
-  formatted_address?: string | null;
-  org_type?: string | null;
-  _count?: { teams: number; memberships: number };
-}
+import { useOrganizations, type OrganizationSummary } from '@/hooks/useOrganizations';
 
 export default function OrganizationsIndexScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
-  const [orgs, setOrgs] = useState<Organization[]>([]);
-  const [featured, setFeatured] = useState<Organization | null>(null);
-  const [loading, setLoading] = useState(true);
-  const { apiUrl } = getConfig();
-
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      setLoading(true);
-      try {
-        const res = await fetch(`${apiUrl}/organizations?limit=20`);
-        if (!res.ok) throw new Error(`Failed to load organizations (${res.status})`);
-        const data = await res.json();
-        if (!cancelled) {
-          const orgList = Array.isArray(data) ? data : data.items || [];
-          const combined = ensureSeededOrganizations(orgList as Organization[]);
-          setOrgs(combined);
-          const westhill =
-            combined.find((o) => o.name.toLowerCase().includes('westhill')) || combined[0] || null;
-          setFeatured(westhill);
-        }
-      } catch {
-        if (!cancelled) {
-          const fallback = ensureSeededOrganizations<Organization>([]);
-          setOrgs(fallback);
-          setFeatured(fallback[0] || null);
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-    void load();
-    return () => { cancelled = true; };
-  }, [apiUrl]);
+  const { orgs, loading } = useOrganizations(20);
+  const featured = useMemo(
+    () => orgs.find((o) => o.name.toLowerCase().includes('westhill')) ?? orgs[0] ?? null,
+    [orgs]
+  );
 
   const styles = createStyles(colorScheme);
 

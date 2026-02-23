@@ -1,10 +1,9 @@
 import { Post } from '@/api/entities';
-import { getApiBaseUrl } from '@/api/http';
-import { uploadFile } from '@/api/upload';
+import { useMediaUpload } from '@/hooks/useMediaUpload';
 import CollageView, { type CollageData, type CollageFrame } from '@/components/CollageView';
+import { Button } from '@/components/ui/button';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { Button } from '@/shared/components';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useMemo, useRef, useState } from 'react';
@@ -58,6 +57,7 @@ const templates = {
 export default function CreateCollageScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
+  const { upload: uploadMedia } = useMediaUpload();
   const [template, setTemplate] = useState<keyof typeof templates>('organic2');
   const [gutter] = useState(8);
   const [radius] = useState(8);
@@ -103,7 +103,7 @@ export default function CreateCollageScreen() {
       }
       setPublishing(true);
       const previewUri = await captureRef(ref, { format: 'jpg', quality: 0.92 } as any);
-      const uploadResult = await uploadFile(getApiBaseUrl(), String(previewUri), 'collage.jpg', 'image/jpeg');
+      const uploadResult = await uploadMedia(String(previewUri), 'collage.jpg', 'image/jpeg');
       const remoteUrl = uploadResult?.url || uploadResult?.path;
       if (!remoteUrl) {
         throw new Error('Upload failed. Please try again.');

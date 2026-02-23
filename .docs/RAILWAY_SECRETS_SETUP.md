@@ -35,6 +35,7 @@ railway variables get SENDGRID_API_KEY
 railway variables set SENDGRID_API_KEY "SG.xxxxx"
 railway variables set SENDGRID_VERIFICATION_TEMPLATE_ID "d-xxxxx"
 railway variables set SENDGRID_PASSWORD_RESET_TEMPLATE_ID "d-xxxxx"
+railway variables set SENDGRID_PASSWORD_CHANGED_TEMPLATE_ID "d-xxxxx"
 railway variables set SENDGRID_TEAM_INVITE_TEMPLATE_ID "d-xxxxx"
 ```
 
@@ -189,6 +190,7 @@ curl https://varsityhub-api.up.railway.app/health | jq .integrations.database
 |----------|------|---------|----------|--------|
 | `STRIPE_PUBLIC_KEY` | API Key | `pk_live_xxxxx` | Yes | Stripe Dashboard |
 | `SENDGRID_PASSWORD_RESET_TEMPLATE_ID` | ID | `d-xxxxx` | Yes | SendGrid Templates |
+| `SENDGRID_PASSWORD_CHANGED_TEMPLATE_ID` | ID | `d-xxxxx` | Recommended | SendGrid Templates |
 | `SENDGRID_TEAM_INVITE_TEMPLATE_ID` | ID | `d-xxxxx` | Yes | SendGrid Templates |
 | `CLOUDINARY_URL` | URL | `cloudinary://...` | Yes | Cloudinary Dashboard |
 | `GOOGLE_OAUTH_CLIENT_IDS` | CSV | `xxx.apps.googleusercontent.com` | Yes | Google Cloud |

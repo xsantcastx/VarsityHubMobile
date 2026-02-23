@@ -1,5 +1,4 @@
-import { uploadFile } from '@/api/upload';
-import { getApiBaseUrl } from '../../api/http';
+import { useMediaUpload } from '@/hooks/useMediaUpload';
 import { useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, Text, View } from 'react-native';
 import ViewShot, { captureRef } from 'react-native-view-shot';
@@ -17,25 +16,19 @@ type Props = {
 
 export default function MatchBannerCapture({ leftImage, rightImage, leftName, rightName, bannerHeight = 260, onUploaded, appearance = 'classic' }: Props) {
   const viewRef = useRef<View | null>(null);
-  const [uploading, setUploading] = useState(false);
+  const { upload: uploadMedia, uploading } = useMediaUpload();
 
   const captureAndUpload = async () => {
     if (!viewRef.current) return;
-    setUploading(true);
     try {
-      // Capture banner as an image
       const uri = await captureRef(viewRef, { format: 'png', quality: 0.9 });
-
-      // Upload image using centralized base URL
-      const uploaded = await uploadFile(getApiBaseUrl(), uri, 'match-banner.png', 'image/png');
+      const uploaded = await uploadMedia(uri, 'match-banner.png', 'image/png');
       const bannerUrl = uploaded?.url || uploaded?.path;
       if (onUploaded && bannerUrl) onUploaded(bannerUrl);
       Alert.alert('Banner saved', 'Match banner uploaded successfully.');
     } catch (e: any) {
       console.error('Banner capture/upload failed', e);
       Alert.alert('Error', 'Failed to capture or upload banner. Please try again.');
-    } finally {
-      setUploading(false);
     }
   };
 

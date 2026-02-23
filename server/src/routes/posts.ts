@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import rateLimit from 'express-rate-limit';
+import { getAppBaseUrl } from '../lib/env.js';
 import { prisma } from '../lib/prisma.js';
 import { emailQueue } from '../lib/queue.js';
 import type { AuthedRequest } from '../middleware/auth.js';
@@ -9,7 +10,6 @@ import { requireVerified } from '../middleware/requireVerified.js';
 
 export const postsRouter = Router();
 
-const APP_BASE_URL = (process.env.APP_BASE_URL || 'https://varsityhub.app').replace(/\/$/, '');
 const POST_MILESTONE_THRESHOLDS = [100, 250, 500, 1000];
 // Rate limit: max 10 posts per user per hour
 const postCreateLimiter = rateLimit({
@@ -39,7 +39,7 @@ async function enqueuePostMilestoneEmail(postId: string, milestone: number): Pro
   });
   if (!post?.author?.email) return;
 
-  const shareLink = `${APP_BASE_URL}/posts/${encodeURIComponent(postId)}`;
+  const shareLink = `${getAppBaseUrl()}/posts/${encodeURIComponent(postId)}`;
   const reactionsLink = `${shareLink}?view=reactions`;
   const postTitle = post.title || (post.content ? post.content.slice(0, 60) : 'Your recent highlight');
   const postPreviewUrl = post.media_url || `${shareLink}/preview`;
@@ -269,11 +269,23 @@ postsRouter.post('/', postCreateLimiter, requireVerified as any, async (req: Aut
     country_code = preferCountry || null;
   }
 
-  // ⚠️ GEOFENCING CHECK FOR EVENT POSTS
-  // If this is an event-specific post, verify user is at the venue
-  if ((data as any).event_id) {
+  // ⚠️ GEOFENCING CHECK FOR EVENT POSTS (15km radius)
+  // Run when post targets an event (event_id) OR a real game (game_id → resolve to event)
+  // Skip for sample events (game_id starting with "sample-")
+  let eventIdForGeofence: string | null = (data as any).event_id || null;
+  if (!eventIdForGeofence && (data as any).game_id) {
+    const gid = String((data as any).game_id);
+    if (!gid.startsWith('sample-')) {
+      const event = await prisma.event.findFirst({
+        where: { game_id: gid },
+        select: { id: true },
+      });
+      eventIdForGeofence = event?.id ?? null;
+    }
+  }
+  if (eventIdForGeofence) {
     const verification = await verifyEventPostingPermission(
-      (data as any).event_id,
+      eventIdForGeofence,
       req.user.id,
       lat,
       lng
@@ -287,7 +299,7 @@ postsRouter.post('/', postCreateLimiter, requireVerified as any, async (req: Aut
       });
     }
 
-    debugLog(`✅ User ${req.user.id} verified at event location (${verification.distance?.toFixed(2)} miles away)`);
+    debugLog(`✅ User ${req.user.id} verified at event location (${verification.distance?.toFixed(2)} km away)`);
   }
 
   const post = await prisma.post.create({

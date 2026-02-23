@@ -5,6 +5,7 @@ import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { verifyAppleToken } from '../lib/appleAuth.js';
 import { debugLog } from '../lib/debugLog.js';
+import { getAppBaseUrl } from '../lib/env.js';
 import {
     isSendGridConfigured,
     sendCoachOnboardingEmail,
@@ -15,22 +16,25 @@ import {
     sendUserConfirmationEmail,
     sendVerificationEmail
 } from '../lib/email.js';
-import { signJwt } from '../lib/jwt.js';
+import { signJwt, signRefreshToken, verifyRefreshToken } from '../lib/jwt.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
+import { isEmailAdmin } from '../middleware/requireAdmin.js';
 
 export const authRouter = Router();
 
-// Rate limiting for sensitive auth endpoints
+const isTestEnv = process.env.NODE_ENV === 'test';
+
+// Rate limiting for sensitive auth endpoints (skipped when NODE_ENV=test for integration tests)
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // 5 requests per window
+  max: 5,
   message: { error: 'Too many authentication attempts. Please try again in 15 minutes.' },
   standardHeaders: true,
   legacyHeaders: false,
-  skipSuccessfulRequests: true, // Only count failed attempts
+  skip: () => isTestEnv,
+  skipSuccessfulRequests: true,
   keyGenerator: (req) => {
-    // Rate limit by IP + email combination for better accuracy
     const email = req.body?.email || 'unknown';
     return `${req.ip}-${email}`;
   },
@@ -38,19 +42,31 @@ const authLimiter = rateLimit({
 
 const passwordResetLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 3, // 3 requests per hour
+  max: 3,
   message: { error: 'Too many password reset attempts. Please try again in 1 hour.' },
   standardHeaders: true,
   legacyHeaders: false,
+  skip: () => isTestEnv,
   keyGenerator: (req) => req.body?.email || req.ip,
 });
 
 const registrationLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 3, // 3 registrations per hour per IP
+  max: 3,
   message: { error: 'Too many registration attempts. Please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
+  skip: () => isTestEnv,
+});
+
+// Rate limiting for OAuth endpoints (Google, Apple)
+const oauthLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20,
+  message: { error: 'Too many sign-in attempts. Please try again in 15 minutes.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: () => isTestEnv,
 });
 
 // simple in-memory rate limiting for verification send: 1/30s, 5/hour per user
@@ -129,6 +145,7 @@ authRouter.post('/register', registrationLimiter, async (req, res) => {
     return res.status(500).json({ error: 'Failed to create user' });
   }
   const access_token = signJwt({ id: user.id, is_admin: isAdmin });
+  const refresh_token = signRefreshToken(user.id);
   try { 
     debugLog('[email] Sending verification email to:', email);
     const emailSend = sendVerificationEmail(email, code, display_name || sanitizedEmail.split('@')[0]);
@@ -154,7 +171,7 @@ authRouter.post('/register', registrationLimiter, async (req, res) => {
     await sendUserConfirmationEmail({
       to: email,
       userName: display_name || sanitizedEmail.split('@')[0],
-      confirmationLink: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/onboarding`,
+      confirmationLink: `${getAppBaseUrl()}/onboarding`,
       expiresIn: '30 days',
     }).catch((err: Error) => {
       console.error('[email] User confirmation email failed:', err);
@@ -164,7 +181,7 @@ authRouter.post('/register', registrationLimiter, async (req, res) => {
   }
   const sendGridReady = isSendGridConfigured();
   const shouldReturnDevCode = process.env.NODE_ENV !== 'production' || !sendGridReady;
-  const payload: any = { access_token, user: { ...sanitizeUser(user), is_admin: isAdmin } };
+  const payload: any = { access_token, refresh_token, user: { ...sanitizeUser(user), is_admin: isAdmin } };
   if (shouldReturnDevCode) {
     payload.dev_verification_code = code;
     if (!sendGridReady) {
@@ -252,9 +269,9 @@ authRouter.post('/login', authLimiter, async (req, res) => {
         timeZone: 'America/Chicago',
       }),
       ipAddress: ipAddress !== 'unknown' ? ipAddress : 'Unknown',
-      secureAccountLink: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/settings/security`,
-      changePasswordLink: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/settings/password`,
-      contactSupportLink: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/support`,
+      secureAccountLink: `${getAppBaseUrl()}/settings/security`,
+      changePasswordLink: `${getAppBaseUrl()}/settings/password`,
+      contactSupportLink: `${getAppBaseUrl()}/support`,
     }).catch((err: Error) => {
       console.error('[auth] Failed to send new device login email:', err);
     });
@@ -266,9 +283,8 @@ authRouter.post('/login', authLimiter, async (req, res) => {
     ...lastLogins.filter(l => l.fingerprint !== deviceFingerprint).slice(0, 4)
   ];
   
-  // ADMIN BYPASS: Admin accounts (emilmancero@gmail.com) skip onboarding
-  const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-  const isAdmin = adminEmails.includes(sanitizedEmail);
+  // ADMIN BYPASS: Admin accounts skip onboarding
+  const isAdmin = isEmailAdmin(sanitizedEmail);
   
   // Only update onboarding_completed if user is new or missing the flag
   const currentPrefs = (user as any)?.preferences || {};
@@ -291,21 +307,38 @@ authRouter.post('/login', authLimiter, async (req, res) => {
   }
   
   const access_token = signJwt({ id: user.id, is_admin: isAdmin });
+  const refresh_token = signRefreshToken(user.id);
   const sanitized = sanitizeUser(user);
   
   // Admin users never need onboarding; everyone else checks onboarding_completed
   const needsOnboarding = isAdmin ? false : (sanitized?.preferences?.onboarding_completed === false);
   
-  const body: any = { access_token, user: { ...sanitized, is_admin: isAdmin }, needs_onboarding: needsOnboarding };
+  const body: any = { access_token, refresh_token, user: { ...sanitized, is_admin: isAdmin }, needs_onboarding: needsOnboarding };
   if (!user.email_verified) body.needs_verification = true;
   return res.json(body);
+});
+
+const refreshSchema = z.object({ refresh_token: z.string().min(10) });
+
+authRouter.post('/refresh', oauthLimiter, async (req, res) => {
+  const parsed = refreshSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
+  const payload = verifyRefreshToken(parsed.data.refresh_token);
+  if (!payload) return res.status(401).json({ error: 'Invalid or expired refresh token' });
+  const user = await prisma.user.findUnique({ where: { id: payload.id } });
+  if (!user) return res.status(401).json({ error: 'User not found' });
+  if (user.permanent_ban || user.banned) return res.status(403).json({ error: 'Account banned' });
+  const isAdmin = isEmailAdmin(user.email);
+  const access_token = signJwt({ id: user.id, is_admin: isAdmin });
+  const refresh_token = signRefreshToken(user.id);
+  return res.json({ access_token, refresh_token });
 });
 
 const googleAuthSchema = z.object({
   id_token: z.string().min(10),
 });
 
-authRouter.post('/google', async (req, res) => {
+authRouter.post('/google', oauthLimiter, async (req, res) => {
   const parsed = googleAuthSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
 
@@ -338,8 +371,7 @@ authRouter.post('/google', async (req, res) => {
       return res.status(400).json({ error: 'Google credential not issued for this application' });
     }
 
-    const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
-    const isAdmin = adminEmails.includes(email);
+    const isAdmin = isEmailAdmin(email);
 
     const displayNameSource = typeof payload?.name === 'string' && payload.name.trim().length
       ? payload.name.trim()
@@ -401,10 +433,12 @@ authRouter.post('/google', async (req, res) => {
 
     const sanitized = sanitizeUser(user);
     const access_token = signJwt({ id: sanitized.id, is_admin: isAdmin });
+    const refresh_token = signRefreshToken(sanitized.id);
     const needsOnboarding = sanitized?.preferences?.onboarding_completed === false;
 
     return res.json({
       access_token,
+      refresh_token,
       user: { ...sanitized, is_admin: isAdmin },
       needs_onboarding: needsOnboarding,
       created,
@@ -419,7 +453,7 @@ const appleAuthSchema = z.object({
   identity_token: z.string().min(1),
 });
 
-authRouter.post('/apple', async (req, res) => {
+authRouter.post('/apple', oauthLimiter, async (req, res) => {
   const parsed = appleAuthSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
 
@@ -504,14 +538,15 @@ authRouter.post('/apple', async (req, res) => {
       }
     }
 
-    const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
-    const isAdmin = user?.email ? adminEmails.includes(user.email.toLowerCase()) : false;
+    const isAdmin = isEmailAdmin(user?.email);
     const sanitized = sanitizeUser(user);
     const access_token = signJwt({ id: sanitized.id, is_admin: isAdmin });
+    const refresh_token = signRefreshToken(sanitized.id);
     const needsOnboarding = sanitized?.preferences?.onboarding_completed === false;
 
     return res.json({
       access_token,
+      refresh_token,
       user: { ...sanitized, is_admin: isAdmin },
       needs_onboarding: needsOnboarding,
       created,
@@ -553,7 +588,7 @@ authRouter.post('/password/forgot', passwordResetLimiter, async (req, res) => {
   try {
     debugLog('[email] Sending password reset email to:', user.email);
     // Normalize base URL and enforce /reset/<token> path
-    const base = (process.env.APP_BASE_URL || 'https://varsityhub.app').replace(/\/$/, '');
+    const base = getAppBaseUrl();
     const resetLink = `${base}/reset/${encodeURIComponent(code)}`;
     const sent = await sendPasswordResetEmail(
       user.email,
@@ -680,8 +715,7 @@ authRouter.get('/me', async (req: AuthedRequest, res) => {
     },
   });
   if (!user) return res.status(404).json({ error: 'Not found' });
-  const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-  const is_admin = user.email ? adminEmails.includes(user.email.toLowerCase()) : false;
+  const is_admin = isEmailAdmin(user.email);
   
   // IMPORTANT: Admin accounts bypass onboarding requirement
   // They always have onboarding_completed = true regardless of actual preference
@@ -1166,8 +1200,7 @@ authRouter.post('/verify/request', async (req: AuthedRequest, res) => {
   }
   
   // Admin bypass: no rate limiting for admin emails
-  const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-  const isAdmin = adminEmails.includes(user.email.toLowerCase());
+  const isAdmin = isEmailAdmin(user.email);
   
   const now = Date.now();
   const key = user.id;

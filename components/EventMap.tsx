@@ -13,13 +13,14 @@ import { useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
-    Platform,
     StyleSheet,
     Text,
     TouchableOpacity,
     View,
 } from 'react-native';
-import MapView, { Callout, Marker, PROVIDER_DEFAULT, PROVIDER_GOOGLE, Region } from 'react-native-maps';
+import MapView, { Callout, Marker, Region } from 'react-native-maps';
+import { showLocationDeniedAlert } from '@/utils/locationAlerts';
+import { getMapProvider } from '@/utils/maps';
 
 import { EventMapProps } from './EventMap.types';
 
@@ -36,14 +37,15 @@ export default function EventMap({
   const [loading, setLoading] = useState(true);
   const [userLocation, setUserLocation] = useState<Location.LocationObject | null>(null);
   const [showEmptyState, setShowEmptyState] = useState(true);
-  const [region, setRegion] = useState<Region>(
-    initialRegion || {
-      latitude: 39.8, // Default to center of USA
-      longitude: -98.5,
-      latitudeDelta: 50, // Wide view to show entire USA
-      longitudeDelta: 50,
-    }
-  );
+  const isUserInteractionRef = useRef(false);
+  
+  // Use initialRegion if provided, otherwise default to USA-wide view
+  const defaultRegion: Region = initialRegion || {
+    latitude: 39.8, // Default to center of USA
+    longitude: -98.5,
+    latitudeDelta: 50, // Wide view to show entire USA
+    longitudeDelta: 50,
+  };
 
   // Request location permissions and get user location
   useEffect(() => {
@@ -52,7 +54,7 @@ export default function EventMap({
         if (showUserLocation) {
           const { status } = await Location.requestForegroundPermissionsAsync();
           if (status !== 'granted') {
-            console.warn('Location permission not granted');
+            showLocationDeniedAlert('map');
             setLoading(false);
             return;
           }
@@ -75,25 +77,6 @@ export default function EventMap({
   const eventsWithCoordinates = events.filter(
     (event) => event.latitude && event.longitude
   );
-  
-  const getSportEmoji = (sportOrTitle?: string): string => {
-    if (!sportOrTitle) return '📍';
-    const s = sportOrTitle.toLowerCase();
-    if (s.includes('soccer') || s.includes('futbol') || s.includes('football (soccer)')) return '⚽';
-    if (s.includes('basketball') || s.includes('hoops')) return '🏀';
-    if (s.includes('football')) return '🏈';
-    if (s.includes('baseball')) return '⚾';
-    if (s.includes('softball')) return '🥎';
-    if (s.includes('hockey')) return '🏒';
-    if (s.includes('volleyball')) return '🏐';
-    if (s.includes('tennis')) return '🎾';
-    if (s.includes('golf')) return '⛳';
-    if (s.includes('rugby')) return '🏉';
-    if (s.includes('lacrosse')) return '🥍';
-    if (s.includes('cricket')) return '🏏';
-    if (s.includes('bowling')) return '🎳';
-    return '📍';
-  };
 
   // Center map on all events
   const fitToEvents = () => {
@@ -117,12 +100,32 @@ export default function EventMap({
       return;
     }
 
-    setRegion({
+    isUserInteractionRef.current = true;
+    mapRef.current?.animateToRegion({
       latitude: userLocation.coords.latitude,
       longitude: userLocation.coords.longitude,
       latitudeDelta: 0.1,
       longitudeDelta: 0.1,
-    });
+    }, 1000);
+    
+    // Reset flag after animation completes
+    setTimeout(() => {
+      isUserInteractionRef.current = false;
+    }, 1100);
+  };
+
+  // Get marker color based on event type
+  const getMarkerColor = (type?: string) => {
+    switch (type) {
+      case 'game':
+        return '#FF6B6B'; // Red for games
+      case 'event':
+        return '#4ECDC4'; // Teal for events
+      case 'post':
+        return '#95E1D3'; // Light teal for posts
+      default:
+        return Colors[colorScheme].tint;
+    }
   };
 
   if (loading) {
@@ -141,14 +144,21 @@ export default function EventMap({
       <MapView
         ref={mapRef}
         style={styles.map}
-        provider={Platform.OS === 'ios' ? PROVIDER_DEFAULT : PROVIDER_GOOGLE}
-        initialRegion={region}
-        region={region}
-        onRegionChangeComplete={setRegion}
+        provider={getMapProvider()}
+        initialRegion={defaultRegion}
         showsUserLocation={showUserLocation}
         showsMyLocationButton={false}
         showsCompass={true}
         showsScale={true}
+        followsUserLocation={false}
+        scrollEnabled={true}
+        zoomEnabled={true}
+        pitchEnabled={true}
+        rotateEnabled={true}
+        onRegionChangeComplete={() => {
+          // Only track region changes if needed for future features
+          // Don't update state to avoid re-render loop
+        }}
       >
         {eventsWithCoordinates.map((event) => (
           <Marker
@@ -157,9 +167,9 @@ export default function EventMap({
               latitude: event.latitude!,
               longitude: event.longitude!,
             }}
-            onPress={() => onEventPress?.(event.id)}
+            pinColor={getMarkerColor(event.type)}
+            onPress={() => onEventPress?.(event.id, event.type)}
           >
-            <Text style={styles.sportMarker}>{getSportEmoji(event.sport || event.title)}</Text>
             <Callout>
               <View style={styles.callout}>
                 <Text style={styles.calloutTitle}>{event.title}</Text>
@@ -173,18 +183,6 @@ export default function EventMap({
             </Callout>
           </Marker>
         ))}
-        
-        {/* Preview pin when no events */}
-        {eventsWithCoordinates.length === 0 && (
-          <Marker
-            coordinate={{
-              latitude: region.latitude,
-              longitude: region.longitude,
-            }}
-          >
-            <Text style={styles.previewPinIcon}>📍</Text>
-          </Marker>
-        )}
       </MapView>
 
       {/* Control Buttons */}
@@ -262,6 +260,12 @@ export default function EventMap({
             >
               Games will appear on the map once they have location data added. Teams can add locations when creating games.
             </Text>
+            <View style={styles.emptyStateHints}>
+              <View style={styles.hint}>
+                <Ionicons name="information-circle" size={16} color={Colors[colorScheme].tint} />
+                <Text style={[styles.hintText, { color: Colors[colorScheme].mutedText }]}>Create games with locations to see them on the map</Text>
+              </View>
+            </View>
             <Text
               style={[styles.noEventsDismiss, { color: Colors[colorScheme].mutedText }]}
             >
@@ -325,19 +329,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  previewPinIcon: {
-    textAlign: 'center',
-    lineHeight: 32,
-    fontSize: 32,
-  },
-  sportMarker: {
-    fontSize: 28,
-    textAlign: 'center',
-    lineHeight: 30,
-  },
   callout: {
-    padding: 12,
-    minWidth: 200,
+    width: 200,
+    padding: 8,
   },
   calloutTitle: {
     fontSize: 16,
@@ -379,7 +373,7 @@ const styles = StyleSheet.create({
   noEventsDescription: {
     fontSize: 14,
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: 16,
   },
   emptyStateHints: {
     gap: 8,
@@ -400,6 +394,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: 'center',
     fontStyle: 'italic',
-    marginTop: 0,
+    marginTop: 8,
   },
 });

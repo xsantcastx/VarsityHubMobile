@@ -1,78 +1,119 @@
+import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { Stack } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Support, User } from '@/api/entities';
+import { Support } from '@/api/entities';
+import { useAuth } from '@/context/AuthProvider';
+import { useMediaUpload } from '@/hooks/useMediaUpload';
 import { Button } from '@/components/ui/button';
+import { SegmentedControl } from '@/components/ui/segmented-control';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { uploadImage } from '@/utils/uploadUtils';
-import { ensureUploadableUri } from '../utils/ensureUploadableUri';
 
 export default function ReportAbuseScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const palette = Colors[colorScheme];
+  const { user } = useAuth();
+  const { upload: uploadMedia } = useMediaUpload();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [subject, setSubject] = useState('Report abuse or safety concern');
+  const [subject, setSubject] = useState('Report abuse');
   const [details, setDetails] = useState('');
   const [accused, setAccused] = useState('');
-  const [contextUrl, setContextUrl] = useState('');
+  const [evidenceImages, setEvidenceImages] = useState<string[]>([]);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [attachment, setAttachment] = useState<{ localUri: string; remoteUrl?: string } | null>(null);
-  const [uploadingAttachment, setUploadingAttachment] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let canceled = false;
-    void (async () => {
-      try {
-        const me: any = await User.me();
-        if (canceled) return;
-        if (typeof me?.display_name === 'string' && !name) {
-          setName(me.display_name);
-        }
-        if (typeof me?.email === 'string' && !email) {
-          setEmail(me.email);
-        }
-      } catch {
-        // Ignore, user can fill fields manually.
-      }
-    })();
-    return () => {
-      canceled = true;
-    };
-  }, [name, email]);
+    if (!user) return;
+    const me: any = user;
+    if (typeof me?.display_name === 'string' && !name) {
+      setName(me.display_name);
+    }
+    if (typeof me?.email === 'string' && !email) {
+      setEmail(me.email);
+    }
+  }, [user, name, email]);
 
   const canSubmit = useMemo(() => {
     return Boolean(subject.trim() && details.trim() && email.trim());
   }, [subject, details, email]);
 
+  const pickImage = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission required', 'Please allow access to your photo library to upload evidence.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsMultipleSelection: true,
+        quality: 0.8,
+        selectionLimit: 5,
+      });
+
+      if (!result.canceled && result.assets.length > 0) {
+        setUploadingImage(true);
+        const newImages: string[] = [];
+
+        for (const asset of result.assets) {
+          try {
+            const filename = asset.uri.split('/').pop() || 'evidence.jpg';
+            const response = await uploadMedia(asset.uri, filename);
+            const url = response?.url || response?.path;
+            if (url) {
+              newImages.push(url);
+            }
+          } catch (uploadErr) {
+            console.error('Failed to upload image:', uploadErr);
+          }
+        }
+
+        if (newImages.length > 0) {
+          setEvidenceImages((prev) => [...prev, ...newImages].slice(0, 5));
+        } else {
+          Alert.alert('Upload failed', 'Could not upload the selected images. Please try again.');
+        }
+        setUploadingImage(false);
+      }
+    } catch (err) {
+      console.error('Image picker error:', err);
+      setUploadingImage(false);
+    }
+  };
+
+  const removeImage = (index: number) => {
+    setEvidenceImages((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const handleSubmit = async () => {
     if (!canSubmit || submitting) {
-      setError('Please complete the subject, details, and email fields.');
+      Alert.alert('Missing information', 'Please complete the subject, details, and email fields.');
       return;
     }
 
-    setError(null);
     setSubmitting(true);
     try {
       const compiledMessage = [
         details.trim(),
         accused.trim() ? `Reported user: ${accused.trim()}` : null,
-        contextUrl.trim() ? `Context: ${contextUrl.trim()}` : null,
-        attachment?.remoteUrl ? `Screenshot: ${attachment.remoteUrl}` : null,
+        evidenceImages.length > 0 ? `Evidence images:\n${evidenceImages.join('\n')}` : null,
       ]
         .filter(Boolean)
         .join('\n\n');
 
       await Support.contact({
         name: name.trim() || 'VarsityHub user',
-        email: email.trim(),
+        email: 'support@varsityhub.app',
         subject: subject.trim(),
         message: compiledMessage,
+        from_email: email.trim(),
       });
       Alert.alert(
         'Report sent',
@@ -80,52 +121,21 @@ export default function ReportAbuseScreen() {
       );
       setDetails('');
       setAccused('');
-      setContextUrl('');
-      setAttachment(null);
+      setEvidenceImages([]);
     } catch (err: any) {
       const message =
         typeof err?.message === 'string' && err.message.length
           ? err.message
           : 'We were unable to send your report. Please try again in a moment.';
-      setError(message);
+      Alert.alert('Submission failed', message);
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleAttach = async () => {
-    if (uploadingAttachment) return;
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Please allow photo access to attach a screenshot.');
-      return;
-    }
-    const pick = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: false,
-      quality: 0.9,
-    });
-    if (pick.canceled || !pick.assets?.length) return;
-    const asset = pick.assets[0];
-    if (!asset?.uri) return;
-    const mimeType = asset.mimeType || 'image/jpeg';
-    const name = asset.fileName || `screenshot-${Date.now()}.jpg`;
-    setUploadingAttachment(true);
-    try {
-      const ensured = await ensureUploadableUri(asset.uri, mimeType);
-      const uploaded = await uploadImage({ uri: ensured.uri, name, type: ensured.mimeType || mimeType });
-      setAttachment({ localUri: asset.uri, remoteUrl: uploaded.url || uploaded.path });
-    } catch (err: any) {
-      Alert.alert('Upload failed', err?.message || 'Could not attach screenshot. Please try again.');
-      setAttachment(null);
-    } finally {
-      setUploadingAttachment(false);
-    }
-  };
-
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.background }]} edges={['top', 'bottom']}>
-      <Stack.Screen options={{ title: 'Report Abuse' }} />
+      <Stack.Screen options={{ title: 'Report Abuse', headerBackTitle: 'Back' }} />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.flex}
@@ -154,7 +164,6 @@ export default function ReportAbuseScreen() {
               autoCapitalize="words"
               autoComplete="name"
               returnKeyType="next"
-              accessibilityLabel="Your name"
             />
 
             <Text style={[styles.label, { color: palette.mutedText }]}>Email *</Text>
@@ -167,18 +176,14 @@ export default function ReportAbuseScreen() {
               autoCapitalize="none"
               autoComplete="email"
               keyboardType="email-address"
-              accessibilityLabel="Email address"
             />
 
             <Text style={[styles.label, { color: palette.mutedText }]}>Subject *</Text>
-            <TextInput
-              value={subject}
-              onChangeText={setSubject}
-              placeholder="What happened?"
-              placeholderTextColor={palette.mutedText}
-              style={[styles.input, { color: palette.text, borderColor: palette.border, backgroundColor: palette.background }]}
-              returnKeyType="next"
-              accessibilityLabel="Subject"
+            <SegmentedControl
+              tabs={['Report abuse', 'Safety concern']}
+              selected={subject}
+              onChange={setSubject}
+              style={{ marginBottom: 16 }}
             />
 
             <Text style={[styles.label, { color: palette.mutedText }]}>Details *</Text>
@@ -192,9 +197,6 @@ export default function ReportAbuseScreen() {
                 { color: palette.text, borderColor: palette.border, backgroundColor: palette.background },
               ]}
               multiline
-              numberOfLines={5}
-              textAlignVertical="top"
-              accessibilityLabel="Details about what happened"
             />
 
             <Text style={[styles.label, { color: palette.mutedText }]}>Who are you reporting? (email or username)</Text>
@@ -205,46 +207,47 @@ export default function ReportAbuseScreen() {
               placeholderTextColor={palette.mutedText}
               style={[styles.input, { color: palette.text, borderColor: palette.border, backgroundColor: palette.background }]}
               autoCapitalize="none"
-              autoComplete="off"
-              keyboardType="email-address"
-              returnKeyType="next"
-              accessibilityLabel="Person you are reporting"
             />
 
-            <Text style={[styles.label, { color: palette.mutedText }]}>Link or evidence (optional)</Text>
-            <TextInput
-              value={contextUrl}
-              onChangeText={setContextUrl}
-              placeholder="Link to the post/profile/screenshot"
-              placeholderTextColor={palette.mutedText}
-              style={[styles.input, { color: palette.text, borderColor: palette.border, backgroundColor: palette.background }]}
-              autoCapitalize="none"
-              autoComplete="off"
-              keyboardType="url"
-              returnKeyType="done"
-              accessibilityLabel="Link or evidence"
-            />
-
-            <Text style={[styles.label, { color: palette.mutedText }]}>Screenshot (optional)</Text>
-            <View style={{ gap: 8 }}>
-              <Button onPress={handleAttach} disabled={uploadingAttachment} accessibilityLabel="Attach screenshot">
-                {uploadingAttachment ? 'Uploading…' : attachment ? 'Replace Screenshot' : 'Attach Screenshot'}
-              </Button>
-              {attachment?.localUri ? (
-                <View style={{ borderWidth: StyleSheet.hairlineWidth, borderColor: palette.border, borderRadius: 10, overflow: 'hidden' }}>
-                  <Image source={{ uri: attachment.localUri }} style={{ width: '100%', height: 180 }} resizeMode="cover" />
+            <Text style={[styles.label, { color: palette.mutedText }]}>Upload screenshots (optional)</Text>
+            <View style={styles.imageGrid}>
+              {evidenceImages.map((uri, index) => (
+                <View key={uri} style={styles.imageWrapper}>
+                  <Image source={{ uri }} style={styles.uploadedImage} contentFit="cover" />
+                  <Pressable
+                    style={[styles.removeImageBtn, { backgroundColor: palette.destructive || '#FF3B30' }]}
+                    onPress={() => removeImage(index)}
+                  >
+                    <Ionicons name="close" size={14} color="#fff" />
+                  </Pressable>
                 </View>
-              ) : null}
+              ))}
+              {evidenceImages.length < 5 && (
+                <Pressable
+                  style={[styles.addImageBtn, { borderColor: palette.border, backgroundColor: palette.background }]}
+                  onPress={pickImage}
+                  disabled={uploadingImage}
+                >
+                  {uploadingImage ? (
+                    <ActivityIndicator size="small" color={palette.tint} />
+                  ) : (
+                    <>
+                      <Ionicons name="camera-outline" size={24} color={palette.mutedText} />
+                      <Text style={[styles.addImageText, { color: palette.mutedText }]}>Add</Text>
+                    </>
+                  )}
+                </Pressable>
+              )}
             </View>
+            <Text style={[styles.imageHelper, { color: palette.mutedText }]}>
+              Up to 5 images. Screenshots help us investigate faster.
+            </Text>
 
             <Text style={[styles.helper, { color: palette.mutedText }]}>
               We keep reports confidential and only use this information to enforce community guidelines.
             </Text>
 
-            {error ? (
-              <Text style={{ color: '#DC2626', marginBottom: 8 }}>{error}</Text>
-            ) : null}
-            <Button onPress={handleSubmit} disabled={!canSubmit || submitting} accessibilityLabel="Submit report">
+            <Button onPress={handleSubmit} disabled={!canSubmit || submitting}>
               {submitting ? 'Sending...' : 'Submit report'}
             </Button>
           </View>
@@ -306,5 +309,48 @@ const styles = StyleSheet.create({
   },
   helper: {
     fontSize: 13,
+  },
+  imageGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  imageWrapper: {
+    position: 'relative',
+    width: 80,
+    height: 80,
+  },
+  uploadedImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 10,
+  },
+  removeImageBtn: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addImageBtn: {
+    width: 80,
+    height: 80,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  addImageText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  imageHelper: {
+    fontSize: 12,
+    marginTop: -4,
   },
 });

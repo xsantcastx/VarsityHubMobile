@@ -11,6 +11,7 @@ import pinoHttp from 'pino-http';
 import swaggerUi from 'swagger-ui-express';
 import { checkExpiringSubscriptions } from './jobs/subscriptionExpiryChecker.js';
 import { debugLog } from './lib/debugLog.js';
+import { getAppBaseUrl } from './lib/env.js';
 import { initEmailService } from './lib/email.js';
 import { initializeQueue } from './lib/queue.js';
 import { addSentryErrorHandler, initSentry } from './lib/sentry.js';
@@ -254,7 +255,7 @@ app.get('/reset/:code', (req: Request, res: Response) => {
   }
   // Safely serialize the code into JS without risking HTML injection
   const codeJson = JSON.stringify(rawCode);
-  const appBase = (process.env.APP_BASE_URL || '').replace(/\/$/, '');
+  const appBase = getAppBaseUrl();
   const selfOrigin = appBase && appBase.startsWith('http') ? appBase : '';
   const html = `<!doctype html>
 <html lang="en">

@@ -1,11 +1,11 @@
 import { Organization, Team } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
-import { useCustomColorScheme } from '@/shared/hooks/useCustomColorScheme';
+import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 type TeamData = {
@@ -39,12 +39,9 @@ export default function RequestJoinOrganizationScreen() {
   const [myTeam, setMyTeam] = useState<TeamData | null>(null);
 
   useEffect(() => {
-    const teamId = params.team_id;
-    // Skip loading when no real team id (e.g., temp placeholders)
-    const isTempId = typeof teamId === 'string' && teamId.startsWith('temp-');
-    if (teamId && !isTempId) {
+    if (params.team_id) {
       // Load team details
-      Team.get(teamId)
+      Team.get(params.team_id)
         .then((data) => {
           setMyTeam({
             id: data.id,
@@ -55,14 +52,12 @@ export default function RequestJoinOrganizationScreen() {
           });
         })
         .catch((err) => {
-          console.warn('[RequestJoinOrg] Error loading team, falling back to route params:', err?.message || err);
+          console.error('[RequestJoinOrg] Error loading team:', err);
           setMyTeam({
-            id: teamId,
+            id: params.team_id,
             name: params.team_name || 'My Team',
           });
         });
-    } else if (params.team_name) {
-      setMyTeam({ id: teamId || 'temp', name: params.team_name });
     }
   }, [params.team_id, params.team_name]);
 
@@ -99,7 +94,7 @@ export default function RequestJoinOrganizationScreen() {
       await Organization.requestToJoin(
         selectedOrg.id,
         message.trim() || undefined,
-        myTeam.id
+        undefined
       );
 
       Alert.alert(
@@ -114,7 +109,7 @@ export default function RequestJoinOrganizationScreen() {
       );
     } catch (err: any) {
       console.error('[RequestJoinOrg] Error submitting request:', err);
-      Alert.alert('Error', err?.message || 'Failed to send join request');
+      Alert.alert('Join Request', "We couldn't send your join request. Check your connection and try again.");
     } finally {
       setSubmitting(false);
     }
@@ -140,6 +135,7 @@ export default function RequestJoinOrganizationScreen() {
         <View style={{ width: 40 }} />
       </View>
 
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.keyboard}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         {/* Your Team Info */}
         {myTeam && (
@@ -304,6 +300,7 @@ export default function RequestJoinOrganizationScreen() {
           </Pressable>
         )}
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -330,6 +327,7 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '600',
   },
+  keyboard: { flex: 1 },
   content: {
     padding: 16,
     gap: 16,
