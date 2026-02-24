@@ -1065,55 +1065,76 @@ The following features have been confirmed stable and should not be modified wit
 
 ## 8. KNOWN ISSUES
 
-Based on audit docs (`APP_STORE_COMPLIANCE_AND_GRADE_AUDIT.md`, `CORE_SOCIAL_FEATURES_AUDIT.md`):
+> **Last verified:** 2026-02-24. Items marked ✅ Fixed have been confirmed in code, not just claimed.
 
-### Push Notification Permission — Requested Too Early
-- **Status:** Active issue, needs fix before App Store submission
-- **Problem:** `AuthProvider.checkAuth` calls `setupPushNotifications(me.id)` immediately after every login, before user has seen any content
-- **Impact:** Apple may reject; poor UX
-- **Files:** `context/AuthProvider.tsx`, `utils/pushNotifications.ts`
-- **Fix:** Remove from AuthProvider; only request in onboarding step-9 or Settings with pre-prompt
+---
 
-### No Server-Side "Followed Feed" Filter
-- **Status:** Active gap
-- **Problem:** `GET /posts` has no working `?followed_only=true` filter at the server. Discover tab (`mobile-community.tsx`) splits "following" vs "discover" client-side using `is_following_author` flag on posts — meaning the server still sends ALL posts.
-- **Files:** `server/src/routes/posts.ts`, `app/(tabs)/discover/mobile-community.tsx`
-- **Fix:** Add server-side `followed_only` filter using `WHERE author_id IN (SELECT following_id FROM Follows WHERE follower_id = ?)`
+### ✅ FIXED — Sawtooth Zigzag on Feed Screen
+- **Fixed:** 2026-02-24
+- **Was:** `overflow: 'hidden'` on `tabBarStyle` clipped the `CenterTabButton` floating via `top: -6`, anti-aliasing the circular button against a rectangular clip boundary and producing a zigzag edge.
+- **Fix:** `app/(tabs)/_layout.tsx` → `overflow: 'visible'`; removed `overflow: 'hidden'` from `wrapper` and `buttonContainer` in `components/ui/CenterTabButton.tsx`.
+- **Do not re-add `overflow: 'hidden'` to either of these.**
 
-### Main Feed Shows Games, Not Posts
-- **Status:** By design but confusing label
-- **Problem:** The "Feed" tab shows games/events, not a social post feed. Users expecting a Twitter-like feed of posts from followed users will not find it on the Feed tab.
-- **Files:** `app/feed.tsx`
-- **Note:** Posts from followed accounts appear only in Discover tab.
+### ✅ FIXED — Google OAuth on iOS
+- **Fixed:** 2026-02-24
+- **Was:** Google Sign-In failing on iOS due to incorrect client ID / redirect URI config.
+- **Fix:** `hooks/useGoogleAuth.ts` and `app.json` updated with correct native iOS client ID and redirect scheme.
+- **Do not modify `hooks/useGoogleAuth.ts` without testing on a physical device.**
 
-### Post Owner Cannot Delete Comments on Their Posts
-- **Status:** Active gap
-- **Problem:** `DELETE /posts/:postId/comments/:commentId` only allows the comment author to delete. Post owners cannot moderate comments on their own content.
-- **Files:** `server/src/routes/posts.ts`
-- **Fix:** Add check: `if (comment.author_id === userId || post.author_id === userId)`
+### ✅ FIXED — Post Owner Cannot Delete Comments
+- **Fixed:** Already implemented (confirmed 2026-02-24)
+- **Was:** Audit assumed only comment authors could delete. Code was already updated.
+- **Current state:** `DELETE /posts/:postId/comments/:commentId` checks `isCommentAuthor || isPostOwner`. Post owners can moderate comments on their own posts.
+- **File:** `server/src/routes/posts.ts` line ~1325.
 
-### Private Profile Not Enforced Server-Side
-- **Status:** Active gap
-- **Problem:** `SETTINGS_KEYS.PRIVATE_ACCOUNT` in `api/settings.ts` is a local-only preference. The server has no `profile_private` field on User and does not enforce profile privacy.
-- **Files:** `api/settings.ts`, `server/prisma/schema.prisma` (missing field), `server/src/routes/users.ts`
+### ✅ FIXED — Private Profile Not Enforced Server-Side
+- **Fixed:** Already implemented (confirmed 2026-02-24)
+- **Was:** Audit assumed `profile_private` was a local-only setting.
+- **Current state:** `server/src/routes/users.ts` reads `prefs.profile_private` and, when `true`, returns only `display_name` and `avatar_url` to non-followers. Fully server-enforced.
+- **File:** `server/src/routes/users.ts` line ~224 (`isProfilePrivate` helper) and ~750 (enforcement in GET /users/:id).
 
-### Comment Permissions Not Implemented
-- **Status:** Active gap
-- **Problem:** No "who can comment on my posts" setting (followers only, no one). Anyone can comment on any post.
+### ✅ FIXED — No Server-Side Followed Feed Filter
+- **Fixed:** Already implemented (confirmed 2026-02-24)
+- **Was:** Audit said `GET /posts` had no server-side `followed_only` filter.
+- **Current state:** `GET /posts?followed_only=true` performs a real DB query (`WHERE author_id IN (SELECT following_id FROM Follows WHERE follower_id = currentUserId)`). Also `?followed_teams=true` is implemented using the `TeamFollow` model.
+- **File:** `server/src/routes/posts.ts` line ~90.
 
-### Accessibility Labels Incomplete
-- **Status:** Ongoing
-- **Problem:** Many Pressables, list items, and form fields lack `accessibilityLabel` / `accessibilityHint`. ~40 components have labels; many do not.
-- **Impact:** VoiceOver will announce interactive elements generically.
+### ✅ FIXED — Comment Permissions Not Enforced
+- **Fixed:** Already implemented (confirmed 2026-02-24)
+- **Was:** Audit said anyone could comment on any post.
+- **Current state:** `POST /posts/:id/comments` reads `post.author.preferences.comment_permission` (`everyone` | `following` | `none`) and enforces it server-side. Users who don't meet the permission get a 403 with `COMMENTS_DISABLED` or `COMMENTS_FOLLOWING_ONLY` code.
+- **File:** `server/src/routes/posts.ts` line ~923.
 
-### Team Follow API vs Schema Mismatch
-- **Status:** Partially implemented
-- **Problem:** `TeamFollow` model exists in schema. `OrganizationFollow` model also exists. But `GET /follows/teams` returns team memberships (not follows). The feed filter `followed_teams=true` in `Post.filterPage()` may not work correctly.
-- **Files:** `server/src/routes/follows.ts`, `server/src/routes/teams.ts`, `api/entities.ts`
+### ✅ FIXED — Push Permission Requested Immediately After Login
+- **Fixed:** Already resolved (confirmed 2026-02-24)
+- **Was:** Audit said `checkAuth` called `setupPushNotifications()` on every login.
+- **Current state:** `checkAuth` no longer calls push setup. Comment in code explicitly states: "Push notifications are requested during onboarding step 9 (with pre-prompt), not immediately after login." Push is registered only via the explicit `registerPushToken()` callback.
+- **File:** `context/AuthProvider.tsx` line ~180.
 
-### Duplicate Screen Files (` 4.tsx` variants)
-- **Status:** Artifacts from development
-- **Problem:** Several files have `4.tsx` duplicates (e.g., `edit-team 4.tsx`, `team-hub 4.tsx`, `onboardingReducer 4.ts`). These appear to be backup copies. They should be reviewed and cleaned up.
+### ✅ FIXED — Duplicate iCloud Sync Files (` 4.tsx`, ` 5.tsx` variants)
+- **Fixed:** 2026-02-24
+- **Was:** 777+ iCloud conflict-copy files (`edit-team 4.tsx`, etc.) were tracked in git.
+- **Fix:** All duplicate files deleted and removal committed. Working tree is clean.
+
+---
+
+### 🔴 OPEN — Team Follow API vs Schema Mismatch
+- **Status:** Partially implemented — semantic mismatch remains
+- **Problem:** `GET /follows/teams` (in `server/src/routes/follows.ts`) returns team **memberships** from `TeamMembership`, not records from the `TeamFollow` model. The route comment itself says "proxy for 'followed'". Meanwhile, `GET /posts?followed_teams=true` correctly uses the `TeamFollow` model for filtering. These two code paths are inconsistent — a user can be a member without following and vice versa.
+- **Files:** `server/src/routes/follows.ts`, `server/src/routes/teams.ts`
+- **Fix needed:** `GET /follows/teams` should query `TeamFollow` directly, not `TeamMembership`.
+
+### 🔴 OPEN — Accessibility Labels Incomplete
+- **Status:** Ongoing — medium priority before App Store submission
+- **Problem:** Many `Pressable`, list item, and form field components lack `accessibilityLabel` / `accessibilityHint`. Approximately 40 components have labels; the majority of interactive elements do not.
+- **Impact:** VoiceOver announces unlabeled elements generically ("button", "image"). Apple Accessibility guidelines require all interactive elements to have labels.
+- **Files:** Spread across all screen files; `utils/accessibility.ts` has helpers that are not being used consistently.
+
+### ℹ️ BY DESIGN — Main Feed Tab Shows Games, Not Social Posts
+- **This is intentional product design, not a bug.**
+- The "Feed" tab (`app/feed.tsx`) shows upcoming/past games, sponsored ads, and highlights — a sports schedule feed.
+- User-created social posts appear in the **Discover** tab (`mobile-community.tsx`), split into "From people you follow" and "Discover".
+- New engineers often expect the Feed tab to be a Twitter-style post feed. It is not.
 
 ---
 
