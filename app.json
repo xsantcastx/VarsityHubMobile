@@ -162,7 +162,7 @@
       "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "814866365020-ia09lnm6he2prvaivrp8sblh7oeh9ic0.apps.googleusercontent.com",
       "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "814866365020-ml5i55hgdne80i2hfd3ub5nggfpvrr2r.apps.googleusercontent.com",
       "EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID": "814866365020-ml5i55hgdne80i2hfd3ub5nggfpvrr2r.apps.googleusercontent.com",
-      "EXPO_PUBLIC_GOOGLE_FORCE_PROXY": "1",
+      "EXPO_PUBLIC_GOOGLE_FORCE_PROXY": "0",
       "EXPO_PUBLIC_EXPO_PROJECT_FULL_NAME": "@varsity-hub/varsityhub"
     }
   }

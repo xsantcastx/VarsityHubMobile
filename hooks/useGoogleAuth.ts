@@ -1,3 +1,9 @@
+// ⚠️ WORKING - DO NOT MODIFY WITHOUT EXPLICIT PERMISSION
+// Google OAuth fixed 2026-02-24
+// iOS native: uses iOS client ID with native redirect scheme
+// Web/Expo proxy: uses Web client ID with auth.expo.io redirect
+// Changing this will break Google Sign In
+
 import { User } from '@/api/entities';
 import { getConfig } from '@/config/env';
 import * as Application from 'expo-application';

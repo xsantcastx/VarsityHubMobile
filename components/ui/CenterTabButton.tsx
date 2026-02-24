@@ -43,14 +43,12 @@ const styles = StyleSheet.create({
     top: -6,
     width: '100%', // Take full width of the tab slot
     flex: 1, // Ensure equal space with other tabs
-    overflow: 'hidden',
   },
   buttonContainer: {
     alignItems: 'center',
     justifyContent: 'center',
     width: 44,
     height: 44,
-    overflow: 'hidden',
   },
   button: {
     width: 44,

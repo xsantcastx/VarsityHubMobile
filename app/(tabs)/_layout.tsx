@@ -31,8 +31,7 @@ export default function TabLayout() {
           paddingBottom: Math.max(10, insets.bottom),
           paddingTop: 6,
           backgroundColor: colorScheme === 'dark' ? '#0f172a' : Colors[colorScheme ?? 'light'].card,
-          overflow: 'hidden',
-          // Remove shadow/elevation to prevent sawtooth zigzag artifact at bottom edge on iOS
+          overflow: 'visible',
           shadowOpacity: 0,
           shadowRadius: 0,
           elevation: 0,
