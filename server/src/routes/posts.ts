@@ -160,7 +160,7 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
       where,
       orderBy: [{ created_at: 'desc' as const }],
       include: {
-        author: { select: { id: true, display_name: true, avatar_url: true } },
+        author: { select: { id: true, username: true, display_name: true, avatar_url: true } },
         team: { select: { id: true, name: true, logo_url: true } },
         _count: { select: { comments: true, bookmarks: true } },
         poll: { include: { options: true } },
@@ -249,7 +249,7 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
       comments_count: post._count?.comments ?? 0,
       bookmarks_count: post._count?.bookmarks ?? 0,
       created_at: post.created_at instanceof Date ? post.created_at.toISOString() : post.created_at,
-      author: post.author ? { id: post.author.id, display_name: post.author.display_name, avatar_url: post.author.avatar_url } : null,
+      author: post.author ? { id: post.author.id, username: post.author.username, display_name: post.author.display_name, avatar_url: post.author.avatar_url } : null,
       team: post.team ? { id: post.team.id, name: post.team.name, logo_url: post.team.logo_url } : null,
       has_upvoted: upvotedIds.has(post.id),
       has_bookmarked: bookmarkedIds.has(post.id),
@@ -266,7 +266,7 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
     where,
     orderBy,
     include: {
-      author: { select: { id: true, display_name: true, avatar_url: true } },
+      author: { select: { id: true, username: true, display_name: true, avatar_url: true } },
       team: { select: { id: true, name: true, logo_url: true } },
       _count: { select: { comments: true, bookmarks: true } },
       poll: { include: { options: true } },
@@ -347,6 +347,7 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
     author: post.author
       ? {
           id: post.author.id,
+          username: post.author.username,
           display_name: post.author.display_name,
           avatar_url: post.author.avatar_url,
         }
@@ -808,7 +809,7 @@ postsRouter.get('/:id', async (req: AuthedRequest, res) => {
     post = await prisma.post.findFirst({ 
       where: { id, deleted_at: null }, 
       include: { 
-        author: { select: { id: true, display_name: true, avatar_url: true } },
+        author: { select: { id: true, username: true, display_name: true, avatar_url: true } },
         game: { select: { id: true, title: true, home_team: true, away_team: true, date: true } },
         _count: { select: { comments: true, bookmarks: true } },
         poll: { include: { options: true } },
@@ -823,7 +824,7 @@ postsRouter.get('/:id', async (req: AuthedRequest, res) => {
     post = await prisma.post.findFirst({ 
       where: { id, deleted_at: null }, 
       include: { 
-        author: { select: { id: true, display_name: true, avatar_url: true } },
+        author: { select: { id: true, username: true, display_name: true, avatar_url: true } },
         game: { select: { id: true, title: true, home_team: true, away_team: true, date: true } },
         _count: { select: { comments: true, bookmarks: true } },
       } 
@@ -984,7 +985,7 @@ postsRouter.post('/:id/comments', requireAuth as any, async (req: AuthedRequest,
       parent_id: parent_id || undefined,
     },
     include: {
-      author: { select: { id: true, display_name: true, avatar_url: true } },
+      author: { select: { id: true, username: true, display_name: true, avatar_url: true } },
     },
   });
 
@@ -1224,7 +1225,7 @@ postsRouter.post('/:id/restore', requireAuth as any, async (req: AuthedRequest, 
         where: { id: postId },
         data: { deleted_at: null },
         include: {
-          author: { select: { id: true, display_name: true, avatar_url: true } },
+          author: { select: { id: true, username: true, display_name: true, avatar_url: true } },
           _count: { select: { comments: true, bookmarks: true } },
           poll: { include: { options: true } },
         },
@@ -1236,7 +1237,7 @@ postsRouter.post('/:id/restore', requireAuth as any, async (req: AuthedRequest, 
         where: { id: postId },
         data: { deleted_at: null },
         include: {
-          author: { select: { id: true, display_name: true, avatar_url: true } },
+          author: { select: { id: true, username: true, display_name: true, avatar_url: true } },
           _count: { select: { comments: true, bookmarks: true } },
         },
       });
@@ -1309,7 +1310,7 @@ postsRouter.patch('/:id', requireAuth as any, async (req: AuthedRequest, res) =>
       where: { id: postId },
       data: updateData,
       include: {
-        author: { select: { id: true, display_name: true, avatar_url: true } },
+        author: { select: { id: true, username: true, display_name: true, avatar_url: true } },
         _count: { select: { comments: true } },
       },
     });

@@ -1,36 +1,37 @@
 import { BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
+import { PlatformPressable } from '@react-navigation/elements';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 
 export default function CenterTabButton(props: BottomTabBarButtonProps) {
   const { accessibilityState, accessibilityRole, accessibilityLabel = 'Create post', testID } = props;
   const selected = accessibilityState?.selected;
   const router = useRouter();
-  
+
   const handlePress = () => {
     if (Platform.OS === 'ios') {
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-    // Navigate directly to create post instead of opening menu
     void router.push('/create-post');
   };
+
   return (
-    <View style={styles.wrapper} pointerEvents="box-none">
+    <PlatformPressable
+      {...props}
+      onPress={handlePress}
+      onPressIn={(ev) => props.onPressIn?.(ev)}
+      accessibilityRole={accessibilityRole ?? 'button'}
+      accessibilityLabel={accessibilityLabel}
+      accessibilityHint="Double tap to create a new post"
+      style={[styles.wrapper, props.style]}
+    >
       <View style={styles.buttonContainer}>
-        <Pressable
-          accessibilityRole={accessibilityRole}
-          accessibilityLabel={accessibilityLabel}
-          testID={testID}
-          onPress={handlePress}
-          style={[styles.button, selected && styles.buttonActive]}
-        >
-          <View style={styles.plusContainer}>
-            <Text style={styles.plus}>+</Text>
-          </View>
-        </Pressable>
+        <View style={[styles.button, selected && styles.buttonActive]}>
+          <Text style={styles.plus}>+</Text>
+        </View>
       </View>
-    </View>
+    </PlatformPressable>
   );
 }
 
@@ -42,12 +43,14 @@ const styles = StyleSheet.create({
     top: -6,
     width: '100%', // Take full width of the tab slot
     flex: 1, // Ensure equal space with other tabs
+    overflow: 'hidden',
   },
   buttonContainer: {
     alignItems: 'center',
     justifyContent: 'center',
     width: 44,
     height: 44,
+    overflow: 'hidden',
   },
   button: {
     width: 44,
@@ -56,23 +59,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#111827',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 4,
-    // Ensure perfect centering
+    overflow: 'hidden',
     display: 'flex',
   },
   buttonActive: {
     backgroundColor: '#0B1220',
-  },
-  plusContainer: {
-    position: 'absolute',
-    width: '100%',
-    height: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   plus: {
     color: 'white',

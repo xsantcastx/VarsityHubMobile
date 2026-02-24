@@ -400,24 +400,37 @@ usersRouter.get('/:id/teams', async (req: AuthedRequest, res) => {
           logo_url: true,
           avatar_url: true,
           sport: true,
-          season: true,
+          season_start: true,
+          season_end: true,
         },
       },
     },
     orderBy: { created_at: 'asc' },
   });
 
-  const teams = memberships.map((m) => ({
-    id: (m as any).team.id,
-    name: (m as any).team.name,
-    logo_url: (m as any).team.logo_url ?? null,
-    avatar_url: (m as any).team.avatar_url ?? null,
-    sport: (m as any).team.sport ?? null,
-    season: (m as any).team.season ?? null,
-    role: m.role,
-    position: (m as any).position ?? null,
-    jersey_number: (m as any).jersey_number ?? null,
-  }));
+  const formatSeason = (start?: Date | null, end?: Date | null): string | null => {
+    if (!start && !end) return null;
+    const toLabel = (d?: Date | null) => d ? d.toLocaleString(undefined, { month: 'short', year: 'numeric' }) : null;
+    const s = toLabel(start);
+    const e = toLabel(end);
+    if (s && e) return s === e ? s : `${s} - ${e}`;
+    return s ?? e ?? null;
+  };
+
+  const teams = memberships.map((m) => {
+    const t = (m as any).team;
+    return {
+      id: t.id,
+      name: t.name,
+      logo_url: t.logo_url ?? null,
+      avatar_url: t.avatar_url ?? null,
+      sport: t.sport ?? null,
+      season: formatSeason(t.season_start, t.season_end) ?? null,
+      role: m.role,
+      position: (m as any).position ?? null,
+      jersey_number: (m as any).jersey_number ?? null,
+    };
+  });
 
   return res.json(teams);
 });

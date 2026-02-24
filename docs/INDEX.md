@@ -26,6 +26,7 @@ This is the single entry point for VarsityHub docs. Use the sections below to fi
 - [Build Fix Summary (Jan 27)](./build/BUILD_FIX_SUMMARY_JAN27.md)
 
 ## Deploy
+- [Xcode Cloud Setup](./09-XCODE-CLOUD.md)
 - [Android Submission Guide](./deploy/ANDROID_SUBMISSION_GUIDE.md)
 - [Google Play Deployment](./deploy/GOOGLE_PLAY_DEPLOYMENT.md)
 - [Restart Railway Backend](./deploy/RESTART_RAILWAY_BACKEND.md)
@@ -36,6 +37,7 @@ This is the single entry point for VarsityHub docs. Use the sections below to fi
 - [Security Locked Configuration](./deploy/SECURITY_LOCKED.md)
 
 ## Troubleshooting
+- [**Google OAuth Fix (deleted_client)**](./GOOGLE_OAUTH_FIX_NOW.md)
 - [Apple Team ID Fix](./troubleshooting/APPLE_TEAM_ID_FIX_INSTRUCTIONS.md)
 - [Clear EAS Credentials](./troubleshooting/CLEAR_EAS_CREDENTIALS.md)
 - [Dark Mode Text Fixes](./troubleshooting/DARK_MODE_TEXT_FIXES.md)

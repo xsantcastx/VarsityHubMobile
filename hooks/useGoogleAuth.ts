@@ -22,15 +22,16 @@ const googleClientConfig = (opts: { shouldUseProxy: boolean }) => {
   const webClientId = google.webClientId;
   const expoClientId = google.expoClientId;
 
-  const isDevSimulator = opts.shouldUseProxy && Constants.appOwnership === 'expo' && Platform.OS === 'ios';
-
-  // For dev simulator, use Expo Client ID (registered with auth.expo.io)
-  if (isDevSimulator && expoClientId) {
+  // When using proxy (HTTPS redirect via auth.expo.io), we MUST use Web client only.
+  // Passing Android/iOS client IDs causes "Custom URI scheme is not enabled for your Android client"
+  // because Google rejects native client IDs with HTTPS redirects.
+  if (opts.shouldUseProxy && (webClientId || expoClientId)) {
+    const webId = webClientId || expoClientId!;
     return {
-      androidClientId: expoClientId,
-      iosClientId: expoClientId,
-      webClientId: expoClientId,
-      expoClientId,
+      androidClientId: webId,
+      iosClientId: webId,
+      webClientId: webId,
+      expoClientId: webId,
       forceWebClient: false,
     } as const;
   }
@@ -103,9 +104,12 @@ export function useGoogleAuth() {
 
     // For standalone iOS, use native redirect with reversed iOS client ID scheme
     const isStandaloneIOS = Platform.OS === 'ios' && Constants.appOwnership !== 'expo';
-    if (isStandaloneIOS) {
+    if (isStandaloneIOS && clients.iosClientId) {
+      // Convert xxx-yyy.apps.googleusercontent.com → com.googleusercontent.apps.xxx-yyy
+      const prefix = clients.iosClientId.replace(/\.apps\.googleusercontent\.com$/, '');
+      const scheme = `com.googleusercontent.apps.${prefix}`;
       uri = makeRedirectUri({
-        native: 'com.googleusercontent.apps.316424843313-n0i9t49uoh2e9038m5b927vrm9cv77qr:/oauthredirect',
+        native: `${scheme}:/oauthredirect`,
       });
       console.log('[google-auth] Using iOS native redirect:', uri);
       return uri;

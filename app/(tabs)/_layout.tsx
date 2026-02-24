@@ -2,7 +2,6 @@ import { Tabs } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HapticTab } from '@/components/HapticTab';
-import CenterTabButton from '@/components/ui/CenterTabButton';
 import { IconSymbol } from '@/components/ui/IconSymbol';
 import TabBarBackground from '@/components/ui/TabBarBackground';
 import { Colors } from '@/constants/Colors';
@@ -31,9 +30,8 @@ export default function TabLayout() {
           height: Math.max(64, 56 + insets.bottom),
           paddingBottom: Math.max(10, insets.bottom),
           paddingTop: 6,
-          backgroundColor: colorScheme === 'dark' ? 'transparent' : Colors[colorScheme ?? 'light'].card,
-          borderTopColor: colorScheme === 'dark' ? 'transparent' : Colors[colorScheme ?? 'light'].border,
-          borderTopWidth: 1,
+          backgroundColor: colorScheme === 'dark' ? '#0f172a' : Colors[colorScheme ?? 'light'].card,
+          overflow: 'hidden',
         },
       }}>
       <Tabs.Screen
@@ -59,8 +57,8 @@ export default function TabLayout() {
         options={{
           title: '',
           tabBarLabel: '',
-          tabBarIcon: () => null,
-          tabBarButton: (props) => <CenterTabButton {...props} />,
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="plus.circle.fill" color={color} />,
+          tabBarButton: HapticTab,
           tabBarAccessibilityLabel: 'Create post tab',
         }}
       />

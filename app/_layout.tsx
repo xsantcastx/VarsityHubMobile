@@ -8,6 +8,7 @@ import { ActivityIndicator, LogBox, Platform, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ErrorToastContainer } from '@/components/ErrorToast';
 import { OfflineBanner } from '@/components/OfflineBanner';
@@ -183,39 +184,41 @@ export default function RootLayout() {
   }
 
   return (
-    <ErrorBoundary>
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <ThemeProvider>
-          <PostCacheProvider>
-            <AuthProvider navReady={!!navState?.key}>
-              <NavigationThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-                <OfflineBanner />
-                <ErrorToastContainer />
-                <Stack screenOptions={{ headerShown: false }}>
-                  <Stack.Screen name="index" options={{ headerShown: false }} />
-                  <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                  {/* Auth screens - lazy loaded */}
-                  <Stack.Screen name="sign-in" options={{ headerShown: false }} />
-                  <Stack.Screen name="sign-up" options={{ headerShown: false }} />
-                  <Stack.Screen name="verify" options={{ headerShown: false }} />
-                  <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
-                  <Stack.Screen name="reset" options={{ headerShown: false }} />
-                  <Stack.Screen name="reset-password" options={{ headerShown: false }} />
-                  {/* Payment screens - lazy loaded */}
-                  <Stack.Screen name="payment-success" options={{ headerShown: false }} />
-                  <Stack.Screen name="payment-cancel" options={{ headerShown: false }} />
-                  {/* Onboarding - lazy loaded */}
-                  <Stack.Screen name="onboarding" options={{ headerShown: false }} />
-                  {/* Settings and other screens - lazy loaded */}
-                  <Stack.Screen name="settings" options={{ headerShown: false }} />
-                  <Stack.Screen name="+not-found" />
-                </Stack>
-                <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
-              </NavigationThemeProvider>
-            </AuthProvider>
-          </PostCacheProvider>
-        </ThemeProvider>
-      </GestureHandlerRootView>
-    </ErrorBoundary>
+    <SafeAreaProvider>
+      <ErrorBoundary>
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <ThemeProvider>
+            <PostCacheProvider>
+              <AuthProvider navReady={!!navState?.key}>
+                <NavigationThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+                  <OfflineBanner />
+                  <ErrorToastContainer />
+                    <Stack screenOptions={{ headerShown: false }}>
+                    <Stack.Screen name="index" options={{ headerShown: false }} />
+                    <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                    {/* Auth screens - lazy loaded */}
+                    <Stack.Screen name="sign-in" options={{ headerShown: false }} />
+                    <Stack.Screen name="sign-up" options={{ headerShown: false }} />
+                    <Stack.Screen name="verify" options={{ headerShown: false }} />
+                    <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
+                    <Stack.Screen name="reset" options={{ headerShown: false }} />
+                    <Stack.Screen name="reset-password" options={{ headerShown: false }} />
+                    {/* Payment screens - lazy loaded */}
+                    <Stack.Screen name="payment-success" options={{ headerShown: false }} />
+                    <Stack.Screen name="payment-cancel" options={{ headerShown: false }} />
+                    {/* Onboarding - lazy loaded */}
+                    <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+                    {/* Settings and other screens - lazy loaded */}
+                    <Stack.Screen name="settings" options={{ headerShown: false }} />
+                    <Stack.Screen name="+not-found" />
+                  </Stack>
+                  <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+                </NavigationThemeProvider>
+              </AuthProvider>
+            </PostCacheProvider>
+          </ThemeProvider>
+        </GestureHandlerRootView>
+      </ErrorBoundary>
+    </SafeAreaProvider>
   );
 }

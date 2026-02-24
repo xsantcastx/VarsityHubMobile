@@ -143,6 +143,37 @@ eventsRouter.get('/my-events', requireAuth as any, async (req: AuthedRequest, re
   return res.json(events);
 });
 
+// Get pending events for approval (admins & coaches only) - MUST be before /:id to avoid "pending" matching as id
+eventsRouter.get('/pending', authMiddleware as any, async (req: AuthedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+  
+  const user = await prisma.user.findUnique({ 
+    where: { id: req.user.id }, 
+    select: { id: true, preferences: true } 
+  });
+  if (!user) return res.status(401).json({ error: 'Unauthorized' });
+  
+  const prefs = (user.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
+  const userRole = prefs.role || 'fan';
+  const isAdmin = await getIsAdmin(req as any);
+  
+  // Only coaches, organizers, and admins can view pending events
+  if (!isAdmin && userRole !== 'coach' && userRole !== 'organizer') {
+    return res.status(403).json({ error: 'Only coaches and admins can view pending events' });
+  }
+  
+  const events = await prisma.event.findMany({
+    where: { approval_status: 'pending' },
+    orderBy: { created_at: 'desc' },
+    include: { 
+      game: { select: { id: true, title: true, cover_image_url: true, date: true, location: true } },
+      creator: { select: { id: true, display_name: true, avatar_url: true } }
+    },
+  });
+  
+  return res.json(events.map((event) => serializeEvent(event, { includeGame: true, includeCreator: true })));
+});
+
 // Get single event with RSVP count (optionally includes can_cancel when authenticated)
 eventsRouter.get('/:id', authMiddleware as any, async (req: AuthedRequest, res) => {
   const id = String(req.params.id);
@@ -421,37 +452,6 @@ eventsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =
     pending_count: pendingCount,
     limit: userRole === 'fan' && (userPlan === 'rookie' || !userPlan || userPlan === 'free') ? 3 : null,
   });
-});
-
-// Get pending events for approval (admins & coaches only)
-eventsRouter.get('/pending', authMiddleware as any, async (req: AuthedRequest, res) => {
-  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  
-  const user = await prisma.user.findUnique({ 
-    where: { id: req.user.id }, 
-    select: { id: true, preferences: true } 
-  });
-  if (!user) return res.status(401).json({ error: 'Unauthorized' });
-  
-  const prefs = (user.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
-  const userRole = prefs.role || 'fan';
-  const isAdmin = await getIsAdmin(req as any);
-  
-  // Only coaches, organizers, and admins can view pending events
-  if (!isAdmin && userRole !== 'coach' && userRole !== 'organizer') {
-    return res.status(403).json({ error: 'Only coaches and admins can view pending events' });
-  }
-  
-  const events = await prisma.event.findMany({
-    where: { approval_status: 'pending' },
-    orderBy: { created_at: 'desc' },
-    include: { 
-      game: { select: { id: true, title: true, cover_image_url: true, date: true, location: true } },
-      creator: { select: { id: true, display_name: true, avatar_url: true } }
-    },
-  });
-  
-  return res.json(events.map((event) => serializeEvent(event, { includeGame: true, includeCreator: true })));
 });
 
 // Approve event
