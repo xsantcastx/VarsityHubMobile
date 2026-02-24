@@ -615,7 +615,7 @@ authRouter.get('/me', async (req: AuthedRequest, res) => {
   const userPrefs = (user as any).preferences || {};
   const prefs = mergePreferences(userPrefs, defaults);
   const { password_hash, ...rest } = user as any;
-  return res.json({ ...rest, preferences: prefs, is_admin });
+  return res.json({ ...rest, ...(is_admin ? { role: 'admin' } : {}), preferences: prefs, is_admin });
 });
 
 const updateMeSchema = z.object({
