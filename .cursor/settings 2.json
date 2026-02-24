@@ -1,8 +1,0 @@
-{
-  "terminal.integrated.enableBell": false,
-  "audioCues.enabled": "off",
-  "notifications.enabled": false,
-  "workbench.settings.enableNaturalLanguageSearch": false,
-  "editor.soundNotification": false,
-  "terminal.integrated.soundBell": false
-}
