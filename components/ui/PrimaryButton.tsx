@@ -1,13 +1,12 @@
-import { ActivityIndicator, ViewStyle } from 'react-native';
+import { AccessibilityProps, ActivityIndicator, ViewStyle } from 'react-native';
 import Button from './button';
 
-interface PrimaryButtonProps {
+interface PrimaryButtonProps extends Pick<AccessibilityProps, 'accessibilityLabel'> {
   label: string;
   onPress: () => void;
   disabled?: boolean;
   loading?: boolean;
   style?: ViewStyle;
-  accessibilityLabel?: string;
 }
 
 export default function PrimaryButton({ 

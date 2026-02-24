@@ -17,7 +17,7 @@ import * as Location from 'expo-location';
 
 import GameVerticalFeedScreen from './game-details/GameVerticalFeedScreen';
 
-type GameItem = { id: string; title?: string; date?: string; location?: string; cover_image_url?: string; banner_url?: string | null; event_id?: string | null };
+type GameItem = { id: string; title?: string; date?: string; location?: string; cover_image_url?: string; banner_url?: string | null; event_id?: string | null; home_score?: number | null; away_score?: number | null; winner?: string | null };
 
 // RSVP Badge Component
 const RSVPBadge = ({ gameItem, onRSVPChange }: { gameItem: any, onRSVPChange?: () => void }) => {
@@ -200,6 +200,8 @@ export default function FeedScreen() {
   const [sponsoredAds, setSponsoredAds] = useState<any[]>([]);
   const [followedPosts, setFollowedPosts] = useState<any[]>([]);
   const [followedFeedMeta, setFollowedFeedMeta] = useState<{ following_count: number } | undefined>(undefined);
+  const [followedTeamsPosts, setFollowedTeamsPosts] = useState<any[]>([]);
+  const [followedTeamsFeedMeta, setFollowedTeamsFeedMeta] = useState<{ followed_teams_count: number } | undefined>(undefined);
   const voteSummariesRef = useRef<Record<string, VotePreviewEntry>>({});
   const [voteSummaries, setVoteSummaries] = useState<Record<string, VotePreviewEntry>>({});
   const [hasUnreadAlerts, setHasUnreadAlerts] = useState(false);
@@ -275,11 +277,14 @@ export default function FeedScreen() {
         gamesData = null;
       }
       
-      // Load followed posts (when signed in), highlights, and ads
-      const [followedPage, highlightsData, forFeedAds] = await Promise.all([
+      // Load followed posts (people + teams) when signed in, highlights, and ads
+      const [followedPage, followedTeamsPage, highlightsData, forFeedAds] = await Promise.all([
         user
           ? PostApi.filterPage({ followed_only: true }, null, 20, '-created_at').catch(() => ({ items: [], nextCursor: null, followed_feed_meta: undefined }))
           : Promise.resolve({ items: [], nextCursor: null, followed_feed_meta: undefined }),
+        user
+          ? PostApi.filterPage({ followed_teams: true }, null, 20, '-created_at').catch(() => ({ items: [], nextCursor: null, followed_teams_feed_meta: undefined }))
+          : Promise.resolve({ items: [], nextCursor: null, followed_teams_feed_meta: undefined }),
         Highlights.fetch(countryCode ? { country: countryCode, limit: 20 } : { limit: 20 }).catch((err) => {
           if (__DEV__) console.warn('Highlights preview load failed', err);
           return null;
@@ -288,6 +293,8 @@ export default function FeedScreen() {
       ]);
       setFollowedPosts(Array.isArray(followedPage?.items) ? followedPage.items : []);
       setFollowedFeedMeta(followedPage?.followed_feed_meta);
+      setFollowedTeamsPosts(Array.isArray(followedTeamsPage?.items) ? followedTeamsPage.items : []);
+      setFollowedTeamsFeedMeta(followedTeamsPage?.followed_teams_feed_meta);
       
       // Handle cursor-based response or array
       let normalizedGames: any[] = [];
@@ -370,6 +377,8 @@ export default function FeedScreen() {
       setHighlightPreview(null);
       setFollowedPosts([]);
       setFollowedFeedMeta(undefined);
+      setFollowedTeamsPosts([]);
+      setFollowedTeamsFeedMeta(undefined);
     } finally {
       if (!silent) setLoading(false);
     }
@@ -869,6 +878,81 @@ export default function FeedScreen() {
           </View>
         )}
 
+        {/* Social Feed — Posts from teams you follow */}
+        {me && (
+          <View style={{ marginBottom: 24 }}>
+            <Text style={[styles.sectionHeader, { color: Colors[colorScheme].mutedText }]}>
+              From teams you follow
+            </Text>
+            {followedTeamsPosts.length > 0 ? (
+              <View style={{ gap: 12, marginTop: 8 }}>
+                {followedTeamsPosts.map((post: any) => (
+                  <Pressable
+                    key={String(post.id)}
+                    onPress={() => void router.push(`/post-detail?id=${encodeURIComponent(String(post.id))}`)}
+                    accessibilityLabel={`View post from ${post.team?.name || 'team'}`}
+                    accessibilityRole="button"
+                    style={[
+                      styles.followedPostCard,
+                      { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border },
+                    ]}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                      {post.team?.logo_url ? (
+                        <Image source={{ uri: post.team.logo_url }} style={styles.followedPostAvatar} />
+                      ) : (
+                        <View style={[styles.followedPostAvatar, { backgroundColor: Colors[colorScheme].border, justifyContent: 'center', alignItems: 'center' }]}>
+                          <Ionicons name="shirt-outline" size={20} color={Colors[colorScheme].mutedText} />
+                        </View>
+                      )}
+                      <Text style={[styles.followedPostAuthor, { color: Colors[colorScheme].text }]}>
+                        {post.team?.name || 'Team'}
+                      </Text>
+                    </View>
+                    {post.content ? (
+                      <Text numberOfLines={3} style={[styles.followedPostContent, { color: Colors[colorScheme].text }]}>
+                        {post.content}
+                      </Text>
+                    ) : null}
+                    <View style={{ flexDirection: 'row', gap: 16, marginTop: 8 }}>
+                      <Text style={[styles.followedPostMeta, { color: Colors[colorScheme].mutedText }]}>
+                        {post.upvotes_count ?? 0} upvotes
+                      </Text>
+                      <Text style={[styles.followedPostMeta, { color: Colors[colorScheme].mutedText }]}>
+                        {post.comments_count ?? 0} comments
+                      </Text>
+                    </View>
+                  </Pressable>
+                ))}
+              </View>
+            ) : (
+              <View style={[styles.socialFeedEmpty, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
+                <Ionicons name="shirt-outline" size={48} color={Colors[colorScheme].mutedText} />
+                <Text style={[styles.socialFeedEmptyTitle, { color: Colors[colorScheme].text }]}>
+                  {followedTeamsFeedMeta?.followed_teams_count === 0
+                    ? 'Follow teams to see their posts here'
+                    : 'No posts from teams you follow yet'}
+                </Text>
+                <Text style={[styles.socialFeedEmptySubtitle, { color: Colors[colorScheme].mutedText }]}>
+                  {followedTeamsFeedMeta?.followed_teams_count === 0
+                    ? 'Discover and follow teams to see their updates and game content.'
+                    : 'Check back soon — when they post, it will show up here.'}
+                </Text>
+                <Pressable
+                  style={[styles.socialFeedEmptyButton, { backgroundColor: Colors[colorScheme].tint }]}
+                  onPress={() => void router.push('/(tabs)/discover')}
+                  accessibilityLabel={followedTeamsFeedMeta?.followed_teams_count === 0 ? 'Find teams to follow' : 'Discover more'}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.socialFeedEmptyButtonText}>
+                    {followedTeamsFeedMeta?.followed_teams_count === 0 ? 'Find teams to follow' : 'Discover more'}
+                  </Text>
+                </Pressable>
+              </View>
+            )}
+          </View>
+        )}
+
         {/* Upcoming Events with Ads */}
         {upcomingWithAds.length > 0 && (
           <View style={{ gap: 20 }}>
@@ -1016,6 +1100,9 @@ export default function FeedScreen() {
               const voteText = summary
                 ? `${summary.teamALabelShort} ${summary.pctA}% | ${summary.teamBLabelShort} ${summary.pctB}%`
                 : null;
+              const scoreText = typeof raw?.home_score === 'number' && typeof raw?.away_score === 'number'
+                ? `${raw.home_score} - ${raw.away_score}`
+                : null;
 
               return (
                 <Pressable
@@ -1044,7 +1131,7 @@ export default function FeedScreen() {
                       {gameItem.title ? String(gameItem.title) : 'Game'}
                     </Text>
                     <Text style={styles.gridMeta} numberOfLines={1}>
-                      {eventTime ? `${eventTime} • ${locationText}` : locationText}
+                      {scoreText ? `${scoreText} • ${eventTime ? `${eventTime} • ${locationText}` : locationText}` : (eventTime ? `${eventTime} • ${locationText}` : locationText)}
                     </Text>
                     <View style={styles.gridStatsRow}>
                       <View style={styles.gridStat}>
@@ -1102,6 +1189,9 @@ export default function FeedScreen() {
                 const voteText = summary
                   ? `${summary.teamALabelShort} ${summary.pctA}% | ${summary.teamBLabelShort} ${summary.pctB}%`
                   : null;
+                const scoreText = typeof raw?.home_score === 'number' && typeof raw?.away_score === 'number'
+                  ? `${raw.home_score} - ${raw.away_score}`
+                  : null;
 
                 return (
                   <Pressable
@@ -1130,7 +1220,7 @@ export default function FeedScreen() {
                         {item.title ? String(item.title) : 'Game'}
                       </Text>
                       <Text style={styles.gridMeta} numberOfLines={1}>
-                        {eventTime ? `${eventTime} • ${locationText}` : locationText}
+                        {scoreText ? `${scoreText} • ${eventTime ? `${eventTime} • ${locationText}` : locationText}` : (eventTime ? `${eventTime} • ${locationText}` : locationText)}
                       </Text>
                       <View style={styles.gridStatsRow}>
                         <View style={styles.gridStat}>

@@ -48,6 +48,9 @@ const serializeEvent = (event: any, opts: { includeGame?: boolean; rsvpCount?: n
       cover_image_url: event.game.cover_image_url,
       date: event.game.date instanceof Date ? event.game.date.toISOString() : event.game.date,
       location: event.game.location,
+      home_score: (event.game as any).home_score ?? null,
+      away_score: (event.game as any).away_score ?? null,
+      winner: (event.game as any).winner ?? null,
     };
   }
   if (opts.includeCreator && event.creator) {
@@ -145,7 +148,7 @@ eventsRouter.get('/:id', authMiddleware as any, async (req: AuthedRequest, res) 
   const id = String(req.params.id);
   const event = await prisma.event.findUnique({
     where: { id },
-    include: { game: { select: { id: true, title: true, cover_image_url: true, date: true, location: true, home_team_id: true, away_team_id: true } } },
+    include: { game: { select: { id: true, title: true, cover_image_url: true, date: true, location: true, home_team_id: true, away_team_id: true, home_score: true, away_score: true, winner: true } } },
   });
   if (!event) return res.status(404).json({ error: 'Not found' });
   const count = await prisma.eventRsvp.count({ where: { event_id: id } });

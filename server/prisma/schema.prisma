@@ -137,7 +137,12 @@ model Game {
   approved_by_id  String?
   approved_by     User?    @relation("approved_games", fields: [approved_by_id], references: [id], onDelete: SetNull)
   approved_at     DateTime?
-  
+
+  // Game result (set by coaches/owners via PATCH /games/:id/result)
+  home_score Int?    // Home team score
+  away_score Int?    // Away team score
+  winner     String? // "home" | "away" | "tie" | null if not yet played
+
   created_at      DateTime @default(now())
 
   // Back-relations
@@ -520,6 +525,7 @@ model Story {
   media_url  String
   caption    String?
   created_at DateTime @default(now())
+  expires_at DateTime? // 24h after created_at; expired stories are filtered out
 
   // Geolocation (optional)
   lat Float?
@@ -529,6 +535,7 @@ model Story {
   user User? @relation(fields: [user_id], references: [id], onDelete: SetNull)
 
   @@index([game_id, created_at])
+  @@index([expires_at])
   @@index([lat, lng])
 }
 

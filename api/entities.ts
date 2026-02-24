@@ -64,6 +64,7 @@ export const User = {
   resetPassword: (email: string, code: string, password: string) => auth.resetPassword(email, code, password),
   // Public profile fetch
   getPublic: (id: string) => { if (!id || id === 'undefined' || id === 'null') throw new Error('[User.getPublic] Invalid user ID'); return httpGet('/users/' + encodeURIComponent(id)); },
+  teams: (id: string) => httpGet('/users/' + encodeURIComponent(id) + '/teams'),
   // Search users for mentions
   searchForMentions: (query: string, limit: number = 10) => httpGet('/users/search/mentions?q=' + encodeURIComponent(query) + '&limit=' + String(limit)),
   // Lookup user by username
@@ -120,7 +121,11 @@ export const Game = {
     return httpGet(`/games/${encodeURIComponent(id)}/posts` + qs);
   },
   // Media is non-critical for first render; keep this bounded.
-  media: (id: string) => httpGet(`/games/${encodeURIComponent(id)}/media`, {}, 15000, 1),
+  // include_expired=1: when authenticated, also returns creator's expired stories (for greyed-out + delete UI)
+  media: (id: string, opts?: { include_expired?: boolean }) => {
+    const q = opts?.include_expired ? '?include_expired=1' : '';
+    return httpGet(`/games/${encodeURIComponent(id)}/media` + q, {}, 15000, 1);
+  },
   deleteMedia: (gameId: string, mediaId: string) => httpDelete(`/games/${encodeURIComponent(gameId)}/media/${encodeURIComponent(mediaId)}`),
   votesSummary: (id: string) => httpGet(`/games/${encodeURIComponent(id)}/votes/summary`),
   votesSummaryBatch: (ids: string[]) => {
@@ -131,6 +136,8 @@ export const Game = {
   castVote: (id: string, team: 'A' | 'B') => httpPost(`/games/${encodeURIComponent(id)}/votes`, { team }),
   clearVote: (id: string) => httpDelete(`/games/${encodeURIComponent(id)}/votes`),
   update: (id: string, data: any) => httpPut('/games/' + encodeURIComponent(id), data),
+  setResult: (id: string, data: { home_score?: number; away_score?: number; winner?: 'home' | 'away' | 'tie' | null }) =>
+    httpPatch(`/games/${encodeURIComponent(id)}/result`, data),
   setApprovalStatus: (id: string, approval: 'approved' | 'rejected') =>
     httpPut(`/games/${encodeURIComponent(id)}/approve`, { approval_status: approval }),
   stories: (id: string) => httpGet(`/games/${encodeURIComponent(id)}/stories`, {}, 15000, 1),
@@ -192,7 +199,7 @@ export const Post = {
     const res = await httpGet('/posts' + (q.length ? '?' + q.join('&') : ''));
     return normalizePostPage(res);
   },
-  filterPage: async (where: { game_id?: string; type?: string; user_id?: string; followed_only?: boolean } = {}, cursor?: string | null, limit: number = 20, sort: string = '-created_date') => {
+  filterPage: async (where: { game_id?: string; type?: string; user_id?: string; followed_only?: boolean; followed_teams?: boolean } = {}, cursor?: string | null, limit: number = 20, sort: string = '-created_date') => {
     const q: string[] = [];
     if (sort) q.push('sort=' + encodeURIComponent(sort));
     if (limit) q.push('limit=' + String(limit));
@@ -201,6 +208,7 @@ export const Post = {
     if (where.type) q.push('type=' + encodeURIComponent(where.type));
     if (where.user_id) q.push('user_id=' + encodeURIComponent(where.user_id));
     if (where.followed_only) q.push('followed_only=true');
+    if (where.followed_teams) q.push('followed_teams=true');
     const res = await httpGet('/posts' + (q.length ? '?' + q.join('&') : ''));
     return normalizePostPage(res);
   },

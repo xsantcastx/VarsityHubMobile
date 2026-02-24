@@ -18,6 +18,7 @@ export const serializeMedia = (story: any) => ({
   created_at: story.created_at instanceof Date ? story.created_at.toISOString() : story.created_at,
   caption: story.caption ?? null,
   user_id: story.user_id ?? null,
+  expires_at: story.expires_at instanceof Date ? story.expires_at.toISOString() : (story.expires_at ?? null),
 });
 
 const isMissingStoryLocationColumnError = (error: any): boolean => {
@@ -41,11 +42,20 @@ const storySchema = z.object({
 
 type StoryDeps = { prisma: PrismaClient };
 
+const STORY_EXPIRY_HOURS = 24;
+
 export const makeListMediaHandler = ({ prisma }: StoryDeps) => async (req: Request, res: Response) => {
   const id = String(req.params.id);
+  const now = new Date();
   try {
     const items = await prisma.story.findMany({
-      where: { game_id: id },
+      where: {
+        game_id: id,
+        OR: [
+          { expires_at: { gt: now } },
+          { expires_at: null }, // Backward compat: stories without expires_at still show
+        ],
+      },
       orderBy: { created_at: 'desc' },
       take: 50,
       select: {
@@ -54,8 +64,39 @@ export const makeListMediaHandler = ({ prisma }: StoryDeps) => async (req: Reque
         created_at: true,
         caption: true,
         user_id: true,
+        expires_at: true,
       },
     });
+    // If include_expired=1 and user is authenticated, append creator's expired stories
+    const includeExpired = String((req as any).query?.include_expired ?? '') === '1';
+    const currentUserId = (req as AuthedRequest).user?.id ?? null;
+    if (includeExpired && currentUserId) {
+      const expired = await prisma.story.findMany({
+        where: {
+          game_id: id,
+          user_id: currentUserId,
+          expires_at: { lte: now },
+        },
+        orderBy: { created_at: 'desc' },
+        take: 20,
+        select: {
+          id: true,
+          media_url: true,
+          created_at: true,
+          caption: true,
+          user_id: true,
+          expires_at: true,
+        },
+      });
+      const seen = new Set(items.map((s) => s.id));
+      for (const s of expired) {
+        if (!seen.has(s.id)) {
+          items.push(s);
+          seen.add(s.id);
+        }
+      }
+      items.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    }
     return res.json(items.map(serializeMedia));
   } catch (error: any) {
     if (isMissingStoryLocationColumnError(error)) {
@@ -71,6 +112,7 @@ export const makeListMediaHandler = ({ prisma }: StoryDeps) => async (req: Reque
           SELECT "id", "media_url", "created_at", "caption", "user_id"
           FROM "Story"
           WHERE "game_id" = ${id}
+            AND ("expires_at" IS NULL OR "expires_at" > NOW())
           ORDER BY "created_at" DESC
           LIMIT 50
         `;
@@ -149,11 +191,14 @@ export const makeCreateStoryHandler = ({ prisma }: StoryDeps) => async (req: Aut
   const lat = location?.lat ?? null;
   const lng = location?.lng ?? null;
   
+  const createdAt = new Date();
+  const expiresAt = new Date(createdAt.getTime() + STORY_EXPIRY_HOURS * 60 * 60 * 1000);
   const createData: any = {
     game_id: id,
     user_id: req.user.id,
     media_url: parsed.data.media_url,
     caption: parsed.data.caption,
+    expires_at: expiresAt,
   };
   if (typeof lat === 'number') createData.lat = lat;
   if (typeof lng === 'number') createData.lng = lng;

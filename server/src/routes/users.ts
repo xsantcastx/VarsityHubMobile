@@ -383,6 +383,45 @@ usersRouter.get('/:id/interactions', async (req: AuthedRequest, res) => {
   return res.json({ items: ordered, nextCursor, counts });
 });
 
+// GET /users/:id/teams - Teams the user is a member of (for athlete profile)
+usersRouter.get('/:id/teams', async (req: AuthedRequest, res) => {
+  const id = String(req.params.id);
+  const currentUserId = req.user?.id || null;
+  const hidden = await isProfileHiddenFromViewer(id, currentUserId);
+  if (hidden) return res.json([]);
+
+  const memberships = await prisma.teamMembership.findMany({
+    where: { user_id: id, status: 'active' },
+    include: {
+      team: {
+        select: {
+          id: true,
+          name: true,
+          logo_url: true,
+          avatar_url: true,
+          sport: true,
+          season: true,
+        },
+      },
+    },
+    orderBy: { created_at: 'asc' },
+  });
+
+  const teams = memberships.map((m) => ({
+    id: (m as any).team.id,
+    name: (m as any).team.name,
+    logo_url: (m as any).team.logo_url ?? null,
+    avatar_url: (m as any).team.avatar_url ?? null,
+    sport: (m as any).team.sport ?? null,
+    season: (m as any).team.season ?? null,
+    role: m.role,
+    position: (m as any).position ?? null,
+    jersey_number: (m as any).jersey_number ?? null,
+  }));
+
+  return res.json(teams);
+});
+
 // Delete own account (soft-delete with anonymization)
 usersRouter.delete('/me', requireAuth as any, async (req: AuthedRequest, res) => {
   const id = req.user!.id;

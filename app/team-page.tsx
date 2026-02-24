@@ -8,7 +8,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import GameVerticalFeedScreen, { FeedPost } from './game-details/GameVerticalFeedScreen';
 
@@ -696,6 +696,56 @@ export default function TeamScreen() {
             <Text style={[styles.statLabel, { color: theme.mutedText }]}> Games</Text>
           </View>
           
+          {/* Roster - Public, shows all members with roles */}
+          {members.length > 0 && (
+            <View style={[styles.rosterSection, { borderColor: theme.border, backgroundColor: theme.card }]}>
+              <Text style={[styles.rosterTitle, { color: theme.text }]}>Roster</Text>
+              <ScrollView style={styles.rosterScroll} nestedScrollEnabled showsVerticalScrollIndicator={false}>
+              <View style={styles.rosterList}>
+                {members
+                  .filter((m) => m.status === 'active')
+                  .map((m) => (
+                    <Pressable
+                      key={m.id}
+                      style={({ pressed }) => [
+                        styles.rosterRow,
+                        { backgroundColor: pressed ? theme.surface : 'transparent', borderColor: theme.border },
+                      ]}
+                      onPress={() => m.user?.id && router.push({ pathname: '/(tabs)/profile', params: { id: m.user.id } } as any)}
+                    >
+                      {m.user?.avatar_url ? (
+                        <Image source={{ uri: m.user.avatar_url }} style={styles.rosterAvatar} contentFit="cover" />
+                      ) : (
+                        <View style={[styles.rosterAvatarPlaceholder, { backgroundColor: theme.tint + '30' }]}>
+                          <Ionicons name="person" size={16} color={theme.tint} />
+                        </View>
+                      )}
+                      <View style={styles.rosterInfo}>
+                        <Text style={[styles.rosterName, { color: theme.text }]} numberOfLines={1}>
+                          {m.user?.display_name || m.user?.username || 'Unknown'}
+                        </Text>
+                        <View style={styles.rosterMeta}>
+                          {(m.jersey_number != null && m.jersey_number !== '') && (
+                            <Text style={[styles.rosterMetaText, { color: theme.mutedText }]}>#{m.jersey_number}</Text>
+                          )}
+                          {m.position && (
+                            <Text style={[styles.rosterMetaText, { color: theme.mutedText }]}>{m.position}</Text>
+                          )}
+                          <Text style={[styles.rosterRole, { color: theme.tint }]}>
+                            {String(m.role || 'member').replace(/_/g, ' ')}
+                          </Text>
+                        </View>
+                      </View>
+                      {m.user?.id && (
+                        <Ionicons name="chevron-forward" size={14} color={theme.mutedText} />
+                      )}
+                    </Pressable>
+                  ))}
+              </View>
+              </ScrollView>
+            </View>
+          )}
+
           {/* Organization Link Button - ALWAYS VISIBLE */}
           <Pressable
             style={[styles.orgButton, { borderColor: theme.border, backgroundColor: theme.card }]}
@@ -1376,4 +1426,46 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
   },
+  rosterSection: {
+    marginTop: 16,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    maxHeight: 240,
+  },
+  rosterScroll: { maxHeight: 200 },
+  rosterTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 10,
+  },
+  rosterList: {
+    gap: 4,
+  },
+  rosterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    borderBottomWidth: 1,
+    gap: 10,
+  },
+  rosterAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+  },
+  rosterAvatarPlaceholder: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rosterInfo: { flex: 1, minWidth: 0 },
+  rosterName: { fontSize: 15, fontWeight: '600' },
+  rosterMeta: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 2 },
+  rosterMetaText: { fontSize: 12 },
+  rosterRole: { fontSize: 12, fontWeight: '600', textTransform: 'capitalize' },
 });

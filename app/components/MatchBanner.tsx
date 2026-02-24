@@ -10,6 +10,8 @@ type Props = {
   rightImage?: string | null;
   leftName?: string;
   rightName?: string;
+  leftScore?: number | null;
+  rightScore?: number | null;
   height?: number;
   variant?: 'full' | 'compact';
   leftColor?: string;
@@ -28,7 +30,7 @@ type Props = {
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
-export default function MatchBanner({ leftImage, rightImage, leftName = '', rightName = '', height = 260, variant = 'full', leftColor, rightColor, appearance = 'classic', hero = false, onVsPress, onLeftPress, onRightPress, onGoingPress, goingCount, headerFade, onPress }: Props) {
+export default function MatchBanner({ leftImage, rightImage, leftName = '', rightName = '', leftScore, rightScore, height = 260, variant = 'full', leftColor, rightColor, appearance = 'classic', hero = false, onVsPress, onLeftPress, onRightPress, onGoingPress, goingCount, headerFade, onPress }: Props) {
   const halfStyle = { width: SCREEN_WIDTH / 2 };
   const colorScheme = useColorScheme() ?? 'light';
   const [reduceMotionEnabled, setReduceMotionEnabled] = useState(false);
@@ -211,7 +213,11 @@ export default function MatchBanner({ leftImage, rightImage, leftName = '', righ
             android_ripple={{ color: 'rgba(255,255,255,0.06)' }}
           >
             <View style={[styles.vsBadge as any, hero ? styles.vsBadgeHero : null]}>
-              <Text style={[styles.vsText as any, hero ? styles.vsTextHero : null]}>{'VS'}</Text>
+              {leftScore != null && rightScore != null ? (
+                <Text style={[styles.vsText as any, hero ? styles.vsTextHero : null]}>{`${leftScore} - ${rightScore}`}</Text>
+              ) : (
+                <Text style={[styles.vsText as any, hero ? styles.vsTextHero : null]}>{'VS'}</Text>
+              )}
             </View>
           </Pressable>
 

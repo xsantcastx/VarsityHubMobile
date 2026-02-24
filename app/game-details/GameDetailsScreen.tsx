@@ -12,7 +12,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
-import { AccessibilityInfo, ActivityIndicator, Alert, Animated, Linking, Modal, Platform, Pressable, RefreshControl, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, Alert, Animated, Linking, Modal, Platform, Pressable, RefreshControl, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getApiBaseUrl } from '../../api/http';
 import MatchBanner from '../components/MatchBanner';
@@ -39,6 +39,7 @@ type MediaItem = {
   created_at?: string;
   caption?: string | null;
   user_id?: string | null;
+  expires_at?: string | null;
 };
 
 type StoriesViewerProps = {
@@ -365,6 +366,10 @@ type GameVM = {
   media: MediaItem[];
   reviewsCount?: number | null;
   isPast: boolean;
+  home_score?: number | null;
+  away_score?: number | null;
+  winner?: string | null;
+  can_edit_result?: boolean;
 };
 
 const ensureIso = (value: any) => {
@@ -495,8 +500,13 @@ const GameDetailsScreen = () => {
   const THRESHOLD = useMemo(() => Math.max(24, headerH * 0.6), [headerH]);
   const [showTopFab, setShowTopFab] = useState(false);
   const [vsModalOpen, setVsModalOpen] = useState(false);
+  const [editResultModalOpen, setEditResultModalOpen] = useState(false);
+  const [editResultHomeScore, setEditResultHomeScore] = useState('');
+  const [editResultAwayScore, setEditResultAwayScore] = useState('');
+  const [editResultBusy, setEditResultBusy] = useState(false);
   const [preciseBannerDismissed, setPreciseBannerDismissed] = useState(false);
   const showTopFabRef = useRef(false);
+  const currentUserIdRef = useRef<string | null>(null);
   const headerTranslateY = useMemo(() => feedY.interpolate({
     inputRange: [0, headerH || 1],
     outputRange: [0, -(headerH || 1)],
@@ -542,6 +552,11 @@ const GameDetailsScreen = () => {
   useEffect(() => {
     viewerOpenRef.current = !!storiesViewer?.visible;
   }, [storiesViewer?.visible]);
+
+  // Load current user ID for story expiration UI (creator check, countdown)
+  useEffect(() => {
+    User.me().then((u: any) => { currentUserIdRef.current = u?.id ?? null; }).catch(() => { currentUserIdRef.current = null; });
+  }, []);
 
   // Tick every second to update countdown/live status (paused while stories viewer is open)
   useEffect(() => {
@@ -918,6 +933,15 @@ const GameDetailsScreen = () => {
         appearance = (summary as any)?.appearance ?? (summary.event as any)?.appearance ?? null;
       }
 
+      let homeScore: number | null = null;
+      let awayScore: number | null = null;
+      let canEditResult = false;
+      if (summary) {
+        homeScore = typeof (summary as any).home_score === 'number' ? (summary as any).home_score : null;
+        awayScore = typeof (summary as any).away_score === 'number' ? (summary as any).away_score : null;
+        canEditResult = Boolean((summary as any).can_edit_result);
+      }
+
       if (!summary && gameRecord) {
         eventIdValue = (gameRecord as any).event_id ?? null;
         location = gameRecord.location || null;
@@ -954,6 +978,9 @@ const GameDetailsScreen = () => {
         teams = teamsArray;
         // Appearance from game record if present
         appearance = (gameRecord as any)?.appearance ?? null;
+        homeScore = typeof (gameRecord as any).home_score === 'number' ? (gameRecord as any).home_score : null;
+        awayScore = typeof (gameRecord as any).away_score === 'number' ? (gameRecord as any).away_score : null;
+        canEditResult = Boolean((gameRecord as any).can_edit_result);
       }
 
       if (!title) title = 'Game';
@@ -987,7 +1014,7 @@ const GameDetailsScreen = () => {
         initialDelayMs: 800,
         maxDelayMs: 4000,
       }).catch(() => null);
-      deferredMediaPromise = retryWithBackoff(() => Game.media(gameIdValue), {
+      deferredMediaPromise = retryWithBackoff(() => Game.media(gameIdValue, { include_expired: true }), {
         maxRetries: 0,
         initialDelayMs: 800,
         maxDelayMs: 4000,
@@ -1014,6 +1041,9 @@ const GameDetailsScreen = () => {
         media: mediaData,
         reviewsCount,
         isPast,
+        home_score: homeScore,
+        away_score: awayScore,
+        can_edit_result: canEditResult,
       };
 
       setVm(vmPayload);
@@ -1631,6 +1661,7 @@ const GameDetailsScreen = () => {
       user_id: m.user_id,
       created_at: m.created_at,
       caption: m.caption,
+      expires_at: (m as any).expires_at ?? null,
     }));
     if (!mediaItems.length) return null;
     return (
@@ -1646,10 +1677,26 @@ const GameDetailsScreen = () => {
           {mediaItems.map((it, idx) => {
             const isVideo = it.kind === 'video' || (typeof it.url === 'string' && VIDEO_EXT.test(it.url));
             const wasSeen = !!seenStories[it.id];
+            const expiresAt = it.expires_at ? new Date(it.expires_at).getTime() : null;
+            const now = nowTs;
+            const isExpired = expiresAt != null && expiresAt <= now;
+            const isCreator = currentUserIdRef.current && it.user_id === currentUserIdRef.current;
+            const showExpiredForCreator = isExpired && isCreator;
+            const msLeft = expiresAt != null && !isExpired ? expiresAt - now : 0;
+            const hoursLeft = Math.floor(msLeft / (60 * 60 * 1000));
+            const minsLeft = Math.floor((msLeft % (60 * 60 * 1000)) / (60 * 1000));
+            const countdownText = !isExpired && msLeft > 0
+              ? (hoursLeft > 0 ? `${hoursLeft}h ` : '') + (minsLeft > 0 ? `${minsLeft}m` : '< 1m')
+              : null;
             return (
               <Pressable
                 key={`${it.id}-${idx}`}
-                style={[styles.storyItem, styles.storyItemGap, wasSeen ? styles.storyItemSeen : null]}
+                style={[
+                  styles.storyItem,
+                  styles.storyItemGap,
+                  wasSeen ? styles.storyItemSeen : null,
+                  showExpiredForCreator ? styles.storyItemExpired : null,
+                ]}
                 onPress={() => setStoriesViewer({ visible: true, items: mediaItems as any, index: idx })}
               >
                 <View style={styles.storyTile}>
@@ -1662,6 +1709,18 @@ const GameDetailsScreen = () => {
                     />
                   )}
                   {wasSeen ? <View style={styles.storySeenOverlay} /> : null}
+                  {showExpiredForCreator ? (
+                    <View style={styles.storyExpiredOverlay}>
+                      <Text style={styles.storyExpiredLabel}>Expired</Text>
+                      <Text style={styles.storyExpiredHint}>Tap to delete</Text>
+                    </View>
+                  ) : null}
+                  {countdownText && !showExpiredForCreator ? (
+                    <View style={styles.storyCountdownBadge}>
+                      <Ionicons name="time-outline" size={10} color="#fff" />
+                      <Text style={styles.storyCountdownText}>{countdownText}</Text>
+                    </View>
+                  ) : null}
                 </View>
               </Pressable>
             );
@@ -1792,6 +1851,8 @@ const renderBanner = () => {
         rightImage={rightLogo}
         leftName={vm?.homeTeam ?? ''}
         rightName={vm?.awayTeam ?? ''}
+        leftScore={vm?.home_score ?? null}
+        rightScore={vm?.away_score ?? null}
         height={bannerHeight}
         variant="full"
         hero={true}
@@ -1893,6 +1954,40 @@ const renderBanner = () => {
     );
   };
 
+  const handleEditResult = useCallback(async () => {
+    const gameId = vm?.gameId;
+    if (!gameId || editResultBusy) return;
+    const home = parseInt(editResultHomeScore, 10);
+    const away = parseInt(editResultAwayScore, 10);
+    if (Number.isNaN(home) || Number.isNaN(away) || home < 0 || away < 0) {
+      Alert.alert('Invalid scores', 'Please enter valid non-negative numbers for both teams.');
+      return;
+    }
+    setEditResultBusy(true);
+    try {
+      let winner: 'home' | 'away' | 'tie' | null = null;
+      if (home > away) winner = 'home';
+      else if (away > home) winner = 'away';
+      else winner = 'tie';
+      await Game.setResult(gameId, { home_score: home, away_score: away, winner });
+      setVm((prev) => prev ? { ...prev, home_score: home, away_score: away, winner } : null);
+      setEditResultModalOpen(false);
+      setEditResultHomeScore('');
+      setEditResultAwayScore('');
+    } catch (err: any) {
+      console.error('Edit result failed:', err);
+      Alert.alert('Error', err?.message || 'Failed to update score. Please try again.');
+    } finally {
+      setEditResultBusy(false);
+    }
+  }, [vm?.gameId, editResultHomeScore, editResultAwayScore, editResultBusy]);
+
+  const openEditResultModal = useCallback(() => {
+    setEditResultHomeScore(vm?.home_score != null ? String(vm.home_score) : '');
+    setEditResultAwayScore(vm?.away_score != null ? String(vm.away_score) : '');
+    setEditResultModalOpen(true);
+  }, [vm?.home_score, vm?.away_score]);
+
   const _renderStats = () => {
     const stats = [
       { key: 'going', label: 'Going', value: goingCount != null ? String(goingCount) : '\u2014' },
@@ -1900,13 +1995,31 @@ const renderBanner = () => {
       { key: 'media', label: 'Stories', value: vm?.media?.length ? String(vm.media.length) : '0' },
     ];
     return (
-      <View style={styles.statRow}>
-        {stats.map((stat) => (
-          <View key={stat.key} style={styles.statCard}>
-            <Text style={styles.statValue}>{stat.value}</Text>
-            <Text style={styles.statLabel}>{stat.label}</Text>
-          </View>
-        ))}
+      <View>
+        <View style={styles.statRow}>
+          {stats.map((stat) => (
+            <View key={stat.key} style={styles.statCard}>
+              <Text style={styles.statValue}>{stat.value}</Text>
+              <Text style={styles.statLabel}>{stat.label}</Text>
+            </View>
+          ))}
+        </View>
+        {vm?.can_edit_result && vm?.gameId ? (
+          <Pressable
+            onPress={openEditResultModal}
+            style={({ pressed }) => [
+              styles.editResultButton,
+              { backgroundColor: pressed ? Colors[colorScheme].surface : Colors[colorScheme].tint, opacity: pressed ? 0.9 : 1 },
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Edit game result"
+          >
+            <Ionicons name="trophy-outline" size={16} color="#FFFFFF" />
+            <Text style={styles.editResultButtonText}>
+              {vm?.home_score != null && vm?.away_score != null ? 'Edit Result' : 'Add Result'}
+            </Text>
+          </Pressable>
+        ) : null}
       </View>
     );
   };
@@ -2605,6 +2718,58 @@ const renderBanner = () => {
           </View>
         </View>
       </Modal>
+
+      {/* Edit Result Modal - coaches/owners only */}
+      <Modal
+        visible={editResultModalOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setEditResultModalOpen(false)}
+      >
+        <Pressable style={styles.editResultBackdrop} onPress={() => setEditResultModalOpen(false)}>
+          <Pressable style={[styles.editResultModal, { backgroundColor: Colors[colorScheme].background }]} onPress={() => {}}>
+            <Text style={[styles.editResultTitle, { color: Colors[colorScheme].text }]}>Edit Game Result</Text>
+            <View style={styles.editResultRow}>
+              <Text style={[styles.editResultLabel, { color: Colors[colorScheme].text }]}>{vm?.homeTeam ?? 'Home'}</Text>
+              <TextInput
+                style={[styles.editResultInput, { color: Colors[colorScheme].text, borderColor: Colors[colorScheme].border }]}
+                value={editResultHomeScore}
+                onChangeText={setEditResultHomeScore}
+                placeholder="0"
+                placeholderTextColor={Colors[colorScheme].mutedText}
+                keyboardType="number-pad"
+              />
+            </View>
+            <Text style={[styles.editResultVs, { color: Colors[colorScheme].mutedText }]}>vs</Text>
+            <View style={styles.editResultRow}>
+              <Text style={[styles.editResultLabel, { color: Colors[colorScheme].text }]}>{vm?.awayTeam ?? 'Away'}</Text>
+              <TextInput
+                style={[styles.editResultInput, { color: Colors[colorScheme].text, borderColor: Colors[colorScheme].border }]}
+                value={editResultAwayScore}
+                onChangeText={setEditResultAwayScore}
+                placeholder="0"
+                placeholderTextColor={Colors[colorScheme].mutedText}
+                keyboardType="number-pad"
+              />
+            </View>
+            <View style={styles.editResultActions}>
+              <Pressable
+                onPress={() => setEditResultModalOpen(false)}
+                style={[styles.editResultCancelBtn, { borderColor: Colors[colorScheme].border }]}
+              >
+                <Text style={[styles.editResultCancelText, { color: Colors[colorScheme].text }]}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={handleEditResult}
+                disabled={editResultBusy}
+                style={[styles.editResultSubmitBtn, { backgroundColor: Colors[colorScheme].tint, opacity: editResultBusy ? 0.6 : 1 }]}
+              >
+                <Text style={styles.editResultSubmitText}>Save</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
       {showTopFab ? (
         <Pressable
           style={styles.fab}
@@ -3101,6 +3266,50 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   },
   statValue: { fontSize: 20, fontWeight: '800', color: Colors[colorScheme].text },
   statLabel: { color: Colors[colorScheme].mutedText, fontWeight: '600' },
+  editResultButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    marginTop: 12,
+    marginBottom: 20,
+  },
+  editResultButtonText: { color: '#FFFFFF', fontWeight: '700', fontSize: 14 },
+  editResultBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  editResultModal: {
+    width: '100%',
+    maxWidth: 340,
+    borderRadius: 20,
+    padding: 24,
+  },
+  editResultTitle: { fontSize: 18, fontWeight: '800', marginBottom: 20, textAlign: 'center' },
+  editResultRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 6 },
+  editResultLabel: { flex: 1, fontWeight: '600', fontSize: 14 },
+  editResultInput: {
+    width: 64,
+    borderWidth: 2,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 18,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  editResultVs: { textAlign: 'center', marginVertical: 8, fontWeight: '600' },
+  editResultActions: { flexDirection: 'row', gap: 12, marginTop: 24 },
+  editResultCancelBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 2, alignItems: 'center' },
+  editResultCancelText: { fontWeight: '600' },
+  editResultSubmitBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center' },
+  editResultSubmitText: { color: '#FFFFFF', fontWeight: '700' },
   teamList: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   teamPill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#e0f2fe', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
   teamPillText: { fontWeight: '700', color: '#0c4a6e' },
@@ -3140,6 +3349,31 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   storyThumb: { flex: 1 },
   storyThumbVideo: { alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(2,6,23,0.85)' },
   storySeenOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(2,6,23,0.25)' },
+  storyItemExpired: { opacity: 0.6 },
+  storyExpiredOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  storyExpiredLabel: { color: '#fff', fontWeight: '800', fontSize: 12 },
+  storyExpiredHint: { color: 'rgba(255,255,255,0.8)', fontSize: 10 },
+  storyCountdownBadge: {
+    position: 'absolute',
+    bottom: 6,
+    left: 6,
+    right: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    borderRadius: 8,
+  },
+  storyCountdownText: { color: '#fff', fontSize: 10, fontWeight: '700' },
   verticalFeedPreview: {
     marginTop: 16,
     borderRadius: 20,

@@ -475,6 +475,30 @@ gamesRouter.get('/:id/summary', async (req: AuthedRequest, res) => {
   })();
 
   const gameData = game as any; // Type assertion for updated schema
+
+  // Compute can_edit_result for coaches/owners/admins
+  let canEditResult = false;
+  if (req.user) {
+    const teamIds = [gameData.home_team_id, gameData.away_team_id].filter(Boolean) as string[];
+    if (teamIds.length > 0) {
+      const membership = await prisma.teamMembership.findFirst({
+        where: {
+          team_id: { in: teamIds },
+          user_id: req.user.id,
+          role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
+          status: 'active',
+        },
+        select: { id: true },
+      });
+      if (membership) canEditResult = true;
+    }
+    if (!canEditResult && gameData.created_by_id === req.user.id) canEditResult = true;
+    if (!canEditResult) {
+      const user = await prisma.user.findUnique({ where: { id: req.user.id }, select: { email: true } });
+      const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+      if (user?.email && adminEmails.includes(user.email.toLowerCase())) canEditResult = true;
+    }
+  }
   
   // Generate Google Maps link for venue
   const venueMapsLink = generateMapsLink(
@@ -521,6 +545,10 @@ gamesRouter.get('/:id/summary', async (req: AuthedRequest, res) => {
     reviewsCount,
     isPast,
     event: serializeEvent(event),
+    home_score: gameData.home_score ?? null,
+    away_score: gameData.away_score ?? null,
+    winner: gameData.winner ?? null,
+    can_edit_result: canEditResult,
   });
 });
 
@@ -677,6 +705,66 @@ gamesRouter.delete('/:id/media/:mediaId', requireAuth as any, async (req: Authed
 gamesRouter.get('/:id/stories', makeListMediaHandler({ prisma }));
 
 gamesRouter.post('/:id/stories', makeCreateStoryHandler({ prisma }));
+
+// Update game result (scores) - coaches and team owners only
+gamesRouter.patch('/:id/result', requireAuth as any, async (req: AuthedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+  const id = String(req.params.id);
+  const schema = z.object({
+    home_score: z.number().int().min(0).optional(),
+    away_score: z.number().int().min(0).optional(),
+    winner: z.enum(['home', 'away', 'tie']).optional().nullable(),
+  });
+  const parsed = schema.safeParse(req.body || {});
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', details: parsed.error });
+
+  const game = await prisma.game.findUnique({
+    where: { id },
+    select: { id: true, created_by_id: true, home_team_id: true, away_team_id: true },
+  });
+
+  if (!game) return res.status(404).json({ error: 'Game not found' });
+
+  const teamIds = [game.home_team_id, game.away_team_id].filter(Boolean) as string[];
+  let isCoach = false;
+  if (teamIds.length > 0) {
+    const membership = await prisma.teamMembership.findFirst({
+      where: {
+        team_id: { in: teamIds },
+        user_id: req.user.id,
+        role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
+        status: 'active',
+      },
+      select: { id: true },
+    });
+    isCoach = !!membership;
+  }
+
+  const isCreator = game.created_by_id === req.user.id;
+  const user = await prisma.user.findUnique({ where: { id: req.user.id }, select: { email: true } });
+  const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+  const isAdmin = user?.email ? adminEmails.includes(user.email.toLowerCase()) : false;
+
+  if (!isCreator && !isCoach && !isAdmin) {
+    return res.status(403).json({ error: 'Only coaches or team owners can update game results' });
+  }
+
+  const data: Record<string, any> = {};
+  if (typeof parsed.data.home_score === 'number') data.home_score = parsed.data.home_score;
+  if (typeof parsed.data.away_score === 'number') data.away_score = parsed.data.away_score;
+  if (parsed.data.winner !== undefined) data.winner = parsed.data.winner;
+
+  if (Object.keys(data).length === 0) {
+    return res.status(400).json({ error: 'At least one of home_score, away_score, or winner is required' });
+  }
+
+  const updated = await prisma.game.update({
+    where: { id },
+    data,
+  });
+  return res.json(updated);
+});
 
 // Update cover image
 gamesRouter.patch('/:id', requireAuth as any, async (req: AuthedRequest, res) => {

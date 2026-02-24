@@ -270,6 +270,8 @@ export default function EventDetailScreen() {
               rightImage={(event as any)?.awayLogo ?? null}
               leftName={(event as any)?.homeName ?? ''}
               rightName={(event as any)?.awayName ?? ''}
+              leftScore={(event as any)?.game?.home_score ?? null}
+              rightScore={(event as any)?.game?.away_score ?? null}
               height={220}
               appearance="classic"
               hero={false}

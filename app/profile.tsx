@@ -145,6 +145,7 @@ export default function ProfileScreen() {
   const viewingUserId = params.id;
   const [isFollowing, setIsFollowing] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [userTeams, setUserTeams] = useState<Array<{ id: string; name: string; logo_url?: string | null; role?: string; position?: string | null; jersey_number?: string | number | null }>>([]);
 
   const setIfDifferent = useCallback((setter: any, next: any) => {
     setter((prev: any) => {
@@ -803,6 +804,38 @@ export default function ProfileScreen() {
             </Text>
             <Text style={[styles.statLabel, { color: colorScheme === 'dark' ? theme.mutedText : '#4B5563' }]}> Followers</Text>
           </View>
+
+          {/* Teams - Athlete profile section */}
+          {userTeams.length > 0 && (
+            <View style={[styles.teamsSection, { borderColor: theme.border, backgroundColor: theme.surface || theme.background }]}>
+              <Text style={[styles.teamsSectionTitle, { color: theme.text }]}>Teams</Text>
+              <View style={styles.teamsList}>
+                {userTeams.map((t) => (
+                  <Pressable
+                    key={t.id}
+                    style={({ pressed }) => [
+                      styles.teamChip,
+                      { borderColor: theme.border, backgroundColor: pressed ? theme.background : theme.card },
+                    ]}
+                    onPress={() => void router.push({ pathname: '/team-page', params: { id: t.id, name: t.name } } as any)}
+                  >
+                    {t.logo_url || t.avatar_url ? (
+                      <Image source={{ uri: t.logo_url || t.avatar_url || '' }} style={styles.teamChipAvatar} contentFit="cover" />
+                    ) : (
+                      <View style={[styles.teamChipPlaceholder, { backgroundColor: theme.tint + '30' }]}>
+                        <Ionicons name="people" size={14} color={theme.tint} />
+                      </View>
+                    )}
+                    <Text style={[styles.teamChipName, { color: theme.text }]} numberOfLines={1}>{t.name}</Text>
+                    {t.role && (
+                      <Text style={[styles.teamChipRole, { color: theme.mutedText }]}>{String(t.role).replace(/_/g, ' ')}</Text>
+                    )}
+                    <Ionicons name="chevron-forward" size={12} color={theme.mutedText} />
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          )}
         </View>
       </View>
 
@@ -1417,6 +1450,43 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '500', // Slightly bolder for better readability
   },
+  teamsSection: {
+    marginTop: 16,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  teamsSectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 10,
+  },
+  teamsList: {
+    gap: 8,
+  },
+  teamChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    gap: 10,
+  },
+  teamChipAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+  },
+  teamChipPlaceholder: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  teamChipName: { flex: 1, fontSize: 15, fontWeight: '600', minWidth: 0 },
+  teamChipRole: { fontSize: 12, textTransform: 'capitalize' },
   athleteCredentialsCompact: {
     paddingHorizontal: 16,
     paddingBottom: 8,

@@ -78,6 +78,7 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
   const limit = Math.min(parseInt(String(req.query.limit ?? '10'), 10) || 10, 50);
   const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : null;
   const followedOnly = String(req.query.followed_only || '').toLowerCase() === 'true';
+  const followedTeams = String(req.query.followed_teams || '').toLowerCase() === 'true';
   const currentUserId = req.user?.id ?? null;
 
   const hasTeamFilter = !!req.query.team_id;
@@ -107,6 +108,37 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
     where.author_id = { in: followingIds };
   }
 
+  // Followed teams feed: posts from teams the user follows (team_id or game's teams)
+  let followedTeamsFeedMeta: { followed_teams_count: number } | undefined;
+  if (followedTeams) {
+    if (!currentUserId) {
+      return res.status(401).json({ items: [], nextCursor: null, followed_teams_feed_meta: { followed_teams_count: 0 } });
+    }
+    const teamFollows = await prisma.teamFollow.findMany({
+      where: { user_id: currentUserId },
+      select: { team_id: true },
+    });
+    const followedTeamIds = teamFollows.map((f) => f.team_id);
+    followedTeamsFeedMeta = { followed_teams_count: followedTeamIds.length };
+    if (followedTeamIds.length === 0) {
+      return res.json({ items: [], nextCursor: null, followed_teams_feed_meta: followedTeamsFeedMeta });
+    }
+    const gamesWithFollowedTeams = await prisma.game.findMany({
+      where: {
+        OR: [
+          { home_team_id: { in: followedTeamIds } },
+          { away_team_id: { in: followedTeamIds } },
+        ],
+      },
+      select: { id: true },
+    });
+    const gameIds = gamesWithFollowedTeams.map((g) => g.id);
+    where.OR = [
+      { team_id: { in: followedTeamIds } },
+      ...(gameIds.length > 0 ? [{ game_id: { in: gameIds } }] : []),
+    ];
+  }
+
   if (req.query.game_id) {
     const gameId = String(req.query.game_id);
     // Handle sample game IDs (stored in title field with [SAMPLE_GAME:...] marker)
@@ -129,6 +161,7 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
       orderBy: [{ created_at: 'desc' as const }],
       include: {
         author: { select: { id: true, display_name: true, avatar_url: true } },
+        team: { select: { id: true, name: true, logo_url: true } },
         _count: { select: { comments: true, bookmarks: true } },
         poll: { include: { options: true } },
       },
@@ -217,6 +250,7 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
       bookmarks_count: post._count?.bookmarks ?? 0,
       created_at: post.created_at instanceof Date ? post.created_at.toISOString() : post.created_at,
       author: post.author ? { id: post.author.id, display_name: post.author.display_name, avatar_url: post.author.avatar_url } : null,
+      team: post.team ? { id: post.team.id, name: post.team.name, logo_url: post.team.logo_url } : null,
       has_upvoted: upvotedIds.has(post.id),
       has_bookmarked: bookmarkedIds.has(post.id),
       is_following_author: post.author ? followingIds.has(post.author.id) : false,
@@ -224,6 +258,7 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
     }));
     const response: Record<string, any> = { items: payload, nextCursor };
     if (followedFeedMeta) response.followed_feed_meta = followedFeedMeta;
+    if (followedTeamsFeedMeta) response.followed_teams_feed_meta = followedTeamsFeedMeta;
     return res.json(response);
   }
 
@@ -232,6 +267,7 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
     orderBy,
     include: {
       author: { select: { id: true, display_name: true, avatar_url: true } },
+      team: { select: { id: true, name: true, logo_url: true } },
       _count: { select: { comments: true, bookmarks: true } },
       poll: { include: { options: true } },
     },
@@ -315,6 +351,7 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
           avatar_url: post.author.avatar_url,
         }
       : null,
+    team: post.team ? { id: post.team.id, name: post.team.name, logo_url: post.team.logo_url } : null,
     has_upvoted: upvotedIds.has(post.id),
     has_bookmarked: bookmarkedIds.has(post.id),
     is_following_author: post.author ? followingIds.has(post.author.id) : false,
@@ -327,6 +364,7 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
 
   const response: Record<string, any> = { items: payload, nextCursor };
   if (followedFeedMeta) response.followed_feed_meta = followedFeedMeta;
+  if (followedTeamsFeedMeta) response.followed_teams_feed_meta = followedTeamsFeedMeta;
   return res.json(response);
 });
 
