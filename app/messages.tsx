@@ -108,6 +108,28 @@ export default function MessagesScreen() {
     }, [load])
   );
 
+  // Poll every 3 seconds for new conversations (same as message thread)
+  useEffect(() => {
+    let mounted = true;
+    const interval = setInterval(async () => {
+      if (!mounted) return;
+      try {
+        const result: UIMsg[] | { _isNotModified: boolean } = await (Message.list
+          ? Message.list('-created_at', 50)
+          : Message.filter({}, '-created_at'));
+        if (mounted && result && !('_isNotModified' in result)) {
+          setMessages(Array.isArray(result) ? result : []);
+        }
+      } catch {
+        // Silently fail - don't disrupt inbox
+      }
+    }, 3000);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
   // Group messages into conversations
   const conversations = useMemo((): Conversation[] => {
     if (!me) return [];

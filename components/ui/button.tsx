@@ -12,6 +12,8 @@ export interface ButtonProps {
   size?: Size;
   style?: ViewStyle;
   textStyle?: TextStyle;
+  accessibilityLabel?: string;
+  accessibilityRole?: 'button';
 }
 
 export function Button({
@@ -39,6 +41,8 @@ export function Button({
       onPress={onPress}
       disabled={disabled}
       style={[styles.base, vs.container, ss.container, disabled && styles.disabled, style]}
+      accessibilityLabel={accessibilityLabel}
+      accessibilityRole={accessibilityRole}
     >
       {content}
     </Pressable>

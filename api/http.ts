@@ -36,7 +36,7 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
   const token = getAuthToken();
   if (token) headers['Authorization'] = `Bearer ${token}`;
   // Avoid stale caches/Etags for personalized endpoints
-  if (/^\/(me|auth\/me|rsvps|follows|support|users|teams|team-memberships|team-invites)/.test(path)) {
+  if (/^\/(me|auth\/me|rsvps|follows|support|search|users|teams|team-memberships|team-invites|events\/)/.test(path)) {
     headers['Cache-Control'] = headers['Cache-Control'] || 'no-store';
     headers['Pragma'] = headers['Pragma'] || 'no-cache';
     headers['If-None-Match'] = headers['If-None-Match'] || '';

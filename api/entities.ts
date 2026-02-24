@@ -72,6 +72,8 @@ export const User = {
   block: (id: string) => httpPost('/users/' + encodeURIComponent(id) + '/block', {}),
   unblock: (id: string) => httpDelete('/users/' + encodeURIComponent(id) + '/block'),
   blockedUsers: () => httpGet('/users/blocked'),
+  // GDPR/CCPA data portability - export all user data as JSON (longer timeout for large exports)
+  exportMyData: () => httpGet('/users/me/export', {}, 60000),
 };
 
 export const Game = {
@@ -121,6 +123,11 @@ export const Game = {
   media: (id: string) => httpGet(`/games/${encodeURIComponent(id)}/media`, {}, 15000, 1),
   deleteMedia: (gameId: string, mediaId: string) => httpDelete(`/games/${encodeURIComponent(gameId)}/media/${encodeURIComponent(mediaId)}`),
   votesSummary: (id: string) => httpGet(`/games/${encodeURIComponent(id)}/votes/summary`),
+  votesSummaryBatch: (ids: string[]) => {
+    if (ids.length === 0) return Promise.resolve({});
+    const qs = '?ids=' + ids.map((id) => encodeURIComponent(id)).join(',');
+    return httpGet('/games/votes-summary' + qs);
+  },
   castVote: (id: string, team: 'A' | 'B') => httpPost(`/games/${encodeURIComponent(id)}/votes`, { team }),
   clearVote: (id: string) => httpDelete(`/games/${encodeURIComponent(id)}/votes`),
   update: (id: string, data: any) => httpPut('/games/' + encodeURIComponent(id), data),
@@ -140,11 +147,12 @@ const normalizePostItems = (input: any) => {
 };
 
 const normalizePostPage = (input: any) => {
-  if (!input) return { items: [] as any[], nextCursor: null };
-  if (Array.isArray(input)) return { items: input, nextCursor: null };
+  if (!input) return { items: [] as any[], nextCursor: null, followed_feed_meta: undefined };
+  if (Array.isArray(input)) return { items: input, nextCursor: null, followed_feed_meta: undefined };
   return {
     items: Array.isArray(input.items) ? input.items : [],
     nextCursor: typeof input.nextCursor === 'string' ? input.nextCursor : null,
+    followed_feed_meta: input.followed_feed_meta ?? undefined,
   };
 };
 
@@ -184,7 +192,7 @@ export const Post = {
     const res = await httpGet('/posts' + (q.length ? '?' + q.join('&') : ''));
     return normalizePostPage(res);
   },
-  filterPage: async (where: { game_id?: string; type?: string; user_id?: string } = {}, cursor?: string | null, limit: number = 20, sort: string = '-created_date') => {
+  filterPage: async (where: { game_id?: string; type?: string; user_id?: string; followed_only?: boolean } = {}, cursor?: string | null, limit: number = 20, sort: string = '-created_date') => {
     const q: string[] = [];
     if (sort) q.push('sort=' + encodeURIComponent(sort));
     if (limit) q.push('limit=' + String(limit));
@@ -192,6 +200,7 @@ export const Post = {
     if (where.game_id) q.push('game_id=' + encodeURIComponent(where.game_id));
     if (where.type) q.push('type=' + encodeURIComponent(where.type));
     if (where.user_id) q.push('user_id=' + encodeURIComponent(where.user_id));
+    if (where.followed_only) q.push('followed_only=true');
     const res = await httpGet('/posts' + (q.length ? '?' + q.join('&') : ''));
     return normalizePostPage(res);
   },
@@ -233,7 +242,8 @@ export const Post = {
   createCollage: (data: any) => httpPost('/posts/collage', data),
   get: (id: string) => httpGet('/posts/' + encodeURIComponent(id)),
   comments: (id: string) => httpGet(`/posts/${encodeURIComponent(id)}/comments`),
-  addComment: (id: string, content: string) => httpPost(`/posts/${encodeURIComponent(id)}/comments`, { content }),
+  addComment: (id: string, content: string, parentId?: string) =>
+    httpPost(`/posts/${encodeURIComponent(id)}/comments`, { content, ...(parentId ? { parent_id: parentId } : {}) }),
   deleteComment: (postId: string, commentId: string) => httpDelete(`/posts/${encodeURIComponent(postId)}/comments/${encodeURIComponent(commentId)}`),
   updateComment: (postId: string, commentId: string, content: string) => httpPatch(`/posts/${encodeURIComponent(postId)}/comments/${encodeURIComponent(commentId)}`, { content }),
   delete: (id: string) => httpDelete('/posts/' + encodeURIComponent(id)),
@@ -241,6 +251,7 @@ export const Post = {
   update: (id: string, data: { content?: string; title?: string }) => httpPatch('/posts/' + encodeURIComponent(id), data),
   toggleUpvote: (id: string) => httpPost(`/posts/${encodeURIComponent(id)}/upvote`, {}),
   toggleBookmark: (id: string) => httpPost(`/posts/${encodeURIComponent(id)}/bookmark`, {}),
+  share: (id: string) => httpPost(`/posts/${encodeURIComponent(id)}/share`, {}),
   getByEvent: (eventId: string) => httpGet(`/posts?event_id=${encodeURIComponent(eventId)}`),
   createPoll: (id: string, data: { options: string[], expires_at?: string }) => httpPost(`/posts/${encodeURIComponent(id)}/poll`, data),
   voteOnPoll: (id: string, optionId: string) => httpPost(`/posts/${encodeURIComponent(id)}/poll/vote`, { option_id: optionId }),
@@ -248,17 +259,19 @@ export const Post = {
 
 export const Event = {
   create: (data: any) => httpPost('/events', data),
-  filter: (where: { status?: string; approval_status?: string; event_type?: string; q?: string } = {}, sort?: string, limit?: number) => {
+  filter: (where: { status?: string; approval_status?: string; event_type?: string; q?: string; include_cancelled?: boolean } = {}, sort?: string, limit?: number) => {
     const q: string[] = [];
     if (where.status) q.push('status=' + encodeURIComponent(where.status));
     if (where.approval_status) q.push('approval_status=' + encodeURIComponent(where.approval_status));
     if (where.event_type) q.push('event_type=' + encodeURIComponent(where.event_type));
+    if (where.include_cancelled) q.push('include_cancelled=true');
     if (where.q) q.push('q=' + encodeURIComponent(where.q));
     if (sort) q.push('sort=' + encodeURIComponent(sort));
     if (typeof limit === 'number') q.push('limit=' + String(limit));
     return httpGet('/events' + (q.length ? '?' + q.join('&') : ''));
   },
   get: (id: string) => httpGet('/events/' + encodeURIComponent(id)),
+  cancel: (id: string) => httpPatch('/events/' + encodeURIComponent(id) + '/cancel'),
   rsvpStatus: (id: string) => httpGet(`/events/${encodeURIComponent(id)}/rsvp`),
   rsvp: (id: string, going?: boolean) => httpPost(`/events/${encodeURIComponent(id)}/rsvp`, typeof going === 'boolean' ? { going } : {}),
   myRsvps: () => httpGet('/events/my-rsvps'),
@@ -295,7 +308,7 @@ export const Message = {
     const q = [`with=${encodeURIComponent(email)}`, `sort=${encodeURIComponent('-created_at')}`, `limit=${limit}`];
     return httpGet('/messages?' + q.join('&'));
   },
-  send: (data: { content: string; conversation_id?: string; recipient_email?: string }) => httpPost('/messages', data),
+  send: (data: { content: string; conversation_id?: string; recipient_id?: string; recipient_email?: string }) => httpPost('/messages', data),
   markReadByConversation: (conversationId: string) => httpPost('/messages/mark-read', { conversation_id: conversationId }),
   markReadWith: (email: string) => httpPost('/messages/mark-read', { with: email }),
 };
@@ -311,6 +324,8 @@ export const Organization = {
   },
   mine: () => httpGet('/organizations/mine'),
   get: (id: string) => httpGet('/organizations/' + encodeURIComponent(id)),
+  follow: (id: string) => httpPost(`/organizations/${encodeURIComponent(id)}/follow`, {}),
+  unfollow: (id: string) => httpDelete(`/organizations/${encodeURIComponent(id)}/follow`),
   members: (id: string) => httpGet(`/organizations/${encodeURIComponent(id)}/members`),
   createOrganization: (data: {
     name: string;
@@ -361,6 +376,8 @@ export const Team = {
     return httpGet('/teams/managed' + qs);
   },
   get: (id: string) => httpGet('/teams/' + encodeURIComponent(id)),
+  follow: (id: string) => httpPost(`/teams/${encodeURIComponent(id)}/follow`, {}),
+  unfollow: (id: string) => httpDelete(`/teams/${encodeURIComponent(id)}/follow`),
   members: (id: string) => httpGet(`/teams/${encodeURIComponent(id)}/members`),
   allMembers: (q?: string) => httpGet('/teams/members/all' + (q ? `?q=${encodeURIComponent(q)}` : '')),
   create: (data: {
@@ -426,6 +443,11 @@ export const Team = {
 export const Support = {
   contact: (data: { name: string; email: string; subject: string; message: string; from_email?: string }) => httpPost('/support/contact', data),
   feedback: (data: { user_id?: string; category: 'bug' | 'idea' | 'other'; message: string; screenshot_url?: string }) => httpPost('/support/feedback', data),
+};
+
+export const Payments = {
+  configStatus: () => httpGet('/payments/config'),
+  getConfig: () => httpGet('/payments/config'),
 };
 
 export const Subscriptions = {
@@ -505,6 +527,15 @@ export const Advertisement = {
     if (zip) q.push('zip=' + encodeURIComponent(zip));
     if (limit) q.push('limit=' + String(limit));
     return httpGet('/ads/for-feed' + (q.length ? '?' + q.join('&') : ''));
+  },
+};
+
+export const Search = {
+  unified: (q: string, limit: number = 10) => {
+    const params = new URLSearchParams();
+    params.set('q', q);
+    if (limit) params.set('limit', String(limit));
+    return httpGet('/search?' + params.toString());
   },
 };
 

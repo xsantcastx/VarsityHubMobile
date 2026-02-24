@@ -78,6 +78,7 @@ export default function PostDetailScreen() {
   const [editCommentId, setEditCommentId] = useState<string | null>(null);
   const [editCommentText, setEditCommentText] = useState('');
   const [updatingComment, setUpdatingComment] = useState(false);
+  const [replyingToComment, setReplyingToComment] = useState<{ id: string; authorName: string } | null>(null);
   const [following, setFollowing] = useState(false);
   const [saved, setSaved] = useState(false);
   const [fullscreenMedia, setFullscreenMedia] = useState(false);
@@ -338,8 +339,9 @@ export default function PostDetailScreen() {
   const onAddComment = async () => {
     if (!currentPostId || !comment.trim()) return;
     setCommenting(true);
+    const parentId = replyingToComment?.id;
     try {
-      const created = await PostApi.addComment(currentPostId, comment.trim());
+      const created = await PostApi.addComment(currentPostId, comment.trim(), parentId);
       setComments((arr) => {
         const next = [created, ...arr];
         if (currentPostId) {
@@ -348,6 +350,7 @@ export default function PostDetailScreen() {
         return next;
       });
       setComment('');
+      setReplyingToComment(null);
     } catch (error) {
       console.error('Error adding comment:', error);
       const err = error as any;
@@ -377,6 +380,9 @@ export default function PostDetailScreen() {
     title: post?.title || 'VarsityHub Post',
     caption: post?.caption,
     contextLines: postShareContext,
+    onShareSuccess: (postId) => {
+      PostApi.share(postId).catch((err) => __DEV__ && console.warn('[post-detail] Share tracking failed:', err));
+    },
   });
 
   const onShare = () => {
@@ -845,7 +851,18 @@ export default function PostDetailScreen() {
           </View>
           
           {/* Add Comment */}
-          <View style={[styles.addCommentContainer, { borderBottomColor: Colors[colorScheme].border }]}>
+          <View style={[styles.addCommentWrapper, { borderBottomColor: Colors[colorScheme].border }]}>
+            {replyingToComment && (
+              <View style={[styles.replyingToBar, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
+                <Text style={[styles.replyingToText, { color: Colors[colorScheme].mutedText }]}>
+                  Replying to {replyingToComment.authorName}
+                </Text>
+                <Pressable onPress={() => setReplyingToComment(null)} hitSlop={8}>
+                  <Ionicons name="close" size={18} color={Colors[colorScheme].mutedText} />
+                </Pressable>
+              </View>
+            )}
+            <View style={styles.addCommentContainer}>
             {currentUser?.avatar_url ? (
               <ExpoImage source={{ uri: currentUser.avatar_url }} style={styles.commentAvatar} />
             ) : (
@@ -860,7 +877,7 @@ export default function PostDetailScreen() {
                 borderColor: Colors[colorScheme].border,
                 color: Colors[colorScheme].text
               }]}
-              placeholder="Add a comment..."
+              placeholder={replyingToComment ? `Reply to ${replyingToComment.authorName}...` : 'Add a comment...'}
               placeholderTextColor={Colors[colorScheme].tabIconDefault}
               value={comment}
               onChangeText={setComment}
@@ -878,6 +895,7 @@ export default function PostDetailScreen() {
                 color={(commenting || !comment.trim()) ? "#94a3b8" : "#2563EB"} 
               />
             </Pressable>
+            </View>
           </View>
 
           {/* Comments List */}
@@ -913,25 +931,35 @@ export default function PostDetailScreen() {
                       </View>
                     </Pressable>
                     
-                    {currentUser && c.author_id && String(currentUser.id) === String(c.author_id) && (
-                      <View style={styles.commentActions}>
+                    <View style={styles.commentActions}>
+                      {currentUser && (
                         <Pressable
                           style={styles.commentActionBtn}
-                          onPress={() => {
-                            setEditCommentId(String(c.id));
-                            setEditCommentText(c.content || '');
-                          }}
+                          onPress={() => setReplyingToComment({ id: String(c.id), authorName: c.author?.username ? `@${c.author.username}` : c.author?.display_name || 'User' })}
                         >
-                          <Ionicons name="pencil" size={16} color="#6B7280" />
+                          <Ionicons name="arrow-undo-outline" size={16} color="#6B7280" />
                         </Pressable>
-                        <Pressable
-                          style={styles.commentActionBtn}
-                          onPress={() => handleDeleteComment(String(c.id))}
-                        >
-                          <Ionicons name="trash" size={16} color="#DC2626" />
-                        </Pressable>
-                      </View>
-                    )}
+                      )}
+                      {currentUser && c.author_id && String(currentUser.id) === String(c.author_id) && (
+                        <>
+                          <Pressable
+                            style={styles.commentActionBtn}
+                            onPress={() => {
+                              setEditCommentId(String(c.id));
+                              setEditCommentText(c.content || '');
+                            }}
+                          >
+                            <Ionicons name="pencil" size={16} color="#6B7280" />
+                          </Pressable>
+                          <Pressable
+                            style={styles.commentActionBtn}
+                            onPress={() => handleDeleteComment(String(c.id))}
+                          >
+                            <Ionicons name="trash" size={16} color="#DC2626" />
+                          </Pressable>
+                        </>
+                      )}
+                    </View>
                   </View>
                   <Text style={[styles.commentText, { color: Colors[colorScheme].text }]}>{c.content}</Text>
                 </View>
@@ -1552,12 +1580,25 @@ const styles = StyleSheet.create({
   },
 
   // Add Comment
+  addCommentWrapper: {
+    borderBottomWidth: 1,
+  },
   addCommentContainer: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 12,
     padding: 16,
+  },
+  replyingToBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     borderBottomWidth: 1,
+  },
+  replyingToText: {
+    fontSize: 13,
   },
   commentAvatar: {
     width: 36,

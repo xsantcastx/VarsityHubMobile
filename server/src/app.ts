@@ -28,7 +28,9 @@ import { organizationsRouter } from './routes/organizations.js';
 import { paymentsRouter } from './routes/payments.js';
 import { postsRouter } from './routes/posts.js';
 import { promosRouter } from './routes/promos.js';
+import { reportsRouter } from './routes/reports.js';
 import { rsvpsRouter } from './routes/rsvps.js';
+import { searchRouter } from './routes/search.js';
 import { supportRouter } from './routes/support.js';
 import { teamInvitesRouter } from './routes/team-invites.js';
 import { teamMembershipsRouter } from './routes/team-memberships.js';
@@ -38,6 +40,7 @@ import { testNotificationsRouter } from './routes/test-notifications.js';
 import { uploadRouter } from './routes/upload.js';
 import { uploadsRouter } from './routes/uploads.js';
 import { usersRouter } from './routes/users.js';
+import { wellKnownRouter } from './routes/well-known.js';
 
 const app = express();
 const isTest = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID != null;
@@ -189,6 +192,9 @@ const apiLimiter = rateLimit({
 
 app.use('/health', healthRouter);
 
+// Universal links - must be at /.well-known/ for iOS and Android
+app.use('/.well-known', wellKnownRouter);
+
 // API Documentation
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
   swaggerOptions: {
@@ -217,6 +223,8 @@ app.use('/geocoding', noStore, apiLimiter, geocodingRouter);
 app.use('/teams', apiLimiter, teamsRouter);
 app.use('/organizations', apiLimiter, organizationsRouter);
 app.use('/users', noStore, apiLimiter, usersRouter);
+app.use('/search', noStore, apiLimiter, searchRouter);
+app.use('/reports', noStore, apiLimiter, reportsRouter);
 app.use('/rsvps', noStore, apiLimiter, rsvpsRouter);
 app.use('/follows', noStore, apiLimiter, followsRouter);
 app.use('/support', noStore, apiLimiter, supportRouter);

@@ -69,7 +69,13 @@ export default function OnboardingLayout({
     >
       <View style={[styles.header, { backgroundColor: colors.headerBg, borderBottomColor: colors.border }]}>
         {showBackButton ? (
-          <Pressable onPress={handleBack} style={styles.backButton} hitSlop={8}>
+          <Pressable
+            onPress={handleBack}
+            style={styles.backButton}
+            hitSlop={8}
+            accessibilityLabel="Go back"
+            accessibilityRole="button"
+          >
             <Ionicons name="chevron-back" size={24} color={colors.text} />
           </Pressable>
         ) : (
@@ -126,6 +132,8 @@ export default function OnboardingLayout({
               styles.continueButton,
               { backgroundColor: (continueDisabled || loading) ? colors.primaryMuted : colors.primary },
             ]}
+            accessibilityLabel="Continue"
+            accessibilityRole="button"
           >
             {loading ? (
               <ActivityIndicator color="#FFFFFF" />

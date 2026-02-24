@@ -4,6 +4,7 @@ import { Router } from 'express';
 import jwt, { type JwtPayload } from 'jsonwebtoken';
 import { z } from 'zod';
 import { sendPasswordChangedEmail, sendPasswordResetEmail, sendVerificationEmail } from '../lib/email.js';
+import { validateContent } from '../lib/contentFilter.js';
 import { ConflictError } from '../lib/errors/ConflictError.js';
 import { ValidationError } from '../lib/errors/ValidationError.js';
 import { signJwt } from '../lib/jwt.js';
@@ -72,12 +73,25 @@ async function getApplePublicKey(kid: string): Promise<KeyObject> {
   return key;
 }
 
+/** COPPA: Returns true if DOB indicates user is under 13. Do not store data for under-13 users. */
+function isUnder13(dob: string | null | undefined): boolean {
+  if (!dob || typeof dob !== 'string') return false;
+  const d = new Date(dob);
+  if (isNaN(d.getTime())) return false;
+  const now = new Date();
+  let age = now.getFullYear() - d.getFullYear();
+  const m = now.getMonth() - d.getMonth();
+  if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--;
+  return age < 13;
+}
+
 const registerSchema = z.object({
   email: z.string().trim().email(),
   password: z.string().min(8),
   display_name: z.string().optional(),
   // Rookie is a coach plan, not a role
   role: z.enum(['fan', 'coach']).optional(),
+  dob: z.string().optional(), // COPPA: reject if under 13
 });
 
 authRouter.post('/register', asyncHandler(async (req, res) => {
@@ -92,8 +106,15 @@ authRouter.post('/register', asyncHandler(async (req, res) => {
       })),
     });
   }
-  const { email, password, display_name, role } = parsed.data;
+  const { email, password, display_name, role, dob } = parsed.data;
   const sanitizedEmail = email.trim().toLowerCase();
+
+  // COPPA: Reject registration if DOB indicates under 13
+  if (dob && isUnder13(dob)) {
+    throw new ValidationError('VarsityHub is not available for users under 13. Please have a parent or guardian contact support@varsityhub.app.', {
+      errorCode: 'COPPA_UNDER_13',
+    });
+  }
   
   // Prevent duplicate accounts - check if email already exists
   // Users can create multiple accounts with different emails, but not duplicate the same email
@@ -582,7 +603,7 @@ authRouter.get('/me', async (req: AuthedRequest, res) => {
   const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
   const is_admin = user.email ? adminEmails.includes(user.email.toLowerCase()) : false;
   const defaults = {
-    notifications: { game_event_reminders: false, team_updates: false, comments_upvotes: false },
+    notifications: { game_event_reminders: false, team_updates: false, comments_upvotes: false, follows_notifications: true, messages_notifications: true },
     is_parent: false,
     zip_code: null,
     // Only set onboarding_completed=true for admin accounts
@@ -653,8 +674,22 @@ authRouter.put('/me', async (req: AuthedRequest, res) => {
     }
     patch.username = data.username;
   }
+  if (data.bio != null && data.bio !== '') {
+    const filterResult = validateContent({ content: data.bio });
+    if (!filterResult.valid) {
+      return res.status(400).json({ error: filterResult.error, code: filterResult.code });
+    }
+  }
   
   if (data.preferences) {
+    // COPPA: Reject if DOB in preferences indicates under 13
+    const dobToCheck = data.preferences?.dob;
+    if (dobToCheck !== undefined && isUnder13(dobToCheck)) {
+      return res.status(403).json({
+        error: 'COPPA_UNDER_13',
+        message: 'VarsityHub is not available for users under 13. Please have a parent or guardian contact support@varsityhub.app.',
+      });
+    }
     const current = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true } });
     const mergedPrefs = mergePreferences(current?.preferences || {}, data.preferences);
     patch.preferences = mergedPrefs;
@@ -697,8 +732,22 @@ authRouter.patch('/me', async (req: AuthedRequest, res) => {
     }
     patch.username = data.username;
   }
+  if (data.bio != null && data.bio !== '') {
+    const filterResult = validateContent({ content: data.bio });
+    if (!filterResult.valid) {
+      return res.status(400).json({ error: filterResult.error, code: filterResult.code });
+    }
+  }
   
   if (data.preferences) {
+    // COPPA: Reject if DOB in preferences indicates under 13
+    const dobToCheck = data.preferences?.dob;
+    if (dobToCheck !== undefined && isUnder13(dobToCheck)) {
+      return res.status(403).json({
+        error: 'COPPA_UNDER_13',
+        message: 'VarsityHub is not available for users under 13. Please have a parent or guardian contact support@varsityhub.app.',
+      });
+    }
     const current = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true } });
     const mergedPrefs = mergePreferences(current?.preferences || {}, data.preferences);
     patch.preferences = mergedPrefs;
@@ -744,6 +793,8 @@ authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
       game_event_reminders: z.boolean().optional(),
       team_updates: z.boolean().optional(),
       comments_upvotes: z.boolean().optional(),
+      follows_notifications: z.boolean().optional(),
+      messages_notifications: z.boolean().optional(),
     }).partial().optional(),
     is_parent: z.boolean().optional(),
     zip_code: z.string().min(2).max(20).optional().nullable(),
@@ -773,12 +824,19 @@ authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
     });
   }
   const incoming = parsed.data as any;
+  // COPPA: Reject if DOB indicates under 13 - do not store
+  if (incoming.dob !== undefined && isUnder13(incoming.dob)) {
+    return res.status(403).json({
+      error: 'COPPA_UNDER_13',
+      message: 'VarsityHub is not available for users under 13. Please have a parent or guardian contact support@varsityhub.app.',
+    });
+  }
   const current = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true, email: true } });
   // Check if user is admin (same logic as GET /me endpoint)
   const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
   const is_admin = current?.email ? adminEmails.includes(current.email.toLowerCase()) : false;
   const defaults = {
-    notifications: { game_event_reminders: false, team_updates: false, comments_upvotes: false },
+    notifications: { game_event_reminders: false, team_updates: false, comments_upvotes: false, follows_notifications: true, messages_notifications: true },
     is_parent: false,
     zip_code: null,
     // Only set onboarding_completed=true for admin accounts (same as GET /me)
@@ -855,6 +913,14 @@ authRouter.post('/me/complete-onboarding', async (req: AuthedRequest, res) => {
   }
   
   const data = parsed.data;
+
+  // COPPA: Reject if DOB indicates under 13 - do not store
+  if (data.dob !== undefined && isUnder13(data.dob)) {
+    return res.status(403).json({
+      error: 'COPPA_UNDER_13',
+      message: 'VarsityHub is not available for users under 13. Please have a parent or guardian contact support@varsityhub.app.',
+    });
+  }
   
   // Get current preferences FIRST to preserve role if not in payload
   const current = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true } });

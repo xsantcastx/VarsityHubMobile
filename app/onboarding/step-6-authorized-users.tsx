@@ -10,6 +10,7 @@ import { Alert, Modal, Pressable, StyleSheet, Text, View, useColorScheme } from 
 // @ts-ignore
 import { httpPost } from '@/api/http';
 import { Colors } from '@/constants/Colors';
+import { getPlanDefinition, getMaxAuthorizedUsers } from '@/constants/plans';
 import { useOnboarding } from '@/context/OnboardingContext';
 import OnboardingLayout from './components/OnboardingLayout';
 
@@ -74,40 +75,38 @@ export default function Step6AuthorizedUsers() {
     }
   }, [ob.authorized]);
 
-  // Get plan limits and information (dynamic based on plan and selected team count)
+  // Get plan limits from plan-definitions.json (single source of truth, stays in sync with backend)
   const planInfo = useMemo(() => {
-    const totalTeams = typeof ob.team_count_total === 'number' && ob.team_count_total > 0 ? ob.team_count_total : undefined;
-    const veteranLimit = totalTeams ? totalTeams * 2 : 12; // fallback to 12 if not provided
-    switch (ob.plan) {
-      case 'rookie':
-        return {
-          name: 'Rookie',
-          maxUsers: 1,
-          description: 'Add 1 authorized user (Coach, Manager, Assistant, Equipment, or Health & Wellness) to help manage your team',
-          allowedRoles: ['Coach', 'Manager', 'Assistant', 'Equipment', 'Health and Wellness'] as TeamRole[]
-        };
-      case 'veteran':
-        return {
-          name: 'Veteran', 
-          maxUsers: veteranLimit,
-          description: `Add up to ${veteranLimit} authorized users (2 per team) to manage your organization`,
-          allowedRoles: ['Coach', 'Manager', 'Assistant', 'Equipment', 'Health and Wellness'] as TeamRole[]
-        };
-      case 'legend':
-        return {
-          name: 'Legend',
-          maxUsers: Infinity,
-          description: 'Add unlimited authorized users to manage your organization',
-          allowedRoles: ['Coach', 'Manager', 'Assistant', 'Equipment', 'Health and Wellness'] as TeamRole[]
-        };
-      default:
-        return {
-          name: 'Plan',
-          maxUsers: 1,
-          description: 'Add 1 authorized user (Coach, Manager, Assistant, Equipment, or Health & Wellness) to help manage your organization',
-          allowedRoles: ['Coach', 'Manager', 'Assistant', 'Equipment', 'Health and Wellness'] as TeamRole[]
-        };
+    const plan = getPlanDefinition(ob.plan);
+    const totalTeams = typeof ob.team_count_total === 'number' && ob.team_count_total > 0 ? ob.team_count_total : 0;
+
+    // Rookie: team invite, limit = max_authorized_users_per_team (1)
+    // Veteran/Legend: org invite, limit = getMaxAuthorizedUsers (Veteran: teamCount * 5, Legend: null)
+    let maxUsers: number;
+    let description: string;
+
+    if (ob.plan === 'rookie') {
+      maxUsers = plan.max_authorized_users_per_team ?? 1;
+      description = `Add ${maxUsers} authorized user${maxUsers === 1 ? '' : 's'} (Coach, Manager, Assistant, Equipment, or Health & Wellness) to help manage your team`;
+    } else if (ob.plan === 'veteran') {
+      const perTeam = plan.max_authorized_users_per_team ?? 5;
+      const orgLimit = getMaxAuthorizedUsers(ob.plan, totalTeams);
+      maxUsers = totalTeams > 0 ? (orgLimit ?? totalTeams * perTeam) : perTeam;
+      description = `Add up to ${maxUsers} authorized users (${perTeam} per team) to manage your organization`;
+    } else if (ob.plan === 'legend') {
+      maxUsers = Infinity;
+      description = 'Add unlimited authorized users to manage your organization';
+    } else {
+      maxUsers = plan.max_authorized_users_per_team ?? 1;
+      description = `Add ${maxUsers} authorized user${maxUsers === 1 ? '' : 's'} (Coach, Manager, Assistant, Equipment, or Health & Wellness) to help manage your organization`;
     }
+
+    return {
+      name: plan.name,
+      maxUsers,
+      description,
+      allowedRoles: ['Coach', 'Manager', 'Assistant', 'Equipment', 'Health and Wellness'] as TeamRole[],
+    };
   }, [ob.plan, ob.team_count_total]);
 
   const canAddMore = list.length < planInfo.maxUsers;
@@ -154,14 +153,32 @@ export default function Step6AuthorizedUsers() {
       
       Alert.alert('Invite Sent', `${e} has been invited.`);
     } catch (e: any) {
-      const msg = e?.data?.error || e?.message || 'Please try again';
+      const errorCode = e?.data?.error;
+      const msg = e?.data?.message || e?.data?.error || e?.message || 'Please try again';
+
+      // USER_LIMIT_REACHED: Show upgrade prompt (match TEAM_LIMIT_EXCEEDED pattern)
+      if (e?.status === 403 && (errorCode === 'USER_LIMIT_REACHED' || /USER_LIMIT_REACHED/i.test(String(msg)))) {
+        const currentPlan = getPlanDefinition(ob.plan);
+        const nextPlan = ob.plan === 'rookie' ? getPlanDefinition('veteran') : getPlanDefinition('legend');
+        const nextLimit = nextPlan.max_authorized_users_per_team == null
+          ? 'unlimited'
+          : `up to ${nextPlan.max_authorized_users_per_team} per team`;
+        Alert.alert(
+          'Upgrade Required',
+          `Your ${currentPlan.name} plan has reached its authorized user limit. Upgrade to ${nextPlan.name} for ${nextLimit}.`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'View Plans', onPress: () => router.push('/subscription-paywall') }
+          ]
+        );
+        return;
+      }
+
       if ((e?.status === 403) && /permission/i.test(String(msg))) {
         Alert.alert(
           'Need Admin Access',
           'You are not an administrator for this organization. Go back and create a new organization page or select one you manage.',
-          [
-            { text: 'OK' }
-          ]
+          [{ text: 'OK' }]
         );
       } else {
         Alert.alert('Failed to add user', msg);

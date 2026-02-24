@@ -53,6 +53,8 @@ model User {
   // Follows (self-relation)
   following Follows[] @relation("following")
   followers Follows[] @relation("followers")
+  teamFollows TeamFollow[]
+  organizationFollows OrganizationFollow[]
 
   // Messages
   messagesSent     Message[] @relation("message_sender")
@@ -171,6 +173,10 @@ model Post {
   game_id String?
   game    Game?   @relation(fields: [game_id], references: [id], onDelete: SetNull)
 
+  team_id  String?
+  team     Team?  @relation(fields: [team_id], references: [id], onDelete: SetNull)
+  is_pinned Boolean @default(false)
+
   created_at DateTime @default(now())
   deleted_at DateTime?
 
@@ -186,6 +192,10 @@ model Post {
   @@index([author_id])
   @@index([game_id, created_at])
   @@index([game_id, type])
+  @@index([team_id])
+  @@index([team_id, is_pinned])
+  @@index([deleted_at, created_at])
+  @@index([country_code, upvotes_count])
 }
 
 model Poll {
@@ -256,6 +266,7 @@ model Event {
   @@index([creator_id])
   @@index([approval_status])
   @@index([event_type])
+  @@index([status])
 }
 
 model Message {
@@ -344,6 +355,10 @@ model Comment {
   post_id String
   post    Post   @relation(fields: [post_id], references: [id], onDelete: Cascade)
 
+  parent_id String?
+  parent    Comment?  @relation("CommentReplies", fields: [parent_id], references: [id], onDelete: SetNull)
+  replies   Comment[] @relation("CommentReplies")
+
   author_id String?
   author    User?   @relation(fields: [author_id], references: [id], onDelete: SetNull)
 
@@ -354,6 +369,7 @@ model Comment {
 
   @@index([post_id, created_at])
   @@index([author_id, created_at])
+  @@index([parent_id])
 }
 
 model PostUpvote {
@@ -526,6 +542,10 @@ enum NotificationType {
   COMMENT
   TEAM_INVITE
   MESSAGE
+  MENTION
+  COMMENT_REPLY
+  SHARE
+  GAME_REMINDER
 }
 
 model Notification {
@@ -587,8 +607,10 @@ model Team {
   organization Organization? @relation(fields: [organization_id], references: [id], onDelete: SetNull)
   memberships TeamMembership[]
   invites     TeamInvite[]
+  followers   TeamFollow[]
   groupChats  GroupChat[]
-  
+  posts       Post[]
+
   // Game relations
   homeGames   Game[] @relation("home_games")
   awayGames   Game[] @relation("away_games")
@@ -616,6 +638,7 @@ model Organization {
   memberships OrganizationMembership[]
   invites     OrganizationInvite[]
   joinRequests OrganizationJoinRequest[]
+  followers   OrganizationFollow[]
   
   @@unique([name, zip_code])
   @@index([name])
@@ -719,6 +742,32 @@ model Follows {
   @@id([follower_id, following_id])
   @@index([follower_id])
   @@index([following_id])
+}
+
+model TeamFollow {
+  user_id String
+  team_id String
+  created_at DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  team Team @relation(fields: [team_id], references: [id], onDelete: Cascade)
+
+  @@id([user_id, team_id])
+  @@index([user_id])
+  @@index([team_id])
+}
+
+model OrganizationFollow {
+  user_id         String
+  organization_id String
+  created_at      DateTime @default(now())
+
+  user         User         @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+
+  @@id([user_id, organization_id])
+  @@index([user_id])
+  @@index([organization_id])
 }
 
 

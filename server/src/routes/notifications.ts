@@ -12,6 +12,10 @@ const summarize = (n: any) => {
     case 'COMMENT': return 'commented on your post';
     case 'MESSAGE': return 'sent you a message';
     case 'TEAM_INVITE': return 'invited you to a team';
+    case 'MENTION': return 'mentioned you';
+    case 'COMMENT_REPLY': return 'replied to your comment';
+    case 'SHARE': return 'shared your post';
+    case 'GAME_REMINDER': return 'game reminder';
     default: return 'did something';
   }
 };
@@ -103,7 +107,8 @@ notificationsRouter.get('/', requireAuth as any, async (req: AuthedRequest, res)
         post: n.post ? { id: n.post.id, content: n.post.content, media_url: n.post.media_url } : null,
         comment: n.comment ? { id: n.comment.id, content: n.comment.content, post_id: n.comment.post_id } : null,
         // message_id column doesn't exist in database yet, but we can extract from meta
-        message: messageId ? { id: messageId } : null,
+        message: (messageId || meta.conversation_id) ? { id: messageId, conversation_id: meta.conversation_id } : null,
+        event: meta.event_id ? { id: meta.event_id, title: meta.event_title } : null,
         meta: { ...meta, summary: summarize(n) },
       };
     });

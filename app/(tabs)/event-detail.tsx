@@ -11,7 +11,7 @@ import MatchBanner from '../components/MatchBanner';
 import RsvpSheet from '../components/RsvpSheet';
 import { Colors } from '@/constants/Colors';
 
-type EventItem = { id: string | number; title?: string; date?: string; location?: string; description?: string; capacity?: number; attendees?: any[] };
+type EventItem = { id: string | number; title?: string; date?: string; location?: string; description?: string; capacity?: number; attendees?: any[]; status?: string; can_cancel?: boolean };
 
 export default function EventDetailScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -29,6 +29,7 @@ export default function EventDetailScreen() {
   const [rsvped, setRsvped] = useState<boolean>(false);
   const [attendeesCount, setAttendeesCount] = useState<number>(0);
   const [rsvpSheetVisible, setRsvpSheetVisible] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) { setLoading(false); return; }
@@ -148,6 +149,34 @@ export default function EventDetailScreen() {
       return;
     }
     setRsvpSheetVisible(true);
+  };
+
+  const handleCancelEvent = async () => {
+    if (!event?.id || !me) return;
+    Alert.alert(
+      'Cancel Event',
+      'Are you sure you want to cancel this event? All RSVPed attendees will be notified.',
+      [
+        { text: 'Keep Event', style: 'cancel' },
+        {
+          text: 'Cancel Event',
+          style: 'destructive',
+          onPress: async () => {
+            setCancelling(true);
+            try {
+              await Event.cancel(String(event.id));
+              setEvent((prev) => (prev ? { ...prev, status: 'cancelled' } : null));
+              Alert.alert('Event Cancelled', 'The event has been cancelled. Attendees have been notified.');
+            } catch (e: any) {
+              const msg = e?.data?.error || e?.message || 'Unable to cancel event.';
+              Alert.alert('Error', msg);
+            } finally {
+              setCancelling(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const openInMaps = async () => {
@@ -283,17 +312,28 @@ export default function EventDetailScreen() {
             })()}
             {event.description ? <Text style={{ color: theme.text }}>{event.description}</Text> : null}
 
-            <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
-              <Pressable
-                style={[styles.primaryBtn, eventHasPassed ? styles.primaryBtnDisabled : null]}
-                disabled={eventHasPassed}
-                onPress={me ? toggleRsvp : handleRsvpPress}
-              >
-                <Text style={styles.primaryBtnText}>{eventHasPassed ? 'Event Ended' : (rsvped ? 'Cancel RSVP' : 'RSVP')}</Text>
-              </Pressable>
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+              {(event as EventItem).status !== 'cancelled' && (
+                <Pressable
+                  style={[styles.primaryBtn, eventHasPassed ? styles.primaryBtnDisabled : null]}
+                  disabled={eventHasPassed}
+                  onPress={me ? toggleRsvp : handleRsvpPress}
+                >
+                  <Text style={styles.primaryBtnText}>{eventHasPassed ? 'Event Ended' : (rsvped ? 'Cancel RSVP' : 'RSVP')}</Text>
+                </Pressable>
+              )}
               <Pressable style={[styles.outlineBtn, { borderColor: Colors[colorScheme ?? 'light'].border }]} onPress={shareEvent}>
                 <Text style={[styles.outlineBtnText, { color: Colors[colorScheme ?? 'light'].text }]}>Share</Text>
               </Pressable>
+              {(event as EventItem).can_cancel && (event as EventItem).status !== 'cancelled' && (
+                <Pressable
+                  style={[styles.cancelEventBtn, { borderColor: '#DC2626' }]}
+                  disabled={cancelling}
+                  onPress={handleCancelEvent}
+                >
+                  <Text style={styles.cancelEventBtnText}>{cancelling ? 'Cancelling…' : 'Cancel Event'}</Text>
+                </Pressable>
+              )}
             </View>
           </View>
         )}
@@ -359,4 +399,13 @@ const styles = StyleSheet.create({
   primaryBtnText: { color: 'white', fontWeight: '700' },
   outlineBtn: { borderWidth: StyleSheet.hairlineWidth, borderColor: '#D1D5DB', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10 },
   outlineBtnText: { color: '#111827', fontWeight: '700' },
+  cancelledBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  cancelledBadgeText: { color: '#DC2626', fontWeight: '700', fontSize: 12 },
+  cancelEventBtn: { borderWidth: 1, borderColor: '#DC2626', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10 },
+  cancelEventBtnText: { color: '#DC2626', fontWeight: '700' },
 });

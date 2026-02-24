@@ -61,7 +61,7 @@ Contact: privacy@varsityhub.app
 ## 6. Retention
 
 - Account data retained while active
-- Deleted accounts: 30-day grace period, then purged
+- Deleted accounts: When you delete your account, we immediately anonymize your personal data (email, display name, username, profile, preferences) and remove your comments and social connections. Your posts may remain with anonymized authorship. There is no grace period — anonymization is effective upon deletion.
 - Logs: Retained for 90 days
 - Backups: May be retained up to 90 days after deletion
 

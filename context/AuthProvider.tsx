@@ -209,8 +209,8 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
           await AsyncStorage.removeItem(ONBOARDING_COMPLETE_KEY);
         }
 
-        // Setup push notifications after successful auth
-        void setupPushNotifications(me.id);
+        // Push notifications are requested during onboarding step 9 (with pre-prompt),
+        // not immediately after login.
 
         return me;
       } catch (err: any) {
@@ -223,7 +223,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         throw err;
       }
     },
-    [setupPushNotifications, hasCompletedOnboarding]
+    [hasCompletedOnboarding]
   );
 
   const checkAuthRef = React.useRef(checkAuth);

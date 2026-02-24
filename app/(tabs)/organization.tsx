@@ -96,6 +96,7 @@ export default function OrganizationScreen() {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'posts' | 'replies' | 'upvotes'>('posts');
   const [isOrgAdmin, setIsOrgAdmin] = useState(false);
+  const [isFollowing, setIsFollowing] = useState(false);
   const [_me, setMe] = useState<{ id?: string; username?: string; display_name?: string } | null>(null);
   
   // Posts state - matching profile.tsx
@@ -223,7 +224,8 @@ export default function OrganizationScreen() {
         if (!mounted.current) return;
         
         setOrganization(orgData);
-        
+        setIsFollowing(!!(orgData as any).is_following);
+
         // Use default theme color (organizations don't have preferences field yet)
         setOrgThemeColor('#3B82F6');
       } catch (err: any) {
@@ -476,12 +478,43 @@ export default function OrganizationScreen() {
 
       {/* Content Below Banner */}
       <View style={styles.profileDetailsContainer}>
-        {/* Username and Edit Profile Button Row */}
+        {/* Username and Action Buttons Row */}
         <View style={styles.usernameRow}>
           <Text style={[styles.userHandle, { color: theme.text }]}>{orgHandle}</Text>
-          {isOrgAdmin && (
+          {isOrgAdmin ? (
             <Pressable style={styles.editButtonBelowBanner} onPress={() => void router.push(`/create-organization?id=${organization?.id}` as any)}>
               <Text style={styles.editButtonBelowBannerText}>Edit profile</Text>
+            </Pressable>
+          ) : (
+            <Pressable
+              style={[
+                styles.followButtonBelowBanner,
+                { backgroundColor: isFollowing ? theme.tint : 'transparent', borderColor: theme.tint, borderWidth: 1 },
+              ]}
+              onPress={async () => {
+                if (!organization?.id) return;
+                try {
+                  if (isFollowing) {
+                    await Organization.unfollow(organization.id);
+                    setIsFollowing(false);
+                    setOrganization((prev) => prev ? { ...prev, followers_count: Math.max(0, ((prev as any).followers_count ?? 0) - 1) } : null);
+                  } else {
+                    await Organization.follow(organization.id);
+                    setIsFollowing(true);
+                    setOrganization((prev) => prev ? { ...prev, followers_count: ((prev as any).followers_count ?? 0) + 1 } : null);
+                  }
+                } catch (err) {
+                  console.error('Organization follow/unfollow failed:', err);
+                }
+              }}
+            >
+              {isFollowing ? (
+                <View style={styles.followingIndicator}>
+                  <Ionicons name="checkmark-circle" size={20} color="#fff" />
+                </View>
+              ) : (
+                <Text style={[styles.followButtonBelowBannerText, { color: theme.tint }]}>Follow</Text>
+              )}
             </Pressable>
           )}
         </View>
@@ -502,12 +535,16 @@ export default function OrganizationScreen() {
             </View>
           )}
           
-          {/* Stats - Teams and Games */}
+          {/* Stats - Teams, Followers, Games */}
           <View style={styles.statsRow}>
             <Text style={[styles.statNumber, { color: theme.text }]}>
               {teams.length}
             </Text>
             <Text style={[styles.statLabel, { color: theme.mutedText }]}> Teams </Text>
+            <Text style={[styles.statNumber, { color: theme.text }]}>
+              {(organization as any)?.followers_count ?? 0}
+            </Text>
+            <Text style={[styles.statLabel, { color: theme.mutedText }]}> Followers </Text>
             <Text style={[styles.statNumber, { color: theme.text }]}>
               {games.length}
             </Text>
@@ -982,6 +1019,22 @@ const styles = StyleSheet.create({
     color: '#374151',
     fontSize: 14,
     fontWeight: '600',
+  },
+  followButtonBelowBanner: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  followButtonBelowBannerText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  followingIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   profileDetailsContainer: {
     backgroundColor: 'transparent',

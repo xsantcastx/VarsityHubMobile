@@ -88,8 +88,9 @@ export default function GameMapScreen() {
           };
         });
 
-      // Transform events to EventMapData format
+      // Transform events to EventMapData format (never show cancelled events on map)
       const eventMarkers: EventMapData[] = eventsList
+        .filter((e: any) => e.status !== 'cancelled')
         .filter(hasValidCoords)
         .map((event: any) => {
           const coords = resolveCoords(event)!;

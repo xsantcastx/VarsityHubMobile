@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { validateContent } from '../lib/contentFilter.js';
 import { sendJoinRequestApproved, sendJoinRequestDenied, sendJoinRequestToAdmin, sendOrganizationInviteEmail } from '../lib/email.js';
 import { sendOrganizationApprovalEmail } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
@@ -92,12 +93,37 @@ organizationsRouter.get('/mine', requireAuth as any, async (req: AuthedRequest, 
   return res.json(orgs);
 });
 
+// Follow an organization
+organizationsRouter.post('/:id/follow', requireAuth as any, async (req: AuthedRequest, res) => {
+  const userId = req.user!.id;
+  const orgId = String(req.params.id);
+  const org = await prisma.organization.findUnique({ where: { id: orgId } });
+  if (!org) return res.status(404).json({ error: 'Organization not found' });
+  try {
+    await prisma.organizationFollow.create({ data: { user_id: userId, organization_id: orgId } });
+    return res.status(201).json({ is_following: true });
+  } catch (e: any) {
+    if (e?.code === 'P2002') return res.status(201).json({ is_following: true });
+    throw e;
+  }
+});
+
+// Unfollow an organization
+organizationsRouter.delete('/:id/follow', requireAuth as any, async (req: AuthedRequest, res) => {
+  const userId = req.user!.id;
+  const orgId = String(req.params.id);
+  await prisma.organizationFollow.deleteMany({ where: { user_id: userId, organization_id: orgId } });
+  return res.json({ is_following: false });
+});
+
 // Get single organization
 organizationsRouter.get('/:id', async (req, res) => {
   const id = String(req.params.id);
+  const currentUserId = (req as AuthedRequest).user?.id ?? null;
   const organization = await prisma.organization.findUnique({ 
     where: { id },
     include: {
+      _count: { select: { followers: true } },
       teams: {
         orderBy: { name: 'asc' },
         select: { 
@@ -130,7 +156,13 @@ organizationsRouter.get('/:id', async (req, res) => {
   });
   
   if (!organization) return res.status(404).json({ error: 'Organization not found' });
-  return res.json(organization);
+  const payload = { ...organization } as any;
+  payload.followers_count = (organization as any)._count?.followers ?? 0;
+  payload.is_following = currentUserId
+    ? !!(await prisma.organizationFollow.findFirst({ where: { user_id: currentUserId, organization_id: id } }))
+    : null;
+  delete payload._count;
+  return res.json(payload);
 });
 
 // Get organization members
@@ -203,6 +235,10 @@ organizationsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res
   if (dup) {
     return res.status(409).json({ error: 'DUPLICATE_ORGANIZATION', duplicate_of: { id: dup.id, name: dup.name } });
   }
+  const filterResult = validateContent({ title: data.name, content: data.description ?? undefined });
+  if (!filterResult.valid) {
+    return res.status(400).json({ error: filterResult.error, code: filterResult.code });
+  }
   const organization = await prisma.organization.create({ 
     data: {
       ...data,
@@ -259,6 +295,10 @@ organizationsRouter.post('/create', requireAuth as any, async (req: AuthedReques
   const dup = possibleDuplicates.find(o => normalizeOrganizationName(o.name) === nm);
   if (dup) {
     return res.status(409).json({ error: 'DUPLICATE_ORGANIZATION', duplicate_of: { id: dup.id, name: dup.name } });
+  }
+  const filterResult = validateContent({ title: data.name, content: data.description ?? undefined });
+  if (!filterResult.valid) {
+    return res.status(400).json({ error: filterResult.error, code: filterResult.code });
   }
   
   // Create organization

@@ -16,6 +16,7 @@ import { AuthProvider } from '@/context/AuthProvider';
 import { PostCacheProvider } from '@/context/PostCacheContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { ThemeProvider } from '@/hooks/useCustomColorScheme';
+import { handleInitialDeepLink, setupDeepLinkListener } from '@/utils/deepLinks';
 import { initSentry } from '@/utils/sentry';
 
 // Conditionally import notifications only if not in Expo Go
@@ -86,6 +87,13 @@ export default function RootLayout() {
     }).catch(() => {});
   }, []);
 
+  // Handle deep links (shared post links, etc.)
+  useEffect(() => {
+    handleInitialDeepLink().catch(() => {});
+    const unsubscribe = setupDeepLinkListener();
+    return unsubscribe;
+  }, []);
+
   // Handle notification taps
   useEffect(() => {
     if (isExpoGo || !Notifications) return;
@@ -118,12 +126,36 @@ export default function RootLayout() {
             }
             break;
 
+          case 'mention':
+          case 'comment_reply':
+            if (data.post_id) {
+              const q = data.comment_id ? `?id=${data.post_id}&commentId=${data.comment_id}` : `?id=${data.post_id}`;
+              devLog('[Notifications] Navigating to post/comment:', data.post_id, data.comment_id);
+              router.push(`/post-detail${q}` as any);
+            }
+            break;
+
           case 'new_follower':
             if (data.follower_id) {
               devLog('[Notifications] Navigating to profile:', data.follower_id);
               router.push({
                 pathname: '/user-profile',
                 params: { userId: data.follower_id },
+              } as any);
+            }
+            break;
+
+          case 'team_invite':
+            devLog('[Notifications] Navigating to team invites');
+            router.push('/team-invites');
+            break;
+
+          case 'game_reminder':
+            if (data.event_id) {
+              devLog('[Notifications] Navigating to event:', data.event_id);
+              router.push({
+                pathname: '/event-detail',
+                params: { id: data.event_id },
               } as any);
             }
             break;

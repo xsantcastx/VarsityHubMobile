@@ -396,6 +396,22 @@ gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
   }
 });
 
+// Batch vote summaries - avoids N+1 when loading feed with many games (must be before /:id)
+gamesRouter.get('/votes-summary', async (req: AuthedRequest, res) => {
+  const idsParam = String(req.query.ids || '').trim();
+  if (!idsParam) return res.status(400).json({ error: 'ids required (comma-separated game IDs)' });
+  const ids = idsParam.split(',').map((s) => s.trim()).filter(Boolean);
+  if (ids.length === 0) return res.json({});
+  if (ids.length > 50) return res.status(400).json({ error: 'Max 50 ids per request' });
+  const userId = req.user?.id ?? null;
+  const summaries = await Promise.all(ids.map((id) => summarizeVotes(id, userId)));
+  const result: Record<string, Awaited<ReturnType<typeof summarizeVotes>>> = {};
+  ids.forEach((id, i) => {
+    result[id] = summaries[i];
+  });
+  return res.json(result);
+});
+
 // Get single game by id
 gamesRouter.get('/:id', async (req, res) => {
   const id = String(req.params.id);

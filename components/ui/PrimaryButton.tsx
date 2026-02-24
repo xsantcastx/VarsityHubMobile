@@ -7,6 +7,7 @@ interface PrimaryButtonProps {
   disabled?: boolean;
   loading?: boolean;
   style?: ViewStyle;
+  accessibilityLabel?: string;
 }
 
 export default function PrimaryButton({ 
@@ -14,7 +15,8 @@ export default function PrimaryButton({
   onPress, 
   disabled, 
   loading,
-  style 
+  style,
+  accessibilityLabel,
 }: PrimaryButtonProps) {
   return (
     <Button 
@@ -22,6 +24,7 @@ export default function PrimaryButton({
       disabled={disabled || loading}
       size="lg"
       style={{ width: '100%', maxWidth: 400, alignSelf: 'center', ...style }}
+      accessibilityLabel={accessibilityLabel}
     >
       {loading ? <ActivityIndicator color="white" /> : label}
     </Button>

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
-import { Advertisement, Event, Game, Highlights, Notification as NotificationApi, User } from '@/api/entities';
+import { Advertisement, Event, Game, Highlights, Notification as NotificationApi, Post as PostApi, User } from '@/api/entities';
 import { BannerAd } from '@/components/BannerAd';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -198,6 +198,8 @@ export default function FeedScreen() {
 
   const [highlightPreview, setHighlightPreview] = useState<any | null>(null);
   const [sponsoredAds, setSponsoredAds] = useState<any[]>([]);
+  const [followedPosts, setFollowedPosts] = useState<any[]>([]);
+  const [followedFeedMeta, setFollowedFeedMeta] = useState<{ following_count: number } | undefined>(undefined);
   const voteSummariesRef = useRef<Record<string, VotePreviewEntry>>({});
   const [voteSummaries, setVoteSummaries] = useState<Record<string, VotePreviewEntry>>({});
   const [hasUnreadAlerts, setHasUnreadAlerts] = useState(false);
@@ -218,21 +220,26 @@ export default function FeedScreen() {
       .filter((entry) => entry.id && !voteSummariesRef.current[entry.id]);
     if (!candidates.length) return;
     const limited = candidates.slice(0, 12);
-    const results = await Promise.allSettled(limited.map((entry) => Game.votesSummary(entry.id)));
-    const next = { ...voteSummariesRef.current };
-    limited.forEach((entry, index) => {
-      const result = results[index];
-      if (result.status === 'fulfilled' && result.value) {
-        try {
-          next[entry.id] = buildVotePreviewEntry(result.value, entry.labels);
-        } catch (err) {
-          if (__DEV__) console.warn('Vote summary parse failed', err);
+    const ids = limited.map((e) => e.id);
+    try {
+      const batch = await Game.votesSummaryBatch(ids);
+      const next = { ...voteSummariesRef.current };
+      limited.forEach((entry) => {
+        const value = (batch as Record<string, any>)?.[entry.id];
+        if (value) {
+          try {
+            next[entry.id] = buildVotePreviewEntry(value, entry.labels);
+          } catch (err) {
+            if (__DEV__) console.warn('Vote summary parse failed', err);
+          }
         }
+      });
+      if (Object.keys(next).length !== Object.keys(voteSummariesRef.current).length) {
+        voteSummariesRef.current = next;
+        setVoteSummaries(next);
       }
-    });
-    if (Object.keys(next).length !== Object.keys(voteSummariesRef.current).length) {
-      voteSummariesRef.current = next;
-      setVoteSummaries(next);
+    } catch (err) {
+      if (__DEV__) console.warn('Vote summary batch failed', err);
     }
   }, []);
 
@@ -268,14 +275,19 @@ export default function FeedScreen() {
         gamesData = null;
       }
       
-      // Load highlights and ads with error handling
-      const [highlightsData, forFeedAds] = await Promise.all([
+      // Load followed posts (when signed in), highlights, and ads
+      const [followedPage, highlightsData, forFeedAds] = await Promise.all([
+        user
+          ? PostApi.filterPage({ followed_only: true }, null, 20, '-created_at').catch(() => ({ items: [], nextCursor: null, followed_feed_meta: undefined }))
+          : Promise.resolve({ items: [], nextCursor: null, followed_feed_meta: undefined }),
         Highlights.fetch(countryCode ? { country: countryCode, limit: 20 } : { limit: 20 }).catch((err) => {
           if (__DEV__) console.warn('Highlights preview load failed', err);
           return null;
         }),
         Advertisement.forFeed(todayISO, undefined, 5).catch(() => null),
       ]);
+      setFollowedPosts(Array.isArray(followedPage?.items) ? followedPage.items : []);
+      setFollowedFeedMeta(followedPage?.followed_feed_meta);
       
       // Handle cursor-based response or array
       let normalizedGames: any[] = [];
@@ -356,6 +368,8 @@ export default function FeedScreen() {
       }
       setGames([]);
       setHighlightPreview(null);
+      setFollowedPosts([]);
+      setFollowedFeedMeta(undefined);
     } finally {
       if (!silent) setLoading(false);
     }
@@ -709,7 +723,12 @@ export default function FeedScreen() {
       {error && (
         <View style={{ marginBottom: 8, paddingHorizontal: 16 }}>
           <Text style={[styles.error, { color: Colors[colorScheme].text }]}>{error}</Text>
-          <Pressable onPress={() => void router.push('/sign-in')} style={{ paddingVertical: 8 }}>
+          <Pressable
+            onPress={() => void router.push('/sign-in')}
+            style={{ paddingVertical: 8 }}
+            accessibilityLabel="Sign in to load personalized feed"
+            accessibilityRole="button"
+          >
             <Text style={{ color: Colors[colorScheme].tint, fontWeight: '600' }}>Sign in to load personalized feed</Text>
           </Pressable>
         </View>
@@ -776,7 +795,80 @@ export default function FeedScreen() {
         showsVerticalScrollIndicator={false}
       >
         {renderEmailReminder()}
-        
+
+        {/* Social Feed — Posts from people you follow (primary content) */}
+        {me && (
+          <View style={{ marginBottom: 24 }}>
+            <Text style={[styles.sectionHeader, { color: Colors[colorScheme].mutedText }]}>
+              From people you follow
+            </Text>
+            {followedPosts.length > 0 ? (
+              <View style={{ gap: 12, marginTop: 8 }}>
+                {followedPosts.map((post: any) => (
+                  <Pressable
+                    key={String(post.id)}
+                    onPress={() => void router.push(`/post-detail?id=${encodeURIComponent(String(post.id))}`)}
+                    accessibilityLabel={`View post by ${post.author?.display_name || post.author?.username || 'user'}`}
+                    accessibilityRole="button"
+                    style={[
+                      styles.followedPostCard,
+                      { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border },
+                    ]}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                      {post.author?.avatar_url ? (
+                        <Image source={{ uri: post.author.avatar_url }} style={styles.followedPostAvatar} />
+                      ) : (
+                        <View style={[styles.followedPostAvatar, { backgroundColor: Colors[colorScheme].border }]} />
+                      )}
+                      <Text style={[styles.followedPostAuthor, { color: Colors[colorScheme].text }]}>
+                        {post.author?.display_name || 'Someone'}
+                      </Text>
+                    </View>
+                    {post.content ? (
+                      <Text numberOfLines={3} style={[styles.followedPostContent, { color: Colors[colorScheme].text }]}>
+                        {post.content}
+                      </Text>
+                    ) : null}
+                    <View style={{ flexDirection: 'row', gap: 16, marginTop: 8 }}>
+                      <Text style={[styles.followedPostMeta, { color: Colors[colorScheme].mutedText }]}>
+                        {post.upvotes_count ?? 0} upvotes
+                      </Text>
+                      <Text style={[styles.followedPostMeta, { color: Colors[colorScheme].mutedText }]}>
+                        {post.comments_count ?? 0} comments
+                      </Text>
+                    </View>
+                  </Pressable>
+                ))}
+              </View>
+            ) : (
+              <View style={[styles.socialFeedEmpty, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
+                <Ionicons name="people-outline" size={48} color={Colors[colorScheme].mutedText} />
+                <Text style={[styles.socialFeedEmptyTitle, { color: Colors[colorScheme].text }]}>
+                  {followedFeedMeta?.following_count === 0
+                    ? 'Follow users or teams to see their posts here'
+                    : 'No posts from people you follow yet'}
+                </Text>
+                <Text style={[styles.socialFeedEmptySubtitle, { color: Colors[colorScheme].mutedText }]}>
+                  {followedFeedMeta?.following_count === 0
+                    ? 'Discover and follow athletes, coaches, and teams to build your feed.'
+                    : 'Check back soon — when they post, it will show up here.'}
+                </Text>
+                <Pressable
+                  style={[styles.socialFeedEmptyButton, { backgroundColor: Colors[colorScheme].tint }]}
+                  onPress={() => void router.push('/(tabs)/discover')}
+                  accessibilityLabel={followedFeedMeta?.following_count === 0 ? 'Find people to follow' : 'Discover more'}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.socialFeedEmptyButtonText}>
+                    {followedFeedMeta?.following_count === 0 ? 'Find people to follow' : 'Discover more'}
+                  </Text>
+                </Pressable>
+              </View>
+            )}
+          </View>
+        )}
+
         {/* Upcoming Events with Ads */}
         {upcomingWithAds.length > 0 && (
           <View style={{ gap: 20 }}>
@@ -808,6 +900,7 @@ export default function FeedScreen() {
                         ]}
                         onPress={() => void router.push('/submit-ad')}
                         accessibilityRole="button"
+                        accessibilityLabel="Reserve your ad space"
                       >
                         <View style={[
                           styles.promoIcon,
@@ -886,6 +979,7 @@ export default function FeedScreen() {
                         style={styles.promoteCta}
                         onPress={() => void router.push('/submit-ad')}
                         accessibilityRole="button"
+                        accessibilityLabel="Promote your program"
                       >
                         <Ionicons name="megaphone-outline" size={16} color="#ffffff" />
                         <Text style={styles.promoteCtaText}>Promote your program</Text>
@@ -929,6 +1023,7 @@ export default function FeedScreen() {
                   style={styles.singleEventCard}
                   onPress={() => void router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(gameItem.id) } })}
                   accessibilityRole="button"
+                  accessibilityLabel={`${gameItem.title || 'Game'} on ${eventDate}${eventTime ? ` at ${eventTime}` : ''}`}
                 >
                   {hasBanner ? (
                     <Image source={{ uri: banner }} style={styles.singleEventImage} contentFit="cover" />
@@ -1014,6 +1109,7 @@ export default function FeedScreen() {
                     style={styles.singleEventCard}
                     onPress={() => void router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(item.id) } })}
                     accessibilityRole="button"
+                    accessibilityLabel={`${item.title || 'Game'} on ${eventDate}${eventTime ? ` at ${eventTime}` : ''}`}
                   >
                     {hasBanner ? (
                       <Image source={{ uri: banner }} style={styles.singleEventImage} contentFit="cover" />
@@ -1121,7 +1217,12 @@ export default function FeedScreen() {
           {/* Header */}
           <View style={[styles.menuHeader, { borderBottomColor: Colors[colorScheme].border }]}>
             <Text style={[styles.menuTitle, { color: Colors[colorScheme].text }]}>Updates</Text>
-            <Pressable onPress={() => setNotificationsMenuOpen(false)} style={styles.closeButton}>
+            <Pressable
+              onPress={() => setNotificationsMenuOpen(false)}
+              style={styles.closeButton}
+              accessibilityLabel="Close notifications"
+              accessibilityRole="button"
+            >
               <Ionicons name="close" size={28} color={Colors[colorScheme].text} />
             </Pressable>
           </View>
@@ -1153,8 +1254,10 @@ export default function FeedScreen() {
                         : 'Notification';
                       
                       return (
-                        <Pressable 
+                        <Pressable
                           style={[styles.listRow, !item.read_at && styles.listRowUnread, { borderBottomColor: Colors[colorScheme].border }]}
+                          accessibilityLabel={title}
+                          accessibilityRole="button"
                           onPress={async () => {
                             // Mark notification as read
                             if (!item.read_at) {
@@ -1313,6 +1416,58 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 1,
+  },
+  followedPostCard: {
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  followedPostAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginRight: 10,
+  },
+  followedPostAuthor: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  followedPostContent: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  followedPostMeta: {
+    fontSize: 12,
+  },
+  socialFeedEmpty: {
+    marginTop: 8,
+    padding: 24,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+  },
+  socialFeedEmptyTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  socialFeedEmptySubtitle: {
+    fontSize: 14,
+    marginTop: 8,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  socialFeedEmptyButton: {
+    marginTop: 20,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  socialFeedEmptyButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600',
   },
   // Sponsored ad styles for feed
   sponsoredFeedCard: {

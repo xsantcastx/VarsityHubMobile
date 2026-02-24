@@ -135,7 +135,18 @@ export default function MessageThreadScreen() {
       }
     }
 
-    setText('');
+    // Optimistic UI: add message immediately with temp id
+    const optimisticMsg: Msg = {
+      id: `opt-${Date.now()}`,
+      content,
+      sender_id: me?.id,
+      sender: me ? { id: me.id, display_name: me.display_name, avatar_url: me.avatar_url } : null,
+      recipient_id: otherParticipant?.id,
+      recipient: otherParticipant || null,
+      created_at: new Date().toISOString(),
+    };
+    setMsgs((arr) => arr.concat(optimisticMsg));
+
     try {
       // Determine recipient. If `with` was an email, send by email; if it was an id, send by id.
       let payload: any = { content };
@@ -159,8 +170,12 @@ export default function MessageThreadScreen() {
       }
 
       const created = await MessageApi.send(payload);
-      setMsgs((arr) => arr.concat(created));
+      // Replace optimistic message with real one; clear input only on success
+      setMsgs((arr) => arr.filter((m) => m.id !== optimisticMsg.id).concat(created));
+      setText('');
     } catch {
+      // Remove optimistic message on failure; preserve text so user can retry
+      setMsgs((arr) => arr.filter((m) => m.id !== optimisticMsg.id));
       setError('Failed to send message');
     }
   };

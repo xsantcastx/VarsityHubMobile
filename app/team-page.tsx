@@ -334,6 +334,7 @@ export default function TeamScreen() {
       }
       
       setTeam(teamData);
+      setIsFollowing(!!(teamData as any).is_following);
 
       // Load current user to check permissions
       if (!me) {
@@ -634,9 +635,21 @@ export default function TeamScreen() {
                     borderWidth: 1,
                   }
                 ]} 
-                onPress={() => {
-                  // TODO: Implement team follow/unfollow API
-                  setIsFollowing(!isFollowing);
+                onPress={async () => {
+                  if (!team?.id) return;
+                  try {
+                    if (isFollowing) {
+                      await Team.unfollow(team.id);
+                      setIsFollowing(false);
+                      setTeam((prev) => prev ? { ...prev, followers_count: Math.max(0, ((prev as any).followers_count ?? 0) - 1) } : null);
+                    } else {
+                      await Team.follow(team.id);
+                      setIsFollowing(true);
+                      setTeam((prev) => prev ? { ...prev, followers_count: ((prev as any).followers_count ?? 0) + 1 } : null);
+                    }
+                  } catch (err) {
+                    console.error('Team follow/unfollow failed:', err);
+                  }
                 }}
               >
                 {isFollowing ? (
@@ -667,12 +680,16 @@ export default function TeamScreen() {
             </View>
           )}
           
-          {/* Stats - Members and Games */}
+          {/* Stats - Members, Followers, Games */}
           <View style={styles.statsRow}>
             <Text style={[styles.statNumber, { color: theme.text }]}>
               {members.length}
             </Text>
             <Text style={[styles.statLabel, { color: theme.mutedText }]}> Members </Text>
+            <Text style={[styles.statNumber, { color: theme.text }]}>
+              {(team as any)?.followers_count ?? 0}
+            </Text>
+            <Text style={[styles.statLabel, { color: theme.mutedText }]}> Followers </Text>
             <Text style={[styles.statNumber, { color: theme.text }]}>
               {games.length}
             </Text>

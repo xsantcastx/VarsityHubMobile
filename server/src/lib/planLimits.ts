@@ -138,3 +138,8 @@ export function planSupportsExtracurricular(plan?: string | null): boolean {
 export function getPlanDisplayName(plan?: string | null): string {
   return getPlanMeta(plan).name;
 }
+
+/** Returns all plan definitions for config endpoints (e.g. GET /payments/config). */
+export function getAllPlanDefinitions(): Record<PlanId, RawPlanDefinition> {
+  return planDefinitions;
+}

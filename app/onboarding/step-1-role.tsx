@@ -54,8 +54,10 @@ function RoleCard({
 
   return (
     <View style={styles.cardWrapper}>
-      <Pressable 
-        onPress={onPress} 
+      <Pressable
+        onPress={onPress}
+        accessibilityLabel={`Select ${title} role`}
+        accessibilityRole="button"
         style={[
           styles.card, 
           { 
@@ -101,10 +103,12 @@ function RoleCard({
       </Pressable>
 
       {selected && onContinue && (
-        <Pressable 
+        <Pressable
           onPress={onContinue}
           disabled={saving}
           style={[styles.sideButton, { backgroundColor: colors.buttonBg }]}
+          accessibilityLabel="Continue"
+          accessibilityRole="button"
         >
           {saving ? (
             <ActivityIndicator color="white" size="small" />

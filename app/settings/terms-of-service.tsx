@@ -63,7 +63,7 @@ export default function TermsOfServiceScreen() {
           body={'• Severability: If any provision is found invalid, the rest remains in effect\n• No Waiver: Failure to enforce any right doesn\'t waive that right\n• Assignment: We may assign these Terms; you may not without our consent\n• Entire Agreement: These Terms and the Privacy Policy constitute the entire agreement'} />
 
         <TermSection colorScheme={colorScheme} title="17. Special Provisions"
-          body={'Minors: Users aged 13-17 must have parental consent to use the App.\n\nContent Guidelines:\n• Be respectful and sportsmanlike\n• Keep content appropriate for all ages\n• Report violations using in-app reporting\n\nData Retention:\n• We retain data as long as your account is active\n• Deleted account data is removed within 30 days\n• Some data may be retained for legal compliance'} />
+          body={'Minors: Users aged 13-17 must have parental consent to use the App.\n\nContent Guidelines:\n• Be respectful and sportsmanlike\n• Keep content appropriate for all ages\n• Report violations using in-app reporting\n\nData Retention:\n• We retain data as long as your account is active\n• When you delete your account, we immediately anonymize your personal data; there is no grace period\n• Some data may be retained for legal compliance'} />
 
         <TermSection colorScheme={colorScheme} title="Contact Us"
           body={'For questions about these Terms:\nEmail: support@varsityhub.app'} />

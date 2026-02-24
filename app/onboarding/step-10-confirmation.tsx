@@ -429,14 +429,16 @@ export default function Step10Confirmation() {
           <Text style={styles.checklistTitle}>Setup Checklist</Text>
           <Text style={styles.checklistSubtitle}>Tap incomplete steps to fix them</Text>
           {completion.checks.map((check, index) => (
-            <Pressable 
-              key={index} 
+            <Pressable
+              key={index}
               style={[
                 styles.checklistItem,
                 !check.completed && styles.checklistItemClickable
               ]}
               onPress={() => handleStepPress(check)}
               disabled={check.completed}
+              accessibilityLabel={check.completed ? `${check.label}, completed` : `${check.label}, tap to fix`}
+              accessibilityRole="button"
             >
               <View style={[
                 styles.checklistIcon, 
@@ -531,11 +533,12 @@ export default function Step10Confirmation() {
 
         {/* Complete Setup Button */}
         <View style={styles.completeSection}>
-          <PrimaryButton 
-            label={completing ? 'Completing Setup...' : 'Complete Setup'} 
-            onPress={onComplete} 
-            disabled={completing || !completion.allRequiredComplete} 
-            loading={completing} 
+          <PrimaryButton
+            label={completing ? 'Completing Setup...' : 'Complete Setup'}
+            onPress={onComplete}
+            disabled={completing || !completion.allRequiredComplete}
+            loading={completing}
+            accessibilityLabel={completing ? 'Completing setup' : 'Complete setup'}
           />
           <Text style={styles.completeHelpText}>
             You'll be taken to your dashboard after completing setup

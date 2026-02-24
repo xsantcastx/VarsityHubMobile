@@ -102,6 +102,15 @@ export async function notifyNewMessage(
   senderName: string,
   messagePreview: string
 ): Promise<void> {
+  const user = await prisma.user.findUnique({
+    where: { id: recipientId },
+    select: { preferences: true },
+  });
+  const prefs = user?.preferences as any;
+  if (prefs?.notifications?.messages_notifications === false) {
+    debugLog(`Messages notifications disabled for user ${recipientId}`);
+    return;
+  }
   await sendPushNotification(
     recipientId,
     `New message from ${senderName}`,
@@ -164,6 +173,44 @@ export async function notifyPostInteraction(
 }
 
 /**
+ * Notify when someone replies to a user's comment
+ */
+export async function notifyCommentReply(
+  parentCommentAuthorId: string,
+  replierId: string,
+  replierName: string,
+  postId: string,
+  commentId: string
+): Promise<void> {
+  if (parentCommentAuthorId === replierId) return;
+
+  const user = await prisma.user.findUnique({
+    where: { id: parentCommentAuthorId },
+    select: { preferences: true },
+  });
+  const prefs = user?.preferences as any;
+  if (prefs?.notifications?.comments_upvotes === false) {
+    debugLog(`Comments & upvotes notifications disabled for user ${parentCommentAuthorId}`);
+    return;
+  }
+
+  await sendPushNotification(
+    parentCommentAuthorId,
+    `${replierName} replied to your comment`,
+    'Tap to view',
+    {
+      type: 'comment_reply',
+      actor_id: replierId,
+      post_id: postId,
+      comment_id: commentId,
+      screen: 'post-detail',
+      post_id_param: postId,
+      comment_id_param: commentId,
+    }
+  );
+}
+
+/**
  * Notify when someone follows the user
  */
 export async function notifyNewFollower(
@@ -171,6 +218,15 @@ export async function notifyNewFollower(
   followerId: string,
   followerName: string
 ): Promise<void> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { preferences: true },
+  });
+  const prefs = user?.preferences as any;
+  if (prefs?.notifications?.follows_notifications === false) {
+    debugLog(`Follows notifications disabled for user ${userId}`);
+    return;
+  }
   await sendPushNotification(
     userId,
     `${followerName} started following you`,
@@ -243,6 +299,26 @@ export async function notifyUpcomingGames(hoursBeforeGame: number): Promise<void
       const body = hoursBeforeGame === 12
         ? `Your game starts in 12 hours at ${event.location || 'the venue'}`
         : `Your game starts in 1 hour! Get ready!`;
+
+      // Create in-app notification record so it appears in notification history
+      const actorId = (event as any).creator_id ?? user.id;
+      try {
+        await prisma.notification.create({
+          data: {
+            user_id: user.id,
+            actor_id: actorId,
+            type: 'GAME_REMINDER',
+            meta: {
+              event_id: event.id,
+              event_title: event.title,
+              hours_before: hoursBeforeGame,
+              location: event.location,
+            },
+          },
+        });
+      } catch (e) {
+        console.error('[notifications] Failed to create game reminder in-app notification:', e);
+      }
 
       await sendPushNotification(
         user.id,

@@ -20,6 +20,8 @@ type Notif = {
   post?: { id: string; content?: string | null; media_url?: string | null } | null;
   comment?: { id: string; content?: string | null; post_id?: string | null } | null;
   message?: { id: string; content?: string | null; conversation_id?: string | null } | null;
+  event?: { id: string; title?: string | null } | null;
+  meta?: { event_id?: string; event_title?: string } | null;
 };
 
 export default function NotificationsScreen() {
@@ -95,16 +97,29 @@ export default function NotificationsScreen() {
       ? `${item.actor?.display_name || 'Someone'} sent you a message`
       : item.type === 'TEAM_INVITE'
       ? `${item.actor?.display_name || 'Someone'} invited you to a team`
+      : item.type === 'MENTION'
+      ? `${item.actor?.display_name || 'Someone'} mentioned you`
+      : item.type === 'COMMENT_REPLY'
+      ? `${item.actor?.display_name || 'Someone'} replied to your comment`
+      : item.type === 'SHARE'
+      ? `${item.actor?.display_name || 'Someone'} shared your post`
+      : item.type === 'GAME_REMINDER'
+      ? `Game reminder: ${(item.event?.title || item.meta?.event_title) || 'Your game'}`
       : 'Notification';
     const onPress = () => {
       if (item.type === 'FOLLOW' && item.actor?.id) {
         router.push(`/user-profile?id=${encodeURIComponent(item.actor.id)}`);
-      } else if ((item.type === 'UPVOTE' || item.type === 'COMMENT') && item.post?.id) {
-        router.push(`/post-detail?id=${encodeURIComponent(item.post.id)}`);
+      } else if ((item.type === 'UPVOTE' || item.type === 'COMMENT' || item.type === 'MENTION' || item.type === 'COMMENT_REPLY' || item.type === 'SHARE') && item.post?.id) {
+        const q = (item.type === 'MENTION' || item.type === 'COMMENT_REPLY') && item.comment?.id
+          ? `?id=${encodeURIComponent(item.post.id)}&commentId=${encodeURIComponent(item.comment.id)}`
+          : `?id=${encodeURIComponent(item.post.id)}`;
+        router.push(`/post-detail${q}` as any);
       } else if (item.type === 'MESSAGE' && item.message?.conversation_id) {
         router.push(`/message-thread?conversation_id=${encodeURIComponent(item.message.conversation_id)}`);
-      } else if (item.type === 'TEAM_INVITE' && item.actor?.id) {
-        router.push(`/user-profile?id=${encodeURIComponent(item.actor.id)}`);
+      } else if (item.type === 'TEAM_INVITE') {
+        router.push('/team-invites');
+      } else if (item.type === 'GAME_REMINDER' && (item.event?.id || item.meta?.event_id)) {
+        router.push(`/event-detail?id=${encodeURIComponent(item.event?.id || item.meta?.event_id || '')}`);
       }
       // Mark read optimistically
       if (!item.read_at) {
@@ -133,6 +148,8 @@ export default function NotificationsScreen() {
             <Text numberOfLines={1} style={[S.subtitle, { color: Colors[colorScheme].mutedText }]}>{item.post.content}</Text>
           ) : item.message?.content ? (
             <Text numberOfLines={1} style={[S.subtitle, { color: Colors[colorScheme].mutedText }]}>{item.message.content}</Text>
+          ) : item.type === 'GAME_REMINDER' && (item.event?.title || item.meta?.event_title) ? (
+            <Text numberOfLines={1} style={[S.subtitle, { color: Colors[colorScheme].mutedText }]}>{item.event?.title || item.meta?.event_title}</Text>
           ) : null}
         </View>
       </Pressable>

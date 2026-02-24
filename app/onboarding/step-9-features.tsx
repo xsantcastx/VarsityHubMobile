@@ -34,26 +34,8 @@ export default function Step9Features() {
 
   const styles = useMemo(() => createStyles(colorScheme), [colorScheme]);
 
-  useEffect(() => {
-    let cancelled = false;
-    // Skip auto-registration on simulators or when the toggle is off
-    if (!notificationsEnabled || !isDevice) return;
-
-    void (async () => {
-      const granted = await registerPushToken();
-      if (!cancelled && !granted) {
-        setNotificationsEnabled(false);
-        Alert.alert(
-          'Notifications Disabled',
-          'We could not enable push notifications. You can turn them on later from device settings.'
-        );
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [notificationsEnabled, registerPushToken, isDevice]);
+  const NOTIFICATIONS_PRE_PROMPT =
+    'VarsityHub uses notifications for game reminders, team updates, and messages. Enable to stay connected.';
 
   const enableLocation = async () => {
     if (locationEnabled) {
@@ -89,22 +71,38 @@ export default function Step9Features() {
         return;
       }
 
-      setNotificationsEnabled(value);
-      
-      if (value) {
-        // Request permissions asynchronously without blocking UI
-        registerPushToken().then((granted) => {
-          if (!granted) {
-            setNotificationsEnabled(false);
-            Alert.alert(
-              'Notifications Disabled',
-              'We could not enable push notifications. You can turn them on later from device settings.'
-            );
-          }
-        }).catch(() => {
-          setNotificationsEnabled(false);
-        });
+      if (!value) {
+        setNotificationsEnabled(false);
+        return;
       }
+
+      // Show pre-permission prompt before system dialog
+      Alert.alert(
+        'Enable Notifications',
+        NOTIFICATIONS_PRE_PROMPT,
+        [
+          {
+            text: 'Not Now',
+            style: 'cancel',
+            onPress: () => setNotificationsEnabled(false),
+          },
+          {
+            text: 'Enable',
+            onPress: async () => {
+              const granted = await registerPushToken();
+              if (!granted) {
+                setNotificationsEnabled(false);
+                Alert.alert(
+                  'Notifications Disabled',
+                  'We could not enable push notifications. You can turn them on later from device settings.'
+                );
+              } else {
+                setNotificationsEnabled(true);
+              }
+            },
+          },
+        ]
+      );
     },
     [isDevice, registerPushToken]
   );
@@ -201,6 +199,7 @@ export default function Step9Features() {
                 true: '#3b82f6' 
               }}
               thumbColor={Colors[colorScheme].background}
+              accessibilityLabel="Enable location access to find local games and events"
             />
           </View>
         </View>
@@ -236,7 +235,8 @@ export default function Step9Features() {
             label={saving ? 'Saving Settings...' : 'Continue'} 
             onPress={onContinue} 
             disabled={saving} 
-            loading={saving} 
+            loading={saving}
+            accessibilityLabel={saving ? 'Saving settings' : 'Continue to next step'}
           />
         </View>
     </OnboardingLayout>

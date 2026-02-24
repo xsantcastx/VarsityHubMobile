@@ -1,6 +1,6 @@
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, useColorScheme, View } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, Share, StyleSheet, Switch, Text, useColorScheme, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Event, User } from '@/api/entities';
@@ -8,14 +8,20 @@ import { getConfig } from '@/config/env';
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboardingOptional } from '@/context/OnboardingContext';
 
+type CommentPermission = 'everyone' | 'following' | 'none';
+
 interface Preferences {
   notifications: {
     game_event_reminders: boolean;
     team_updates: boolean;
     comments_upvotes: boolean;
+    follows_notifications: boolean;
+    messages_notifications: boolean;
   };
   is_parent: boolean;
   zip_code: string | null;
+  profile_private: boolean;
+  comment_permission: CommentPermission;
 }
 
 // Inline components for settings
@@ -73,9 +79,13 @@ export default function SettingsScreen() {
       game_event_reminders: false,
       team_updates: false,
       comments_upvotes: false,
+      follows_notifications: true,
+      messages_notifications: true,
     },
     is_parent: false,
     zip_code: null,
+    profile_private: false,
+    comment_permission: 'everyone',
   });
   const [plan, setPlan] = useState<string | null>(null);
   const [role, setRole] = useState<string | null>(null);
@@ -181,9 +191,15 @@ export default function SettingsScreen() {
                         game_event_reminders: !!serverPrefs?.notifications?.game_event_reminders,
                         team_updates: !!serverPrefs?.notifications?.team_updates,
                         comments_upvotes: !!serverPrefs?.notifications?.comments_upvotes,
+                        follows_notifications: serverPrefs?.notifications?.follows_notifications !== false,
+                        messages_notifications: serverPrefs?.notifications?.messages_notifications !== false,
                       },
                       is_parent: !!serverPrefs?.is_parent,
                       zip_code: serverPrefs?.zip_code ?? null,
+                      profile_private: !!serverPrefs?.profile_private,
+                      comment_permission: (serverPrefs?.comment_permission === 'following' || serverPrefs?.comment_permission === 'none')
+                        ? serverPrefs.comment_permission
+                        : 'everyone',
                     });
                     setPlan(serverPrefs?.plan ?? null);
                     const effectiveRole = (serverPrefs?.role || me?.role || null) as string | null;
@@ -267,10 +283,99 @@ export default function SettingsScreen() {
                         value={!!prefs.notifications.comments_upvotes}
                         onValueChange={(v) => patchPrefs({ notifications: { comments_upvotes: v } } as any)}
                       />
+                      <SwitchRow
+                        title="New Followers"
+                        subtitle="When someone follows you"
+                        value={!!prefs.notifications.follows_notifications}
+                        onValueChange={(v) => patchPrefs({ notifications: { follows_notifications: v } } as any)}
+                      />
+                      <SwitchRow
+                        title="Direct Messages"
+                        subtitle="When someone sends you a DM"
+                        value={!!prefs.notifications.messages_notifications}
+                        onValueChange={(v) => patchPrefs({ notifications: { messages_notifications: v } } as any)}
+                      />
                     </SectionCard>
 
                     {/* Privacy */}
                     <SectionCard title="Privacy">
+                      <SwitchRow
+                        title="Private Profile"
+                        subtitle="Only followers can see your posts, bio, and follower counts"
+                        value={!!prefs.profile_private}
+                        onValueChange={(v) => patchPrefs({ profile_private: v })}
+                      />
+                      <View style={styles.rowBetween}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.rowTitle}>Comment Permissions</Text>
+                          <Text style={styles.mutedSmall}>
+                            {prefs.comment_permission === 'everyone'
+                              ? 'Everyone'
+                              : prefs.comment_permission === 'following'
+                                ? 'People I Follow'
+                                : 'Nobody'}
+                          </Text>
+                        </View>
+                        <Pressable
+                          style={styles.commentPermRow}
+                          onPress={() => {
+                            Alert.alert(
+                              'Who can comment on your posts?',
+                              undefined,
+                              [
+                                {
+                                  text: 'Everyone',
+                                  onPress: () => {
+                                    setPrefs((p) => ({ ...p, comment_permission: 'everyone' }));
+                                    void User.updatePreferences({ comment_permission: 'everyone' });
+                                  },
+                                },
+                                {
+                                  text: 'People I Follow',
+                                  onPress: () => {
+                                    setPrefs((p) => ({ ...p, comment_permission: 'following' }));
+                                    void User.updatePreferences({ comment_permission: 'following' });
+                                  },
+                                },
+                                {
+                                  text: 'Nobody',
+                                  onPress: () => {
+                                    setPrefs((p) => ({ ...p, comment_permission: 'none' }));
+                                    void User.updatePreferences({ comment_permission: 'none' });
+                                  },
+                                },
+                                { text: 'Cancel', style: 'cancel' },
+                              ]
+                            );
+                          }}
+                          accessibilityLabel="Comment permissions"
+                          accessibilityRole="button"
+                        >
+                          <Text style={styles.chev}>›</Text>
+                        </Pressable>
+                      </View>
+                      <NavRow title="Export My Data" subtitle="Download your profile, posts, comments, messages, and preferences" onPress={async () => {
+                        try {
+                          const data = await User.exportMyData();
+                          const text = JSON.stringify(data, null, 2);
+                          const filename = `varsityhub-data-export-${new Date().toISOString().slice(0, 10)}.json`;
+                          if (Platform.OS === 'web') {
+                            const a = document.createElement('a');
+                            a.href = 'data:application/json;charset=utf-8,' + encodeURIComponent(text);
+                            a.download = filename;
+                            a.click();
+                          } else {
+                            const FileSystem = await import('expo-file-system');
+                            const path = FileSystem.documentDirectory + filename;
+                            await FileSystem.writeAsStringAsync(path, text, { encoding: FileSystem.EncodingType.UTF8 });
+                            await Share.share({ url: path, title: 'VarsityHub Data Export', message: 'Your VarsityHub data export' });
+                          }
+                          Alert.alert('Export Complete', 'Your data has been exported successfully.');
+                        } catch (e: any) {
+                          console.error('[settings] Export failed:', e);
+                          Alert.alert('Export Failed', e?.message || 'Could not export your data. Please try again.');
+                        }
+                      }} />
                       <NavRow title="Manage Blocked Users" onPress={() => void router.push('/settings/blocked-users')} />
                       <SwitchRow
                         title="I am a parent"
@@ -450,6 +555,7 @@ export default function SettingsScreen() {
               mutedSmall: { color: '#9CA3AF', fontSize: 12 },
               chev: { fontSize: 20, color: '#6b7280', transform: [{ rotate: '0deg' }] },
               chevOpen: { transform: [{ rotate: '90deg' }] },
+              commentPermRow: { padding: 8 },
               destructive: { color: '#DC2626' },
               selectedValue: { color: '#6b7280', fontSize: 14 },
               themeOptions: { marginTop: 8, gap: 8 },

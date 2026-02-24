@@ -2,7 +2,7 @@ import expressPkg, { Router } from 'express';
 import Stripe from 'stripe';
 import { debugLog } from '../lib/debugLog.js';
 import { sendBillingNoticeEmail } from '../lib/email.js';
-import { getMaxTeamsForPlan } from '../lib/planLimits.js';
+import { getAllPlanDefinitions, getMaxTeamsForPlan } from '../lib/planLimits.js';
 import { prisma } from '../lib/prisma.js';
 import { previewPromo, redeemPromo } from '../lib/promos.js';
 import { captureException } from '../lib/sentry.js';
@@ -15,6 +15,26 @@ import { calculateAdPriceCents } from '../utils/adPricing.js';
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', { apiVersion: '2024-06-20' });
 
 export const paymentsRouter = Router();
+
+// Public config for coach onboarding and payment UI (no auth required)
+paymentsRouter.get('/config', (_req, res) => {
+  const stripePublishableKey =
+    process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ||
+    process.env.STRIPE_PUBLISHABLE_KEY ||
+    '';
+  const availablePlans = getAllPlanDefinitions();
+  const stripeConfigured = !!(
+    stripePublishableKey &&
+    process.env.STRIPE_SECRET_KEY
+  );
+  res.json({
+    stripe_publishable_key: stripePublishableKey,
+    available_plans: availablePlans,
+    payments_enabled: true,
+    stripe_configured: stripeConfigured,
+    has_webhook_secret: !!process.env.STRIPE_WEBHOOK_SECRET,
+  });
+});
 
 const formatUsd = (cents?: number | null) => {
   if (typeof cents !== 'number' || Number.isNaN(cents)) return '';
