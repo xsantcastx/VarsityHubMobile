@@ -92,21 +92,24 @@ export function useGoogleAuth() {
       return uri;
     }
 
-    try {
-      if (shouldUseProxy && PROJECT_FULL_NAME) {
+    // Proxy: use https://auth.expo.io/@owner/slug (getRedirectUrl throws without projectNameForProxy)
+    if (shouldUseProxy && PROJECT_FULL_NAME) {
+      try {
         uri = AuthSession.getRedirectUrl();
-        console.log('[google-auth] Using Expo proxy redirect:', uri);
-        return uri;
+      } catch {
+        uri = `https://auth.expo.io/${PROJECT_FULL_NAME}`;
       }
-    } catch (err) {
-      console.warn('[google-auth] failed to build proxy redirect uri', err);
+      console.log('[google-auth] Using Expo proxy redirect:', uri);
+      return uri;
     }
 
     // For standalone iOS, use native redirect with reversed iOS client ID scheme
+    // CRITICAL: Use real iOS client from config, NOT clients (which may be web when proxy was requested)
     const isStandaloneIOS = Platform.OS === 'ios' && Constants.appOwnership !== 'expo';
-    if (isStandaloneIOS && clients.iosClientId) {
+    const realIosClientId = appConfig.google.iosClientId;
+    if (isStandaloneIOS && realIosClientId) {
       // Convert xxx-yyy.apps.googleusercontent.com → com.googleusercontent.apps.xxx-yyy
-      const prefix = clients.iosClientId.replace(/\.apps\.googleusercontent\.com$/, '');
+      const prefix = realIosClientId.replace(/\.apps\.googleusercontent\.com$/, '');
       const scheme = `com.googleusercontent.apps.${prefix}`;
       uri = makeRedirectUri({
         native: `${scheme}:/oauthredirect`,

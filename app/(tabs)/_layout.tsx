@@ -32,6 +32,11 @@ export default function TabLayout() {
           paddingTop: 6,
           backgroundColor: colorScheme === 'dark' ? '#0f172a' : Colors[colorScheme ?? 'light'].card,
           overflow: 'hidden',
+          // Remove shadow/elevation to prevent sawtooth zigzag artifact at bottom edge on iOS
+          shadowOpacity: 0,
+          shadowRadius: 0,
+          elevation: 0,
+          borderTopWidth: 0,
         },
       }}>
       <Tabs.Screen
