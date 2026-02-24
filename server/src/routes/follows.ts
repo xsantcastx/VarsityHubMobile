@@ -5,7 +5,7 @@ import { prisma } from '../lib/prisma.js';
 export const followsRouter = Router();
 
 // GET /follows/teams?user_id=me
-// Returns teams where the user is a member (proxy for "followed").
+// Returns teams the user has explicitly followed via POST /teams/:id/follow.
 followsRouter.get('/teams', async (req: AuthedRequest, res) => {
   const userParam = String((req.query as any).user_id || '');
   let userId: string | null = null;
@@ -17,8 +17,8 @@ followsRouter.get('/teams', async (req: AuthedRequest, res) => {
   }
   if (!userId) return res.status(400).json({ error: 'user_id required' });
 
-  const mems = await prisma.teamMembership.findMany({ where: { user_id: userId }, include: { team: true }, orderBy: { created_at: 'desc' } });
-  const list = mems.map((m) => ({ id: m.team_id, name: (m as any).team?.name || '', description: (m as any).team?.description || '', role: m.role }));
+  const follows = await prisma.teamFollow.findMany({ where: { user_id: userId }, include: { team: true }, orderBy: { created_at: 'desc' } });
+  const list = follows.map((f) => ({ id: f.team_id, name: (f as any).team?.name || '', description: (f as any).team?.description || '' }));
   return res.json(list);
 });
 

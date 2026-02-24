@@ -1118,11 +1118,11 @@ The following features have been confirmed stable and should not be modified wit
 
 ---
 
-### 🔴 OPEN — Team Follow API vs Schema Mismatch
-- **Status:** Partially implemented — semantic mismatch remains
-- **Problem:** `GET /follows/teams` (in `server/src/routes/follows.ts`) returns team **memberships** from `TeamMembership`, not records from the `TeamFollow` model. The route comment itself says "proxy for 'followed'". Meanwhile, `GET /posts?followed_teams=true` correctly uses the `TeamFollow` model for filtering. These two code paths are inconsistent — a user can be a member without following and vice versa.
-- **Files:** `server/src/routes/follows.ts`, `server/src/routes/teams.ts`
-- **Fix needed:** `GET /follows/teams` should query `TeamFollow` directly, not `TeamMembership`.
+### ✅ FIXED — Team Follow API vs Schema Mismatch
+- **Fixed:** 2026-02-24
+- **Was:** `GET /follows/teams` queried `TeamMembership` and returned a `role` field. `GET /posts?followed_teams=true` correctly used `TeamFollow`. The two read paths were inconsistent.
+- **Fix:** `server/src/routes/follows.ts` — swapped `prisma.teamMembership.findMany` for `prisma.teamFollow.findMany`. Response shape is now `{ id, name, description }` (no `role` — `TeamFollow` has none).
+- **Files changed:** `server/src/routes/follows.ts` only.
 
 ### 🔴 OPEN — Accessibility Labels Incomplete
 - **Status:** Ongoing — medium priority before App Store submission
