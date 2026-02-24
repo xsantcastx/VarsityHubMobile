@@ -445,9 +445,32 @@ export const Support = {
   feedback: (data: { user_id?: string; category: 'bug' | 'idea' | 'other'; message: string; screenshot_url?: string }) => httpPost('/support/feedback', data),
 };
 
+async function getPaymentsConfig(): Promise<{
+  stripe_publishable_key: string;
+  available_plans: any[];
+  payments_enabled: boolean;
+  stripe_configured: boolean;
+  has_webhook_secret: boolean;
+}> {
+  try {
+    return await httpGet('/payments/config');
+  } catch (err: any) {
+    if (err?.status === 404) {
+      try {
+        const health = await httpGet('/health?include=payments');
+        const cfg = (health as any)?.payments_config;
+        if (cfg) return cfg;
+      } catch {
+        // Health may not support include=payments (old server) - fall through to throw original
+      }
+    }
+    throw err;
+  }
+}
+
 export const Payments = {
-  configStatus: () => httpGet('/payments/config'),
-  getConfig: () => httpGet('/payments/config'),
+  configStatus: getPaymentsConfig,
+  getConfig: getPaymentsConfig,
 };
 
 export const Subscriptions = {
