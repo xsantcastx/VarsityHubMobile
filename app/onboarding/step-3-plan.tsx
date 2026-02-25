@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View, useColorScheme } from 'react-native';
+import { ActivityIndicator, Alert, Modal, Pressable, StyleSheet, Text, TextInput, View, useColorScheme } from 'react-native';
 // @ts-ignore
 import { Payments, Subscriptions, User } from '@/api/entities';
 import { PLAN_DEFINITIONS, Plan } from '@/constants/plans';
@@ -135,10 +135,7 @@ export default function Step3Plan() {
   const [paymentsStatus, setPaymentsStatus] = useState<{ stripe_configured?: boolean; has_webhook_secret?: boolean } | null>(null);
   const [paymentsStatusLoading, setPaymentsStatusLoading] = useState(true);
   const [paymentsStatusError, setPaymentsStatusError] = useState<string | null>(null);
-  const iosPaidPlansDisabled = Platform.OS === 'ios';
-  const displayedPlanOptions = iosPaidPlansDisabled
-    ? PLAN_OPTIONS.filter((option) => option.id === 'rookie')
-    : PLAN_OPTIONS;
+  const displayedPlanOptions = PLAN_OPTIONS;
   const paymentsTemporarilyDisabled = paymentsStatus?.stripe_configured === false;
   const showPaymentsWarning =
     (!paymentsStatusLoading && paymentsTemporarilyDisabled) ||
@@ -153,13 +150,6 @@ export default function Step3Plan() {
       router.replace('/onboarding/step-7-profile');
     }
   }, [ob.role, router]);
-
-  useEffect(() => {
-    if (iosPaidPlansDisabled && plan !== 'rookie') {
-      setPlan('rookie');
-      setOB((prev) => ({ ...prev, plan: 'rookie', payment_pending: false }));
-    }
-  }, [iosPaidPlansDisabled, plan, setOB]);
 
   useEffect(() => {
     let mounted = true;
@@ -231,13 +221,6 @@ export default function Step3Plan() {
 
   const onContinue = async () => {
     if (!plan) return;
-    if (iosPaidPlansDisabled && plan !== 'rookie') {
-      Alert.alert(
-        'Not available on iOS',
-        'Paid coach plans are currently unavailable in the iOS app. Please continue with the Rookie plan.'
-      );
-      return;
-    }
     if (plan !== 'rookie' && paymentsTemporarilyDisabled) {
       Alert.alert(
         'Payments unavailable',
@@ -382,13 +365,6 @@ export default function Step3Plan() {
     >
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.content}>
-        {iosPaidPlansDisabled ? (
-          <View style={[styles.paymentBanner, styles.paymentBannerInfo]}>
-            <Text style={styles.paymentBannerText}>
-              Paid coach plans are currently unavailable in the iOS app. Rookie plan is available.
-            </Text>
-          </View>
-        ) : null}
         {showPaymentsWarning && paymentsWarningMessage ? (
           <View
             style={[
@@ -415,11 +391,9 @@ export default function Step3Plan() {
             selected={plan === option.id}
             onPress={() => handleSelectPlan(option.id as Plan)}
             onContinue={plan === option.id ? onContinue : undefined}
-            disabled={option.id !== 'rookie' && (paymentsTemporarilyDisabled || iosPaidPlansDisabled)}
+            disabled={option.id !== 'rookie' && paymentsTemporarilyDisabled}
             disabledReason={
-              option.id !== 'rookie'
-                ? (iosPaidPlansDisabled ? 'Not available on iOS' : (paymentsTemporarilyDisabled ? 'Checkout unavailable' : undefined))
-                : undefined
+              option.id !== 'rookie' && paymentsTemporarilyDisabled ? 'Checkout unavailable' : undefined
             }
             saving={saving}
           />

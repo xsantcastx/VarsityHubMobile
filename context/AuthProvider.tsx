@@ -48,6 +48,7 @@ export interface AuthContextType {
   signOut: () => Promise<void>;
   registerPushToken: () => Promise<boolean>;
   markOnboardingCompleteLocally: () => Promise<void>;
+  markOnboardingIncompleteLocally: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -261,6 +262,15 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     }
   }, []);
 
+  const markOnboardingIncompleteLocally = useCallback(async () => {
+    try {
+      setHasCompletedOnboarding(false);
+      await AsyncStorage.removeItem(ONBOARDING_COMPLETE_KEY);
+    } catch (error) {
+      console.warn('[Auth] Failed to clear onboarding completion flag:', error);
+    }
+  }, []);
+
   // Initial auth check
   useEffect(() => {
     if (!navReady) {
@@ -387,10 +397,11 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       // Admin accounts always have onboarding_completed=true on server, so they bypass onboarding
       // Regular users are marked false if they haven't completed onboarding
       const serverSaysIncomplete = user.preferences?.onboarding_completed === false;
-      
-      // Onboarding is only required if server explicitly says false
-      // Remove dependency on AsyncStorage to avoid race conditions on app restart
-      const needsOnboarding = serverSaysIncomplete;
+
+      // Both conditions must be true: server says incomplete AND local flag not set
+      // hasCompletedOnboarding is a fallback for the window between onboarding completion and
+      // the next checkAuth() call - prevents a re-render from sending user back to onboarding
+      const needsOnboarding = serverSaysIncomplete && !hasCompletedOnboarding;
 
       // If needs onboarding and not already there, redirect to start onboarding
       if (needsOnboarding && firstSegment !== 'onboarding') {
@@ -432,7 +443,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         router.replace('/sign-in');
       }
     }
-  }, [user, pendingVerificationEmail, initializing, healthOk, router]);
+  }, [user, pendingVerificationEmail, initializing, healthOk, router, hasCompletedOnboarding]);
 
   const value: AuthContextType = {
     user,
@@ -445,6 +456,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     signOut,
     registerPushToken,
     markOnboardingCompleteLocally,
+    markOnboardingIncompleteLocally,
   };
 
   return (

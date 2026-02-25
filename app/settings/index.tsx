@@ -72,7 +72,7 @@ function SwitchRow({ title, subtitle, value, onValueChange }: { title: string; s
 export default function SettingsScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
-  const { checkAuth } = useAuth();
+  const { checkAuth, markOnboardingIncompleteLocally } = useAuth();
   const obCtx = useOnboardingOptional();
   const setOB = obCtx?.setState;
   const appConfig = getConfig();
@@ -159,6 +159,8 @@ export default function SettingsScreen() {
                   // Previously we attempted to record onboarding history here, but the context no longer exposes that API.
                   try {
                     void await User.updatePreferences({ onboarding_completed: false });
+                    // Also clear local AsyncStorage flag so next launch doesn't skip onboarding
+                    await markOnboardingIncompleteLocally();
                   } catch (error: any) {
                     console.warn('[settings] Failed to reset onboarding_completed flag:', error);
                     // Continue anyway - user will be redirected to onboarding
@@ -168,8 +170,9 @@ export default function SettingsScreen() {
                 } catch (e: any) {
                   // Error in onboarding restart - try fallback
                   console.error('[settings] Failed to restart onboarding:', e);
-                  try { 
-                    void await User.updatePreferences({ onboarding_completed: false }); 
+                  try {
+                    void await User.updatePreferences({ onboarding_completed: false });
+                    await markOnboardingIncompleteLocally();
                   } catch (error: any) {
                     console.warn('[settings] Failed to reset onboarding status:', error);
                     // Continue anyway - user will be redirected to onboarding

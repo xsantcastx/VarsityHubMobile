@@ -17,7 +17,7 @@ export default function Step9Features() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const { state: ob, setState: setOB, setProgress } = useOnboarding();
-  const { registerPushToken, user } = useAuth();
+  const { registerPushToken, user, checkAuth, markOnboardingCompleteLocally } = useAuth();
   const [locationEnabled, setLocationEnabled] = useState(false);
   // Push notifications can't be provisioned on iOS Simulator, so default to off there
   const [notificationsEnabled, setNotificationsEnabled] = useState(Device.isDevice);
@@ -150,13 +150,17 @@ export default function Step9Features() {
         if (ob.personalization_goals?.length) payload.personalization_goals = ob.personalization_goals;
         
         await User.completeOnboarding(payload);
-        
-        // CRITICAL: Validate server confirmed completion
-        const updatedUser: any = await User.me();
+
+        // CRITICAL: Update AuthProvider state via checkAuth (not User.me() directly)
+        // This ensures routing logic sees onboarding_completed: true immediately
+        const updatedUser: any = await checkAuth();
         if (updatedUser?.preferences?.onboarding_completed !== true) {
           throw new Error('Server did not confirm onboarding completion');
         }
-        
+
+        // Persist locally so next app launch doesn't re-trigger onboarding
+        await markOnboardingCompleteLocally();
+
         // Success - navigate to feed
         router.replace('/(tabs)/feed');
         return; // Fans are done; skip coach-only confirmation screen

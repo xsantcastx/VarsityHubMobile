@@ -853,9 +853,11 @@ authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
     notifications_enabled: true,
     messaging_policy_accepted: false,
   };
-  // CRITICAL: Same merge order as GET /me - defaults must override (second arg overrides first)
-  // First merge user preferences with incoming, then apply defaults on top
-  const merged = mergePreferences(mergePreferences(current?.preferences || {}, incoming), defaults);
+  // CRITICAL: Correct merge order - defaults are base, user prefs override defaults, incoming overrides both
+  // 1. Start with defaults (fill in missing fields)
+  // 2. Apply current user preferences on top (preserve user's actual values)
+  // 3. Apply incoming changes on top (apply this update)
+  const merged = mergePreferences(mergePreferences(defaults, current?.preferences || {}), incoming);
   const updated = await prisma.user.update({ where: { id: req.user.id }, data: { preferences: merged } });
   return res.json({ preferences: updated.preferences });
 });
