@@ -195,22 +195,17 @@ export default function MessagesScreen() {
     const search = async () => {
       setSearchingUsers(true);
       try {
-        // Check authentication before searching
         if (!me || !me.id) {
           Alert.alert('Login Required', 'Please log in to search for users.');
           setSearchResults([]);
           return;
         }
-        const users = await User.listAll(searchUserQuery, 20);
-        if (mounted && Array.isArray(users)) {
-          // Filter out current user
-          setSearchResults(users.filter((u: MiniUser) => u.id !== me?.id));
+        const result = await User.searchForMentions(searchUserQuery, 20);
+        if (mounted && Array.isArray(result)) {
+          setSearchResults(result.filter((u: MiniUser) => u.id !== me?.id));
         }
       } catch (e: any) {
-        // Silently handle admin-only restriction
-        if (e?.message?.includes('Admin only')) {
-          // Admin-only feature - silently ignore
-        } else if (e?.status === 401 || e?.message?.toLowerCase().includes('unauthorized')) {
+        if (e?.status === 401 || e?.message?.toLowerCase().includes('unauthorized')) {
           Alert.alert('Login Required', 'You must be logged in to search for users.');
           setSearchResults([]);
         } else {
@@ -374,7 +369,7 @@ export default function MessagesScreen() {
         style={[styles.headerGradient, { paddingTop: insets.top + 12 }]}
       >
         <View style={styles.headerRow}>
-          <Pressable onPress={() => void router.back()} style={styles.backButton} accessibilityRole="button" accessibilityLabel="Go back">
+          <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={styles.backButton} accessibilityRole="button" accessibilityLabel="Go back">
             <Ionicons name="chevron-back" size={24} color={Colors[colorScheme].text} />
           </Pressable>
           <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Messages</Text>

@@ -3,9 +3,11 @@ import 'dotenv/config';
 import express, { NextFunction, Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
+import cron from 'node-cron';
 import path from 'node:path';
 import pinoHttp from 'pino-http';
 import swaggerUi from 'swagger-ui-express';
+import { runGameReminders } from './cron/game-reminders.js';
 import { debugLog } from './lib/debugLog.js';
 import { verifyMediaSignature } from './lib/mediaAccess.js';
 import { addSentryErrorHandler, initSentry } from './lib/sentry.js';
@@ -250,6 +252,16 @@ app.use(errorHandler);
 // Add Sentry error handler (must be last)
 if (!isTest) {
   addSentryErrorHandler(app);
+}
+
+// Game reminder cron — runs every hour, checks for games starting in 12h and 1h
+if (!isTest) {
+  cron.schedule('0 * * * *', () => {
+    void runGameReminders().catch((err) =>
+      console.error('[cron] game-reminders failed:', err)
+    );
+  });
+  debugLog('[cron] Game reminder job scheduled (every hour)');
 }
 
 export { app };
