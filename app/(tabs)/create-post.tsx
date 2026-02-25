@@ -403,13 +403,19 @@ export default function CreatePostScreen() {
         Alert.alert('Permission required', 'Camera permission is needed to capture media.');
         return;
       }
+      // Version-safe mediaTypes: new SDK uses MediaType array, old SDK uses MediaTypeOptions
+      const anyIP = ImagePicker as any;
+      const cameraMediaTypes = anyIP?.MediaType
+        ? [anyIP.MediaType.Images, anyIP.MediaType.Videos]
+        : anyIP.MediaTypeOptions?.All;
+
       const r = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.All, // Allow both photo and video
+        mediaTypes: cameraMediaTypes,
         allowsEditing: false,
         quality: 0.85,
         exif: false,
         videoMaxDuration: 30,
-        legacy: false, // Use modern picker on iOS
+        legacy: false,
       } as any);
       if (!r.canceled && r.assets && r.assets[0]) {
         const a = r.assets[0];
@@ -661,7 +667,7 @@ export default function CreatePostScreen() {
       
       {/* Header */}
       <View style={[styles.header, { backgroundColor: Colors[colorScheme].background, borderBottomColor: Colors[colorScheme].border }]}>
-        <Pressable onPress={() => void router.back()} accessibilityLabel="Close" style={styles.iconBtn}>
+        <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} accessibilityLabel="Close" style={styles.iconBtn}>
           <Ionicons name="close" size={22} color={Colors[colorScheme].text} />
         </Pressable>
         <View style={styles.headerSpacer} />

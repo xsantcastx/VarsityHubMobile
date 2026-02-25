@@ -342,19 +342,16 @@ export default function PostDetailScreen() {
     const parentId = replyingToComment?.id;
     try {
       const created = await PostApi.addComment(currentPostId, comment.trim(), parentId);
-      setComments((arr) => {
-        const next = [created, ...arr];
-        if (currentPostId) {
-          setCommentsById((prev) => ({ ...prev, [currentPostId]: next }));
-        }
-        return next;
-      });
+      // Fix: build next array once, then update both states separately (not nested setState)
+      const next = [created, ...comments];
+      setComments(next);
+      setCommentsById((prev) => ({ ...prev, [currentPostId]: next }));
       setComment('');
       setReplyingToComment(null);
     } catch (error) {
-      console.error('Error adding comment:', error);
       const err = error as any;
-      console.error('Comment error details:', err?.response?.data || err?.message || error);
+      console.error('Error adding comment:', err?.message || error);
+      Alert.alert('Error', err?.message || 'Failed to post comment. Please try again.');
     } finally {
       setCommenting(false);
     }
@@ -507,11 +504,11 @@ export default function PostDetailScreen() {
                         await load();
                       } catch (restoreError: any) {
                         Alert.alert('Error', restoreError?.message || 'Restore window expired.');
-                        router.back();
+                        if (router.canGoBack()) router.back();
                       }
                     }
                   },
-                  { text: 'Close', style: 'destructive', onPress: () => router.back() },
+                  { text: 'Close', style: 'destructive', onPress: () => { if (router.canGoBack()) router.back(); } },
                 ]
               );
             } catch (error: any) {
@@ -579,7 +576,7 @@ export default function PostDetailScreen() {
           <Pressable style={styles.retryButton} onPress={() => void load()}>
             <Text style={styles.retryButtonText}>Try Again</Text>
           </Pressable>
-          <Pressable style={[styles.retryButton, { marginTop: 8, backgroundColor: Colors[colorScheme].surface }]} onPress={() => router.back()}>
+          <Pressable style={[styles.retryButton, { marginTop: 8, backgroundColor: Colors[colorScheme].surface }]} onPress={() => { if (router.canGoBack()) router.back(); }}>
             <Text style={[styles.retryButtonText, { color: Colors[colorScheme].text }]}>Go Back</Text>
           </Pressable>
         </View>
@@ -599,7 +596,7 @@ export default function PostDetailScreen() {
           <Pressable style={styles.retryButton} onPress={() => void load()}>
             <Text style={styles.retryButtonText}>Try Again</Text>
           </Pressable>
-          <Pressable style={[styles.retryButton, { marginTop: 8, backgroundColor: Colors[colorScheme].surface }]} onPress={() => router.back()}>
+          <Pressable style={[styles.retryButton, { marginTop: 8, backgroundColor: Colors[colorScheme].surface }]} onPress={() => { if (router.canGoBack()) router.back(); }}>
             <Text style={[styles.retryButtonText, { color: Colors[colorScheme].text }]}>Go Back</Text>
           </Pressable>
         </View>
@@ -978,7 +975,7 @@ export default function PostDetailScreen() {
       
       {/* Custom Header */}
       <View style={[styles.header, { backgroundColor: Colors[colorScheme].surface, borderBottomColor: Colors[colorScheme].border }]}>
-        <Pressable style={styles.backButton} onPress={() => void router.back()}>
+        <Pressable style={styles.backButton} onPress={() => { if (router.canGoBack()) router.back(); }}>
           <Ionicons name="arrow-back" size={24} color={Colors[colorScheme].text} />
         </Pressable>
         <View style={styles.headerCenter}>
@@ -1016,6 +1013,7 @@ export default function PostDetailScreen() {
           scrollEventThrottle={16}
           decelerationRate="fast"
           keyExtractor={(item) => item}
+          extraData={comments}
           initialScrollIndex={initialIndex}
           getItemLayout={(data, index) => ({
             length: SCREEN_WIDTH,

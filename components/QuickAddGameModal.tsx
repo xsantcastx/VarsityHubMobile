@@ -48,7 +48,7 @@ interface QuickAddGameModalProps {
   };
 }
 
-export type EventType = 'game' | 'fundraiser' | 'watch_party' | 'team_trip' | 'meeting' | 'other';
+export type EventType = 'game' | 'fundraiser' | 'watch_party' | 'team_trip' | 'meeting' | 'team_meal' | 'other';
 
 export interface QuickGameData {
   id?: string; // Add id for editing
@@ -196,6 +196,7 @@ const EVENT_TYPES: { value: EventType; label: string; icon: keyof typeof Ionicon
   { value: 'watch_party', label: 'Watch Party', icon: 'tv-outline', description: 'Watch game together' },
   { value: 'team_trip', label: 'Team Trip', icon: 'bus-outline', description: 'Travel or field trip' },
   { value: 'meeting', label: 'Meeting', icon: 'people-outline', description: 'Team meeting or practice' },
+  { value: 'team_meal', label: 'Team Meal', icon: 'restaurant-outline', description: 'Team dinner or lunch' },
   { value: 'other', label: 'Other', icon: 'ellipsis-horizontal-outline', description: 'Other event type' },
 ];
 
@@ -259,6 +260,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
   const [awayVenueLat, setAwayVenueLat] = useState<number | undefined>();
   const [awayVenueLng, setAwayVenueLng] = useState<number | undefined>();
   const [destination, setDestination] = useState('');
+  const [homeVenueLocked, setHomeVenueLocked] = useState(true);
 
   const liveStatus = initialData?.status ? String(initialData.status).toLowerCase() : '';
   const isLiveEventEdit = Boolean(initialData?.id && (liveStatus === 'live' || liveStatus === 'in-progress'));
@@ -374,13 +376,12 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
         setHomeVenueLat(teamData.venue_lat || undefined);
         setHomeVenueLng(teamData.venue_lng || undefined);
       } else {
-        // Fallback to default venue based on team name
-        const defaultHomeVenue = `${currentTeam} Stadium`;
-        setHomeVenue(defaultHomeVenue);
-        // Leave coordinates undefined if no venue data
+        // No saved venue — leave blank so LocationPicker is shown
+        setHomeVenue('');
         setHomeVenueLat(undefined);
         setHomeVenueLng(undefined);
       }
+      setHomeVenueLocked(true); // Re-lock whenever team changes
     }
   }, [currentTeam, visible, teams]);
 
@@ -541,6 +542,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
     setDonationGoal('');
     setWatchLocation('');
     setDestination('');
+    setHomeVenueLocked(true);
   };
 
   const handleClose = () => {
@@ -638,6 +640,9 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
       ]
     );
   };
+
+  // True when the current team has a real saved venue address
+  const teamHasVenue = !!teams.find(t => t.name === currentTeam)?.venue_address;
 
   return (
     <>
@@ -992,7 +997,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
                 <Text style={[styles.label, { color: Colors[colorScheme].text }]}>
                   {gameType === 'home' ? 'Home Venue' : 'Away Venue'}
                 </Text>
-                {gameType === 'home' && (
+                {gameType === 'home' && teamHasVenue && homeVenueLocked && (
                   <View style={styles.lockedBadge}>
                     <Ionicons name="lock-closed" size={12} color={Colors[colorScheme].mutedText} />
                     <Text style={[styles.lockedText, { color: Colors[colorScheme].mutedText }]}>Locked</Text>
@@ -1001,25 +1006,69 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
               </View>
               
               {gameType === 'home' ? (
-                /* Home Game - Locked to team's location */
-                <View style={[
-                  styles.lockedLocationContainer,
-                  { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }
-                ]}>
-                  <View style={styles.locationIconRow}>
-                    <Ionicons 
-                      name="home" 
-                      size={20} 
-                      color={Colors[colorScheme].mutedText} 
+                /* Home Game — locked to team venue by default, unlockable per game */
+                teamHasVenue && homeVenueLocked ? (
+                  /* Locked: show saved venue + "Change location" link */
+                  <View>
+                    <View style={[
+                      styles.lockedLocationContainer,
+                      { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }
+                    ]}>
+                      <View style={styles.locationIconRow}>
+                        <Ionicons name="home" size={20} color={Colors[colorScheme].mutedText} />
+                        <Text style={[styles.lockedLocationText, { color: Colors[colorScheme].mutedText }]}>
+                          {homeVenue}
+                        </Text>
+                      </View>
+                    </View>
+                    <Pressable
+                      style={styles.changeLocationLink}
+                      onPress={() => setHomeVenueLocked(false)}
+                    >
+                      <Ionicons name="pencil-outline" size={13} color={Colors[colorScheme].tint} />
+                      <Text style={[styles.changeLocationText, { color: Colors[colorScheme].tint }]}>
+                        Change location
+                      </Text>
+                    </Pressable>
+                  </View>
+                ) : (
+                  /* Unlocked: LocationPicker + "Use team venue" restore link */
+                  <View>
+                    <LocationPicker
+                      value={homeVenue}
+                      onLocationSelect={(location) => {
+                        setHomeVenue(location.address);
+                        setHomeVenueLat(location.latitude);
+                        setHomeVenueLng(location.longitude);
+                      }}
+                      placeholder="Search for home venue..."
                     />
-                    <Text style={[styles.lockedLocationText, { color: Colors[colorScheme].mutedText }]}>
-                      {homeVenue || currentTeam + ' Stadium'}
+                    {teamHasVenue && (
+                      <Pressable
+                        style={styles.changeLocationLink}
+                        onPress={() => {
+                          const td = teams.find(t => t.name === currentTeam);
+                          if (td?.venue_address) {
+                            setHomeVenue(td.venue_address);
+                            setHomeVenueLat(td.venue_lat ?? undefined);
+                            setHomeVenueLng(td.venue_lng ?? undefined);
+                          }
+                          setHomeVenueLocked(true);
+                        }}
+                      >
+                        <Ionicons name="arrow-undo-outline" size={13} color={Colors[colorScheme].tint} />
+                        <Text style={[styles.changeLocationText, { color: Colors[colorScheme].tint }]}>
+                          Use team venue
+                        </Text>
+                      </Pressable>
+                    )}
+                    <Text style={[styles.helperText, { color: Colors[colorScheme].mutedText }]}>
+                      {teamHasVenue
+                        ? 'Using a different location for this game.'
+                        : 'Enter the venue address for this home game.'}
                     </Text>
                   </View>
-                  <Text style={[styles.helperText, { color: Colors[colorScheme].mutedText, fontSize: 12, marginTop: 6 }]}>
-                    Home location is set from your team profile. To change it, update your team settings.
-                  </Text>
-                </View>
+                )
               ) : (
                 /* Away Game - Editable with Google Maps */
                 <View>
@@ -1831,7 +1880,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   eventTypeCard: {
-    width: '48%',
+    width: '31%',
     padding: 16,
     borderRadius: 12,
     borderWidth: 2,
@@ -1880,6 +1929,17 @@ const styles = StyleSheet.create({
   lockedLocationText: {
     fontSize: 15,
     fontWeight: '500',
+  },
+  changeLocationLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 8,
+    alignSelf: 'flex-start',
+  },
+  changeLocationText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   mapsLinkButton: {
     flexDirection: 'row',

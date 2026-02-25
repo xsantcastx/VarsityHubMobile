@@ -1446,7 +1446,18 @@ const GameDetailsScreen = () => {
     void load();
   }, [load]);
 
-  // ...existing code...
+  // Reset per-event UI state immediately when navigating to a different event
+  useEffect(() => {
+    setVoteSummary(null);   // Clear previous event's vote data right away
+    setSeenStories({});     // Reset seen-story badges for fresh event
+  }, [id, eventId]);
+
+  // Fetch vote summary for this event once vm.gameId is available
+  useEffect(() => {
+    if (vm?.gameId) {
+      void _refreshVotes();
+    }
+  }, [vm?.gameId, _refreshVotes]);
 
   useEffect(() => {
     const total = _voteSummary?.total ?? 0;
@@ -1887,7 +1898,7 @@ const renderBanner = () => {
     <LinearGradient pointerEvents="none" colors={isHero ? ['rgba(0,0,0,0.02)', 'rgba(0,0,0,0.35)'] : ['rgba(0,0,0,0.05)', 'rgba(0,0,0,0.75)']} style={styles.bannerShade} />
         
         <View style={[styles.bannerTopRow, { paddingTop: insets.top + 8 }]}>
-          <Pressable onPress={() => void router.back()} accessibilityRole="button" style={styles.circleButton}>
+          <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} accessibilityRole="button" style={styles.circleButton}>
             <Ionicons name="chevron-back" size={20} color={Colors[colorScheme].text} />
           </Pressable>
           <View style={styles.bannerTopRightRow}>
