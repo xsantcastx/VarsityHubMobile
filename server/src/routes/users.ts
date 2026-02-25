@@ -491,25 +491,26 @@ usersRouter.delete('/me', requireAuth as any, async (req: AuthedRequest, res) =>
   }
 });
 
-// Username availability check (public to authed users)
-usersRouter.get('/username-available', requireAuth as any, async (req: AuthedRequest, res) => {
+// Username availability check (public - no auth required)
+// authMiddleware still populates req.user if a token is present, allowing exclusion of current user
+usersRouter.get('/username-available', async (req: AuthedRequest, res) => {
   const username = String((req.query as any).username || '').trim();
   const valid = /^[a-z0-9_.]{3,20}$/.test(username);
   if (!valid) return res.json({ available: false, valid: false });
-  
-  // Check both username and display_name fields for conflicts, excluding current user
+
+  // Exclude current user so their own username doesn't appear as taken
   const currentUserId = req.user?.id;
-  const exists = await prisma.user.findFirst({ 
-    where: { 
+  const exists = await prisma.user.findFirst({
+    where: {
       OR: [
         { username: { equals: username, mode: 'insensitive' } },
         { display_name: { equals: username, mode: 'insensitive' } }
       ],
-      NOT: { id: currentUserId } // Exclude current user from check
-    }, 
-    select: { id: true } 
+      ...(currentUserId ? { NOT: { id: currentUserId } } : {})
+    },
+    select: { id: true }
   });
-  
+
   return res.json({ available: !exists, valid: true });
 });
 
