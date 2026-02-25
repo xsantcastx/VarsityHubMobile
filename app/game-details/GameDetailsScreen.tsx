@@ -646,6 +646,24 @@ const GameDetailsScreen = () => {
     return { phase: 'final' as const, diffMs: 0 };
   }, [vm?.date, nowTs]);
 
+  // Countdown to when "Add Story" unlocks (24h before event start).
+  // Derives from the already-ticking `nowTs` — no extra interval needed.
+  const storyUnlockCountdown = useMemo(() => {
+    if (!vm?.date || !vm?.gameId || isSampleId(vm.gameId)) return null;
+    const eventTime = new Date(vm.date).getTime();
+    if (!Number.isFinite(eventTime)) return null;
+    const windowStart = eventTime - 24 * 60 * 60 * 1000; // same as canAddStory
+    const msUntil = windowStart - nowTs;
+    if (msUntil <= 0) return null; // window already open
+    const totalSecs = Math.ceil(msUntil / 1000);
+    const hours = Math.floor(totalSecs / 3600);
+    const mins = Math.floor((totalSecs % 3600) / 60);
+    const secs = totalSecs % 60;
+    if (hours > 0) return `Opens in ${hours}h ${mins}m ${secs}s`;
+    if (mins > 0) return `Opens in ${mins}m ${secs}s`;
+    return `Opens in ${secs}s`;
+  }, [vm?.date, vm?.gameId, nowTs]);
+
   // RSVP only shown before the game starts
   const hasEvent = !!vm?.eventId;
   const canRsvpNow = hasEvent && gamePhase === 'upcoming';
@@ -2250,16 +2268,21 @@ const renderBanner = () => {
                   onPress={handleAddStory}
                   disabled={!vm?.gameId || storyBusy || !canAddStory(vm?.date, vm?.gameId)}
                 >
-                  <Ionicons 
-                    name={storyBusy ? "checkmark-circle-outline" : "add-circle-outline"} 
-                    size={16} 
-                    color={Colors[colorScheme].tint} 
+                  <Ionicons
+                    name={storyBusy ? "checkmark-circle-outline" : "add-circle-outline"}
+                    size={16}
+                    color={Colors[colorScheme].tint}
                   />
                   <Text style={styles.actionText}>
                     Add Story
                   </Text>
                 </Pressable>
               </View>
+              {storyUnlockCountdown ? (
+                <Text style={[styles.storyCountdown, { color: Colors[colorScheme].mutedText }]}>
+                  {storyUnlockCountdown}
+                </Text>
+              ) : null}
               {showPreciseBanner ? (
                 <View style={[styles.preciseBanner, { backgroundColor: '#FEF9C3', borderColor: '#FACC15' }]}>
                   <Ionicons name="navigate" size={16} color="#B45309" />
@@ -3233,6 +3256,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   },
   actionBtnDisabled: { opacity: 0.6 },
   actionText: { fontWeight: '700', color: Colors[colorScheme].text },
+  storyCountdown: { fontSize: 12, textAlign: 'center', marginTop: -8, marginBottom: 12 },
   tabRow: {
     flexDirection: 'row',
     gap: 8,
