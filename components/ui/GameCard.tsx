@@ -3,6 +3,8 @@ import { radius, spacing, typography } from '@/constants/Theme';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
+import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
 import { Card } from './card';
 
@@ -24,6 +26,7 @@ export interface Game {
   approval_status?: 'pending' | 'approved' | 'rejected';
   banner_url?: string;
   cover_image_url?: string;
+  media?: Array<{ url?: string; thumbnail_url?: string }> | null;
   home_score?: number | null;
   away_score?: number | null;
   score?: {
@@ -99,13 +102,37 @@ export function GameCard({
     ? new Date(game.scheduled_date) < new Date()
     : false;
 
+  const firstMediaUrl = Array.isArray(game.media) && game.media.length > 0
+    ? (game.media[0]?.thumbnail_url || game.media[0]?.url || null)
+    : null;
+  const cardImage = game.cover_image_url || game.banner_url || firstMediaUrl || null;
+
   return (
     <Card
       variant="outlined"
       pressable={!!onPress}
       onPress={onPress ? () => onPress(game) : undefined}
-      style={style}
+      style={[style, { padding: 0 }]}
     >
+      {/* Preview Image — always fills top 150px; falls back to gradient */}
+      {cardImage ? (
+        <Image
+          source={{ uri: cardImage }}
+          style={styles.cardImage}
+          contentFit="cover"
+        />
+      ) : (
+        <LinearGradient
+          colors={['#1e293b', '#0f172a']}
+          style={styles.cardImage}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        />
+      )}
+
+      {/* Card Content */}
+      <View style={styles.cardContent}>
+
       {/* Header: Opponent and Type Badge */}
       <View style={styles.header}>
         <Text 
@@ -211,11 +238,19 @@ export function GameCard({
           )}
         </View>
       )}
+      </View>{/* end cardContent */}
     </Card>
   );
 }
 
 const styles = StyleSheet.create({
+  cardImage: {
+    width: '100%',
+    height: 150,
+  },
+  cardContent: {
+    padding: spacing.lg,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

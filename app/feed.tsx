@@ -708,7 +708,7 @@ export default function FeedScreen() {
             accessibilityLabel="Open VarsityHub Instagram"
           >
             <Image source={require('../assets/images/logo.svg')} style={styles.logoImage} />
-            <Text style={[styles.brand, { color: Colors[colorScheme].text }]}>Varsity Hub</Text>
+            <Text style={[styles.brand, { color: Colors[colorScheme].text }]} numberOfLines={1}>Varsity Hub</Text>
           </Pressable>
           <View style={{ flex: 1 }} />
           {/* Messages on RIGHT */}
@@ -899,25 +899,6 @@ export default function FeedScreen() {
                         <Ionicons name="megaphone-outline" size={48} color={colorScheme === 'dark' ? '#64748B' : '#9CA3AF'} />
                       </View>
                     )}
-                    <View style={styles.adInfo}>
-                      <Text style={[styles.adBusinessName, { color: Colors[colorScheme].text }]} numberOfLines={1}>
-                        {adData.business_name || 'Local Sponsor'}
-                      </Text>
-                      {adData.description ? (
-                        <Text style={[styles.adDescription, { color: Colors[colorScheme].mutedText }]} numberOfLines={2}>
-                          {String(adData.description)}
-                        </Text>
-                      ) : null}
-                      <Pressable
-                        style={styles.promoteCta}
-                        onPress={() => void router.push('/submit-ad')}
-                        accessibilityRole="button"
-                        accessibilityLabel="Promote your program"
-                      >
-                        <Ionicons name="megaphone-outline" size={16} color="#ffffff" />
-                        <Text style={styles.promoteCtaText}>Promote your program</Text>
-                      </Pressable>
-                    </View>
                   </View>
                 );
               }
@@ -925,7 +906,13 @@ export default function FeedScreen() {
               // Otherwise it's a regular event (game card)
               const gameItem = item as GameItem;
               const raw = gameItem as any;
-              const banner = gameItem.cover_image_url || raw?.banner_url || null;
+              const firstMediaUrl =
+                Array.isArray(raw?.media) && raw.media.length > 0
+                  ? (raw.media[0]?.thumbnail_url || raw.media[0]?.url || null)
+                  : Array.isArray(raw?.posts) && raw.posts.length > 0
+                  ? (raw.posts[0]?.media_url || raw.posts[0]?.thumbnail_url || null)
+                  : null;
+              const banner = gameItem.cover_image_url || raw?.banner_url || firstMediaUrl || null;
               const hasBanner = typeof banner === 'string' && banner.length > 0;
               const gradient: [string, string] = index % 2 === 0 ? ['#1e293b', '#0f172a'] : ['#0f172a', '#1e293b'];
               const eventDate = gameItem.date ? format(new Date(gameItem.date), 'MMM d') : 'TBD';
@@ -961,10 +948,9 @@ export default function FeedScreen() {
                   accessibilityRole="button"
                   accessibilityLabel={`${gameItem.title || 'Game'} on ${eventDate}${eventTime ? ` at ${eventTime}` : ''}`}
                 >
-                  {hasBanner ? (
-                    <Image source={{ uri: banner }} style={styles.singleEventImage} contentFit="cover" />
-                  ) : (
-                    <LinearGradient colors={gradient} style={styles.singleEventImage} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
+                  <LinearGradient colors={gradient} style={StyleSheet.absoluteFillObject} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
+                  {hasBanner && (
+                    <Image source={{ uri: banner! }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
                   )}
                   <LinearGradient
                     colors={colorScheme === 'dark' ? ['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.9)'] : ['rgba(15,23,42,0.05)', 'rgba(15,23,42,0.85)']}
@@ -1075,10 +1061,9 @@ export default function FeedScreen() {
                       accessibilityRole="button"
                       accessibilityLabel={`View post from ${teamName}`}
                     >
-                      {mediaUrl ? (
-                        <Image source={{ uri: mediaUrl }} style={styles.singleEventImage} contentFit="cover" />
-                      ) : (
-                        <LinearGradient colors={gradient} style={styles.singleEventImage} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
+                      <LinearGradient colors={gradient} style={StyleSheet.absoluteFillObject} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
+                      {mediaUrl && (
+                        <Image source={{ uri: mediaUrl }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
                       )}
                       <LinearGradient
                         colors={['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.9)']}
@@ -1155,7 +1140,13 @@ export default function FeedScreen() {
             <View style={{ gap: 20, marginTop: 12 }}>
               {pastEvents.map((item, index) => {
                 const raw = item as any;
-                const banner = item.cover_image_url || raw?.banner_url || null;
+                const firstMediaUrl =
+                  Array.isArray(raw?.media) && raw.media.length > 0
+                    ? (raw.media[0]?.thumbnail_url || raw.media[0]?.url || null)
+                    : Array.isArray(raw?.posts) && raw.posts.length > 0
+                    ? (raw.posts[0]?.media_url || raw.posts[0]?.thumbnail_url || null)
+                    : null;
+                const banner = item.cover_image_url || raw?.banner_url || firstMediaUrl || null;
                 const hasBanner = typeof banner === 'string' && banner.length > 0;
                 const gradient: [string, string] = index % 2 === 0 ? ['#1e293b', '#0f172a'] : ['#0f172a', '#1e293b'];
                 const eventDate = item.date ? format(new Date(item.date), 'MMM d') : 'TBD';
@@ -1191,10 +1182,9 @@ export default function FeedScreen() {
                     accessibilityRole="button"
                     accessibilityLabel={`${item.title || 'Game'} on ${eventDate}${eventTime ? ` at ${eventTime}` : ''}`}
                   >
-                    {hasBanner ? (
-                      <Image source={{ uri: banner }} style={styles.singleEventImage} contentFit="cover" />
-                    ) : (
-                      <LinearGradient colors={gradient} style={styles.singleEventImage} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
+                    <LinearGradient colors={gradient} style={StyleSheet.absoluteFillObject} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
+                    {hasBanner && (
+                      <Image source={{ uri: banner! }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
                     )}
                     <LinearGradient
                       colors={colorScheme === 'dark' ? ['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.9)'] : ['rgba(15,23,42,0.05)', 'rgba(15,23,42,0.85)']}
@@ -1421,7 +1411,7 @@ const styles = StyleSheet.create({
   },
   contentContainer: { flex: 1, paddingHorizontal: 16, paddingTop: 12, overflow: 'hidden' },
   logoImage: { width: 36, height: 36, borderRadius: 8 },
-  headerActions: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 8 },
+  headerActions: { flex: 1, flexShrink: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 8 },
   iconButton: { padding: 8, borderRadius: 8 },
   center: { paddingVertical: 24, alignItems: 'center' },
   error: { color: '#b91c1c', marginBottom: 8 },
@@ -1429,7 +1419,7 @@ const styles = StyleSheet.create({
   helper: { fontSize: 14, marginBottom: 10 },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  brand: { fontSize: 26, fontWeight: '800', letterSpacing: -0.5 },
+  brand: { fontSize: 26, fontWeight: '800', letterSpacing: -0.5, flexShrink: 1 },
   searchBox: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 48, borderRadius: 12, paddingHorizontal: 12, backgroundColor: '#F3F4F6', marginBottom: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB' },
   searchInput: { flex: 1, height: 44 },
   mapsButton: {
@@ -1527,7 +1517,6 @@ const styles = StyleSheet.create({
   sponsoredFeedCard: {
     width: '100%',
     borderRadius: 18,
-    borderWidth: StyleSheet.hairlineWidth,
     overflow: 'hidden',
     shadowColor: '#0f172a',
     shadowOpacity: 0.08,
