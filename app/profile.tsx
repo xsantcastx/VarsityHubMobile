@@ -146,6 +146,9 @@ export default function ProfileScreen() {
   const [isFollowing, setIsFollowing] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [userTeams, setUserTeams] = useState<Array<{ id: string; name: string; logo_url?: string | null; role?: string; position?: string | null; jersey_number?: string | number | null }>>([]);
+  const [avatarViewerVisible, setAvatarViewerVisible] = useState(false);
+
+  const isOwnProfile = !viewingUserId || viewingUserId === currentUserId;
 
   const setIfDifferent = useCallback((setter: any, next: any) => {
     setter((prev: any) => {
@@ -731,7 +734,13 @@ export default function ProfileScreen() {
         {/* Profile Content - Avatar on Bottom-Left of Banner */}
         <View style={styles.profileContent}>
           {/* Large Avatar - Overlapping Banner */}
-          <Pressable onPress={handleAvatarPress} disabled={isUploadingAvatar} style={styles.avatarSection}>
+          <Pressable
+            onPress={isOwnProfile
+              ? handleAvatarPress
+              : (me?.avatar_url ? () => setAvatarViewerVisible(true) : undefined)}
+            disabled={isOwnProfile && isUploadingAvatar}
+            style={styles.avatarSection}
+          >
             <View style={styles.avatarContainer}>
               {me?.avatar_url ? (
                 <Image source={{ uri: String(me?.avatar_url) }} style={styles.avatarImage} contentFit="cover" />
@@ -1182,6 +1191,33 @@ export default function ProfileScreen() {
           ListFooterComponent={upvotesLoading ? <ActivityIndicator style={{ marginVertical: 16 }} /> : null}
         />
       )}
+
+      {/* Avatar Viewer — shown when tapping another user's profile picture */}
+      <Modal
+        visible={avatarViewerVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setAvatarViewerVisible(false)}
+      >
+        <Pressable
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', alignItems: 'center', justifyContent: 'center' }}
+          onPress={() => setAvatarViewerVisible(false)}
+        >
+          {me?.avatar_url && (
+            <Image
+              source={{ uri: String(me.avatar_url) }}
+              style={{ width: 300, height: 300, borderRadius: 150 }}
+              contentFit="cover"
+            />
+          )}
+          <Pressable
+            onPress={() => setAvatarViewerVisible(false)}
+            style={{ position: 'absolute', top: insets.top + 12, right: 16, padding: 8, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 20 }}
+          >
+            <Ionicons name="close" size={24} color="white" />
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <Modal visible={viewerOpen} animationType="slide" onRequestClose={() => setViewerOpen(false)}>
         <GameVerticalFeedScreen
