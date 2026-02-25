@@ -11,7 +11,6 @@ import { Colors } from '@/constants/Colors';
 
 export default function ResetPasswordScreen() {
   const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
   const { refresh: refreshUser } = useUser(false);
   const { checkAuth } = useAuth();
   const [current, setCurrent] = useState('');
@@ -44,7 +43,7 @@ export default function ResetPasswordScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#111827' : '#FFFFFF' }]} edges={['bottom']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme ?? 'light'].background }]} edges={['bottom']}>
       <Stack.Screen options={{ title: 'Change Password', headerBackTitle: 'Back', headerShown: true }} />
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         <Text style={[styles.label, { color: Colors[colorScheme ?? 'light'].mutedText }]}>Current Password</Text>

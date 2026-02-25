@@ -13,7 +13,6 @@ import { Colors } from '@/constants/Colors';
 export default function EditUsernameScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
   const { user, loading: userLoading, refresh: refreshUser } = useUser();
   const { checkAuth } = useAuth();
   const [username, setUsername] = useState('');
@@ -58,7 +57,11 @@ export default function EditUsernameScreen() {
         checkAuth().catch(() => {}), // Refresh AuthProvider state
       ]);
       Alert.alert('Success', 'Username updated successfully');
-      router.back();
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace('/(tabs)' as any);
+      }
     } catch (e: any) {
       let errorMessage = 'Could not save username';
       if (e?.data?.message) {
@@ -79,7 +82,7 @@ export default function EditUsernameScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#111827' : '#FFFFFF' }]} edges={['bottom']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme ?? 'light'].background }]} edges={['bottom']}>
       <Stack.Screen 
         options={{ 
           title: 'Edit Username',

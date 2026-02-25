@@ -18,7 +18,6 @@ function isValidZip(v: string) {
 export default function ZipCodeScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
   const { zipCode, refresh: refreshUserProfile } = useUserProfile();
   const [zip, setZip] = useState(zipCode || '');
   const [saving, setSaving] = useState(false);
@@ -39,7 +38,11 @@ export default function ZipCodeScreen() {
       await refreshUserProfile().catch((error) => {
         console.warn('[zip-code] Failed to refresh user profile after save:', error);
       });
-      router.back();
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace('/(tabs)' as any);
+      }
     } catch (e: any) {
       console.error('[zip-code] Failed to save ZIP code:', e);
       Alert.alert('Save failed', e?.message || 'Could not save');
@@ -49,7 +52,7 @@ export default function ZipCodeScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#111827' : '#FFFFFF' }]} edges={['bottom']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme ?? 'light'].background }]} edges={['bottom']}>
       <Stack.Screen options={{ title: 'ZIP Code', headerBackTitle: 'Back', headerShown: true }} />
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         <Text style={[styles.title, { color: Colors[colorScheme ?? 'light'].text }]}>ZIP / Postal Code</Text>

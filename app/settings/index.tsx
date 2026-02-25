@@ -1,3 +1,4 @@
+import { Colors } from '@/constants/Colors';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Platform, Pressable, ScrollView, Share, StyleSheet, Switch, Text, useColorScheme, View } from 'react-native';
@@ -27,11 +28,13 @@ interface Preferences {
 // Inline components for settings
 function SectionCard({ title, initiallyOpen = false, children }: { title: string; initiallyOpen?: boolean; children: React.ReactNode }) {
   const [open, setOpen] = useState(initiallyOpen);
+  const cs = useColorScheme();
+  const palette = Colors[cs ?? 'light'];
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, { borderColor: palette.border, backgroundColor: palette.card }]}>
       <Pressable style={styles.cardHeader} onPress={() => setOpen(!open)}>
-        <Text style={styles.cardTitle}>{title}</Text>
-        <Text style={[styles.chev, open && styles.chevOpen]}>›</Text>
+        <Text style={[styles.cardTitle, { color: palette.text }]}>{title}</Text>
+        <Text style={[styles.chev, { color: palette.icon }, open && styles.chevOpen]}>›</Text>
       </Pressable>
       {open && <View style={styles.cardBody}>{children}</View>}
     </View>
@@ -39,23 +42,27 @@ function SectionCard({ title, initiallyOpen = false, children }: { title: string
 }
 
 function NavRow({ title, subtitle, onPress, destructive }: { title: string; subtitle?: string; onPress: () => void; destructive?: boolean }) {
+  const cs = useColorScheme();
+  const palette = Colors[cs ?? 'light'];
   return (
     <Pressable onPress={onPress} style={styles.rowBetween}>
       <View style={{ flex: 1 }}>
-        <Text style={[styles.rowTitle, destructive && styles.destructive]}>{title}</Text>
-        {subtitle && <Text style={styles.mutedSmall}>{subtitle}</Text>}
+        <Text style={[styles.rowTitle, { color: destructive ? palette.destructive : palette.text }]}>{title}</Text>
+        {subtitle && <Text style={[styles.mutedSmall, { color: palette.mutedText }]}>{subtitle}</Text>}
       </View>
-      <Text style={styles.chev}>›</Text>
+      <Text style={[styles.chev, { color: palette.icon }]}>›</Text>
     </Pressable>
   );
 }
 
 function SwitchRow({ title, subtitle, value, onValueChange }: { title: string; subtitle?: string; value: boolean; onValueChange: (v: boolean) => void }) {
+  const cs = useColorScheme();
+  const palette = Colors[cs ?? 'light'];
   return (
     <View style={styles.rowBetween}>
       <View style={{ flex: 1 }}>
-        <Text style={styles.rowTitle}>{title}</Text>
-        {subtitle && <Text style={styles.mutedSmall}>{subtitle}</Text>}
+        <Text style={[styles.rowTitle, { color: palette.text }]}>{title}</Text>
+        {subtitle && <Text style={[styles.mutedSmall, { color: palette.mutedText }]}>{subtitle}</Text>}
       </View>
       <Switch value={value} onValueChange={onValueChange} />
     </View>
@@ -257,7 +264,7 @@ export default function SettingsScreen() {
                       headerBackTitle: 'Back',
                     }} 
                   />
-                  <SafeAreaView style={[styles.container, { backgroundColor: colorScheme === 'dark' ? '#0B1120' : 'white' }]} edges={['top', 'bottom']}>
+                  <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme ?? 'light'].background }]} edges={['top', 'bottom']}>
                     <ScrollView>
                     {/* Account */}
                     <SectionCard title="Account" initiallyOpen>
@@ -307,8 +314,8 @@ export default function SettingsScreen() {
                       />
                       <View style={styles.rowBetween}>
                         <View style={{ flex: 1 }}>
-                          <Text style={styles.rowTitle}>Comment Permissions</Text>
-                          <Text style={styles.mutedSmall}>
+                          <Text style={[styles.rowTitle, { color: Colors[colorScheme ?? 'light'].text }]}>Comment Permissions</Text>
+                          <Text style={[styles.mutedSmall, { color: Colors[colorScheme ?? 'light'].mutedText }]}>
                             {prefs.comment_permission === 'everyone'
                               ? 'Everyone'
                               : prefs.comment_permission === 'following'
@@ -317,7 +324,7 @@ export default function SettingsScreen() {
                           </Text>
                         </View>
                         <Pressable
-                          style={styles.commentPermRow}
+                          style={[styles.commentPermRow]}
                           onPress={() => {
                             Alert.alert(
                               'Who can comment on your posts?',
@@ -351,7 +358,7 @@ export default function SettingsScreen() {
                           accessibilityLabel="Comment permissions"
                           accessibilityRole="button"
                         >
-                          <Text style={styles.chev}>›</Text>
+                          <Text style={[styles.chev, { color: Colors[colorScheme ?? 'light'].icon }]}>›</Text>
                         </Pressable>
                       </View>
                       <NavRow title="Export My Data" subtitle="Download your profile, posts, comments, messages, and preferences" onPress={async () => {
@@ -532,7 +539,7 @@ export default function SettingsScreen() {
 
                     {/* Copyright Footer */}
                     <View style={{ paddingHorizontal: 16, paddingVertical: 24, alignItems: 'center' }}>
-                      <Text style={{ fontSize: 12, color: '#9CA3AF', textAlign: 'center' }}>
+                      <Text style={{ fontSize: 12, color: Colors[colorScheme ?? 'light'].mutedText, textAlign: 'center' }}>
                         © 2026 LIME PRODUCTIONS. All rights reserved.
                       </Text>
                     </View>
@@ -545,19 +552,19 @@ export default function SettingsScreen() {
             const styles = StyleSheet.create({
               container: { flex: 1 },
               title: { fontSize: 24, fontWeight: '700', marginBottom: 8, paddingHorizontal: 16 },
-              error: { color: '#b91c1c', marginHorizontal: 16, marginBottom: 8 },
-              card: { marginHorizontal: 16, marginBottom: 12, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB', backgroundColor: '#F9FAFB' },
+              error: { marginHorizontal: 16, marginBottom: 8 },
+              card: { marginHorizontal: 16, marginBottom: 12, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth },
               cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 12 },
               cardBody: { padding: 12, gap: 12 },
               cardTitle: { fontWeight: '800', fontSize: 16 },
               rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10 },
               rowTitle: { fontWeight: '600' },
-              mutedSmall: { color: '#9CA3AF', fontSize: 12 },
-              chev: { fontSize: 20, color: '#6b7280', transform: [{ rotate: '0deg' }] },
+              mutedSmall: { fontSize: 12 },
+              chev: { fontSize: 20, transform: [{ rotate: '0deg' }] },
               chevOpen: { transform: [{ rotate: '90deg' }] },
               commentPermRow: { padding: 8 },
               destructive: { color: '#DC2626' },
-              selectedValue: { color: '#6b7280', fontSize: 14 },
+              selectedValue: { fontSize: 14 },
               themeOptions: { marginTop: 8, gap: 8 },
               themeOption: {
                 flexDirection: 'row',
@@ -575,7 +582,6 @@ export default function SettingsScreen() {
                 height: 16,
                 borderRadius: 8,
                 borderWidth: 2,
-                borderColor: '#d1d5db',
                 marginRight: 12,
                 backgroundColor: 'transparent',
               },
@@ -586,7 +592,6 @@ export default function SettingsScreen() {
               themeOptionText: {
                 fontSize: 16,
                 fontWeight: '500',
-                color: '#374151',
                 flex: 1,
               },
               themeOptionTextSelected: {
@@ -595,7 +600,6 @@ export default function SettingsScreen() {
               },
               themeOptionSubtext: {
                 fontSize: 12,
-                color: '#9CA3AF',
                 marginLeft: 'auto',
               },
             });

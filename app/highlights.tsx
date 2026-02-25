@@ -15,6 +15,7 @@ import {
     FlatList,
     Platform,
     Pressable,
+    RefreshControl,
     ScrollView,
     Share,
     StatusBar,
@@ -245,7 +246,7 @@ const HighlightCard = ({
                 onPress(item); // Navigate to post detail to see comments
               }}
             >
-              <Ionicons name="chatbubble" size={16} color="#6B7280" />
+              <Ionicons name="chatbubble" size={16} color={Colors[colorScheme].mutedText} />
               <Text style={[styles.statText, { color: Colors[colorScheme].mutedText, fontWeight: '600' }]}>{formatCount(item._count?.comments || 0)}</Text>
             </Pressable>
             
@@ -309,7 +310,6 @@ export default function HighlightsScreen() {
   const [ranked, setRanked] = useState<HighlightItem[]>([]);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | undefined>();
   const [activeTab, setActiveTab] = useState<TabType>('trending');
-  const [currentHighlightIndex, setCurrentHighlightIndex] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<{
     teams: any[];
@@ -320,13 +320,6 @@ export default function HighlightsScreen() {
   }>({ teams: [], events: [], users: [], organizations: [], posts: [] });
   const [searching, setSearching] = useState(false);
   const postCache = usePostCache();
-
-  const onHighlightsViewableItemsChanged = useRef(({ viewableItems }: any) => {
-    if (viewableItems && viewableItems.length > 0) {
-      const idx = viewableItems[0].index;
-      if (idx !== undefined) setCurrentHighlightIndex(idx);
-    }
-  }).current;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -623,7 +616,7 @@ export default function HighlightsScreen() {
   }, []);
 
   const renderHighlight = ({ item, index }: { item: HighlightItem; index: number }) => (
-    <View style={{ width: SCREEN_WIDTH, paddingHorizontal: 16, paddingVertical: 8 }}>
+    <View style={{ paddingHorizontal: 16, paddingVertical: 8 }}>
       <HighlightCard
         item={item}
         index={index}
@@ -927,32 +920,20 @@ export default function HighlightsScreen() {
           <Text style={[styles.emptySubtext, { color: Colors[colorScheme].tabIconDefault }]}>Check back later for amazing sports moments</Text>
         </View>
       ) : (
-        <>
-          {/* Page indicator */}
-          <View style={styles.pageIndicator}>
-            <Text style={[styles.pageIndicatorText, { color: Colors[colorScheme].mutedText }]}>
-              {currentHighlightIndex + 1} / {filteredHighlights.length}
-            </Text>
-          </View>
-          <FlatList
+        <FlatList
             data={filteredHighlights}
             renderItem={renderHighlight}
             keyExtractor={(item) => item.id}
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
             showsVerticalScrollIndicator={false}
-            decelerationRate="fast"
-            getItemLayout={(_, index) => ({
-              length: SCREEN_WIDTH,
-              offset: SCREEN_WIDTH * index,
-              index,
-            })}
-            onViewableItemsChanged={onHighlightsViewableItemsChanged}
-            viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
             contentContainerStyle={{ paddingVertical: 8 }}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={Colors[colorScheme].tint}
+              />
+            }
           />
-        </>
       )}
 
     </SafeAreaView>

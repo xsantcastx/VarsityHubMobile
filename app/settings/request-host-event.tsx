@@ -131,7 +131,7 @@ export default function RequestHostEventScreen() {
         content: `New event host request submitted: ${title}\nLocation: ${location}\nDate: ${date.toLocaleString()}\nRequested by: ${displayName || 'Unknown'} (${profileEmail || 'unknown@example.com'})`,
         recipient_email: 'admin@varsityhub.com',
       });
-      Alert.alert('Request Submitted!', 'Your request to host an event has been submitted. You will be notified when it is reviewed.', [{ text: 'OK', onPress: () => router.back() }]);
+      Alert.alert('Request Submitted!', 'Your request to host an event has been submitted. You will be notified when it is reviewed.', [{ text: 'OK', onPress: () => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any) }]);
     } catch (e: any) {
       Alert.alert('Error', e?.message || 'Failed to submit request. Please try again.');
     } finally {
@@ -179,14 +179,14 @@ export default function RequestHostEventScreen() {
           <TextInput
             style={[
               styles.input,
-              { backgroundColor: Colors[colorScheme].card, borderColor: errors.title ? '#DC2626' : Colors[colorScheme].border, color: Colors[colorScheme].text },
+              { backgroundColor: Colors[colorScheme].card, borderColor: errors.title ? Colors[colorScheme].destructive : Colors[colorScheme].border, color: Colors[colorScheme].text },
             ]}
             placeholder="e.g., Varsity Basketball Game"
             placeholderTextColor={Colors[colorScheme].mutedText}
             value={title}
             onChangeText={setTitle}
           />
-          {errors.title && <Text style={styles.errorText}>{errors.title}</Text>}
+          {errors.title && <Text style={[styles.errorText, { color: Colors[colorScheme].destructive }]}>{errors.title}</Text>}
         </View>
         <View style={styles.section}>
           <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Description</Text>
@@ -210,7 +210,7 @@ export default function RequestHostEventScreen() {
             <Pressable
               style={[
                 styles.dateTimeButton,
-                { backgroundColor: Colors[colorScheme].card, borderColor: errors.date ? '#DC2626' : Colors[colorScheme].border },
+                { backgroundColor: Colors[colorScheme].card, borderColor: errors.date ? Colors[colorScheme].destructive : Colors[colorScheme].border },
               ]}
               onPress={() => setShowDatePicker(true)}
             >
@@ -228,7 +228,7 @@ export default function RequestHostEventScreen() {
               <Text style={[styles.dateTimeText, { color: Colors[colorScheme].text }]}>{date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
             </Pressable>
           </View>
-          {errors.date && <Text style={styles.errorText}>{errors.date}</Text>}
+          {errors.date && <Text style={[styles.errorText, { color: Colors[colorScheme].destructive }]}>{errors.date}</Text>}
         </View>
         {showDatePicker && (
           <DateTimePicker
@@ -253,7 +253,7 @@ export default function RequestHostEventScreen() {
             <TextInput
               style={[
                 styles.input,
-                { backgroundColor: Colors[colorScheme].card, borderColor: errors.location ? '#DC2626' : Colors[colorScheme].border, color: Colors[colorScheme].text },
+                { backgroundColor: Colors[colorScheme].card, borderColor: errors.location ? Colors[colorScheme].destructive : Colors[colorScheme].border, color: Colors[colorScheme].text },
               ]}
               placeholder="Start typing an address, venue, or city"
               placeholderTextColor={Colors[colorScheme].mutedText}
@@ -293,7 +293,7 @@ export default function RequestHostEventScreen() {
               </View>
             )}
           </View>
-          {errors.location && <Text style={styles.errorText}>{errors.location}</Text>}
+          {errors.location && <Text style={[styles.errorText, { color: Colors[colorScheme].destructive }]}>{errors.location}</Text>}
           {!selectedPlace && locationTouched && location.length >= 3 && locationSuggestions.length === 0 && !locationQuerying && (
             <Text style={[styles.inputHelperText, { color: Colors[colorScheme].mutedText }]}>Tip: Select a suggested location for better accuracy, or continue typing to enter manually</Text>
           )}
@@ -344,7 +344,7 @@ const styles = StyleSheet.create({
   locationSuggestionItemLast: { borderBottomWidth: 0 },
   locationSuggestionMain: { fontSize: 16 },
   locationSuggestionSecondary: { fontSize: 12 },
-  errorText: { color: '#DC2626', marginTop: 2, marginBottom: 2 },
+  errorText: { marginTop: 2, marginBottom: 2 },
   inputHelperText: { fontSize: 12, marginTop: 2 },
   infoBox: { flexDirection: 'row', alignItems: 'center', padding: 12, borderWidth: 1, borderRadius: 8, marginBottom: 16 },
   infoText: { marginLeft: 8, fontSize: 14 },

@@ -10,7 +10,6 @@ import { Colors } from '@/constants/Colors';
 
 export default function ManageSubscription() {
   const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
   const [loading, setLoading] = useState(false);
   const [plan, setPlan] = useState<string | null>(null);
 
@@ -121,7 +120,7 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#111827' : '#FFFFFF' }]} edges={['bottom']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme ?? 'light'].background }]} edges={['bottom']}>
       <Stack.Screen options={{ title: 'Manage Subscription', headerBackTitle: 'Back', headerShown: true }} />
       <ScrollView contentContainerStyle={styles.contentContainer}>
         <Text style={[styles.title, { color: Colors[colorScheme ?? 'light'].text }]}>Subscription</Text>
