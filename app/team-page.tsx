@@ -110,7 +110,7 @@ export default function TeamScreen() {
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [games, setGames] = useState<GameItem[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'posts' | 'replies' | 'upvotes'>('posts');
+  const [activeTab, setActiveTab] = useState<'posts' | 'replies' | 'upvotes' | 'events'>('posts');
   const [isFollowing, setIsFollowing] = useState(false);
   const [isTeamAdmin, setIsTeamAdmin] = useState(false);
   const [me, setMe] = useState<{ id?: string; username?: string; display_name?: string; avatar_url?: string } | null>(null);
@@ -573,7 +573,7 @@ export default function TeamScreen() {
         
         {/* Back Button - Top Left */}
         <View style={[styles.headerControls, { top: Math.max(12, insets.top), left: 16 }]}>
-          <Pressable onPress={() => void router.back()} style={styles.controlButton}>
+          <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={styles.controlButton}>
             <Ionicons name="arrow-back" size={18} color="#333" />
           </Pressable>
         </View>
@@ -795,6 +795,12 @@ export default function TeamScreen() {
         >
           <Text style={[styles.tabText, { color: activeTab === 'upvotes' ? theme.tint : theme.mutedText }]}>Upvotes</Text>
         </Pressable>
+        <Pressable
+          onPress={() => setActiveTab('events')}
+          style={[styles.tab, activeTab === 'events' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
+        >
+          <Text style={[styles.tabText, { color: activeTab === 'events' ? theme.tint : theme.mutedText }]}>Events</Text>
+        </Pressable>
       </View>
     </>
   );
@@ -815,6 +821,13 @@ export default function TeamScreen() {
   const renderEmptyUpvotes = () => (
     <View style={styles.emptyContainer}>
       <Text style={[styles.emptyTitle, { color: theme.text }]}>No upvotes yet</Text>
+    </View>
+  );
+
+  const renderEmptyEvents = () => (
+    <View style={styles.emptyContainer}>
+      <Text style={[styles.emptyTitle, { color: theme.text }]}>No past events</Text>
+      <Text style={[styles.emptySubtitle, { color: theme.mutedText }]}>Past games and events will appear here</Text>
     </View>
   );
 
@@ -997,7 +1010,7 @@ export default function TeamScreen() {
           }}
           ListFooterComponent={repliesLoading ? <ActivityIndicator style={{ marginVertical: 16 }} /> : null}
         />
-      ) : (
+      ) : activeTab === 'upvotes' ? (
         <FlatList
           data={upvotes}
           key={`${activeTab}-grid-2cols`}
@@ -1067,6 +1080,44 @@ export default function TeamScreen() {
           }}
           ListFooterComponent={upvotesLoading ? <ActivityIndicator style={{ marginVertical: 16 }} /> : null}
         />
+      ) : (
+        <FlatList
+          data={games.filter(g => {
+            const d = (g as any).scheduled_date || g.date;
+            return d && new Date(d as string) < new Date();
+          })}
+          key={`${activeTab}-list`}
+          keyExtractor={(item) => item.id}
+          ListHeaderComponent={renderHeader}
+          ListEmptyComponent={renderEmptyEvents}
+          contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16) }}
+          renderItem={({ item }) => {
+            const g = item as any;
+            const rawDate = g.scheduled_date || g.date;
+            const dateStr = rawDate
+              ? new Date(rawDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+              : 'TBD';
+            const opponent = g.opponent_name || g.away_team || g.awayTeam || 'TBD';
+            const gameType = g.game_type || 'Game';
+            const hasScore = g.home_score != null || g.away_score != null;
+            return (
+              <View style={[styles.eventRow, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                <View style={[styles.eventDateBadge, { backgroundColor: theme.tint + '22' }]}>
+                  <Text style={[styles.eventDate, { color: theme.tint }]}>{dateStr}</Text>
+                </View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={[styles.eventTitle, { color: theme.text }]} numberOfLines={1}>vs {opponent}</Text>
+                  <Text style={[styles.eventTypeText, { color: theme.mutedText }]}>{gameType}</Text>
+                </View>
+                {hasScore && (
+                  <Text style={[styles.eventScore, { color: theme.text }]}>
+                    {g.home_score ?? '-'} - {g.away_score ?? '-'}
+                  </Text>
+                )}
+              </View>
+            );
+          }}
+        />
       )}
 
       <Modal visible={viewerOpen} animationType="slide" onRequestClose={() => setViewerOpen(false)}>
@@ -1075,7 +1126,7 @@ export default function TeamScreen() {
           showHeader
           initialPosts={viewerItems}
           startIndex={viewerIndex}
-          title={activeTab === 'posts' ? 'Team posts' : activeTab === 'replies' ? 'Team replies' : 'Team upvotes'}
+          title={activeTab === 'posts' ? 'Team posts' : activeTab === 'replies' ? 'Team replies' : activeTab === 'upvotes' ? 'Team upvotes' : 'Team events'}
         />
       </Modal>
     </SafeAreaView>
@@ -1411,6 +1462,41 @@ const styles = StyleSheet.create({
   },
   gridCountItem: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   gridCountText: { color: '#fff', fontSize: 10, fontWeight: '700' },
+  eventRow: {
+    marginHorizontal: 16,
+    marginVertical: 6,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  eventDateBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 80,
+  },
+  eventDate: {
+    fontSize: 12,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  eventTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  eventTypeText: {
+    fontSize: 13,
+  },
+  eventScore: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginLeft: 12,
+  },
   orgButton: {
     flexDirection: 'row',
     alignItems: 'center',

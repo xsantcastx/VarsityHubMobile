@@ -268,7 +268,7 @@ export default function MessageThreadScreen() {
           backgroundColor: Colors[colorScheme].card,
           borderBottomColor: Colors[colorScheme].border,
         }]}>
-          <Pressable onPress={() => void router.back()} style={styles.backButton}>
+          <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={styles.backButton}>
             <Ionicons name="chevron-back" size={28} color={Colors[colorScheme].text} />
           </Pressable>
 
@@ -375,7 +375,11 @@ export default function MessageThreadScreen() {
                             // Call block API
                             await User.block(otherParticipant.id);
                             Alert.alert('User Blocked', 'This user can no longer send you messages.');
-                            router.back();
+                            if (router.canGoBack()) {
+                              router.back();
+                            } else {
+                              router.replace('/(tabs)' as any);
+                            }
                           } catch (error: any) {
                             Alert.alert('Error', error.message || 'Failed to block user');
                           }

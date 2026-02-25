@@ -1,29 +1,26 @@
-import { Game, Organization, Post, Team, User } from '@/api/entities';
+import { Game, Organization, Team, User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
-import { getGradientForColor } from '@/utils/theme';
-import { calculateContrastRatio } from '@/utils/accessibility';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import GameVerticalFeedScreen, { FeedPost } from '../game-details/GameVerticalFeedScreen';
+import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-const VIDEO_EXT = /\.(mp4|mov|webm|m4v|avi)$/i;
-const HEADER_IMAGE_DRAG_LIMIT = 120;
-const _clampValue = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
-
-type OrganizationItem = {
+type OrganizationData = {
   id: string;
   name?: string;
   display_name?: string;
   description?: string;
+  bio?: string;
+  cover_url?: string;
   logo_url?: string;
   avatar_url?: string;
   created_at?: string;
+  contact_info?: string;
+  followers_count?: number;
+  is_following?: boolean;
   memberships?: Array<{
     user?: { id: string };
     user_id?: string;
@@ -31,102 +28,42 @@ type OrganizationItem = {
   }>;
 };
 
-type GameItem = {
-  id: string;
-  date?: string | Date;
-  home_team?: string;
-  away_team?: string;
-};
-
 type TeamItem = {
   id: string;
-  name?: string;
+  name: string;
+  sport?: string | null;
+  season?: string | null;
+  logo_url?: string | null;
   organization_id?: string;
 };
 
-type PostItem = {
+type GameItem = {
   id: string;
-  content?: string;
-  caption?: string;
-  media_url?: string;
-  upvotes_count?: number;
-  comments_count?: number;
-  created_at?: string;
-  created_date?: string;
-  _count?: {
-    comments?: number;
-  };
-};
-
-const toFeedPost = (item: any): FeedPost | null => {
-  const id = item?.id ? String(item.id) : null;
-  if (!id) return null;
-  const media = typeof item?.media_url === 'string' ? item.media_url : null;
-  const explicit = typeof item?.media_type === 'string' ? String(item.media_type).toLowerCase() : null;
-  const media_type: 'video' | 'image' = media
-    ? (explicit === 'video' || explicit === 'image' ? (explicit as any) : (VIDEO_EXT.test(media) ? 'video' : 'image'))
-    : 'image';
-  return {
-    id,
-    media_url: media,
-    media_type,
-    caption: item?.caption ?? item?.content ?? '',
-    upvotes_count: item?.upvotes_count ?? 0,
-    comments_count: item?.comments_count ?? item?._count?.comments ?? 0,
-    bookmarks_count: item?.bookmarks_count ?? 0,
-    created_at: item?.created_at ?? null,
-    author: item?.author ? { id: String(item.author.id ?? id), username: (item.author as any).username ?? null, display_name: (item.author as any).display_name ?? null, avatar_url: item.author.avatar_url ?? null } : null,
-    has_upvoted: Boolean(item?.has_upvoted),
-    has_bookmarked: Boolean(item?.has_bookmarked),
-    is_following_author: Boolean(item?.is_following_author),
-  };
+  date?: string | Date;
+  scheduled_date?: string;
+  home_team?: string;
+  away_team?: string;
+  opponent_name?: string;
+  location?: string;
+  game_type?: string;
 };
 
 export default function OrganizationScreen() {
   const colorScheme = useCustomColorScheme();
   const theme = Colors[colorScheme];
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ id?: string }>();
-  
+
   const [loading, setLoading] = useState(true);
-  const [organization, setOrganization] = useState<OrganizationItem | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [organization, setOrganization] = useState<OrganizationData | null>(null);
   const [teams, setTeams] = useState<TeamItem[]>([]);
   const [games, setGames] = useState<GameItem[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'posts' | 'replies' | 'upvotes'>('posts');
   const [isOrgAdmin, setIsOrgAdmin] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
-  const [_me, setMe] = useState<{ id?: string; username?: string; display_name?: string } | null>(null);
-  
-  // Posts state - matching profile.tsx
-  const [posts, setPosts] = useState<PostItem[]>([]);
-  const [_postsCursor, _setPostsCursor] = useState<string | null>(null);
-  const [postsHasMore, setPostsHasMore] = useState(true);
-  const [postsLoading, setPostsLoading] = useState(false);
-  const postsRequestInFlight = useRef(false);
+  const [isRequestingJoin, setIsRequestingJoin] = useState(false);
 
-  const [replies, setReplies] = useState<PostItem[]>([]);
-  const [_repliesCursor, _setRepliesCursor] = useState<string | null>(null);
-  const [repliesHasMore, setRepliesHasMore] = useState(true);
-  const [repliesLoading, setRepliesLoading] = useState(false);
-  const repliesRequestInFlight = useRef(false);
-  
-  const [upvotes, setUpvotes] = useState<PostItem[]>([]);
-  const [_upvotesCursor, _setUpvotesCursor] = useState<string | null>(null);
-  const [upvotesHasMore, setUpvotesHasMore] = useState(true);
-  const [upvotesLoading, setUpvotesLoading] = useState(false);
-  const upvotesRequestInFlight = useRef(false);
-  
-  const [_sort, _setSort] = useState<'newest' | 'most_upvoted' | 'most_commented'>('newest');
-  const [orgThemeColor, setOrgThemeColor] = useState<string>('#3B82F6');
-  
-  // Vertical viewer state
-  const [viewerOpen, setViewerOpen] = useState(false);
-  const [viewerIndex, setViewerIndex] = useState(0);
-  const [viewerItems, setViewerItems] = useState<FeedPost[]>([]);
-
-  // Mounted guard to prevent state updates after unmount
   const mounted = useRef(true);
   useEffect(() => {
     return () => {
@@ -134,119 +71,41 @@ export default function OrganizationScreen() {
     };
   }, []);
 
-  const refreshPosts = useCallback(async (_orgId: string) => {
-    if (postsRequestInFlight.current || !mounted.current) return;
-    postsRequestInFlight.current = true;
-    if (mounted.current) setPostsLoading(true);
-    try {
-      // Fetch posts from all teams in organization
-      const teamNames = teams.map((t: any) => t.name?.toLowerCase() || '');
-      const allPosts = await Post.list('-created_at', 50);
-      if (!mounted.current) return;
-      
-      const orgPosts = Array.isArray(allPosts) 
-        ? allPosts.filter((p: PostItem) => {
-            const content = (p.content || p.caption || '').toLowerCase();
-            const teamHashtags = teamNames.map((name: string) => `#${name.replace(/\s+/g, '')}`);
-            return teamHashtags.some(tag => content.includes(tag));
-          })
-        : [];
-      
-      if (mounted.current) {
-        setPosts(orgPosts);
-        setPostsHasMore(false);
-      }
-    } finally {
-      postsRequestInFlight.current = false;
-      if (mounted.current) setPostsLoading(false);
-    }
-  }, [teams]);
-
-  const refreshReplies = useCallback(async (_orgId: string) => {
-    if (repliesRequestInFlight.current || !mounted.current) return;
-    repliesRequestInFlight.current = true;
-    if (mounted.current) setRepliesLoading(true);
-    try {
-      if (mounted.current) {
-        setReplies([]);
-        setRepliesHasMore(false);
-      }
-    } finally {
-      repliesRequestInFlight.current = false;
-      if (mounted.current) setRepliesLoading(false);
-    }
-  }, []);
-
-  const refreshUpvotes = useCallback(async (_orgId: string) => {
-    if (upvotesRequestInFlight.current || !mounted.current) return;
-    upvotesRequestInFlight.current = true;
-    if (mounted.current) setUpvotesLoading(true);
-    try {
-      if (mounted.current) {
-        setUpvotes([]);
-        setUpvotesHasMore(false);
-      }
-    } finally {
-      upvotesRequestInFlight.current = false;
-      if (mounted.current) setUpvotesLoading(false);
-    }
-  }, []);
-
   const loadOrganization = useCallback(async () => {
     if (!mounted.current) return;
-    setLoading(true);
     setError(null);
     try {
-      // Validate and sanitize route params
       const orgId = params.id?.trim();
-      
+
       if (!orgId) {
-        if (mounted.current) {
-          setError('No organization ID provided');
-          setLoading(false);
-        }
-        return;
-      }
-      
-      // Validate ID format (alphanumeric, dash, underscore only)
-      if (!/^[a-zA-Z0-9_-]+$/.test(orgId)) {
-        if (mounted.current) {
-          setError('Invalid organization ID format');
-          setLoading(false);
-        }
+        if (mounted.current) { setError('No organization ID provided'); setLoading(false); }
         return;
       }
 
-      // Load organization data once (fix duplicate API call)
-      let orgData: OrganizationItem | null = null;
+      if (!/^[a-zA-Z0-9_-]+$/.test(orgId)) {
+        if (mounted.current) { setError('Invalid organization ID format'); setLoading(false); }
+        return;
+      }
+
+      let orgData: OrganizationData | null = null;
       try {
         orgData = await Organization.get(orgId);
         if (!mounted.current) return;
-        
         setOrganization(orgData);
         setIsFollowing(!!(orgData as any).is_following);
-
-        // Use default theme color (organizations don't have preferences field yet)
-        setOrgThemeColor('#3B82F6');
       } catch (err: any) {
         if (!mounted.current) return;
         console.error('[organization] Failed to load organization data:', err);
-        // Continue without org data if it fails - error will be shown if orgData is null later
       }
 
-      // Load current user to check permissions
       try {
         const currentUser = await User.me();
         if (!mounted.current) return;
-        
-        setMe(currentUser);
-        
         if (currentUser && orgData?.memberships && Array.isArray(orgData.memberships)) {
-          const membership = orgData.memberships.find((m: { user?: { id: string }; user_id?: string; role?: string }) => {
+          const membership = orgData.memberships.find((m) => {
             const memberUserId = m.user?.id || m.user_id;
             if (memberUserId !== currentUser.id) return false;
-            const role = String(m.role || '').toLowerCase();
-            return ['owner', 'manager', 'administrator', 'admin'].includes(role);
+            return ['owner', 'manager', 'administrator', 'admin'].includes(String(m.role || '').toLowerCase());
           });
           if (mounted.current) setIsOrgAdmin(!!membership);
         } else {
@@ -254,357 +113,113 @@ export default function OrganizationScreen() {
         }
       } catch (err: any) {
         console.error('[organization] Failed to load current user:', err);
-        if (mounted.current) {
-          setMe(null);
-          setIsOrgAdmin(false);
-        }
+        if (mounted.current) setIsOrgAdmin(false);
       }
 
-      // Fetch all teams in this organization
       let allTeams: any[] = [];
       try {
         allTeams = await Team.list();
       } catch (err: any) {
-        if (!mounted.current) return;
         console.error('[organization] Failed to load teams list:', err);
         allTeams = [];
       }
-      
+
       if (!mounted.current) return;
-      
-      const orgTeams = allTeams.filter((t: any) => t.organization_id === orgId);
+
+      const orgTeams: TeamItem[] = allTeams
+        .filter((t: any) => t.organization_id === orgId)
+        .map((t: any) => ({
+          id: String(t.id),
+          name: t.name || 'Team',
+          sport: t.sport || null,
+          season: t.season || null,
+          logo_url: t.logo_url || t.avatar_url || null,
+          organization_id: t.organization_id,
+        }))
+        .sort((a: TeamItem, b: TeamItem) => a.name.localeCompare(b.name));
       setTeams(orgTeams);
 
-      // Fetch games for all teams in organization
-      const gamesResult = await (async () => {
-        try {
-          const allGames = await Game.list('-date');
-          if (!mounted.current) return [];
-          
-          const teamNames = orgTeams.map((t: any) => t.name?.toLowerCase() || '');
-          return allGames
-            .filter((g: any) => {
-              const homeTeam = (g.home_team || '').toLowerCase();
-              const awayTeam = (g.away_team || '').toLowerCase();
-              return teamNames.some(name => 
-                homeTeam.includes(name) || awayTeam.includes(name)
-              );
-            })
-            .sort((a: any, b: any) => {
-              const dateA = new Date(a.date).getTime();
-              const dateB = new Date(b.date).getTime();
-              return dateA - dateB;
-            });
-        } catch (err: any) {
-          console.error('[organization] Failed to load games:', err);
-          return [];
-        }
-      })();
-
-      if (!mounted.current) return;
-      setGames(gamesResult);
-      
-      // Load initial posts
-      if (orgId) {
-        await refreshPosts(orgId);
+      try {
+        const allGames = await Game.list('-date');
+        if (!mounted.current) return;
+        const teamNames = orgTeams.map((t) => t.name.toLowerCase());
+        const orgGames: GameItem[] = (Array.isArray(allGames) ? allGames : [])
+          .filter((g: any) => {
+            const homeTeam = (g.home_team || '').toLowerCase();
+            const awayTeam = (g.away_team || '').toLowerCase();
+            return teamNames.some((name) => homeTeam.includes(name) || awayTeam.includes(name));
+          })
+          .map((g: any) => ({
+            id: String(g.id),
+            date: g.date,
+            scheduled_date: g.scheduled_date,
+            home_team: g.home_team,
+            away_team: g.away_team,
+            opponent_name: g.opponent_name,
+            location: g.location,
+            game_type: g.game_type,
+          }))
+          .sort((a: GameItem, b: GameItem) => {
+            const dateA = new Date((a.scheduled_date || a.date) as string).getTime();
+            const dateB = new Date((b.scheduled_date || b.date) as string).getTime();
+            return dateA - dateB;
+          });
+        setGames(orgGames);
+      } catch (err: any) {
+        console.error('[organization] Failed to load games:', err);
+        if (mounted.current) setGames([]);
       }
     } catch (err: any) {
       if (!mounted.current) return;
       console.error('[organization] Failed to load organization:', err);
-      const errorMessage = err?.message || 'Failed to load organization data';
-      setError(errorMessage);
+      setError(err?.message || 'Failed to load organization data');
     } finally {
       if (mounted.current) setLoading(false);
     }
-  }, [params.id, refreshPosts]);
+  }, [params.id]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadOrganization();
+    setRefreshing(false);
+  }, [loadOrganization]);
 
   useEffect(() => {
     void loadOrganization();
   }, [loadOrganization]);
 
-  // Refresh when switching tabs
-  useEffect(() => {
-    if (!organization?.id) return;
-    setError(null);
-    if (activeTab === 'posts') {
-      void refreshPosts(String(organization.id));
-    } else if (activeTab === 'replies') {
-      void refreshReplies(String(organization.id));
-    } else if (activeTab === 'upvotes') {
-      void refreshUpvotes(String(organization.id));
-    }
-  }, [activeTab, organization?.id, refreshPosts, refreshReplies, refreshUpvotes]);
-
-  const loadMorePosts = useCallback(async () => {
-    if (postsLoading || !postsHasMore || !organization?.id || !mounted.current) return;
-    if (mounted.current) setPostsLoading(true);
-    try {
-      if (mounted.current) setPostsHasMore(false);
-    } finally {
-      if (mounted.current) setPostsLoading(false);
-    }
-  }, [postsHasMore, postsLoading, organization?.id]);
-
-  const loadMoreReplies = useCallback(async () => {
-    if (repliesLoading || !repliesHasMore || !organization?.id || !mounted.current) return;
-    if (mounted.current) setRepliesLoading(true);
-    try {
-      if (mounted.current) setRepliesHasMore(false);
-    } finally {
-      if (mounted.current) setRepliesLoading(false);
-    }
-  }, [repliesHasMore, repliesLoading, organization?.id]);
-
-  const loadMoreUpvotes = useCallback(async () => {
-    if (upvotesLoading || !upvotesHasMore || !organization?.id || !mounted.current) return;
-    if (mounted.current) setUpvotesLoading(true);
-    try {
-      if (mounted.current) setUpvotesHasMore(false);
-    } finally {
-      if (mounted.current) setUpvotesLoading(false);
-    }
-  }, [upvotesHasMore, upvotesLoading, organization?.id]);
-
-  const unwrapPost = useCallback((item: PostItem | { post?: PostItem; target?: PostItem | { post?: PostItem } }) => {
-    const postItem = item as any; // Complex nested structure from interactions
-    return postItem?.post || postItem?.target?.post || postItem?.target || item;
-  }, []);
-
-  // Get header background (organizations don't have preferences field yet, so no custom header image)
-  const headerBackgroundImage = null; // Future: organization?.header_image_url
-  const headerImageFocusY = 0;
-  const heroGradientColors: [string, string, ...string[]] = headerBackgroundImage
-    ? ['rgba(4,7,20,0.85)', 'rgba(15,23,42,0.45)']
-    : (getGradientForColor(orgThemeColor) as [string, string, ...string[]]);
-  
-  const getTextColorForBackground = (bgColor: string): string => {
-    let hexColor = bgColor;
-    if (bgColor.startsWith('rgba')) {
-      const match = bgColor.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
-      if (match) {
-        const r = parseInt(match[1], 10);
-        const g = parseInt(match[2], 10);
-        const b = parseInt(match[3], 10);
-        hexColor = `#${[r, g, b].map(x => {
-          const hex = x.toString(16);
-          return hex.length === 1 ? '0' + hex : hex;
-        }).join('')}`;
-      }
-    }
-    const whiteContrast = calculateContrastRatio('#FFFFFF', hexColor);
-    if (whiteContrast && whiteContrast >= 3.0) {
-      return '#FFFFFF';
-    }
-    return '#000000';
+  const handleTeamPress = (team: TeamItem) => {
+    router.push({ pathname: '/team-page', params: { id: team.id, name: team.name } });
   };
-  
-  const firstGradientColor = heroGradientColors[0] || orgThemeColor;
-  const orgNameTextColor = getTextColorForBackground(firstGradientColor);
-  
-  const orgName = organization?.name || organization?.display_name || 'Organization';
-  const orgHandle = `@${(orgName || 'organization').toLowerCase().replace(/\s+/g, '')}`;
-  const orgDescription = organization?.description || '';
 
-  const renderHeader = () => (
-    <>
-      {/* Banner Header - Exact Match to Profile Design */}
-      <View style={[styles.headerContainer, { backgroundColor: theme.background }]}>
-        {/* Background Image / Gradient */}
-        <View style={styles.headerBackgroundPressable}>
-          {headerBackgroundImage ? (
-            <Image
-              source={{ uri: headerBackgroundImage }}
-              style={[
-                styles.headerBackgroundImage,
-                { transform: [{ translateY: headerImageFocusY * HEADER_IMAGE_DRAG_LIMIT }] },
-              ]}
-              contentFit="cover"
-            />
-          ) : (
-            <View style={styles.headerBackgroundImage} />
-          )}
-        </View>
-        {!headerBackgroundImage && (
-          <LinearGradient
-            colors={heroGradientColors}
-            style={styles.headerGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          />
-        )}
-        
-        {/* Back Button - Top Left */}
-        <View style={[styles.headerControls, { top: Math.max(12, insets.top), left: 16 }]}>
-          <Pressable onPress={() => void router.back()} style={styles.controlButton}>
-            <Ionicons name="arrow-back" size={18} color={theme.text} />
-          </Pressable>
-        </View>
-        
-        {/* Settings Button - Top Right */}
-        {isOrgAdmin && (
-          <View style={[styles.headerControls, { top: Math.max(12, insets.top) }]}>
-            <Pressable onPress={() => void router.push('/settings')} style={styles.controlButton}>
-              <Ionicons name="settings-outline" size={18} color="#333" />
-            </Pressable>
-          </View>
-        )}
-        
-        {/* Profile Content - Avatar on Bottom-Left of Banner */}
-        <View style={styles.profileContent}>
-          {/* Large Avatar - Overlapping Banner */}
-          <View style={styles.avatarSection}>
-            <View style={styles.avatarContainer}>
-              {organization?.avatar_url || organization?.logo_url ? (
-                <Image source={{ uri: String(organization.avatar_url || organization.logo_url) }} style={styles.avatarImage} contentFit="cover" />
-              ) : (
-                <View style={styles.avatarPlaceholder}>
-                  <Ionicons name="business" size={48} color={theme.mutedText} />
-                </View>
-              )}
-            </View>
-          </View>
+  const handleGamePress = (game: GameItem) => {
+    router.push({ pathname: '/game-detail', params: { id: game.id } });
+  };
 
-          {/* Organization Info - Next to Avatar ON BANNER */}
-          <View style={styles.userInfo}>
-            <View style={styles.nameRow}>
-              <Text style={[styles.userName, { color: orgNameTextColor }]}>{orgName}</Text>
-              <View style={[styles.roleBadge, styles.orgBadge]}>
-                <Text style={styles.roleText}>ORG</Text>
-              </View>
-            </View>
-          </View>
-        </View>
-      </View>
+  const formatEventDate = (dateValue?: string | Date | null): string => {
+    if (!dateValue) return 'TBD';
+    try {
+      const date = new Date(dateValue as string);
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const eventDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      const daysDiff = Math.floor((eventDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      if (daysDiff === 0) return 'Today';
+      if (daysDiff === 1) return 'Tomorrow';
+      return date.toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
+      });
+    } catch {
+      return String(dateValue);
+    }
+  };
 
-      {/* Content Below Banner */}
-      <View style={styles.profileDetailsContainer}>
-        {/* Username and Action Buttons Row */}
-        <View style={styles.usernameRow}>
-          <Text style={[styles.userHandle, { color: theme.text }]}>{orgHandle}</Text>
-          {isOrgAdmin ? (
-            <Pressable style={styles.editButtonBelowBanner} onPress={() => void router.push(`/create-organization?id=${organization?.id}` as any)}>
-              <Text style={styles.editButtonBelowBannerText}>Edit profile</Text>
-            </Pressable>
-          ) : (
-            <Pressable
-              style={[
-                styles.followButtonBelowBanner,
-                { backgroundColor: isFollowing ? theme.tint : 'transparent', borderColor: theme.tint, borderWidth: 1 },
-              ]}
-              onPress={async () => {
-                if (!organization?.id) return;
-                try {
-                  if (isFollowing) {
-                    await Organization.unfollow(organization.id);
-                    setIsFollowing(false);
-                    setOrganization((prev) => prev ? { ...prev, followers_count: Math.max(0, ((prev as any).followers_count ?? 0) - 1) } : null);
-                  } else {
-                    await Organization.follow(organization.id);
-                    setIsFollowing(true);
-                    setOrganization((prev) => prev ? { ...prev, followers_count: ((prev as any).followers_count ?? 0) + 1 } : null);
-                  }
-                } catch (err) {
-                  console.error('Organization follow/unfollow failed:', err);
-                }
-              }}
-            >
-              {isFollowing ? (
-                <View style={styles.followingIndicator}>
-                  <Ionicons name="checkmark-circle" size={20} color="#fff" />
-                </View>
-              ) : (
-                <Text style={[styles.followButtonBelowBannerText, { color: theme.tint }]}>Follow</Text>
-              )}
-            </Pressable>
-          )}
-        </View>
-
-        {/* Organization Details - Left aligned with avatar */}
-        <View style={styles.userDetails}>
-          {orgDescription && (
-            <Text style={[styles.userBio, { color: theme.text }]}>{orgDescription}</Text>
-          )}
-          
-          {/* Created Date */}
-          {organization?.created_at && (
-            <View style={styles.metaItem}>
-              <Ionicons name="calendar-outline" size={14} color={theme.mutedText} />
-              <Text style={[styles.metaText, { color: theme.mutedText }]}>
-                Created {new Date(organization.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-              </Text>
-            </View>
-          )}
-          
-          {/* Stats - Teams, Followers, Games */}
-          <View style={styles.statsRow}>
-            <Text style={[styles.statNumber, { color: theme.text }]}>
-              {teams.length}
-            </Text>
-            <Text style={[styles.statLabel, { color: theme.mutedText }]}> Teams </Text>
-            <Text style={[styles.statNumber, { color: theme.text }]}>
-              {(organization as any)?.followers_count ?? 0}
-            </Text>
-            <Text style={[styles.statLabel, { color: theme.mutedText }]}> Followers </Text>
-            <Text style={[styles.statNumber, { color: theme.text }]}>
-              {games.length}
-            </Text>
-            <Text style={[styles.statLabel, { color: theme.mutedText }]}> Games</Text>
-          </View>
-        </View>
-      </View>
-
-      {/* Tabs */}
-      <View style={[styles.tabsContainer, { borderBottomColor: theme.border }]}>
-        <Pressable
-          onPress={() => setActiveTab('posts')}
-          style={[styles.tab, activeTab === 'posts' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
-        >
-          <Text style={[styles.tabText, { color: activeTab === 'posts' ? theme.tint : theme.mutedText }]}>Posts</Text>
-        </Pressable>
-        <Pressable
-          onPress={() => setActiveTab('replies')}
-          style={[styles.tab, activeTab === 'replies' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
-        >
-          <Text style={[styles.tabText, { color: activeTab === 'replies' ? theme.tint : theme.mutedText }]}>Replies</Text>
-        </Pressable>
-        <Pressable
-          onPress={() => setActiveTab('upvotes')}
-          style={[styles.tab, activeTab === 'upvotes' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
-        >
-          <Text style={[styles.tabText, { color: activeTab === 'upvotes' ? theme.tint : theme.mutedText }]}>Upvotes</Text>
-        </Pressable>
-      </View>
-    </>
-  );
-
-  const renderEmptyPosts = () => (
-    <View style={styles.emptyContainer}>
-      <Text style={[styles.emptyTitle, { color: theme.text }]}>No posts yet</Text>
-      <Text style={[styles.emptySubtitle, { color: theme.mutedText }]}>Posts from this organization's teams will appear here</Text>
-    </View>
-  );
-
-  const renderEmptyReplies = () => (
-    <View style={styles.emptyContainer}>
-      <Text style={[styles.emptyTitle, { color: theme.text }]}>No replies yet</Text>
-    </View>
-  );
-
-  const renderEmptyUpvotes = () => (
-    <View style={styles.emptyContainer}>
-      <Text style={[styles.emptyTitle, { color: theme.text }]}>No upvotes yet</Text>
-    </View>
-  );
-
-  const onEndReachedPosts = useCallback(() => { if (organization?.id) void loadMorePosts(); }, [organization?.id, loadMorePosts]);
-  const onEndReachedReplies = useCallback(() => { if (organization?.id) void loadMoreReplies(); }, [organization?.id, loadMoreReplies]);
-  const onEndReachedUpvotes = useCallback(() => { if (organization?.id) void loadMoreUpvotes(); }, [organization?.id, loadMoreUpvotes]);
-
-  if (loading) {
+  if (loading && !refreshing) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
-        <Stack.Screen options={{ title: 'Organization' }} />
-        <View style={styles.center}>
+        <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.tint} />
         </View>
       </SafeAreaView>
@@ -614,575 +229,491 @@ export default function OrganizationScreen() {
   if (error) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
-        <Stack.Screen options={{ title: 'Organization' }} />
-        <View style={styles.center}>
-          <Text style={[styles.error, { color: theme.text }]}>{error}</Text>
-          <Pressable onPress={loadOrganization} style={styles.retryButton}>
-            <Text style={styles.retryButtonText}>Retry</Text>
+        <View style={styles.errorContainer}>
+          <Text style={[styles.errorText, { color: theme.text }]}>{error}</Text>
+          <Pressable onPress={loadOrganization} style={[styles.retryButton, { backgroundColor: theme.tint }]}>
+            <Text style={styles.retryText}>Retry</Text>
           </Pressable>
         </View>
       </SafeAreaView>
     );
   }
 
-  if (!organization) {
-    return (
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
-        <Stack.Screen options={{ title: 'Organization' }} />
-        <View style={styles.center}>
-          <Text style={[styles.error, { color: theme.text }]}>Organization not found</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  const orgName = organization?.display_name || organization?.name || 'Organization';
+  const handle = orgName.replace(/\s+/g, '').toLowerCase();
+  const orgBio = organization?.bio || organization?.description || null;
+  const contactText = organization?.contact_info?.trim() || null;
+  const upcomingGames = games
+    .filter((g) => {
+      const d = g.scheduled_date || g.date;
+      return d && new Date(d as string) >= new Date();
+    })
+    .slice(0, 10);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
       <Stack.Screen options={{ title: orgName, headerShown: false }} />
-      {activeTab === 'posts' ? (
-        <FlatList
-          data={posts}
-          key={`${activeTab}-grid-2cols`}
-          numColumns={2}
-          columnWrapperStyle={styles.gridRow}
-          keyExtractor={(item) => item.id}
-          ListHeaderComponent={renderHeader}
-          ListEmptyComponent={renderEmptyPosts}
-          contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16), paddingHorizontal: 8 }}
-          onEndReachedThreshold={0.5}
-          onEndReached={onEndReachedPosts}
-          renderItem={({ item, index }) => {
-            const thumb = item.media_url;
-            const _isVideo = !!thumb && VIDEO_EXT.test(thumb);
-            const likes = item.upvotes_count ?? 0;
-            const comments = item.comments_count ?? item?._count?.comments ?? 0;
-            return (
-              <Pressable
-                style={styles.gridItem}
-                onPress={() => {
-                  const mapped = (posts || []).map(toFeedPost);
-                  const items = mapped.filter(Boolean) as FeedPost[];
-                  const targetId = mapped[index]?.id;
-                  const targetIdx = targetId ? items.findIndex((p) => p.id === targetId) : index;
-                  setViewerItems(items);
-                  setViewerIndex(Math.max(0, targetIdx));
-                  setViewerOpen(true);
-                }}
-              >
-                {thumb ? (
-                  <View style={styles.gridImageContainer}>
-                    <Image source={{ uri: thumb }} style={styles.gridImage} contentFit="cover" />
-                    <View style={styles.gridImageOverlay} />
-                  </View>
-                ) : (
-                  <View style={[styles.gridImage, styles.gridImageFallback]}>
-                    <LinearGradient 
-                      colors={["#667eea", "#764ba2", "#f093fb"]} 
-                      style={StyleSheet.absoluteFillObject as any} 
-                      start={{ x: 0, y: 0 }} 
-                      end={{ x: 1, y: 1 }}
-                    />
-                    <View style={styles.textPostOverlay}>
-                      <Text numberOfLines={4} style={styles.gridTextOnly}>{String(item.caption || item.content || '').trim() || 'Post'}</Text>
-                    </View>
-                  </View>
-                )}
-                <View style={styles.gridCounts}>
-                  <View style={styles.gridCountItem}>
-                    <Ionicons name="arrow-up" size={12} color="#fff" />
-                    <Text style={styles.gridCountText}>{likes}</Text>
-                  </View>
-                  <View style={styles.gridCountItem}>
-                    <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
-                    <Text style={styles.gridCountText}>{comments}</Text>
-                  </View>
-                </View>
-                <View style={styles.gridIconBadge}>
-                  <Ionicons name={thumb ? 'camera-outline' : 'text'} size={14} color="#fff" />
-                </View>
-              </Pressable>
-            );
-          }}
-          ListFooterComponent={postsLoading ? <ActivityIndicator style={{ marginVertical: 16 }} /> : null}
-        />
-      ) : activeTab === 'replies' ? (
-        <FlatList
-          data={replies}
-          key={`${activeTab}-grid-2cols`}
-          numColumns={2}
-          columnWrapperStyle={styles.gridRow}
-          keyExtractor={(item, index) => {
-            const postItem = unwrapPost(item);
-            return postItem?.id ?? item?.id ?? `reply-${index}`;
-          }}
-          ListHeaderComponent={renderHeader}
-          ListEmptyComponent={renderEmptyReplies}
-          contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16), paddingHorizontal: 8 }}
-          onEndReachedThreshold={0.5}
-          onEndReached={onEndReachedReplies}
-          renderItem={({ item, index }) => {
-            const postItem = unwrapPost(item);
-            const thumb = postItem?.media_url;
-            const _isVideo = !!thumb && VIDEO_EXT.test(thumb);
-            const likes = postItem?.upvotes_count ?? 0;
-            const comments = postItem?.comments_count ?? postItem?._count?.comments ?? 0;
-            return (
-              <Pressable
-                style={styles.gridItem}
-                onPress={() => {
-                  const mapped = (replies || []).map(unwrapPost).map(toFeedPost);
-                  const items = mapped.filter(Boolean) as FeedPost[];
-                  const targetId = unwrapPost(replies[index])?.id;
-                  const targetIdx = targetId ? items.findIndex((p) => p.id === targetId) : index;
-                  setViewerItems(items);
-                  setViewerIndex(Math.max(0, targetIdx));
-                  setViewerOpen(true);
-                }}
-              >
-                {thumb ? (
-                  <View style={styles.gridImageContainer}>
-                    <Image source={{ uri: thumb }} style={styles.gridImage} contentFit="cover" />
-                    <View style={styles.gridImageOverlay} />
-                  </View>
-                ) : (
-                  <View style={[styles.gridImage, styles.gridImageFallback]}>
-                    <LinearGradient 
-                      colors={["#667eea", "#764ba2", "#f093fb"]} 
-                      style={StyleSheet.absoluteFillObject as any} 
-                      start={{ x: 0, y: 0 }} 
-                      end={{ x: 1, y: 1 }}
-                    />
-                    <View style={styles.textPostOverlay}>
-                      <Text numberOfLines={4} style={styles.gridTextOnly}>{String(postItem?.caption || postItem?.content || '').trim() || 'Post'}</Text>
-                    </View>
-                  </View>
-                )}
-                <View style={styles.gridCounts}>
-                  <View style={styles.gridCountItem}>
-                    <Ionicons name="arrow-up" size={12} color="#fff" />
-                    <Text style={styles.gridCountText}>{likes}</Text>
-                  </View>
-                  <View style={styles.gridCountItem}>
-                    <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
-                    <Text style={styles.gridCountText}>{comments}</Text>
-                  </View>
-                </View>
-                <View style={styles.gridIconBadge}>
-                  <Ionicons name={thumb ? 'camera-outline' : 'text'} size={14} color="#fff" />
-                </View>
-              </Pressable>
-            );
-          }}
-          ListFooterComponent={repliesLoading ? <ActivityIndicator style={{ marginVertical: 16 }} /> : null}
-        />
-      ) : (
-        <FlatList
-          data={upvotes}
-          key={`${activeTab}-grid-2cols`}
-          numColumns={2}
-          columnWrapperStyle={styles.gridRow}
-          keyExtractor={(item, index) => {
-            const postItem = unwrapPost(item);
-            return postItem?.id ?? item?.id ?? `upvote-${index}`;
-          }}
-          ListHeaderComponent={renderHeader}
-          ListEmptyComponent={renderEmptyUpvotes}
-          contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16), paddingHorizontal: 8 }}
-          onEndReachedThreshold={0.5}
-          onEndReached={onEndReachedUpvotes}
-          renderItem={({ item, index }) => {
-            const postItem = unwrapPost(item);
-            const thumb = postItem?.media_url;
-            const _isVideo = !!thumb && VIDEO_EXT.test(thumb);
-            const likes = postItem?.upvotes_count ?? 0;
-            const comments = postItem?.comments_count ?? postItem?._count?.comments ?? 0;
-            return (
-              <Pressable
-                style={styles.gridItem}
-                onPress={() => {
-                  const mapped = (upvotes || []).map(unwrapPost).map(toFeedPost);
-                  const items = mapped.filter(Boolean) as FeedPost[];
-                  const targetId = unwrapPost(upvotes[index])?.id;
-                  const targetIdx = targetId ? items.findIndex((p) => p.id === targetId) : index;
-                  setViewerItems(items);
-                  setViewerIndex(Math.max(0, targetIdx));
-                  setViewerOpen(true);
-                }}
-              >
-                {thumb ? (
-                  <View style={styles.gridImageContainer}>
-                    <Image source={{ uri: thumb }} style={styles.gridImage} contentFit="cover" />
-                    <View style={styles.gridImageOverlay} />
-                  </View>
-                ) : (
-                  <View style={[styles.gridImage, styles.gridImageFallback]}>
-                    <LinearGradient 
-                      colors={["#667eea", "#764ba2", "#f093fb"]} 
-                      style={StyleSheet.absoluteFillObject as any} 
-                      start={{ x: 0, y: 0 }} 
-                      end={{ x: 1, y: 1 }}
-                    />
-                    <View style={styles.textPostOverlay}>
-                      <Text numberOfLines={4} style={styles.gridTextOnly}>{String(postItem?.caption || postItem?.content || '').trim() || 'Post'}</Text>
-                    </View>
-                  </View>
-                )}
-                <View style={styles.gridCounts}>
-                  <View style={styles.gridCountItem}>
-                    <Ionicons name="arrow-up" size={12} color="#fff" />
-                    <Text style={styles.gridCountText}>{likes}</Text>
-                  </View>
-                  <View style={styles.gridCountItem}>
-                    <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
-                    <Text style={styles.gridCountText}>{comments}</Text>
-                  </View>
-                </View>
-                <View style={styles.gridIconBadge}>
-                  <Ionicons name={thumb ? 'camera-outline' : 'text'} size={14} color="#fff" />
-                </View>
-              </Pressable>
-            );
-          }}
-          ListFooterComponent={upvotesLoading ? <ActivityIndicator style={{ marginVertical: 16 }} /> : null}
-        />
-      )}
 
-      <Modal visible={viewerOpen} animationType="slide" onRequestClose={() => setViewerOpen(false)}>
-        <GameVerticalFeedScreen
-          onClose={() => setViewerOpen(false)}
-          showHeader
-          initialPosts={viewerItems}
-          startIndex={viewerIndex}
-          title={activeTab === 'posts' ? 'Organization posts' : activeTab === 'replies' ? 'Organization replies' : 'Organization upvotes'}
-        />
-      </Modal>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.tint} colors={[theme.tint]} />
+        }
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Back Button */}
+        <Pressable
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)' as any))}
+          style={[styles.backButton, { borderColor: theme.border }]}
+        >
+          <Ionicons name="arrow-back" size={22} color={theme.text} />
+        </Pressable>
+
+        {/* Admin: View Join Requests */}
+        {isOrgAdmin && organization?.id && (
+          <Pressable
+            onPress={() =>
+              router.push({
+                pathname: '/organization-join-requests',
+                params: { organization_id: organization.id, organization_name: organization.name || orgName },
+              })
+            }
+            style={[styles.adminButton, { backgroundColor: theme.tint }]}
+          >
+            <Ionicons name="people" size={20} color="#fff" />
+            <Text style={styles.adminButtonText}>Team Requests</Text>
+          </Pressable>
+        )}
+
+        {/* Cover Image */}
+        <View style={[styles.card, styles.coverCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          {organization?.cover_url ? (
+            <Image source={{ uri: organization.cover_url }} style={styles.coverImage} contentFit="cover" />
+          ) : (
+            <View style={[styles.coverPlaceholder, { borderColor: theme.border }]}>
+              <Ionicons name="business-outline" size={28} color={theme.mutedText} />
+              <Text style={[styles.placeholderText, { color: theme.mutedText }]}>No cover image</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Profile Card */}
+        <View style={[styles.card, styles.profileCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <View style={[styles.avatarShell, { borderColor: theme.border }]}>
+            {organization?.avatar_url || organization?.logo_url ? (
+              <Image
+                source={{ uri: String(organization.avatar_url || organization.logo_url) }}
+                style={styles.avatarImage}
+                contentFit="cover"
+              />
+            ) : (
+              <View style={[styles.avatarFallback, { backgroundColor: theme.surface }]}>
+                <Ionicons name="business" size={28} color={theme.mutedText} />
+              </View>
+            )}
+          </View>
+          <View style={styles.profileText}>
+            <Text style={[styles.profileName, { color: theme.text }]}>{orgName}</Text>
+            <Text style={[styles.profileHandle, { color: theme.mutedText }]}>@{handle}</Text>
+            <View style={styles.statsRow}>
+              <Text style={[styles.statNumber, { color: theme.text }]}>{teams.length}</Text>
+              <Text style={[styles.statLabel, { color: theme.mutedText }]}> Teams  </Text>
+              <Text style={[styles.statNumber, { color: theme.text }]}>{organization?.followers_count ?? 0}</Text>
+              <Text style={[styles.statLabel, { color: theme.mutedText }]}> Followers</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Action Buttons */}
+        <View style={styles.actionRow}>
+          {isOrgAdmin ? (
+            <Pressable
+              style={[styles.actionBtn, { flex: 1, backgroundColor: theme.card, borderColor: theme.border, borderWidth: StyleSheet.hairlineWidth }]}
+              onPress={() => router.push(`/create-organization?id=${organization?.id}` as any)}
+            >
+              <Ionicons name="pencil-outline" size={16} color={theme.text} />
+              <Text style={[styles.actionBtnText, { color: theme.text }]}>Edit Profile</Text>
+            </Pressable>
+          ) : (
+            <>
+              <Pressable
+                style={[
+                  styles.actionBtn,
+                  {
+                    flex: 1,
+                    backgroundColor: isFollowing ? theme.tint : 'transparent',
+                    borderColor: theme.tint,
+                    borderWidth: 1,
+                  },
+                ]}
+                onPress={async () => {
+                  if (!organization?.id) return;
+                  try {
+                    if (isFollowing) {
+                      await Organization.unfollow(organization.id);
+                      setIsFollowing(false);
+                      setOrganization((prev) =>
+                        prev ? { ...prev, followers_count: Math.max(0, (prev.followers_count ?? 0) - 1) } : null
+                      );
+                    } else {
+                      await Organization.follow(organization.id);
+                      setIsFollowing(true);
+                      setOrganization((prev) =>
+                        prev ? { ...prev, followers_count: (prev.followers_count ?? 0) + 1 } : null
+                      );
+                    }
+                  } catch (err) {
+                    console.error('Organization follow/unfollow failed:', err);
+                  }
+                }}
+              >
+                <Ionicons name={isFollowing ? 'checkmark' : 'add'} size={16} color={isFollowing ? '#fff' : theme.tint} />
+                <Text style={[styles.actionBtnText, { color: isFollowing ? '#fff' : theme.tint }]}>
+                  {isFollowing ? 'Following' : 'Follow'}
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={[
+                  styles.actionBtn,
+                  { flex: 1, backgroundColor: 'transparent', borderColor: theme.border, borderWidth: StyleSheet.hairlineWidth },
+                ]}
+                disabled={isRequestingJoin}
+                onPress={async () => {
+                  if (!organization?.id) return;
+                  setIsRequestingJoin(true);
+                  try {
+                    await Organization.requestToJoin(organization.id);
+                    Alert.alert('Request Sent', 'Your request to join this organization has been submitted.');
+                  } catch (err: any) {
+                    Alert.alert('Error', err?.message || 'Failed to send join request.');
+                  } finally {
+                    setIsRequestingJoin(false);
+                  }
+                }}
+              >
+                {isRequestingJoin ? (
+                  <ActivityIndicator size="small" color={theme.text} />
+                ) : (
+                  <>
+                    <Ionicons name="person-add-outline" size={16} color={theme.text} />
+                    <Text style={[styles.actionBtnText, { color: theme.text }]}>Request to Join</Text>
+                  </>
+                )}
+              </Pressable>
+            </>
+          )}
+        </View>
+
+        {/* About */}
+        <View style={[styles.card, styles.sectionCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>About</Text>
+          <Text style={[styles.bioText, { color: orgBio ? theme.text : theme.mutedText }]}>
+            {orgBio || 'No description provided.'}
+          </Text>
+          {contactText && (
+            <View style={[styles.contactRow, { borderColor: theme.border }]}>
+              <Ionicons name="mail-outline" size={16} color={theme.mutedText} />
+              <Text style={[styles.contactText, { color: theme.mutedText }]} selectable>{contactText}</Text>
+            </View>
+          )}
+          {organization?.created_at && (
+            <View style={styles.metaRow}>
+              <Ionicons name="calendar-outline" size={14} color={theme.mutedText} />
+              <Text style={[styles.metaText, { color: theme.mutedText }]}>
+                Created {new Date(organization.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* Teams */}
+        <View style={[styles.card, styles.sectionCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Teams</Text>
+          {teams.length === 0 ? (
+            <Text style={[styles.emptyText, { color: theme.mutedText }]}>No teams yet.</Text>
+          ) : (
+            teams.map((team) => {
+              const subline = [team.sport, team.season].filter(Boolean).join(' • ');
+              return (
+                <Pressable
+                  key={team.id}
+                  style={[styles.rowItem, { borderColor: theme.border }]}
+                  onPress={() => handleTeamPress(team)}
+                >
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text style={[styles.rowTitle, { color: theme.text }]} numberOfLines={1}>
+                      {team.name}
+                    </Text>
+                    {subline.length > 0 && (
+                      <Text style={[styles.rowSubtitle, { color: theme.mutedText }]} numberOfLines={1}>
+                        {subline}
+                      </Text>
+                    )}
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={theme.mutedText} />
+                </Pressable>
+              );
+            })
+          )}
+        </View>
+
+        {/* Upcoming Events */}
+        <View style={[styles.card, styles.sectionCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Upcoming Events</Text>
+          {upcomingGames.length === 0 ? (
+            <Text style={[styles.emptyText, { color: theme.mutedText }]}>No upcoming events.</Text>
+          ) : (
+            upcomingGames.map((game) => {
+              const dateStr = formatEventDate(game.scheduled_date || game.date);
+              const opponent = game.opponent_name || game.away_team || 'TBD';
+              return (
+                <Pressable
+                  key={game.id}
+                  style={[styles.rowItem, { borderColor: theme.border }]}
+                  onPress={() => handleGamePress(game)}
+                >
+                  <View style={[styles.eventIconContainer, { backgroundColor: theme.surface }]}>
+                    <Ionicons name="football-outline" size={20} color={theme.tint} />
+                  </View>
+                  <View style={{ flex: 1, gap: 4 }}>
+                    <Text style={[styles.rowTitle, { color: theme.text }]} numberOfLines={1}>
+                      vs {opponent}
+                    </Text>
+                    <View style={styles.eventMetaRow}>
+                      <Text style={[styles.rowSubtitle, { color: theme.mutedText }]}>{dateStr}</Text>
+                      {game.location && (
+                        <>
+                          <Text style={[styles.rowSubtitle, { color: theme.mutedText }]}> • </Text>
+                          <Text style={[styles.rowSubtitle, { color: theme.mutedText }]} numberOfLines={1}>
+                            {game.location}
+                          </Text>
+                        </>
+                      )}
+                    </View>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={theme.mutedText} />
+                </Pressable>
+              );
+            })
+          )}
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1
+  container: {
+    flex: 1,
   },
-  center: { flex: 1, padding: 24, alignItems: 'center', justifyContent: 'center' },
-  error: { color: '#b91c1c', textAlign: 'center', marginBottom: 16 },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
   retryButton: {
-    paddingVertical: 12,
     paddingHorizontal: 24,
-    backgroundColor: '#3b82f6',
+    paddingVertical: 12,
     borderRadius: 8,
   },
-  retryButtonText: {
-    color: '#ffffff',
+  retryText: {
+    color: '#fff',
     fontSize: 16,
     fontWeight: '600',
   },
-  
-  // Header Styles - Exact Match to Profile
-  headerContainer: {
-    position: 'relative',
-    width: '100%',
-    overflow: 'visible',
-    backgroundColor: '#ffffff',
+  content: {
+    padding: 16,
+    gap: 16,
   },
-  headerBackgroundPressable: {
-    position: 'relative',
-    height: 200,
-    width: '100%',
-  },
-  headerBackgroundImage: {
-    ...StyleSheet.absoluteFillObject,
-    height: 200,
-    width: '100%',
-  },
-  headerGradient: {
-    ...StyleSheet.absoluteFillObject,
-    height: 200,
-  },
-  headerControls: {
-    position: 'absolute',
-    right: 16,
-    zIndex: 10,
-  },
-  controlButton: {
+  backButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 2,
+    justifyContent: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
   },
-  profileContent: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
+  adminButton: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 12,
-    zIndex: 100,
-    elevation: 100,
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    alignSelf: 'flex-start',
   },
-  avatarSection: {
-    marginBottom: -40,
-    zIndex: 99999,
-    elevation: 99999,
-    position: 'relative',
+  adminButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fff',
   },
-  avatarContainer: {
-    position: 'relative',
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    borderWidth: 4,
-    borderColor: '#ffffff',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 99999,
-    backgroundColor: '#ffffff',
-    zIndex: 99999,
-    overflow: 'visible',
+  card: {
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  coverCard: {
+    height: 160,
+    overflow: 'hidden',
+    padding: 0,
+  },
+  coverImage: {
+    width: '100%',
+    height: '100%',
+  },
+  coverPlaceholder: {
+    flex: 1,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderStyle: 'dashed',
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  placeholderText: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  profileCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    padding: 16,
+  },
+  avatarShell: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: 'hidden',
+    flexShrink: 0,
   },
   avatarImage: {
     width: '100%',
     height: '100%',
-    borderRadius: 46,
   },
-  avatarPlaceholder: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 46,
-    backgroundColor: '#E5E7EB',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flexWrap: 'wrap',
-    marginBottom: 4,
-  },
-  userInfo: {
+  avatarFallback: {
     flex: 1,
-    paddingBottom: 4,
-  },
-  userName: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#ffffff',
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
-  },
-  roleBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    backgroundColor: '#7c3aed',
-    gap: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.15,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  orgBadge: { backgroundColor: '#8B5CF6' },
-  roleText: {
-    color: '#ffffff',
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  editButtonBelowBanner: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 16,
-    backgroundColor: '#E5E7EB',
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  editButtonBelowBannerText: {
-    color: '#374151',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  followButtonBelowBanner: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  followButtonBelowBannerText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  followingIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  profileText: {
+    flex: 1,
     gap: 4,
   },
-  profileDetailsContainer: {
-    backgroundColor: 'transparent',
-    paddingTop: 30,
-    marginBottom: 0,
-    paddingBottom: 0,
+  profileName: {
+    fontSize: 20,
+    fontWeight: '700',
   },
-  userDetails: {
-    paddingHorizontal: 16,
-    paddingTop: 0,
-    paddingBottom: 4,
-  },
-  usernameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 0,
-    paddingBottom: 4,
-    gap: 12,
-  },
-  userHandle: {
-    fontSize: 15,
-    fontWeight: '400',
-    flex: 1,
-  },
-  userBio: {
-    fontSize: 15,
-    fontWeight: '400',
-    marginBottom: 4,
-    lineHeight: 20,
-  },
-  metaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 2,
-  },
-  metaText: {
+  profileHandle: {
     fontSize: 14,
-    fontWeight: '400',
+    fontWeight: '500',
   },
   statsRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    marginTop: 2,
-    gap: 0,
+    marginTop: 4,
   },
   statNumber: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
   },
   statLabel: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '400',
   },
-  tabsContainer: { 
-    flexDirection: 'row', 
-    borderBottomWidth: 1, 
-    backgroundColor: 'transparent',
-    marginTop: 0,
-    marginBottom: 0,
-    paddingTop: 0,
-    paddingBottom: 0,
+  actionRow: {
+    flexDirection: 'row',
+    gap: 10,
   },
-  tab: { flex: 1, paddingVertical: 12, alignItems: 'center' },
-  tabText: { fontWeight: '600', fontSize: 15 },
-  emptyContainer: { alignItems: 'center', justifyContent: 'center', padding: 40, gap: 16 },
-  emptyTitle: { fontSize: 20, fontWeight: '800' },
-  emptySubtitle: { textAlign: 'center', marginBottom: 20, fontSize: 15, lineHeight: 22 },
-  gridRow: { 
-    gap: 12,
-    paddingHorizontal: 0,
-    marginBottom: 12,
-  },
-  gridItem: { 
-    flex: 1, 
-    aspectRatio: 1, 
-    margin: 0,
-    borderRadius: 14,
-    overflow: 'hidden', 
-    backgroundColor: '#F3F4F6',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  gridImageContainer: { width: '100%', height: '100%', position: 'relative' },
-  gridImage: { width: '100%', height: '100%' },
-  gridImageOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.05)',
-  },
-  gridImageFallback: { alignItems: 'center', justifyContent: 'center', padding: 12, position: 'relative' },
-  textPostOverlay: {
-    flex: 1,
-    justifyContent: 'center',
+  actionBtn: {
+    flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    borderRadius: 8,
-    margin: 8,
-  },
-  gridTextOnly: { 
-    textAlign: 'center', 
-    color: '#ffffff', 
-    fontWeight: '700', 
-    fontSize: 12, 
-    lineHeight: 16,
-    textShadowColor: 'rgba(0,0,0,0.3)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2
-  },
-  gridIconBadge: { 
-    position: 'absolute', 
-    bottom: 8, 
-    right: 8, 
-    backgroundColor: 'rgba(0,0,0,0.6)', 
-    borderRadius: 14, 
-    width: 28, 
-    height: 28, 
-    alignItems: 'center', 
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.3,
-    shadowRadius: 2
-  },
-  gridCounts: { 
-    position: 'absolute', 
-    left: 8, 
-    bottom: 8, 
-    backgroundColor: 'rgba(0,0,0,0.6)', 
-    borderRadius: 14, 
-    paddingHorizontal: 8, 
-    paddingVertical: 4, 
-    flexDirection: 'row', 
-    alignItems: 'center', 
     gap: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.3,
-    shadowRadius: 2
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    minHeight: 40,
   },
-  gridCountItem: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  gridCountText: { color: '#fff', fontSize: 10, fontWeight: '700' },
+  actionBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  sectionCard: {
+    padding: 16,
+    gap: 12,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  bioText: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  contactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  contactText: {
+    fontSize: 14,
+    flex: 1,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
+  },
+  metaText: {
+    fontSize: 13,
+  },
+  emptyText: {
+    fontSize: 14,
+  },
+  rowItem: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  rowTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  rowSubtitle: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  eventIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  eventMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+  },
 });

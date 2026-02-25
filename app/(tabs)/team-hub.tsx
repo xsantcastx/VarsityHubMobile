@@ -115,7 +115,7 @@ export default function TeamHubScreen() {
       <Stack.Screen options={{ 
         title: 'Team Hub',
         headerLeft: () => (
-          <Pressable onPress={() => router.back()} style={{ paddingLeft: 8 }}>
+          <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={{ paddingLeft: 8 }}>
             <Ionicons name="chevron-back" size={24} color={Colors[colorScheme].tint} />
           </Pressable>
         ),

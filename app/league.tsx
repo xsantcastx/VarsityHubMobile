@@ -447,7 +447,7 @@ export default function LeagueScreen() {
         }
         showsVerticalScrollIndicator={false}
       >
-        <Pressable onPress={() => void router.back()} style={[styles.backButton, { borderColor: theme.border }]}>
+        <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={[styles.backButton, { borderColor: theme.border }]}>
           <Ionicons name="arrow-back" size={22} color={theme.text} />
         </Pressable>
 

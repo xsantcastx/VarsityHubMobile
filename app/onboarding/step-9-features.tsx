@@ -109,22 +109,24 @@ export default function Step9Features() {
 
   const onContinue = async () => {
     setSaving(true);
+    console.log('[Step9] onContinue: role =', ob.role, '| locationEnabled =', locationEnabled, '| notificationsEnabled =', notificationsEnabled);
     try {
       // Save to context
-      setOB((prev) => ({ 
-        ...prev, 
+      setOB((prev) => ({
+        ...prev,
         location_enabled: locationEnabled,
         notifications_enabled: notificationsEnabled,
         messaging_policy_accepted: true,
       }));
-      
+
       // Save to backend
-      await User.updatePreferences({ 
+      await User.updatePreferences({
         location_enabled: locationEnabled,
         notifications_enabled: notificationsEnabled,
         messaging_policy_accepted: true,
       });
-      
+      console.log('[Step9] messaging_policy_accepted saved to server');
+
       // For fans, complete onboarding and go to feed
       if (ob.role === 'fan') {
         // Mark onboarding complete for fans - only send defined fields
@@ -161,6 +163,7 @@ export default function Step9Features() {
       }
       
       // For coaches, go to confirmation page
+      console.log('[Step9] Coach flow: navigating to step-10-confirmation');
       setProgress(8); // step-10 is index 8 in stepRoutes array
       router.replace('/onboarding/step-10-confirmation');
     } catch (e: any) {

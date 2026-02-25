@@ -76,8 +76,7 @@
         "appleTeamId": "B5H8F69RW5"
       },
       "android": {
-        "serviceAccountKeyPath": "./service-account-key.json",
-        "track": "internal"
+        "serviceAccountKeyPath": "./service-account-key.json"
       }
     }
   }

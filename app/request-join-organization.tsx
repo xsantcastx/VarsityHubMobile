@@ -103,7 +103,7 @@ export default function RequestJoinOrganizationScreen() {
         [
           {
             text: 'OK',
-            onPress: () => router.back(),
+            onPress: () => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any),
           },
         ]
       );
@@ -128,7 +128,7 @@ export default function RequestJoinOrganizationScreen() {
 
       {/* Custom Header */}
       <View style={[styles.header, { backgroundColor: theme.background, borderColor: theme.border }]}>
-        <Pressable onPress={() => void router.back()} style={styles.backButton}>
+        <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={theme.text} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: theme.text }]}>Join Organization</Text>

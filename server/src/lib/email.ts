@@ -155,13 +155,14 @@ export async function sendEmail({ to, subject, text, html }: BasicEmail): Promis
   const safeHtml = html ?? text ?? '';
 
   const service = await getEmailService();
-  
+
   if (!service || !service.isConfigured()) {
-    console.warn('[email] Email service not configured - logging email', { to, subject: safeSubject });
+    // Log clearly — returning false so callers know nothing was sent
+    console.warn('[email] sendEmail: service not configured, email NOT sent', { to, subject: safeSubject });
     if (process.env.NODE_ENV !== 'production') {
       console.log(formatLines([`To: ${to}`, `Subject: ${safeSubject}`, safeText]));
     }
-    return true; // Return true to not break existing flows
+    return false;
   }
 
   try {
@@ -176,11 +177,22 @@ export async function sendEmail({ to, subject, text, html }: BasicEmail): Promis
       debugLog(`[email] Sent generic email to ${to} (${safeSubject})`);
       return true;
     } else {
-      console.error('[email] Failed to send generic email:', result.error);
+      console.error('[email] sendEmail: provider rejected send', {
+        to,
+        subject: safeSubject,
+        error: result.error,
+        errorCode: result.errorCode,
+        provider: result.provider,
+      });
       return false;
     }
   } catch (error: any) {
-    console.error('[email] Failed to send generic email:', error);
+    console.error('[email] sendEmail: unexpected exception', {
+      to,
+      subject: safeSubject,
+      message: error?.message,
+      stack: error?.stack,
+    });
     return false;
   }
 }
@@ -592,14 +604,23 @@ export async function sendStaffInvitationEmail(params: any): Promise<boolean> {
 }
 
 /**
- * Send verification email with 6-digit code
- * Now uses EmailService with retry logic
- * Falls back to plain text email if template not configured
+ * Send verification email with 6-digit code.
+ *
+ * Uses the SendGrid dynamic template (SENDGRID_VERIFICATION_TEMPLATE_ID) when
+ * configured — the same path used by every other working email in the codebase.
+ * Falls back to a plain HTML/text email when the template ID is absent.
+ *
+ * Root cause of the bug this fixes:
+ *   The old implementation unconditionally called sendEmail() which went through
+ *   buildMailData(). buildMailData() set text, html, AND a content[] array
+ *   simultaneously, causing @sendgrid/mail to produce duplicate content-type
+ *   entries that SendGrid rejected with 400. The error was silently swallowed,
+ *   logging only "Verification email skipped (SendGrid not configured)".
  */
 export async function sendVerificationEmail(email: string, token: string, userName?: string): Promise<boolean> {
   const displayName = userName || 'VarsityHub User';
 
-  // Build plain text fallback content
+  // ── Plain-text / HTML fallback (used when template not configured) ──────────
   const plainTextContent = `
 Hi ${displayName},
 
@@ -657,10 +678,48 @@ ${APP_BASE_URL}
 </html>
 `.trim();
 
-  // ALWAYS use the fallback email with code in subject and body
-  // This ensures the verification code is ALWAYS visible to the user
-  // regardless of whether SendGrid templates are configured correctly
-  console.log('[email] Sending verification email with code in subject and body');
+  const service = await getEmailService();
+
+  // ── Template path (same as sendPasswordResetEmail, sendTeamInviteEmail, etc.) ─
+  if (TEMPLATE_IDS.VERIFICATION && service && service.isConfigured()) {
+    console.log(`[email] sendVerificationEmail: using template ${TEMPLATE_IDS.VERIFICATION} → ${email}`);
+    try {
+      const result = await service.send({
+        to: email,
+        subject: `${token} is your VarsityHub verification code`,
+        templateId: TEMPLATE_IDS.VERIFICATION,
+        templateData: {
+          ...getCommonTemplateData(),
+          verification_code: token,
+          code: token,           // cover both variable names templates may use
+          user_name: displayName,
+          display_name: displayName,
+          expires_in: '30 minutes',
+        },
+      } as any);
+
+      if (result.success) {
+        console.log('[email] sendVerificationEmail: template send succeeded');
+        return true;
+      }
+
+      console.warn('[email] sendVerificationEmail: template send failed, falling back to plain email', {
+        error: result.error,
+        errorCode: result.errorCode,
+      });
+      // fall through to plain-email fallback below
+    } catch (err: any) {
+      console.warn('[email] sendVerificationEmail: template send threw, falling back to plain email', {
+        message: err?.message,
+      });
+      // fall through to plain-email fallback below
+    }
+  } else {
+    console.log(`[email] sendVerificationEmail: no template configured (SENDGRID_VERIFICATION_TEMPLATE_ID unset), using plain email → ${email}`);
+  }
+
+  // ── Plain-email fallback ─────────────────────────────────────────────────────
+  console.log(`[email] sendVerificationEmail: sending plain email → ${email}`);
   return sendEmail({
     to: email,
     subject: `${token} is your VarsityHub verification code`,

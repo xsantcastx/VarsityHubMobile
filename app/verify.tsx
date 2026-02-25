@@ -253,7 +253,7 @@ export default function VerifyScreen() {
 
       {/* Back Button */}
       <Pressable
-        onPress={() => void router.back()}
+        onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)}
         style={styles.backButton}
         hitSlop={8}
       >

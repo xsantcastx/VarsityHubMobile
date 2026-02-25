@@ -1,7 +1,7 @@
 // ⚠️ WORKING - DO NOT MODIFY WITHOUT EXPLICIT PERMISSION
-// Google OAuth fixed 2026-02-24
+// Google OAuth fixed 2026-02-24; proxy detection fixed 2026-02-24
 // iOS native: uses iOS client ID with native redirect scheme
-// Web/Expo proxy: uses Web client ID with auth.expo.io redirect
+// Expo Go proxy: uses Web client ID with auth.expo.io redirect
 // Changing this will break Google Sign In
 
 import { User } from '@/api/entities';
@@ -62,7 +62,8 @@ const PROJECT_FULL_NAME = appConfig.expoProjectFullName || derivedProjectFullNam
 export function useGoogleAuth() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const proxyRequested = FORCE_PROXY_FLAG || Constants.appOwnership === null;
+  const isExpoGo = Constants.executionEnvironment === 'storeClient';
+  const proxyRequested = FORCE_PROXY_FLAG || isExpoGo;
   const shouldUseProxy = proxyRequested && !!PROJECT_FULL_NAME;
 
   const clients = useMemo(() => googleClientConfig({ shouldUseProxy }), [shouldUseProxy]);

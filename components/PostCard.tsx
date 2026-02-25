@@ -337,8 +337,8 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
                 setEditModalVisible(true);
               }}
             >
-              <Ionicons name="pencil" size={20} color="#374151" />
-              <Text style={styles.actionText}>Edit Post</Text>
+              <Ionicons name="pencil" size={20} color={theme.icon} />
+              <Text style={[styles.actionText, { color: theme.text }]}>Edit Post</Text>
             </Pressable>
             <View style={styles.actionSeparator} />
             <Pressable
@@ -364,9 +364,9 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
         <View style={[styles.editModal, { backgroundColor: theme.background }]}>
           <View style={styles.editHeader}>
             <Pressable onPress={() => setEditModalVisible(false)}>
-              <Text style={styles.cancelButton}>Cancel</Text>
+              <Text style={[styles.cancelButton, { color: theme.mutedText }]}>Cancel</Text>
             </Pressable>
-            <Text style={styles.editTitle}>Edit Post</Text>
+            <Text style={[styles.editTitle, { color: theme.text }]}>Edit Post</Text>
             <Pressable onPress={handleEditPost} disabled={updating}>
               <Text style={[styles.saveButton, updating && styles.saveButtonDisabled]}>
                 {updating ? 'Saving...' : 'Save'}

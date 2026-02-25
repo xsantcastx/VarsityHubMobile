@@ -113,7 +113,7 @@ export default function BillingScreen() {
       <Stack.Screen options={{ 
         title: 'Billing',
         headerLeft: () => (
-          <Pressable onPress={() => router.back()} style={{ paddingLeft: 8 }}>
+          <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={{ paddingLeft: 8 }}>
             <Ionicons name="chevron-back" size={24} color="#3B82F6" />
           </Pressable>
         ),

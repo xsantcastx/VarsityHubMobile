@@ -396,7 +396,7 @@ export default function CreateTeamScreen() {
         <View style={[styles.header, { paddingTop: 12 + insets.top }]}>
           <Pressable 
             style={styles.backButton} 
-            onPress={() => void router.back()}
+            onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)}
           >
             <Ionicons name="arrow-back" size={24} color={Colors[colorScheme].text} />
           </Pressable>

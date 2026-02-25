@@ -105,9 +105,9 @@ export default function SignUpScreen() {
       // After successful signup, redirect to email verification screen
       // Pass dev code if available for easier testing
       if (res?.dev_verification_code) {
-        router.replace(`/verify-identity?method=email&devCode=${res.dev_verification_code}`);
+        router.replace(`/verify?devCode=${res.dev_verification_code}`);
       } else {
-        router.replace('/verify-identity?method=email');
+        router.replace('/verify');
       }
     } catch (e: any) {
       console.error('[sign-up] Registration failed after all attempts:', e);

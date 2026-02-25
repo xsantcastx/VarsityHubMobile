@@ -251,7 +251,7 @@ export default function CreateFanEventScreen() {
       Alert.alert(
         'Event Submitted!',
         'Your event has been submitted for approval. You\'ll be notified when it\'s reviewed.',
-        [{ text: 'OK', onPress: () => router.back() }]
+        [{ text: 'OK', onPress: () => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any) }]
       );
     } catch (e: any) {
       const errorCode = e?.code || e?.data?.code;

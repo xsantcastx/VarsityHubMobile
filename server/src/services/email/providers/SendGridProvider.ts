@@ -184,23 +184,16 @@ export class SendGridProvider implements EmailProvider {
       subject: options.subject,
     };
 
-    // Add text/html if not using template
+    // Add text/html if not using template.
+    // Use text/html shorthand only — do NOT also set a content array.
+    // Setting both causes @sendgrid/mail to emit duplicate content entries
+    // which SendGrid rejects, silently dropping the email.
     if (!('templateId' in options)) {
       if (options.text) {
         baseData.text = options.text;
       }
       if (options.html) {
         baseData.html = options.html;
-      }
-      // Ensure content array is present for MailDataRequired
-      if (!baseData.content) {
-        baseData.content = [];
-        if (baseData.text) {
-          baseData.content.push({ type: 'text/plain', value: baseData.text });
-        }
-        if (baseData.html) {
-          baseData.content.push({ type: 'text/html', value: baseData.html });
-        }
       }
     }
 
@@ -252,11 +245,18 @@ export class SendGridProvider implements EmailProvider {
 
   private handleError(error: any): EmailResult {
     const errorCode = this.classifyError(error);
-    const retryable = this.isRetryableError(error);
+
+    // Log the full SendGrid response body so the specific rejection reason is visible in logs
+    const sgErrors = error?.response?.body?.errors;
+    console.error('[SendGridProvider] send failed', {
+      statusCode: error?.code ?? error?.response?.statusCode,
+      message: error?.message,
+      sendgridErrors: sgErrors ?? null,
+    });
 
     return {
       success: false,
-      error: error.message || 'Unknown SendGrid error',
+      error: sgErrors ? JSON.stringify(sgErrors) : (error.message || 'Unknown SendGrid error'),
       errorCode,
       provider: this.name,
     };

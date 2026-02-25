@@ -214,7 +214,7 @@ export default function ManageTeamsSimpleScreen() {
       <View style={[styles.header, { backgroundColor: Colors[colorScheme].background }]}>
         <Pressable 
           style={styles.backButton} 
-          onPress={() => void router.back()}
+          onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)}
         >
           <Ionicons name="arrow-back" size={28} color={Colors[colorScheme].text} />
         </Pressable>

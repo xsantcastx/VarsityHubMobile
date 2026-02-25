@@ -78,7 +78,7 @@ export default function FollowingScreen() {
       <Stack.Screen options={{ 
         title: `${username} is Following`,
         headerLeft: () => (
-          <Pressable onPress={() => router.back()} style={styles.backButton}>
+          <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={styles.backButton}>
             <Ionicons name="chevron-back" size={24} color={Colors[colorScheme].tint} />
           </Pressable>
         ),

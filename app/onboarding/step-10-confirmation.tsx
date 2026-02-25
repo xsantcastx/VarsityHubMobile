@@ -2,14 +2,13 @@ import PrimaryButton from '@/components/ui/PrimaryButton';
 import { Type } from '@/ui/tokens';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
 // @ts-ignore
 import { User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
-import { useOnboarding } from '@/context/OnboardingContext';
-import { useEffect } from 'react';
+import { useOnboarding, type OnboardingState } from '@/context/OnboardingContext';
 import OnboardingLayout from './components/OnboardingLayout';
 
 export default function Step10Confirmation() {
@@ -18,6 +17,31 @@ export default function Step10Confirmation() {
   const { checkAuth, markOnboardingCompleteLocally, user } = useAuth();
   const colorScheme = useColorScheme() ?? 'light';
   const [completing, setCompleting] = useState(false);
+
+  // Hydrate context from server on mount to fix race condition where step-9's
+  // setOB(messaging_policy_accepted: true) may not have propagated before navigation.
+  useEffect(() => {
+    let mounted = true;
+    void (async () => {
+      try {
+        const me: any = await User.me();
+        if (!mounted) return;
+        if (me?.preferences) {
+          console.log('[Step10] Hydrated from server:', JSON.stringify({
+            role: me.preferences.role,
+            plan: me.preferences.plan,
+            has_team_id: !!me.preferences.team_id,
+            has_org_id: !!me.preferences.organization_id,
+            messaging_policy_accepted: me.preferences.messaging_policy_accepted,
+          }));
+          setOB((prev) => ({ ...prev, ...(me.preferences as Partial<OnboardingState>) }));
+        }
+      } catch (e) {
+        // Non-critical — continue with local context state
+      }
+    })();
+    return () => { mounted = false; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // CRITICAL: Redirect if not authenticated
   useEffect(() => {
@@ -74,7 +98,7 @@ export default function Step10Confirmation() {
       },
       {
         label: 'Page Created',
-        completed: !!(ob.team_name || ob.organization_name),
+        completed: !!(ob.team_id || ob.organization_id),
         required: isCoach, // Only required for coaches
         route: '/onboarding/step-4-organization',
         description: 'Create your team or organization page (coaches only)'
@@ -142,108 +166,96 @@ export default function Step10Confirmation() {
     }
 
     setCompleting(true);
+    console.log('[Step10] onComplete start — context ob:', JSON.stringify({
+      role: ob.role,
+      plan: ob.plan,
+      username: ob.username ? 'set' : 'MISSING',
+      team_id: ob.team_id ? 'set' : 'MISSING',
+      organization_id: ob.organization_id ? 'set' : 'MISSING',
+      messaging_policy_accepted: ob.messaging_policy_accepted,
+    }));
+
     try {
-      // Debug: log final payload
-      try { // eslint-disable-next-line no-console
-      } catch {}
-      // CRITICAL: Ensure role is persisted before finalizing onboarding
-      // This is a safety net in case step-1 didn't save it properly
+      // Build latestOb by merging local context with fresh server data.
+      // This is the fix for the race condition where step-9's setOB may not
+      // have propagated yet, and for any other fields saved server-side but
+      // missing from local context (e.g. organization_id, username).
+      let latestOb: OnboardingState = { ...ob };
+
       try {
         const prefsPatch: any = {};
-        // Role is REQUIRED - must be set before completing onboarding
         if (ob.role) {
           prefsPatch.role = ob.role;
         } else {
-          // If role is missing from onboarding state, fetch from server
-          try {
-            const me: any = await User.me();
-            if (me?.preferences?.role) {
-              prefsPatch.role = me.preferences.role;
-              setOB((prev) => ({ ...prev, role: me.preferences.role }));
-            } else {
-              throw new Error('Role not set. Please go back to step 1 and select your role.');
-            }
-          } catch {
-            throw new Error('Failed to verify role. Please go back to step 1 and select your role.');
+          // Role missing from context — recover from server
+          const me: any = await User.me();
+          if (me?.preferences?.role) {
+            prefsPatch.role = me.preferences.role;
+            latestOb = { ...latestOb, role: me.preferences.role };
+            setOB((prev) => ({ ...prev, role: me.preferences.role }));
+          } else {
+            throw new Error('Role not set. Please go back to step 1 and select your role.');
           }
         }
-        // Username is saved directly to user.username, not preferences
         if (ob.dob) prefsPatch.dob = ob.dob;
         if (typeof ob.zip_code !== 'undefined') prefsPatch.zip_code = ob.zip_code;
         if (Object.keys(prefsPatch).length > 0) {
           await User.updatePreferences(prefsPatch);
         }
-          try {
-            const me: any = await User.me();
-            // eslint-disable-next-line no-console
-            // Merge server prefs into onboarding state if present
-            if (me?.preferences) setOB((prev) => ({ ...(prev || {}), ...(me.preferences || {}) } as any));
-          } catch (error: any) {
-            if (__DEV__) {
-              console.warn('[OnboardingStep10] Failed to load user preferences:', error?.message || error);
-            }
-            // Continue without merging preferences
-          }
+
+        // Fetch latest server prefs and merge — this fills any fields that were
+        // saved to the backend in prior steps but are absent from local context.
+        const me: any = await User.me();
+        if (me?.preferences) {
+          latestOb = { ...latestOb, ...(me.preferences as Partial<OnboardingState>) };
+          setOB((prev) => ({ ...(prev || {}), ...(me.preferences as Partial<OnboardingState>) }));
+        }
+        console.log('[Step10] latestOb after server merge:', JSON.stringify({
+          role: latestOb.role,
+          plan: latestOb.plan,
+          username: latestOb.username ? 'set' : 'MISSING',
+          team_id: latestOb.team_id ? 'set' : 'MISSING',
+          organization_id: latestOb.organization_id ? 'set' : 'MISSING',
+          messaging_policy_accepted: latestOb.messaging_policy_accepted,
+        }));
       } catch (e) {
-        // best-effort; continue to complete onboarding
-        // eslint-disable-next-line no-console
         console.warn('[Onboarding][Step10] failed to patch preferences before complete', e);
       }
-      
-      // Send complete onboarding state - all fields
-      // IMPORTANT: Fans should NOT have plans
-      // CRITICAL: Role MUST be included - fail if missing
-      if (!ob.role) {
+
+      const finalRole = latestOb.role;
+      const finalIsCoach = finalRole === 'coach';
+
+      if (!finalRole) {
         throw new Error('Role is required. Please go back to step 1 and select your role (Fan or Coach).');
       }
-      
+
       // CRITICAL: For paid plans, verify payment completed before allowing onboarding completion
-      if (isCoach && ob.plan !== 'rookie') {
+      if (finalIsCoach && latestOb.plan !== 'rookie') {
         try {
           const me: any = await User.me();
           const prefs = me?.preferences || {};
-          
-          // Check if payment is still pending
+
           if (prefs.payment_pending === true) {
             Alert.alert(
               'Payment Required',
               'Please complete your payment before finishing setup. You can complete payment in Settings → Manage Subscription, or return to Step 3 to select the free Rookie plan.',
               [
-                {
-                  text: 'Go to Settings',
-                  onPress: () => router.push('/settings/manage-subscription'),
-                },
-                {
-                  text: 'Select Free Plan',
-                  onPress: () => router.push('/onboarding/step-3-plan?returnToConfirmation=true'),
-                },
+                { text: 'Go to Settings', onPress: () => router.push('/settings/manage-subscription') },
+                { text: 'Select Free Plan', onPress: () => router.push('/onboarding/step-3-plan?returnToConfirmation=true') },
                 { text: 'Cancel', style: 'cancel' },
               ]
             );
             setCompleting(false);
             return;
           }
-          
-          // Check if subscription ID exists (payment completed)
-          // For Veteran/Legend plans, we need either subscription_id or payment_pending: false
-          // Note: We're already inside the ob.plan !== 'rookie' block, so no need to check again
+
           if (!prefs.subscription_id && prefs.payment_pending !== false) {
-            // Payment might still be processing - give user options
             Alert.alert(
               'Payment Processing',
               'Your payment is still processing. Please wait a moment and try again, or check your subscription status in Settings.',
               [
-                {
-                  text: 'Check Status',
-                  onPress: () => router.push('/settings/manage-subscription'),
-                },
-                { 
-                  text: 'Retry', 
-                  onPress: () => {
-                    setCompleting(false);
-                    setTimeout(() => void onComplete(), 500);
-                  }
-                },
+                { text: 'Check Status', onPress: () => router.push('/settings/manage-subscription') },
+                { text: 'Retry', onPress: () => { setCompleting(false); setTimeout(() => void onComplete(), 500); } },
                 { text: 'Cancel', style: 'cancel' },
               ]
             );
@@ -252,142 +264,112 @@ export default function Step10Confirmation() {
           }
         } catch (err) {
           console.warn('Failed to check payment status:', err);
-          // If we can't check payment status, warn user but allow them to proceed
-          // This prevents blocking users due to network issues
           Alert.alert(
             'Payment Status Unavailable',
             'Unable to verify payment status. If you have completed payment, you can proceed. Otherwise, please check your subscription in Settings.',
             [
-              {
-                text: 'Check Settings',
-                onPress: () => router.push('/settings/manage-subscription'),
-              },
-              {
-                text: 'Proceed Anyway',
-                onPress: () => {
-                  // Continue with completion
-                },
-                style: 'default',
-              },
+              { text: 'Check Settings', onPress: () => router.push('/settings/manage-subscription') },
+              { text: 'Proceed Anyway', style: 'default' },
               { text: 'Cancel', style: 'cancel' },
             ]
           );
-          // Don't return - allow user to proceed if they choose
         }
       }
-      
+
       const allowedAffiliations = new Set([
-        'none',
-        'university',
-        'high_school',
-        'club',
-        'youth',
-        'school',
-        'independent',
+        'none', 'university', 'high_school', 'club', 'youth', 'school', 'independent',
       ]);
       const normalizedAffiliation =
-        ob.affiliation === 'professional'
+        latestOb.affiliation === 'professional'
           ? 'independent'
-          : (typeof ob.affiliation === 'string' && allowedAffiliations.has(ob.affiliation)
-            ? ob.affiliation
+          : (typeof latestOb.affiliation === 'string' && allowedAffiliations.has(latestOb.affiliation)
+            ? latestOb.affiliation
             : undefined);
 
+      // Build payload from latestOb (merged local + server), NOT the stale ob closure.
       const completionPayload: Record<string, any> = {
-        // Core identity fields
-        role: ob.role, // REQUIRED - must be 'fan' or 'coach'
-        username: ob.username, // Only username (with @) - no display_name
+        role: finalRole,
+        username: latestOb.username,
         affiliation: normalizedAffiliation,
-        dob: ob.dob,
-        zip: ob.zip,
-        zip_code: ob.zip_code,
-        
-        // Plan and subscription (ONLY for coaches)
-        plan: isCoach ? ob.plan : undefined,
-        payment_pending: isCoach ? ob.payment_pending : undefined,
-        
-        // Team/Organization (ONLY for coaches)
-        team_id: isCoach ? ob.team_id : undefined,
-        team_name: isCoach ? ob.team_name : undefined,
-        organization_id: isCoach ? ob.organization_id : undefined,
-        organization_name: isCoach ? ob.organization_name : undefined,
-        sport: isCoach ? ob.sport : undefined,
-        
-        // Authorized users (ONLY for coaches)
-        authorized: isCoach ? ob.authorized : undefined,
-        authorized_users: isCoach ? ob.authorized_users : undefined,
-        
-        // Profile (ALL users)
-        avatar_url: ob.avatar_url,
-        bio: ob.bio,
-        sports_interests: ob.sports_interests,
-        
-        // Interests/Goals (ALL users)
-        primary_intents: ob.primary_intents,
-        personalization_goals: ob.personalization_goals,
-        
-        // Features/Permissions (ALL users)
-        location_enabled: ob.location_enabled,
-        notifications_enabled: ob.notifications_enabled,
-        messaging_policy_accepted: ob.messaging_policy_accepted,
+        dob: latestOb.dob,
+        zip: latestOb.zip,
+        zip_code: latestOb.zip_code,
+
+        plan: finalIsCoach ? latestOb.plan : undefined,
+        payment_pending: finalIsCoach ? latestOb.payment_pending : undefined,
+
+        team_id: finalIsCoach ? latestOb.team_id : undefined,
+        team_name: finalIsCoach ? latestOb.team_name : undefined,
+        organization_id: finalIsCoach ? latestOb.organization_id : undefined,
+        organization_name: finalIsCoach ? latestOb.organization_name : undefined,
+        sport: finalIsCoach ? latestOb.sport : undefined,
+
+        authorized: finalIsCoach ? latestOb.authorized : undefined,
+        authorized_users: finalIsCoach ? latestOb.authorized_users : undefined,
+
+        avatar_url: latestOb.avatar_url,
+        bio: latestOb.bio,
+        sports_interests: latestOb.sports_interests,
+
+        primary_intents: latestOb.primary_intents,
+        personalization_goals: latestOb.personalization_goals,
+
+        location_enabled: latestOb.location_enabled,
+        notifications_enabled: latestOb.notifications_enabled,
+        messaging_policy_accepted: latestOb.messaging_policy_accepted,
       };
-      
-      // Remove null/undefined values so optional schema fields remain valid.
+
       const cleanedPayload: Record<string, any> = {};
       Object.entries(completionPayload).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {
           cleanedPayload[key] = value;
         }
       });
-      
-      // Final submission to backend - mark onboarding as complete
-      // PATCH: Guarantee coach role and onboarding_completed for coach users
-      if (isCoach) {
+
+      if (finalIsCoach) {
         if (!cleanedPayload.role || cleanedPayload.role !== 'coach') {
           cleanedPayload.role = 'coach';
         }
         cleanedPayload.onboarding_completed = true;
       }
+
+      console.log('[Step10] Final payload:', JSON.stringify({
+        role: cleanedPayload.role,
+        plan: cleanedPayload.plan,
+        username: cleanedPayload.username ? 'set' : 'MISSING',
+        team_id: cleanedPayload.team_id ? 'set' : 'MISSING',
+        organization_id: cleanedPayload.organization_id ? 'set' : 'MISSING',
+        messaging_policy_accepted: cleanedPayload.messaging_policy_accepted,
+      }));
+
       await User.completeOnboarding(cleanedPayload);
-      
-      // CRITICAL: Validate server confirmed completion BEFORE clearing local state
+
+      // Validate server confirmed completion BEFORE clearing local state
       const updatedUser: any = await checkAuth();
-      
       if ((updatedUser?.preferences as any)?.onboarding_completed !== true) {
         throw new Error('Server did not confirm onboarding completion. Please try again.');
       }
-      
-      // Server confirmed success - now safe to clear local state
+
       await markOnboardingCompleteLocally();
       void clearOnboarding();
-      
-      // Navigate to main app
       router.replace('/(tabs)');
     } catch (e: any) {
       const zodIssues = e?.data?.issues || e?.data?.details?.issues;
       if (__DEV__ && zodIssues) {
-        // eslint-disable-next-line no-console
         console.warn('[Onboarding][Step10] Invalid payload issues:', zodIssues);
       }
       const errorMessage = e?.data?.error || e?.message || 'Failed to complete onboarding';
-      
+      console.error('[Step10] onComplete error:', errorMessage);
       Alert.alert(
-        'Setup Not Complete', 
+        'Setup Not Complete',
         errorMessage,
         [
-          { 
-            text: 'Retry', 
-            onPress: () => void onComplete(),
-            style: 'default'
-          },
-          { 
-            text: 'Cancel', 
-            style: 'cancel' 
-          }
+          { text: 'Retry', onPress: () => void onComplete(), style: 'default' },
+          { text: 'Cancel', style: 'cancel' },
         ]
       );
-      // DO NOT clear onboarding state - allow retry
-    } finally { 
-      setCompleting(false); 
+    } finally {
+      setCompleting(false);
     }
   };
 
