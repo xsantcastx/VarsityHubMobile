@@ -1,4 +1,6 @@
 import { uploadFile } from '@/api/upload';
+// @ts-ignore JS exports
+import { Team } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useTeamOptions } from '@/hooks/useTeamOptions';
@@ -8,6 +10,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
+    ActivityIndicator,
     Alert,
     Image,
     Linking,
@@ -213,6 +216,9 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
   const [opponent, setOpponent] = useState('');
   const [opponentTeamId, setOpponentTeamId] = useState('');
   const [opponentSearchText, setOpponentSearchText] = useState('');
+  const [opponentSearchResults, setOpponentSearchResults] = useState<TeamOption[]>([]);
+  const [opponentSearchLoading, setOpponentSearchLoading] = useState(false);
+  const opponentSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [selectedDate, setSelectedDate] = useState(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)); // Default to next week
   const [selectedTime, setSelectedTime] = useState(new Date(new Date().setHours(19, 0, 0, 0))); // Default to 7:00 PM
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -385,15 +391,42 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
     }
   }, [currentTeam, visible, teams]);
 
-  // Filter teams for opponent selection (exclude current team and filter by search)
-  const getFilteredOpponentTeams = () => {
-    return teams
-      .filter(team => team.name !== currentTeam) // Don't show current team as opponent
-      .filter(team => 
-        opponentSearchText === '' || 
-        team.name.toLowerCase().includes(opponentSearchText.toLowerCase())
-      );
+  // Debounced search: queries the API for teams matching the typed text
+  const handleOpponentSearchChange = (text: string) => {
+    setOpponentSearchText(text);
+    if (opponentSearchTimerRef.current) clearTimeout(opponentSearchTimerRef.current);
+    opponentSearchTimerRef.current = setTimeout(async () => {
+      const q = text.trim();
+      if (!q) {
+        setOpponentSearchResults([]);
+        setOpponentSearchLoading(false);
+        return;
+      }
+      setOpponentSearchLoading(true);
+      try {
+        const res = await Team.list(q, false, { limit: 20 });
+        const results: TeamOption[] = (Array.isArray(res) ? res : [])
+          .filter((t: any) => t.name !== currentTeam)
+          .map((t: any) => ({
+            id: String(t.id),
+            name: t.name,
+            logo: t.logo_url || t.avatar_url || undefined,
+          }));
+        setOpponentSearchResults(results);
+      } catch {
+        setOpponentSearchResults([]);
+      } finally {
+        setOpponentSearchLoading(false);
+      }
+    }, 300);
   };
+
+  // Teams shown in the opponent picker:
+  //  - Empty search → pre-loaded teams minus current team
+  //  - Non-empty search → API results (populated by handleOpponentSearchChange)
+  const displayedOpponentTeams: TeamOption[] = opponentSearchText.trim()
+    ? opponentSearchResults
+    : teams.filter(team => team.name !== currentTeam);
 
   // Get team logo by team name
   const getTeamLogo = (teamName: string) => {
@@ -1437,6 +1470,8 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
       onRequestClose={() => {
         setShowOpponentPicker(false);
         setOpponentSearchText('');
+        setOpponentSearchResults([]);
+        if (opponentSearchTimerRef.current) clearTimeout(opponentSearchTimerRef.current);
       }}
     >
       <View style={styles.pickerOverlay}>
@@ -1445,57 +1480,63 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
             <Pressable onPress={() => {
               setShowOpponentPicker(false);
               setOpponentSearchText('');
+              setOpponentSearchResults([]);
+              if (opponentSearchTimerRef.current) clearTimeout(opponentSearchTimerRef.current);
             }}>
               <Text style={[styles.pickerHeaderButton, { color: Colors[colorScheme].text }]}>Cancel</Text>
             </Pressable>
             <Text style={[styles.pickerTitle, { color: Colors[colorScheme].text }]}>Select Opponent</Text>
             <View style={{ width: 50 }} />
           </View>
-          
+
           {/* Search Bar */}
           <View style={[styles.searchContainer, { borderBottomColor: Colors[colorScheme].border }]}>
             <Ionicons name="search-outline" size={20} color={Colors[colorScheme].mutedText} />
             <TextInput
               style={[styles.searchInput, { color: Colors[colorScheme].text }]}
-              placeholder="Search teams..."
+              placeholder="Search VarsityHub teams..."
               placeholderTextColor={Colors[colorScheme].mutedText}
               value={opponentSearchText}
-              onChangeText={setOpponentSearchText}
+              onChangeText={handleOpponentSearchChange}
               autoCapitalize="words"
+              autoFocus
             />
-            {opponentSearchText.length > 0 && (
-              <Pressable onPress={() => setOpponentSearchText('')}>
+            {opponentSearchLoading ? (
+              <ActivityIndicator size="small" color={Colors[colorScheme].mutedText} />
+            ) : opponentSearchText.length > 0 ? (
+              <Pressable onPress={() => {
+                setOpponentSearchText('');
+                setOpponentSearchResults([]);
+                if (opponentSearchTimerRef.current) clearTimeout(opponentSearchTimerRef.current);
+              }}>
                 <Ionicons name="close-circle" size={20} color={Colors[colorScheme].mutedText} />
               </Pressable>
-            )}
+            ) : null}
           </View>
-          
-          <ScrollView style={styles.pickerList}>
-            {getFilteredOpponentTeams().map((team) => (
+
+          <ScrollView style={styles.pickerList} keyboardShouldPersistTaps="handled">
+            {/* Existing VarsityHub team results */}
+            {displayedOpponentTeams.map((team) => (
               <Pressable
                 key={team.id}
                 style={[
                   styles.pickerItem,
                   { borderBottomColor: Colors[colorScheme].border },
-                  opponent === team.name && { backgroundColor: Colors[colorScheme].surface }
+                  opponent === team.name && { backgroundColor: Colors[colorScheme].surface },
                 ]}
                 onPress={() => {
                   setOpponent(team.name);
-                  setOpponentTeamId(team.id); // Store the team ID
-                  if (errors.opponent) {
-                    setErrors(prev => ({ ...prev, opponent: '' }));
-                  }
+                  setOpponentTeamId(team.id);
+                  if (errors.opponent) setErrors(prev => ({ ...prev, opponent: '' }));
                   setOpponentSearchText('');
+                  setOpponentSearchResults([]);
                   setShowOpponentPicker(false);
                 }}
               >
                 <View style={styles.pickerItemContent}>
                   <View style={styles.teamLogoContainer}>
                     {team.logo ? (
-                      <Image 
-                        source={{ uri: team.logo }} 
-                        style={styles.teamLogoImage}
-                      />
+                      <Image source={{ uri: team.logo }} style={styles.teamLogoImage} />
                     ) : (
                       <Text style={styles.teamLogoText}>🏆</Text>
                     )}
@@ -1509,12 +1550,37 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
                 )}
               </Pressable>
             ))}
-            {getFilteredOpponentTeams().length === 0 && (
-              <View style={styles.noResultsContainer}>
-                <Text style={[styles.noResultsText, { color: Colors[colorScheme].mutedText }]}>
-                  No teams found matching "{opponentSearchText}"
-                </Text>
-              </View>
+
+            {/* Manual entry fallback — shown when search yields no results */}
+            {opponentSearchText.trim().length > 0 && !opponentSearchLoading && displayedOpponentTeams.length === 0 && (
+              <>
+                <View style={styles.noResultsContainer}>
+                  <Text style={[styles.noResultsText, { color: Colors[colorScheme].mutedText }]}>
+                    No VarsityHub teams found for "{opponentSearchText}"
+                  </Text>
+                </View>
+                <Pressable
+                  style={[styles.pickerItem, { borderBottomColor: Colors[colorScheme].border }]}
+                  onPress={() => {
+                    const name = opponentSearchText.trim();
+                    setOpponent(name);
+                    setOpponentTeamId(''); // No team ID — manual entry
+                    if (errors.opponent) setErrors(prev => ({ ...prev, opponent: '' }));
+                    setOpponentSearchText('');
+                    setOpponentSearchResults([]);
+                    setShowOpponentPicker(false);
+                  }}
+                >
+                  <View style={styles.pickerItemContent}>
+                    <View style={styles.teamLogoContainer}>
+                      <Ionicons name="add-circle-outline" size={24} color={Colors[colorScheme].tint} />
+                    </View>
+                    <Text style={[styles.pickerItemText, { color: Colors[colorScheme].tint, fontWeight: '600' }]}>
+                      Add "{opponentSearchText.trim()}" as opponent
+                    </Text>
+                  </View>
+                </Pressable>
+              </>
             )}
           </ScrollView>
         </View>
