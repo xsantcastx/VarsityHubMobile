@@ -114,7 +114,7 @@ function createLimiter(options: Partial<Options> & { name: string }): ReturnType
 export const authLimiter = createLimiter({
   name: 'auth',
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: isDev ? 100000 : 10,
+  max: isDev ? 100000 : 20,
   keyGenerator: (req) => `ip:${req.ip}`, // Always use IP for auth
   message: 'Too many login attempts. Please try again in 15 minutes.',
 });
@@ -137,7 +137,7 @@ export const passwordResetLimiter = createLimiter({
 export const verificationLimiter = createLimiter({
   name: 'verification',
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: isDev ? 100000 : 5,
+  max: isDev ? 100000 : 10,
 });
 
 // ============================================
@@ -239,17 +239,17 @@ export const teamCreationLimiter = createLimiter({
 export const eventCreationLimiter = createLimiter({
   name: 'event-creation',
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: isDev ? 100000 : 10,
+  max: isDev ? 100000 : 20,
 });
 
 /**
  * Game creation
- * 20 per hour per user
+ * 40 per hour per user
  */
 export const gameCreationLimiter = createLimiter({
   name: 'game-creation',
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: isDev ? 100000 : 20,
+  max: isDev ? 100000 : 40,
 });
 
 /**
