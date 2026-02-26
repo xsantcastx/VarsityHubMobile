@@ -805,10 +805,10 @@ export default function Step4Organization() {
         {!showSearch && (
           ob.plan === 'rookie' ? (
             <LinearGradient
-              // Deeper metallic silver (cooler dark edges -> bright center -> soft falloff)
+              // Metallic bronze (dark bronze edges -> warm center)
               colors={colorScheme === 'dark'
-                ? ['#3F4751','#707B85','#3F4751']
-                : ['#9FA2A5','#ECEEEF','#9FA2A5']}
+                ? ['#3D2211','#7B4A25','#3D2211']
+                : ['#8B5A2B','#D4943A','#8B5A2B']}
               locations={[0,0.52,1]}
               start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
               style={styles.planReminderRookie}
@@ -845,16 +845,16 @@ export default function Step4Organization() {
               <View style={styles.benefitsList}>
                 {(ob.plan === 'veteran') && (
                   <>
-                    <View style={styles.benefitRow}><Ionicons name="cash" size={14} color={colorScheme === 'dark' ? '#93C5FD' : '#1E3A8A'} /><Text style={styles.benefitItem}>$1.50/month per team</Text></View>
-                    <View style={styles.benefitRow}><Ionicons name="people-circle" size={14} color={colorScheme === 'dark' ? '#93C5FD' : '#1E3A8A'} /><Text style={styles.benefitItem}>Up to 12 authorized users</Text></View>
-                    <View style={styles.benefitRow}><Ionicons name="settings" size={14} color={colorScheme === 'dark' ? '#93C5FD' : '#1E3A8A'} /><Text style={styles.benefitItem}>Advanced features</Text></View>
+                    <View style={styles.benefitRow}><Ionicons name="cash" size={14} color="#C0C0C0" /><Text style={styles.benefitItem}>$1.50/month per team</Text></View>
+                    <View style={styles.benefitRow}><Ionicons name="people-circle" size={14} color="#C0C0C0" /><Text style={styles.benefitItem}>Up to 12 authorized users</Text></View>
+                    <View style={styles.benefitRow}><Ionicons name="settings" size={14} color="#C0C0C0" /><Text style={styles.benefitItem}>Advanced features</Text></View>
                   </>
                 )}
                 {(ob.plan === 'legend') && (
                   <>
-                    <View style={styles.benefitRow}><Ionicons name="trophy" size={14} color={colorScheme === 'dark' ? '#93C5FD' : '#1E3A8A'} /><Text style={styles.benefitItem}>$20/year unlimited teams</Text></View>
-                    <View style={styles.benefitRow}><Ionicons name="infinite" size={14} color={colorScheme === 'dark' ? '#93C5FD' : '#1E3A8A'} /><Text style={styles.benefitItem}>Unlimited authorized users</Text></View>
-                    <View style={styles.benefitRow}><Ionicons name="star" size={14} color={colorScheme === 'dark' ? '#93C5FD' : '#1E3A8A'} /><Text style={styles.benefitItem}>Premium features</Text></View>
+                    <View style={styles.benefitRow}><Ionicons name="trophy" size={14} color="#FFD700" /><Text style={styles.benefitItem}>$20/year unlimited teams</Text></View>
+                    <View style={styles.benefitRow}><Ionicons name="infinite" size={14} color="#FFD700" /><Text style={styles.benefitItem}>Unlimited authorized users</Text></View>
+                    <View style={styles.benefitRow}><Ionicons name="star" size={14} color="#FFD700" /><Text style={styles.benefitItem}>Premium features</Text></View>
                   </>
                 )}
               </View>

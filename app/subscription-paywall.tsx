@@ -244,7 +244,7 @@ export default function SubscriptionPaywallScreen() {
           <Text style={[styles.ctaSubtext, { color: '#6B7280' }]}>
             {selectedTier === 'legend' && 'Billed annually • Cancel anytime'}
             {selectedTier === 'veteran' && 'Billed monthly per team • Cancel anytime'}
-            {selectedTier === 'rookie' && 'Free forever • No credit card required'}
+            {selectedTier === 'rookie' && 'Free • No credit card required'}
           </Text>
         </View>
       </ScrollView>
@@ -267,12 +267,12 @@ export default function SubscriptionPaywallScreen() {
 function getTierColor(tier: CoachTier): string {
   switch (tier) {
     case 'legend':
-      return '#FCD34D';
+      return '#FFD700';
     case 'veteran':
-      return '#2563EB';
+      return '#C0C0C0';
     case 'rookie':
     default:
-      return '#9CA3AF';
+      return '#CD7F32';
   }
 }
 

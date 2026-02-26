@@ -43,6 +43,7 @@ export default function CreateTeamScreen() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [sport, setSport] = useState('');
+  const [customSport, setCustomSport] = useState('');
   const [clubType, setClubType] = useState<'sport' | 'extracurricular'>('sport');
   const [extracurricularCategory, setExtracurricularCategory] = useState('');
   const [seasonType, setSeasonType] = useState(''); // Fall, Spring, Summer, Winter
@@ -362,7 +363,7 @@ export default function CreateTeamScreen() {
       const teamData = {
         name: name.trim(),
         description: description.trim() || undefined,
-        sport: clubType === 'sport' ? (sport || undefined) : undefined,
+        sport: clubType === 'sport' ? (sport === 'Other' ? (customSport.trim() || 'Other') : (sport || undefined)) : undefined,
         club_type: clubType,
         extracurricular_category: clubType === 'extracurricular' ? (extracurricularCategory.trim() || undefined) : undefined,
         season: season || undefined,
@@ -638,6 +639,25 @@ export default function CreateTeamScreen() {
                   </Pressable>
                 ))}
               </RNScrollView>
+              {sport === 'Other' && (
+                <TextInput
+                  style={{
+                    marginTop: 10,
+                    borderWidth: 1,
+                    borderRadius: 8,
+                    paddingHorizontal: 12,
+                    paddingVertical: 10,
+                    fontSize: 15,
+                    backgroundColor: Colors[colorScheme].surface,
+                    borderColor: Colors[colorScheme].border,
+                    color: Colors[colorScheme].text,
+                  }}
+                  value={customSport}
+                  onChangeText={setCustomSport}
+                  placeholder="Enter your sport name"
+                  placeholderTextColor={Colors[colorScheme].mutedText}
+                />
+              )}
             </View>
           )}
 

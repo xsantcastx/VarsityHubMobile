@@ -50,7 +50,16 @@ function PlanCard({
   const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
   const continueDisabled = saving || disabled;
-  
+
+  const getPlanColor = (id: string): string => {
+    switch (id) {
+      case 'legend': return '#FFD700';
+      case 'veteran': return '#C0C0C0';
+      case 'rookie':
+      default: return '#CD7F32';
+    }
+  };
+
   // Icon mapping - using Ionicons
   const getIconName = (): any => {
     switch (option.icon) {
@@ -71,12 +80,12 @@ function PlanCard({
         styles.card, 
         selected && styles.cardSelected,
         selected && styles.cardWithButton,
-        { borderColor: selected ? (isDark ? '#60A5FA' : '#111827') : (isDark ? '#374151' : '#E5E7EB') },
+        { borderColor: selected ? getPlanColor(option.id) : (isDark ? '#374151' : '#E5E7EB') },
         { backgroundColor: selected ? (isDark ? '#1F2937' : '#FFFFFF') : (isDark ? '#111827' : '#F9FAFB') }
       ]}>
       <View style={styles.cardHeader}>
         <View style={styles.titleRow}>
-          <Ionicons name={getIconName()} size={24} color={isDark ? '#60A5FA' : '#2563EB'} />
+          <Ionicons name={getIconName()} size={24} color={getPlanColor(option.id)} />
           <Text style={[styles.cardTitle, { color: isDark ? '#F9FAFB' : '#111827' }]}>{option.name}</Text>
         </View>
       </View>
