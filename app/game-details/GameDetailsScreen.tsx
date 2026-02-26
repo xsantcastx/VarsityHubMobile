@@ -2185,15 +2185,10 @@ const renderBanner = () => {
                     color={Colors[colorScheme].tint}
                   />
                   <Text style={styles.actionText}>
-                    Add Story
+                    {storyUnlockCountdown || 'Add Story'}
                   </Text>
                 </Pressable>
               </View>
-              {storyUnlockCountdown ? (
-                <Text style={[styles.storyCountdown, { color: Colors[colorScheme].mutedText }]}>
-                  {storyUnlockCountdown}
-                </Text>
-              ) : null}
               {showPreciseBanner ? (
                 <View style={[styles.preciseBanner, { backgroundColor: '#FEF9C3', borderColor: '#FACC15' }]}>
                   <Ionicons name="navigate" size={16} color="#B45309" />

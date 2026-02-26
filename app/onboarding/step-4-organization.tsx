@@ -9,7 +9,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useColorScheme, View } from 'react-native';
 // @ts-ignore
 import { Organization, Team } from '@/api/entities';
-import { autocompleteLocations, PlaceSuggestion } from '@/api/geocoding';
+import { PlaceSuggestion } from '@/api/geocoding';
+import LocationPicker from '@/components/LocationPicker';
 import { httpPost } from '@/api/http';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { useOrganizationSearch } from '@/hooks/useOrganizationSearch';
@@ -44,10 +45,6 @@ export default function Step4Organization() {
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [selectedPlace, setSelectedPlace] = useState<PlaceSuggestion | null>(null);
   const [selectedPlaceZip, setSelectedPlaceZip] = useState<string | null>(null);
-  const [locationSuggestions, setLocationSuggestions] = useState<PlaceSuggestion[]>([]);
-  const [locationQuerying, setLocationQuerying] = useState(false);
-  const [locationTouched, setLocationTouched] = useState(false);
-  const locationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [emailVerified, setEmailVerified] = useState<boolean | null>(null);
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
 
@@ -210,28 +207,6 @@ export default function Step4Organization() {
     searchOrganizations({ query: term, limit: 20, mode: 'nearby', orgType: orgType || undefined }).catch(() => {});
   }, [clearOrganizations, orgType, searchOrganizations, searchZip]);
 
-  const requestLocationSuggestions = useCallback((text: string) => {
-    if (locationTimerRef.current) {
-      clearTimeout(locationTimerRef.current);
-    }
-    if (text.trim().length < 3) {
-      setLocationSuggestions([]);
-      setLocationQuerying(false);
-      return;
-    }
-    setLocationQuerying(true);
-    locationTimerRef.current = setTimeout(async () => {
-      try {
-        const suggestions = await autocompleteLocations(text, 6);
-        setLocationSuggestions(suggestions);
-      } catch (error) {
-        console.warn('Location autocomplete failed:', error);
-      } finally {
-        setLocationQuerying(false);
-      }
-    }, 350);
-  }, []);
-
   const handleSearchInput = useCallback((text: string) => {
     setSearchZip(text);
     if (searchTimerRef.current) {
@@ -246,42 +221,36 @@ export default function Step4Organization() {
     }
   }, [clearOrganizations, executeNearbySearch]);
 
-  const handleLocationChange = useCallback((text: string) => {
-    setLocation(text);
-    setLocationTouched(true);
-    setSelectedPlace(null);
-    setSelectedPlaceZip(null);
-    requestLocationSuggestions(text);
-  }, [requestLocationSuggestions]);
-
-  const handleSelectLocation = useCallback((suggestion: PlaceSuggestion) => {
-    setSelectedPlace(suggestion);
-    setLocation(suggestion.description);
-    setLocationSuggestions([]);
-    setLocationQuerying(false);
-    setLocationTouched(true);
-    const zipMatch = suggestion.description.match(/\b\d{5}(?:-\d{4})?\b/);
-    if (zipMatch && zipMatch[0]) {
-      const normalizedZip = zipMatch[0].slice(0, 5);
-      setSelectedPlaceZip(normalizedZip);
-      setSearchZip(normalizedZip);
-    }
-    // Check for duplicates by place_id
-    void (async () => {
-      try {
-        const res = await httpPost('/organizations/check-duplicate', {
-          place_id: suggestion.place_id,
-          name: orgName.trim(),
-        });
-        if (res && (res as any).exists) {
-          setDuplicateWarning(`An organization at "${suggestion.description}" already exists. Use Search to find it.`);
-        } else {
+  const handleLocationSelect = useCallback(({ address, placeId }: { address: string; placeId?: string; latitude?: number; longitude?: number }) => {
+    setLocation(address);
+    if (placeId) {
+      setSelectedPlace({ description: address, place_id: placeId });
+      const zipMatch = address.match(/\b\d{5}(?:-\d{4})?\b/);
+      if (zipMatch?.[0]) {
+        const normalizedZip = zipMatch[0].slice(0, 5);
+        setSelectedPlaceZip(normalizedZip);
+        setSearchZip(normalizedZip);
+      }
+      void (async () => {
+        try {
+          const res = await httpPost('/organizations/check-duplicate', {
+            place_id: placeId,
+            name: orgName.trim(),
+          });
+          if (res && (res as any).exists) {
+            setDuplicateWarning(`An organization at "${address}" already exists. Use Search to find it.`);
+          } else {
+            setDuplicateWarning(null);
+          }
+        } catch {
           setDuplicateWarning(null);
         }
-      } catch {
-        setDuplicateWarning(null);
-      }
-    })();
+      })();
+    } else {
+      setSelectedPlace(null);
+      setSelectedPlaceZip(null);
+      setDuplicateWarning(null);
+    }
   }, [setSearchZip, orgName]);
 
   // Cleanup search timer on unmount to prevent memory leaks
@@ -290,10 +259,6 @@ export default function Step4Organization() {
       if (searchTimerRef.current) {
         clearTimeout(searchTimerRef.current);
         searchTimerRef.current = null;
-      }
-      if (locationTimerRef.current) {
-        clearTimeout(locationTimerRef.current);
-        locationTimerRef.current = null;
       }
     };
   }, []);
@@ -644,44 +609,11 @@ export default function Step4Organization() {
         {!showSearch && (
           <>
             <Text style={styles.label}>Location</Text>
-            <View style={styles.locationFieldWrapper}>
-              <Input 
-                value={location} 
-                onChangeText={handleLocationChange} 
-                placeholder="Start typing an address, school, or city" 
-                autoCapitalize="words"
-                autoCorrect={false}
-              />
-              {locationQuerying && (
-                <ActivityIndicator size="small" color={Colors[colorScheme].tint} style={styles.locationSpinner} />
-              )}
-              {locationSuggestions.length > 0 && (
-                <View style={styles.locationSuggestionList}>
-                  {locationSuggestions.map((suggestion, index) => (
-                    <Pressable
-                      key={suggestion.place_id}
-                      style={[
-                        styles.locationSuggestionItem,
-                        index === locationSuggestions.length - 1 && styles.locationSuggestionItemLast,
-                      ]}
-                      onPress={() => handleSelectLocation(suggestion)}
-                    >
-                      <Text style={styles.locationSuggestionMain}>
-                        {suggestion.structured_formatting?.main_text || suggestion.description}
-                      </Text>
-                      {suggestion.structured_formatting?.secondary_text ? (
-                        <Text style={styles.locationSuggestionSecondary}>
-                          {suggestion.structured_formatting.secondary_text}
-                        </Text>
-                      ) : null}
-                    </Pressable>
-                  ))}
-                </View>
-              )}
-            </View>
-            {!selectedPlace && locationTouched && location.trim().length < 2 && (
-              <Text style={styles.inputHelperText}>Enter a city, school, or address to continue.</Text>
-            )}
+            <LocationPicker
+              value={location}
+              onLocationSelect={handleLocationSelect}
+              placeholder="Start typing an address, school, or city"
+            />
             {duplicateWarning && (
               <View style={styles.duplicateWarningBox}>
                 <Ionicons name="warning" size={16} color="#F59E0B" style={{ marginRight: 8 }} />

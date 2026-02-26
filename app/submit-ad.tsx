@@ -6,6 +6,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
+import LocationPicker from '@/components/LocationPicker';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
@@ -205,14 +206,13 @@ export default function SubmitAdScreen() {
             />
 
             <Text style={[styles.label, { color: theme.text }]}>Target Zip Code *</Text>
-            <TextInput 
-              value={zip} 
-              onChangeText={setZip} 
-              placeholder="90210" 
-              style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]} 
-              placeholderTextColor={theme.mutedText}
-              keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'} 
-              maxLength={10} 
+            <LocationPicker
+              value={zip}
+              onLocationSelect={({ address }) => {
+                const zipMatch = address.match(/\b\d{5}(?:-\d{4})?\b/);
+                setZip(zipMatch ? zipMatch[0].slice(0, 5) : address);
+              }}
+              placeholder="Enter zip code or city"
             />
 
             {/* Reach Map Preview - Shows advertisers exactly where their ad will appear */}

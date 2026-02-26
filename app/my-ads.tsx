@@ -2,9 +2,9 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { Stack, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, Animated, FlatList, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Advertisement as AdsApi, User } from '@/api/entities';
@@ -28,12 +28,15 @@ type ManagedAd = {
 
 export default function MyAdsScreen() {
   const router = useRouter();
+  const { payment_success } = useLocalSearchParams<{ payment_success?: string }>();
   const colorScheme = useColorScheme() ?? 'light';
   const [loading, setLoading] = useState(true);
   const [ads, setAds] = useState<ManagedAd[]>([]);
   const [datesByAd, setDatesByAd] = useState<Record<string, string[]>>({});
   const [userId, setUserId] = useState<string | null>(null);
   const [userLoaded, setUserLoaded] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const successOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     let mounted = true;
@@ -110,6 +113,18 @@ export default function MyAdsScreen() {
       void load();
     }
   }, [userLoaded, load]);
+
+  useEffect(() => {
+    if (payment_success === 'true') {
+      setShowSuccess(true);
+      successOpacity.setValue(0);
+      Animated.sequence([
+        Animated.timing(successOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
+        Animated.delay(1100),
+        Animated.timing(successOpacity, { toValue: 0, duration: 200, useNativeDriver: true }),
+      ]).start(() => setShowSuccess(false));
+    }
+  }, [payment_success]);
 
   const remove = async (id: string) => {
     Alert.alert(
@@ -427,6 +442,15 @@ export default function MyAdsScreen() {
           />
         )}
       </View>
+
+      {showSuccess && (
+        <Animated.View style={[styles.successOverlay, { opacity: successOpacity }]} pointerEvents="none">
+          <View style={styles.successBadge}>
+            <Text style={styles.successCheck}>✓</Text>
+            <Text style={styles.successLabel}>Payment Successful</Text>
+          </View>
+        </Animated.View>
+      )}
     </SafeAreaView>
   );
 }
@@ -694,5 +718,30 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFF',
+  },
+  successOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    zIndex: 100,
+  },
+  successBadge: {
+    backgroundColor: '#FFD700',
+    borderRadius: 20,
+    paddingVertical: 28,
+    paddingHorizontal: 48,
+    alignItems: 'center',
+    gap: 8,
+  },
+  successCheck: {
+    fontSize: 52,
+    color: '#000',
+    fontWeight: '800',
+  },
+  successLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#000',
   },
 });

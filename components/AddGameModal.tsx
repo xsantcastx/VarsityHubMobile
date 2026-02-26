@@ -299,7 +299,23 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
                         borderColor: formData.type === type ? Colors[colorScheme].tint : Colors[colorScheme].border,
                       }
                     ]}
-                    onPress={() => setFormData(prev => ({ ...prev, type }))}
+                    onPress={() => {
+                      if (type === 'home') {
+                        const teamRaw = (rawTeams as any[]).find(t => t.name === formData.currentTeam);
+                        const homeVenue: string = teamRaw?.venue_address || '';
+                        setFormData(prev => ({
+                          ...prev,
+                          type,
+                          ...(homeVenue && !prev.location ? {
+                            location: homeVenue,
+                            ...(teamRaw?.venue_lat != null && { latitude: teamRaw.venue_lat }),
+                            ...(teamRaw?.venue_lng != null && { longitude: teamRaw.venue_lng }),
+                          } : {}),
+                        }));
+                      } else {
+                        setFormData(prev => ({ ...prev, type }));
+                      }
+                    }}
                   >
                     <Text style={[
                       styles.gameTypeText,
@@ -591,7 +607,17 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
                   formData.currentTeam === team.name && { backgroundColor: Colors[colorScheme].surface }
                 ]}
                 onPress={() => {
-                  setFormData(prev => ({ ...prev, currentTeam: team.name }));
+                  const teamRaw = (rawTeams as any[]).find(t => String(t.id) === team.id);
+                  const homeVenue: string = formData.type === 'home' ? (teamRaw?.venue_address || '') : '';
+                  setFormData(prev => ({
+                    ...prev,
+                    currentTeam: team.name,
+                    ...(homeVenue && !prev.location ? {
+                      location: homeVenue,
+                      ...(teamRaw?.venue_lat != null && { latitude: teamRaw.venue_lat }),
+                      ...(teamRaw?.venue_lng != null && { longitude: teamRaw.venue_lng }),
+                    } : {}),
+                  }));
                   if (errors.currentTeam) {
                     setErrors(prev => ({ ...prev, currentTeam: '' }));
                   }

@@ -62,10 +62,10 @@ export default function PaymentSuccessScreen() {
             }
             
             setSessionVerified(true);
-            // Auto-redirect after 2 seconds to show success message
+            // Auto-redirect immediately — my-ads shows the gold checkmark animation
             setTimeout(() => {
-              router.replace('/(tabs)/my-ads');
-            }, 2000);
+              router.replace({ pathname: '/(tabs)/my-ads', params: { payment_success: 'true' } });
+            }, 300);
           } else {
             // For subscriptions, verify by checking user's plan and payment flag
             // Retry up to maxVerificationAttempts times (polling for webhook completion)
@@ -139,7 +139,7 @@ export default function PaymentSuccessScreen() {
   const handleContinue = () => {
     // Navigate to the appropriate next step based on payment type
     if (isAdPayment) {
-      router.push('/(tabs)/my-ads'); // Redirect to My Ads tab after ad payment
+      router.push({ pathname: '/(tabs)/my-ads', params: { payment_success: 'true' } }); // Redirect to My Ads tab after ad payment
     } else {
       router.replace('/(tabs)/feed'); // Redirect to feed after subscription payment
     }

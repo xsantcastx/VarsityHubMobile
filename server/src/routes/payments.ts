@@ -385,6 +385,13 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
   // Otherwise we'd underbill by charging only base price without tax/discount
   const hasTaxOrDiscount = taxCents > 0 || discount > 0;
 
+  // Build human-readable date range description (e.g. "Ad Reservation — Feb 27 - Mar 12, 2026 (7 days)")
+  const _sd = [...isoDates].sort();
+  const _d0 = new Date(_sd[0] + 'T12:00:00Z');
+  const _d1 = new Date(_sd[_sd.length - 1] + 'T12:00:00Z');
+  const _fmt = (d: Date, yr: boolean) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', ...(yr ? { year: 'numeric' } : {}) });
+  const adDateDesc = `Ad Reservation — ${_fmt(_d0, false)} - ${_fmt(_d1, true)} (${isoDates.length} day${isoDates.length !== 1 ? 's' : ''})`;
+
   let lineItems: any[] = [];
 
   if (hasPriceIds && !hasTaxOrDiscount) {
@@ -405,7 +412,7 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
         quantity: pricingResult.weekendBlocks,
       }] : []),
     ];
-    
+
     // If no blocks selected (shouldn't happen, but defensive), fall back to price_data
     if (lineItems.length === 0) {
       debugLog('[payments] No blocks found, falling back to price_data');
@@ -416,7 +423,7 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
           unit_amount: total,
           product_data: {
             name: 'Ad Reservation',
-            description: `${isoDates.join(', ')}`,
+            description: adDateDesc,
           },
         },
       }];
@@ -443,7 +450,7 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
         unit_amount: total, // Total includes tax and discount already calculated
         product_data: {
           name: 'Ad Reservation',
-          description: `${isoDates.join(', ')}${discount > 0 ? ` (${formatUsd(discount)} discount applied)` : ''}${taxCents > 0 ? ` + ${formatUsd(taxCents)} tax` : ''}`,
+          description: `${adDateDesc}${discount > 0 ? ` (${formatUsd(discount)} discount applied)` : ''}${taxCents > 0 ? ` + ${formatUsd(taxCents)} tax` : ''}`,
         },
       },
     }];
