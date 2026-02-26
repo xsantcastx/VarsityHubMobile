@@ -684,7 +684,7 @@ ${APP_BASE_URL}
   if (TEMPLATE_IDS.VERIFICATION && service && service.isConfigured()) {
     console.log(`[email] sendVerificationEmail: using template ${TEMPLATE_IDS.VERIFICATION} → ${email}`);
     try {
-      const result = await service.send({
+      const result = await service.sendTemplate({
         to: email,
         subject: `${token} is your VarsityHub verification code`,
         templateId: TEMPLATE_IDS.VERIFICATION,
@@ -696,7 +696,7 @@ ${APP_BASE_URL}
           display_name: displayName,
           expires_in: '30 minutes',
         },
-      } as any);
+      });
 
       if (result.success) {
         console.log('[email] sendVerificationEmail: template send succeeded');
