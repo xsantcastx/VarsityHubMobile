@@ -844,7 +844,7 @@ export default function CommunityDiscoverScreen() {
                 <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Team Schedule</Text>
                 <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Manage games and season</Text>
               </Pressable>
-              <Pressable 
+              <Pressable
                 style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: 12 }]}
                 onPress={() => void router.push('/event-approvals')}
               >
@@ -852,12 +852,31 @@ export default function CommunityDiscoverScreen() {
                 <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Approvals</Text>
                 <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Review pending events</Text>
               </Pressable>
+              <Pressable
+                style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: 12 }]}
+                onPress={() => void router.push('/organization')}
+              >
+                <Ionicons name="business" size={24} color={Colors[colorScheme].tint} />
+                <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Manage Org</Text>
+                <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Your organization</Text>
+              </Pressable>
             </>
           ) : (
             <>
+              {/* Organizer-only card (shown before fan actions for organizer role) */}
+              {me?.preferences?.role === 'organizer' && (
+                <Pressable
+                  style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30' }]}
+                  onPress={() => void router.push('/organization')}
+                >
+                  <Ionicons name="business" size={24} color={Colors[colorScheme].tint} />
+                  <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Manage Org</Text>
+                  <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Your organization</Text>
+                </Pressable>
+              )}
               {/* Fan actions */}
-              <Pressable 
-                style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30' }]}
+              <Pressable
+                style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: me?.preferences?.role === 'organizer' ? 12 : 0 }]}
                 onPress={() => void router.push('/create-fan-event')}
               >
                 <Ionicons name="people" size={24} color={Colors[colorScheme].tint} />

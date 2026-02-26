@@ -866,10 +866,17 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
             data: invites,
             skipDuplicates: true,
           });
-          
+
           // Send invite emails (non-blocking)
           try {
-            const inviter = await prisma.user.findUnique({ where: { id: me.id }, select: { display_name: true } });
+            const [inviter, createdInvites] = await Promise.all([
+              prisma.user.findUnique({ where: { id: me.id }, select: { display_name: true } }),
+              prisma.teamInvite.findMany({
+                where: { team_id: team.id, email: { in: invites.map(i => i.email) } },
+                select: { id: true, email: true },
+              }),
+            ]);
+            const tokenByEmail = Object.fromEntries(createdInvites.map(i => [i.email, i.id]));
             await Promise.all(invites.map(async (inv) => {
               try {
                 await sendTeamInviteEmail({
@@ -880,6 +887,7 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
                   inviterName: inviter?.display_name || 'Team Owner',
                   teamHeroUrl: team.logo_url || undefined,
                   teamLogoUrl: team.avatar_url || undefined,
+                  inviteToken: tokenByEmail[inv.email],
                 });
               } catch (error) {
                 console.warn('[Teams] Failed to send team invite email:', error);

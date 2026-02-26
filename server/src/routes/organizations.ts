@@ -341,13 +341,21 @@ organizationsRouter.post('/create', requireAuth as any, async (req: AuthedReques
         skipDuplicates: true,
       });
       // Send invite emails (best effort)
-      const inviter = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { display_name: true } });
-      await Promise.all(invites.map(inv => 
+      const [inviter, createdInvites] = await Promise.all([
+        prisma.user.findUnique({ where: { id: req.user!.id }, select: { display_name: true } }),
+        prisma.organizationInvite.findMany({
+          where: { organization_id: organization.id, email: { in: invites.map(i => i.email) } },
+          select: { id: true, email: true },
+        }),
+      ]);
+      const tokenByEmail = Object.fromEntries(createdInvites.map(i => [i.email, i.id]));
+      await Promise.all(invites.map(inv =>
         sendOrganizationInviteEmail({
           to: inv.email,
           organizationName: organization.name,
           role: inv.role,
           inviterName: inviter?.display_name || 'An organizer',
+          inviteToken: tokenByEmail[inv.email],
         }).catch(() => false)
       ));
     }

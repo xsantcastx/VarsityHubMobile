@@ -33,6 +33,7 @@ export default function Step6AuthorizedUsers() {
   const [showRolePicker, setShowRolePicker] = useState(false);
   const [list, setList] = useState<any[]>([]);
   const [adding, setAdding] = useState(false);
+  const [teamError, setTeamError] = useState('');
 
   const styles = useMemo(() => createStyles(colorScheme), [colorScheme]);
   const roleLabels: Record<TeamRole, string> = useMemo(() => ({
@@ -114,11 +115,16 @@ export default function Step6AuthorizedUsers() {
 
   const addUser = async () => {
     const e = email.trim().toLowerCase();
-    if (!e || !e.includes('@')) { 
-      Alert.alert('Invalid Email', 'Please enter a valid email address'); 
-      return; 
+    if (!e || !e.includes('@')) {
+      Alert.alert('Invalid Email', 'Please enter a valid email address');
+      return;
     }
-    
+
+    if (ob.plan !== 'rookie' && !assignTeam.trim()) {
+      setTeamError('Please assign this user to a team');
+      return;
+    }
+
     if (!canAddMore) {
       Alert.alert('User Limit Reached', `Your ${planInfo.name} plan allows up to ${planInfo.maxUsers} user${planInfo.maxUsers === 1 ? '' : 's'}.`);
       return;
@@ -322,13 +328,16 @@ export default function Step6AuthorizedUsers() {
 
             {ob.plan !== 'rookie' && (
               <>
-                <Text style={styles.label}>Assign to Team (optional)</Text>
-                <Input 
-                  value={assignTeam} 
-                  onChangeText={setAssignTeam} 
-                  placeholder="e.g., Varsity Football" 
-                  style={{ marginBottom: 12 }} 
+                <Text style={styles.label}>Assign to Team</Text>
+                <Input
+                  value={assignTeam}
+                  onChangeText={(t) => { setAssignTeam(t); if (t.trim()) setTeamError(''); }}
+                  placeholder="e.g., Varsity Football"
+                  style={{ marginBottom: teamError ? 4 : 12 }}
                 />
+                {teamError ? (
+                  <Text style={styles.fieldError}>{teamError}</Text>
+                ) : null}
               </>
             )}
 
@@ -344,10 +353,10 @@ export default function Step6AuthorizedUsers() {
             </Pressable>
             <View style={{ height: 12 }} />
 
-            <PrimaryButton 
+            <PrimaryButton
               label={adding ? 'Adding…' : 'Add User'}
               onPress={addUser}
-              disabled={adding || !email.trim()}
+              disabled={adding || !email.trim() || (ob.plan !== 'rookie' && !assignTeam.trim())}
             />
           </View>
         )}
@@ -424,6 +433,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   title: { ...(Type.h1 as any), marginBottom: 8, textAlign: 'center', color: Colors[colorScheme].text },
   subtitle: { color: Colors[colorScheme].mutedText, marginBottom: 20, textAlign: 'center', fontSize: 16 },
   label: { fontWeight: '700', marginBottom: 4, color: Colors[colorScheme].text },
+  fieldError: { color: colorScheme === 'dark' ? '#ef4444' : '#DC2626', fontSize: 12, marginBottom: 12 },
   
   planInfo: {
     backgroundColor: Colors[colorScheme].surface,

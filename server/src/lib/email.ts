@@ -946,13 +946,13 @@ export async function sendTeamInviteEmail(params: {
       templateData: {
         ...getCommonTemplateData(),
         recipient_name: params.recipientName || 'there',
-        team_name: params.teamName,
-        org_name: params.organizationName || '',
+        teamName: params.teamName,
+        orgName: params.organizationName || '',
         role: prettyRole,
-        inviter_name: params.inviterName || 'VarsityHub Coach',
-        expiry_date: formatInviteExpiry(7),
+        inviterName: params.inviterName || 'VarsityHub Coach',
+        expiryDate: formatInviteExpiry(7),
         invite_url: params.inviteToken
-          ? `varsityhub://invites/${params.inviteToken}`
+          ? `varsityhubmobile://invites/${params.inviteToken}`
           : `${APP_BASE_URL}/invites`,
         invite_url_web: params.inviteToken
           ? `${APP_BASE_URL}/invites?token=${params.inviteToken}`
@@ -1041,12 +1041,12 @@ export async function sendOrganizationInviteEmail(params: {
     {
       ...getCommonTemplateData(),
       recipient_name: params.recipientName || 'there',
-      org_name: params.organizationName,
+      orgName: params.organizationName,
       role: prettyRole,
-      inviter_name: params.inviterName || 'VarsityHub Admin',
-      expiry_date: formatInviteExpiry(7),
+      inviterName: params.inviterName || 'VarsityHub Admin',
+      expiryDate: formatInviteExpiry(7),
       invite_url: params.inviteToken
-        ? `varsityhub://invites/${params.inviteToken}`
+        ? `varsityhubmobile://invites/${params.inviteToken}`
         : `${APP_BASE_URL}/invites`,
       invite_url_web: params.inviteToken
         ? `${APP_BASE_URL}/invites?token=${params.inviteToken}`

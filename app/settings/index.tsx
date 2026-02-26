@@ -364,28 +364,6 @@ export default function SettingsScreen() {
                           <Text style={[styles.chev, { color: Colors[colorScheme ?? 'light'].icon }]}>›</Text>
                         </Pressable>
                       </View>
-                      <NavRow title="Export My Data" subtitle="Download your profile, posts, comments, messages, and preferences" onPress={async () => {
-                        try {
-                          const data = await User.exportMyData();
-                          const text = JSON.stringify(data, null, 2);
-                          const filename = `varsityhub-data-export-${new Date().toISOString().slice(0, 10)}.json`;
-                          if (Platform.OS === 'web') {
-                            const a = document.createElement('a');
-                            a.href = 'data:application/json;charset=utf-8,' + encodeURIComponent(text);
-                            a.download = filename;
-                            a.click();
-                          } else {
-                            const FileSystem = await import('expo-file-system');
-                            const path = FileSystem.documentDirectory + filename;
-                            await FileSystem.writeAsStringAsync(path, text, { encoding: FileSystem.EncodingType.UTF8 });
-                            await Share.share({ url: path, title: 'VarsityHub Data Export', message: 'Your VarsityHub data export' });
-                          }
-                          Alert.alert('Export Complete', 'Your data has been exported successfully.');
-                        } catch (e: any) {
-                          console.error('[settings] Export failed:', e);
-                          Alert.alert('Export Failed', e?.message || 'Could not export your data. Please try again.');
-                        }
-                      }} />
                       <NavRow title="Manage Blocked Users" onPress={() => void router.push('/settings/blocked-users')} />
                       <SwitchRow
                         title="I am a parent"
@@ -415,7 +393,6 @@ export default function SettingsScreen() {
                       <NavRow title="Privacy Policy" onPress={() => void router.push('/settings/privacy-policy')} />
                       <NavRow title="Terms of Service" onPress={() => void router.push('/settings/terms-of-service')} />
                       <NavRow title="Report Abuse" onPress={() => void router.navigate('/report-abuse')} />
-                      <NavRow title="DM Restrictions Summary" onPress={() => void router.navigate('/dm-restrictions')} />
                     </SectionCard>
 
                     {/* Support & Feedback */}
@@ -532,10 +509,10 @@ export default function SettingsScreen() {
                           ]);
                         }
                       }} />
-                      <NavRow title="Restart Onboarding" onPress={() => {
-                        Alert.alert('Restart Onboarding', 'You will be taken back to onboarding.', [
+                      <NavRow title="Upgrade to Coach Account" onPress={() => {
+                        Alert.alert('Upgrade to Coach Account', 'You\'ll be taken through the coach setup flow.', [
                           { text: 'Cancel', style: 'cancel' },
-                          { text: 'Restart', onPress: () => { void restartOnboarding(); } }
+                          { text: 'Continue', onPress: () => { void router.push('/onboarding/step-1-role'); } }
                         ]);
                       }} />
                     </SectionCard>
