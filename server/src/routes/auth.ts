@@ -817,6 +817,8 @@ authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
     notifications_enabled: z.boolean().optional(),
     messaging_policy_accepted: z.boolean().optional(),
     push_token: z.string().optional(),
+    profile_private: z.boolean().optional(),
+    comment_permission: z.enum(['everyone', 'following', 'none']).optional(),
   }).partial();
   
   const parsed = schema.safeParse(req.body || {});

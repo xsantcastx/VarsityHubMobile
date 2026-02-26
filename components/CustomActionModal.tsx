@@ -105,6 +105,7 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   optionBtn: {
+    width: '100%',
     borderRadius: 14,
     paddingVertical: 12,
     paddingHorizontal: 18,

@@ -25,6 +25,7 @@ const EVENT_TYPES = [
   { value: 'fundraiser', label: '💰 Fundraiser', icon: 'cash' },
   { value: 'tryout', label: '🏃 Tryout/Practice', icon: 'fitness' },
   { value: 'bbq', label: '🍔 BBQ/Social', icon: 'restaurant' },
+  { value: 'team_meal', label: '🍽️ Team Meal', icon: 'cafe' },
   { value: 'other', label: '📌 Other', icon: 'ellipsis-horizontal' },
 ];
 

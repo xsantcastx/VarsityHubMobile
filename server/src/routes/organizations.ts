@@ -425,6 +425,7 @@ organizationsRouter.post('/:id/invite', requireAuth as any, async (req: AuthedRe
       organizationName: org.name,
       role: role || 'member',
       inviterName: inviter?.display_name || 'An organizer',
+      inviteToken: invite.id,
     }).catch(() => false);
   }
   

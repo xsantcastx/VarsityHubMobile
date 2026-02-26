@@ -636,19 +636,27 @@ export default function TeamScreen() {
                   }
                 ]} 
                 onPress={async () => {
-                  if (!team?.id) return;
+                  console.log('[Follow] button pressed — team?.id:', team?.id, '| isFollowing:', isFollowing);
+                  if (!team?.id) {
+                    console.warn('[Follow] blocked: team or team.id is missing');
+                    return;
+                  }
                   try {
                     if (isFollowing) {
+                      console.log('[Follow] calling Team.unfollow(', team.id, ')');
                       await Team.unfollow(team.id);
+                      console.log('[Follow] unfollow success');
                       setIsFollowing(false);
                       setTeam((prev) => prev ? { ...prev, followers_count: Math.max(0, ((prev as any).followers_count ?? 0) - 1) } : null);
                     } else {
+                      console.log('[Follow] calling Team.follow(', team.id, ')');
                       await Team.follow(team.id);
+                      console.log('[Follow] follow success');
                       setIsFollowing(true);
                       setTeam((prev) => prev ? { ...prev, followers_count: ((prev as any).followers_count ?? 0) + 1 } : null);
                     }
-                  } catch (err) {
-                    console.error('Team follow/unfollow failed:', err);
+                  } catch (err: any) {
+                    console.error('[Follow] Team follow/unfollow failed — status:', err?.status, '| message:', err?.message, '| data:', JSON.stringify(err?.data));
                   }
                 }}
               >

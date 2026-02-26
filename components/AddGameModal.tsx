@@ -3,7 +3,8 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { useTeamOptions } from '@/hooks/useTeamOptions';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { Search } from '@/api/entities';
 import {
   ActivityIndicator,
   Modal,
@@ -18,6 +19,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MatchBanner from '../app/components/MatchBanner';
 import ImageEditor from './ImageEditor';
+import LocationPicker from './LocationPicker';
 import { getApiBaseUrl } from '../api/http';
 
 interface AddGameModalProps {
@@ -30,6 +32,7 @@ interface AddGameModalProps {
 export interface GameFormData {
   currentTeam: string;
   opponent: string;
+  opponent_team_id?: string | null;
   date: Date;
   time: Date;
   location: string;
@@ -56,6 +59,10 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
   const [showCurrentTeamPicker, setShowCurrentTeamPicker] = useState(false);
   const [showOpponentPicker, setShowOpponentPicker] = useState(false);
   const [opponentSearchQuery, setOpponentSearchQuery] = useState('');
+  const [opponentSearchResults, setOpponentSearchResults] = useState<{ id: string; name: string; sport?: string | null; logo_url?: string | null }[]>([]);
+  const [opponentSearching, setOpponentSearching] = useState(false);
+  const [opponentTeamId, setOpponentTeamId] = useState<string | null>(null);
+  const opponentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [currentTeamSearchQuery, setCurrentTeamSearchQuery] = useState('');
   
   const [formData, setFormData] = useState<GameFormData>({
@@ -90,10 +97,24 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
     }));
   }, [currentTeamName, rawTeams]);
 
-  // Filter teams based on search query
-  const filteredTeams = useMemo(() => (
-    teams.filter(team => team.name.toLowerCase().includes(opponentSearchQuery.toLowerCase()))
-  ), [opponentSearchQuery, teams]);
+  // Search all platform teams for opponent selection
+  const handleOpponentSearch = useCallback((text: string) => {
+    setOpponentSearchQuery(text);
+    setOpponentTeamId(null);
+    if (opponentTimerRef.current) clearTimeout(opponentTimerRef.current);
+    if (text.length < 2) { setOpponentSearchResults([]); setOpponentSearching(false); return; }
+    setOpponentSearching(true);
+    opponentTimerRef.current = setTimeout(async () => {
+      try {
+        const res: any = await Search.unified(text, 10);
+        setOpponentSearchResults(Array.isArray(res?.teams) ? res.teams : []);
+      } catch {
+        setOpponentSearchResults([]);
+      } finally {
+        setOpponentSearching(false);
+      }
+    }, 300);
+  }, []);
 
   const filteredCurrentTeams = useMemo(() => (
     teams.filter(team => team.name.toLowerCase().includes(currentTeamSearchQuery.toLowerCase()))
@@ -126,7 +147,7 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
     if (!validateForm()) {
       return;
     }
-    onSave(formData);
+    onSave({ ...formData, opponent_team_id: opponentTeamId });
     resetForm();
     onClose();
   };
@@ -135,6 +156,7 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
     setFormData({
       currentTeam: currentTeamName || 'My Team',
       opponent: '',
+      opponent_team_id: null,
       date: new Date(),
       time: new Date(),
       location: '',
@@ -142,6 +164,9 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
       notes: '',
       autoGeocode: true,
     });
+    setOpponentTeamId(null);
+    setOpponentSearchQuery('');
+    setOpponentSearchResults([]);
     setErrors({});
   };
 
@@ -324,22 +349,20 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
             </View>
 
             {/* Location */}
-            <View style={styles.formSection}>
+            <View style={[styles.formSection, { zIndex: 10 }]}>
               <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Location *</Text>
-              <TextInput
-                style={[styles.input, { 
-                  backgroundColor: Colors[colorScheme].surface,
-                  borderColor: errors.location ? '#EF4444' : Colors[colorScheme].border,
-                  color: Colors[colorScheme].text
-                }]}
-                placeholder="Enter game location/venue"
-                placeholderTextColor={Colors[colorScheme].mutedText}
+              <LocationPicker
                 value={formData.location}
-                onChangeText={(text) => {
-                  setFormData(prev => ({ ...prev, location: text }));
-                  if (errors.location) {
-                    setErrors(prev => ({ ...prev, location: '' }));
-                  }
+                placeholder="Enter game location/venue"
+                error={errors.location}
+                onLocationSelect={({ address, latitude, longitude }) => {
+                  setFormData(prev => ({
+                    ...prev,
+                    location: address,
+                    ...(latitude != null && { latitude }),
+                    ...(longitude != null && { longitude }),
+                  }));
+                  if (errors.location) setErrors(prev => ({ ...prev, location: '' }));
                 }}
               />
               {errors.location && <Text style={styles.errorText}>{errors.location}</Text>}
@@ -604,6 +627,7 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
       onRequestClose={() => {
         setShowOpponentPicker(false);
         setOpponentSearchQuery('');
+        setOpponentSearchResults([]);
       }}
     >
       <View style={styles.pickerOverlay}>
@@ -612,96 +636,107 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
             <Pressable onPress={() => {
               setShowOpponentPicker(false);
               setOpponentSearchQuery('');
+              setOpponentSearchResults([]);
             }}>
               <Text style={[styles.pickerHeaderButton, { color: Colors[colorScheme].text }]}>Cancel</Text>
             </Pressable>
             <Text style={[styles.pickerTitle, { color: Colors[colorScheme].text }]}>Select Opponent</Text>
             <View style={{ width: 50 }} />
           </View>
-          
+
           {/* Search Input */}
           <View style={[styles.searchContainer, { borderBottomColor: Colors[colorScheme].border }]}>
             <Ionicons name="search" size={20} color={Colors[colorScheme].mutedText} />
             <TextInput
               style={[styles.searchInput, { color: Colors[colorScheme].text }]}
-              placeholder="Search or type opponent name..."
+              placeholder="Search teams..."
               placeholderTextColor={Colors[colorScheme].mutedText}
               value={opponentSearchQuery}
-              onChangeText={setOpponentSearchQuery}
+              onChangeText={handleOpponentSearch}
               autoFocus
+              autoCorrect={false}
             />
-            {opponentSearchQuery.length > 0 && (
-              <Pressable onPress={() => setOpponentSearchQuery('')}>
-                <Ionicons name="close-circle" size={20} color={Colors[colorScheme].mutedText} />
-              </Pressable>
-            )}
+            {opponentSearching
+              ? <ActivityIndicator size="small" color={Colors[colorScheme].tint} />
+              : opponentSearchQuery.length > 0 && (
+                  <Pressable onPress={() => { setOpponentSearchQuery(''); setOpponentSearchResults([]); }}>
+                    <Ionicons name="close-circle" size={20} color={Colors[colorScheme].mutedText} />
+                  </Pressable>
+                )
+            }
           </View>
-          
-          <ScrollView style={styles.pickerList}>
-            {/* Allow manual entry if search query doesn't match any team */}
-            {opponentSearchQuery.length > 0 && !filteredTeams.some(t => t.name.toLowerCase() === opponentSearchQuery.toLowerCase()) && (
-              <Pressable
-                style={[
-                  styles.pickerItem,
-                  { borderBottomColor: Colors[colorScheme].border, backgroundColor: Colors[colorScheme].surface }
-                ]}
-                onPress={() => {
-                  setFormData(prev => ({ ...prev, opponent: opponentSearchQuery }));
-                  if (errors.opponent) {
-                    setErrors(prev => ({ ...prev, opponent: '' }));
-                  }
-                  setShowOpponentPicker(false);
-                  setOpponentSearchQuery('');
-                }}
-              >
-                <View style={styles.pickerItemContent}>
-                  <Ionicons name="add-circle-outline" size={20} color="#007AFF" />
-                  <Text style={[styles.pickerItemText, { color: Colors[colorScheme].text, marginLeft: 8 }]}>
-                    Use "{opponentSearchQuery}"
-                  </Text>
-                </View>
-              </Pressable>
-            )}
-            
-            {filteredTeams.map((team) => (
+
+          <ScrollView style={styles.pickerList} keyboardShouldPersistTaps="handled">
+            {/* Search results */}
+            {opponentSearchResults.map((team) => (
               <Pressable
                 key={team.id}
                 style={[
                   styles.pickerItem,
                   { borderBottomColor: Colors[colorScheme].border },
-                  formData.opponent === team.name && { backgroundColor: Colors[colorScheme].surface }
+                  opponentTeamId === team.id && { backgroundColor: Colors[colorScheme].surface },
                 ]}
                 onPress={() => {
                   setFormData(prev => ({ ...prev, opponent: team.name }));
-                  if (errors.opponent) {
-                    setErrors(prev => ({ ...prev, opponent: '' }));
-                  }
+                  setOpponentTeamId(team.id);
+                  if (errors.opponent) setErrors(prev => ({ ...prev, opponent: '' }));
                   setShowOpponentPicker(false);
                   setOpponentSearchQuery('');
+                  setOpponentSearchResults([]);
                 }}
               >
                 <View style={styles.pickerItemContent}>
-                  {team.logo && (
-                    <View style={styles.teamLogoContainer}>
-                      <Text style={styles.teamLogoText}>🏆</Text>
-                    </View>
-                  )}
-                  <Text style={[styles.pickerItemText, { color: Colors[colorScheme].text }]}>
-                    {team.name}
-                  </Text>
+                  <View style={styles.teamLogoContainer}>
+                    <Text style={styles.teamLogoText}>🏆</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.pickerItemText, { color: Colors[colorScheme].text }]}>
+                      {team.name}
+                    </Text>
+                    {team.sport && (
+                      <Text style={{ fontSize: 12, color: Colors[colorScheme].mutedText, marginTop: 2 }}>
+                        {team.sport}
+                      </Text>
+                    )}
+                  </View>
                 </View>
-                {formData.opponent === team.name && (
-                  <Ionicons name="checkmark" size={20} color="#007AFF" />
+                {opponentTeamId === team.id && (
+                  <Ionicons name="checkmark" size={20} color={Colors[colorScheme].tint} />
                 )}
               </Pressable>
             ))}
-            
-            {filteredTeams.length === 0 && opponentSearchQuery.length === 0 && (
+
+            {/* Empty / prompt state */}
+            {opponentSearchResults.length === 0 && !opponentSearching && (
               <View style={styles.emptyState}>
                 <Text style={[styles.emptyStateText, { color: Colors[colorScheme].mutedText }]}>
-                  No teams found. Start typing to add a custom opponent.
+                  {opponentSearchQuery.length < 2
+                    ? 'Start typing to search all teams'
+                    : 'No teams found'}
                 </Text>
               </View>
+            )}
+
+            {/* Add manually — always pinned at bottom when query exists */}
+            {opponentSearchQuery.length > 0 && (
+              <Pressable
+                style={[styles.pickerItem, { backgroundColor: Colors[colorScheme].surface }]}
+                onPress={() => {
+                  setFormData(prev => ({ ...prev, opponent: opponentSearchQuery }));
+                  setOpponentTeamId(null);
+                  if (errors.opponent) setErrors(prev => ({ ...prev, opponent: '' }));
+                  setShowOpponentPicker(false);
+                  setOpponentSearchQuery('');
+                  setOpponentSearchResults([]);
+                }}
+              >
+                <View style={styles.pickerItemContent}>
+                  <Ionicons name="add-circle-outline" size={20} color={Colors[colorScheme].tint} />
+                  <Text style={[styles.pickerItemText, { color: Colors[colorScheme].tint, marginLeft: 8 }]}>
+                    Add manually: "{opponentSearchQuery}"
+                  </Text>
+                </View>
+              </Pressable>
             )}
           </ScrollView>
         </View>

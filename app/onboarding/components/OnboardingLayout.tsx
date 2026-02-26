@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { ReactNode } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface OnboardingLayoutProps {
@@ -108,20 +108,26 @@ export default function OnboardingLayout({
         />
       </View>
 
-      <ScrollView 
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+        keyboardVerticalOffset={100}
       >
-        <View style={styles.titleSection}>
-          <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
-          {subtitle && (
-            <Text style={[styles.subtitle, { color: colors.textMuted }]}>{subtitle}</Text>
-          )}
-        </View>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.titleSection}>
+            <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
+            {subtitle && (
+              <Text style={[styles.subtitle, { color: colors.textMuted }]}>{subtitle}</Text>
+            )}
+          </View>
 
-        {children}
-      </ScrollView>
+          {children}
+        </ScrollView>
+      </KeyboardAvoidingView>
 
       {onContinue && (
         <View style={[styles.footer, { borderTopColor: colors.border, paddingBottom: insets.bottom > 0 ? insets.bottom : 16 }]}>

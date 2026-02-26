@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useColorScheme, View } from 'react-native';
+import { ActivityIndicator, Alert, Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useColorScheme, View } from 'react-native';
 // @ts-ignore
 import { Organization, Team } from '@/api/entities';
 import { autocompleteLocations, PlaceSuggestion } from '@/api/geocoding';
@@ -775,7 +775,7 @@ export default function Step4Organization() {
               {['school','club','league','tournament','university','college','professional'].map(t => (
                 <Pressable
                   key={t}
-                  onPress={() => setOrgType(t as any)}
+                  onPress={() => { Keyboard.dismiss(); setOrgType(t as any); }}
                   accessibilityRole="radio"
                   accessibilityState={{ selected: orgType === t }}
                   style={[styles.typeOption, orgType === t && styles.typeOptionActive]}

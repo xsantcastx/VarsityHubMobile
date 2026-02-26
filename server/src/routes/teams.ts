@@ -1012,6 +1012,7 @@ teamsRouter.post('/:id/invite', async (req: AuthedRequest, res) => {
       teamHeroUrl: team.logo_url || undefined,
       teamLogoUrl: team.avatar_url || undefined,
       inviterName: inviter?.display_name || 'Team Owner',
+      inviteToken: invite.id,
     });
   } catch (_error) {}
   

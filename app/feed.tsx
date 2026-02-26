@@ -708,7 +708,7 @@ export default function FeedScreen() {
             accessibilityLabel="Open VarsityHub Instagram"
           >
             <Image source={require('../assets/images/logo.svg')} style={styles.logoImage} />
-            <Text style={[styles.brand, { color: Colors[colorScheme].text }]} numberOfLines={1}>Varsity Hub</Text>
+            <Text style={[styles.brand, { color: Colors[colorScheme].text }]} numberOfLines={1} allowFontScaling={false}>Varsity Hub</Text>
           </Pressable>
           <View style={{ flex: 1 }} />
           {/* Messages on RIGHT */}
@@ -1412,7 +1412,7 @@ const styles = StyleSheet.create({
   contentContainer: { flex: 1, paddingHorizontal: 16, paddingTop: 12, overflow: 'hidden' },
   logoImage: { width: 36, height: 36, borderRadius: 8 },
   headerActions: { flex: 1, flexShrink: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 8 },
-  iconButton: { padding: 8, borderRadius: 8 },
+  iconButton: { width: 44, height: 44, flexShrink: 0, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   center: { paddingVertical: 24, alignItems: 'center' },
   error: { color: '#b91c1c', marginBottom: 8 },
   muted: { fontSize: 14 },

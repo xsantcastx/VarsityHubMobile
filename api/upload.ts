@@ -126,7 +126,7 @@ export async function uploadFile(baseUrl: string | null | undefined, uri: string
   if (!finalMimeType || finalMimeType === 'application/octet-stream') {
     // Try to detect from filename
     const name = filename || uri;
-    const ext = name.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp|mp4|mov|avi|mkv)$/)?.[1];
+    const ext = name.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp|heic|heif|mp4|mov|avi|mkv)$/)?.[1];
     if (ext) {
       const mimeMap: Record<string, string> = {
         jpg: 'image/jpeg',
@@ -134,6 +134,8 @@ export async function uploadFile(baseUrl: string | null | undefined, uri: string
         png: 'image/png',
         gif: 'image/gif',
         webp: 'image/webp',
+        heic: 'image/heic',
+        heif: 'image/heif',
         mp4: 'video/mp4',
         mov: 'video/quicktime',
         avi: 'video/x-msvideo',

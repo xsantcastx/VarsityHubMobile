@@ -684,7 +684,7 @@ ${APP_BASE_URL}
   if (TEMPLATE_IDS.VERIFICATION && service && service.isConfigured()) {
     console.log(`[email] sendVerificationEmail: using template ${TEMPLATE_IDS.VERIFICATION} → ${email}`);
     try {
-      const result = await service.sendTemplate({
+      const result = await service.send({
         to: email,
         subject: `${token} is your VarsityHub verification code`,
         templateId: TEMPLATE_IDS.VERIFICATION,
@@ -903,6 +903,12 @@ export async function sendPasswordChangedEmail(email: string, userName?: string)
   }
 }
 
+function formatInviteExpiry(days = 7): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+}
+
 /**
  * Send team invite with personalized team branding
  * Now uses EmailService with retry logic
@@ -917,6 +923,7 @@ export async function sendTeamInviteEmail(params: {
   teamHeroUrl?: string;
   teamLogoUrl?: string;
   primaryColor?: string;
+  inviteToken?: string;
 }): Promise<boolean> {
   if (!TEMPLATE_IDS.TEAM_INVITE) {
     console.warn('[email] SendGrid team invite template not configured');
@@ -938,12 +945,18 @@ export async function sendTeamInviteEmail(params: {
       templateId: TEMPLATE_IDS.TEAM_INVITE,
       templateData: {
         ...getCommonTemplateData(),
-        recipient_name: params.recipientName || '',
+        recipient_name: params.recipientName || 'there',
         team_name: params.teamName,
         org_name: params.organizationName || '',
         role: prettyRole,
         inviter_name: params.inviterName || 'VarsityHub Coach',
-        invite_url: `${APP_BASE_URL}/invites`,
+        expiry_date: formatInviteExpiry(7),
+        invite_url: params.inviteToken
+          ? `varsityhub://invites/${params.inviteToken}`
+          : `${APP_BASE_URL}/invites`,
+        invite_url_web: params.inviteToken
+          ? `${APP_BASE_URL}/invites?token=${params.inviteToken}`
+          : `${APP_BASE_URL}/invites`,
         hero_image: params.teamHeroUrl || `${APP_BASE_URL}/default-team-hero.jpg`,
         logo_image: params.teamLogoUrl || `${APP_BASE_URL}/default-team-logo.jpg`,
         primary_color: params.primaryColor || '#2563EB',
@@ -1012,10 +1025,12 @@ async function sendTemplateEmail(
 export async function sendOrganizationInviteEmail(params: {
   to: string;
   organizationName: string;
+  recipientName?: string;
   role?: string;
   inviterName?: string;
   orgLogoUrl?: string;
   primaryColor?: string;
+  inviteToken?: string;
 }): Promise<boolean> {
   const prettyRole = params.role?.replace(/_/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase()) || 'member';
 
@@ -1025,10 +1040,17 @@ export async function sendOrganizationInviteEmail(params: {
     `You've been invited to join ${params.organizationName}`,
     {
       ...getCommonTemplateData(),
+      recipient_name: params.recipientName || 'there',
       org_name: params.organizationName,
       role: prettyRole,
       inviter_name: params.inviterName || 'VarsityHub Admin',
-      invite_url: `${APP_BASE_URL}/invites`,
+      expiry_date: formatInviteExpiry(7),
+      invite_url: params.inviteToken
+        ? `varsityhub://invites/${params.inviteToken}`
+        : `${APP_BASE_URL}/invites`,
+      invite_url_web: params.inviteToken
+        ? `${APP_BASE_URL}/invites?token=${params.inviteToken}`
+        : `${APP_BASE_URL}/invites`,
       logo_image: params.orgLogoUrl || `${APP_BASE_URL}/default-org-logo.jpg`,
       primary_color: params.primaryColor || '#2563EB',
     },

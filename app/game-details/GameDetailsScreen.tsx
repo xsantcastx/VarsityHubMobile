@@ -1233,156 +1233,66 @@ const GameDetailsScreen = () => {
       }
     }
     
-    // Show action sheet with camera first, then gallery
-    Alert.alert(
-      'Add Story', 
-      'Choose how you want to add your story',
-      [
-        {
-          text: 'Take Photo/Video',
-          onPress: async () => {
-            try {
-              setStoryBusy(true);
-              const pickerOptions: any = {
-                quality: 0.9,
-                mediaTypes: ['images', 'videos'],
-                allowsEditing: false,
-                exif: false,
-                // On iOS, use the PhotoPicker (not the deprecated deprecated UIImagePickerController)
-                // which returns proper file:// URIs instead of ph:// asset references
-                legacy: false,
-              };
-              const result = await ImagePicker.launchCameraAsync(pickerOptions);
-              if (!result || result.canceled || !result.assets || !result.assets.length) return;
-              
-              const asset = result.assets[0];
-              const base = getApiBaseUrl();
-              let uri = asset.uri;
-              const mimeType = asset.mimeType || (asset.type === 'video' ? 'video/mp4' : 'image/jpeg');
-              const fileName = asset.fileName || uri.split('/').pop() || (mimeType.startsWith('video') ? 'story.mp4' : 'story.jpg');
-              const ensured = await (await import('../../utils/ensureUploadableUri')).ensureUploadableUri(uri, mimeType);
-              uri = ensured.uri; // use uploadable local file path when available
+    try {
+      setStoryBusy(true);
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.All,
+        quality: 0.8,
+        videoMaxDuration: 30,
+      });
+      if (!result || result.canceled || !result.assets || !result.assets.length) return;
 
-              const uploaded = await uploadFile(base, uri, fileName, mimeType);
-              const mediaUrl = uploaded?.path || uploaded?.url;
-              if (!mediaUrl) {
-                throw new Error('Upload failed');
-              }
-              if (isSampleId(vm.gameId)) {
-                // Local-only story for sample games; do not call backend
-                setVm((prev) => {
-                  if (!prev) return prev;
-                  const newItem: MediaItem = { id: String(Date.now()), url: mediaUrl, kind: (mimeType?.startsWith('video') ? 'video' : 'photo') as any };
-                  return { ...prev, media: [newItem, ...(prev.media || [])] } as GameVM;
-                });
-              } else {
-                if (!vm.gameId) throw new Error('No game ID');
-                const gameId = vm.gameId; // type guard
-                const storyPayload: any = { media_url: mediaUrl };
-                if (location?.latitude && location?.longitude) {
-                  storyPayload.location = { lat: location.latitude, lng: location.longitude, source: 'device' };
-                }
-                await Game.addStory(gameId, storyPayload);
-                try {
-                  await loadGameById(gameId);
-                  Alert.alert('Added', isSampleId(gameId) ? 'Story added (demo only).' : 'Story added to this game.');
-                } catch (reloadErr: any) {
-                  console.warn('[story] Camera - reload failed but story was uploaded:', reloadErr);
-                  Alert.alert('Added', 'Story added to this game. Refresh to see it.');
-                }
-              }
-            } catch (err: any) {
-              const status = err?.status;
-              const message = String(err?.message || err?.data?.error || '');
-              if (status === 401 || /unauthorized/i.test(message)) {
-                Alert.alert('Session expired', 'Please sign in again to upload stories.', [
-                  { text: 'Cancel', style: 'cancel' },
-                  { text: 'Sign In', onPress: () => void router.push('/sign-in') },
-                ]);
-              } else {
-                console.error('Story upload error:', err);
-                Alert.alert('Unable to add story', err?.message || 'Please try again.');
-              }
-            } finally {
-              setStoryBusy(false);
-            }
-          }
-        },
-        {
-          text: 'Choose from Gallery',
-          onPress: async () => {
-            try {
-              setStoryBusy(true);
-              const pickerOptions: any = {
-                quality: 0.9,
-                mediaTypes: ['images', 'videos'],
-                allowsEditing: false,
-                exif: false,
-                // On iOS, use the PhotoPicker (not the deprecated deprecated UIImagePickerController)
-                // which returns proper file:// URIs instead of ph:// asset references
-                legacy: false,
-              };
-              const result = await ImagePicker.launchImageLibraryAsync(pickerOptions);
-              if (!result || result.canceled || !result.assets || !result.assets.length) return;
-              
-              const asset = result.assets[0];
-              const base = getApiBaseUrl();
-              let uri = asset.uri;
-              const mimeType = asset.mimeType || (asset.type === 'video' ? 'video/mp4' : 'image/jpeg');
-              const fileName = asset.fileName || uri.split('/').pop() || (mimeType.startsWith('video') ? 'story.mp4' : 'story.jpg');
-              const ensured = await (await import('../../utils/ensureUploadableUri')).ensureUploadableUri(uri, mimeType);
-              uri = ensured.uri;
-              
-              const uploaded = await uploadFile(base, uri, fileName, mimeType);
-              const mediaUrl = uploaded?.path || uploaded?.url;
-              if (!mediaUrl) {
-                throw new Error('Upload failed');
-              }
-              if (isSampleId(vm.gameId)) {
-                setVm((prev) => {
-                  if (!prev) return prev;
-                  const newItem: MediaItem = { id: String(Date.now()), url: mediaUrl, kind: (mimeType?.startsWith('video') ? 'video' : 'photo') as any };
-                  return { ...prev, media: [newItem, ...(prev.media || [])] } as GameVM;
-                });
-              } else {
-                if (!vm.gameId) throw new Error('No game ID');
-                const gameId = vm.gameId; // type guard
-                const storyPayload: any = { media_url: mediaUrl };
-                if (location?.latitude && location?.longitude) {
-                  storyPayload.location = { lat: location.latitude, lng: location.longitude, source: 'device' };
-                }
-                await Game.addStory(gameId, storyPayload);
-                try {
-                  await loadGameById(gameId);
-                  Alert.alert('Added', isSampleId(gameId) ? 'Story added (demo only).' : 'Story added to this game.');
-                } catch (reloadErr: any) {
-                  console.warn('[story] Gallery - reload failed but story was uploaded:', reloadErr);
-                  Alert.alert('Added', 'Story added to this game. Refresh to see it.');
-                }
-              }
-            } catch (err: any) {
-              const status = err?.status;
-              const message = String(err?.message || err?.data?.error || '');
-              if (status === 401 || /unauthorized/i.test(message)) {
-                Alert.alert('Session expired', 'Please sign in again to upload stories.', [
-                  { text: 'Cancel', style: 'cancel' },
-                  { text: 'Sign In', onPress: () => void router.push('/sign-in') },
-                ]);
-              } else {
-                console.error('Story upload error:', err);
-                Alert.alert('Unable to add story', err?.message || 'Please try again.');
-              }
-            } finally {
-              setStoryBusy(false);
-            }
-          }
-        },
-        {
-          text: 'Cancel',
-          style: 'cancel'
+      const asset = result.assets[0];
+      const base = getApiBaseUrl();
+      let uri = asset.uri;
+      const mimeType = asset.mimeType || (asset.type === 'video' ? 'video/mp4' : 'image/jpeg');
+      const fileName = asset.fileName || uri.split('/').pop() || (mimeType.startsWith('video') ? 'story.mp4' : 'story.jpg');
+      const ensured = await (await import('../../utils/ensureUploadableUri')).ensureUploadableUri(uri, mimeType);
+      uri = ensured.uri;
+
+      const uploaded = await uploadFile(base, uri, fileName, mimeType);
+      const mediaUrl = uploaded?.path || uploaded?.url;
+      if (!mediaUrl) {
+        throw new Error('Upload failed');
+      }
+      if (isSampleId(vm.gameId)) {
+        // Local-only story for sample games; do not call backend
+        setVm((prev) => {
+          if (!prev) return prev;
+          const newItem: MediaItem = { id: String(Date.now()), url: mediaUrl, kind: (mimeType?.startsWith('video') ? 'video' : 'photo') as any };
+          return { ...prev, media: [newItem, ...(prev.media || [])] } as GameVM;
+        });
+      } else {
+        if (!vm.gameId) throw new Error('No game ID');
+        const gameId = vm.gameId; // type guard
+        const storyPayload: any = { media_url: mediaUrl };
+        if (location?.latitude && location?.longitude) {
+          storyPayload.location = { lat: location.latitude, lng: location.longitude, source: 'device' };
         }
-      ]
-    );
+        await Game.addStory(gameId, storyPayload);
+        try {
+          await loadGameById(gameId);
+          Alert.alert('Added', isSampleId(gameId) ? 'Story added (demo only).' : 'Story added to this game.');
+        } catch (reloadErr: any) {
+          console.warn('[story] Camera - reload failed but story was uploaded:', reloadErr);
+          Alert.alert('Added', 'Story added to this game. Refresh to see it.');
+        }
+      }
+    } catch (err: any) {
+      const status = err?.status;
+      const message = String(err?.message || err?.data?.error || '');
+      if (status === 401 || /unauthorized/i.test(message)) {
+        Alert.alert('Session expired', 'Please sign in again to upload stories.', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Sign In', onPress: () => void router.push('/sign-in') },
+        ]);
+      } else {
+        console.error('Story upload error:', err);
+        Alert.alert('Unable to add story', err?.message || 'Please try again.');
+      }
+    } finally {
+      setStoryBusy(false);
+    }
   }, [loadGameById, storyBusy, vm?.gameId, location?.latitude, location?.longitude, permissionGranted, requestPermission, needsPreciseAccuracy, openSettings, router]);
 
   const _refreshVotes = useCallback(async () => {
