@@ -21,6 +21,13 @@ export default function VerifyScreen() {
   const [info, setInfo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isVerified, setIsVerified] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const id = setTimeout(() => setResendCooldown(c => Math.max(0, c - 1)), 1000);
+    return () => clearTimeout(id);
+  }, [resendCooldown]);
 
   const onVerify = async () => {
     if (!code.trim()) return;
@@ -144,12 +151,8 @@ export default function VerifyScreen() {
         extra: { email, sendgrid_ready: res?.dev_verification_code ? 'dev-mode' : 'production' },
       });
 
-      if (res?.dev_verification_code) {
-        setDevCode(res.dev_verification_code);
-        setInfo(`Code sent! Dev code: ${res.dev_verification_code}`);
-      } else {
-        setInfo('Verification code sent! Please check your email (and spam folder).');
-      }
+      setInfo('Verification code sent! Please check your email (and spam folder).');
+      setResendCooldown(60);
     } catch (e: any) {
       const resendDuration = Date.now() - startTime;
       captureException(typeof e === 'string' ? new Error(e) : e, {
@@ -162,11 +165,8 @@ export default function VerifyScreen() {
       
       // Provide helpful error messages
       if (status === 429) {
-        if (errorMsg.includes('wait')) {
-          errorMsg = 'Please wait 30 seconds before requesting another code.';
-        } else {
-          errorMsg = 'Too many requests. Please try again in an hour.';
-        }
+        errorMsg = 'Please wait a moment and try again.';
+        setResendCooldown(60);
       } else if (status === 401) {
         errorMsg = 'Please sign in again to request a verification code.';
       }
@@ -243,8 +243,10 @@ export default function VerifyScreen() {
       {!isVerified && (
         <View style={styles.footer}>
           <Text style={[styles.footerText, { color: Colors[colorScheme].mutedText }]}>Didn't receive the code?</Text>
-          <Pressable onPress={onResend} disabled={loading}>
-            <Text style={[styles.linkText, { color: Colors[colorScheme].tint }, loading && styles.linkTextDisabled]}>Resend Code</Text>
+          <Pressable onPress={onResend} disabled={loading || resendCooldown > 0}>
+            <Text style={[styles.linkText, { color: Colors[colorScheme].tint }, (loading || resendCooldown > 0) && styles.linkTextDisabled]}>
+              {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend Code'}
+            </Text>
           </Pressable>
         </View>
       )}

@@ -84,6 +84,7 @@ export default function CreatePostScreen() {
   const [locationError, setLocationError] = useState<string | null>(null);
   const [precisionBannerDismissed, setPrecisionBannerDismissed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [postSuccess, setPostSuccess] = useState(false);
   const showPrecisionWarning = Platform.OS === 'android' && permissionGranted && needsPreciseAccuracy && !precisionBannerDismissed;
   const locationReady = typeof location?.latitude === 'number' && typeof location?.longitude === 'number';
   const [draftReady, setDraftReady] = useState(false);
@@ -618,11 +619,10 @@ export default function CreatePostScreen() {
             ? (payload.game_id ? 'Your highlight has been shared to the event.' : 'Your highlight has been shared to your profile.') 
             : `Your post has been created and will appear on the ${postDestination}.`);
       
-      Alert.alert(
-        postType === 'highlight' ? 'Highlight shared' : 'Posted successfully!',
-        successMessage
-      );
-      router.replace('/(tabs)');
+      setPostSuccess(true);
+      setTimeout(() => {
+        router.replace('/(tabs)');
+      }, 1500);
     } catch (e: any) {
       console.error('[CreatePost] Error creating post:', {
         message: e?.message,
@@ -672,7 +672,13 @@ export default function CreatePostScreen() {
         </Pressable>
         <View style={styles.headerSpacer} />
         <View style={styles.postButtonContainer}>
-          <PrimaryButton label={buttonLabel} onPress={onSubmit} disabled={!canPost || submitting} loading={submitting} />
+          {postSuccess ? (
+            <View style={styles.successIndicator}>
+              <Text style={styles.successCheck}>✓</Text>
+            </View>
+          ) : (
+            <PrimaryButton label={buttonLabel} onPress={onSubmit} disabled={!canPost || submitting} loading={submitting} />
+          )}
         </View>
       </View>
 
@@ -1857,5 +1863,16 @@ const styles = StyleSheet.create({
   previewTipsText: {
     fontSize: 13,
     lineHeight: 20,
+  },
+  successIndicator: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+  },
+  successCheck: {
+    color: '#F59E0B',
+    fontSize: 22,
+    fontWeight: '800',
   },
 });

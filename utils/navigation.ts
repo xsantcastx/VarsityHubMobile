@@ -1,6 +1,18 @@
 import { useRouter } from 'expo-router';
 
 /**
+ * Standalone safe back for imperative use — pass the router from useRouter().
+ * Navigates back if possible, otherwise falls back to the main tabs.
+ */
+export function safeGoBack(router: ReturnType<typeof useRouter>) {
+  if (router.canGoBack()) {
+    router.back();
+  } else {
+    router.replace('/(tabs)' as any);
+  }
+}
+
+/**
  * Safe navigation utility that prevents GO_BACK errors
  */
 export function useSafeNavigation() {

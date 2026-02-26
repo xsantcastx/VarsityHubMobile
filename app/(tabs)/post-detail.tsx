@@ -2,6 +2,7 @@ import VideoPlayer from '@/components/VideoPlayer';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { formatCount, getCountryFlag, timeAgo } from '@/utils/format';
+import { safeGoBack } from '@/utils/navigation';
 import { Image as ExpoImage } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -504,11 +505,11 @@ export default function PostDetailScreen() {
                         await load();
                       } catch (restoreError: any) {
                         Alert.alert('Error', restoreError?.message || 'Restore window expired.');
-                        if (router.canGoBack()) router.back();
+                        safeGoBack(router);
                       }
                     }
                   },
-                  { text: 'Close', style: 'destructive', onPress: () => { if (router.canGoBack()) router.back(); } },
+                  { text: 'Close', style: 'destructive', onPress: () => { safeGoBack(router); } },
                 ]
               );
             } catch (error: any) {
@@ -576,7 +577,7 @@ export default function PostDetailScreen() {
           <Pressable style={styles.retryButton} onPress={() => void load()}>
             <Text style={styles.retryButtonText}>Try Again</Text>
           </Pressable>
-          <Pressable style={[styles.retryButton, { marginTop: 8, backgroundColor: Colors[colorScheme].surface }]} onPress={() => { if (router.canGoBack()) router.back(); }}>
+          <Pressable style={[styles.retryButton, { marginTop: 8, backgroundColor: Colors[colorScheme].surface }]} onPress={() => { safeGoBack(router); }}>
             <Text style={[styles.retryButtonText, { color: Colors[colorScheme].text }]}>Go Back</Text>
           </Pressable>
         </View>
@@ -596,7 +597,7 @@ export default function PostDetailScreen() {
           <Pressable style={styles.retryButton} onPress={() => void load()}>
             <Text style={styles.retryButtonText}>Try Again</Text>
           </Pressable>
-          <Pressable style={[styles.retryButton, { marginTop: 8, backgroundColor: Colors[colorScheme].surface }]} onPress={() => { if (router.canGoBack()) router.back(); }}>
+          <Pressable style={[styles.retryButton, { marginTop: 8, backgroundColor: Colors[colorScheme].surface }]} onPress={() => { safeGoBack(router); }}>
             <Text style={[styles.retryButtonText, { color: Colors[colorScheme].text }]}>Go Back</Text>
           </Pressable>
         </View>
@@ -975,7 +976,7 @@ export default function PostDetailScreen() {
       
       {/* Custom Header */}
       <View style={[styles.header, { backgroundColor: Colors[colorScheme].surface, borderBottomColor: Colors[colorScheme].border }]}>
-        <Pressable style={styles.backButton} onPress={() => { if (router.canGoBack()) router.back(); }}>
+        <Pressable style={styles.backButton} onPress={() => { safeGoBack(router); }}>
           <Ionicons name="arrow-back" size={24} color={Colors[colorScheme].text} />
         </Pressable>
         <View style={styles.headerCenter}>

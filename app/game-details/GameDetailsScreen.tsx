@@ -4,6 +4,7 @@ import { useDeviceLocation } from '@/hooks/useDeviceLocation';
 import { useShareLink } from '@/hooks/useShareLink';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { retryWithBackoff } from '@/utils/retryWithBackoff';
+import { safeGoBack } from '@/utils/navigation';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { Image } from 'expo-image';
@@ -1916,7 +1917,7 @@ const renderBanner = () => {
     <LinearGradient pointerEvents="none" colors={isHero ? ['rgba(0,0,0,0.02)', 'rgba(0,0,0,0.35)'] : ['rgba(0,0,0,0.05)', 'rgba(0,0,0,0.75)']} style={styles.bannerShade} />
         
         <View style={[styles.bannerTopRow, { paddingTop: insets.top + 8 }]}>
-          <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} accessibilityRole="button" style={styles.circleButton}>
+          <Pressable onPress={() => { safeGoBack(router); }} accessibilityRole="button" style={styles.circleButton}>
             <Ionicons name="chevron-back" size={20} color={Colors[colorScheme].text} />
           </Pressable>
           <View style={styles.bannerTopRightRow}>

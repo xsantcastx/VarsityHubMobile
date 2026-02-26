@@ -147,7 +147,7 @@ export function useUnsavedChanges(
               style: 'destructive',
               onPress: () => {
                 setIsDirty(false);
-                navigation.goBack();
+                if (navigation.canGoBack()) navigation.goBack();
               },
             },
           ],

@@ -51,6 +51,13 @@ export default function Step10Confirmation() {
     }
   }, [user, router]);
 
+  // Fans skip this screen — their onboarding is completed in step-9
+  useEffect(() => {
+    if (ob.role === 'fan') {
+      router.replace('/(tabs)/feed');
+    }
+  }, [ob.role, router]);
+
   const styles = useMemo(() => createStyles(colorScheme), [colorScheme]);
 
   useEffect(() => {

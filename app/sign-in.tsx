@@ -45,6 +45,7 @@ export default function SignInScreen() {
   const { checkAuth } = useAuth();
 
   const onSubmit = async () => {
+    if (loading) return;
     if (!email || !password) {
       setError('Please enter email and password');
       return;
