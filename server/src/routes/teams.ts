@@ -343,6 +343,8 @@ teamsRouter.get('/members/all', async (req, res) => {
 const createSchema = z.object({
   name: z.string().trim().min(2).max(100),
   description: z.string().trim().optional(),
+  season_start: z.string().optional(),
+  season_end: z.string().optional(),
 });
 teamsRouter.post('/', requireVerified as any, requirePlan('rookie') as any, async (req: AuthedRequest, res) => {
   // req.user is guaranteed by requireVerified middleware
@@ -394,7 +396,12 @@ teamsRouter.post('/', requireVerified as any, requirePlan('rookie') as any, asyn
     return res.status(400).json({ error: filterResult.error, code: filterResult.code });
   }
   
-  const t = await prisma.team.create({ data: { name: parsed.data.name, description: parsed.data.description } });
+  const t = await prisma.team.create({ data: {
+    name: parsed.data.name,
+    description: parsed.data.description,
+    season_start: parsed.data.season_start ? new Date(parsed.data.season_start) : null,
+    season_end: parsed.data.season_end ? new Date(parsed.data.season_end) : null,
+  } });
   await prisma.teamMembership.create({ data: { team_id: t.id, user_id: me.id, role: 'owner' } });
   return res.status(201).json(t);
 });

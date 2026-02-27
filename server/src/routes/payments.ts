@@ -534,8 +534,8 @@ paymentsRouter.post('/webhook', async (req, res) => {
   const sig = req.headers['stripe-signature'];
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || '';
   if (!webhookSecret) {
-    console.warn('Stripe webhook secret not configured; ignoring webhook');
-    return res.status(200).json({ ignored: true });
+    console.error('STRIPE_WEBHOOK_SECRET is not set!');
+    return res.status(400).json({ error: 'Webhook verification failed' });
   }
   let event: Stripe.Event;
   try {

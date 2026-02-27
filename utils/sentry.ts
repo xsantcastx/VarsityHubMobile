@@ -22,33 +22,21 @@ const shouldUseSentry = !__DEV__ && !!SENTRY_DSN && !isPlaceholderDsn(SENTRY_DSN
 let sentryReady = false;
 
 export function initSentry() {
-  // Prefer EXPO_PUBLIC_SENTRY_DSN, fallback to appConfig.sentryDsn
-  const appConfig = getConfig();
-  const envDsn = process.env.EXPO_PUBLIC_SENTRY_DSN?.trim();
-  const configDsn = appConfig.sentryDsn || '';
-  const SENTRY_DSN = envDsn || configDsn;
-  const isPlaceholderDsn = (dsn: string) => {
-    const lower = dsn.toLowerCase();
-    return (
-      lower.includes('your-key-here') ||
-      !lower.startsWith('http') ||
-      !lower.includes('ingest.sentry.io')
-    );
-  };
-  const shouldUseSentry = !__DEV__ && !!SENTRY_DSN && !isPlaceholderDsn(SENTRY_DSN);
-  if (!shouldUseSentry) {
-    if (__DEV__) {
-      console.log('[sentry] Skipping initialization in development mode');
-    } else {
-      console.warn('[sentry] No valid DSN; crash reporting disabled');
-    }
+  const dsn = SENTRY_DSN;
+  if (!dsn || dsn === '' || isPlaceholderDsn(dsn)) {
+    if (__DEV__) console.warn('Sentry DSN not configured — crash reporting disabled');
+    return;
+  }
+
+  if (__DEV__) {
+    console.log('[sentry] Skipping initialization in development mode');
     return;
   }
 
   try {
     const tracesSampleRate = Number(process.env.EXPO_PUBLIC_SENTRY_TRACES_SAMPLE_RATE ?? 0.2);
     Sentry.init({
-      dsn: SENTRY_DSN,
+      dsn,
       environment: appConfig.nodeEnv || 'development',
       debug: __DEV__,
       enableAutoSessionTracking: true,

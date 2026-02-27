@@ -367,7 +367,8 @@ const appleAuthSchema = z.object({
 });
 
 authRouter.post('/apple', async (req, res) => {
-  if (!process.env.APPLE_CLIENT_ID && process.env.NODE_ENV === 'production') {
+  const APPLE_CLIENT_ID = process.env.APPLE_CLIENT_ID;
+  if (!APPLE_CLIENT_ID) {
     return res.status(503).json({ error: 'Apple Sign-In is not configured' });
   }
 
@@ -404,12 +405,11 @@ authRouter.post('/apple', async (req, res) => {
           return res.status(400).json({ error: 'Invalid Apple token header' });
         }
 
-        const appleClientId = process.env.APPLE_CLIENT_ID;
         const appleKey = await getApplePublicKey(kid);
         const jwtPayload = jwt.verify(identity_token, appleKey, {
           algorithms: ['RS256'],
           issuer: 'https://appleid.apple.com',
-          ...(appleClientId ? { audience: appleClientId } : {}),
+          audience: APPLE_CLIENT_ID,
         }) as JwtPayload;
 
         appleId = jwtPayload.sub as string;

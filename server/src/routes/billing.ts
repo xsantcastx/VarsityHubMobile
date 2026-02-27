@@ -76,6 +76,21 @@ billingRouter.post('/webhooks/stripe', async (req: AuthedRequest, res) => {
     console.error('[billing] webhook signature failed', err?.message || err);
     return res.status(400).send('Webhook Error: Invalid signature');
   }
+
+  // Event-level deduplication: reject replayed webhook events
+  try {
+    await prisma.processedStripeEvent.create({
+      data: { event_id: event.id, event_type: event.type },
+    });
+  } catch (dedupErr: any) {
+    if (dedupErr?.code === 'P2002') {
+      console.warn('[billing] Duplicate event skipped', event.id, event.type);
+      return res.json({ received: true, deduplicated: true });
+    }
+    // Non-unique error — log warning but proceed
+    console.warn('[billing] Failed to record event for dedup, proceeding anyway:', dedupErr?.message || dedupErr);
+  }
+
   try {
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object;
