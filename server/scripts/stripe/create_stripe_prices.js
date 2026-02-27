@@ -1,7 +1,11 @@
 import Stripe from 'stripe';
 
-// Initialize Stripe with the test secret key
-const stripe = new Stripe('sk_test_51S5t0kRuB2a0vFjp0bdj2NbzkDp6ACVhtWU48TXtNuviL0wnJxxIx0eBgg6whwiM9gJkNiqnINPbSQHqV9qRIxfe00KEwuxjwZ');
+if (!process.env.STRIPE_SECRET_KEY) {
+  console.error('Required: STRIPE_SECRET_KEY environment variable');
+  process.exit(1);
+}
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 async function createTestPrices() {
   try {

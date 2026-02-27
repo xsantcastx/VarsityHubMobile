@@ -579,6 +579,19 @@ paymentsRouter.post('/webhook', async (req, res) => {
         type: 'subscription_canceled',
         planName: subscription.items.data[0]?.price?.nickname || 'VarsityHub Subscription',
       }).catch(err => console.warn('[billing-email] subscription_canceled failed:', err));
+
+      // Downgrade user to rookie plan now that subscription period has ended
+      const canceledUser = await prisma.user.findFirst({ where: { stripe_customer_id: subscription.customer as string } });
+      if (canceledUser) {
+        const prefs = (canceledUser.preferences && typeof canceledUser.preferences === 'object') ? (canceledUser.preferences as any) : {};
+        delete prefs.subscription_id;
+        delete prefs.subscription_period_end;
+        prefs.plan = 'rookie';
+        await prisma.user.update({
+          where: { id: canceledUser.id },
+          data: { preferences: prefs, subscription_tier: 'free', subscription_status: 'canceled' },
+        });
+      }
     }
   }
   
@@ -641,14 +654,8 @@ paymentsRouter.post('/subscription/cancel', expressPkg.json(), requireVerified a
       await stripe.subscriptions.update(subscriptionId, { cancel_at_period_end: true });
     } catch (err) {
       console.warn('Failed to cancel Stripe subscription:', (err as any)?.message || err);
+      return res.status(500).json({ error: 'Failed to cancel subscription with Stripe' });
     }
-
-    const nextPrefs: any = { ...(prefs || {}) };
-    delete nextPrefs.subscription_id;
-    delete nextPrefs.subscription_period_end;
-    delete nextPrefs.plan;
-
-    await prisma.user.update({ where: { id: userId }, data: { preferences: nextPrefs } });
 
     return res.json({ ok: true });
   } catch (err) {

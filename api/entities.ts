@@ -438,12 +438,11 @@ export const Team = {
   acceptInvite: (inviteId: string) => httpPost(`/teams/invites/${encodeURIComponent(inviteId)}/accept`, {}),
   declineInvite: (inviteId: string) => httpPost(`/teams/invites/${encodeURIComponent(inviteId)}/decline`, {}),
   updateMember: (
-    teamId: string,
-    userId: string,
+    membershipId: string,
     data: { role?: string; custom_position?: string | null }
-  ) => httpPatch(`/teams/${encodeURIComponent(teamId)}/members/${encodeURIComponent(userId)}`, data),
-  removeMember: (teamId: string, userId: string, reason?: string) =>
-    httpDelete(`/teams/${encodeURIComponent(teamId)}/members/${encodeURIComponent(userId)}`, reason ? { reason } : undefined),
+  ) => httpPatch(`/team-memberships/${encodeURIComponent(membershipId)}`, data),
+  removeMember: (membershipId: string, reason?: string) =>
+    httpDelete(`/team-memberships/${encodeURIComponent(membershipId)}`, reason ? { reason } : undefined),
   delete: (id: string) => httpDelete('/teams/' + encodeURIComponent(id)),
   limits: () => httpGet('/teams/limits'),
 };
