@@ -294,11 +294,12 @@ export default function FeedScreen() {
       setFollowedTeamsPosts(Array.isArray(followedTeamsPage?.items) ? followedTeamsPage.items : []);
       setFollowedTeamsFeedMeta(followedTeamsPage?.followed_teams_feed_meta);
       
-      // Handle cursor-based response or array
+      // Handle cursor-based response or legacy array
       let normalizedGames: any[] = [];
       let cursor: string | null = null;
-      if (gamesData && typeof gamesData === 'object' && 'items' in gamesData) {
-        normalizedGames = Array.isArray(gamesData.items) ? gamesData.items : [];
+      if (gamesData && typeof gamesData === 'object' && !Array.isArray(gamesData)) {
+        const list = gamesData.games || gamesData.items || [];
+        normalizedGames = Array.isArray(list) ? list : [];
         cursor = gamesData.nextCursor || null;
       } else if (Array.isArray(gamesData)) {
         normalizedGames = gamesData;
@@ -387,13 +388,14 @@ export default function FeedScreen() {
 
     setLoadingMore(true);
     try {
-      const nextData = await Game.list('-date');
-      
-      // Handle cursor-based response or array
+      const nextData = await Game.list('-date', { cursor: gamesCursor, limit: 30 });
+
+      // Handle cursor-based response or legacy array
       let normalizedGames: any[] = [];
       let cursor: string | null = null;
-      if (nextData && typeof nextData === 'object' && 'items' in nextData) {
-        normalizedGames = Array.isArray(nextData.items) ? nextData.items : [];
+      if (nextData && typeof nextData === 'object' && !Array.isArray(nextData)) {
+        const list = nextData.games || nextData.items || [];
+        normalizedGames = Array.isArray(list) ? list : [];
         cursor = nextData.nextCursor || null;
       } else {
         normalizedGames = Array.isArray(nextData) ? nextData : [];

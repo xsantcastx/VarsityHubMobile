@@ -3,7 +3,10 @@ import Redis from 'ioredis';
 import { debugLog } from './debugLog.js';
 
 // Redis connection details
-const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
+const REDIS_URL = process.env.REDIS_URL;
+if (!REDIS_URL && process.env.NODE_ENV === 'production') {
+  throw new Error('REDIS_URL must be set in production');
+}
 
 // Helper to appease TS when using CommonJS default export
 const RedisCtor = Redis as unknown as new (url?: string) => import('ioredis').default;

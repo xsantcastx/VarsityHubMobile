@@ -48,7 +48,7 @@ After 2 teams, users must upgrade to Veteran or Legend to add more teams.
 - Parent communication
 
 **Limitations:**
-Each team beyond 2 incurs a $2.50/month charge.
+Each team beyond 2 incurs a $1.50/month charge.
 
 ---
 
@@ -89,25 +89,25 @@ Each team beyond 2 incurs a $2.50/month charge.
 ## 📢 Advertisement Slots
 
 ### Weekday Ads (Monday–Thursday)
-- **Price:** $8 per week
+- **Price:** $5 per week
 - **Stripe Product ID:** `prod_TJtJaRjlcRrFQM`
-- **Backend Code:** 800 cents = $8/week
+- **Backend Code:** 500 cents = $5/week
 - **Purpose:** Weekday ad slot pricing (Mon–Thu)
 
 ### Weekend Ads (Friday–Sunday)
-- **Price:** $10 per week  
+- **Price:** $8 per week
 - **Stripe Product ID:** `prod_TJtKOftqpmv4Zp`
-- **Backend Code:** 1000 cents = $10/week
+- **Backend Code:** 800 cents = $8/week
 - **Purpose:** Weekend ad slot pricing (Fri–Sun)
 
 **Ad Billing Model:**
 - Ads are priced per **weekly slot**, not per day
-- **Mon–Thu slot:** $8/week (covers Monday through Thursday)
-- **Fri–Sun slot:** $10/week (covers Friday through Sunday)
+- **Mon–Thu slot:** $5/week (covers Monday through Thursday)
+- **Fri–Sun slot:** $8/week (covers Friday through Sunday)
 - Users select individual dates, but pricing applies to the weekly slot category
-- Example: Selecting Wednesday = $8 for the Mon–Thu slot that week
+- Example: Selecting Wednesday = $5 for the Mon–Thu slot that week
 
-**Updated:** Backend now correctly uses 800 cents ($8) and 1000 cents ($10) to match Stripe configuration.
+**Updated:** Backend uses 500 cents ($5) and 800 cents ($8) — see `server/src/utils/adPricing.ts`.
 
 ---
 
@@ -118,8 +118,8 @@ Each team beyond 2 incurs a $2.50/month charge.
 | **Rookie** | First two teams free | FREE | N/A | N/A | N/A |
 | **Veteran** | Per-team monthly subscription | $1.50/month per team | `prod_TCjgM4tFKjUigv` | `price_1SCd6HRuB2a0vFjp1QlboTEv` | 150 |
 | **Legend** | Annual unlimited subscription | $20.00/year | `prod_TGw0PNT97OCrl8` | `price_1SCd6IRuB2a0vFjpQOSdctN4` | 2000 |
-| **Ad (Mon–Thu)** | Weekday ad slot | $8/week | `prod_TJtJaRjlcRrFQM` | TBD | 800 |
-| **Ad (Fri–Sun)** | Weekend ad slot | $10/week | `prod_TJtKOftqpmv4Zp` | TBD | 1000 |
+| **Ad (Mon–Thu)** | Weekday ad slot | $5/week | `prod_TJtJaRjlcRrFQM` | Configured via `STRIPE_PRICE_AD_WEEKDAY` | 500 |
+| **Ad (Fri–Sun)** | Weekend ad slot | $8/week | `prod_TJtKOftqpmv4Zp` | Configured via `STRIPE_PRICE_AD_WEEKEND` | 800 |
 
 ---
 
@@ -135,9 +135,9 @@ STRIPE_PUBLISHABLE_KEY=pk_test_... # or pk_live_...
 STRIPE_PRICE_VETERAN=price_1SCd6HRuB2a0vFjp1QlboTEv
 STRIPE_PRICE_LEGEND=price_1SCd6IRuB2a0vFjpQOSdctN4
 
-# Ad Price IDs (TODO: Add these)
-# STRIPE_PRICE_AD_WEEKDAY=price_xxxxx
-# STRIPE_PRICE_AD_WEEKEND=price_xxxxx
+# Ad Price IDs (Configured)
+STRIPE_PRICE_AD_WEEKDAY=price_... # $5/week Mon–Thu
+STRIPE_PRICE_AD_WEEKEND=price_... # $8/week Fri–Sun
 ```
 
 ### Fallback Pricing (if Price IDs not configured)
@@ -223,10 +223,11 @@ price_data: {
 - [x] `server/src/routes/payments.ts` - Backend pricing (lines 103-116, 157-177)
 
 ### ⚠️ Needs Review
-- [x] **Ad pricing backend** - ✅ **UPDATED** to match Stripe ($8 weekday, $10 weekend per week)
-  - File: `server/src/routes/payments.ts` lines 14-33
-  - File: `app/ad-calendar.tsx` lines 15-16, 38-50, 495-570
-  - **Confirmed:** Pricing is per WEEK/SLOT (Mon–Thu = $8/week, Fri–Sun = $10/week)
+- [x] **Ad pricing backend** - ✅ **UPDATED** to match Stripe ($5 weekday, $8 weekend per week)
+  - File: `server/src/utils/adPricing.ts` - canonical pricing constants
+  - File: `server/src/routes/payments.ts` - checkout session creation
+  - File: `app/ad-calendar.tsx` - client-side display
+  - **Confirmed:** Pricing is per WEEK/SLOT (Mon–Thu = $5/week, Fri–Sun = $8/week)
 
 ### 📝 Documentation Updated
 - [x] `STRIPE_PRICING_CONFIG.md` - This file
@@ -237,27 +238,27 @@ price_data: {
 
 ## 🧪 Testing Checklist
 
-### Veteran Plan ($2.50/month per team)
+### Veteran Plan ($1.50/month per team)
 - [ ] Rookie user with 2 teams sees upgrade prompt at 3rd team
 - [ ] Veteran signup uses Stripe Price ID: `price_1SCd6HRuB2a0vFjp1QlboTEv`
-- [ ] Stripe checkout shows $2.50/month recurring
-- [ ] After payment, user can add teams at $2.50/month each
-- [ ] Each team shows $2.50/month charge in Stripe dashboard
+- [ ] Stripe checkout shows $1.50/month recurring
+- [ ] After payment, user can add teams at $1.50/month each
+- [ ] Each team shows $1.50/month charge in Stripe dashboard
 - [ ] User can downgrade if they remove teams
 
-### Legend Plan ($19.99/year)
+### Legend Plan ($20.00/year)
 - [ ] Legend signup uses Stripe Price ID: `price_1SCd6IRuB2a0vFjpQOSdctN4`
-- [ ] Stripe checkout shows $19.99/year recurring
+- [ ] Stripe checkout shows $20.00/year recurring
 - [ ] After payment, user can add unlimited teams at no extra charge
-- [ ] Stripe dashboard shows single $19.99/year subscription (not per-team)
+- [ ] Stripe dashboard shows single $20.00/year subscription (not per-team)
 - [ ] User sees Gold badge and premium features
 
 ### Ad Slots
-- [ ] Weekday ad checkout shows $8/week
-- [ ] Weekend ad checkout shows $10/week
+- [ ] Weekday ad checkout shows $5/week
+- [ ] Weekend ad checkout shows $8/week
 - [ ] Stripe uses correct Product IDs
 - [ ] Backend correctly calculates total for multi-date ad campaigns
-- [ ] UI displays "$8 per week (Mon–Thu)" and "$10 per week (Fri–Sun)"
+- [ ] UI displays "$5 per week (Mon–Thu)" and "$8 per week (Fri–Sun)"
 
 ---
 
@@ -304,12 +305,12 @@ price_data: {
 4. Review Stripe logs for errors
 
 **For ad pricing questions:**
-1. Clarify: Is $8/$10 per slot/week or per day?
-2. Update backend calculations accordingly
+1. Canonical prices: $5/week (Mon–Thu), $8/week (Fri–Sun) — see `server/src/utils/adPricing.ts`
+2. Pricing is per weekly slot, not per day
 3. Test with multi-day ad campaigns
 
 ---
 
-**Last Updated:** October 30, 2025
-**Status:** ✅ All pricing updated to match Stripe (Memberships + Ads)
-**Configuration Source:** Stripe Dashboard (live)
+**Last Updated:** February 27, 2026
+**Status:** ✅ All pricing updated to match code and Stripe (Memberships + Ads)
+**Configuration Source:** Stripe Dashboard (live) + `server/src/utils/adPricing.ts`

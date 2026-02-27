@@ -1,5 +1,6 @@
 import expressPkg, { Router } from 'express';
 import Stripe from 'stripe';
+import { Prisma } from '@prisma/client';
 import { debugLog } from '../lib/debugLog.js';
 import { sendBillingNoticeEmail } from '../lib/email.js';
 import { getAllPlanDefinitions, getMaxTeamsForPlan } from '../lib/planLimits.js';
@@ -9,7 +10,9 @@ import { captureException } from '../lib/sentry.js';
 import { calculateSalesTax } from '../lib/taxCalculator.js';
 import { calculateStripeFee, getTransactionBySession, logTransaction, updateTransactionStatus } from '../lib/transactionLogger.js';
 import type { AuthedRequest } from '../middleware/auth.js';
+import { requireAdmin } from '../middleware/requireAdmin.js';
 import { requireVerified } from '../middleware/requireVerified.js';
+import { paymentLimiter } from '../middleware/rateLimiters.js';
 import { calculateAdPriceCents } from '../utils/adPricing.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', { apiVersion: '2024-06-20' });
@@ -215,7 +218,10 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
         },
       }];
 
-  const appBase = process.env.APP_BASE_URL || (process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000');
+  const appBase = process.env.APP_BASE_URL || process.env.EXPO_PUBLIC_API_URL;
+  if (!appBase && process.env.NODE_ENV === 'production') {
+    throw membershipError(500, 'APP_BASE_URL must be set in production');
+  }
   // Use deep links for mobile app redirects
   const appScheme = 'varsityhubmobile';
   const success = `${appScheme}://payment-success?session_id={CHECKOUT_SESSION_ID}&type=subscription`;
@@ -251,7 +257,9 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
     }
   }
 
-  const session = await stripe.checkout.sessions.create(sessionConfig);
+  const session = await stripe.checkout.sessions.create(sessionConfig, {
+    idempotencyKey: `membership_${req.user!.id}_${chosen}_${Math.floor(Date.now() / 120000)}`,
+  });
 
   // Log subscription transaction
   const currentUser = await prisma.user.findUnique({ 
@@ -284,7 +292,7 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
 }
 
 // Create a Stripe Checkout Session for ad reservations
-paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, async (req: AuthedRequest, res) => {
+paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paymentLimiter, async (req: AuthedRequest, res) => {
   if (!process.env.STRIPE_SECRET_KEY) return res.status(500).json({ error: 'Stripe not configured' });
   const { ad_id, dates, promo_code, plan, team_count } = req.body || {};
   if (typeof plan === 'string' && plan.trim()) {
@@ -365,7 +373,10 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
         prisma.ad.update({ where: { id: String(ad_id) }, data: { payment_status: 'paid' } }),
         prisma.adReservation.createMany({ data: isoDates.map((s) => ({ ad_id: String(ad_id), date: new Date(s + 'T00:00:00.000Z') })), skipDuplicates: true }),
       ]);
-    } catch (e) {}
+    } catch (e) {
+      console.error('Failed to create ad reservations for free promo:', e);
+      return res.status(500).json({ error: 'Failed to reserve ad dates. Please try again.' });
+    }
     return res.json({ free: true });
   }
 
@@ -534,6 +545,20 @@ paymentsRouter.post('/webhook', async (req, res) => {
     console.error('Stripe webhook signature verification failed:', err?.message || err);
     captureException(err, { context: 'stripe_webhook_verification_failed' });
     return res.status(400).send('Webhook Error: Invalid signature');
+  }
+
+  // Event-level deduplication: reject replayed webhook events
+  try {
+    await prisma.processedStripeEvent.create({
+      data: { event_id: event.id, event_type: event.type },
+    });
+  } catch (dedupErr: any) {
+    if (dedupErr instanceof Prisma.PrismaClientKnownRequestError && dedupErr.code === 'P2002') {
+      debugLog('[webhook] Duplicate event skipped', { event_id: event.id, event_type: event.type });
+      return res.json({ received: true, deduplicated: true });
+    }
+    // Non-unique error — log warning but proceed (downstream is idempotent)
+    console.warn('[webhook] Failed to record event for dedup, proceeding anyway:', dedupErr?.message || dedupErr);
   }
 
   if (event.type === 'checkout.session.completed') {
@@ -747,7 +772,7 @@ paymentsRouter.post('/update-subscription-quantity', expressPkg.json(), requireV
 });
 
 // Debug endpoint to check and fix subscription status discrepancies
-paymentsRouter.get('/debug/subscription-status', requireVerified as any, async (req: AuthedRequest, res) => {
+paymentsRouter.get('/debug/subscription-status', requireVerified as any, requireAdmin as any, async (req: AuthedRequest, res) => {
   try {
     const userId = req.user!.id;
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } });
@@ -832,7 +857,9 @@ paymentsRouter.get('/subscription/summary', requireVerified as any, async (req: 
           const sub = await stripe.subscriptions.retrieve(subscriptionId);
           status = sub.status;
           if (sub.current_period_end) current_period_end = new Date(sub.current_period_end * 1000).toISOString();
-        } catch (_error) {}
+        } catch (err) {
+          console.warn('[payments] Failed to retrieve Legend subscription:', (err as any)?.message || err);
+        }
       }
     }
 
@@ -853,7 +880,7 @@ paymentsRouter.get('/subscription/summary', requireVerified as any, async (req: 
 });
 
 // Endpoint to reset subscription status to rookie (for fixing invalid states)
-paymentsRouter.post('/debug/reset-to-rookie', requireVerified as any, async (req: AuthedRequest, res) => {
+paymentsRouter.post('/debug/reset-to-rookie', requireVerified as any, requireAdmin as any, async (req: AuthedRequest, res) => {
   try {
     const userId = req.user!.id;
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } });
@@ -883,13 +910,8 @@ paymentsRouter.post('/debug/reset-to-rookie', requireVerified as any, async (req
 });
 
 // Admin endpoint to reset all users with unpaid subscriptions
-paymentsRouter.post('/admin/reset-unpaid-subscriptions', requireVerified as any, async (req: AuthedRequest, res) => {
+paymentsRouter.post('/admin/reset-unpaid-subscriptions', requireVerified as any, requireAdmin as any, async (req: AuthedRequest, res) => {
   try {
-    // Check if user is admin (you might want to add proper admin role checking)
-    const currentUser = await prisma.user.findUnique({ where: { id: req.user!.id } });
-    if (!currentUser || currentUser.email !== 'admin@varsityhub.com') {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
 
     debugLog('🔍 Admin-initiated bulk reset of unpaid subscriptions...');
 
@@ -1014,8 +1036,10 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
   
   const meta = session.metadata || {};
   const transactionLog = await getTransactionBySession(session.id);
-  const alreadyCompleted = transactionLog?.status === 'COMPLETED';
-  const shouldSendEmail = !alreadyCompleted;
+  if (transactionLog?.status === 'COMPLETED') {
+    debugLog('[payments] finalizeFromSession skipped — already COMPLETED', { session_id: session.id });
+    return;
+  }
   const metadataUserId = meta.user_id ? String(meta.user_id) : null;
   const inferredUserId = metadataUserId || (transactionLog?.user_id ? String(transactionLog.user_id) : null);
   const fallbackEmail = transactionLog?.user?.email || transactionLog?.user_email || (session.customer_details?.email ?? null);
@@ -1024,7 +1048,9 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
     : Number(meta.total_cents || transactionLog?.total_cents || 0) || 0;
   const ad_id = meta.ad_id || '';
   let dates: string[] = [];
-  try { dates = JSON.parse(String(meta.dates || '[]')); } catch (_error) {}
+  try { dates = JSON.parse(String(meta.dates || '[]')); } catch (err) {
+    console.warn('[payments] Failed to parse ad dates from session metadata:', (err as any)?.message || err);
+  }
   if (ad_id && Array.isArray(dates) && dates.length) {
     debugLog('[payments] Processing ad reservation payment', {
       ad_id,
@@ -1082,15 +1108,13 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
       await updateTransactionStatus(session.id, 'COMPLETED', {
         stripePaymentIntentId: session.payment_intent ? String(session.payment_intent) : undefined,
       });
-      if (shouldSendEmail) {
-        await sendAdPaymentEmail({
-          userId: inferredUserId,
-          fallbackEmail,
-          adId: String(ad_id),
-          dates,
-          totalCents,
-        });
-      }
+      await sendAdPaymentEmail({
+        userId: inferredUserId,
+        fallbackEmail,
+        adId: String(ad_id),
+        dates,
+        totalCents,
+      });
     } catch (e: any) {
       if (e?.slotFull) {
         // Expected: another payment beat this one to the last slot(s).
@@ -1190,14 +1214,12 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
           stripePaymentIntentId: session.payment_intent ? String(session.payment_intent) : undefined,
           stripeSubscriptionId: session.subscription ? String(session.subscription) : undefined,
         });
-        if (shouldSendEmail) {
-          await sendSubscriptionEmail({
-            userId,
-            fallbackEmail,
-            plan,
-            totalCents,
-          });
-        }
+        await sendSubscriptionEmail({
+          userId,
+          fallbackEmail,
+          plan,
+          totalCents,
+        });
       } catch (err) {
         console.warn('Failed to finalize membership from session:', (err as any)?.message || err);
       }
@@ -1208,7 +1230,7 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
     try {
       await redeemPromo({ code, userId, subtotalCents, service: 'booking', orderId: session.id });
     } catch (e) {
-      // ignore
+      console.error('[payments] Promo redemption failed:', { code, userId, session_id: session.id, error: (e as any)?.message || e });
     }
   }
 }
@@ -1226,7 +1248,7 @@ paymentsRouter.get('/success', async (req, res) => {
         await finalizeFromSession(session);
       }
     } catch (e) {
-      // ignore
+      console.error('[payments] Post-payment finalization failed:', { session_id: sessionId, error: (e as any)?.message || e });
     }
   }
   res.setHeader('Content-Type', 'text/html; charset=utf-8');

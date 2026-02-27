@@ -48,7 +48,7 @@ export default function GameMapScreen() {
         }),
       ]);
 
-      const gamesList = Array.isArray(gamesResponse) ? gamesResponse : (gamesResponse?.items || []);
+      const gamesList = Array.isArray(gamesResponse) ? gamesResponse : (gamesResponse?.games || gamesResponse?.items || []);
       const eventsList = Array.isArray(eventsResponse) ? eventsResponse : (eventsResponse?.items || []);
 
       // Helper: resolve the best available lat/lng for a game or event.

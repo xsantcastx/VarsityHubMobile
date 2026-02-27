@@ -8,6 +8,7 @@ import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { debugLog } from '../lib/debugLog.js';
 import { calculateAdPriceDollars } from '../utils/adPricing.js';
+import { adCreationLimiter } from '../middleware/rateLimiters.js';
 
 /**
  * Get coordinates for a ZIP code with fallback to Google Geocoding API
@@ -33,7 +34,7 @@ async function getZipCoordinatesWithFallback(zipCode: string): Promise<{ lat: nu
 export const adsRouter = Router();
 
 // Create an Ad (optionally associated to the authenticated user)
-adsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) => {
+adsRouter.post('/', requireVerified as any, adCreationLimiter, async (req: AuthedRequest, res) => {
   const { payment_status: _ps, status: _st, ...safeBody } = req.body || {};
   const {
     contact_name,

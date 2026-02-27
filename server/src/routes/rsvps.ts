@@ -1,21 +1,28 @@
 import { Router } from 'express';
 import type { AuthedRequest } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/requireAuth.js';
 import { prisma } from '../lib/prisma.js';
 
 export const rsvpsRouter = Router();
 
-// GET /rsvps?user_id=me&limit=...
-rsvpsRouter.get('/', async (req: AuthedRequest, res) => {
-  const userParam = String((req.query as any).user_id || '');
+// GET /rsvps?user_id=...&limit=...
+// Requires auth. Non-admins can only query their own RSVPs.
+rsvpsRouter.get('/', requireAuth as any, async (req: AuthedRequest, res) => {
   const limit = Math.min(parseInt(String((req.query as any).limit || '50'), 10) || 50, 200);
-  let userId: string | null = null;
-  if (userParam === 'me') {
-    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-    userId = req.user.id;
-  } else if (userParam) {
-    userId = userParam;
+
+  // Determine if caller is admin
+  const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+  let isAdmin = false;
+  if (adminEmails.length > 0) {
+    const caller = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { email: true } });
+    isAdmin = !!caller?.email && adminEmails.includes(caller.email.toLowerCase());
   }
-  if (!userId) return res.status(400).json({ error: 'user_id required' });
+
+  // Admins can query any user; everyone else is scoped to themselves
+  const userParam = String((req.query as any).user_id || '');
+  const userId = isAdmin && userParam && userParam !== 'me'
+    ? userParam
+    : req.user!.id;
 
   const rows = await prisma.eventRsvp.findMany({
     where: { user_id: userId },

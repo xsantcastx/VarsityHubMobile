@@ -46,7 +46,7 @@ export default function EventsCalendarScreen() {
 
         // Load all games
         const allGames = await Game.list();
-        const gamesList = Array.isArray(allGames) ? allGames : allGames?.items || [];
+        const gamesList = Array.isArray(allGames) ? allGames : (allGames?.games || allGames?.items || []);
 
         // Filter games that include followed teams
         const filteredGames = gamesList

@@ -27,6 +27,7 @@ model User {
   email_verification_expires DateTime?
   password_reset_code        String?
   password_reset_expires     DateTime?
+  password_changed_at        DateTime? @default(now())
   banned                     Boolean   @default(false)
   preferences                Json      @default("{}")
   
@@ -429,7 +430,7 @@ model EventRsvp {
 model AdReservation {
   id         String   @id @default(cuid())
   ad_id      String
-  ad         Ad       @relation(fields: [ad_id], references: [id])
+  ad         Ad       @relation(fields: [ad_id], references: [id], onDelete: Cascade)
   date       DateTime
   created_at DateTime @default(now())
 
@@ -440,7 +441,7 @@ model AdReservation {
 model Ad {
   id              String   @id @default(cuid())
   user_id         String?
-  user            User?    @relation(fields: [user_id], references: [id])
+  user            User?    @relation(fields: [user_id], references: [id], onDelete: Cascade)
   contact_name    String?
   contact_email   String?
   business_name   String?
@@ -820,8 +821,9 @@ model PromoRedemption {
   created_at               DateTime @default(now())
 
   promo PromoCode @relation(fields: [promo_id], references: [id])
-  user  User      @relation(fields: [user_id], references: [id])
+  user  User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
+  @@unique([promo_id, order_id])
   @@index([promo_id, user_id])
 }
 
@@ -886,12 +888,21 @@ model TransactionLog {
   updated_at          DateTime          @updatedAt
   
   // Relations
-  user                User?             @relation(fields: [user_id], references: [id])
+  user                User?             @relation(fields: [user_id], references: [id], onDelete: Cascade)
   
   @@index([user_id])
   @@index([stripe_session_id])
   @@index([transaction_type])
   @@index([status])
+  @@index([created_at])
+}
+
+model ProcessedStripeEvent {
+  id         String   @id @default(cuid())
+  event_id   String   @unique
+  event_type String
+  created_at DateTime @default(now())
+
   @@index([created_at])
 }
 

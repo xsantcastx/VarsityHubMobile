@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 import { verifyJwt } from '../lib/jwt.js';
+import { prisma } from '../lib/prisma.js';
 import { setUserContext, clearUserContext } from '../lib/sentry.js';
 
 export interface AuthedRequest extends Request {
@@ -7,7 +8,7 @@ export interface AuthedRequest extends Request {
   file?: Express.Multer.File;
 }
 
-export function authMiddleware(req: AuthedRequest, _res: Response, next: NextFunction) {
+export async function authMiddleware(req: AuthedRequest, _res: Response, next: NextFunction) {
   const header = req.header('Authorization');
   if (!header || !header.startsWith('Bearer ')) {
     // Clear Sentry user context if no auth token
@@ -15,8 +16,19 @@ export function authMiddleware(req: AuthedRequest, _res: Response, next: NextFun
     return next();
   }
   const token = header.slice('Bearer '.length).trim();
-  const payload = verifyJwt<{ id: string }>(token);
+  const payload = verifyJwt<{ id: string; iat?: number }>(token);
   if (payload?.id) {
+    // Reject tokens issued before the last password change
+    if (payload.iat) {
+      const user = await prisma.user.findUnique({
+        where: { id: payload.id },
+        select: { password_changed_at: true },
+      });
+      if (user?.password_changed_at && payload.iat < Math.floor(user.password_changed_at.getTime() / 1000)) {
+        clearUserContext();
+        return next();
+      }
+    }
     req.user = { id: payload.id };
     // Set Sentry user context for better error tracking
     setUserContext(payload.id);

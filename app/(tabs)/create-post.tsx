@@ -300,7 +300,7 @@ export default function CreatePostScreen() {
         }
         
         const games = await Game.list('-date', options);
-        const gamesArray = Array.isArray(games) ? games : (games?.items || []);
+        const gamesArray = Array.isArray(games) ? games : (games?.games || games?.items || []);
         if (!gamesArray.length) return;
         
         // Backend already provides distance; minimal client-side work

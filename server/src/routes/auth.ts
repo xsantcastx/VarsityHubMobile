@@ -17,6 +17,50 @@ export const authRouter = Router();
 const authRate: Map<string, { attempts: number; resetAt: number }> = new Map();
 const MAX_AUTH_ATTEMPTS = 5;
 const AUTH_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+
+// Dedicated failed-attempt tracking for password reset code verification
+const resetFailures: Map<string, { attempts: number; lockedUntil: number }> = new Map();
+const MAX_RESET_FAILURES = 5;
+const RESET_LOCKOUT_MS = 15 * 60 * 1000; // 15 minutes
+
+function checkResetAttempt(email: string): { allowed: boolean; retryAfterMs?: number } {
+  const now = Date.now();
+  const record = resetFailures.get(email);
+
+  if (!record) return { allowed: true };
+
+  // Lock expired — clear and allow
+  if (record.lockedUntil && now >= record.lockedUntil) {
+    resetFailures.delete(email);
+    return { allowed: true };
+  }
+
+  // Currently locked out
+  if (record.attempts >= MAX_RESET_FAILURES) {
+    return { allowed: false, retryAfterMs: record.lockedUntil - now };
+  }
+
+  return { allowed: true };
+}
+
+function recordResetFailure(email: string): void {
+  const now = Date.now();
+  const record = resetFailures.get(email);
+
+  if (!record) {
+    resetFailures.set(email, { attempts: 1, lockedUntil: 0 });
+    return;
+  }
+
+  record.attempts++;
+  if (record.attempts >= MAX_RESET_FAILURES) {
+    record.lockedUntil = now + RESET_LOCKOUT_MS;
+  }
+}
+
+function clearResetFailures(email: string): void {
+  resetFailures.delete(email);
+}
 const debugLog = (...args: Parameters<typeof console.log>) => {
   if (process.env.ENABLE_SERVER_DEBUG_LOGS === 'true' || process.env.NODE_ENV !== 'production') {
     console.log(...args);
@@ -136,8 +180,9 @@ authRouter.post('/register', asyncHandler(async (req, res) => {
   const exp = new Date(Date.now() + 30 * 60 * 1000);
   const userRole = role || 'fan';
 
-  // Set admin flag for the main admin account
-  const isAdmin = sanitizedEmail === 'emilmancero@gmail.com';
+  // Set admin flag based on ADMIN_EMAILS env var
+  const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase());
+  const isAdmin = ADMIN_EMAILS.includes(sanitizedEmail);
   const initialPreferences = {
     role: userRole,
     onboarding_completed: false,
@@ -322,6 +367,10 @@ const appleAuthSchema = z.object({
 });
 
 authRouter.post('/apple', async (req, res) => {
+  if (!process.env.APPLE_CLIENT_ID && process.env.NODE_ENV === 'production') {
+    return res.status(503).json({ error: 'Apple Sign-In is not configured' });
+  }
+
   const parsed = appleAuthSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
 
@@ -497,7 +546,7 @@ authRouter.post('/password/forgot', async (req, res) => {
   }
   debugLog('[password-reset] User found:', user.id, user.email);
 
-  const code = String(Math.floor(100000 + Math.random() * 900000));
+  const code = String(Math.floor(10000000 + Math.random() * 90000000)); // 8-digit code (~90M possibilities)
   const expires = new Date(Date.now() + 30 * 60 * 1000);
 
   await prisma.user.update({
@@ -527,7 +576,7 @@ authRouter.post('/password/forgot', async (req, res) => {
 
 const passwordResetSchema = z.object({
   email: z.string().email(),
-  code: z.string().min(4).max(8),
+  code: z.string().min(4).max(10),
   password: z.string().min(8),
 });
 
@@ -537,21 +586,33 @@ authRouter.post('/password/reset', async (req, res) => {
   const { email, code, password } = parsed.data;
   const sanitizedEmail = email.trim().toLowerCase();
 
-  // SECURITY: Rate limiting to prevent brute-forcing the 6-digit reset code
+  // SECURITY: Check dedicated failure-based lockout before anything else
+  const attemptCheck = checkResetAttempt(sanitizedEmail);
+  if (!attemptCheck.allowed) {
+    return res.status(429).json({ error: 'Too many attempts. Try again in 15 minutes.' });
+  }
+
+  // Also keep the general rate limit as a secondary guard
   if (!checkAuthRateLimit(`reset:${sanitizedEmail}`)) {
     return res.status(429).json({ error: 'Too many reset attempts. Please request a new code.' });
   }
 
   const user = await prisma.user.findFirst({ where: { email: { equals: sanitizedEmail, mode: 'insensitive' } } });
   if (!user || !user.password_reset_code || !user.password_reset_expires) {
+    recordResetFailure(sanitizedEmail);
     return res.status(400).json({ error: 'Invalid or expired reset code' });
   }
   if (new Date() > user.password_reset_expires) {
+    recordResetFailure(sanitizedEmail);
     return res.status(400).json({ error: 'Invalid or expired reset code' });
   }
   if (String(code).trim() !== String(user.password_reset_code)) {
+    recordResetFailure(sanitizedEmail);
     return res.status(400).json({ error: 'Invalid or expired reset code' });
   }
+
+  // Success — clear failure tracking and reset the code
+  clearResetFailures(sanitizedEmail);
 
   const password_hash = await bcrypt.hash(password, 10);
   await prisma.user.update({
@@ -560,6 +621,7 @@ authRouter.post('/password/reset', async (req, res) => {
       password_hash,
       password_reset_code: null,
       password_reset_expires: null,
+      password_changed_at: new Date(),
     },
   });
 
@@ -591,7 +653,7 @@ authRouter.post('/password/change', async (req: AuthedRequest, res) => {
   // Update password
   await prisma.user.update({
     where: { id: user.id },
-    data: { password_hash },
+    data: { password_hash, password_changed_at: new Date() },
   });
   
   // Send confirmation email

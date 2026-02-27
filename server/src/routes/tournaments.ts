@@ -123,6 +123,14 @@ tournamentsRouter.get('/:id', async (req: Request, res: Response) => {
 tournamentsRouter.patch('/:id', requireAuth as any, async (req: AuthedRequest, res: Response) => {
   try {
     const { id } = req.params;
+
+    const membership = await prisma.organizationMembership.findUnique({
+      where: { organization_id_user_id: { organization_id: id, user_id: req.user!.id } },
+    });
+    if (!membership || !['owner', 'manager'].includes(membership.role)) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
     const {
       name,
       description,
@@ -163,6 +171,13 @@ tournamentsRouter.post('/:id/teams', requireAuth as any, async (req: AuthedReque
       return res.status(400).json({ error: 'team_id is required' });
     }
 
+    const membership = await prisma.organizationMembership.findUnique({
+      where: { organization_id_user_id: { organization_id: id, user_id: req.user!.id } },
+    });
+    if (!membership || !['owner', 'manager'].includes(membership.role)) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
     const team = await prisma.team.update({
       where: { id: team_id },
       data: { organization_id: id },
@@ -199,6 +214,13 @@ tournamentsRouter.post('/:id/games', requireAuth as any, async (req: AuthedReque
     const tournament = await prisma.organization.findUnique({ where: { id } });
     if (!tournament) {
       return res.status(404).json({ error: 'Tournament not found' });
+    }
+
+    const membership = await prisma.organizationMembership.findUnique({
+      where: { organization_id_user_id: { organization_id: id, user_id: req.user!.id } },
+    });
+    if (!membership || !['owner', 'manager'].includes(membership.role)) {
+      return res.status(403).json({ error: 'Not authorized' });
     }
 
     const game = await prisma.game.create({

@@ -4,6 +4,7 @@ import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
+import { postCreationLimiter, commentLimiter, interactionLimiter } from '../middleware/rateLimiters.js';
 
 export const postsRouter = Router();
 
@@ -450,7 +451,7 @@ import { notifyMentions } from '../lib/mentionNotifications.js';
 import { validateContent } from '../lib/contentFilter.js';
 import { stripHtml } from '../lib/sanitizeHtml.js';
 
-postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) => {
+postsRouter.post('/', requireVerified as any, postCreationLimiter, async (req: AuthedRequest, res) => {
   // req.user is guaranteed by requireVerified middleware
   const parsed = createPostSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -911,7 +912,7 @@ postsRouter.get('/:id/comments', async (req, res) => {
   res.json({ items, nextCursor });
 });
 
-postsRouter.post('/:id/comments', requireAuth as any, async (req: AuthedRequest, res) => {
+postsRouter.post('/:id/comments', requireAuth as any, commentLimiter, async (req: AuthedRequest, res) => {
   // req.user is guaranteed by requireAuth middleware
   const { id } = req.params;
   const post = await prisma.post.findFirst({
@@ -1050,7 +1051,7 @@ postsRouter.post('/:id/comments', requireAuth as any, async (req: AuthedRequest,
 // Reactions
 // Toggle upvote
 
-postsRouter.post('/:id/upvote', requireAuth as any, async (req: AuthedRequest, res) => {
+postsRouter.post('/:id/upvote', requireAuth as any, interactionLimiter, async (req: AuthedRequest, res) => {
   const postId = String(req.params.id);
   const userId = req.user!.id;
 
@@ -1107,7 +1108,7 @@ postsRouter.post('/:id/upvote', requireAuth as any, async (req: AuthedRequest, r
 });
 
 
-postsRouter.post('/:id/bookmark', requireAuth as any, async (req: AuthedRequest, res) => {
+postsRouter.post('/:id/bookmark', requireAuth as any, interactionLimiter, async (req: AuthedRequest, res) => {
   const postId = String(req.params.id);
   const userId = req.user!.id;
 

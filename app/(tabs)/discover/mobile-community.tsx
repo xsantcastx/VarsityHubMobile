@@ -145,7 +145,7 @@ export default function CommunityDiscoverScreen() {
   const loadGames = useCallback(async (user: any) => {
     try {
       const gamesData = await Game.list('-date');
-      let normalizedGames = Array.isArray(gamesData) ? gamesData : [];
+      let normalizedGames = Array.isArray(gamesData) ? gamesData : (gamesData?.games || gamesData?.items || []);
       
       // Filter out past events by default
       const now = new Date();

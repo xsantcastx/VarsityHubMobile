@@ -17,6 +17,12 @@ const getEmailService = async (): Promise<EmailService | null> => {
 
 // Legacy constants for backward compatibility
 const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY || '';
+if (!process.env.SENDGRID_API_KEY && process.env.NODE_ENV === 'production') {
+  throw new Error('SENDGRID_API_KEY is required in production');
+}
+if (!process.env.SENDGRID_API_KEY && process.env.NODE_ENV !== 'production') {
+  console.warn('SENDGRID_API_KEY not set — emails will not be sent');
+}
 const EMAIL_FROM = process.env.EMAIL_FROM || process.env.FROM_EMAIL || 'noreply@varsityhub.app';
 const APP_BASE_URL = (process.env.APP_BASE_URL || 'https://varsityhub.app').replace(/\/$/, '');
 const CUSTOMER_SERVICE_EMAIL = process.env.CUSTOMER_SERVICE_EMAIL || 'support@varsityhub.app';

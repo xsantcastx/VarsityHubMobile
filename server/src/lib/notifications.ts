@@ -35,34 +35,34 @@ export async function sendPushNotification(
   title: string,
   body: string,
   data?: Record<string, any>
-): Promise<void> {
+): Promise<string[]> {
   try {
     // Get user's push token
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { 
+      select: {
         preferences: true,
       },
     });
 
     if (!user) {
       debugLog(`User ${userId} not found`);
-      return;
+      return [];
     }
 
     // Check if notifications are enabled
     const prefs = user.preferences as any;
     if (prefs && prefs.notifications_enabled === false) {
       debugLog(`Notifications disabled for user ${userId}`);
-      return;
+      return [];
     }
 
     // Get push token from preferences
     const pushToken = prefs?.push_token as string;
-    
+
     if (!pushToken || !Expo.isExpoPushToken(pushToken)) {
       debugLog(`Invalid or missing push token for user ${userId}`);
-      return;
+      return [];
     }
 
     // Create message
@@ -76,8 +76,8 @@ export async function sendPushNotification(
 
     // Send notification
     const chunks = expo.chunkPushNotifications([message]);
-    const tickets = [];
-    
+    const tickets: any[] = [];
+
     for (const chunk of chunks) {
       try {
         const ticketChunk = await expo.sendPushNotificationsAsync(chunk);
@@ -88,8 +88,15 @@ export async function sendPushNotification(
     }
 
     debugLog(`Sent notification to user ${userId}: ${title}`);
+
+    // Return successful ticket IDs for receipt tracking
+    const successTicketIds = tickets
+      .filter((t: any) => t.status === 'ok' && t.id)
+      .map((t: any) => t.id);
+    return successTicketIds;
   } catch (error) {
     console.error(`Failed to send notification to user ${userId}:`, error);
+    return [];
   }
 }
 
@@ -302,8 +309,9 @@ export async function notifyUpcomingGames(hoursBeforeGame: number): Promise<void
 
       // Create in-app notification record so it appears in notification history
       const actorId = (event as any).creator_id ?? user.id;
+      let notificationId: string | undefined;
       try {
-        await prisma.notification.create({
+        const notification = await prisma.notification.create({
           data: {
             user_id: user.id,
             actor_id: actorId,
@@ -316,11 +324,12 @@ export async function notifyUpcomingGames(hoursBeforeGame: number): Promise<void
             },
           },
         });
+        notificationId = notification.id;
       } catch (e) {
         console.error('[notifications] Failed to create game reminder in-app notification:', e);
       }
 
-      await sendPushNotification(
+      const ticketIds = await sendPushNotification(
         user.id,
         title,
         body,
@@ -332,6 +341,24 @@ export async function notifyUpcomingGames(hoursBeforeGame: number): Promise<void
           event_id_param: event.id,
         }
       );
+
+      // Store ticket ID in notification meta for receipt tracking
+      if (notificationId && ticketIds.length > 0) {
+        try {
+          const existing = await prisma.notification.findUnique({
+            where: { id: notificationId },
+            select: { meta: true },
+          });
+          await prisma.notification.update({
+            where: { id: notificationId },
+            data: {
+              meta: { ...(existing?.meta as any || {}), ticket_id: ticketIds[0] },
+            },
+          });
+        } catch (e) {
+          console.error('[notifications] Failed to store ticket_id in notification meta:', e);
+        }
+      }
     }
   }
 }
@@ -351,17 +378,161 @@ export async function scheduleGameReminders(eventId: string, userId: string): Pr
     return;
   }
 
-  // In a real implementation, you would use a job queue (Bull, Agenda, etc.)
-  // For now, we log that reminders should be scheduled
-  debugLog(`📅 Scheduled game reminders for user ${userId} for event ${eventId} (${event.title})`);
-  debugLog(`  - 12-hour reminder: ${new Date(new Date(event.date).getTime() - 12 * 60 * 60 * 1000).toISOString()}`);
-  debugLog(`  - 1-hour reminder: ${new Date(new Date(event.date).getTime() - 1 * 60 * 60 * 1000).toISOString()}`);
+  const { notificationQueue } = await import('../jobs/queues.js');
+  if (!notificationQueue) {
+    debugLog(`[scheduleGameReminders] No notification queue available, skipping for event ${eventId}`);
+    return;
+  }
+
+  const now = Date.now();
+  const gameTime = new Date(event.date).getTime();
+  const twelveHBefore = gameTime - 12 * 60 * 60 * 1000;
+  const oneHBefore = gameTime - 1 * 60 * 60 * 1000;
+
+  if (twelveHBefore > now) {
+    await notificationQueue.add(
+      `game-reminder-${eventId}-${userId}-12h`,
+      { userId, title: `Game reminder: ${event.title}`, body: `Your game starts in 12 hours!` },
+      { delay: twelveHBefore - now, jobId: `game-reminder-${eventId}-${userId}-12h` }
+    );
+  }
+
+  if (oneHBefore > now) {
+    await notificationQueue.add(
+      `game-reminder-${eventId}-${userId}-1h`,
+      { userId, title: `Game starting soon: ${event.title}`, body: `Your game starts in 1 hour! Get ready!` },
+      { delay: oneHBefore - now, jobId: `game-reminder-${eventId}-${userId}-1h` }
+    );
+  }
+
+  debugLog(`Scheduled game reminders for user ${userId} for event ${eventId} (${event.title})`);
 }
 
 /**
  * Cancel scheduled game reminders when RSVP is removed
  */
 export async function cancelGameReminders(eventId: string, userId: string): Promise<void> {
-  // In a real implementation, you would cancel the scheduled jobs
-  debugLog(`❌ Cancelled game reminders for user ${userId} for event ${eventId}`);
+  const { notificationQueue } = await import('../jobs/queues.js');
+  if (!notificationQueue) {
+    debugLog(`[cancelGameReminders] No notification queue available, skipping for event ${eventId}`);
+    return;
+  }
+
+  try {
+    await notificationQueue.remove(`game-reminder-${eventId}-${userId}-12h`);
+  } catch {
+    // Job may not exist or already processed
+  }
+  try {
+    await notificationQueue.remove(`game-reminder-${eventId}-${userId}-1h`);
+  } catch {
+    // Job may not exist or already processed
+  }
+
+  debugLog(`Cancelled game reminders for user ${userId} for event ${eventId}`);
+}
+
+/**
+ * Verify push notification delivery receipts from Expo.
+ * Queries recent notifications with a ticket_id in meta, checks receipts,
+ * and clears stale push tokens on DeviceNotRegistered errors.
+ */
+export async function verifyPushReceipts(): Promise<void> {
+  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+  // Find notifications with a ticket_id that haven't been receipt-checked yet
+  const notifications = await prisma.notification.findMany({
+    where: {
+      created_at: { gte: twentyFourHoursAgo },
+      meta: { not: undefined },
+    },
+    select: {
+      id: true,
+      user_id: true,
+      meta: true,
+    },
+  });
+
+  // Filter to those with ticket_id and no receipt_checked flag
+  const unchecked = notifications.filter((n) => {
+    const meta = n.meta as any;
+    return meta?.ticket_id && !meta?.receipt_checked;
+  });
+
+  if (unchecked.length === 0) {
+    debugLog('[verifyPushReceipts] No unchecked tickets found');
+    return;
+  }
+
+  debugLog(`[verifyPushReceipts] Checking ${unchecked.length} ticket(s)`);
+
+  // Build a map from ticketId -> notification
+  const ticketMap = new Map<string, { id: string; user_id: string; meta: any }>();
+  for (const n of unchecked) {
+    const meta = n.meta as any;
+    ticketMap.set(meta.ticket_id, { id: n.id, user_id: n.user_id, meta });
+  }
+
+  const allTicketIds = Array.from(ticketMap.keys());
+
+  // Process in chunks of 1000 (Expo limit)
+  for (let i = 0; i < allTicketIds.length; i += 1000) {
+    const chunk = allTicketIds.slice(i, i + 1000);
+    let receipts: Record<string, any>;
+
+    try {
+      receipts = await expo.getPushNotificationReceiptsAsync(chunk);
+    } catch (error) {
+      console.error('[verifyPushReceipts] Failed to fetch receipts:', error);
+      continue;
+    }
+
+    for (const [ticketId, receipt] of Object.entries(receipts)) {
+      const entry = ticketMap.get(ticketId);
+      if (!entry) continue;
+
+      try {
+        if (receipt.status === 'ok') {
+          await prisma.notification.update({
+            where: { id: entry.id },
+            data: {
+              meta: { ...entry.meta, receipt_checked: true },
+            },
+          });
+        } else if (receipt.status === 'error') {
+          const details = receipt.details;
+
+          if (details?.error === 'DeviceNotRegistered') {
+            // Clear the stale push token from user preferences
+            debugLog(`[verifyPushReceipts] Clearing stale push token for user ${entry.user_id}`);
+            const user = await prisma.user.findUnique({
+              where: { id: entry.user_id },
+              select: { preferences: true },
+            });
+            if (user?.preferences) {
+              const prefs = { ...(user.preferences as any) };
+              delete prefs.push_token;
+              await prisma.user.update({
+                where: { id: entry.user_id },
+                data: { preferences: prefs },
+              });
+            }
+          } else {
+            console.error(`[verifyPushReceipts] Receipt error for ticket ${ticketId}:`, receipt.message, details);
+          }
+
+          await prisma.notification.update({
+            where: { id: entry.id },
+            data: {
+              meta: { ...entry.meta, receipt_checked: true, receipt_error: details?.error || receipt.message },
+            },
+          });
+        }
+      } catch (error) {
+        console.error(`[verifyPushReceipts] Failed to process receipt for ticket ${ticketId}:`, error);
+      }
+    }
+  }
+
+  debugLog(`[verifyPushReceipts] Done processing ${allTicketIds.length} receipt(s)`);
 }

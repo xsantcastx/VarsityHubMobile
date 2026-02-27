@@ -87,8 +87,8 @@ const SCHEDULED_JOBS: ScheduledJob[] = [
     cron: '*/15 * * * *', // Every 15 minutes
     description: 'Check push notification delivery receipts',
     handler: async () => {
-      // This would check Expo push receipts
-      console.log('[Scheduler] Push receipt verification - TODO');
+      const { verifyPushReceipts } = await import('../lib/notifications.js');
+      await verifyPushReceipts();
     },
   },
   {
@@ -238,6 +238,16 @@ function setupFallbackCron(): boolean {
       }
     }
   }, 60 * 60 * 1000); // Check every hour
+
+  // Push receipt verification - every 15 minutes
+  setInterval(async () => {
+    try {
+      const { verifyPushReceipts } = await import('../lib/notifications.js');
+      await verifyPushReceipts();
+    } catch (error) {
+      console.error('[Scheduler] Push receipt verification failed:', error);
+    }
+  }, 15 * 60 * 1000); // 15 minutes
 
   // End-of-day transaction report - check every minute, run at 11:59 PM
   setInterval(async () => {

@@ -157,16 +157,15 @@ export default function TeamScreen() {
     try {
       // Fetch posts for team games
       const teamNameLower = (team?.name || '').toLowerCase();
-      const allGames = await Game.list('-date');
+      const allGamesData = await Game.list('-date');
       if (!mounted.current) return;
-      
-      const teamGames = Array.isArray(allGames) 
-        ? allGames.filter((g: GameItem) => {
+      const allGames = Array.isArray(allGamesData) ? allGamesData : (allGamesData?.games || allGamesData?.items || []);
+
+      const teamGames = allGames.filter((g: GameItem) => {
             const homeTeam = (g.home_team || g.homeTeam || '').toLowerCase();
             const awayTeam = (g.away_team || g.awayTeam || '').toLowerCase();
             return homeTeam.includes(teamNameLower) || awayTeam.includes(teamNameLower);
-          })
-        : [];
+          });
       
       const gameIds = teamGames.map(g => g.id);
       if (!mounted.current) return;
@@ -393,21 +392,21 @@ export default function TeamScreen() {
       // Fetch games, posts, and members
       const [gamesResult, membersResult] = await Promise.all([
         Game.list('-date')
-          .then(allGames => {
+          .then(allGamesData => {
             if (!mounted.current) return [];
+            const allGames = Array.isArray(allGamesData) ? allGamesData : (allGamesData?.games || allGamesData?.items || []);
             const teamNameLower = (teamData!.name || '').toLowerCase();
-            return Array.isArray(allGames) 
-              ? allGames.filter((g: GameItem) => {
+            return allGames
+              .filter((g: GameItem) => {
                   const homeTeam = (g.home_team || g.homeTeam || '').toLowerCase();
                   const awayTeam = (g.away_team || g.awayTeam || '').toLowerCase();
                   return homeTeam.includes(teamNameLower) || awayTeam.includes(teamNameLower);
                 })
-                .sort((a: GameItem, b: GameItem) => {
+              .sort((a: GameItem, b: GameItem) => {
                   const dateA = new Date(a.date || a.created_at || 0).getTime();
                   const dateB = new Date(b.date || b.created_at || 0).getTime();
                   return dateA - dateB;
-                })
-              : [];
+                });
           })
           .catch((err: any) => {
             console.error('[team-page] Failed to load games:', err);

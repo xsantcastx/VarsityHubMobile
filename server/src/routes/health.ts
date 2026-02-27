@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { isCloudinaryConfigured } from '../lib/cloudinary.js';
 import { getMissingEmailTemplates, isSendGridConfigured } from '../lib/email.js';
 import { getAllPlanDefinitions } from '../lib/planLimits.js';
+import { prisma } from '../lib/prisma.js';
 import { getEmailService } from '../services/email/service.js';
 import { isTwilioConfigured } from '../lib/twilio.js';
 import type { AuthedRequest } from '../middleware/auth.js';
@@ -17,7 +18,14 @@ export const healthRouter = Router();
  * GET /health?include=payments - also returns payments config (fallback when /payments/config 404s)
  */
 healthRouter.get('/', async (req: AuthedRequest, res) => {
-  const isAdmin = req.user?.is_admin === true;
+  let isAdmin = false;
+  if (req.user?.id) {
+    const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+    if (adminEmails.length > 0) {
+      const user = await prisma.user.findUnique({ where: { id: req.user.id }, select: { email: true } });
+      isAdmin = !!user?.email && adminEmails.includes(user.email.toLowerCase());
+    }
+  }
 
   // Public health check - minimal info for load balancers / monitoring
   if (!isAdmin) {

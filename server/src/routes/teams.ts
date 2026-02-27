@@ -10,6 +10,7 @@ import { requireAuth } from '../middleware/requireAuth.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { requirePlan } from '../middleware/subscription.js';
+import { teamCreationLimiter, followLimiter, inviteLimiter } from '../middleware/rateLimiters.js';
 import { getAuthorizedUsersPerTeam, getMaxTeamsForPlan } from '../lib/planLimits.js';
 
 export const teamsRouter = Router();
@@ -204,7 +205,7 @@ teamsRouter.get('/', async (req, res) => {
 });
 
 // Follow a team
-teamsRouter.post('/:id/follow', requireAuth as any, async (req: AuthedRequest, res) => {
+teamsRouter.post('/:id/follow', requireAuth as any, followLimiter, async (req: AuthedRequest, res) => {
   const userId = req.user!.id;
   const teamId = String(req.params.id);
   const team = await prisma.team.findUnique({ where: { id: teamId } });
@@ -601,7 +602,7 @@ const createTeamSchema = z.object({
   })).optional(),
 });
 
-teamsRouter.post('/create', requireVerified as any, requirePlan('rookie') as any, async (req: AuthedRequest, res) => {
+teamsRouter.post('/create', requireVerified as any, requirePlan('rookie') as any, teamCreationLimiter, async (req: AuthedRequest, res) => {
   // req.user is guaranteed by requireVerified middleware
   const parsed = createTeamSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -976,7 +977,7 @@ teamsRouter.post('/create', requireVerified as any, requirePlan('rookie') as any
 
 // Invite user by email to a team
 const inviteSchema = z.object({ email: z.string().email(), role: z.string().optional() });
-teamsRouter.post('/:id/invite', async (req: AuthedRequest, res) => {
+teamsRouter.post('/:id/invite', inviteLimiter, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const id = String(req.params.id);
   const parsed = inviteSchema.safeParse(req.body);

@@ -265,14 +265,3 @@ uploadsRouter.use((err: any, req: Request, res: Response, next: NextFunction) =>
     message: err.message || 'Unknown error'
   });
 });
-
-// Dev helper: list uploaded files
-uploadsRouter.get('/list', (_req, res) => {
-  try {
-    const files = fs.readdirSync(UPLOAD_DIR).filter((f) => !f.startsWith('.'));
-    const base = `${_req.protocol}://${_req.get('host')}`;
-    return res.json(files.map((f) => ({ file: f, url: `${base}/uploads/${f}` })));
-  } catch (e: any) {
-    return res.status(500).json({ error: e?.message || 'Failed to list uploads' });
-  }
-});

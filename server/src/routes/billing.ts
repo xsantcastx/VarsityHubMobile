@@ -13,6 +13,11 @@ if (key) {
 
 export const billingRouter = Router();
 
+const frontendUrl = process.env.FRONTEND_URL;
+if (!frontendUrl && process.env.NODE_ENV === 'production') {
+  throw new Error('FRONTEND_URL must be set in production');
+}
+
 billingRouter.post('/checkout/create-session', async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const { plan, team_count } = req.body || {};
@@ -43,8 +48,8 @@ billingRouter.post('/checkout/create-session', async (req: AuthedRequest, res) =
       mode: 'subscription',
       payment_method_types: ['card'],
       line_items: [ { price: priceId, quantity } ],
-      success_url: `${process.env.FRONTEND_URL || 'http://localhost:8081'}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.FRONTEND_URL || 'http://localhost:8081'}/payment-cancel`,
+      success_url: `${frontendUrl}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${frontendUrl}/payment-cancel`,
       metadata: {
         user_id: req.user.id,
         plan,

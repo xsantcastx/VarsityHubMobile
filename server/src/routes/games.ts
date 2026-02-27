@@ -6,6 +6,7 @@ import { isEmailAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { makeCreateStoryHandler, makeListMediaHandler, serializeMedia } from './gameStories.js';
 import { debugLog } from '../lib/debugLog.js';
+import { gameCreationLimiter, voteLimiter } from '../middleware/rateLimiters.js';
 
 export const gamesRouter = Router();
 
@@ -85,20 +86,21 @@ gamesRouter.get('/', async (req, res) => {
       : sort === 'date'
         ? { date: 'asc' as const }
         : { created_at: 'desc' as const };
-  
+
+  const cursor = typeof req.query.cursor === 'string' ? req.query.cursor.trim() : null;
   const limitRaw = Number.parseInt(String(req.query.limit ?? ''), 10);
-  // Default to 50 when no limit is provided; cap at 100 to prevent unbounded fetches
-  const take = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 100) : 50;
+  // Default to 20 when no limit is provided; cap at 100 to prevent unbounded fetches
+  const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 100) : 20;
   const lat = Number.parseFloat(String(req.query.lat ?? ''));
   const lng = Number.parseFloat(String(req.query.lng ?? ''));
   const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
   const dateFromRaw = req.query.from ? new Date(String(req.query.from)) : null;
   const dateToRaw = req.query.to ? new Date(String(req.query.to)) : null;
-  
+
   // By default, only show approved games unless specifically requested otherwise
   const showPending = req.query.show_pending === 'true';
   const approvalStatus = req.query.approval_status as string;
-  
+
   // Build where clause
   let whereClause: any = {};
   if (approvalStatus && ['pending', 'approved', 'rejected'].includes(approvalStatus)) {
@@ -106,7 +108,7 @@ gamesRouter.get('/', async (req, res) => {
   } else if (!showPending) {
     whereClause.approval_status = 'approved';
   }
-  
+
   if ((dateFromRaw && !Number.isNaN(dateFromRaw.getTime())) || (dateToRaw && !Number.isNaN(dateToRaw.getTime()))) {
     whereClause.date = {};
     if (dateFromRaw && !Number.isNaN(dateFromRaw.getTime())) {
@@ -116,30 +118,33 @@ gamesRouter.get('/', async (req, res) => {
       whereClause.date.lte = dateToRaw;
     }
   }
-  
+
   const games = await (prisma.game.findMany as any)({
     where: Object.keys(whereClause).length > 0 ? whereClause : undefined,
     orderBy,
-    take,
-    include: { 
+    take: limit + 1,
+    ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    include: {
       events: { orderBy: { date: 'asc' }, take: 1 },
       _count: { select: { events: true } }
     },
   });
-  
+
+  const hasMore = games.length > limit;
+  const results = hasMore ? games.slice(0, limit) : games;
+
   // Get RSVP counts for all games with events
-  const gameIds = games.map((g: any) => g.id);
-  const eventIds = games.map((g: any) => g.events[0]?.id).filter(Boolean);
-  
+  const eventIds = results.map((g: any) => g.events[0]?.id).filter(Boolean);
+
   const rsvpCounts = eventIds.length > 0 ? await prisma.eventRsvp.groupBy({
     by: ['event_id'],
     _count: { _all: true },
     where: { event_id: { in: eventIds } }
   }) : [];
-  
+
   const rsvpMap = new Map(rsvpCounts.map(r => [r.event_id, r._count._all]));
-  
-  const payload = games.map((game: any) => {
+
+  const payload = results.map((game: any) => {
     const event = game.events[0] ?? null;
     const { events, _count, ...rest } = game as any;
     let distance: number | null = null;
@@ -168,7 +173,7 @@ gamesRouter.get('/', async (req, res) => {
       distance,
     };
   });
-  
+
   if (hasCoords) {
     payload.sort((a: any, b: any) => {
       if (typeof a.distance !== 'number' && typeof b.distance !== 'number') return 0;
@@ -177,11 +182,13 @@ gamesRouter.get('/', async (req, res) => {
       return a.distance - b.distance;
     });
   }
-  res.json(payload);
+
+  const lastId = payload.length > 0 ? payload[payload.length - 1].id : null;
+  res.json({ games: payload, nextCursor: hasMore ? lastId : null });
 });
 
 // Create a new game
-gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
+gamesRouter.post('/', requireAuth as any, gameCreationLimiter, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   
   const schema = z.object({
@@ -559,7 +566,7 @@ gamesRouter.get('/:id/votes/summary', async (req: AuthedRequest, res) => {
   res.json(summary);
 });
 
-gamesRouter.post('/:id/votes', requireAuth as any, async (req: AuthedRequest, res) => {
+gamesRouter.post('/:id/votes', requireAuth as any, voteLimiter, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const gameId = String(req.params.id);
   const teamInput = String((req.body?.team ?? '')).trim().toUpperCase();

@@ -3,6 +3,7 @@ import { captureException } from './lib/sentry.js';
 import { debugLog } from './lib/debugLog.js';
 import { initEmailService } from './lib/email.js';
 import { initializeQueues, shutdownQueues } from './jobs/queues.js';
+import { setupScheduler, startSchedulerWorker } from './jobs/scheduler.js';
 import { env } from './lib/env.js';
 
 // Initialize SendGrid email service
@@ -13,6 +14,14 @@ initializeQueues().catch((error) => {
   console.error('[startup] Failed to initialize queues:', error);
   captureException(error, { context: 'queue_initialization' });
 });
+
+// Start scheduler (BullMQ with Redis, falls back to setInterval without it)
+setupScheduler()
+  .then(() => startSchedulerWorker())
+  .catch((error) => {
+    console.error('[startup] Scheduler failed to start:', error);
+    captureException(error, { context: 'scheduler_startup' });
+  });
 
 const PORT = Number(env.PORT || 4000);
 // Bind to 0.0.0.0 so the API is reachable from other devices on the LAN (useful for Expo on a phone/emulator)

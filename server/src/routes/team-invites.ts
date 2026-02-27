@@ -2,12 +2,13 @@ import { Router } from 'express';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
 import { getAuthorizedUsersPerTeam } from '../lib/planLimits.js';
+import { inviteLimiter } from '../middleware/rateLimiters.js';
 
 export const teamInvitesRouter = Router();
 
 // POST /team-invites { team_id, email, role }
 // SECURITY: Same permission checks as POST /teams/:id/invite
-teamInvitesRouter.post('/', async (req: AuthedRequest, res) => {
+teamInvitesRouter.post('/', inviteLimiter, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const { team_id, email, role } = (req.body || {}) as any;
   if (!team_id || !email) return res.status(400).json({ error: 'team_id and email required' });

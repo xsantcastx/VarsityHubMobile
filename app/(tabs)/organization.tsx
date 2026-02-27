@@ -140,10 +140,11 @@ export default function OrganizationScreen() {
       setTeams(orgTeams);
 
       try {
-        const allGames = await Game.list('-date');
+        const allGamesData = await Game.list('-date');
         if (!mounted.current) return;
+        const allGames = Array.isArray(allGamesData) ? allGamesData : (allGamesData?.games || allGamesData?.items || []);
         const teamNames = orgTeams.map((t) => t.name.toLowerCase());
-        const orgGames: GameItem[] = (Array.isArray(allGames) ? allGames : [])
+        const orgGames: GameItem[] = allGames
           .filter((g: any) => {
             const homeTeam = (g.home_team || '').toLowerCase();
             const awayTeam = (g.away_team || '').toLowerCase();

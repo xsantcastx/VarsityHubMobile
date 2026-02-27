@@ -9,6 +9,7 @@ import { authMiddleware } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
 import { requireVerified } from '../middleware/requireVerified.js';
+import { eventCreationLimiter, rsvpLimiter } from '../middleware/rateLimiters.js';
 
 export const eventsRouter = Router();
 
@@ -219,7 +220,7 @@ eventsRouter.get('/:id/rsvp', async (req: AuthedRequest, res) => {
 // Toggle/set RSVP
 const rsvpSchema = z.object({ attending: z.boolean().optional(), going: z.boolean().optional() });
 
-eventsRouter.post('/:id/rsvp', async (req: AuthedRequest, res) => {
+eventsRouter.post('/:id/rsvp', rsvpLimiter, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const id = String(req.params.id);
   
@@ -341,7 +342,7 @@ const createEventSchema = z.object({
   game_id: z.string().optional(),
 });
 
-eventsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) => {
+eventsRouter.post('/', requireVerified as any, eventCreationLimiter, async (req: AuthedRequest, res) => {
   // req.user is guaranteed by requireVerified middleware
   const parsed = createEventSchema.safeParse(req.body);
   if (!parsed.success) {
