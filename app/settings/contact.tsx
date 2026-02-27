@@ -13,7 +13,6 @@ import { Colors } from '@/constants/Colors';
 export default function ContactScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
   const { displayName, email: profileEmail, loading: _userLoading } = useUserProfile();
   const [name, setName] = useState(displayName);
   const [emailField, setEmail] = useState(profileEmail);
@@ -33,7 +32,11 @@ export default function ContactScreen() {
     try {
       await Support.contact({ name: name || 'Unknown', email: emailField || 'unknown@example.com', subject: subject.trim(), message: message.trim() });
       Alert.alert('Sent', 'Thanks for reaching out.');
-      router.back();
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace('/(tabs)' as any);
+      }
     } catch (e: any) {
       console.error('[contact] Failed to send contact message:', e);
       Alert.alert('Failed', e?.message || 'Try again later');
@@ -43,7 +46,7 @@ export default function ContactScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#111827' : '#FFFFFF' }]} edges={['bottom']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme ?? 'light'].background }]} edges={['bottom']}>
       <Stack.Screen options={{ title: 'Contact', headerBackTitle: 'Back', headerShown: true }} />
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         <Text style={[styles.title, { color: Colors[colorScheme ?? 'light'].text }]}>Contact Varsity Hub Team</Text>

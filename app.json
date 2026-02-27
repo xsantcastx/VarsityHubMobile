@@ -16,7 +16,9 @@
       "en": "./locales/en.json"
     },
     "updates": {
-      "enabled": false
+      "enabled": true,
+      "fallbackToCacheTimeout": 0,
+      "url": "https://u.expo.dev/64489ed7-a8c0-41de-91ec-5846ea79a27f"
     },
     "ios": {
       "supportsTablet": true,
@@ -27,14 +29,21 @@
         "googleMapsApiKey": "AIzaSyDKZL34B2z-qVvfWKfLUVsAL7I_jCXbGFA"
       },
       "infoPlist": {
-        "NSAppTransportSecurity": {
-          "NSAllowsArbitraryLoads": true
-        },
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "VarsityHub needs camera access to capture photos and videos for your sports content.",
         "NSMicrophoneUsageDescription": "VarsityHub needs microphone access to record videos with sound.",
         "NSPhotoLibraryUsageDescription": "VarsityHub needs photo library access to select images for your posts and profile.",
-        "NSLocationWhenInUseUsageDescription": "VarsityHub needs your location to show nearby events on the map."
+        "NSLocationWhenInUseUsageDescription": "VarsityHub needs your location to show nearby events on the map.",
+        "NSPrivacyPolicyURL": "https://varsityhub.app/privacy-policy",
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "varsityhubmobile",
+              "com.varsithub.varsityhub-ios",
+              "com.googleusercontent.apps.814866365020-ia09lnm6he2prvaivrp8sblh7oeh9ic0"
+            ]
+          }
+        ]
       }
     },
     "android": {
@@ -44,7 +53,7 @@
       },
       "softwareKeyboardLayoutMode": "pan",
       "edgeToEdgeEnabled": true,
-      "package": "com.varsithub.varsityhub",
+      "package": "com.varsityhub.varsityhub",
       "config": {
         "googleMaps": {
           "apiKey": "AIzaSyDKZL34B2z-qVvfWKfLUVsAL7I_jCXbGFA"
@@ -123,6 +132,7 @@
       "./plugins/withAndroidLintExtraTranslationFix",
       "./plugins/withAndroidBuildConfig",
       "./plugins/withGoogleMaps",
+      "./plugins/withGoogleOAuth",
       [
         "@sentry/react-native/expo",
         {
@@ -145,15 +155,16 @@
       "EXPO_PUBLIC_NODE_ENV": "production",
       "EXPO_PUBLIC_APP_SCHEME": "varsityhubmobile",
       "EXPO_PUBLIC_WEB_BASE_URL": "https://varsityhub.app",
+      "APP_STORE_PRIVACY_POLICY_URL": "https://varsityhub.app/privacy-policy",
       "EXPO_PUBLIC_SENTRY_DSN": "",
       "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "",
       "EXPO_PUBLIC_ADMIN_EMAILS": "emancero@varsityhub.app",
-      "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "316424843313-kte6qvms4kbmsii5o0b0o3jjndhs709s.apps.googleusercontent.com",
-      "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "316424843313-n0i9t49uoh2e9038m5b927vrm9cv77qr.apps.googleusercontent.com",
-      "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "316424843313-3r9h72gqse6va030qr17lmll8ia3b9vb.apps.googleusercontent.com",
-      "EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID": "316424843313-3r9h72gqse6va030qr17lmll8ia3b9vb.apps.googleusercontent.com",
+      "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "814866365020-d7dk3k9gf49jodhnbraps8p7l9jrfs10.apps.googleusercontent.com",
+      "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "814866365020-ia09lnm6he2prvaivrp8sblh7oeh9ic0.apps.googleusercontent.com",
+      "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "814866365020-ml5i55hgdne80i2hfd3ub5nggfpvrr2r.apps.googleusercontent.com",
+      "EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID": "814866365020-ml5i55hgdne80i2hfd3ub5nggfpvrr2r.apps.googleusercontent.com",
       "EXPO_PUBLIC_GOOGLE_FORCE_PROXY": "0",
-      "EXPO_PUBLIC_EXPO_PROJECT_FULL_NAME": "@varsityhub/varsityhub"
+      "EXPO_PUBLIC_EXPO_PROJECT_FULL_NAME": "@varsity-hub/varsityhub"
     }
   }
 }

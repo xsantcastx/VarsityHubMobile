@@ -49,6 +49,7 @@ export interface AuthContextType {
   signOut: () => Promise<void>;
   registerPushToken: () => Promise<boolean>;
   markOnboardingCompleteLocally: () => Promise<void>;
+  markOnboardingIncompleteLocally: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -89,7 +90,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
   }, [segments]);
 
   // Derived state
-  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN' || user?.is_admin === true;
 
   // Check backend health (once on startup)
   const checkHealth = useCallback(async () => {
@@ -210,8 +211,8 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
           await AsyncStorage.removeItem(ONBOARDING_COMPLETE_KEY);
         }
 
-        // Setup push notifications after successful auth
-        void setupPushNotifications(me.id);
+        // Push notifications are requested during onboarding step 9 (with pre-prompt),
+        // not immediately after login.
 
         return me;
       } catch (err: any) {
@@ -224,8 +225,13 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         throw err;
       }
     },
-    [setupPushNotifications, hasCompletedOnboarding]
+    [hasCompletedOnboarding]
   );
+
+  const checkAuthRef = React.useRef(checkAuth);
+  React.useEffect(() => {
+    checkAuthRef.current = checkAuth;
+  }, [checkAuth]);
 
   // Sign out
   const signOut = useCallback(async () => {
@@ -254,6 +260,15 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       await AsyncStorage.setItem(ONBOARDING_COMPLETE_KEY, 'true');
     } catch (error) {
       console.warn('[Auth] Failed to persist onboarding completion flag:', error);
+    }
+  }, []);
+
+  const markOnboardingIncompleteLocally = useCallback(async () => {
+    try {
+      setHasCompletedOnboarding(false);
+      await AsyncStorage.removeItem(ONBOARDING_COMPLETE_KEY);
+    } catch (error) {
+      console.warn('[Auth] Failed to clear onboarding completion flag:', error);
     }
   }, []);
 
@@ -287,7 +302,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       // 3. Check auth status
       console.log('[AuthProvider] Checking authentication...');
       try {
-        await checkAuth();
+        await checkAuthRef.current();
         console.log('[AuthProvider] Auth check successful');
       } catch (err: any) {
         console.log('[AuthProvider] Auth check failed (user not logged in):', err.message);
@@ -305,7 +320,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     return () => {
       mounted = false;
     };
-  }, [navReady, checkHealth, checkAuth]);
+  }, [navReady, checkHealth]);
 
   // Re-check auth when app comes to foreground
   useEffect(() => {
@@ -367,7 +382,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     }
 
     const firstSegment = Array.isArray(segmentsRef.current) && segmentsRef.current.length ? String(segmentsRef.current[0]) : '';
-    const publicRoutes = new Set(['sign-in', 'sign-up', 'verify-email', 'forgot-password', 'reset-password']);
+    const publicRoutes = new Set(['sign-in', 'sign-up', 'verify-email', 'verify', 'verify-identity', 'forgot-password', 'reset-password']);
     const isPublic = publicRoutes.has(firstSegment);
 
     console.log('[AuthProvider] Routing check - segment:', firstSegment, 'user:', !!user, 'pendingVerif:', !!pendingVerificationEmail);
@@ -393,10 +408,11 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       // Admin accounts always have onboarding_completed=true on server, so they bypass onboarding
       // Regular users are marked false if they haven't completed onboarding
       const serverSaysIncomplete = user.preferences?.onboarding_completed === false;
-      
-      // Onboarding is only required if server explicitly says false
-      // Remove dependency on AsyncStorage to avoid race conditions on app restart
-      const needsOnboarding = serverSaysIncomplete;
+
+      // Both conditions must be true: server says incomplete AND local flag not set
+      // hasCompletedOnboarding is a fallback for the window between onboarding completion and
+      // the next checkAuth() call - prevents a re-render from sending user back to onboarding
+      const needsOnboarding = serverSaysIncomplete && !hasCompletedOnboarding;
 
       // If needs onboarding and not already there, redirect to start onboarding
       if (needsOnboarding && firstSegment !== 'onboarding') {
@@ -438,7 +454,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         router.replace('/sign-in');
       }
     }
-  }, [user, pendingVerificationEmail, initializing, healthOk, router]);
+  }, [user, pendingVerificationEmail, initializing, healthOk, router, hasCompletedOnboarding]);
 
   const value: AuthContextType = {
     user,
@@ -451,6 +467,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     signOut,
     registerPushToken,
     markOnboardingCompleteLocally,
+    markOnboardingIncompleteLocally,
   };
 
   return (

@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { validateContent } from '../lib/contentFilter.js';
+import { sendEventCanceledEmail, sendEventRsvpConfirmedEmail, sendEventUpdatedEmail } from '../lib/email.js';
 import { cancelGameReminders, scheduleGameReminders, sendPushNotification } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
@@ -46,6 +48,9 @@ const serializeEvent = (event: any, opts: { includeGame?: boolean; rsvpCount?: n
       cover_image_url: event.game.cover_image_url,
       date: event.game.date instanceof Date ? event.game.date.toISOString() : event.game.date,
       location: event.game.location,
+      home_score: (event.game as any).home_score ?? null,
+      away_score: (event.game as any).away_score ?? null,
+      winner: (event.game as any).winner ?? null,
     };
   }
   if (opts.includeCreator && event.creator) {
@@ -60,6 +65,7 @@ const serializeEvent = (event: any, opts: { includeGame?: boolean; rsvpCount?: n
 
 eventsRouter.get('/', async (req, res) => {
   const status = String(req.query.status || '').trim();
+  const includeCancelled = String(req.query.include_cancelled || '').toLowerCase() === 'true';
   const approvalStatus = String(req.query.approval_status || '').trim();
   const eventType = String(req.query.event_type || '').trim();
   const search = String(req.query.q || '').trim();
@@ -69,6 +75,7 @@ eventsRouter.get('/', async (req, res) => {
   
   const where: any = {};
   if (status) where.status = status;
+  else if (!includeCancelled) where.status = { not: 'cancelled' }; // Exclude cancelled by default; ?include_cancelled=true for admin views
   if (approvalStatus) where.approval_status = approvalStatus;
   else where.approval_status = 'approved'; // Default: only show approved events
   if (eventType) where.event_type = eventType;
@@ -136,16 +143,61 @@ eventsRouter.get('/my-events', requireAuth as any, async (req: AuthedRequest, re
   return res.json(events);
 });
 
-// Get single event with RSVP count
-eventsRouter.get('/:id', async (req, res) => {
+// Get pending events for approval (admins & coaches only) - MUST be before /:id to avoid "pending" matching as id
+eventsRouter.get('/pending', authMiddleware as any, async (req: AuthedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+  
+  const user = await prisma.user.findUnique({ 
+    where: { id: req.user.id }, 
+    select: { id: true, preferences: true } 
+  });
+  if (!user) return res.status(401).json({ error: 'Unauthorized' });
+  
+  const prefs = (user.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
+  const userRole = prefs.role || 'fan';
+  const isAdmin = await getIsAdmin(req as any);
+  
+  // Only coaches, organizers, and admins can view pending events
+  if (!isAdmin && userRole !== 'coach' && userRole !== 'organizer') {
+    return res.status(403).json({ error: 'Only coaches and admins can view pending events' });
+  }
+  
+  const events = await prisma.event.findMany({
+    where: { approval_status: 'pending' },
+    orderBy: { created_at: 'desc' },
+    include: { 
+      game: { select: { id: true, title: true, cover_image_url: true, date: true, location: true } },
+      creator: { select: { id: true, display_name: true, avatar_url: true } }
+    },
+  });
+  
+  return res.json(events.map((event) => serializeEvent(event, { includeGame: true, includeCreator: true })));
+});
+
+// Get single event with RSVP count (optionally includes can_cancel when authenticated)
+eventsRouter.get('/:id', authMiddleware as any, async (req: AuthedRequest, res) => {
   const id = String(req.params.id);
   const event = await prisma.event.findUnique({
     where: { id },
-    include: { game: { select: { id: true, title: true, cover_image_url: true, date: true, location: true } } },
+    include: { game: { select: { id: true, title: true, cover_image_url: true, date: true, location: true, home_team_id: true, away_team_id: true, home_score: true, away_score: true, winner: true } } },
   });
   if (!event) return res.status(404).json({ error: 'Not found' });
   const count = await prisma.eventRsvp.count({ where: { event_id: id } });
-  return res.json(serializeEvent(event, { includeGame: true, rsvpCount: count }));
+  const payload = serializeEvent(event, { includeGame: true, rsvpCount: count });
+  if (req.user && event.status !== 'cancelled') {
+    const isCreator = event.creator_id === req.user.id;
+    let isTeamOwner = false;
+    if (event.game?.home_team_id || event.game?.away_team_id) {
+      const teamIds = [event.game.home_team_id, event.game.away_team_id].filter(Boolean) as string[];
+      const ownership = await prisma.teamMembership.findFirst({
+        where: { team_id: { in: teamIds }, user_id: req.user.id, role: 'owner', status: 'active' },
+      });
+      isTeamOwner = !!ownership;
+    }
+    const isAdmin = await getIsAdmin(req as any);
+    (payload as any).can_cancel = isCreator || isTeamOwner || isAdmin;
+  }
+  return res.json(payload);
 });
 
 // Get RSVP status and count
@@ -171,10 +223,10 @@ eventsRouter.post('/:id/rsvp', async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const id = String(req.params.id);
   
-  // Get event with date and capacity info
+  // Get event with date, capacity, title, location for RSVP and confirmation email
   const event = await prisma.event.findUnique({ 
     where: { id }, 
-    select: { id: true, capacity: true, max_attendees: true, date: true } 
+    select: { id: true, title: true, location: true, capacity: true, max_attendees: true, date: true } 
   });
   if (!event) return res.status(404).json({ error: 'Not found' });
   
@@ -222,6 +274,22 @@ eventsRouter.post('/:id/rsvp', async (req: AuthedRequest, res) => {
         });
       });
       
+      // Send RSVP confirmation email (best-effort, don't block response)
+      if (me.email) {
+        const eventDate = new Date(event.date);
+        const eventDateStr = eventDate.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        const eventTimeStr = eventDate.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+        sendEventRsvpConfirmedEmail({
+          to: me.email,
+          userName: me.display_name || me.username || 'there',
+          eventName: event.title || 'Event',
+          eventDate: eventDateStr,
+          eventTime: eventTimeStr,
+          eventLocation: event.location || undefined,
+          eventLink: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/event-detail?id=${id}`,
+        }).catch(err => console.warn('[events] Failed to send RSVP confirmation email:', err));
+      }
+      
       // Schedule game reminder notifications (12h and 1h before)
       await scheduleGameReminders(id, me.id).catch(err => 
         console.warn('[events] Failed to schedule reminders:', err)
@@ -253,7 +321,7 @@ eventsRouter.post('/:id/rsvp', async (req: AuthedRequest, res) => {
 
 // Create event (fans & coaches)
 const createEventSchema = z.object({
-  title: z.string().trim().min(1),
+  title: z.string().trim().min(1).max(200),
   date: z.string().refine((dateStr) => {
     const eventDate = new Date(dateStr);
     const now = new Date();
@@ -264,7 +332,7 @@ const createEventSchema = z.object({
   location: z.string().trim().optional(),
   latitude: z.number().optional(),
   longitude: z.number().optional(),
-  description: z.string().trim().optional(),
+  description: z.string().trim().max(5000).optional(),
   event_type: z.enum(['game', 'watch_party', 'fundraiser', 'tryout', 'bbq', 'other']).optional(),
   linked_league: z.string().trim().optional(),
   max_attendees: z.number().optional(),
@@ -284,6 +352,18 @@ eventsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =
   }
   
   const data = parsed.data;
+
+  // Content filter: profanity, spam, bullying
+  const filterResult = validateContent({
+    title: data.title,
+    description: data.description,
+  });
+  if (!filterResult.valid) {
+    return res.status(400).json({
+      error: filterResult.error,
+      code: filterResult.code,
+    });
+  }
   
   // Validate event date is in the future
   const eventDate = new Date(data.date);
@@ -372,37 +452,6 @@ eventsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =
     pending_count: pendingCount,
     limit: userRole === 'fan' && (userPlan === 'rookie' || !userPlan || userPlan === 'free') ? 3 : null,
   });
-});
-
-// Get pending events for approval (admins & coaches only)
-eventsRouter.get('/pending', authMiddleware as any, async (req: AuthedRequest, res) => {
-  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  
-  const user = await prisma.user.findUnique({ 
-    where: { id: req.user.id }, 
-    select: { id: true, preferences: true } 
-  });
-  if (!user) return res.status(401).json({ error: 'Unauthorized' });
-  
-  const prefs = (user.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
-  const userRole = prefs.role || 'fan';
-  const isAdmin = await getIsAdmin(req as any);
-  
-  // Only coaches, organizers, and admins can view pending events
-  if (!isAdmin && userRole !== 'coach' && userRole !== 'organizer') {
-    return res.status(403).json({ error: 'Only coaches and admins can view pending events' });
-  }
-  
-  const events = await prisma.event.findMany({
-    where: { approval_status: 'pending' },
-    orderBy: { created_at: 'desc' },
-    include: { 
-      game: { select: { id: true, title: true, cover_image_url: true, date: true, location: true } },
-      creator: { select: { id: true, display_name: true, avatar_url: true } }
-    },
-  });
-  
-  return res.json(events.map((event) => serializeEvent(event, { includeGame: true, includeCreator: true })));
 });
 
 // Approve event
@@ -573,7 +622,7 @@ eventsRouter.put('/:id/reject', requireVerified as any, async (req: AuthedReques
   });
 });
 
-// Update event (creator only, pending events only)
+// Update event (creator, team owner/coach, or admin)
 const updateEventSchema = z.object({
   title: z.string().min(1).optional(),
   date: z.string().optional(),
@@ -586,42 +635,53 @@ const updateEventSchema = z.object({
   max_attendees: z.number().optional(),
   contact_info: z.string().optional(),
   banner_url: z.string().optional(),
+  // Opponent (updates linked Game when event has game_id)
+  opponent: z.string().trim().optional(), // Alias for away_team_name (manual opponent name)
+  away_team_id: z.string().trim().nullable().optional(),
+  away_team_name: z.string().trim().optional(),
 });
 
+const COACH_EDITABLE_FIELDS = ['date', 'location', 'latitude', 'longitude', 'description', 'opponent', 'away_team_id', 'away_team_name'];
+
 eventsRouter.patch('/:id', requireAuth as any, async (req: AuthedRequest, res) => {
-  // req.user is guaranteed by requireAuth middleware
   const eventId = String(req.params.id);
-  
-  // Get event to check permissions and status
-  const event = await prisma.event.findUnique({ 
+  const userId = req.user!.id;
+
+  const event = await prisma.event.findUnique({
     where: { id: eventId },
-    select: { 
-      id: true, 
-      creator_id: true, 
-      approval_status: true,
-      date: true,
+    include: {
+      game: { select: { id: true, home_team_id: true, away_team_id: true } },
     },
   });
-  
+
   if (!event) return res.status(404).json({ error: 'Event not found' });
-  
-  // Only creator can edit
-  if (event.creator_id !== req.user!.id) {
-    return res.status(403).json({ 
+  if (event.status === 'cancelled') {
+    return res.status(400).json({ error: 'Cannot edit cancelled event' });
+  }
+
+  const isCreator = event.creator_id === userId;
+  let isTeamOwner = false;
+  if (event.game?.home_team_id || event.game?.away_team_id) {
+    const teamIds = [event.game.home_team_id, event.game.away_team_id].filter(Boolean) as string[];
+    const ownership = await prisma.teamMembership.findFirst({
+      where: {
+        team_id: { in: teamIds },
+        user_id: userId,
+        role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
+        status: 'active',
+      },
+    });
+    isTeamOwner = !!ownership;
+  }
+  const isAdmin = await getIsAdmin(req as any);
+
+  if (!isCreator && !isTeamOwner && !isAdmin) {
+    return res.status(403).json({
       error: 'Permission denied',
-      message: 'Only the event creator can edit this event.',
+      message: 'Only the event creator, team owner, or admin can edit this event.',
     });
   }
-  
-  // Only pending events can be edited
-  if (event.approval_status !== 'pending') {
-    return res.status(400).json({ 
-      error: 'Cannot edit event',
-      message: 'Only pending events can be edited. Once approved or rejected, events cannot be modified.',
-    });
-  }
-  
-  // Validate input
+
   const parsed = updateEventSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({
@@ -629,10 +689,27 @@ eventsRouter.patch('/:id', requireAuth as any, async (req: AuthedRequest, res) =
       issues: parsed.error.issues.map((i) => ({ path: i.path, message: i.message })),
     });
   }
-  
+
   const data = parsed.data;
-  
-  // If date is being updated, validate it's in the future
+  // Normalize opponent -> away_team_name
+  if (data.opponent !== undefined) {
+    data.away_team_name = data.opponent;
+  }
+
+  // Coaches/team owners can only edit approved events with limited fields
+  const isApproved = event.approval_status === 'approved';
+  const isCoachOrOwner = (isCreator || isTeamOwner) && !isAdmin;
+  if (isCoachOrOwner && isApproved) {
+    const disallowed = Object.keys(data).filter((k) => !COACH_EDITABLE_FIELDS.includes(k));
+    if (disallowed.length > 0) {
+      return res.status(403).json({
+        error: 'Limited edit scope',
+        message: 'Coaches and team owners can only edit time, location, description, and opponent for approved events.',
+        disallowed,
+      });
+    }
+  }
+
   if (data.date) {
     const eventDate = new Date(data.date);
     const now = new Date();
@@ -643,8 +720,7 @@ eventsRouter.patch('/:id', requireAuth as any, async (req: AuthedRequest, res) =
       });
     }
   }
-  
-  // Build update data
+
   const updateData: any = {};
   if (data.title !== undefined) updateData.title = data.title;
   if (data.date !== undefined) updateData.date = new Date(data.date);
@@ -656,19 +732,180 @@ eventsRouter.patch('/:id', requireAuth as any, async (req: AuthedRequest, res) =
   if (data.linked_league !== undefined) updateData.linked_league = data.linked_league;
   if (data.max_attendees !== undefined) {
     updateData.capacity = data.max_attendees;
-    updateData.max_attendees = data.max_attendees; // Keep for backward compatibility
+    updateData.max_attendees = data.max_attendees;
   }
   if (data.contact_info !== undefined) updateData.contact_info = data.contact_info;
   if (data.banner_url !== undefined) updateData.banner_url = data.banner_url;
-  
-  // Update event
+
   const updated = await prisma.event.update({
     where: { id: eventId },
     data: updateData,
   });
-  
+
+  // Update opponent on linked Game when event has game_id
+  if (event.game_id && (data.away_team_id !== undefined || data.away_team_name !== undefined || data.opponent !== undefined)) {
+    const gameUpdate: any = {};
+    if (data.away_team_id !== undefined) gameUpdate.away_team_id = data.away_team_id || null;
+    if (data.away_team_name !== undefined) gameUpdate.away_team_name = data.away_team_name ?? null;
+    if (Object.keys(gameUpdate).length > 0) {
+      await prisma.game.update({
+        where: { id: event.game_id },
+        data: gameUpdate,
+      });
+    }
+  }
+
+  // Notify RSVPed users when time, location, or opponent changed
+  const changes: string[] = [];
+  if (data.date) changes.push(`Time: ${new Date(data.date).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}`);
+  if (data.location !== undefined || data.latitude !== undefined || data.longitude !== undefined) {
+    changes.push(`Location: ${data.location || updated.location || 'Updated'}`);
+  }
+  if (data.away_team_id !== undefined || data.away_team_name !== undefined || data.opponent !== undefined) {
+    const opponentName = data.away_team_name ?? data.opponent ?? (data.away_team_id ? 'Updated' : 'TBD');
+    changes.push(`Opponent: ${opponentName}`);
+  }
+
+  if (changes.length > 0) {
+    const rsvps = await prisma.eventRsvp.findMany({
+      where: { event_id: eventId },
+      include: { user: { select: { id: true, email: true, display_name: true } } },
+    });
+
+    const eventName = updated.title || event.title || 'Event';
+    const changeSummary = changes.join('; ');
+    const pushBody = `Event Updated: ${eventName} — ${changeSummary}`;
+    const appBase = process.env.APP_BASE_URL || 'https://varsityhub.app';
+    const updatedDate = updated.date instanceof Date ? updated.date : new Date(updated.date);
+    const eventDate = updatedDate.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    const eventDateTime = `${eventDate} at ${updatedDate.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`;
+
+    for (const rsvp of rsvps) {
+      const email = rsvp.user?.email || rsvp.user_email;
+      if (email) {
+        sendEventUpdatedEmail({
+          to: email,
+          recipientName: rsvp.user?.display_name || 'Team Member',
+          eventName,
+          eventDate: eventDateTime,
+          changeSummary,
+          eventId,
+          eventDetailLink: `${appBase}/event-detail?id=${eventId}`,
+          updatedAt: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+          organizationName: 'VarsityHub',
+        }).catch(err => console.warn('[events] Failed to send event updated email:', err));
+      }
+      if (rsvp.user?.id && rsvp.user.id !== userId) {
+        sendPushNotification(
+          rsvp.user.id,
+          'Event Updated',
+          pushBody,
+          { type: 'event_updated', event_id: eventId, screen: 'event-detail' }
+        ).catch(err => console.warn('[events] Failed to send push:', err));
+      }
+    }
+  }
+
   return res.json({
     ...serializeEvent(updated),
-    message: 'Event updated successfully. It will be reviewed again.',
+    message: 'Event updated successfully.',
+  });
+});
+
+// Cancel event (creator or team owner only)
+eventsRouter.patch('/:id/cancel', requireAuth as any, async (req: AuthedRequest, res) => {
+  const eventId = String(req.params.id);
+  const userId = req.user!.id;
+
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    include: {
+      game: { select: { id: true, home_team_id: true, away_team_id: true } },
+    },
+  });
+
+  if (!event) return res.status(404).json({ error: 'Event not found' });
+  if (event.status === 'cancelled') {
+    return res.status(400).json({ error: 'Event already cancelled' });
+  }
+
+  // Permission: creator OR team owner (of game's home/away team)
+  const isCreator = event.creator_id === userId;
+  let isTeamOwner = false;
+  if (event.game?.home_team_id || event.game?.away_team_id) {
+    const teamIds = [event.game.home_team_id, event.game.away_team_id].filter(Boolean) as string[];
+    const ownership = await prisma.teamMembership.findFirst({
+      where: {
+        team_id: { in: teamIds },
+        user_id: userId,
+        role: 'owner',
+        status: 'active',
+      },
+    });
+    isTeamOwner = !!ownership;
+  }
+
+  const isAdmin = await getIsAdmin(req as any);
+  if (!isCreator && !isTeamOwner && !isAdmin) {
+    return res.status(403).json({
+      error: 'Permission denied',
+      message: 'Only the event creator or team owner can cancel this event.',
+    });
+  }
+
+  // Update event status
+  const updated = await prisma.event.update({
+    where: { id: eventId },
+    data: { status: 'cancelled' },
+  });
+
+  // Get RSVPed users for emails and push
+  const rsvps = await prisma.eventRsvp.findMany({
+    where: { event_id: eventId },
+    include: { user: { select: { id: true, email: true, display_name: true, preferences: true } } },
+  });
+
+  const eventDate = event.date instanceof Date ? event.date : new Date(event.date);
+  const eventDateStr = eventDate.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  const eventTimeStr = eventDate.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  const eventLocation = [event.location].filter(Boolean).join(', ');
+  const appBase = process.env.APP_BASE_URL || 'https://varsityhub.app';
+
+  // Send cancellation emails and push notifications (best-effort, non-blocking)
+  for (const rsvp of rsvps) {
+    const email = rsvp.user?.email || rsvp.user_email;
+    if (email) {
+      sendEventCanceledEmail({
+        to: email,
+        recipientName: rsvp.user?.display_name || 'Team Member',
+        eventName: event.title || 'Event',
+        eventDate: eventDateStr,
+        eventTime: eventTimeStr,
+        eventLocation,
+        canceledAt: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+        organizationName: 'VarsityHub',
+        cancelReason: '',
+        upcomingEventsLink: `${appBase}/events`,
+        contactOrganizerLink: `mailto:support@varsityhub.app`,
+      }).catch(err => console.warn('[events] Failed to send cancellation email:', err));
+    }
+    if (rsvp.user?.id && rsvp.user.id !== userId) {
+      sendPushNotification(
+        rsvp.user.id,
+        'Event Cancelled',
+        `"${event.title || 'Event'}" has been cancelled.`,
+        { type: 'event_cancelled', event_id: eventId, screen: 'event-detail' }
+      ).catch(err => console.warn('[events] Failed to send push:', err));
+    }
+  }
+
+  // Cancel scheduled reminders for all RSVPed users
+  for (const rsvp of rsvps) {
+    await cancelGameReminders(eventId, rsvp.user_id).catch(() => {});
+  }
+
+  return res.json({
+    ...serializeEvent(updated),
+    message: 'Event cancelled successfully.',
   });
 });

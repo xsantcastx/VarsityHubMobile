@@ -1,10 +1,10 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, TextStyle, ViewStyle } from 'react-native';
+import { AccessibilityProps, Pressable, StyleSheet, Text, TextStyle, ViewStyle } from 'react-native';
 
 type Variant = 'default' | 'outline' | 'ghost';
 type Size = 'sm' | 'md' | 'lg' | 'icon';
 
-export interface ButtonProps {
+export interface ButtonProps extends AccessibilityProps {
   children?: React.ReactNode;
   onPress?: () => void;
   disabled?: boolean;
@@ -22,6 +22,7 @@ export function Button({
   size = 'md',
   style,
   textStyle,
+  ...accessibilityProps
 }: ButtonProps) {
   const vs = getVariantStyles(variant);
   const ss = getSizeStyles(size);
@@ -39,6 +40,7 @@ export function Button({
       onPress={onPress}
       disabled={disabled}
       style={[styles.base, vs.container, ss.container, disabled && styles.disabled, style]}
+      {...accessibilityProps}
     >
       {content}
     </Pressable>

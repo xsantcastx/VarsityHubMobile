@@ -4,6 +4,7 @@ import { useDeviceLocation } from '@/hooks/useDeviceLocation';
 import { useShareLink } from '@/hooks/useShareLink';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { retryWithBackoff } from '@/utils/retryWithBackoff';
+import { safeGoBack } from '@/utils/navigation';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { Image } from 'expo-image';
@@ -12,7 +13,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
-import { AccessibilityInfo, ActivityIndicator, Alert, Animated, Linking, Modal, Platform, Pressable, RefreshControl, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, Alert, Animated, Linking, Modal, Platform, Pressable, RefreshControl, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getApiBaseUrl } from '../../api/http';
 import MatchBanner from '../components/MatchBanner';
@@ -39,6 +40,7 @@ type MediaItem = {
   created_at?: string;
   caption?: string | null;
   user_id?: string | null;
+  expires_at?: string | null;
 };
 
 type StoriesViewerProps = {
@@ -365,6 +367,10 @@ type GameVM = {
   media: MediaItem[];
   reviewsCount?: number | null;
   isPast: boolean;
+  home_score?: number | null;
+  away_score?: number | null;
+  winner?: string | null;
+  can_edit_result?: boolean;
 };
 
 const ensureIso = (value: any) => {
@@ -398,18 +404,21 @@ const computeIsPast = (iso?: string | null) => {
 const canAddStory = (eventIso?: string | null, gameId?: string | null) => {
   // Sample events can always add stories (no time restriction)
   if (isSampleId(gameId)) return true;
-  
-  // Stories can only be added within 24 hours before the event starts
-  if (!eventIso) return false;
+
+  // Without an event date, allow uploading — no window to enforce client-side
+  if (!eventIso) return true;
   const eventDate = new Date(eventIso);
-  if (Number.isNaN(eventDate.getTime())) return false;
-  
+  if (Number.isNaN(eventDate.getTime())) return true;
+
   const now = Date.now();
   const eventTime = eventDate.getTime();
-  const twentyFourHoursBeforeEvent = eventTime - (24 * 60 * 60 * 1000);
-  
-  // Can add story if we're within 24 hours before the event and event hasn't passed
-  return now >= twentyFourHoursBeforeEvent && now <= eventTime;
+  // Match the server's geofencing window:
+  // 24 hours before the event up to 12 hours after it ends.
+  // Previously this blocked once the event started (now <= eventTime), which
+  // prevented users at the venue from adding stories during the game.
+  const windowStart = eventTime - 24 * 60 * 60 * 1000;
+  const windowEnd   = eventTime + 12 * 60 * 60 * 1000;
+  return now >= windowStart && now <= windowEnd;
 };
 
 const capCount = (count?: number | null, capacity?: number | null) => {
@@ -492,8 +501,13 @@ const GameDetailsScreen = () => {
   const THRESHOLD = useMemo(() => Math.max(24, headerH * 0.6), [headerH]);
   const [showTopFab, setShowTopFab] = useState(false);
   const [vsModalOpen, setVsModalOpen] = useState(false);
+  const [editResultModalOpen, setEditResultModalOpen] = useState(false);
+  const [editResultHomeScore, setEditResultHomeScore] = useState('');
+  const [editResultAwayScore, setEditResultAwayScore] = useState('');
+  const [editResultBusy, setEditResultBusy] = useState(false);
   const [preciseBannerDismissed, setPreciseBannerDismissed] = useState(false);
   const showTopFabRef = useRef(false);
+  const currentUserIdRef = useRef<string | null>(null);
   const headerTranslateY = useMemo(() => feedY.interpolate({
     inputRange: [0, headerH || 1],
     outputRange: [0, -(headerH || 1)],
@@ -539,6 +553,11 @@ const GameDetailsScreen = () => {
   useEffect(() => {
     viewerOpenRef.current = !!storiesViewer?.visible;
   }, [storiesViewer?.visible]);
+
+  // Load current user ID for story expiration UI (creator check, countdown)
+  useEffect(() => {
+    User.me().then((u: any) => { currentUserIdRef.current = u?.id ?? null; }).catch(() => { currentUserIdRef.current = null; });
+  }, []);
 
   // Tick every second to update countdown/live status (paused while stories viewer is open)
   useEffect(() => {
@@ -627,6 +646,24 @@ const GameDetailsScreen = () => {
     if (elapsed < GAME_WINDOW_MS) return { phase: 'live' as const, diffMs: 0 };
     return { phase: 'final' as const, diffMs: 0 };
   }, [vm?.date, nowTs]);
+
+  // Countdown to when "Add Story" unlocks (24h before event start).
+  // Derives from the already-ticking `nowTs` — no extra interval needed.
+  const storyUnlockCountdown = useMemo(() => {
+    if (!vm?.date || !vm?.gameId || isSampleId(vm.gameId)) return null;
+    const eventTime = new Date(vm.date).getTime();
+    if (!Number.isFinite(eventTime)) return null;
+    const windowStart = eventTime - 24 * 60 * 60 * 1000; // same as canAddStory
+    const msUntil = windowStart - nowTs;
+    if (msUntil <= 0) return null; // window already open
+    const totalSecs = Math.ceil(msUntil / 1000);
+    const hours = Math.floor(totalSecs / 3600);
+    const mins = Math.floor((totalSecs % 3600) / 60);
+    const secs = totalSecs % 60;
+    if (hours > 0) return `Opens in ${hours}h ${mins}m ${secs}s`;
+    if (mins > 0) return `Opens in ${mins}m ${secs}s`;
+    return `Opens in ${secs}s`;
+  }, [vm?.date, vm?.gameId, nowTs]);
 
   // RSVP only shown before the game starts
   const hasEvent = !!vm?.eventId;
@@ -833,49 +870,47 @@ const GameDetailsScreen = () => {
       }
 
       try {
+        console.log('[GameDetails] loadGameById() — fetching summary for', gameIdValue);
         const summary: any = await retryWithBackoff(() => Game.summary(gameIdValue), {
-          maxRetries: 2,
+          maxRetries: 0,
           initialDelayMs: 800,
           maxDelayMs: 4000,
         }).catch((err: any) => {
-          // Treat 404 as missing summary without escalating
+          console.warn('[GameDetails] summary fetch failed:', { status: err?.status, message: err?.message });
           if (err && err.status === 404) return null;
+          // Treat transport / infra failures as recoverable and fall back to Game.get.
+          if (err?.status === 0 || err?.status === 408 || err?.isNetworkError || err?.status >= 500) {
+            console.warn('[game-details] summary unavailable, falling back to game record:', err?.message);
+            return null;
+          }
           throw err;
         });
+        console.log('[GameDetails] summary result:', summary ? 'ok' : 'null');
+
         let gameRecord: any = null;
-        let postsData: any = [];
-        let mediaData: any = [];
         if (!summary) {
+          console.log('[GameDetails] no summary — trying Game.get() fallback');
           // Only attempt record fetch if summary missing; suppress 404 noise
           gameRecord = await retryWithBackoff(() => Game.get(gameIdValue), {
-            maxRetries: 2,
+            maxRetries: 0,
             initialDelayMs: 800,
             maxDelayMs: 4000,
           }).catch((err: any) => {
+            console.warn('[GameDetails] Game.get() fallback failed:', { status: err?.status, message: err?.message });
             if (err && err.status === 404) return null;
             console.warn('Game record fetch failed:', err?.message || err);
             return null;
           });
+          console.log('[GameDetails] Game.get() result:', gameRecord ? 'ok' : 'null');
         }
         // If neither summary nor record exists, bail out to show error UI
         if (!summary && !gameRecord) {
+          console.warn('[GameDetails] Both summary and gameRecord are null — throwing "Game not found"');
           throw new Error('Game not found');
         }
-        if (summary || gameRecord) {
-          // Posts/media only fetched when a real game exists to avoid extra 404 logs
-          [postsData, mediaData] = await Promise.all([
-            Post.feedForGame(gameIdValue, { limit: 100 }).catch(() => ({ items: summary?.posts || [] })),
-            Game.media(gameIdValue).catch(() => summary?.media || []),
-          ]);
-          // Ensure mediaData is always an array
-          if (!Array.isArray(mediaData)) {
-            mediaData = (mediaData as any)?.items || [];
-          }
-          // Ensure postsData is always an array
-          if (!Array.isArray(postsData)) {
-            postsData = (postsData as any)?.items || [];
-          }
-        }
+
+        const postsData: any[] = Array.isArray(summary?.posts) ? summary.posts : [];
+        const mediaData: any[] = Array.isArray(summary?.media) ? summary.media : [];
 
       let eventIdValue: string | null = null;
       let location: string | null = null;
@@ -917,6 +952,15 @@ const GameDetailsScreen = () => {
         appearance = (summary as any)?.appearance ?? (summary.event as any)?.appearance ?? null;
       }
 
+      let homeScore: number | null = null;
+      let awayScore: number | null = null;
+      let canEditResult = false;
+      if (summary) {
+        homeScore = typeof (summary as any).home_score === 'number' ? (summary as any).home_score : null;
+        awayScore = typeof (summary as any).away_score === 'number' ? (summary as any).away_score : null;
+        canEditResult = Boolean((summary as any).can_edit_result);
+      }
+
       if (!summary && gameRecord) {
         eventIdValue = (gameRecord as any).event_id ?? null;
         location = gameRecord.location || null;
@@ -953,6 +997,9 @@ const GameDetailsScreen = () => {
         teams = teamsArray;
         // Appearance from game record if present
         appearance = (gameRecord as any)?.appearance ?? null;
+        homeScore = typeof (gameRecord as any).home_score === 'number' ? (gameRecord as any).home_score : null;
+        awayScore = typeof (gameRecord as any).away_score === 'number' ? (gameRecord as any).away_score : null;
+        canEditResult = Boolean((gameRecord as any).can_edit_result);
       }
 
       if (!title) title = 'Game';
@@ -961,31 +1008,36 @@ const GameDetailsScreen = () => {
       if (!bannerCandidate && summary?.event?.banner_url) bannerCandidate = summary.event.banner_url;
       if (!bannerCandidate && gameRecord?.banner_url) bannerCandidate = gameRecord.banner_url; // Fallback to game banner
 
-      let eventDetails: any = null;
+      let deferredEventPromise: Promise<any> | null = null;
+      let deferredRsvpPromise: Promise<any> | null = null;
+      let deferredPostsPromise: Promise<any> | null = null;
+      let deferredMediaPromise: Promise<any> | null = null;
       if (eventIdValue) {
-        eventDetails = await retryWithBackoff(() => Event.get(eventIdValue), {
-          maxRetries: 2,
+        // Do not block first render on event-detail hydration.
+        deferredEventPromise = retryWithBackoff(() => Event.get(eventIdValue), {
+          maxRetries: 0,
           initialDelayMs: 800,
           maxDelayMs: 4000,
         }).catch(() => null);
-        if (eventDetails) {
-          if (!location) location = eventDetails.location || null;
-          if (!bannerCandidate) bannerCandidate = eventDetails.banner_url || null;
-          if (!appearance) appearance = (eventDetails as any)?.appearance ?? null;
-          if (typeof eventDetails.capacity === 'number' && capacity == null) capacity = eventDetails.capacity;
-          if (typeof eventDetails.attendees_count === 'number' && rsvpCount == null) rsvpCount = eventDetails.attendees_count;
-        }
-        const rsvp = await retryWithBackoff(() => Event.rsvpStatus(eventIdValue), {
-          maxRetries: 2,
+
+        // Do not block first render on RSVP status; hydrate it asynchronously.
+        deferredRsvpPromise = retryWithBackoff(() => Event.rsvpStatus(eventIdValue), {
+          maxRetries: 0,
           initialDelayMs: 800,
           maxDelayMs: 4000,
         }).catch(() => null);
-        if (rsvp) {
-          rsvpCount = typeof rsvp.count === 'number' ? rsvp.count : rsvpCount;
-          capacity = typeof rsvp.capacity === 'number' ? rsvp.capacity : capacity;
-          userRsvped = 'going' in rsvp ? Boolean(rsvp.going) : Boolean((rsvp as any).attending);
-        }
       }
+      // Do not block first render on posts/media.
+      deferredPostsPromise = retryWithBackoff(() => Post.feedForGame(gameIdValue, { limit: 20, sort: 'newest' }), {
+        maxRetries: 0,
+        initialDelayMs: 800,
+        maxDelayMs: 4000,
+      }).catch(() => null);
+      deferredMediaPromise = retryWithBackoff(() => Game.media(gameIdValue, { include_expired: true }), {
+        maxRetries: 0,
+        initialDelayMs: 800,
+        maxDelayMs: 4000,
+      }).catch(() => null);
 
       const vmPayload: GameVM = {
         id: gameIdValue,
@@ -1004,15 +1056,83 @@ const GameDetailsScreen = () => {
         rsvpCount: rsvpCount ?? null,
         userRsvped,
         teams,
-        posts: Array.isArray(postsData) ? postsData : postsData?.items || [],
-        media: Array.isArray(mediaData) ? mediaData : [],
+        posts: postsData,
+        media: mediaData,
         reviewsCount,
         isPast,
+        home_score: homeScore,
+        away_score: awayScore,
+        can_edit_result: canEditResult,
       };
 
       setVm(vmPayload);
-      } catch (error) {
-        console.error('Error in loadGameById:', error);
+
+      if (eventIdValue && deferredEventPromise) {
+        void deferredEventPromise.then((eventDetails: any) => {
+          if (!eventDetails) return;
+          setVm((prev) => {
+            if (!prev || prev.gameId !== gameIdValue) return prev;
+            return {
+              ...prev,
+              location: prev.location || eventDetails.location || null,
+              bannerUrl: prev.bannerUrl || eventDetails.banner_url || null,
+              appearance: prev.appearance || (eventDetails as any)?.appearance || null,
+              capacity:
+                typeof prev.capacity === 'number'
+                  ? prev.capacity
+                  : (typeof eventDetails.capacity === 'number' ? eventDetails.capacity : prev.capacity),
+              rsvpCount:
+                typeof prev.rsvpCount === 'number'
+                  ? prev.rsvpCount
+                  : (typeof eventDetails.attendees_count === 'number' ? eventDetails.attendees_count : prev.rsvpCount),
+            };
+          });
+        });
+      }
+
+      if (eventIdValue && deferredRsvpPromise) {
+        void deferredRsvpPromise.then((rsvp: any) => {
+          if (!rsvp) return;
+          setVm((prev) => {
+            if (!prev || prev.gameId !== gameIdValue) return prev;
+            return {
+              ...prev,
+              rsvpCount: typeof rsvp.count === 'number' ? rsvp.count : prev.rsvpCount,
+              capacity: typeof rsvp.capacity === 'number' ? rsvp.capacity : prev.capacity,
+              userRsvped: 'going' in rsvp ? Boolean(rsvp.going) : Boolean((rsvp as any).attending),
+            };
+          });
+        });
+      }
+      if (deferredPostsPromise) {
+        void deferredPostsPromise.then((postsResult: any) => {
+          if (!postsResult) return;
+          const nextPosts = Array.isArray(postsResult) ? postsResult : postsResult?.items;
+          if (!Array.isArray(nextPosts)) return;
+          setVm((prev) => {
+            if (!prev || prev.gameId !== gameIdValue) return prev;
+            return { ...prev, posts: nextPosts };
+          });
+        });
+      }
+      if (deferredMediaPromise) {
+        void deferredMediaPromise.then((mediaResult: any) => {
+          if (!mediaResult) return;
+          const nextMedia = Array.isArray(mediaResult) ? mediaResult : mediaResult?.items;
+          if (!Array.isArray(nextMedia)) return;
+          setVm((prev) => {
+            if (!prev || prev.gameId !== gameIdValue) return prev;
+            return { ...prev, media: nextMedia };
+          });
+        });
+      }
+      } catch (error: any) {
+        console.error('[GameDetails] loadGameById() inner catch:', {
+          message: error?.message,
+          status: error?.status,
+          data: error?.data,
+          name: error?.name,
+        });
         throw error; // Re-throw to be caught by outer try-catch
       }
     },
@@ -1026,7 +1146,6 @@ const GameDetailsScreen = () => {
         replaceToCanonicalGame(String(event.game_id));
         return;
       }
-      const rsvp = await Event.rsvpStatus(eventIdValue).catch(() => null);
       const dateIso = ensureIso(event?.date) ?? new Date().toISOString();
       const vmPayload: GameVM = {
         id: `event-${eventIdValue}`,
@@ -1040,9 +1159,9 @@ const GameDetailsScreen = () => {
         coverImageUrl: event?.cover_image_url || null,
         homeTeam: null,
         awayTeam: null,
-        capacity: event?.capacity ?? (typeof rsvp?.capacity === 'number' ? rsvp?.capacity : null),
-        rsvpCount: typeof rsvp?.count === 'number' ? rsvp?.count : event?.attendees_count ?? null,
-        userRsvped: rsvp ? Boolean(rsvp.going ?? rsvp.attending) : false,
+        capacity: event?.capacity ?? null,
+        rsvpCount: event?.attendees_count ?? null,
+        userRsvped: false,
         teams: [],
         posts: [],
         media: [],
@@ -1050,6 +1169,24 @@ const GameDetailsScreen = () => {
         isPast: computeIsPast(dateIso),
       };
       setVm(vmPayload);
+
+      // Hydrate RSVP in the background so event details can render immediately.
+      void retryWithBackoff(() => Event.rsvpStatus(eventIdValue), {
+        maxRetries: 0,
+        initialDelayMs: 800,
+        maxDelayMs: 4000,
+      }).then((rsvp: any) => {
+        if (!rsvp) return;
+        setVm((prev) => {
+          if (!prev || prev.eventId !== eventIdValue || prev.gameId) return prev;
+          return {
+            ...prev,
+            rsvpCount: typeof rsvp.count === 'number' ? rsvp.count : prev.rsvpCount,
+            capacity: typeof rsvp.capacity === 'number' ? rsvp.capacity : prev.capacity,
+            userRsvped: Boolean(rsvp.going ?? rsvp.attending),
+          };
+        });
+      }).catch(() => {});
     },
     [replaceToCanonicalGame],
   );
@@ -1096,139 +1233,67 @@ const GameDetailsScreen = () => {
       }
     }
     
-    // Show action sheet with camera first, then gallery
-    Alert.alert(
-      'Add Story', 
-      'Choose how you want to add your story',
-      [
-        {
-          text: 'Take Photo/Video',
-          onPress: async () => {
-            try {
-              setStoryBusy(true);
-              const pickerOptions: any = {
-                quality: 0.9,
-                mediaTypes: ImagePicker.MediaTypeOptions.All,
-                allowsEditing: false,
-                exif: false,
-                // On iOS, use the PhotoPicker (not the deprecated deprecated UIImagePickerController)
-                // which returns proper file:// URIs instead of ph:// asset references
-                legacy: false,
-              };
-              const result = await ImagePicker.launchCameraAsync(pickerOptions);
-              if (!result || result.canceled || !result.assets || !result.assets.length) return;
-              
-              const asset = result.assets[0];
-              const base = getApiBaseUrl();
-              let uri = asset.uri;
-              const mimeType = asset.mimeType || (asset.type === 'video' ? 'video/mp4' : 'image/jpeg');
-              const fileName = asset.fileName || uri.split('/').pop() || (mimeType.startsWith('video') ? 'story.mp4' : 'story.jpg');
-              const ensured = await (await import('../../utils/ensureUploadableUri')).ensureUploadableUri(uri, mimeType);
-              uri = ensured.uri; // use uploadable local file path when available
+    try {
+      setStoryBusy(true);
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.All,
+        quality: 0.8,
+        videoMaxDuration: 30,
+      });
+      if (!result || result.canceled || !result.assets || !result.assets.length) return;
 
-              const uploaded = await uploadFile(base, uri, fileName, mimeType);
-              const mediaUrl = uploaded?.path || uploaded?.url;
-              if (!mediaUrl) {
-                throw new Error('Upload failed');
-              }
-              if (isSampleId(vm.gameId)) {
-                // Local-only story for sample games; do not call backend
-                setVm((prev) => {
-                  if (!prev) return prev;
-                  const newItem: MediaItem = { id: String(Date.now()), url: mediaUrl, kind: (mimeType?.startsWith('video') ? 'video' : 'photo') as any };
-                  return { ...prev, media: [newItem, ...(prev.media || [])] } as GameVM;
-                });
-              } else {
-                if (!vm.gameId) throw new Error('No game ID');
-                const gameId = vm.gameId; // type guard
-                const storyPayload: any = { media_url: mediaUrl };
-                if (location?.latitude && location?.longitude) {
-                  storyPayload.location = { lat: location.latitude, lng: location.longitude, source: 'device' };
-                }
-                await Game.addStory(gameId, storyPayload);
-                try {
-                  await loadGameById(gameId);
-                  Alert.alert('Added', isSampleId(gameId) ? 'Story added (demo only).' : 'Story added to this game.');
-                } catch (reloadErr: any) {
-                  console.warn('[story] Camera - reload failed but story was uploaded:', reloadErr);
-                  Alert.alert('Added', 'Story added to this game. Refresh to see it.');
-                }
-              }
-            } catch (err: any) {
-              console.error('Story upload error:', err);
-              Alert.alert('Unable to add story', err?.message || 'Please try again.');
-            } finally {
-              setStoryBusy(false);
-            }
-          }
-        },
-        {
-          text: 'Choose from Gallery',
-          onPress: async () => {
-            try {
-              setStoryBusy(true);
-              const pickerOptions: any = {
-                quality: 0.9,
-                mediaTypes: ImagePicker.MediaTypeOptions.All,
-                allowsEditing: false,
-                exif: false,
-                // On iOS, use the PhotoPicker (not the deprecated deprecated UIImagePickerController)
-                // which returns proper file:// URIs instead of ph:// asset references
-                legacy: false,
-              };
-              const result = await ImagePicker.launchImageLibraryAsync(pickerOptions);
-              if (!result || result.canceled || !result.assets || !result.assets.length) return;
-              
-              const asset = result.assets[0];
-              const base = getApiBaseUrl();
-              let uri = asset.uri;
-              const mimeType = asset.mimeType || (asset.type === 'video' ? 'video/mp4' : 'image/jpeg');
-              const fileName = asset.fileName || uri.split('/').pop() || (mimeType.startsWith('video') ? 'story.mp4' : 'story.jpg');
-              const ensured = await (await import('../../utils/ensureUploadableUri')).ensureUploadableUri(uri, mimeType);
-              uri = ensured.uri;
-              
-              const uploaded = await uploadFile(base, uri, fileName, mimeType);
-              const mediaUrl = uploaded?.path || uploaded?.url;
-              if (!mediaUrl) {
-                throw new Error('Upload failed');
-              }
-              if (isSampleId(vm.gameId)) {
-                setVm((prev) => {
-                  if (!prev) return prev;
-                  const newItem: MediaItem = { id: String(Date.now()), url: mediaUrl, kind: (mimeType?.startsWith('video') ? 'video' : 'photo') as any };
-                  return { ...prev, media: [newItem, ...(prev.media || [])] } as GameVM;
-                });
-              } else {
-                if (!vm.gameId) throw new Error('No game ID');
-                const gameId = vm.gameId; // type guard
-                const storyPayload: any = { media_url: mediaUrl };
-                if (location?.latitude && location?.longitude) {
-                  storyPayload.location = { lat: location.latitude, lng: location.longitude, source: 'device' };
-                }
-                await Game.addStory(gameId, storyPayload);
-                try {
-                  await loadGameById(gameId);
-                  Alert.alert('Added', isSampleId(gameId) ? 'Story added (demo only).' : 'Story added to this game.');
-                } catch (reloadErr: any) {
-                  console.warn('[story] Gallery - reload failed but story was uploaded:', reloadErr);
-                  Alert.alert('Added', 'Story added to this game. Refresh to see it.');
-                }
-              }
-            } catch (err: any) {
-              console.error('Story upload error:', err);
-              Alert.alert('Unable to add story', err?.message || 'Please try again.');
-            } finally {
-              setStoryBusy(false);
-            }
-          }
-        },
-        {
-          text: 'Cancel',
-          style: 'cancel'
+      const asset = result.assets[0];
+      const base = getApiBaseUrl();
+      let uri = asset.uri;
+      const mimeType = asset.mimeType || (asset.type === 'video' ? 'video/mp4' : 'image/jpeg');
+      const fileName = asset.fileName || uri.split('/').pop() || (mimeType.startsWith('video') ? 'story.mp4' : 'story.jpg');
+      const ensured = await (await import('../../utils/ensureUploadableUri')).ensureUploadableUri(uri, mimeType);
+      uri = ensured.uri;
+
+      const uploaded = await uploadFile(base, uri, fileName, mimeType);
+      const mediaUrl = uploaded?.path || uploaded?.url;
+      if (!mediaUrl) {
+        throw new Error('Upload failed');
+      }
+      if (isSampleId(vm.gameId)) {
+        // Local-only story for sample games; do not call backend
+        setVm((prev) => {
+          if (!prev) return prev;
+          const newItem: MediaItem = { id: String(Date.now()), url: mediaUrl, kind: (mimeType?.startsWith('video') ? 'video' : 'photo') as any };
+          return { ...prev, media: [newItem, ...(prev.media || [])] } as GameVM;
+        });
+      } else {
+        if (!vm.gameId) throw new Error('No game ID');
+        const gameId = vm.gameId; // type guard
+        const storyPayload: any = { media_url: mediaUrl };
+        if (location?.latitude && location?.longitude) {
+          storyPayload.location = { lat: location.latitude, lng: location.longitude, source: 'device' };
         }
-      ]
-    );
-  }, [loadGameById, storyBusy, vm?.gameId, location?.latitude, location?.longitude, permissionGranted, requestPermission, needsPreciseAccuracy, openSettings]);
+        await Game.addStory(gameId, storyPayload);
+        try {
+          await loadGameById(gameId);
+          Alert.alert('Added', isSampleId(gameId) ? 'Story added (demo only).' : 'Story added to this game.');
+        } catch (reloadErr: any) {
+          console.warn('[story] Camera - reload failed but story was uploaded:', reloadErr);
+          Alert.alert('Added', 'Story added to this game. Refresh to see it.');
+        }
+      }
+    } catch (err: any) {
+      const status = err?.status;
+      const message = String(err?.message || err?.data?.error || '');
+      if (status === 401 || /unauthorized/i.test(message)) {
+        Alert.alert('Session expired', 'Please sign in again to upload stories.', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Sign In', onPress: () => void router.push('/sign-in') },
+        ]);
+      } else {
+        console.error('Story upload error:', err);
+        Alert.alert('Unable to add story', err?.message || 'Please try again.');
+      }
+    } finally {
+      setStoryBusy(false);
+    }
+  }, [loadGameById, storyBusy, vm?.gameId, location?.latitude, location?.longitude, permissionGranted, requestPermission, needsPreciseAccuracy, openSettings, router]);
 
   const _refreshVotes = useCallback(async () => {
     // Event-only pages (no gameId) get local vote state
@@ -1262,7 +1327,9 @@ const GameDetailsScreen = () => {
     async (isRefresh = false) => {
       const gameIdValue = id ? String(id) : null;
       const eventIdValue = eventId ? String(eventId) : null;
+      console.log('[GameDetails] load() called', { gameIdValue, eventIdValue, isRefresh });
       if (!gameIdValue && !eventIdValue) {
+        console.warn('[GameDetails] load() — no id or eventId, aborting');
         setError('Missing game or event id.');
         setVm(null);
         setLoading(false);
@@ -1271,21 +1338,33 @@ const GameDetailsScreen = () => {
       }
       if (isRefresh) setRefreshing(true); else setLoading(true);
       setError(null);
-      
-      // Load teams data
-      await loadTeams();
-      
+
+      // Load team directory in background; it should not block event/game rendering.
+      void loadTeams();
+
       try {
         if (gameIdValue) {
           await loadGameById(gameIdValue);
         } else if (eventIdValue) {
           await loadVirtualFromEvent(eventIdValue);
         }
-      } catch (err) {
-        console.error('Failed to load game details', err);
-        setError('Unable to load game details. Please try again.');
+        console.log('[GameDetails] load() — done, vm should be set');
+      } catch (err: any) {
+        console.error('[GameDetails] load() — CAUGHT ERROR:', {
+          message: err?.message,
+          status: err?.status,
+          data: err?.data,
+          stack: err?.stack,
+        });
+        const message = String(err?.message || '');
+        if (message.toLowerCase().includes('timed out')) {
+          setError('Loading is taking too long. Pull to refresh and try again.');
+        } else {
+          setError(`Unable to load. ${message || 'Please try again.'}`);
+        }
         setVm(null);
       } finally {
+        console.log('[GameDetails] load() — finally: clearing loading state');
         if (isRefresh) setRefreshing(false); else setLoading(false);
       }
     },
@@ -1296,7 +1375,18 @@ const GameDetailsScreen = () => {
     void load();
   }, [load]);
 
-  // ...existing code...
+  // Reset per-event UI state immediately when navigating to a different event
+  useEffect(() => {
+    setVoteSummary(null);   // Clear previous event's vote data right away
+    setSeenStories({});     // Reset seen-story badges for fresh event
+  }, [id, eventId]);
+
+  // Fetch vote summary for this event once vm.gameId is available
+  useEffect(() => {
+    if (vm?.gameId) {
+      void _refreshVotes();
+    }
+  }, [vm?.gameId, _refreshVotes]);
 
   useEffect(() => {
     const total = _voteSummary?.total ?? 0;
@@ -1321,6 +1411,10 @@ const GameDetailsScreen = () => {
 
   const onToggleRsvp = useCallback(async () => {
     if (!vm?.eventId || rsvpBusy) return;
+    if (!canRsvpNow) {
+      Alert.alert('RSVP closed', 'You can only RSVP before kickoff.');
+      return;
+    }
     // snapshot current vm for potential rollback
     const snapshot = vm;
     const nextDesired = !vm.userRsvped;
@@ -1340,7 +1434,7 @@ const GameDetailsScreen = () => {
     setRsvpBusy(true);
     try {
       const res: any = await retryWithBackoff(() => Event.rsvp(vm.eventId!, nextDesired), {
-        maxRetries: 2,
+        maxRetries: 0,
         initialDelayMs: 800,
         maxDelayMs: 4000,
       });
@@ -1356,15 +1450,21 @@ const GameDetailsScreen = () => {
       });
       // notify user of success
       Alert.alert('RSVP updated', nextDesired ? 'You are marked as going.' : 'You are no longer marked as going.');
-    } catch (err) {
-      console.error('Failed to toggle RSVP', err);
+    } catch (err: any) {
       // rollback optimistic update
       setVm(snapshot);
+      const status = err?.status;
+      const message = String(err?.message || err?.data?.error || '');
+      if (status === 400 && /event has passed/i.test(message)) {
+        Alert.alert('RSVP closed', 'This event has already started or ended.');
+        return;
+      }
+      console.error('Failed to toggle RSVP', err);
       Alert.alert('RSVP', 'Unable to update RSVP right now. Please try again.');
     } finally {
       setRsvpBusy(false);
     }
-  }, [vm, rsvpBusy]);
+  }, [canRsvpNow, vm, rsvpBusy]);
 
   const shareContextLines = useMemo(() => {
     if (!vm) return [];
@@ -1501,6 +1601,7 @@ const GameDetailsScreen = () => {
       user_id: m.user_id,
       created_at: m.created_at,
       caption: m.caption,
+      expires_at: (m as any).expires_at ?? null,
     }));
     if (!mediaItems.length) return null;
     return (
@@ -1516,10 +1617,26 @@ const GameDetailsScreen = () => {
           {mediaItems.map((it, idx) => {
             const isVideo = it.kind === 'video' || (typeof it.url === 'string' && VIDEO_EXT.test(it.url));
             const wasSeen = !!seenStories[it.id];
+            const expiresAt = it.expires_at ? new Date(it.expires_at).getTime() : null;
+            const now = nowTs;
+            const isExpired = expiresAt != null && expiresAt <= now;
+            const isCreator = currentUserIdRef.current && it.user_id === currentUserIdRef.current;
+            const showExpiredForCreator = isExpired && isCreator;
+            const msLeft = expiresAt != null && !isExpired ? expiresAt - now : 0;
+            const hoursLeft = Math.floor(msLeft / (60 * 60 * 1000));
+            const minsLeft = Math.floor((msLeft % (60 * 60 * 1000)) / (60 * 1000));
+            const countdownText = !isExpired && msLeft > 0
+              ? (hoursLeft > 0 ? `${hoursLeft}h ` : '') + (minsLeft > 0 ? `${minsLeft}m` : '< 1m')
+              : null;
             return (
               <Pressable
                 key={`${it.id}-${idx}`}
-                style={[styles.storyItem, styles.storyItemGap, wasSeen ? styles.storyItemSeen : null]}
+                style={[
+                  styles.storyItem,
+                  styles.storyItemGap,
+                  wasSeen ? styles.storyItemSeen : null,
+                  showExpiredForCreator ? styles.storyItemExpired : null,
+                ]}
                 onPress={() => setStoriesViewer({ visible: true, items: mediaItems as any, index: idx })}
               >
                 <View style={styles.storyTile}>
@@ -1532,6 +1649,18 @@ const GameDetailsScreen = () => {
                     />
                   )}
                   {wasSeen ? <View style={styles.storySeenOverlay} /> : null}
+                  {showExpiredForCreator ? (
+                    <View style={styles.storyExpiredOverlay}>
+                      <Text style={styles.storyExpiredLabel}>Expired</Text>
+                      <Text style={styles.storyExpiredHint}>Tap to delete</Text>
+                    </View>
+                  ) : null}
+                  {countdownText && !showExpiredForCreator ? (
+                    <View style={styles.storyCountdownBadge}>
+                      <Ionicons name="time-outline" size={10} color="#fff" />
+                      <Text style={styles.storyCountdownText}>{countdownText}</Text>
+                    </View>
+                  ) : null}
                 </View>
               </Pressable>
             );
@@ -1662,6 +1791,8 @@ const renderBanner = () => {
         rightImage={rightLogo}
         leftName={vm?.homeTeam ?? ''}
         rightName={vm?.awayTeam ?? ''}
+        leftScore={vm?.home_score ?? null}
+        rightScore={vm?.away_score ?? null}
         height={bannerHeight}
         variant="full"
         hero={true}
@@ -1683,7 +1814,7 @@ const renderBanner = () => {
         leftColor={(homeTeamObj as any)?.color}
         rightColor={(awayTeamObj as any)?.color}
         goingCount={goingCount}
-        onGoingPress={onToggleRsvp}
+        onGoingPress={canRsvpNow ? onToggleRsvp : openRsvpSheet}
       />
     ) : (
       <LinearGradient colors={PLACEHOLDER_GRADIENT} style={styles.bannerImage} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
@@ -1696,7 +1827,7 @@ const renderBanner = () => {
     <LinearGradient pointerEvents="none" colors={isHero ? ['rgba(0,0,0,0.02)', 'rgba(0,0,0,0.35)'] : ['rgba(0,0,0,0.05)', 'rgba(0,0,0,0.75)']} style={styles.bannerShade} />
         
         <View style={[styles.bannerTopRow, { paddingTop: insets.top + 8 }]}>
-          <Pressable onPress={() => void router.back()} accessibilityRole="button" style={styles.circleButton}>
+          <Pressable onPress={() => { safeGoBack(router); }} accessibilityRole="button" style={styles.circleButton}>
             <Ionicons name="chevron-back" size={20} color={Colors[colorScheme].text} />
           </Pressable>
           <View style={styles.bannerTopRightRow}>
@@ -1763,6 +1894,40 @@ const renderBanner = () => {
     );
   };
 
+  const handleEditResult = useCallback(async () => {
+    const gameId = vm?.gameId;
+    if (!gameId || editResultBusy) return;
+    const home = parseInt(editResultHomeScore, 10);
+    const away = parseInt(editResultAwayScore, 10);
+    if (Number.isNaN(home) || Number.isNaN(away) || home < 0 || away < 0) {
+      Alert.alert('Invalid scores', 'Please enter valid non-negative numbers for both teams.');
+      return;
+    }
+    setEditResultBusy(true);
+    try {
+      let winner: 'home' | 'away' | 'tie' | null = null;
+      if (home > away) winner = 'home';
+      else if (away > home) winner = 'away';
+      else winner = 'tie';
+      await Game.setResult(gameId, { home_score: home, away_score: away, winner });
+      setVm((prev) => prev ? { ...prev, home_score: home, away_score: away, winner } : null);
+      setEditResultModalOpen(false);
+      setEditResultHomeScore('');
+      setEditResultAwayScore('');
+    } catch (err: any) {
+      console.error('Edit result failed:', err);
+      Alert.alert('Error', err?.message || 'Failed to update score. Please try again.');
+    } finally {
+      setEditResultBusy(false);
+    }
+  }, [vm?.gameId, editResultHomeScore, editResultAwayScore, editResultBusy]);
+
+  const openEditResultModal = useCallback(() => {
+    setEditResultHomeScore(vm?.home_score != null ? String(vm.home_score) : '');
+    setEditResultAwayScore(vm?.away_score != null ? String(vm.away_score) : '');
+    setEditResultModalOpen(true);
+  }, [vm?.home_score, vm?.away_score]);
+
   const _renderStats = () => {
     const stats = [
       { key: 'going', label: 'Going', value: goingCount != null ? String(goingCount) : '\u2014' },
@@ -1770,13 +1935,31 @@ const renderBanner = () => {
       { key: 'media', label: 'Stories', value: vm?.media?.length ? String(vm.media.length) : '0' },
     ];
     return (
-      <View style={styles.statRow}>
-        {stats.map((stat) => (
-          <View key={stat.key} style={styles.statCard}>
-            <Text style={styles.statValue}>{stat.value}</Text>
-            <Text style={styles.statLabel}>{stat.label}</Text>
-          </View>
-        ))}
+      <View>
+        <View style={styles.statRow}>
+          {stats.map((stat) => (
+            <View key={stat.key} style={styles.statCard}>
+              <Text style={styles.statValue}>{stat.value}</Text>
+              <Text style={styles.statLabel}>{stat.label}</Text>
+            </View>
+          ))}
+        </View>
+        {vm?.can_edit_result && vm?.gameId ? (
+          <Pressable
+            onPress={openEditResultModal}
+            style={({ pressed }) => [
+              styles.editResultButton,
+              { backgroundColor: pressed ? Colors[colorScheme].surface : Colors[colorScheme].tint, opacity: pressed ? 0.9 : 1 },
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Edit game result"
+          >
+            <Ionicons name="trophy-outline" size={16} color="#FFFFFF" />
+            <Text style={styles.editResultButtonText}>
+              {vm?.home_score != null && vm?.away_score != null ? 'Edit Result' : 'Add Result'}
+            </Text>
+          </Pressable>
+        ) : null}
       </View>
     );
   };
@@ -1941,6 +2124,7 @@ const renderBanner = () => {
       <Stack.Screen options={{ headerShown: false }} />
       
       <Animated.View
+        pointerEvents="box-none"
         style={[styles.headerWrap, { top: insets.top, transform: [{ translateY: headerTranslateY }], opacity: headerOpacity }]}
         onLayout={(e) => {
           const h = e.nativeEvent.layout.height;
@@ -1995,13 +2179,13 @@ const renderBanner = () => {
                   onPress={handleAddStory}
                   disabled={!vm?.gameId || storyBusy || !canAddStory(vm?.date, vm?.gameId)}
                 >
-                  <Ionicons 
-                    name={storyBusy ? "checkmark-circle-outline" : "add-circle-outline"} 
-                    size={16} 
-                    color={Colors[colorScheme].tint} 
+                  <Ionicons
+                    name={storyBusy ? "checkmark-circle-outline" : "add-circle-outline"}
+                    size={16}
+                    color={Colors[colorScheme].tint}
                   />
                   <Text style={styles.actionText}>
-                    Add Story
+                    {storyUnlockCountdown || 'Add Story'}
                   </Text>
                 </Pressable>
               </View>
@@ -2474,6 +2658,58 @@ const renderBanner = () => {
           </View>
         </View>
       </Modal>
+
+      {/* Edit Result Modal - coaches/owners only */}
+      <Modal
+        visible={editResultModalOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setEditResultModalOpen(false)}
+      >
+        <Pressable style={styles.editResultBackdrop} onPress={() => setEditResultModalOpen(false)}>
+          <Pressable style={[styles.editResultModal, { backgroundColor: Colors[colorScheme].background }]} onPress={() => {}}>
+            <Text style={[styles.editResultTitle, { color: Colors[colorScheme].text }]}>Edit Game Result</Text>
+            <View style={styles.editResultRow}>
+              <Text style={[styles.editResultLabel, { color: Colors[colorScheme].text }]}>{vm?.homeTeam ?? 'Home'}</Text>
+              <TextInput
+                style={[styles.editResultInput, { color: Colors[colorScheme].text, borderColor: Colors[colorScheme].border }]}
+                value={editResultHomeScore}
+                onChangeText={setEditResultHomeScore}
+                placeholder="0"
+                placeholderTextColor={Colors[colorScheme].mutedText}
+                keyboardType="number-pad"
+              />
+            </View>
+            <Text style={[styles.editResultVs, { color: Colors[colorScheme].mutedText }]}>vs</Text>
+            <View style={styles.editResultRow}>
+              <Text style={[styles.editResultLabel, { color: Colors[colorScheme].text }]}>{vm?.awayTeam ?? 'Away'}</Text>
+              <TextInput
+                style={[styles.editResultInput, { color: Colors[colorScheme].text, borderColor: Colors[colorScheme].border }]}
+                value={editResultAwayScore}
+                onChangeText={setEditResultAwayScore}
+                placeholder="0"
+                placeholderTextColor={Colors[colorScheme].mutedText}
+                keyboardType="number-pad"
+              />
+            </View>
+            <View style={styles.editResultActions}>
+              <Pressable
+                onPress={() => setEditResultModalOpen(false)}
+                style={[styles.editResultCancelBtn, { borderColor: Colors[colorScheme].border }]}
+              >
+                <Text style={[styles.editResultCancelText, { color: Colors[colorScheme].text }]}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={handleEditResult}
+                disabled={editResultBusy}
+                style={[styles.editResultSubmitBtn, { backgroundColor: Colors[colorScheme].tint, opacity: editResultBusy ? 0.6 : 1 }]}
+              >
+                <Text style={styles.editResultSubmitText}>Save</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
       {showTopFab ? (
         <Pressable
           style={styles.fab}
@@ -2926,6 +3162,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   },
   actionBtnDisabled: { opacity: 0.6 },
   actionText: { fontWeight: '700', color: Colors[colorScheme].text },
+  storyCountdown: { fontSize: 12, textAlign: 'center', marginTop: -8, marginBottom: 12 },
   tabRow: {
     flexDirection: 'row',
     gap: 8,
@@ -2970,6 +3207,50 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   },
   statValue: { fontSize: 20, fontWeight: '800', color: Colors[colorScheme].text },
   statLabel: { color: Colors[colorScheme].mutedText, fontWeight: '600' },
+  editResultButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    marginTop: 12,
+    marginBottom: 20,
+  },
+  editResultButtonText: { color: '#FFFFFF', fontWeight: '700', fontSize: 14 },
+  editResultBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  editResultModal: {
+    width: '100%',
+    maxWidth: 340,
+    borderRadius: 20,
+    padding: 24,
+  },
+  editResultTitle: { fontSize: 18, fontWeight: '800', marginBottom: 20, textAlign: 'center' },
+  editResultRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 6 },
+  editResultLabel: { flex: 1, fontWeight: '600', fontSize: 14 },
+  editResultInput: {
+    width: 64,
+    borderWidth: 2,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 18,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  editResultVs: { textAlign: 'center', marginVertical: 8, fontWeight: '600' },
+  editResultActions: { flexDirection: 'row', gap: 12, marginTop: 24 },
+  editResultCancelBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 2, alignItems: 'center' },
+  editResultCancelText: { fontWeight: '600' },
+  editResultSubmitBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center' },
+  editResultSubmitText: { color: '#FFFFFF', fontWeight: '700' },
   teamList: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   teamPill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#e0f2fe', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
   teamPillText: { fontWeight: '700', color: '#0c4a6e' },
@@ -3009,6 +3290,31 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   storyThumb: { flex: 1 },
   storyThumbVideo: { alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(2,6,23,0.85)' },
   storySeenOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(2,6,23,0.25)' },
+  storyItemExpired: { opacity: 0.6 },
+  storyExpiredOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  storyExpiredLabel: { color: '#fff', fontWeight: '800', fontSize: 12 },
+  storyExpiredHint: { color: 'rgba(255,255,255,0.8)', fontSize: 10 },
+  storyCountdownBadge: {
+    position: 'absolute',
+    bottom: 6,
+    left: 6,
+    right: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    borderRadius: 8,
+  },
+  storyCountdownText: { color: '#fff', fontSize: 10, fontWeight: '700' },
   verticalFeedPreview: {
     marginTop: 16,
     borderRadius: 20,

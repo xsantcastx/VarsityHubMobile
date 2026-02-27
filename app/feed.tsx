@@ -2,9 +2,10 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
-import { Advertisement, Event, Game, Highlights, Notification as NotificationApi, User } from '@/api/entities';
+import { Advertisement, Event, Game, Highlights, Notification as NotificationApi, Post as PostApi, User } from '@/api/entities';
 import { BannerAd } from '@/components/BannerAd';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -15,9 +16,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Linking from 'expo-linking';
 import * as Location from 'expo-location';
 
+import PostCard from '@/components/PostCard';
 import GameVerticalFeedScreen from './game-details/GameVerticalFeedScreen';
 
-type GameItem = { id: string; title?: string; date?: string; location?: string; cover_image_url?: string; banner_url?: string | null; event_id?: string | null };
+type GameItem = { id: string; title?: string; date?: string; location?: string; cover_image_url?: string; banner_url?: string | null; event_id?: string | null; home_score?: number | null; away_score?: number | null; winner?: string | null };
 
 // RSVP Badge Component
 const RSVPBadge = ({ gameItem, onRSVPChange }: { gameItem: any, onRSVPChange?: () => void }) => {
@@ -25,10 +27,17 @@ const RSVPBadge = ({ gameItem, onRSVPChange }: { gameItem: any, onRSVPChange?: (
   const [isRsvped, setIsRsvped] = useState(false);
   const [rsvpCount, setRsvpCount] = useState((gameItem as any).rsvpCount || 0);
   const [isLoading, setIsLoading] = useState(false);
+  const isEventPast = useMemo(() => {
+    const iso = gameItem?.date;
+    if (!iso) return false;
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return false;
+    return date.getTime() < Date.now();
+  }, [gameItem?.date]);
 
   // Check initial RSVP status when component mounts
   useEffect(() => {
-    if (gameItem.event_id) {
+    if (gameItem.event_id && !isEventPast) {
       Event.rsvpStatus(gameItem.event_id)
         .then((status: any) => {
           setIsRsvped(status.going || status.attending || false);
@@ -38,10 +47,14 @@ const RSVPBadge = ({ gameItem, onRSVPChange }: { gameItem: any, onRSVPChange?: (
           // Handle error silently, keep default states
         });
     }
-  }, [gameItem.event_id]);
+  }, [gameItem.event_id, isEventPast]);
 
   const handleRSVP = async () => {
     if (isLoading || !gameItem.event_id) return;
+    if (isEventPast) {
+      Alert.alert('RSVP closed', 'You cannot RSVP to events that have already occurred.');
+      return;
+    }
     
     setIsLoading(true);
     try {
@@ -57,42 +70,52 @@ const RSVPBadge = ({ gameItem, onRSVPChange }: { gameItem: any, onRSVPChange?: (
       );
       
       onRSVPChange?.();
-    } catch (error) {
-      console.error('RSVP error:', error);
-      Alert.alert('Error', 'Failed to update RSVP. Please try again.');
+    } catch (error: any) {
+      const status = error?.status;
+      const message = String(error?.message || error?.data?.error || '');
+      if (status === 400 && /event has passed/i.test(message)) {
+        Alert.alert('RSVP closed', 'You cannot RSVP to events that have already occurred.');
+      } else {
+        console.error('RSVP error:', error);
+        Alert.alert('Error', 'Failed to update RSVP. Please try again.');
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
+  const badgeText = isEventPast ? 'RSVP closed' : (isRsvped ? `${rsvpCount} going` : '+');
+  const badgeA11yLabel = isEventPast
+    ? `RSVP closed. ${rsvpCount} went`
+    : (isRsvped ? `${rsvpCount} going - Tap to remove RSVP` : 'Tap to RSVP');
+
   return (
     <Pressable
       onPress={handleRSVP}
+      disabled={isLoading || isEventPast}
       style={{
         position: 'absolute',
         right: 14,
         bottom: 14,
-        backgroundColor: isRsvped ? 'rgba(34, 197, 94, 0.9)' : (colorScheme === 'dark' ? 'rgba(30,41,59,0.85)' : 'rgba(0,0,0,0.75)'),
-        paddingHorizontal: 12,
+        backgroundColor: isEventPast
+          ? 'rgba(127, 29, 29, 0.92)'
+          : (isRsvped ? 'rgba(34, 197, 94, 0.9)' : (colorScheme === 'dark' ? 'rgba(30,41,59,0.85)' : 'rgba(0,0,0,0.75)')),
+        paddingHorizontal: isEventPast ? 10 : 12,
         paddingVertical: 8,
         borderRadius: 20,
-        shadowColor: colorScheme === 'dark' ? '#000' : '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 4,
-        elevation: 5,
         zIndex: 1000,
-        opacity: isLoading ? 0.6 : 1,
+        opacity: (isLoading || isEventPast) ? 0.6 : 1,
       }}
       accessibilityRole="button"
-      accessibilityLabel={isRsvped ? `${rsvpCount} going - Tap to remove RSVP` : 'Tap to RSVP'}
+      accessibilityLabel={badgeA11yLabel}
     >
       <Text style={{
         color: 'white',
-        fontSize: 12,
-        fontWeight: '600',
+        fontSize: isEventPast ? 11 : 12,
+        fontWeight: isEventPast ? '700' : '600',
+        letterSpacing: isEventPast ? 0.2 : 0,
       }}>
-        {isRsvped ? `${rsvpCount} going` : '+'}
+        {badgeText}
       </Text>
     </Pressable>
   );
@@ -155,6 +178,7 @@ const buildVotePreviewEntry = (payload: any, labels: { teamA: string; teamB: str
 export default function FeedScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const tabBarHeight = useBottomTabBarHeight();
   const colorScheme = useColorScheme() ?? 'light';
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -172,6 +196,10 @@ export default function FeedScreen() {
 
   const [highlightPreview, setHighlightPreview] = useState<any | null>(null);
   const [sponsoredAds, setSponsoredAds] = useState<any[]>([]);
+  const [followedPosts, setFollowedPosts] = useState<any[]>([]);
+  const [followedFeedMeta, setFollowedFeedMeta] = useState<{ following_count: number } | undefined>(undefined);
+  const [followedTeamsPosts, setFollowedTeamsPosts] = useState<any[]>([]);
+  const [followedTeamsFeedMeta, setFollowedTeamsFeedMeta] = useState<{ followed_teams_count: number } | undefined>(undefined);
   const voteSummariesRef = useRef<Record<string, VotePreviewEntry>>({});
   const [voteSummaries, setVoteSummaries] = useState<Record<string, VotePreviewEntry>>({});
   const [hasUnreadAlerts, setHasUnreadAlerts] = useState(false);
@@ -192,21 +220,26 @@ export default function FeedScreen() {
       .filter((entry) => entry.id && !voteSummariesRef.current[entry.id]);
     if (!candidates.length) return;
     const limited = candidates.slice(0, 12);
-    const results = await Promise.allSettled(limited.map((entry) => Game.votesSummary(entry.id)));
-    const next = { ...voteSummariesRef.current };
-    limited.forEach((entry, index) => {
-      const result = results[index];
-      if (result.status === 'fulfilled' && result.value) {
-        try {
-          next[entry.id] = buildVotePreviewEntry(result.value, entry.labels);
-        } catch (err) {
-          if (__DEV__) console.warn('Vote summary parse failed', err);
+    const ids = limited.map((e) => e.id);
+    try {
+      const batch = await Game.votesSummaryBatch(ids);
+      const next = { ...voteSummariesRef.current };
+      limited.forEach((entry) => {
+        const value = (batch as Record<string, any>)?.[entry.id];
+        if (value) {
+          try {
+            next[entry.id] = buildVotePreviewEntry(value, entry.labels);
+          } catch (err) {
+            if (__DEV__) console.warn('Vote summary parse failed', err);
+          }
         }
+      });
+      if (Object.keys(next).length !== Object.keys(voteSummariesRef.current).length) {
+        voteSummariesRef.current = next;
+        setVoteSummaries(next);
       }
-    });
-    if (Object.keys(next).length !== Object.keys(voteSummariesRef.current).length) {
-      voteSummariesRef.current = next;
-      setVoteSummaries(next);
+    } catch (err) {
+      if (__DEV__) console.warn('Vote summary batch failed', err);
     }
   }, []);
 
@@ -228,7 +261,7 @@ export default function FeedScreen() {
       // Load games with better error handling
       let gamesData: any = null;
       try {
-        gamesData = await Game.list('-date');
+        gamesData = await Game.list('-date', { limit: 30 });
       } catch (err: any) {
         console.error('[Feed] Failed to load games:', err);
         // If it's a network error, show a more helpful message
@@ -242,14 +275,24 @@ export default function FeedScreen() {
         gamesData = null;
       }
       
-      // Load highlights and ads with error handling
-      const [highlightsData, forFeedAds] = await Promise.all([
+      // Load followed posts (people + teams) when signed in, highlights, and ads
+      const [followedPage, followedTeamsPage, highlightsData, forFeedAds] = await Promise.all([
+        user
+          ? PostApi.filterPage({ followed_only: true }, null, 20, '-created_at').catch(() => ({ items: [], nextCursor: null, followed_feed_meta: undefined }))
+          : Promise.resolve({ items: [], nextCursor: null, followed_feed_meta: undefined }),
+        user
+          ? PostApi.filterPage({ followed_teams: true }, null, 20, '-created_at').catch(() => ({ items: [], nextCursor: null, followed_teams_feed_meta: undefined }))
+          : Promise.resolve({ items: [], nextCursor: null, followed_teams_feed_meta: undefined }),
         Highlights.fetch(countryCode ? { country: countryCode, limit: 20 } : { limit: 20 }).catch((err) => {
           if (__DEV__) console.warn('Highlights preview load failed', err);
           return null;
         }),
         Advertisement.forFeed(todayISO, undefined, 5).catch(() => null),
       ]);
+      setFollowedPosts(Array.isArray(followedPage?.items) ? followedPage.items : []);
+      setFollowedFeedMeta(followedPage?.followed_feed_meta);
+      setFollowedTeamsPosts(Array.isArray(followedTeamsPage?.items) ? followedTeamsPage.items : []);
+      setFollowedTeamsFeedMeta(followedTeamsPage?.followed_teams_feed_meta);
       
       // Handle cursor-based response or array
       let normalizedGames: any[] = [];
@@ -330,6 +373,10 @@ export default function FeedScreen() {
       }
       setGames([]);
       setHighlightPreview(null);
+      setFollowedPosts([]);
+      setFollowedFeedMeta(undefined);
+      setFollowedTeamsPosts([]);
+      setFollowedTeamsFeedMeta(undefined);
     } finally {
       if (!silent) setLoading(false);
     }
@@ -661,7 +708,7 @@ export default function FeedScreen() {
             accessibilityLabel="Open VarsityHub Instagram"
           >
             <Image source={require('../assets/images/logo.svg')} style={styles.logoImage} />
-            <Text style={[styles.brand, { color: Colors[colorScheme].text }]}>Varsity Hub</Text>
+            <Text style={[styles.brand, { color: Colors[colorScheme].text }]} numberOfLines={1} allowFontScaling={false}>Varsity Hub</Text>
           </Pressable>
           <View style={{ flex: 1 }} />
           {/* Messages on RIGHT */}
@@ -683,21 +730,25 @@ export default function FeedScreen() {
       {error && (
         <View style={{ marginBottom: 8, paddingHorizontal: 16 }}>
           <Text style={[styles.error, { color: Colors[colorScheme].text }]}>{error}</Text>
-          <Pressable onPress={() => void router.push('/sign-in')} style={{ paddingVertical: 8 }}>
+          <Pressable
+            onPress={() => void router.push('/sign-in')}
+            style={{ paddingVertical: 8 }}
+            accessibilityLabel="Sign in to load personalized feed"
+            accessibilityRole="button"
+          >
             <Text style={{ color: Colors[colorScheme].tint, fontWeight: '600' }}>Sign in to load personalized feed</Text>
           </Pressable>
         </View>
       )}
       {/* Maps Button - Navigate to nearby games/teams/events */}
-      <Pressable 
+      <View
         style={[styles.mapsButton, { backgroundColor: '#0A84FF' }]}
-        onPress={async () => {
-          // Get user's current location and navigate to game map view
+        onStartShouldSetResponder={() => true}
+        onResponderRelease={async () => {
           try {
             const { status } = await Location.requestForegroundPermissionsAsync();
             if (status === 'granted') {
               const location = await Location.getCurrentPositionAsync({});
-              // Navigate to game map with current location
               router.push({
                 pathname: '/game-map',
                 params: { 
@@ -706,22 +757,22 @@ export default function FeedScreen() {
                 }
               });
             } else {
-              // Still navigate to map, it will request permission there
               router.push('/game-map');
             }
           } catch (error) {
             console.error('Error getting location:', error);
-            // Navigate anyway, map screen will handle location
             router.push('/game-map');
           }
         }}
         accessibilityRole="button"
         accessibilityLabel="View nearby games on map"
+        accessibilityHint="Double tap to open map"
+        accessible
       >
         <Ionicons name="map" size={24} color="#FFFFFF" />
         <Text style={styles.mapsButtonText}>View Nearby Games on Map</Text>
         <Ionicons name="chevron-forward" size={20} color="#FFFFFF" />
-      </Pressable>
+      </View>
 
       <Text style={[styles.helper, { color: Colors[colorScheme].mutedText }]}>Showing upcoming and recent games in your area.</Text>
 
@@ -735,10 +786,11 @@ export default function FeedScreen() {
       )}
 
       <ScrollView
-        style={{ flex: 1 }}
+        style={{ flex: 1, overflow: 'hidden' }}
         contentContainerStyle={{
           paddingVertical: 12,
-          paddingBottom: Math.max(28, insets.bottom + 16),
+          paddingBottom: Math.max(tabBarHeight + 16, insets.bottom + 80),
+          overflow: 'hidden',
         }}
         refreshControl={
           <RefreshControl
@@ -750,10 +802,10 @@ export default function FeedScreen() {
         showsVerticalScrollIndicator={false}
       >
         {renderEmailReminder()}
-        
-        {/* Upcoming Events with Ads */}
+
+        {/* Upcoming Events with Ads — Dark hero game cards at top */}
         {upcomingWithAds.length > 0 && (
-          <View style={{ gap: 20 }}>
+          <View style={{ gap: 20, marginBottom: 24 }}>
             {upcomingWithAds.map((item, index) => {
               // Check if this is an ad
               if ('type' in item && item.type === 'ad') {
@@ -782,6 +834,7 @@ export default function FeedScreen() {
                         ]}
                         onPress={() => void router.push('/submit-ad')}
                         accessibilityRole="button"
+                        accessibilityLabel="Reserve your ad space"
                       >
                         <View style={[
                           styles.promoIcon,
@@ -846,33 +899,20 @@ export default function FeedScreen() {
                         <Ionicons name="megaphone-outline" size={48} color={colorScheme === 'dark' ? '#64748B' : '#9CA3AF'} />
                       </View>
                     )}
-                    <View style={styles.adInfo}>
-                      <Text style={[styles.adBusinessName, { color: Colors[colorScheme].text }]} numberOfLines={1}>
-                        {adData.business_name || 'Local Sponsor'}
-                      </Text>
-                      {adData.description ? (
-                        <Text style={[styles.adDescription, { color: Colors[colorScheme].mutedText }]} numberOfLines={2}>
-                          {String(adData.description)}
-                        </Text>
-                      ) : null}
-                      {/* Promote your program CTA */}
-                      <Pressable
-                        style={styles.promoteCta}
-                        onPress={() => void router.push('/submit-ad')}
-                        accessibilityRole="button"
-                      >
-                        <Ionicons name="megaphone-outline" size={16} color="#ffffff" />
-                        <Text style={styles.promoteCtaText}>Promote your program</Text>
-                      </Pressable>
-                    </View>
                   </View>
                 );
               }
 
-              // Otherwise it's a regular event
+              // Otherwise it's a regular event (game card)
               const gameItem = item as GameItem;
               const raw = gameItem as any;
-              const banner = gameItem.cover_image_url || raw?.banner_url || null;
+              const firstMediaUrl =
+                Array.isArray(raw?.media) && raw.media.length > 0
+                  ? (raw.media[0]?.thumbnail_url || raw.media[0]?.url || null)
+                  : Array.isArray(raw?.posts) && raw.posts.length > 0
+                  ? (raw.posts[0]?.media_url || raw.posts[0]?.thumbnail_url || null)
+                  : null;
+              const banner = gameItem.cover_image_url || raw?.banner_url || firstMediaUrl || null;
               const hasBanner = typeof banner === 'string' && banner.length > 0;
               const gradient: [string, string] = index % 2 === 0 ? ['#1e293b', '#0f172a'] : ['#0f172a', '#1e293b'];
               const eventDate = gameItem.date ? format(new Date(gameItem.date), 'MMM d') : 'TBD';
@@ -896,6 +936,9 @@ export default function FeedScreen() {
               const voteText = summary
                 ? `${summary.teamALabelShort} ${summary.pctA}% | ${summary.teamBLabelShort} ${summary.pctB}%`
                 : null;
+              const scoreText = typeof raw?.home_score === 'number' && typeof raw?.away_score === 'number'
+                ? `${raw.home_score} - ${raw.away_score}`
+                : null;
 
               return (
                 <Pressable
@@ -903,11 +946,11 @@ export default function FeedScreen() {
                   style={styles.singleEventCard}
                   onPress={() => void router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(gameItem.id) } })}
                   accessibilityRole="button"
+                  accessibilityLabel={`${gameItem.title || 'Game'} on ${eventDate}${eventTime ? ` at ${eventTime}` : ''}`}
                 >
-                  {hasBanner ? (
-                    <Image source={{ uri: banner }} style={styles.singleEventImage} contentFit="cover" />
-                  ) : (
-                    <LinearGradient colors={gradient} style={styles.singleEventImage} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
+                  <LinearGradient colors={gradient} style={StyleSheet.absoluteFillObject} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
+                  {hasBanner && (
+                    <Image source={{ uri: banner! }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
                   )}
                   <LinearGradient
                     colors={colorScheme === 'dark' ? ['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.9)'] : ['rgba(15,23,42,0.05)', 'rgba(15,23,42,0.85)']}
@@ -923,7 +966,7 @@ export default function FeedScreen() {
                       {gameItem.title ? String(gameItem.title) : 'Game'}
                     </Text>
                     <Text style={styles.gridMeta} numberOfLines={1}>
-                      {eventTime ? `${eventTime} • ${locationText}` : locationText}
+                      {scoreText ? `${scoreText} • ${eventTime ? `${eventTime} • ${locationText}` : locationText}` : (eventTime ? `${eventTime} • ${locationText}` : locationText)}
                     </Text>
                     <View style={styles.gridStatsRow}>
                       <View style={styles.gridStat}>
@@ -948,6 +991,146 @@ export default function FeedScreen() {
           </View>
         )}
 
+        {/* Social Feed — Posts from people you follow */}
+        {me && (
+          <View style={{ marginBottom: 24 }}>
+            <Text style={[styles.sectionHeader, { color: Colors[colorScheme].mutedText }]}>
+              From people you follow
+            </Text>
+            {followedPosts.length > 0 ? (
+              <View style={{ gap: 12, marginTop: 8 }}>
+                {followedPosts.map((post: any) => (
+                  <PostCard
+                    key={String(post.id)}
+                    post={post}
+                    showAuthorHeader
+                    onPress={() => void router.push(`/post-detail?id=${encodeURIComponent(String(post.id))}`)}
+                    onDeleted={(postId) => setFollowedPosts((prev) => prev.filter((p) => String(p.id) !== postId))}
+                    onUpdated={(updated) => setFollowedPosts((prev) => prev.map((p) => (String(p.id) === String(updated.id) ? { ...p, ...updated } : p)))}
+                  />
+                ))}
+              </View>
+            ) : (
+              <View style={[styles.socialFeedEmpty, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
+                <Ionicons name="people-outline" size={48} color={Colors[colorScheme].mutedText} />
+                <Text style={[styles.socialFeedEmptyTitle, { color: Colors[colorScheme].text }]}>
+                  {followedFeedMeta?.following_count === 0
+                    ? 'Follow users or teams to see their posts here'
+                    : 'No posts from people you follow yet'}
+                </Text>
+                <Text style={[styles.socialFeedEmptySubtitle, { color: Colors[colorScheme].mutedText }]}>
+                  {followedFeedMeta?.following_count === 0
+                    ? 'Discover and follow athletes, coaches, and teams to build your feed.'
+                    : 'Check back soon — when they post, it will show up here.'}
+                </Text>
+                <Pressable
+                  style={[styles.socialFeedEmptyButton, { backgroundColor: Colors[colorScheme].tint }]}
+                  onPress={() => void router.push('/(tabs)/discover')}
+                  accessibilityLabel={followedFeedMeta?.following_count === 0 ? 'Find people to follow' : 'Discover more'}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.socialFeedEmptyButtonText}>
+                    {followedFeedMeta?.following_count === 0 ? 'Find people to follow' : 'Discover more'}
+                  </Text>
+                </Pressable>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Social Feed — Posts from teams you follow (dark game card style) */}
+        {me && (
+          <View style={{ marginBottom: 24 }}>
+            <Text style={[styles.sectionHeader, { color: Colors[colorScheme].mutedText }]}>
+              From teams you follow
+            </Text>
+            {followedTeamsPosts.length > 0 ? (
+              <View style={{ gap: 20, marginTop: 8 }}>
+                {followedTeamsPosts.map((post: any, index: number) => {
+                  const team = post.team || {};
+                  const teamName = team.name || 'Team';
+                  const teamLogo = team.logo_url || null;
+                  const mediaUrl = post.media_url || post.mediaUrl || null;
+                  const caption = post.caption || post.content || '';
+                  const gradient: [string, string] = index % 2 === 0 ? ['#1e293b', '#0f172a'] : ['#0f172a', '#1e293b'];
+                  return (
+                    <Pressable
+                      key={String(post.id)}
+                      style={styles.singleEventCard}
+                      onPress={() => void router.push(`/post-detail?id=${encodeURIComponent(String(post.id))}`)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`View post from ${teamName}`}
+                    >
+                      <LinearGradient colors={gradient} style={StyleSheet.absoluteFillObject} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
+                      {mediaUrl && (
+                        <Image source={{ uri: mediaUrl }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
+                      )}
+                      <LinearGradient
+                        colors={['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.9)']}
+                        style={styles.gridShade}
+                        pointerEvents="none"
+                      />
+                      <View style={styles.gridContent}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                          {teamLogo ? (
+                            <Image source={{ uri: teamLogo }} style={{ width: 28, height: 28, borderRadius: 14 }} contentFit="cover" />
+                          ) : (
+                            <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: '#374151', alignItems: 'center', justifyContent: 'center' }}>
+                              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>{(teamName || 'T').charAt(0).toUpperCase()}</Text>
+                            </View>
+                          )}
+                          <Text style={[styles.gridTitle, { marginBottom: 0 }]} numberOfLines={1}>
+                            {teamName}
+                          </Text>
+                        </View>
+                        {caption ? (
+                          <Text style={[styles.gridMeta, { color: '#F9FAFB', marginBottom: 6 }]} numberOfLines={2}>
+                            {caption}
+                          </Text>
+                        ) : null}
+                        <View style={styles.gridStatsRow}>
+                          <View style={styles.gridStat}>
+                            <Ionicons name="arrow-up" size={12} color="#F9FAFB" />
+                            <Text style={styles.gridStatText}>{post.upvotes_count ?? 0}</Text>
+                          </View>
+                          <View style={styles.gridStat}>
+                            <Ionicons name="chatbubble-ellipses-outline" size={12} color="#F9FAFB" />
+                            <Text style={styles.gridStatText}>{post.comments_count ?? 0}</Text>
+                          </View>
+                        </View>
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ) : (
+              <View style={[styles.socialFeedEmpty, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
+                <Ionicons name="shirt-outline" size={48} color={Colors[colorScheme].mutedText} />
+                <Text style={[styles.socialFeedEmptyTitle, { color: Colors[colorScheme].text }]}>
+                  {followedTeamsFeedMeta?.followed_teams_count === 0
+                    ? 'Follow teams to see their posts here'
+                    : 'No posts from teams you follow yet'}
+                </Text>
+                <Text style={[styles.socialFeedEmptySubtitle, { color: Colors[colorScheme].mutedText }]}>
+                  {followedTeamsFeedMeta?.followed_teams_count === 0
+                    ? 'Discover and follow teams to see their updates and game content.'
+                    : 'Check back soon — when they post, it will show up here.'}
+                </Text>
+                <Pressable
+                  style={[styles.socialFeedEmptyButton, { backgroundColor: Colors[colorScheme].tint }]}
+                  onPress={() => void router.push('/(tabs)/discover')}
+                  accessibilityLabel={followedTeamsFeedMeta?.followed_teams_count === 0 ? 'Find teams to follow' : 'Discover more'}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.socialFeedEmptyButtonText}>
+                    {followedTeamsFeedMeta?.followed_teams_count === 0 ? 'Find teams to follow' : 'Discover more'}
+                  </Text>
+                </Pressable>
+              </View>
+            )}
+          </View>
+        )}
+
         {/* Past Events Section */}
         {pastEvents.length > 0 && (
           <View style={{ marginTop: 32 }}>
@@ -957,7 +1140,13 @@ export default function FeedScreen() {
             <View style={{ gap: 20, marginTop: 12 }}>
               {pastEvents.map((item, index) => {
                 const raw = item as any;
-                const banner = item.cover_image_url || raw?.banner_url || null;
+                const firstMediaUrl =
+                  Array.isArray(raw?.media) && raw.media.length > 0
+                    ? (raw.media[0]?.thumbnail_url || raw.media[0]?.url || null)
+                    : Array.isArray(raw?.posts) && raw.posts.length > 0
+                    ? (raw.posts[0]?.media_url || raw.posts[0]?.thumbnail_url || null)
+                    : null;
+                const banner = item.cover_image_url || raw?.banner_url || firstMediaUrl || null;
                 const hasBanner = typeof banner === 'string' && banner.length > 0;
                 const gradient: [string, string] = index % 2 === 0 ? ['#1e293b', '#0f172a'] : ['#0f172a', '#1e293b'];
                 const eventDate = item.date ? format(new Date(item.date), 'MMM d') : 'TBD';
@@ -981,6 +1170,9 @@ export default function FeedScreen() {
                 const voteText = summary
                   ? `${summary.teamALabelShort} ${summary.pctA}% | ${summary.teamBLabelShort} ${summary.pctB}%`
                   : null;
+                const scoreText = typeof raw?.home_score === 'number' && typeof raw?.away_score === 'number'
+                  ? `${raw.home_score} - ${raw.away_score}`
+                  : null;
 
                 return (
                   <Pressable
@@ -988,11 +1180,11 @@ export default function FeedScreen() {
                     style={styles.singleEventCard}
                     onPress={() => void router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(item.id) } })}
                     accessibilityRole="button"
+                    accessibilityLabel={`${item.title || 'Game'} on ${eventDate}${eventTime ? ` at ${eventTime}` : ''}`}
                   >
-                    {hasBanner ? (
-                      <Image source={{ uri: banner }} style={styles.singleEventImage} contentFit="cover" />
-                    ) : (
-                      <LinearGradient colors={gradient} style={styles.singleEventImage} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
+                    <LinearGradient colors={gradient} style={StyleSheet.absoluteFillObject} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
+                    {hasBanner && (
+                      <Image source={{ uri: banner! }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
                     )}
                     <LinearGradient
                       colors={colorScheme === 'dark' ? ['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.9)'] : ['rgba(15,23,42,0.05)', 'rgba(15,23,42,0.85)']}
@@ -1008,7 +1200,7 @@ export default function FeedScreen() {
                         {item.title ? String(item.title) : 'Game'}
                       </Text>
                       <Text style={styles.gridMeta} numberOfLines={1}>
-                        {eventTime ? `${eventTime} • ${locationText}` : locationText}
+                        {scoreText ? `${scoreText} • ${eventTime ? `${eventTime} • ${locationText}` : locationText}` : (eventTime ? `${eventTime} • ${locationText}` : locationText)}
                       </Text>
                       <View style={styles.gridStatsRow}>
                         <View style={styles.gridStat}>
@@ -1095,7 +1287,12 @@ export default function FeedScreen() {
           {/* Header */}
           <View style={[styles.menuHeader, { borderBottomColor: Colors[colorScheme].border }]}>
             <Text style={[styles.menuTitle, { color: Colors[colorScheme].text }]}>Updates</Text>
-            <Pressable onPress={() => setNotificationsMenuOpen(false)} style={styles.closeButton}>
+            <Pressable
+              onPress={() => setNotificationsMenuOpen(false)}
+              style={styles.closeButton}
+              accessibilityLabel="Close notifications"
+              accessibilityRole="button"
+            >
               <Ionicons name="close" size={28} color={Colors[colorScheme].text} />
             </Pressable>
           </View>
@@ -1127,8 +1324,10 @@ export default function FeedScreen() {
                         : 'Notification';
                       
                       return (
-                        <Pressable 
+                        <Pressable
                           style={[styles.listRow, !item.read_at && styles.listRowUnread, { borderBottomColor: Colors[colorScheme].border }]}
+                          accessibilityLabel={title}
+                          accessibilityRole="button"
                           onPress={async () => {
                             // Mark notification as read
                             if (!item.read_at) {
@@ -1202,29 +1401,25 @@ export default function FeedScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container: { flex: 1, overflow: 'hidden' },
   headerGradient: {
     paddingHorizontal: 16,
     paddingBottom: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: 'rgba(0,0,0,0.05)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    overflow: 'hidden',
   },
-  contentContainer: { flex: 1, paddingHorizontal: 16, paddingTop: 12 },
+  contentContainer: { flex: 1, paddingHorizontal: 16, paddingTop: 12, overflow: 'hidden' },
   logoImage: { width: 36, height: 36, borderRadius: 8 },
-  headerActions: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 8 },
-  iconButton: { padding: 8, borderRadius: 8 },
+  headerActions: { flex: 1, flexShrink: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 8 },
+  iconButton: { width: 44, height: 44, flexShrink: 0, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   center: { paddingVertical: 24, alignItems: 'center' },
   error: { color: '#b91c1c', marginBottom: 8 },
   muted: { fontSize: 14 },
   helper: { fontSize: 14, marginBottom: 10 },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  brand: { fontSize: 26, fontWeight: '800', letterSpacing: -0.5 },
+  brand: { fontSize: 26, fontWeight: '800', letterSpacing: -0.5, flexShrink: 1 },
   searchBox: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 48, borderRadius: 12, paddingHorizontal: 12, backgroundColor: '#F3F4F6', marginBottom: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB' },
   searchInput: { flex: 1, height: 44 },
   mapsButton: {
@@ -1288,11 +1483,40 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 1,
   },
+  socialFeedEmpty: {
+    marginTop: 8,
+    padding: 24,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+  },
+  socialFeedEmptyTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  socialFeedEmptySubtitle: {
+    fontSize: 14,
+    marginTop: 8,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  socialFeedEmptyButton: {
+    marginTop: 20,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  socialFeedEmptyButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600',
+  },
   // Sponsored ad styles for feed
   sponsoredFeedCard: {
     width: '100%',
     borderRadius: 18,
-    borderWidth: StyleSheet.hairlineWidth,
     overflow: 'hidden',
     shadowColor: '#0f172a',
     shadowOpacity: 0.08,
@@ -1424,7 +1648,7 @@ const styles = StyleSheet.create({
   gridStat: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   gridStatText: { color: '#F9FAFB', fontSize: 11, fontWeight: '600' },
   gridVoteText: { color: '#E0F2FE', fontSize: 11, fontWeight: '600' },
-  gridFooter: { width: '100%', marginTop: 12, gap: 24, paddingHorizontal: 8 },
+  gridFooter: { width: '100%', marginTop: 12, gap: 24, paddingHorizontal: 8, overflow: 'hidden' },
   sponsoredGridCard: {
     borderRadius: 18,
     borderWidth: StyleSheet.hairlineWidth,
@@ -1472,7 +1696,7 @@ const styles = StyleSheet.create({
   verticalFeedImage: { ...StyleSheet.absoluteFillObject },
   verticalFeedShade: { ...StyleSheet.absoluteFillObject },
   verticalFeedContent: { position: 'absolute', left: 20, right: 20, bottom: 20, gap: 8 },
-  verticalFeedBadge: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(37,99,235,0.95)', shadowColor: '#0f172a', shadowOpacity: 0.25, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 4 },
+  verticalFeedBadge: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(37,99,235,0.95)', overflow: 'hidden' },
   verticalFeedTitleText: { color: '#ffffff', fontWeight: '800', fontSize: 20 },
   verticalFeedCaption: { color: '#bfdbfe', fontWeight: '600', fontSize: 12 },
   verticalFeedSubtitle: { color: '#cbd5f5', fontWeight: '600', fontSize: 13 },

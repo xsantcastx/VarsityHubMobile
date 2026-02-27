@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { Stack, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
@@ -15,29 +15,19 @@ import { captureException } from '@/utils/sentry';
 export default function VerifyScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
-  const params = useLocalSearchParams<{ devCode?: string }>();
   const { pendingVerificationEmail, checkAuth, user, markOnboardingCompleteLocally } = useAuth();
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [info, setInfo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [devCode, setDevCode] = useState<string | null>(null);
   const [isVerified, setIsVerified] = useState(false);
-  const [devCodeLoading, setDevCodeLoading] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
 
-  // Only allow dev verification in development mode - NEVER in production
-  const devVerificationEnabled = useMemo(() => {
-    return __DEV__;
-  }, []);
-  const configuredDevCode = process.env.EXPO_PUBLIC_DEV_VERIFICATION_CODE;
-
-  // Load dev code from params if available
   useEffect(() => {
-    if (params.devCode) {
-      setDevCode(params.devCode);
-      setCode(params.devCode);
-    }
-  }, [params.devCode]);
+    if (resendCooldown <= 0) return;
+    const id = setTimeout(() => setResendCooldown(c => Math.max(0, c - 1)), 1000);
+    return () => clearTimeout(id);
+  }, [resendCooldown]);
 
   const onVerify = async () => {
     if (!code.trim()) return;
@@ -124,7 +114,9 @@ export default function VerifyScreen() {
       let errorMsg = e?.message || e?.data?.error || 'Verification failed';
       const status = e?.status;
       
-      if (status === 400) {
+      if (status === 429) {
+        errorMsg = 'Too many attempts. Please wait a moment and try again.';
+      } else if (status === 400) {
         if (errorMsg.includes('expired')) {
           errorMsg = 'Verification code has expired. Please request a new code.';
         } else if (errorMsg.includes('Invalid code')) {
@@ -159,12 +151,8 @@ export default function VerifyScreen() {
         extra: { email, sendgrid_ready: res?.dev_verification_code ? 'dev-mode' : 'production' },
       });
 
-      if (res?.dev_verification_code) {
-        setDevCode(res.dev_verification_code);
-        setInfo(`Code sent! Dev code: ${res.dev_verification_code}`);
-      } else {
-        setInfo('Verification code sent! Please check your email (and spam folder).');
-      }
+      setInfo('Verification code sent! Please check your email (and spam folder).');
+      setResendCooldown(60);
     } catch (e: any) {
       const resendDuration = Date.now() - startTime;
       captureException(typeof e === 'string' ? new Error(e) : e, {
@@ -177,11 +165,8 @@ export default function VerifyScreen() {
       
       // Provide helpful error messages
       if (status === 429) {
-        if (errorMsg.includes('wait')) {
-          errorMsg = 'Please wait 30 seconds before requesting another code.';
-        } else {
-          errorMsg = 'Too many requests. Please try again in an hour.';
-        }
+        errorMsg = 'Please wait a moment and try again.';
+        setResendCooldown(60);
       } else if (status === 401) {
         errorMsg = 'Please sign in again to request a verification code.';
       }
@@ -189,51 +174,6 @@ export default function VerifyScreen() {
       setError(errorMsg);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleUseDevCode = async () => {
-    if (!devVerificationEnabled) return;
-
-    if (devCode) {
-      setCode(devCode);
-      setInfo(`Using dev code ${devCode}`);
-      // Auto-verify with dev code
-      setTimeout(() => onVerify(), 500);
-      return;
-    }
-
-    if (configuredDevCode) {
-      setDevCode(configuredDevCode);
-      setCode(configuredDevCode);
-      setInfo(`Using configured dev code ${configuredDevCode}`);
-      // Auto-verify with dev code
-      setTimeout(() => onVerify(), 500);
-      return;
-    }
-
-    setDevCodeLoading(true);
-    setError(null);
-    setInfo(null);
-    try {
-      const res: any = await User.requestVerification();
-      if (res?.dev_verification_code) {
-        setDevCode(res.dev_verification_code);
-        setCode(res.dev_verification_code);
-        setInfo(`Using dev code ${res.dev_verification_code}`);
-        // Auto-verify with fetched dev code
-        setTimeout(() => onVerify(), 500);
-      } else {
-        setInfo('Dev code unavailable. Check backend configuration.');
-      }
-    } catch (e: any) {
-      captureException(typeof e === 'string' ? new Error(e) : e, {
-        tags: { context: 'verify-email-dev-code' },
-      });
-      const errorMsg = e?.message || e?.data?.error || 'Failed to fetch dev code';
-      setError(errorMsg);
-    } finally {
-      setDevCodeLoading(false);
     }
   };
 
@@ -253,7 +193,7 @@ export default function VerifyScreen() {
 
       {/* Back Button */}
       <Pressable
-        onPress={() => void router.back()}
+        onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)}
         style={styles.backButton}
         hitSlop={8}
       >
@@ -274,14 +214,6 @@ export default function VerifyScreen() {
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {info ? <Text style={styles.info}>{info}</Text> : null}
 
-      {/* Dev Code Display */}
-      {devCode ? (
-        <View style={styles.devCodeContainer}>
-          <Ionicons name="bug-outline" size={16} color="#059669" />
-          <Text style={styles.devCodeText}>Dev Code: {devCode}</Text>
-        </View>
-      ) : null}
-
       <View style={styles.codeSection}>
         <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Verification Code</Text>
         <Input
@@ -293,19 +225,6 @@ export default function VerifyScreen() {
           style={styles.codeInput}
         />
       </View>
-
-      {devVerificationEnabled && (
-        <Pressable
-          style={[styles.devButton, devCodeLoading && styles.devButtonDisabled]}
-          onPress={handleUseDevCode}
-          disabled={devCodeLoading}
-        >
-          <Ionicons name="bug-outline" size={16} color="#065F46" />
-          <Text style={styles.devButtonText}>
-            {devCodeLoading ? 'Fetching dev code...' : 'Use dev code (testing only)'}
-          </Text>
-        </Pressable>
-      )}
 
       {isVerified ? (
         <Button onPress={onContinue} style={styles.verifyButton}>
@@ -324,8 +243,10 @@ export default function VerifyScreen() {
       {!isVerified && (
         <View style={styles.footer}>
           <Text style={[styles.footerText, { color: Colors[colorScheme].mutedText }]}>Didn't receive the code?</Text>
-          <Pressable onPress={onResend} disabled={loading}>
-            <Text style={[styles.linkText, { color: Colors[colorScheme].tint }, loading && styles.linkTextDisabled]}>Resend Code</Text>
+          <Pressable onPress={onResend} disabled={loading || resendCooldown > 0}>
+            <Text style={[styles.linkText, { color: Colors[colorScheme].tint }, (loading || resendCooldown > 0) && styles.linkTextDisabled]}>
+              {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend Code'}
+            </Text>
           </Pressable>
         </View>
       )}
@@ -371,35 +292,5 @@ const styles = StyleSheet.create({
   skipText: { fontSize: 14 },
   error: { color: '#DC2626', marginBottom: 12, textAlign: 'center', fontSize: 14 },
   info: { color: '#059669', marginBottom: 12, textAlign: 'center', fontSize: 14 },
-  devCodeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: '#D1FAE5',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    marginBottom: 16
-  },
-  devCodeText: { color: '#059669', fontSize: 14, fontWeight: '600' },
   autoRedirectText: { fontSize: 14, textAlign: 'center', marginTop: 16, fontStyle: 'italic' },
-  devButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: '#D1FAE5',
-    borderRadius: 8,
-    paddingVertical: 10,
-    marginBottom: 16,
-  },
-  devButtonDisabled: {
-    opacity: 0.6,
-  },
-  devButtonText: {
-    color: '#065F46',
-    fontWeight: '600',
-    fontSize: 14,
-  },
 });

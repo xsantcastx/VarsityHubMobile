@@ -12,7 +12,6 @@ import { Colors } from '@/constants/Colors';
 export default function FeedbackScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
   const [category, setCategory] = useState<'bug' | 'idea' | 'other'>('bug');
   const [message, setMessage] = useState('');
   const [screenshotUrl, setScreenshotUrl] = useState('');
@@ -35,12 +34,16 @@ export default function FeedbackScreen() {
     try {
       await Support.feedback({ user_id: 'me', category, message: message.trim(), screenshot_url: screenshotUrl.trim() || undefined });
       Alert.alert('Thanks!', 'Your feedback was sent.');
-      router.back();
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace('/(tabs)' as any);
+      }
     } catch (e: any) { Alert.alert('Failed', e?.message || 'Try again later'); } finally { setSending(false); }
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#111827' : '#FFFFFF' }]} edges={['bottom']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme ?? 'light'].background }]} edges={['bottom']}>
       <Stack.Screen options={{ title: 'Leave Feedback', headerBackTitle: 'Back', headerShown: true }} />
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         <Text style={[styles.title, { color: Colors[colorScheme ?? 'light'].text }]}>Feedback</Text>

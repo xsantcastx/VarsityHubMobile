@@ -64,7 +64,122 @@ usersRouter.get('/:id/full', requireAdmin as any, async (req, res) => {
   return res.json({ user, ads, datesByAd });
 });
 
-// CSV export of user's ads and reservations
+// GET /users/me/export - GDPR/CCPA data portability: export all user data as JSON
+usersRouter.get('/me/export', requireAuth as any, async (req: AuthedRequest, res) => {
+  const id = req.user!.id;
+  try {
+    const [user, posts, comments, messagesSent, following, followers] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          email: true,
+          display_name: true,
+          username: true,
+          avatar_url: true,
+          bio: true,
+          created_at: true,
+          email_verified: true,
+          preferences: true,
+        },
+      }),
+      prisma.post.findMany({
+        where: { author_id: id },
+        orderBy: { created_at: 'desc' },
+        select: {
+          id: true,
+          title: true,
+          content: true,
+          type: true,
+          media_url: true,
+          upvotes_count: true,
+          created_at: true,
+          deleted_at: true,
+          game_id: true,
+          team_id: true,
+        },
+      }),
+      prisma.comment.findMany({
+        where: { author_id: id } as any,
+        orderBy: { created_at: 'desc' },
+        select: {
+          id: true,
+          post_id: true,
+          content: true,
+          created_at: true,
+        },
+      }),
+      prisma.message.findMany({
+        where: { sender_id: id },
+        orderBy: { created_at: 'desc' },
+        select: {
+          id: true,
+          recipient_id: true,
+          content: true,
+          read: true,
+          created_at: true,
+        },
+      }),
+      prisma.follows.findMany({
+        where: { follower_id: id },
+        select: { following_id: true, created_at: true },
+      }),
+      prisma.follows.findMany({
+        where: { following_id: id },
+        select: { follower_id: true, created_at: true },
+      }),
+    ]);
+
+    const exportData = {
+      exported_at: new Date().toISOString(),
+      profile: user
+        ? {
+            id: user.id,
+            email: user.email,
+            display_name: user.display_name,
+            username: user.username,
+            avatar_url: user.avatar_url,
+            bio: user.bio,
+            created_at: user.created_at instanceof Date ? user.created_at.toISOString() : user.created_at,
+            email_verified: user.email_verified,
+          }
+        : null,
+      preferences: (user?.preferences as object) ?? {},
+      posts: posts.map((p) => ({
+        ...p,
+        created_at: p.created_at instanceof Date ? p.created_at.toISOString() : p.created_at,
+        deleted_at: p.deleted_at instanceof Date ? p.deleted_at.toISOString() : p.deleted_at,
+      })),
+      comments: comments.map((c) => ({
+        ...c,
+        created_at: c.created_at instanceof Date ? c.created_at.toISOString() : c.created_at,
+      })),
+      messages_sent: messagesSent.map((m) => ({
+        ...m,
+        created_at: m.created_at instanceof Date ? m.created_at.toISOString() : m.created_at,
+      })),
+      following: following.map((f) => ({
+        user_id: f.following_id,
+        created_at: f.created_at instanceof Date ? f.created_at.toISOString() : f.created_at,
+      })),
+      followers: followers.map((f) => ({
+        user_id: f.follower_id,
+        created_at: f.created_at instanceof Date ? f.created_at.toISOString() : f.created_at,
+      })),
+    };
+
+    const json = JSON.stringify(exportData, null, 2);
+    const filename = `varsityhub-data-export-${new Date().toISOString().slice(0, 10)}.json`;
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    return res.send(json);
+  } catch (e: any) {
+    console.error('Data export error:', e);
+    return res.status(500).json({ error: 'Failed to export data', message: e?.message || 'Unknown error' });
+  }
+});
+
+// CSV export of user's ads and reservations (admin only)
 usersRouter.get('/:id/export', requireAdmin as any, async (req, res) => {
   const id = String(req.params.id);
   const user = await prisma.user.findUnique({ where: { id }, select: { id: true, email: true, username: true } });
@@ -106,6 +221,22 @@ const sortParamToOrder = (sort?: string) => {
   }
 };
 
+/** Returns true if profile owner has profile_private and viewer is not owner/follower */
+async function isProfileHiddenFromViewer(ownerId: string, viewerId: string | null): Promise<boolean> {
+  if (!viewerId || viewerId === ownerId) return false;
+  const owner = await prisma.user.findUnique({
+    where: { id: ownerId },
+    select: { preferences: true },
+  });
+  const prefs = (owner?.preferences || {}) as any;
+  if (prefs?.profile_private !== true) return false;
+  const rel = await prisma.follows.findUnique({
+    where: { follower_id_following_id: { follower_id: viewerId, following_id: ownerId } },
+    select: { follower_id: true },
+  });
+  return !rel; // Hidden if not a follower
+}
+
 const VIDEO_EXTENSIONS = ['.mp4', '.mov', '.webm', '.m4v', '.avi', '.mkv'];
 const detectMediaType = (url?: string | null): 'video' | 'image' => {
   if (!url) return 'image';
@@ -130,8 +261,13 @@ function mapPostForPayload(post: any) {
 }
 
 // GET /users/:id/posts?cursor=...&limit=...&sort=...
-usersRouter.get('/:id/posts', async (req, res) => {
+usersRouter.get('/:id/posts', async (req: AuthedRequest, res) => {
   const id = String(req.params.id);
+  const currentUserId = req.user?.id || null;
+  const hidden = await isProfileHiddenFromViewer(id, currentUserId);
+  if (hidden) {
+    return res.json({ items: [], nextCursor: null, counts: { posts: 0, likes: 0, comments: 0, reposts: 0, saves: 0 } });
+  }
   const limit = Math.min(parseInt(String(req.query.limit || '10'), 10) || 10, 50);
   const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : null;
   const sort = typeof req.query.sort === 'string' ? req.query.sort : 'newest';
@@ -164,8 +300,13 @@ usersRouter.get('/:id/posts', async (req, res) => {
 });
 
 // GET /users/:id/interactions?type=like|comment|repost|save|all&cursor=...&limit=...&sort=...
-usersRouter.get('/:id/interactions', async (req, res) => {
+usersRouter.get('/:id/interactions', async (req: AuthedRequest, res) => {
   const id = String(req.params.id);
+  const currentUserId = req.user?.id || null;
+  const hidden = await isProfileHiddenFromViewer(id, currentUserId);
+  if (hidden) {
+    return res.json({ items: [], nextCursor: null, counts: { posts: 0, likes: 0, comments: 0, reposts: 0, saves: 0 } });
+  }
   const limit = Math.min(parseInt(String(req.query.limit || '10'), 10) || 10, 50);
   const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : null;
   const sort = typeof req.query.sort === 'string' ? req.query.sort : 'newest';
@@ -242,6 +383,58 @@ usersRouter.get('/:id/interactions', async (req, res) => {
   return res.json({ items: ordered, nextCursor, counts });
 });
 
+// GET /users/:id/teams - Teams the user is a member of (for athlete profile)
+usersRouter.get('/:id/teams', async (req: AuthedRequest, res) => {
+  const id = String(req.params.id);
+  const currentUserId = req.user?.id || null;
+  const hidden = await isProfileHiddenFromViewer(id, currentUserId);
+  if (hidden) return res.json([]);
+
+  const memberships = await prisma.teamMembership.findMany({
+    where: { user_id: id, status: 'active' },
+    include: {
+      team: {
+        select: {
+          id: true,
+          name: true,
+          logo_url: true,
+          avatar_url: true,
+          sport: true,
+          season_start: true,
+          season_end: true,
+        },
+      },
+    },
+    orderBy: { created_at: 'asc' },
+  });
+
+  const formatSeason = (start?: Date | null, end?: Date | null): string | null => {
+    if (!start && !end) return null;
+    const toLabel = (d?: Date | null) => d ? d.toLocaleString(undefined, { month: 'short', year: 'numeric' }) : null;
+    const s = toLabel(start);
+    const e = toLabel(end);
+    if (s && e) return s === e ? s : `${s} - ${e}`;
+    return s ?? e ?? null;
+  };
+
+  const teams = memberships.map((m) => {
+    const t = (m as any).team;
+    return {
+      id: t.id,
+      name: t.name,
+      logo_url: t.logo_url ?? null,
+      avatar_url: t.avatar_url ?? null,
+      sport: t.sport ?? null,
+      season: formatSeason(t.season_start, t.season_end) ?? null,
+      role: m.role,
+      position: (m as any).position ?? null,
+      jersey_number: (m as any).jersey_number ?? null,
+    };
+  });
+
+  return res.json(teams);
+});
+
 // Delete own account (soft-delete with anonymization)
 usersRouter.delete('/me', requireAuth as any, async (req: AuthedRequest, res) => {
   const id = req.user!.id;
@@ -298,25 +491,26 @@ usersRouter.delete('/me', requireAuth as any, async (req: AuthedRequest, res) =>
   }
 });
 
-// Username availability check (public to authed users)
-usersRouter.get('/username-available', requireAuth as any, async (req: AuthedRequest, res) => {
+// Username availability check (public - no auth required)
+// authMiddleware still populates req.user if a token is present, allowing exclusion of current user
+usersRouter.get('/username-available', async (req: AuthedRequest, res) => {
   const username = String((req.query as any).username || '').trim();
   const valid = /^[a-z0-9_.]{3,20}$/.test(username);
   if (!valid) return res.json({ available: false, valid: false });
-  
-  // Check both username and display_name fields for conflicts, excluding current user
+
+  // Exclude current user so their own username doesn't appear as taken
   const currentUserId = req.user?.id;
-  const exists = await prisma.user.findFirst({ 
-    where: { 
+  const exists = await prisma.user.findFirst({
+    where: {
       OR: [
         { username: { equals: username, mode: 'insensitive' } },
         { display_name: { equals: username, mode: 'insensitive' } }
       ],
-      NOT: { id: currentUserId } // Exclude current user from check
-    }, 
-    select: { id: true } 
+      ...(currentUserId ? { NOT: { id: currentUserId } } : {})
+    },
+    select: { id: true }
   });
-  
+
   return res.json({ available: !exists, valid: true });
 });
 
@@ -413,6 +607,8 @@ usersRouter.delete('/:id/follow', requireAuth as any, async (req: AuthedRequest,
 usersRouter.get('/:id/followers', requireAuth as any, async (req: AuthedRequest, res) => {
   const { id } = req.params;
   const currentUserId = req.user?.id;
+  const hidden = await isProfileHiddenFromViewer(id, currentUserId || null);
+  if (hidden) return res.json({ items: [], nextCursor: null });
   const limit = Math.min(parseInt(String(req.query.limit || '20'), 10) || 20, 50);
   const cursor = (req.query.cursor as string | undefined) || undefined;
 
@@ -447,6 +643,8 @@ usersRouter.get('/:id/followers', requireAuth as any, async (req: AuthedRequest,
 usersRouter.get('/:id/following', requireAuth as any, async (req: AuthedRequest, res) => {
   const { id } = req.params;
   const currentUserId = req.user?.id;
+  const hidden = await isProfileHiddenFromViewer(id, currentUserId || null);
+  if (hidden) return res.json({ items: [], nextCursor: null });
   const limit = Math.min(parseInt(String(req.query.limit || '20'), 10) || 20, 50);
   const cursor = (req.query.cursor as string | undefined) || undefined;
 
@@ -528,6 +726,7 @@ usersRouter.get('/search/mentions', requireAuth as any, mentionsSearchLimiter as
 });
 
 // Public profile: basic user info plus counts and is_following flag
+// When profile_private is true, non-followers see only display_name and avatar_url.
 // NOTE: Keep this AFTER more specific routes like /:id/full, /:id/posts, etc.,
 // so it doesn't shadow them.
 usersRouter.get('/:id', async (req: AuthedRequest, res) => {
@@ -538,6 +737,7 @@ usersRouter.get('/:id', async (req: AuthedRequest, res) => {
     where: { id },
     select: {
       id: true,
+      username: true,
       display_name: true,
       avatar_url: true,
       bio: true,
@@ -546,6 +746,32 @@ usersRouter.get('/:id', async (req: AuthedRequest, res) => {
     },
   });
   if (!user) return res.status(404).json({ error: 'Not found' });
+
+  const prefs = (user.preferences || {}) as any;
+  const profile_private = prefs?.profile_private === true;
+  const is_parent = prefs?.is_parent === true;
+
+  // Check if viewer is the profile owner or a follower
+  let isFollower = false;
+  if (currentUserId === id) {
+    isFollower = true; // Owner always sees full profile
+  } else if (currentUserId) {
+    const rel = await prisma.follows.findUnique({
+      where: { follower_id_following_id: { follower_id: currentUserId, following_id: id } },
+      select: { follower_id: true },
+    });
+    isFollower = Boolean(rel);
+  }
+
+  // Private profile: non-followers get only basic info
+  if (profile_private && !isFollower) {
+    return res.json({
+      id: user.id,
+      display_name: user.display_name,
+      avatar_url: user.avatar_url,
+      profile_private: true,
+    });
+  }
 
   const [posts_count, followers_count, following_count, rel] = await Promise.all([
     prisma.post.count({ where: { author_id: id, deleted_at: null } }),
@@ -559,11 +785,9 @@ usersRouter.get('/:id', async (req: AuthedRequest, res) => {
       : Promise.resolve(null),
   ]);
 
-  const prefs = (user.preferences || {}) as any;
-  const is_parent = prefs?.is_parent === true;
-
   return res.json({
     id: user.id,
+    username: user.username,
     display_name: user.display_name,
     avatar_url: user.avatar_url,
     bio: user.bio,

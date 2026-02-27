@@ -31,9 +31,12 @@ export default function TabLayout() {
           height: Math.max(64, 56 + insets.bottom),
           paddingBottom: Math.max(10, insets.bottom),
           paddingTop: 6,
-          backgroundColor: colorScheme === 'dark' ? 'transparent' : Colors[colorScheme ?? 'light'].card,
-          borderTopColor: colorScheme === 'dark' ? 'transparent' : Colors[colorScheme ?? 'light'].border,
-          borderTopWidth: 1,
+          backgroundColor: colorScheme === 'dark' ? '#0f172a' : Colors[colorScheme ?? 'light'].card,
+          overflow: 'visible',
+          shadowOpacity: 0,
+          shadowRadius: 0,
+          elevation: 0,
+          borderTopWidth: 0,
         },
       }}>
       <Tabs.Screen
@@ -42,6 +45,7 @@ export default function TabLayout() {
           title: 'Feed',
           tabBarButton: HapticTab,
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="square.grid.2x2.fill" color={color} />,
+          tabBarAccessibilityLabel: 'Feed tab',
         }}
       />
       <Tabs.Screen
@@ -50,6 +54,7 @@ export default function TabLayout() {
           title: 'Highlights',
           tabBarButton: HapticTab,
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="video.fill" color={color} />,
+          tabBarAccessibilityLabel: 'Highlights tab',
         }}
       />
       <Tabs.Screen
@@ -57,8 +62,8 @@ export default function TabLayout() {
         options={{
           title: '',
           tabBarLabel: '',
-          tabBarIcon: () => null,
-          tabBarButton: (props) => <CenterTabButton {...props} />,
+          tabBarButton: CenterTabButton,
+          tabBarAccessibilityLabel: 'Create post tab',
         }}
       />
       <Tabs.Screen
@@ -67,6 +72,7 @@ export default function TabLayout() {
           title: 'Discover',
           tabBarButton: HapticTab,
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="magnifyingglass" color={color} />,
+          tabBarAccessibilityLabel: 'Discover tab',
         }}
       />
   {/* Hidden screens within (tabs) that should not appear as tabs */}
@@ -122,6 +128,7 @@ export default function TabLayout() {
           title: 'Profile',
           tabBarButton: HapticTab,
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="person.crop.circle" color={color} />,
+          tabBarAccessibilityLabel: 'Profile tab',
         }}
       />
     </Tabs>

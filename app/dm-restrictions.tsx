@@ -29,7 +29,11 @@ export default function DMRestrictionsScreen() {
     setSaving(true);
     await settingsStore.setString(SETTINGS_KEYS.DM_POLICY, p);
     setSaving(false);
-    router.back();
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)' as any);
+    }
   };
 
   const Row = ({ k, title, desc }: { k: Policy; title: string; desc: string }) => (
@@ -47,7 +51,7 @@ export default function DMRestrictionsScreen() {
       <Stack.Screen options={{ 
         title: 'DM Restrictions',
         headerLeft: () => (
-          <Pressable onPress={() => router.back()} style={{ paddingLeft: 8 }}>
+          <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={{ paddingLeft: 8 }}>
             <Ionicons name="chevron-back" size={24} color={Colors[colorScheme].tint} />
           </Pressable>
         ),

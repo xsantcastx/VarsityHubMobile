@@ -8,7 +8,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import GameVerticalFeedScreen, { FeedPost } from './game-details/GameVerticalFeedScreen';
 
@@ -110,7 +110,7 @@ export default function TeamScreen() {
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [games, setGames] = useState<GameItem[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'posts' | 'replies' | 'upvotes'>('posts');
+  const [activeTab, setActiveTab] = useState<'posts' | 'replies' | 'upvotes' | 'events'>('posts');
   const [isFollowing, setIsFollowing] = useState(false);
   const [isTeamAdmin, setIsTeamAdmin] = useState(false);
   const [me, setMe] = useState<{ id?: string; username?: string; display_name?: string; avatar_url?: string } | null>(null);
@@ -334,6 +334,7 @@ export default function TeamScreen() {
       }
       
       setTeam(teamData);
+      setIsFollowing(!!(teamData as any).is_following);
 
       // Load current user to check permissions
       if (!me) {
@@ -572,7 +573,7 @@ export default function TeamScreen() {
         
         {/* Back Button - Top Left */}
         <View style={[styles.headerControls, { top: Math.max(12, insets.top), left: 16 }]}>
-          <Pressable onPress={() => void router.back()} style={styles.controlButton}>
+          <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={styles.controlButton}>
             <Ionicons name="arrow-back" size={18} color="#333" />
           </Pressable>
         </View>
@@ -634,9 +635,29 @@ export default function TeamScreen() {
                     borderWidth: 1,
                   }
                 ]} 
-                onPress={() => {
-                  // TODO: Implement team follow/unfollow API
-                  setIsFollowing(!isFollowing);
+                onPress={async () => {
+                  console.log('[Follow] button pressed — team?.id:', team?.id, '| isFollowing:', isFollowing);
+                  if (!team?.id) {
+                    console.warn('[Follow] blocked: team or team.id is missing');
+                    return;
+                  }
+                  try {
+                    if (isFollowing) {
+                      console.log('[Follow] calling Team.unfollow(', team.id, ')');
+                      await Team.unfollow(team.id);
+                      console.log('[Follow] unfollow success');
+                      setIsFollowing(false);
+                      setTeam((prev) => prev ? { ...prev, followers_count: Math.max(0, ((prev as any).followers_count ?? 0) - 1) } : null);
+                    } else {
+                      console.log('[Follow] calling Team.follow(', team.id, ')');
+                      await Team.follow(team.id);
+                      console.log('[Follow] follow success');
+                      setIsFollowing(true);
+                      setTeam((prev) => prev ? { ...prev, followers_count: ((prev as any).followers_count ?? 0) + 1 } : null);
+                    }
+                  } catch (err: any) {
+                    console.error('[Follow] Team follow/unfollow failed — status:', err?.status, '| message:', err?.message, '| data:', JSON.stringify(err?.data));
+                  }
                 }}
               >
                 {isFollowing ? (
@@ -667,25 +688,79 @@ export default function TeamScreen() {
             </View>
           )}
           
-          {/* Stats - Members and Games */}
+          {/* Stats - Members, Followers, Games */}
           <View style={styles.statsRow}>
             <Text style={[styles.statNumber, { color: theme.text }]}>
               {members.length}
             </Text>
             <Text style={[styles.statLabel, { color: theme.mutedText }]}> Members </Text>
             <Text style={[styles.statNumber, { color: theme.text }]}>
+              {(team as any)?.followers_count ?? 0}
+            </Text>
+            <Text style={[styles.statLabel, { color: theme.mutedText }]}> Followers </Text>
+            <Text style={[styles.statNumber, { color: theme.text }]}>
               {games.length}
             </Text>
             <Text style={[styles.statLabel, { color: theme.mutedText }]}> Games</Text>
           </View>
           
+          {/* Roster - Public, shows all members with roles */}
+          {members.length > 0 && (
+            <View style={[styles.rosterSection, { borderColor: theme.border, backgroundColor: theme.card }]}>
+              <Text style={[styles.rosterTitle, { color: theme.text }]}>Roster</Text>
+              <ScrollView style={styles.rosterScroll} nestedScrollEnabled showsVerticalScrollIndicator={false}>
+              <View style={styles.rosterList}>
+                {members
+                  .filter((m) => m.status === 'active')
+                  .map((m) => (
+                    <Pressable
+                      key={m.id}
+                      style={({ pressed }) => [
+                        styles.rosterRow,
+                        { backgroundColor: pressed ? theme.surface : 'transparent', borderColor: theme.border },
+                      ]}
+                      onPress={() => m.user?.id && router.push({ pathname: '/(tabs)/profile', params: { id: m.user.id } } as any)}
+                    >
+                      {m.user?.avatar_url ? (
+                        <Image source={{ uri: m.user.avatar_url }} style={styles.rosterAvatar} contentFit="cover" />
+                      ) : (
+                        <View style={[styles.rosterAvatarPlaceholder, { backgroundColor: theme.tint + '30' }]}>
+                          <Ionicons name="person" size={16} color={theme.tint} />
+                        </View>
+                      )}
+                      <View style={styles.rosterInfo}>
+                        <Text style={[styles.rosterName, { color: theme.text }]} numberOfLines={1}>
+                          {m.user?.display_name || m.user?.username || 'Unknown'}
+                        </Text>
+                        <View style={styles.rosterMeta}>
+                          {(m.jersey_number != null && m.jersey_number !== '') && (
+                            <Text style={[styles.rosterMetaText, { color: theme.mutedText }]}>#{m.jersey_number}</Text>
+                          )}
+                          {m.position && (
+                            <Text style={[styles.rosterMetaText, { color: theme.mutedText }]}>{m.position}</Text>
+                          )}
+                          <Text style={[styles.rosterRole, { color: theme.tint }]}>
+                            {String(m.role || 'member').replace(/_/g, ' ')}
+                          </Text>
+                        </View>
+                      </View>
+                      {m.user?.id && (
+                        <Ionicons name="chevron-forward" size={14} color={theme.mutedText} />
+                      )}
+                    </Pressable>
+                  ))}
+              </View>
+              </ScrollView>
+            </View>
+          )}
+
           {/* Organization Link Button - ALWAYS VISIBLE */}
           <Pressable
             style={[styles.orgButton, { borderColor: theme.border, backgroundColor: theme.card }]}
             onPress={() => {
               const orgId = team?.organization_id;
               if (orgId) {
-                router.push(`/organizations/${orgId}` as any);
+                router.push({ pathname: '/(tabs)/organization', params: { id: orgId } } as any);
               }
             }}
             disabled={!team?.organization_id}
@@ -728,6 +803,12 @@ export default function TeamScreen() {
         >
           <Text style={[styles.tabText, { color: activeTab === 'upvotes' ? theme.tint : theme.mutedText }]}>Upvotes</Text>
         </Pressable>
+        <Pressable
+          onPress={() => setActiveTab('events')}
+          style={[styles.tab, activeTab === 'events' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
+        >
+          <Text style={[styles.tabText, { color: activeTab === 'events' ? theme.tint : theme.mutedText }]}>Events</Text>
+        </Pressable>
       </View>
     </>
   );
@@ -748,6 +829,13 @@ export default function TeamScreen() {
   const renderEmptyUpvotes = () => (
     <View style={styles.emptyContainer}>
       <Text style={[styles.emptyTitle, { color: theme.text }]}>No upvotes yet</Text>
+    </View>
+  );
+
+  const renderEmptyEvents = () => (
+    <View style={styles.emptyContainer}>
+      <Text style={[styles.emptyTitle, { color: theme.text }]}>No past events</Text>
+      <Text style={[styles.emptySubtitle, { color: theme.mutedText }]}>Past games and events will appear here</Text>
     </View>
   );
 
@@ -930,7 +1018,7 @@ export default function TeamScreen() {
           }}
           ListFooterComponent={repliesLoading ? <ActivityIndicator style={{ marginVertical: 16 }} /> : null}
         />
-      ) : (
+      ) : activeTab === 'upvotes' ? (
         <FlatList
           data={upvotes}
           key={`${activeTab}-grid-2cols`}
@@ -1000,6 +1088,44 @@ export default function TeamScreen() {
           }}
           ListFooterComponent={upvotesLoading ? <ActivityIndicator style={{ marginVertical: 16 }} /> : null}
         />
+      ) : (
+        <FlatList
+          data={games.filter(g => {
+            const d = (g as any).scheduled_date || g.date;
+            return d && new Date(d as string) < new Date();
+          })}
+          key={`${activeTab}-list`}
+          keyExtractor={(item) => item.id}
+          ListHeaderComponent={renderHeader}
+          ListEmptyComponent={renderEmptyEvents}
+          contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16) }}
+          renderItem={({ item }) => {
+            const g = item as any;
+            const rawDate = g.scheduled_date || g.date;
+            const dateStr = rawDate
+              ? new Date(rawDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+              : 'TBD';
+            const opponent = g.opponent_name || g.away_team || g.awayTeam || 'TBD';
+            const gameType = g.game_type || 'Game';
+            const hasScore = g.home_score != null || g.away_score != null;
+            return (
+              <View style={[styles.eventRow, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                <View style={[styles.eventDateBadge, { backgroundColor: theme.tint + '22' }]}>
+                  <Text style={[styles.eventDate, { color: theme.tint }]}>{dateStr}</Text>
+                </View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={[styles.eventTitle, { color: theme.text }]} numberOfLines={1}>vs {opponent}</Text>
+                  <Text style={[styles.eventTypeText, { color: theme.mutedText }]}>{gameType}</Text>
+                </View>
+                {hasScore && (
+                  <Text style={[styles.eventScore, { color: theme.text }]}>
+                    {g.home_score ?? '-'} - {g.away_score ?? '-'}
+                  </Text>
+                )}
+              </View>
+            );
+          }}
+        />
       )}
 
       <Modal visible={viewerOpen} animationType="slide" onRequestClose={() => setViewerOpen(false)}>
@@ -1008,7 +1134,7 @@ export default function TeamScreen() {
           showHeader
           initialPosts={viewerItems}
           startIndex={viewerIndex}
-          title={activeTab === 'posts' ? 'Team posts' : activeTab === 'replies' ? 'Team replies' : 'Team upvotes'}
+          title={activeTab === 'posts' ? 'Team posts' : activeTab === 'replies' ? 'Team replies' : activeTab === 'upvotes' ? 'Team upvotes' : 'Team events'}
         />
       </Modal>
     </SafeAreaView>
@@ -1344,6 +1470,41 @@ const styles = StyleSheet.create({
   },
   gridCountItem: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   gridCountText: { color: '#fff', fontSize: 10, fontWeight: '700' },
+  eventRow: {
+    marginHorizontal: 16,
+    marginVertical: 6,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  eventDateBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 80,
+  },
+  eventDate: {
+    fontSize: 12,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  eventTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  eventTypeText: {
+    fontSize: 13,
+  },
+  eventScore: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginLeft: 12,
+  },
   orgButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1359,4 +1520,46 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
   },
+  rosterSection: {
+    marginTop: 16,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    maxHeight: 240,
+  },
+  rosterScroll: { maxHeight: 200 },
+  rosterTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 10,
+  },
+  rosterList: {
+    gap: 4,
+  },
+  rosterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    borderBottomWidth: 1,
+    gap: 10,
+  },
+  rosterAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+  },
+  rosterAvatarPlaceholder: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rosterInfo: { flex: 1, minWidth: 0 },
+  rosterName: { fontSize: 15, fontWeight: '600' },
+  rosterMeta: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 2 },
+  rosterMetaText: { fontSize: 12 },
+  rosterRole: { fontSize: 12, fontWeight: '600', textTransform: 'capitalize' },
 });

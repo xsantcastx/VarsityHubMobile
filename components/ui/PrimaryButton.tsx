@@ -1,7 +1,7 @@
-import { ActivityIndicator, ViewStyle } from 'react-native';
+import { AccessibilityProps, ActivityIndicator, ViewStyle } from 'react-native';
 import Button from './button';
 
-interface PrimaryButtonProps {
+interface PrimaryButtonProps extends Pick<AccessibilityProps, 'accessibilityLabel'> {
   label: string;
   onPress: () => void;
   disabled?: boolean;
@@ -14,7 +14,8 @@ export default function PrimaryButton({
   onPress, 
   disabled, 
   loading,
-  style 
+  style,
+  accessibilityLabel,
 }: PrimaryButtonProps) {
   return (
     <Button 
@@ -22,6 +23,7 @@ export default function PrimaryButton({
       disabled={disabled || loading}
       size="lg"
       style={{ width: '100%', maxWidth: 400, alignSelf: 'center', ...style }}
+      accessibilityLabel={accessibilityLabel}
     >
       {loading ? <ActivityIndicator color="white" /> : label}
     </Button>

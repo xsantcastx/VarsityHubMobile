@@ -1,6 +1,7 @@
+import { Colors } from '@/constants/Colors';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, useColorScheme, View } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, Share, StyleSheet, Switch, Text, useColorScheme, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Event, User } from '@/api/entities';
@@ -8,24 +9,32 @@ import { getConfig } from '@/config/env';
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboardingOptional } from '@/context/OnboardingContext';
 
+type CommentPermission = 'everyone' | 'following' | 'none';
+
 interface Preferences {
   notifications: {
     game_event_reminders: boolean;
     team_updates: boolean;
     comments_upvotes: boolean;
+    follows_notifications: boolean;
+    messages_notifications: boolean;
   };
   is_parent: boolean;
   zip_code: string | null;
+  profile_private: boolean;
+  comment_permission: CommentPermission;
 }
 
 // Inline components for settings
 function SectionCard({ title, initiallyOpen = false, children }: { title: string; initiallyOpen?: boolean; children: React.ReactNode }) {
   const [open, setOpen] = useState(initiallyOpen);
+  const cs = useColorScheme();
+  const palette = Colors[cs ?? 'light'];
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, { borderColor: palette.border, backgroundColor: palette.card }]}>
       <Pressable style={styles.cardHeader} onPress={() => setOpen(!open)}>
-        <Text style={styles.cardTitle}>{title}</Text>
-        <Text style={[styles.chev, open && styles.chevOpen]}>›</Text>
+        <Text style={[styles.cardTitle, { color: palette.text }]}>{title}</Text>
+        <Text style={[styles.chev, { color: palette.icon }, open && styles.chevOpen]}>›</Text>
       </Pressable>
       {open && <View style={styles.cardBody}>{children}</View>}
     </View>
@@ -33,23 +42,27 @@ function SectionCard({ title, initiallyOpen = false, children }: { title: string
 }
 
 function NavRow({ title, subtitle, onPress, destructive }: { title: string; subtitle?: string; onPress: () => void; destructive?: boolean }) {
+  const cs = useColorScheme();
+  const palette = Colors[cs ?? 'light'];
   return (
     <Pressable onPress={onPress} style={styles.rowBetween}>
       <View style={{ flex: 1 }}>
-        <Text style={[styles.rowTitle, destructive && styles.destructive]}>{title}</Text>
-        {subtitle && <Text style={styles.mutedSmall}>{subtitle}</Text>}
+        <Text style={[styles.rowTitle, { color: destructive ? palette.destructive : palette.text }]}>{title}</Text>
+        {subtitle && <Text style={[styles.mutedSmall, { color: palette.mutedText }]}>{subtitle}</Text>}
       </View>
-      <Text style={styles.chev}>›</Text>
+      <Text style={[styles.chev, { color: palette.icon }]}>›</Text>
     </Pressable>
   );
 }
 
 function SwitchRow({ title, subtitle, value, onValueChange }: { title: string; subtitle?: string; value: boolean; onValueChange: (v: boolean) => void }) {
+  const cs = useColorScheme();
+  const palette = Colors[cs ?? 'light'];
   return (
     <View style={styles.rowBetween}>
       <View style={{ flex: 1 }}>
-        <Text style={styles.rowTitle}>{title}</Text>
-        {subtitle && <Text style={styles.mutedSmall}>{subtitle}</Text>}
+        <Text style={[styles.rowTitle, { color: palette.text }]}>{title}</Text>
+        {subtitle && <Text style={[styles.mutedSmall, { color: palette.mutedText }]}>{subtitle}</Text>}
       </View>
       <Switch value={value} onValueChange={onValueChange} />
     </View>
@@ -59,7 +72,7 @@ function SwitchRow({ title, subtitle, value, onValueChange }: { title: string; s
 export default function SettingsScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
-  const { checkAuth } = useAuth();
+  const { checkAuth, markOnboardingIncompleteLocally } = useAuth();
   const obCtx = useOnboardingOptional();
   const setOB = obCtx?.setState;
   const appConfig = getConfig();
@@ -73,18 +86,23 @@ export default function SettingsScreen() {
       game_event_reminders: false,
       team_updates: false,
       comments_upvotes: false,
+      follows_notifications: true,
+      messages_notifications: true,
     },
     is_parent: false,
     zip_code: null,
+    profile_private: false,
+    comment_permission: 'everyone',
   });
   const [plan, setPlan] = useState<string | null>(null);
   const [role, setRole] = useState<string | null>(null);
   const [_pendingHostRequests, setPendingHostRequests] = useState<any[]>([]);
   const [_pendingLoading, setPendingLoading] = useState(false);
   const [_pendingError, setPendingError] = useState<string | null>(null);
-  const timers = useRef<Record<string, NodeJS.Timeout>>({});
+  const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   // Debounced PATCH updater for preferences
+  // Only sends the specific fields being changed to avoid overwriting other preferences (e.g. role)
   const patchPrefs = (patch: Partial<Preferences>) => {
     const key = JSON.stringify(patch);
     if (timers.current[key]) clearTimeout(timers.current[key]);
@@ -101,10 +119,13 @@ export default function SettingsScreen() {
                     },
                   };
 
-                  // Debounce the API call
+                  // Debounce the API call - only send the changed fields, not the full prefs object
+                  const patchToSend = patch.notifications
+                    ? { notifications: { ...cur.notifications, ...patch.notifications } }
+                    : { ...patch };
                   timers.current[key] = setTimeout(async () => {
                     try {
-                      await User.updatePreferences(newPrefs);
+                      await User.updatePreferences(patchToSend);
                     } catch (e: any) {
                       // Error handled via Alert below
                       console.error('[settings] Failed to update preferences:', e);
@@ -138,6 +159,8 @@ export default function SettingsScreen() {
                   // Previously we attempted to record onboarding history here, but the context no longer exposes that API.
                   try {
                     void await User.updatePreferences({ onboarding_completed: false });
+                    // Also clear local AsyncStorage flag so next launch doesn't skip onboarding
+                    await markOnboardingIncompleteLocally();
                   } catch (error: any) {
                     console.warn('[settings] Failed to reset onboarding_completed flag:', error);
                     // Continue anyway - user will be redirected to onboarding
@@ -147,8 +170,9 @@ export default function SettingsScreen() {
                 } catch (e: any) {
                   // Error in onboarding restart - try fallback
                   console.error('[settings] Failed to restart onboarding:', e);
-                  try { 
-                    void await User.updatePreferences({ onboarding_completed: false }); 
+                  try {
+                    void await User.updatePreferences({ onboarding_completed: false });
+                    await markOnboardingIncompleteLocally();
                   } catch (error: any) {
                     console.warn('[settings] Failed to reset onboarding status:', error);
                     // Continue anyway - user will be redirected to onboarding
@@ -177,9 +201,15 @@ export default function SettingsScreen() {
                         game_event_reminders: !!serverPrefs?.notifications?.game_event_reminders,
                         team_updates: !!serverPrefs?.notifications?.team_updates,
                         comments_upvotes: !!serverPrefs?.notifications?.comments_upvotes,
+                        follows_notifications: serverPrefs?.notifications?.follows_notifications !== false,
+                        messages_notifications: serverPrefs?.notifications?.messages_notifications !== false,
                       },
                       is_parent: !!serverPrefs?.is_parent,
                       zip_code: serverPrefs?.zip_code ?? null,
+                      profile_private: !!serverPrefs?.profile_private,
+                      comment_permission: (serverPrefs?.comment_permission === 'following' || serverPrefs?.comment_permission === 'none')
+                        ? serverPrefs.comment_permission
+                        : 'everyone',
                     });
                     setPlan(serverPrefs?.plan ?? null);
                     const effectiveRole = (serverPrefs?.role || me?.role || null) as string | null;
@@ -237,7 +267,7 @@ export default function SettingsScreen() {
                       headerBackTitle: 'Back',
                     }} 
                   />
-                  <SafeAreaView style={[styles.container, { backgroundColor: colorScheme === 'dark' ? '#0B1120' : 'white' }]} edges={['top', 'bottom']}>
+                  <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme ?? 'light'].background }]} edges={['top', 'bottom']}>
                     <ScrollView>
                     {/* Account */}
                     <SectionCard title="Account" initiallyOpen>
@@ -263,10 +293,77 @@ export default function SettingsScreen() {
                         value={!!prefs.notifications.comments_upvotes}
                         onValueChange={(v) => patchPrefs({ notifications: { comments_upvotes: v } } as any)}
                       />
+                      <SwitchRow
+                        title="New Followers"
+                        subtitle="When someone follows you"
+                        value={!!prefs.notifications.follows_notifications}
+                        onValueChange={(v) => patchPrefs({ notifications: { follows_notifications: v } } as any)}
+                      />
+                      <SwitchRow
+                        title="Direct Messages"
+                        subtitle="When someone sends you a DM"
+                        value={!!prefs.notifications.messages_notifications}
+                        onValueChange={(v) => patchPrefs({ notifications: { messages_notifications: v } } as any)}
+                      />
                     </SectionCard>
 
                     {/* Privacy */}
                     <SectionCard title="Privacy">
+                      <SwitchRow
+                        title="Private Profile"
+                        subtitle="Only followers can see your posts, bio, and follower counts"
+                        value={!!prefs.profile_private}
+                        onValueChange={(v) => patchPrefs({ profile_private: v })}
+                      />
+                      <View style={styles.rowBetween}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.rowTitle, { color: Colors[colorScheme ?? 'light'].text }]}>Comment Permissions</Text>
+                          <Text style={[styles.mutedSmall, { color: Colors[colorScheme ?? 'light'].mutedText }]}>
+                            {prefs.comment_permission === 'everyone'
+                              ? 'Everyone'
+                              : prefs.comment_permission === 'following'
+                                ? 'People I Follow'
+                                : 'Nobody'}
+                          </Text>
+                        </View>
+                        <Pressable
+                          style={[styles.commentPermRow]}
+                          onPress={() => {
+                            Alert.alert(
+                              'Who can comment on your posts?',
+                              undefined,
+                              [
+                                {
+                                  text: 'Everyone',
+                                  onPress: () => {
+                                    setPrefs((p) => ({ ...p, comment_permission: 'everyone' }));
+                                    void User.updatePreferences({ comment_permission: 'everyone' });
+                                  },
+                                },
+                                {
+                                  text: 'People I Follow',
+                                  onPress: () => {
+                                    setPrefs((p) => ({ ...p, comment_permission: 'following' }));
+                                    void User.updatePreferences({ comment_permission: 'following' });
+                                  },
+                                },
+                                {
+                                  text: 'Nobody',
+                                  onPress: () => {
+                                    setPrefs((p) => ({ ...p, comment_permission: 'none' }));
+                                    void User.updatePreferences({ comment_permission: 'none' });
+                                  },
+                                },
+                                { text: 'Cancel', style: 'cancel' },
+                              ]
+                            );
+                          }}
+                          accessibilityLabel="Comment permissions"
+                          accessibilityRole="button"
+                        >
+                          <Text style={[styles.chev, { color: Colors[colorScheme ?? 'light'].icon }]}>›</Text>
+                        </Pressable>
+                      </View>
                       <NavRow title="Manage Blocked Users" onPress={() => void router.push('/settings/blocked-users')} />
                       <SwitchRow
                         title="I am a parent"
@@ -279,8 +376,8 @@ export default function SettingsScreen() {
                     {/* My Content */}
                     <SectionCard title="My Content">
                       <NavRow title="View Favorites" subtitle="Posts you've saved" onPress={() => void router.push('/settings/favorites')} />
-                      <NavRow title="Reserve Ad Space" subtitle="Promote your program, fundraiser, or business" onPress={() => void router.push('/submit-ad')} />
-                      <NavRow title="My Ads" subtitle="Manage your advertisements" onPress={() => void router.push('/my-ads')} />
+                      <NavRow title="Reserve Ad Space" subtitle="Promote your program, fundraiser, or business" onPress={() => void router.navigate('/submit-ad')} />
+                      <NavRow title="My Ads" subtitle="Manage your advertisements" onPress={() => void router.navigate('/my-ads')} />
                     </SectionCard>
 
                     {/* Billing (coaches only) */}
@@ -293,8 +390,9 @@ export default function SettingsScreen() {
                     {/* Legal */}
                     <SectionCard title="Legal">
                       <NavRow title="View Core Values" onPress={() => void router.push('/settings/core-values')} />
-                      <NavRow title="Report Abuse" onPress={() => void router.push('/report-abuse')} />
-                      <NavRow title="DM Restrictions Summary" onPress={() => void router.push('/dm-restrictions')} />
+                      <NavRow title="Privacy Policy" onPress={() => void router.push('/settings/privacy-policy')} />
+                      <NavRow title="Terms of Service" onPress={() => void router.push('/settings/terms-of-service')} />
+                      <NavRow title="Report Abuse" onPress={() => void router.navigate('/report-abuse')} />
                     </SectionCard>
 
                     {/* Support & Feedback */}
@@ -309,32 +407,32 @@ export default function SettingsScreen() {
                         <NavRow 
                           title="Admin Dashboard" 
                           subtitle="Overview and analytics" 
-                          onPress={() => void router.push('/admin-dashboard')} 
+                          onPress={() => void router.navigate('/admin-dashboard')} 
                         />
                         <NavRow 
                           title="Activity Log" 
                           subtitle="Track all admin actions" 
-                          onPress={() => void router.push('/admin-activity-log')} 
+                          onPress={() => void router.navigate('/admin-activity-log')} 
                         />
                         <NavRow 
                           title="Manage Users" 
                           subtitle="View all users, ban/unban" 
-                          onPress={() => void router.push('/admin-users')} 
+                          onPress={() => void router.navigate('/admin-users')} 
                         />
                         <NavRow 
                           title="Manage Teams" 
                           subtitle="View and moderate all teams" 
-                          onPress={() => void router.push('/admin-teams')} 
+                          onPress={() => void router.navigate('/admin-teams')} 
                         />
                         <NavRow 
                           title="Manage Ads" 
                           subtitle="Review and moderate advertisements" 
-                          onPress={() => void router.push('/admin-ads')} 
+                          onPress={() => void router.navigate('/admin-ads')} 
                         />
                         <NavRow 
                           title="View Messages" 
                           subtitle="Content moderation" 
-                          onPress={() => void router.push('/admin-messages')} 
+                          onPress={() => void router.navigate('/admin-messages')} 
                         />
                       </SectionCard>
                     )}
@@ -411,18 +509,18 @@ export default function SettingsScreen() {
                           ]);
                         }
                       }} />
-                      <NavRow title="Restart Onboarding" onPress={() => {
-                        Alert.alert('Restart Onboarding', 'You will be taken back to onboarding.', [
+                      <NavRow title="Upgrade to Coach Account" onPress={() => {
+                        Alert.alert('Upgrade to Coach Account', 'You\'ll be taken through the coach setup flow.', [
                           { text: 'Cancel', style: 'cancel' },
-                          { text: 'Restart', onPress: () => { void restartOnboarding(); } }
+                          { text: 'Continue', onPress: () => { void router.push('/onboarding/step-1-role'); } }
                         ]);
                       }} />
                     </SectionCard>
 
                     {/* Copyright Footer */}
                     <View style={{ paddingHorizontal: 16, paddingVertical: 24, alignItems: 'center' }}>
-                      <Text style={{ fontSize: 12, color: '#9CA3AF', textAlign: 'center' }}>
-                        © 2025 LIME PRODUCTIONS. All rights reserved.
+                      <Text style={{ fontSize: 12, color: Colors[colorScheme ?? 'light'].mutedText, textAlign: 'center' }}>
+                        © 2026 LIME PRODUCTIONS. All rights reserved.
                       </Text>
                     </View>
                     </ScrollView>
@@ -434,18 +532,19 @@ export default function SettingsScreen() {
             const styles = StyleSheet.create({
               container: { flex: 1 },
               title: { fontSize: 24, fontWeight: '700', marginBottom: 8, paddingHorizontal: 16 },
-              error: { color: '#b91c1c', marginHorizontal: 16, marginBottom: 8 },
-              card: { marginHorizontal: 16, marginBottom: 12, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB', backgroundColor: '#F9FAFB' },
+              error: { marginHorizontal: 16, marginBottom: 8 },
+              card: { marginHorizontal: 16, marginBottom: 12, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth },
               cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 12 },
               cardBody: { padding: 12, gap: 12 },
               cardTitle: { fontWeight: '800', fontSize: 16 },
-              rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+              rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10 },
               rowTitle: { fontWeight: '600' },
-              mutedSmall: { color: '#9CA3AF', fontSize: 12 },
-              chev: { fontSize: 20, color: '#6b7280', transform: [{ rotate: '0deg' }] },
+              mutedSmall: { fontSize: 12 },
+              chev: { fontSize: 20, transform: [{ rotate: '0deg' }] },
               chevOpen: { transform: [{ rotate: '90deg' }] },
+              commentPermRow: { padding: 8 },
               destructive: { color: '#DC2626' },
-              selectedValue: { color: '#6b7280', fontSize: 14 },
+              selectedValue: { fontSize: 14 },
               themeOptions: { marginTop: 8, gap: 8 },
               themeOption: {
                 flexDirection: 'row',
@@ -463,7 +562,6 @@ export default function SettingsScreen() {
                 height: 16,
                 borderRadius: 8,
                 borderWidth: 2,
-                borderColor: '#d1d5db',
                 marginRight: 12,
                 backgroundColor: 'transparent',
               },
@@ -474,7 +572,6 @@ export default function SettingsScreen() {
               themeOptionText: {
                 fontSize: 16,
                 fontWeight: '500',
-                color: '#374151',
                 flex: 1,
               },
               themeOptionTextSelected: {
@@ -483,7 +580,6 @@ export default function SettingsScreen() {
               },
               themeOptionSubtext: {
                 fontSize: 12,
-                color: '#9CA3AF',
                 marginLeft: 'auto',
               },
             });

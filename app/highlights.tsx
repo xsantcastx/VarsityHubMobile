@@ -7,10 +7,11 @@ import * as Haptics from 'expo-haptics';
 import { Image as ExpoImage } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
+    Dimensions,
     FlatList,
     Platform,
     Pressable,
@@ -33,13 +34,13 @@ import { calculateRanking, HighlightItem } from '../utils/rankingUtils';
 
 type TabType = 'trending' | 'recent' | 'top';
 const CARD_HEIGHT = 220;
+const SCREEN_WIDTH = Dimensions.get('window').width;
 
 const mapHighlightItem = (input: any): HighlightItem | null => {
   if (!input) return null;
   const idValue = input.id ?? input.post_id ?? input.highlight_id;
   if (!idValue) return null;
-  const authorId = input.author_id ?? input.author?.id ?? '';
-  if (!authorId) return null; // Required for ranking calculations
+  const authorId = String(input.author_id ?? input.author?.id ?? '');
   return {
     id: String(idValue),
     title: input.title ?? input.caption ?? undefined,
@@ -227,14 +228,14 @@ const HighlightCard = ({
 
           {/* Stats Row */}
           <View style={styles.statsRow}>
-            <Pressable 
-              style={styles.actionButton}
+            <Pressable
+              style={[styles.actionButton, item.has_upvoted && { backgroundColor: 'rgba(37, 99, 235, 0.2)' }]}
               onPress={(e) => {
                 e.stopPropagation();
                 onUpvote?.(item);
               }}
             >
-              <Ionicons name="arrow-up" size={18} color="#2563EB" />
+              <Ionicons name={item.has_upvoted ? 'arrow-up' : 'arrow-up-outline'} size={18} color="#2563EB" />
               <Text style={[styles.statText, { color: '#2563EB', fontWeight: '700' }]}>{formatCount(item.upvotes_count || 0)}</Text>
             </Pressable>
             
@@ -245,7 +246,7 @@ const HighlightCard = ({
                 onPress(item); // Navigate to post detail to see comments
               }}
             >
-              <Ionicons name="chatbubble" size={16} color="#6B7280" />
+              <Ionicons name="chatbubble" size={16} color={Colors[colorScheme].mutedText} />
               <Text style={[styles.statText, { color: Colors[colorScheme].mutedText, fontWeight: '600' }]}>{formatCount(item._count?.comments || 0)}</Text>
             </Pressable>
             
@@ -550,48 +551,85 @@ export default function HighlightsScreen() {
     router.push(`/user-profile?id=${authorId}`);
   }, [router]);
 
+  const handleEventPress = useCallback((event: any) => {
+    const gameId = event?.game_id || event?.gameId;
+    if (gameId) {
+      void router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(gameId) } });
+      return;
+    }
+
+    const eventId = event?.id || event?.event_id;
+    if (eventId) {
+      void router.push({ pathname: '/(tabs)/feed/game', params: { eventId: String(eventId) } } as any);
+      return;
+    }
+
+    Alert.alert('Event unavailable', 'This event is missing an identifier and cannot be opened.');
+  }, [router]);
+
   const handleUpvote = useCallback(async (item: HighlightItem) => {
+    // Optimistic update: toggle immediately for responsiveness
+    const optimisticNext = !item.has_upvoted;
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    setHighlights((prev) =>
+      prev.map((h) =>
+        h.id === item.id
+          ? {
+              ...h,
+              has_upvoted: optimisticNext,
+              upvotes_count: Math.max(0, (h.upvotes_count || 0) + (optimisticNext ? 1 : -1)),
+            }
+          : h
+      )
+    );
     try {
-      // Haptic feedback for user interaction
-      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-      
       const r: any = await Post.toggleUpvote(item.id);
-      
-      // Success haptic
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-      
-      // Update upvotes count optimistically in state
+      // Reconcile with server values
       setHighlights((prev) =>
         prev.map((h) =>
           h.id === item.id
-            ? { ...h, upvotes_count: r?.count ?? (h.upvotes_count || 0) + 1 }
+            ? {
+                ...h,
+                has_upvoted: typeof r?.has_upvoted === 'boolean' ? r.has_upvoted : Boolean(r?.upvoted),
+                upvotes_count: typeof r?.count === 'number' ? r.count : typeof r?.upvotes_count === 'number' ? r.upvotes_count : h.upvotes_count,
+              }
             : h
         )
       );
     } catch (error) {
-      // Error haptic
+      // Revert optimistic update on failure
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
-      
-      if (__DEV__) {
-        console.warn('[Highlights] Failed to toggle upvote:', error);
-      }
-      Alert.alert('Error', 'Unable to upvote at this time');
+      setHighlights((prev) =>
+        prev.map((h) =>
+          h.id === item.id
+            ? {
+                ...h,
+                has_upvoted: item.has_upvoted,
+                upvotes_count: Math.max(0, (h.upvotes_count || 0) + (optimisticNext ? -1 : 1)),
+              }
+            : h
+        )
+      );
+      if (__DEV__) console.warn('[Highlights] Failed to toggle upvote:', error);
     }
   }, []);
 
   const renderHighlight = ({ item, index }: { item: HighlightItem; index: number }) => (
-    <HighlightCard 
-      item={item} 
-      index={index}
-      currentTab={activeTab}
-      nationalTop={nationalTop}
-      ranked={ranked}
-      userLocation={userLocation}
-      onPress={() => handleHighlightPress(item, index)}
-      // onAuthorPress intentionally omitted to disable profile navigation from highlights feed
-      colorScheme={colorScheme}
-      onUpvote={handleUpvote}
-    />
+    <View style={{ paddingHorizontal: 16, paddingVertical: 8 }}>
+      <HighlightCard
+        item={item}
+        index={index}
+        currentTab={activeTab}
+        nationalTop={nationalTop}
+        ranked={ranked}
+        userLocation={userLocation}
+        onPress={() => handleHighlightPress(item, index)}
+        // onAuthorPress intentionally omitted to disable profile navigation from highlights feed
+        colorScheme={colorScheme}
+        onUpvote={handleUpvote}
+      />
+    </View>
   );
 
   if (loading) {
@@ -634,11 +672,13 @@ export default function HighlightsScreen() {
       <View style={[styles.header, { paddingTop: insets.top, backgroundColor: Colors[colorScheme].card, borderBottomColor: Colors[colorScheme].border }]}>
         {/* Back button and title */}
         <View style={styles.headerRow}>
-          {/* Back button removed for main highlights page */}
+          <View style={styles.headerSpacer} />
           <Text style={[styles.headerTitleText, { color: Colors[colorScheme].text }]} numberOfLines={1}>
             Highlights
           </Text>
-          <View style={styles.headerSpacer} />
+          <Pressable style={styles.headerSpacer} onPress={onRefresh} hitSlop={8}>
+            <Ionicons name="refresh" size={22} color={refreshing ? Colors[colorScheme].tint : Colors[colorScheme].text} style={{ opacity: refreshing ? 0.5 : 1 }} />
+          </Pressable>
         </View>
         {/* Search Bar */}
         <View style={{ zIndex: 10 }}>
@@ -788,7 +828,7 @@ export default function HighlightsScreen() {
                   <Pressable
                     key={event.id}
                     style={[styles.searchResultItem, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
-                    onPress={() => { void router.push(`/event-detail?id=${event.id}`); }}
+                    onPress={() => handleEventPress(event)}
                   >
                     <Text style={[styles.searchResultTitle, { color: Colors[colorScheme].text }]}>{event.title}</Text>
                     <Text style={[styles.searchResultSubtitle, { color: Colors[colorScheme].tabIconDefault }]}>
@@ -881,20 +921,19 @@ export default function HighlightsScreen() {
         </View>
       ) : (
         <FlatList
-          data={filteredHighlights}
-          renderItem={renderHighlight}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.list}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl 
-              refreshing={refreshing} 
-              onRefresh={onRefresh} 
-              tintColor="#2563EB"
-              colors={['#2563EB']}
-            />
-          }
-        />
+            data={filteredHighlights}
+            renderItem={renderHighlight}
+            keyExtractor={(item) => item.id}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingVertical: 8 }}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={Colors[colorScheme].tint}
+              />
+            }
+          />
       )}
 
     </SafeAreaView>
@@ -964,6 +1003,8 @@ const styles = StyleSheet.create({
   },
   headerSpacer: {
     width: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerContent: {
     flexDirection: 'row',
@@ -1047,6 +1088,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   activeTabText: {},
+  pageIndicator: {
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  pageIndicatorText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',

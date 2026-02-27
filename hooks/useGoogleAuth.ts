@@ -1,3 +1,9 @@
+// ⚠️ WORKING - DO NOT MODIFY WITHOUT EXPLICIT PERMISSION
+// Google OAuth fixed 2026-02-24; proxy detection fixed 2026-02-24
+// iOS native: uses iOS client ID with native redirect scheme
+// Expo Go proxy: uses Web client ID with auth.expo.io redirect
+// Changing this will break Google Sign In
+
 import { User } from '@/api/entities';
 import { getConfig } from '@/config/env';
 import * as Application from 'expo-application';
@@ -22,27 +28,17 @@ const googleClientConfig = (opts: { shouldUseProxy: boolean }) => {
   const webClientId = google.webClientId;
   const expoClientId = google.expoClientId;
 
-  const isDevSimulator = opts.shouldUseProxy && Constants.appOwnership === 'expo' && Platform.OS === 'ios';
-  const isStandaloneIOS = Platform.OS === 'ios' && Constants.appOwnership !== 'expo';
-
-  // For dev simulator, use Expo Client ID (registered with auth.expo.io)
-  // For standalone iOS builds, use web client with varsityhub.app domain
-  if (isDevSimulator && expoClientId) {
+  // When using proxy (HTTPS redirect via auth.expo.io), we MUST use Web client only.
+  // Passing Android/iOS client IDs causes "Custom URI scheme is not enabled for your Android client"
+  // because Google rejects native client IDs with HTTPS redirects.
+  if (opts.shouldUseProxy && (webClientId || expoClientId)) {
+    const webId = webClientId || expoClientId!;
     return {
-      androidClientId: expoClientId,
-      iosClientId: expoClientId,
-      webClientId: expoClientId,
-      expoClientId,
+      androidClientId: webId,
+      iosClientId: webId,
+      webClientId: webId,
+      expoClientId: webId,
       forceWebClient: false,
-    } as const;
-  }
-
-  if (isStandaloneIOS && webClientId) {
-    return {
-      androidClientId: webClientId,
-      iosClientId: webClientId,
-      webClientId,
-      expoClientId: webClientId,
     } as const;
   }
 
@@ -66,7 +62,8 @@ const PROJECT_FULL_NAME = appConfig.expoProjectFullName || derivedProjectFullNam
 export function useGoogleAuth() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const proxyRequested = FORCE_PROXY_FLAG || Constants.appOwnership === null;
+  const isExpoGo = Constants.executionEnvironment === 'storeClient';
+  const proxyRequested = FORCE_PROXY_FLAG || isExpoGo;
   const shouldUseProxy = proxyRequested && !!PROJECT_FULL_NAME;
 
   const clients = useMemo(() => googleClientConfig({ shouldUseProxy }), [shouldUseProxy]);
@@ -102,21 +99,29 @@ export function useGoogleAuth() {
       return uri;
     }
 
-    try {
-      if (shouldUseProxy && PROJECT_FULL_NAME) {
+    // Proxy: use https://auth.expo.io/@owner/slug (getRedirectUrl throws without projectNameForProxy)
+    if (shouldUseProxy && PROJECT_FULL_NAME) {
+      try {
         uri = AuthSession.getRedirectUrl();
-        console.log('[google-auth] Using Expo proxy redirect:', uri);
-        return uri;
+      } catch {
+        uri = `https://auth.expo.io/${PROJECT_FULL_NAME}`;
       }
-    } catch (err) {
-      console.warn('[google-auth] failed to build proxy redirect uri', err);
+      console.log('[google-auth] Using Expo proxy redirect:', uri);
+      return uri;
     }
 
-    // For production iOS with web client, use web redirect
+    // For standalone iOS, use native redirect with reversed iOS client ID scheme
+    // CRITICAL: Use real iOS client from config, NOT clients (which may be web when proxy was requested)
     const isStandaloneIOS = Platform.OS === 'ios' && Constants.appOwnership !== 'expo';
-    if (isStandaloneIOS) {
-      uri = `${appConfig.webBaseUrl}/auth/google/callback`;
-      console.log('[google-auth] Using production web redirect (standalone):', uri);
+    const realIosClientId = appConfig.google.iosClientId;
+    if (isStandaloneIOS && realIosClientId) {
+      // Convert xxx-yyy.apps.googleusercontent.com → com.googleusercontent.apps.xxx-yyy
+      const prefix = realIosClientId.replace(/\.apps\.googleusercontent\.com$/, '');
+      const scheme = `com.googleusercontent.apps.${prefix}`;
+      uri = makeRedirectUri({
+        native: `${scheme}:/oauthredirect`,
+      });
+      console.log('[google-auth] Using iOS native redirect:', uri);
       return uri;
     }
 

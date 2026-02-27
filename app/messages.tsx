@@ -108,6 +108,28 @@ export default function MessagesScreen() {
     }, [load])
   );
 
+  // Poll every 3 seconds for new conversations (same as message thread)
+  useEffect(() => {
+    let mounted = true;
+    const interval = setInterval(async () => {
+      if (!mounted) return;
+      try {
+        const result: UIMsg[] | { _isNotModified: boolean } = await (Message.list
+          ? Message.list('-created_at', 50)
+          : Message.filter({}, '-created_at'));
+        if (mounted && result && !('_isNotModified' in result)) {
+          setMessages(Array.isArray(result) ? result : []);
+        }
+      } catch {
+        // Silently fail - don't disrupt inbox
+      }
+    }, 3000);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
   // Group messages into conversations
   const conversations = useMemo((): Conversation[] => {
     if (!me) return [];
@@ -173,22 +195,17 @@ export default function MessagesScreen() {
     const search = async () => {
       setSearchingUsers(true);
       try {
-        // Check authentication before searching
         if (!me || !me.id) {
           Alert.alert('Login Required', 'Please log in to search for users.');
           setSearchResults([]);
           return;
         }
-        const users = await User.listAll(searchUserQuery, 20);
-        if (mounted && Array.isArray(users)) {
-          // Filter out current user
-          setSearchResults(users.filter((u: MiniUser) => u.id !== me?.id));
+        const result = await User.searchForMentions(searchUserQuery, 20);
+        if (mounted && Array.isArray(result)) {
+          setSearchResults(result.filter((u: MiniUser) => u.id !== me?.id));
         }
       } catch (e: any) {
-        // Silently handle admin-only restriction
-        if (e?.message?.includes('Admin only')) {
-          // Admin-only feature - silently ignore
-        } else if (e?.status === 401 || e?.message?.toLowerCase().includes('unauthorized')) {
+        if (e?.status === 401 || e?.message?.toLowerCase().includes('unauthorized')) {
           Alert.alert('Login Required', 'You must be logged in to search for users.');
           setSearchResults([]);
         } else {
@@ -352,7 +369,7 @@ export default function MessagesScreen() {
         style={[styles.headerGradient, { paddingTop: insets.top + 12 }]}
       >
         <View style={styles.headerRow}>
-          <Pressable onPress={() => void router.back()} style={styles.backButton} accessibilityRole="button" accessibilityLabel="Go back">
+          <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={styles.backButton} accessibilityRole="button" accessibilityLabel="Go back">
             <Ionicons name="chevron-back" size={24} color={Colors[colorScheme].text} />
           </Pressable>
           <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Messages</Text>

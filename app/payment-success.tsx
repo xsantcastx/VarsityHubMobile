@@ -62,10 +62,10 @@ export default function PaymentSuccessScreen() {
             }
             
             setSessionVerified(true);
-            // Auto-redirect after 2 seconds to show success message
+            // Auto-redirect immediately — my-ads shows the gold checkmark animation
             setTimeout(() => {
-              router.replace('/(tabs)/my-ads');
-            }, 2000);
+              router.replace({ pathname: '/(tabs)/my-ads', params: { payment_success: 'true' } });
+            }, 300);
           } else {
             // For subscriptions, verify by checking user's plan and payment flag
             // Retry up to maxVerificationAttempts times (polling for webhook completion)
@@ -90,9 +90,20 @@ export default function PaymentSuccessScreen() {
                   setVerificationAttempt((attempt) => attempt + 1);
                 }, 2000);
               } else {
-                // Max retries reached
+                // Max retries reached - try finalize-session before showing error (webhook may have failed)
+                try {
+                  await httpPost('/payments/finalize-session', { session_id: params.session_id });
+                  const meAfter = await User.me();
+                  if ((meAfter?.preferences?.plan === 'veteran' || meAfter?.preferences?.plan === 'legend') && meAfter?.preferences?.payment_pending === false) {
+                    setSessionVerified(true);
+                    setLoading(false);
+                    return;
+                  }
+                } catch (finalizeErr) {
+                  console.warn('[payment-success] finalize-session before error failed:', finalizeErr);
+                }
                 console.warn('[payment-success] Payment verification timed out after retries');
-                setError('Payment verification timed out. Your payment may still be processing. Please refresh or contact support.');
+                setError('Payment verification timed out. Your payment may still be processing. Please try again or contact support.');
                 setLoading(false);
               }
             } catch (error) {
@@ -128,7 +139,7 @@ export default function PaymentSuccessScreen() {
   const handleContinue = () => {
     // Navigate to the appropriate next step based on payment type
     if (isAdPayment) {
-      router.push('/(tabs)/my-ads'); // Redirect to My Ads tab after ad payment
+      router.push({ pathname: '/(tabs)/my-ads', params: { payment_success: 'true' } }); // Redirect to My Ads tab after ad payment
     } else {
       router.replace('/(tabs)/feed'); // Redirect to feed after subscription payment
     }
@@ -142,15 +153,30 @@ export default function PaymentSuccessScreen() {
     clearRetryTimeout();
     setLoading(true);
     setError(null);
-    setVerificationAttempt(0);
-    
+
     try {
       setLastVerificationAt(new Date());
+      // Call finalize-session first (webhook may have failed), then re-poll once
+      if (params.session_id) {
+        try {
+          await httpPost('/payments/finalize-session', { session_id: params.session_id });
+        } catch (finalizeErr) {
+          console.warn('[payment-success] finalize-session on retry failed:', finalizeErr);
+          // Continue to poll anyway - webhook might have processed
+        }
+      }
       const me = await User.me();
-      if (me?.preferences?.payment_pending === false) {
-        setSessionVerified(true);
+      const plan = me?.preferences?.plan;
+      const pending = me?.preferences?.payment_pending;
+      if (isSubscription) {
+        if ((plan === 'veteran' || plan === 'legend') && pending === false) {
+          setSessionVerified(true);
+        } else {
+          setError('Payment verification still pending. Please try again in a moment.');
+        }
       } else {
-        setError('Payment verification still pending. Please try again in a moment.');
+        // Ad payment - finalize-session should have updated; treat as verified if no error
+        setSessionVerified(true);
       }
     } catch (error) {
       console.error('[payment-success] Retry verification failed:', error);

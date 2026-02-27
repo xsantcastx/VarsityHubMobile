@@ -17,7 +17,7 @@ export default function Step9Features() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const { state: ob, setState: setOB, setProgress } = useOnboarding();
-  const { registerPushToken, user } = useAuth();
+  const { registerPushToken, user, checkAuth, markOnboardingCompleteLocally } = useAuth();
   const [locationEnabled, setLocationEnabled] = useState(false);
   // Push notifications can't be provisioned on iOS Simulator, so default to off there
   const [notificationsEnabled, setNotificationsEnabled] = useState(Device.isDevice);
@@ -34,26 +34,8 @@ export default function Step9Features() {
 
   const styles = useMemo(() => createStyles(colorScheme), [colorScheme]);
 
-  useEffect(() => {
-    let cancelled = false;
-    // Skip auto-registration on simulators or when the toggle is off
-    if (!notificationsEnabled || !isDevice) return;
-
-    void (async () => {
-      const granted = await registerPushToken();
-      if (!cancelled && !granted) {
-        setNotificationsEnabled(false);
-        Alert.alert(
-          'Notifications Disabled',
-          'We could not enable push notifications. You can turn them on later from device settings.'
-        );
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [notificationsEnabled, registerPushToken, isDevice]);
+  const NOTIFICATIONS_PRE_PROMPT =
+    'VarsityHub uses notifications for game reminders, team updates, and messages. Enable to stay connected.';
 
   const enableLocation = async () => {
     if (locationEnabled) {
@@ -89,42 +71,62 @@ export default function Step9Features() {
         return;
       }
 
-      setNotificationsEnabled(value);
-      
-      if (value) {
-        // Request permissions asynchronously without blocking UI
-        registerPushToken().then((granted) => {
-          if (!granted) {
-            setNotificationsEnabled(false);
-            Alert.alert(
-              'Notifications Disabled',
-              'We could not enable push notifications. You can turn them on later from device settings.'
-            );
-          }
-        }).catch(() => {
-          setNotificationsEnabled(false);
-        });
+      if (!value) {
+        setNotificationsEnabled(false);
+        return;
       }
+
+      // Show pre-permission prompt before system dialog
+      Alert.alert(
+        'Enable Notifications',
+        NOTIFICATIONS_PRE_PROMPT,
+        [
+          {
+            text: 'Not Now',
+            style: 'cancel',
+            onPress: () => setNotificationsEnabled(false),
+          },
+          {
+            text: 'Enable',
+            onPress: async () => {
+              const granted = await registerPushToken();
+              if (!granted) {
+                setNotificationsEnabled(false);
+                Alert.alert(
+                  'Notifications Disabled',
+                  'We could not enable push notifications. You can turn them on later from device settings.'
+                );
+              } else {
+                setNotificationsEnabled(true);
+              }
+            },
+          },
+        ]
+      );
     },
     [isDevice, registerPushToken]
   );
 
   const onContinue = async () => {
     setSaving(true);
+    console.log('[Step9] onContinue: role =', ob.role, '| locationEnabled =', locationEnabled, '| notificationsEnabled =', notificationsEnabled);
     try {
       // Save to context
-      setOB((prev) => ({ 
-        ...prev, 
+      setOB((prev) => ({
+        ...prev,
         location_enabled: locationEnabled,
-        notifications_enabled: notificationsEnabled
+        notifications_enabled: notificationsEnabled,
+        messaging_policy_accepted: true,
       }));
-      
+
       // Save to backend
-      await User.updatePreferences({ 
+      await User.updatePreferences({
         location_enabled: locationEnabled,
-        notifications_enabled: notificationsEnabled
+        notifications_enabled: notificationsEnabled,
+        messaging_policy_accepted: true,
       });
-      
+      console.log('[Step9] messaging_policy_accepted saved to server');
+
       // For fans, complete onboarding and go to feed
       if (ob.role === 'fan') {
         // Mark onboarding complete for fans - only send defined fields
@@ -148,19 +150,24 @@ export default function Step9Features() {
         if (ob.personalization_goals?.length) payload.personalization_goals = ob.personalization_goals;
         
         await User.completeOnboarding(payload);
-        
-        // CRITICAL: Validate server confirmed completion
-        const updatedUser: any = await User.me();
+
+        // CRITICAL: Update AuthProvider state via checkAuth (not User.me() directly)
+        // This ensures routing logic sees onboarding_completed: true immediately
+        const updatedUser: any = await checkAuth();
         if (updatedUser?.preferences?.onboarding_completed !== true) {
           throw new Error('Server did not confirm onboarding completion');
         }
-        
+
+        // Persist locally so next app launch doesn't re-trigger onboarding
+        await markOnboardingCompleteLocally();
+
         // Success - navigate to feed
         router.replace('/(tabs)/feed');
         return; // Fans are done; skip coach-only confirmation screen
       }
       
       // For coaches, go to confirmation page
+      console.log('[Step9] Coach flow: navigating to step-10-confirmation');
       setProgress(8); // step-10 is index 8 in stepRoutes array
       router.replace('/onboarding/step-10-confirmation');
     } catch (e: any) {
@@ -199,6 +206,7 @@ export default function Step9Features() {
                 true: '#3b82f6' 
               }}
               thumbColor={Colors[colorScheme].background}
+              accessibilityLabel="Enable location access to find local games and events"
             />
           </View>
         </View>
@@ -234,7 +242,8 @@ export default function Step9Features() {
             label={saving ? 'Saving Settings...' : 'Continue'} 
             onPress={onContinue} 
             disabled={saving} 
-            loading={saving} 
+            loading={saving}
+            accessibilityLabel={saving ? 'Saving settings' : 'Continue to next step'}
           />
         </View>
     </OnboardingLayout>

@@ -2,7 +2,7 @@ import expressPkg, { Router } from 'express';
 import Stripe from 'stripe';
 import { debugLog } from '../lib/debugLog.js';
 import { sendBillingNoticeEmail } from '../lib/email.js';
-import { getMaxTeamsForPlan } from '../lib/planLimits.js';
+import { getAllPlanDefinitions, getMaxTeamsForPlan } from '../lib/planLimits.js';
 import { prisma } from '../lib/prisma.js';
 import { previewPromo, redeemPromo } from '../lib/promos.js';
 import { captureException } from '../lib/sentry.js';
@@ -15,6 +15,26 @@ import { calculateAdPriceCents } from '../utils/adPricing.js';
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', { apiVersion: '2024-06-20' });
 
 export const paymentsRouter = Router();
+
+// Public config for coach onboarding and payment UI (no auth required)
+paymentsRouter.get('/config', (_req, res) => {
+  const stripePublishableKey =
+    process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ||
+    process.env.STRIPE_PUBLISHABLE_KEY ||
+    '';
+  const availablePlans = getAllPlanDefinitions();
+  const stripeConfigured = !!(
+    stripePublishableKey &&
+    process.env.STRIPE_SECRET_KEY
+  );
+  res.json({
+    stripe_publishable_key: stripePublishableKey,
+    available_plans: availablePlans,
+    payments_enabled: true,
+    stripe_configured: stripeConfigured,
+    has_webhook_secret: !!process.env.STRIPE_WEBHOOK_SECRET,
+  });
+});
 
 const formatUsd = (cents?: number | null) => {
   if (typeof cents !== 'number' || Number.isNaN(cents)) return '';
@@ -284,7 +304,30 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
   const ad = await prisma.ad.findUnique({ where: { id: String(ad_id) } });
   if (!ad) return res.status(404).json({ error: 'Ad not found' });
 
-  // No global conflicts: allow multiple ads on the same date.
+  // Slot availability check — reject before Stripe if any date is already full.
+  // Up to MAX_AD_SLOTS different ads may run per date per zip.
+  const MAX_AD_SLOTS = 3;
+  if (ad.target_zip_code) {
+    const paidAdsInZip = await prisma.ad.findMany({
+      where: { target_zip_code: ad.target_zip_code, payment_status: 'paid', NOT: { id: String(ad_id) } },
+      select: { id: true },
+    });
+    if (paidAdsInZip.length > 0) {
+      const dateObjects = isoDates.map((s) => new Date(s + 'T00:00:00.000Z'));
+      const bookedSlots = await prisma.adReservation.groupBy({
+        by: ['date'],
+        where: { ad_id: { in: paidAdsInZip.map((a) => a.id) }, date: { in: dateObjects } },
+        _count: { date: true },
+      });
+      const fullDates = bookedSlots.filter((s) => s._count.date >= MAX_AD_SLOTS);
+      if (fullDates.length > 0) {
+        return res.status(409).json({
+          error: 'One or more selected dates are fully booked',
+          dates: fullDates.map((s) => s.date.toISOString().slice(0, 10)),
+        });
+      }
+    }
+  }
 
   // Use shared ad pricing helper for consistent calculation
   // Groups dates into week blocks: $5/week for Mon-Thu, $8/week for Fri-Sun
@@ -342,6 +385,13 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
   // Otherwise we'd underbill by charging only base price without tax/discount
   const hasTaxOrDiscount = taxCents > 0 || discount > 0;
 
+  // Build human-readable date range description (e.g. "Ad Reservation — Feb 27 - Mar 12, 2026 (7 days)")
+  const _sd = [...isoDates].sort();
+  const _d0 = new Date(_sd[0] + 'T12:00:00Z');
+  const _d1 = new Date(_sd[_sd.length - 1] + 'T12:00:00Z');
+  const _fmt = (d: Date, yr: boolean) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', ...(yr ? { year: 'numeric' } : {}) });
+  const adDateDesc = `Ad Reservation — ${_fmt(_d0, false)} - ${_fmt(_d1, true)} (${isoDates.length} day${isoDates.length !== 1 ? 's' : ''})`;
+
   let lineItems: any[] = [];
 
   if (hasPriceIds && !hasTaxOrDiscount) {
@@ -362,7 +412,7 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
         quantity: pricingResult.weekendBlocks,
       }] : []),
     ];
-    
+
     // If no blocks selected (shouldn't happen, but defensive), fall back to price_data
     if (lineItems.length === 0) {
       debugLog('[payments] No blocks found, falling back to price_data');
@@ -373,7 +423,7 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
           unit_amount: total,
           product_data: {
             name: 'Ad Reservation',
-            description: `${isoDates.join(', ')}`,
+            description: adDateDesc,
           },
         },
       }];
@@ -400,7 +450,7 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
         unit_amount: total, // Total includes tax and discount already calculated
         product_data: {
           name: 'Ad Reservation',
-          description: `${isoDates.join(', ')}${discount > 0 ? ` (${formatUsd(discount)} discount applied)` : ''}${taxCents > 0 ? ` + ${formatUsd(taxCents)} tax` : ''}`,
+          description: `${adDateDesc}${discount > 0 ? ` (${formatUsd(discount)} discount applied)` : ''}${taxCents > 0 ? ` + ${formatUsd(taxCents)} tax` : ''}`,
         },
       },
     }];
@@ -976,16 +1026,44 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
       payment_status: session.payment_status
     });
     try {
-      const result = await prisma.$transaction([
-        prisma.ad.update({ 
-          where: { id: ad_id }, 
-          data: { 
-            payment_status: 'paid',
-            status: 'active' // Mark ad as active when payment is completed
-          } 
-        }),
-        prisma.adReservation.createMany({ data: dates.map((s) => ({ ad_id, date: new Date(s + 'T00:00:00.000Z') })), skipDuplicates: true }),
-      ]);
+      await prisma.$transaction(async (tx) => {
+        // Re-check slot availability under serializable isolation.
+        // This is the second line of defence after the pre-checkout check —
+        // it catches the race where two sessions were created before either paid.
+        const MAX_AD_SLOTS = 3;
+        const adRecord = await tx.ad.findUnique({ where: { id: ad_id }, select: { target_zip_code: true } });
+        if (adRecord?.target_zip_code) {
+          const paidAdsInZip = await tx.ad.findMany({
+            where: { target_zip_code: adRecord.target_zip_code, payment_status: 'paid', NOT: { id: ad_id } },
+            select: { id: true },
+          });
+          if (paidAdsInZip.length > 0) {
+            const dateObjects = dates.map((s) => new Date(s + 'T00:00:00.000Z'));
+            const bookedSlots = await tx.adReservation.groupBy({
+              by: ['date'],
+              where: { ad_id: { in: paidAdsInZip.map((a) => a.id) }, date: { in: dateObjects } },
+              _count: { date: true },
+            });
+            const fullDates = bookedSlots.filter((s) => s._count.date >= MAX_AD_SLOTS);
+            if (fullDates.length > 0) {
+              const err = new Error('SLOT_FULL') as any;
+              err.slotFull = true;
+              err.dates = fullDates.map((s) => s.date.toISOString().slice(0, 10));
+              throw err;
+            }
+          }
+        }
+
+        await tx.ad.update({
+          where: { id: ad_id },
+          data: { payment_status: 'paid', status: 'active' },
+        });
+        await tx.adReservation.createMany({
+          data: dates.map((s) => ({ ad_id, date: new Date(s + 'T00:00:00.000Z') })),
+          skipDuplicates: true,
+        });
+      }, { isolationLevel: 'Serializable' });
+
       debugLog('[payments] Ad reservation payment completed successfully', {
         ad_id,
         dates,
@@ -1006,14 +1084,24 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
           totalCents,
         });
       }
-    } catch (e) {
+    } catch (e: any) {
+      if (e?.slotFull) {
+        // Expected: another payment beat this one to the last slot(s).
+        // Payment was already taken — a manual refund will be needed.
+        // Log clearly but do NOT re-throw (webhook must still return 200).
+        console.error('[payments] SLOT_FULL: ad dates overbooked after payment — manual refund required', {
+          ad_id,
+          full_dates: e.dates,
+          session_id: session.id,
+        });
+        return;
+      }
       console.error('[payments] Error processing ad reservation payment', {
         ad_id,
         dates,
         session_id: session.id,
-        error: e
+        error: e,
       });
-      // Don't ignore the error silently anymore
       throw e;
     }
   }

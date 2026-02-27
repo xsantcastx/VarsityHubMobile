@@ -49,8 +49,7 @@ export default function CustomActionModal({
                 key={i}
                 style={[
                   styles.optionBtn,
-                  opt.isDestructive && { backgroundColor: '#fee2e2' },
-                  { flex: 1 },
+                  opt.isDestructive && styles.optionBtnDestructive,
                 ]}
                 onPress={() => {
                   onClose();
@@ -60,7 +59,7 @@ export default function CustomActionModal({
                 {opt.icon && (
                   <Ionicons name={opt.icon as any} size={18} color={opt.color || Colors[colorScheme].tint} style={{ marginRight: 6 }} />
                 )}
-                <Text style={[styles.optionText, opt.isDestructive && { color: '#dc2626' }, opt.color && { color: opt.color }]}>{opt.label}</Text>
+                <Text style={[styles.optionText, opt.isDestructive && styles.optionTextDestructive, opt.color && { color: opt.color }]}>{opt.label}</Text>
               </Pressable>
             ))}
           </View>
@@ -101,12 +100,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   optionsRow: {
-    flexDirection: 'row',
-    gap: 12,
+    flexDirection: 'column',
+    gap: 8,
     width: '100%',
-    justifyContent: 'space-between',
   },
   optionBtn: {
+    width: '100%',
     borderRadius: 14,
     paddingVertical: 12,
     paddingHorizontal: 18,
@@ -114,11 +113,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'center',
-    marginHorizontal: 2,
+  },
+  optionBtnDestructive: {
+    backgroundColor: '#fee2e2',
   },
   optionText: {
     fontSize: 16,
     fontWeight: '700',
     textAlign: 'center',
+  },
+  optionTextDestructive: {
+    color: '#dc2626',
   },
 });

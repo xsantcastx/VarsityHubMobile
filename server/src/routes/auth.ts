@@ -4,6 +4,7 @@ import { Router } from 'express';
 import jwt, { type JwtPayload } from 'jsonwebtoken';
 import { z } from 'zod';
 import { sendPasswordChangedEmail, sendPasswordResetEmail, sendVerificationEmail } from '../lib/email.js';
+import { validateContent } from '../lib/contentFilter.js';
 import { ConflictError } from '../lib/errors/ConflictError.js';
 import { ValidationError } from '../lib/errors/ValidationError.js';
 import { signJwt } from '../lib/jwt.js';
@@ -72,12 +73,25 @@ async function getApplePublicKey(kid: string): Promise<KeyObject> {
   return key;
 }
 
+/** COPPA: Returns true if DOB indicates user is under 13. Do not store data for under-13 users. */
+function isUnder13(dob: string | null | undefined): boolean {
+  if (!dob || typeof dob !== 'string') return false;
+  const d = new Date(dob);
+  if (isNaN(d.getTime())) return false;
+  const now = new Date();
+  let age = now.getFullYear() - d.getFullYear();
+  const m = now.getMonth() - d.getMonth();
+  if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--;
+  return age < 13;
+}
+
 const registerSchema = z.object({
   email: z.string().trim().email(),
   password: z.string().min(8),
   display_name: z.string().optional(),
   // Rookie is a coach plan, not a role
   role: z.enum(['fan', 'coach']).optional(),
+  dob: z.string().optional(), // COPPA: reject if under 13
 });
 
 authRouter.post('/register', asyncHandler(async (req, res) => {
@@ -92,12 +106,19 @@ authRouter.post('/register', asyncHandler(async (req, res) => {
       })),
     });
   }
-  const { email, password, display_name, role } = parsed.data;
+  const { email, password, display_name, role, dob } = parsed.data;
   const sanitizedEmail = email.trim().toLowerCase();
 
   // SECURITY: Rate limiting to prevent mass account creation / enumeration
   if (!checkAuthRateLimit(`register:${sanitizedEmail}`)) {
     return res.status(429).json({ error: 'Too many registration attempts. Please try again later.' });
+  }
+
+  // COPPA: Reject registration if DOB indicates under 13
+  if (dob && isUnder13(dob)) {
+    throw new ValidationError('VarsityHub is not available for users under 13. Please have a parent or guardian contact support@varsityhub.app.', {
+      errorCode: 'COPPA_UNDER_13',
+    });
   }
 
   // Prevent duplicate accounts - check if email already exists
@@ -111,32 +132,34 @@ authRouter.post('/register', asyncHandler(async (req, res) => {
   }
   const password_hash = await bcrypt.hash(password, 10);
   const code = String(Math.floor(100000 + Math.random() * 900000));
+  console.log(`[verify-code] [register] Code generated: ${code} for ${sanitizedEmail}`);
   const exp = new Date(Date.now() + 30 * 60 * 1000);
   const userRole = role || 'fan';
-  
+
   // Set admin flag for the main admin account
   const isAdmin = sanitizedEmail === 'emilmancero@gmail.com';
-  const initialPreferences = { 
-    role: userRole, 
+  const initialPreferences = {
+    role: userRole,
     onboarding_completed: false,
     ...(isAdmin && { is_admin: true })
   };
-  
+
   debugLog('[register] Creating user record');
-  const user = await prisma.user.create({ 
-    data: { 
-      email: sanitizedEmail, 
-      password_hash, 
-      display_name, 
-      email_verified: false, 
-      email_verification_code: code, 
+  const user = await prisma.user.create({
+    data: {
+      email: sanitizedEmail,
+      password_hash,
+      display_name,
+      email_verified: false,
+      email_verification_code: code,
       email_verification_expires: exp,
       preferences: initialPreferences
-    } 
+    }
   });
+  console.log(`[verify-code] [register] Code stored in DB for user ${user.id} (expires ${exp.toISOString()})`);
   const access_token = signJwt({ id: user.id });
-  try { 
-    debugLog('[email] Sending verification email to:', email);
+  try {
+    console.log(`[verify-code] [register] Calling sendVerificationEmail → to: ${email}`);
     const emailSend = sendVerificationEmail(email, code, display_name || sanitizedEmail.split('@')[0]);
     const EMAIL_TIMEOUT_MS = 5000;
     const timed = await Promise.race([
@@ -144,15 +167,15 @@ authRouter.post('/register', asyncHandler(async (req, res) => {
       new Promise((resolve) => setTimeout(resolve, EMAIL_TIMEOUT_MS, 'timeout'))
     ]);
     if (timed === 'timeout') {
-      console.warn('[email] sendVerificationEmail timed out; continuing');
+      console.warn('[verify-code] [register] sendVerificationEmail timed out after 5s — email may still be queued by SendGrid');
     } else if (timed === false) {
-      console.warn('[email] Verification email skipped (SendGrid not configured)');
+      console.error('[verify-code] [register] sendVerificationEmail returned false — email was NOT sent (check SendGridProvider logs above for the specific error)');
     } else {
-      debugLog('[email] Verification email sent successfully');
+      console.log('[verify-code] [register] sendVerificationEmail returned true — email accepted by SendGrid');
     }
-  } catch (e) { 
-    console.error('[email] Email send failed:', e);
-    req.log?.warn?.({ err: e }, 'Email send failed; returning code in dev'); 
+  } catch (e) {
+    console.error('[verify-code] [register] sendVerificationEmail threw:', e);
+    req.log?.warn?.({ err: e }, 'Email send failed; returning code in dev');
   }
   const payload: any = { access_token, user: sanitizeUser(user) };
   if (process.env.NODE_ENV !== 'production') payload.dev_verification_code = code;
@@ -601,7 +624,7 @@ authRouter.get('/me', async (req: AuthedRequest, res) => {
   const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
   const is_admin = user.email ? adminEmails.includes(user.email.toLowerCase()) : false;
   const defaults = {
-    notifications: { game_event_reminders: false, team_updates: false, comments_upvotes: false },
+    notifications: { game_event_reminders: false, team_updates: false, comments_upvotes: false, follows_notifications: true, messages_notifications: true },
     is_parent: false,
     zip_code: null,
     // Only set onboarding_completed=true for admin accounts
@@ -613,7 +636,7 @@ authRouter.get('/me', async (req: AuthedRequest, res) => {
   const userPrefs = (user as any).preferences || {};
   const prefs = mergePreferences(userPrefs, defaults);
   const { password_hash, ...rest } = user as any;
-  return res.json({ ...rest, preferences: prefs, is_admin });
+  return res.json({ ...rest, ...(is_admin ? { role: 'admin' } : {}), preferences: prefs, is_admin });
 });
 
 const updateMeSchema = z.object({
@@ -672,8 +695,22 @@ authRouter.put('/me', async (req: AuthedRequest, res) => {
     }
     patch.username = data.username;
   }
+  if (data.bio != null && data.bio !== '') {
+    const filterResult = validateContent({ content: data.bio });
+    if (!filterResult.valid) {
+      return res.status(400).json({ error: filterResult.error, code: filterResult.code });
+    }
+  }
   
   if (data.preferences) {
+    // COPPA: Reject if DOB in preferences indicates under 13
+    const dobToCheck = data.preferences?.dob;
+    if (dobToCheck !== undefined && isUnder13(dobToCheck)) {
+      return res.status(403).json({
+        error: 'COPPA_UNDER_13',
+        message: 'VarsityHub is not available for users under 13. Please have a parent or guardian contact support@varsityhub.app.',
+      });
+    }
     const current = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true } });
     const mergedPrefs = mergePreferences(current?.preferences || {}, data.preferences);
     patch.preferences = mergedPrefs;
@@ -716,8 +753,22 @@ authRouter.patch('/me', async (req: AuthedRequest, res) => {
     }
     patch.username = data.username;
   }
+  if (data.bio != null && data.bio !== '') {
+    const filterResult = validateContent({ content: data.bio });
+    if (!filterResult.valid) {
+      return res.status(400).json({ error: filterResult.error, code: filterResult.code });
+    }
+  }
   
   if (data.preferences) {
+    // COPPA: Reject if DOB in preferences indicates under 13
+    const dobToCheck = data.preferences?.dob;
+    if (dobToCheck !== undefined && isUnder13(dobToCheck)) {
+      return res.status(403).json({
+        error: 'COPPA_UNDER_13',
+        message: 'VarsityHub is not available for users under 13. Please have a parent or guardian contact support@varsityhub.app.',
+      });
+    }
     const current = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true } });
     const mergedPrefs = mergePreferences(current?.preferences || {}, data.preferences);
     patch.preferences = mergedPrefs;
@@ -763,6 +814,8 @@ authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
       game_event_reminders: z.boolean().optional(),
       team_updates: z.boolean().optional(),
       comments_upvotes: z.boolean().optional(),
+      follows_notifications: z.boolean().optional(),
+      messages_notifications: z.boolean().optional(),
     }).partial().optional(),
     is_parent: z.boolean().optional(),
     zip_code: z.string().min(2).max(20).optional().nullable(),
@@ -782,6 +835,9 @@ authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
     location_enabled: z.boolean().optional(),
     notifications_enabled: z.boolean().optional(),
     messaging_policy_accepted: z.boolean().optional(),
+    push_token: z.string().optional(),
+    profile_private: z.boolean().optional(),
+    comment_permission: z.enum(['everyone', 'following', 'none']).optional(),
   }).partial();
   
   const parsed = schema.safeParse(req.body || {});
@@ -792,6 +848,13 @@ authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
     });
   }
   const incoming = parsed.data as any;
+  // COPPA: Reject if DOB indicates under 13 - do not store
+  if (incoming.dob !== undefined && isUnder13(incoming.dob)) {
+    return res.status(403).json({
+      error: 'COPPA_UNDER_13',
+      message: 'VarsityHub is not available for users under 13. Please have a parent or guardian contact support@varsityhub.app.',
+    });
+  }
   const current = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true, email: true } });
   const currentPrefs = current?.preferences as any || {};
 
@@ -806,7 +869,7 @@ authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
   const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
   const is_admin = current?.email ? adminEmails.includes(current.email.toLowerCase()) : false;
   const defaults = {
-    notifications: { game_event_reminders: false, team_updates: false, comments_upvotes: false },
+    notifications: { game_event_reminders: false, team_updates: false, comments_upvotes: false, follows_notifications: true, messages_notifications: true },
     is_parent: false,
     zip_code: null,
     // Only set onboarding_completed=true for admin accounts (same as GET /me)
@@ -820,9 +883,11 @@ authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
     notifications_enabled: true,
     messaging_policy_accepted: false,
   };
-  // CRITICAL: Same merge order as GET /me - defaults must override (second arg overrides first)
-  // First merge user preferences with incoming, then apply defaults on top
-  const merged = mergePreferences(mergePreferences(current?.preferences || {}, incoming), defaults);
+  // CRITICAL: Correct merge order - defaults are base, user prefs override defaults, incoming overrides both
+  // 1. Start with defaults (fill in missing fields)
+  // 2. Apply current user preferences on top (preserve user's actual values)
+  // 3. Apply incoming changes on top (apply this update)
+  const merged = mergePreferences(mergePreferences(defaults, current?.preferences || {}), incoming);
   const updated = await prisma.user.update({ where: { id: req.user.id }, data: { preferences: merged } });
   return res.json({ preferences: updated.preferences });
 });
@@ -883,6 +948,14 @@ authRouter.post('/me/complete-onboarding', async (req: AuthedRequest, res) => {
   }
   
   const data = parsed.data;
+
+  // COPPA: Reject if DOB indicates under 13 - do not store
+  if (data.dob !== undefined && isUnder13(data.dob)) {
+    return res.status(403).json({
+      error: 'COPPA_UNDER_13',
+      message: 'VarsityHub is not available for users under 13. Please have a parent or guardian contact support@varsityhub.app.',
+    });
+  }
   
   // Get current preferences FIRST to preserve role if not in payload
   const current = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true } });
@@ -995,12 +1068,20 @@ authRouter.post('/verify/request', async (req: AuthedRequest, res) => {
   if (now - rec.last < 30_000) return res.status(429).json({ error: 'Please wait before requesting another code' });
   if (rec.count >= 5) return res.status(429).json({ error: 'Too many requests' });
   const code = String(Math.floor(100000 + Math.random() * 900000));
+  console.log(`[verify-code] [verify/request] Code generated: ${code} for user ${user.id} (${user.email})`);
   const exp = new Date(Date.now() + 30 * 60 * 1000);
   await prisma.user.update({ where: { id: user.id }, data: { email_verification_code: code, email_verification_expires: exp } });
+  console.log(`[verify-code] [verify/request] Code stored in DB (expires ${exp.toISOString()})`);
   try {
+    console.log(`[verify-code] [verify/request] Calling sendVerificationEmail → to: ${user.email}`);
     const sent = await sendVerificationEmail(user.email, code, user.display_name || user.email.split('@')[0]);
-    if (!sent) console.warn('[email] Verification email skipped (SendGrid not configured)');
+    if (!sent) {
+      console.error('[verify-code] [verify/request] sendVerificationEmail returned false — email was NOT sent (check SendGridProvider logs above for the specific error)');
+    } else {
+      console.log('[verify-code] [verify/request] sendVerificationEmail returned true — email accepted by SendGrid');
+    }
   } catch (e) {
+    console.error('[verify-code] [verify/request] sendVerificationEmail threw:', e);
     req.log?.warn?.({ err: e }, 'Email send failed');
   }
   const payload: any = { ok: true };

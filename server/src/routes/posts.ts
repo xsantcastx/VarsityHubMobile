@@ -20,19 +20,125 @@ const detectMediaType = (url?: string | null): 'video' | 'image' => {
   const sanitized = url.split('?')[0].split('#')[0].toLowerCase();
   return VIDEO_EXTENSIONS.some((ext) => sanitized.endsWith(ext)) ? 'video' : 'image';
 };
+const isMissingPollSchemaError = (error: any): boolean => {
+  if (!error || (error.code !== 'P2021' && error.code !== 'P2022')) return false;
+  const table = String(error?.meta?.table ?? '');
+  const column = String(error?.meta?.column ?? '');
+  const message = String(error?.message ?? '');
+  return /Poll/i.test(table) || /Poll/i.test(column) || /Poll/i.test(message);
+};
 
+const logPollSchemaFallback = (context: string, error: any) => {
+  console.warn(`[posts] Poll schema unavailable in ${context}; serving without poll data`, {
+    code: error?.code,
+    table: error?.meta?.table,
+    column: error?.meta?.column,
+  });
+};
+
+const MANAGEMENT_ROLES = ['owner', 'manager', 'coach', 'assistant_coach'] as const;
+
+/** Check if user is coach/owner of any team associated with the post (team_id or game's teams) */
+async function isCoachOfPostTeam(
+  userId: string,
+  post: { team_id?: string | null; game_id?: string | null }
+): Promise<boolean> {
+  const teamIds: string[] = [];
+  if (post.team_id) teamIds.push(post.team_id);
+  if (post.game_id) {
+    const game = await prisma.game.findUnique({
+      where: { id: post.game_id },
+      select: { home_team_id: true, away_team_id: true },
+    });
+    if (game?.home_team_id) teamIds.push(game.home_team_id);
+    if (game?.away_team_id) teamIds.push(game.away_team_id);
+  }
+  if (teamIds.length === 0) return false;
+  const membership = await prisma.teamMembership.findFirst({
+    where: {
+      team_id: { in: teamIds },
+      user_id: userId,
+      role: { in: [...MANAGEMENT_ROLES] },
+      status: 'active',
+    },
+  });
+  return !!membership;
+}
+
+
+/** Time-decay trending score: upvotes / (hours_since_posted + 2)^1.5 */
+const TRENDING_POOL_SIZE = 500;
+const trendingScore = (upvotes: number, createdAt: Date): number => {
+  const ageHours = Math.max((Date.now() - createdAt.getTime()) / 3600000, 0);
+  return (upvotes || 0) / Math.pow(ageHours + 2, 1.5);
+};
 
 postsRouter.get('/', async (req: AuthedRequest, res) => {
   const sort = typeof req.query.sort === 'string' ? req.query.sort.trim() : '';
   const limit = Math.min(parseInt(String(req.query.limit ?? '10'), 10) || 10, 50);
   const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : null;
+  const followedOnly = String(req.query.followed_only || '').toLowerCase() === 'true';
+  const followedTeams = String(req.query.followed_teams || '').toLowerCase() === 'true';
   const currentUserId = req.user?.id ?? null;
 
+  const hasTeamFilter = !!req.query.team_id;
   const orderBy = sort === 'trending'
-    ? [{ upvotes_count: 'desc' as const }, { created_at: 'desc' as const }]
-    : [{ created_at: 'desc' as const }];
+    ? [{ created_at: 'desc' as const }] // Fetch by recency; we'll re-sort by score
+    : hasTeamFilter
+      ? [{ is_pinned: 'desc' as const }, { created_at: 'desc' as const }] // Pinned first on team feed
+      : [{ created_at: 'desc' as const }];
 
   const where: Record<string, any> = { deleted_at: null };
+
+  // Followed feed: only posts from users the current user follows (requires auth)
+  let followedFeedMeta: { following_count: number } | undefined;
+  if (followedOnly) {
+    if (!currentUserId) {
+      return res.status(401).json({ items: [], nextCursor: null, followed_feed_meta: { following_count: 0 } });
+    }
+    const following = await prisma.follows.findMany({
+      where: { follower_id: currentUserId },
+      select: { following_id: true },
+    });
+    const followingIds = following.map((f) => f.following_id);
+    followedFeedMeta = { following_count: followingIds.length };
+    if (followingIds.length === 0) {
+      return res.json({ items: [], nextCursor: null, followed_feed_meta: followedFeedMeta });
+    }
+    where.author_id = { in: followingIds };
+  }
+
+  // Followed teams feed: posts from teams the user follows (team_id or game's teams)
+  let followedTeamsFeedMeta: { followed_teams_count: number } | undefined;
+  if (followedTeams) {
+    if (!currentUserId) {
+      return res.status(401).json({ items: [], nextCursor: null, followed_teams_feed_meta: { followed_teams_count: 0 } });
+    }
+    const teamFollows = await prisma.teamFollow.findMany({
+      where: { user_id: currentUserId },
+      select: { team_id: true },
+    });
+    const followedTeamIds = teamFollows.map((f) => f.team_id);
+    followedTeamsFeedMeta = { followed_teams_count: followedTeamIds.length };
+    if (followedTeamIds.length === 0) {
+      return res.json({ items: [], nextCursor: null, followed_teams_feed_meta: followedTeamsFeedMeta });
+    }
+    const gamesWithFollowedTeams = await prisma.game.findMany({
+      where: {
+        OR: [
+          { home_team_id: { in: followedTeamIds } },
+          { away_team_id: { in: followedTeamIds } },
+        ],
+      },
+      select: { id: true },
+    });
+    const gameIds = gamesWithFollowedTeams.map((g) => g.id);
+    where.OR = [
+      { team_id: { in: followedTeamIds } },
+      ...(gameIds.length > 0 ? [{ game_id: { in: gameIds } }] : []),
+    ];
+  }
+
   if (req.query.game_id) {
     const gameId = String(req.query.game_id);
     // Handle sample game IDs (stored in title field with [SAMPLE_GAME:...] marker)
@@ -42,14 +148,126 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
       where.game_id = gameId;
     }
   }
+  if (req.query.team_id) {
+    where.team_id = String(req.query.team_id);
+  }
   if (req.query.type) where.type = String(req.query.type);
   if (req.query.user_id) where.author_id = String(req.query.user_id);
+
+  // Trending: fetch pool, compute time-decay score, sort, paginate
+  if (sort === 'trending') {
+    const poolQuery: any = {
+      where,
+      orderBy: [{ created_at: 'desc' as const }],
+      include: {
+        author: { select: { id: true, username: true, display_name: true, avatar_url: true } },
+        team: { select: { id: true, name: true, logo_url: true } },
+        _count: { select: { comments: true, bookmarks: true } },
+        poll: { include: { options: true } },
+      },
+      take: TRENDING_POOL_SIZE,
+    };
+    let pool: any[] = [];
+    try {
+      pool = await prisma.post.findMany(poolQuery);
+    } catch (error: any) {
+      if (!isMissingPollSchemaError(error)) {
+        console.error('[posts] Failed to fetch trending pool:', error);
+        return res.status(500).json({ error: 'Failed to fetch posts' });
+      }
+      logPollSchemaFallback('GET /posts trending', error);
+      const fallback = { ...poolQuery, include: { ...poolQuery.include } };
+      delete fallback.include.poll;
+      pool = await prisma.post.findMany(fallback);
+    }
+    const ranked = pool
+      .map((p) => ({
+        post: p,
+        score: trendingScore(p.upvotes_count ?? 0, p.created_at instanceof Date ? p.created_at : new Date(p.created_at)),
+        createdAt: p.created_at instanceof Date ? p.created_at : new Date(p.created_at),
+      }))
+      .sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        return b.createdAt.getTime() - a.createdAt.getTime() || String(b.post.id).localeCompare(String(a.post.id));
+      });
+    let filtered = ranked;
+    if (cursor && cursor.startsWith('t:')) {
+      const parts = cursor.slice(2).split('|');
+      if (parts.length >= 3) {
+        const [scoreStr, createdAtStr, id] = parts;
+        const cursorScore = parseFloat(scoreStr);
+        const cursorTime = new Date(createdAtStr).getTime();
+        filtered = ranked.filter((r) => {
+          if (r.score < cursorScore - 1e-9) return true;
+          if (Math.abs(r.score - cursorScore) <= 1e-9) {
+            if (r.createdAt.getTime() < cursorTime) return true;
+            if (r.createdAt.getTime() === cursorTime) return String(r.post.id).localeCompare(id) < 0;
+          }
+          return false;
+        });
+      }
+    }
+    const items = filtered.slice(0, limit);
+    const nextRow = filtered[limit];
+    const nextCursor = nextRow
+      ? `t:${nextRow.score}|${nextRow.createdAt.toISOString()}|${nextRow.post.id}`
+      : null;
+    const postIds = items.map((p: any) => p.post.id);
+    const authorIds = items.map((p: any) => p.post.author_id).filter(Boolean);
+    let upvotedIds = new Set<string>();
+    let bookmarkedIds = new Set<string>();
+    let followingIds = new Set<string>();
+    if (currentUserId && items.length) {
+      const followPromise = authorIds.length
+        ? prisma.follows.findMany({ where: { follower_id: currentUserId, following_id: { in: authorIds } }, select: { following_id: true } })
+        : Promise.resolve([] as Array<{ following_id: string }>);
+      const [upvotes, bookmarks, follows] = await Promise.all([
+        prisma.postUpvote.findMany({ where: { user_id: currentUserId, post_id: { in: postIds } }, select: { post_id: true } }),
+        prisma.postBookmark.findMany({ where: { user_id: currentUserId, post_id: { in: postIds } }, select: { post_id: true } }),
+        followPromise,
+      ]);
+      upvotedIds = new Set(upvotes.map((u) => u.post_id));
+      bookmarkedIds = new Set(bookmarks.map((b) => b.post_id));
+      followingIds = new Set((follows as Array<{ following_id: string }>).map((f) => f.following_id));
+    }
+    const cleanTitle = (title: string | null): string | null => {
+      if (!title) return null;
+      const match = title.match(/^\[SAMPLE_GAME:[^\]]+\]\s*(.*)$/);
+      return match ? match[1] || null : title;
+    };
+    const payload = items.map(({ post }: any) => ({
+      id: post.id,
+      author_id: post.author_id,
+      team_id: post.team_id ?? null,
+      is_pinned: post.is_pinned ?? false,
+      title: cleanTitle(post.title),
+      content: post.content ?? null,
+      media_url: post.media_url ?? null,
+      media_type: detectMediaType(post.media_url),
+      caption: post.content ?? null,
+      upvotes_count: post.upvotes_count ?? 0,
+      comments_count: post._count?.comments ?? 0,
+      bookmarks_count: post._count?.bookmarks ?? 0,
+      created_at: post.created_at instanceof Date ? post.created_at.toISOString() : post.created_at,
+      author: post.author ? { id: post.author.id, username: post.author.username, display_name: post.author.display_name, avatar_url: post.author.avatar_url } : null,
+      team: post.team ? { id: post.team.id, name: post.team.name, logo_url: post.team.logo_url } : null,
+      has_upvoted: upvotedIds.has(post.id),
+      has_bookmarked: bookmarkedIds.has(post.id),
+      is_following_author: post.author ? followingIds.has(post.author.id) : false,
+      poll: post.poll ? { ...post.poll, userVote: null, totalVotes: (post.poll.options ?? []).reduce((acc: number, opt: any) => acc + (opt.votes_count ?? 0), 0) } : null,
+    }));
+    const response: Record<string, any> = { items: payload, nextCursor };
+    if (followedFeedMeta) response.followed_feed_meta = followedFeedMeta;
+    if (followedTeamsFeedMeta) response.followed_teams_feed_meta = followedTeamsFeedMeta;
+    return res.json(response);
+  }
 
   const query: any = {
     where,
     orderBy,
     include: {
-      author: { select: { id: true, display_name: true, avatar_url: true } },
+      author: { select: { id: true, username: true, display_name: true, avatar_url: true } },
+      team: { select: { id: true, name: true, logo_url: true } },
       _count: { select: { comments: true, bookmarks: true } },
       poll: { include: { options: true } },
     },
@@ -60,7 +278,19 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
     query.skip = 1;
   }
 
-  const rows = await prisma.post.findMany(query);
+  let rows: any[] = [];
+  try {
+    rows = await prisma.post.findMany(query);
+  } catch (error: any) {
+    if (!isMissingPollSchemaError(error)) {
+      console.error('[posts] Failed to fetch posts:', error);
+      return res.status(500).json({ error: 'Failed to fetch posts' });
+    }
+    logPollSchemaFallback('GET /posts', error);
+    const fallbackQuery = { ...query, include: { ...query.include } };
+    delete fallbackQuery.include.poll;
+    rows = await prisma.post.findMany(fallbackQuery);
+  }
   const items = rows.slice(0, limit);
   const nextCursor = rows.length > limit ? rows[limit].id : null;
 
@@ -103,6 +333,8 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
   const payload = items.map((post: any) => ({
     id: post.id,
     author_id: post.author_id, // Include author_id for ownership checks
+    team_id: post.team_id ?? null,
+    is_pinned: post.is_pinned ?? false,
     title: cleanTitle(post.title), // Clean sample game marker from title
     content: post.content ?? null, // Include content for editing
     media_url: post.media_url ?? null,
@@ -115,10 +347,12 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
     author: post.author
       ? {
           id: post.author.id,
+          username: post.author.username,
           display_name: post.author.display_name,
           avatar_url: post.author.avatar_url,
         }
       : null,
+    team: post.team ? { id: post.team.id, name: post.team.name, logo_url: post.team.logo_url } : null,
     has_upvoted: upvotedIds.has(post.id),
     has_bookmarked: bookmarkedIds.has(post.id),
     is_following_author: post.author ? followingIds.has(post.author.id) : false,
@@ -129,7 +363,10 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
     } : null,
   }));
 
-  return res.json({ items: payload, nextCursor });
+  const response: Record<string, any> = { items: payload, nextCursor };
+  if (followedFeedMeta) response.followed_feed_meta = followedFeedMeta;
+  if (followedTeamsFeedMeta) response.followed_teams_feed_meta = followedTeamsFeedMeta;
+  return res.json(response);
 });
 
 postsRouter.get('/trending', async (req: AuthedRequest, res, next) => {
@@ -168,6 +405,7 @@ postsRouter.get('/debug/follows', requireAuth, async (req: AuthedRequest, res) =
 postsRouter.get('/count', async (req, res) => {
   const where: any = { deleted_at: null };
   if (req.query.game_id) where.game_id = String(req.query.game_id);
+  if (req.query.team_id) where.team_id = String(req.query.team_id);
   if (req.query.type) where.type = String(req.query.type);
   const count = await prisma.post.count({ where });
   res.json({ count });
@@ -194,6 +432,7 @@ const createPostSchema = z
     // Accept any non-empty string to support data URIs or local uploads handled elsewhere
     media_url: z.string().trim().min(1).optional(),
     game_id: z.string().optional(),
+    team_id: z.string().optional(), // Associate post with team page (coach-only)
     event_id: z.string().optional(), // For event-specific posts
     location: locationSchema,
   })
@@ -205,7 +444,11 @@ const createPostSchema = z
 
 import { geocodeZip, getCountryFromReqOrPrefs, reverseGeocode } from '../lib/geo.js';
 import { verifyEventPostingPermission } from '../lib/geofencing.js';
-import { notifyPostInteraction } from '../lib/notifications.js';
+import { getIsAdmin } from '../middleware/requireAdmin.js';
+import { notifyCommentReply, notifyPostInteraction } from '../lib/notifications.js';
+import { notifyMentions } from '../lib/mentionNotifications.js';
+import { validateContent } from '../lib/contentFilter.js';
+import { stripHtml } from '../lib/sanitizeHtml.js';
 
 postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) => {
   // req.user is guaranteed by requireVerified middleware
@@ -217,6 +460,15 @@ postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
     });
   }
   const data = parsed.data;
+
+  // Content filter: profanity, spam, bullying
+  const filterResult = validateContent({ title: data.title, content: data.content });
+  if (!filterResult.valid) {
+    return res.status(400).json({
+      error: filterResult.error,
+      code: filterResult.code,
+    });
+  }
   
   // Normalize and enrich location
   let lat: number | null = null;
@@ -278,14 +530,18 @@ postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
   } else if (eventId || gameId) {
     // Check geofencing for real events or games (games have associated events)
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-    
+
     let targetEventId = eventId;
-    
-    // If we have a game_id but no event_id, look up the game's associated event
-    if (!targetEventId && gameId) {
+    let homeTeamId: string | null = null;
+    let awayTeamId: string | null = null;
+
+    // Look up game to get event + team IDs for membership check
+    if (gameId) {
       const game = await prisma.game.findUnique({
         where: { id: gameId },
         select: {
+          home_team_id: true,
+          away_team_id: true,
           events: {
             orderBy: { date: 'asc' },
             take: 1,
@@ -293,45 +549,77 @@ postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
           },
         },
       });
-      
-      if (game?.events && game.events.length > 0) {
-        targetEventId = game.events[0].id;
-        debugLog(`✅ Found associated event ${targetEventId} for game ${gameId}`);
+      if (game) {
+        homeTeamId = game.home_team_id ?? null;
+        awayTeamId = game.away_team_id ?? null;
+        if (!targetEventId && game.events?.length) {
+          targetEventId = game.events[0].id;
+          debugLog(`✅ Found associated event ${targetEventId} for game ${gameId}`);
+        }
       }
     }
-    
-    // Only check geofencing if we have an event to validate against
-    if (targetEventId) {
+
+    // Admins and active members of either team bypass geofencing/time-window checks
+    const isAdmin = await getIsAdmin(req as any);
+    const teamIds = [homeTeamId, awayTeamId].filter(Boolean) as string[];
+    const isTeamMember = teamIds.length > 0
+      ? !!(await prisma.teamMembership.findFirst({
+          where: { user_id: req.user.id, team_id: { in: teamIds }, status: 'active' },
+          select: { id: true },
+        }))
+      : false;
+
+    if (isAdmin || isTeamMember) {
+      debugLog(`✅ Geofencing bypassed (isAdmin=${isAdmin}, isTeamMember=${isTeamMember})`);
+    } else if (targetEventId) {
       const verification = await verifyEventPostingPermission(
         targetEventId,
         req.user.id,
         lat,
         lng
       );
-
       if (!verification.allowed) {
         return res.status(403).json({
-          error: 'Location verification failed',
+          error: verification.code || 'LOCATION_VERIFICATION_FAILED',
           message: verification.reason,
           distance: verification.distance,
         });
       }
-
       debugLog(`✅ User ${req.user.id} verified at event location (${verification.distance?.toFixed(2)} km away)`);
     } else if (gameId) {
-      // Game exists but has no associated event - allow posting (legacy support)
-      debugLog(`⚠️  Game ${gameId} has no associated event - allowing post without geofence`);
+      debugLog(`⚠️  Game ${gameId} has no associated event — allowing post without geofence`);
     }
   }
 
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+  // If team_id provided, verify user is coach/owner of that team
+  let finalTeamId: string | null = null;
+  if (data.team_id) {
+    const team = await prisma.team.findUnique({ where: { id: data.team_id } });
+    if (!team) return res.status(404).json({ error: 'Team not found' });
+    const membership = await prisma.teamMembership.findFirst({
+      where: {
+        team_id: data.team_id,
+        user_id: req.user.id,
+        role: { in: [...MANAGEMENT_ROLES] },
+        status: 'active',
+      },
+    });
+    if (!membership) {
+      return res.status(403).json({ error: 'Only team coaches or owners can post to their team page' });
+    }
+    finalTeamId = data.team_id;
+  }
+
   const post = await prisma.post.create({
     data: {
-      title: finalTitle,
-      content: data.content?.trim() || null,
+      title: finalTitle ? stripHtml(finalTitle) : null,
+      content: data.content ? stripHtml(data.content.trim()) : null,
       type: data.type || 'post',
       media_url: data.media_url,
       game_id: finalGameId,
+      team_id: finalTeamId || undefined,
       author_id: req.user.id,
       country_code: country_code || undefined,
       admin1: admin1 || undefined,
@@ -346,6 +634,22 @@ postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
     const match = title.match(/^\[SAMPLE_GAME:[^\]]+\]\s*(.*)$/);
     return match ? match[1] || null : title;
   };
+
+  // Mention notifications (parse @username from content)
+  const contentForMentions = data.content?.trim() ?? '';
+  if (contentForMentions && req.user) {
+    try {
+      await notifyMentions({
+        content: contentForMentions,
+        actorId: req.user.id,
+        actorName: (await prisma.user.findUnique({ where: { id: req.user.id }, select: { display_name: true } }))?.display_name || 'Someone',
+        postId: post.id,
+        context: 'post',
+      });
+    } catch (e) {
+      console.error('Failed to send mention notifications:', e);
+    }
+  }
 
   res.status(201).json({ 
     ...post, 
@@ -379,20 +683,32 @@ postsRouter.post('/:id/poll', requireAuth as any, async (req: AuthedRequest, res
     return res.status(403).json({ error: 'Only the post author can create a poll' });
   }
 
-  const poll = await prisma.poll.create({
-    data: {
-      post_id: postId,
-      expires_at: expires_at ? new Date(expires_at) : undefined,
-      options: {
-        create: options.map((text) => ({ text })),
+  try {
+    const poll = await prisma.poll.create({
+      data: {
+        post_id: postId,
+        expires_at: expires_at ? new Date(expires_at) : undefined,
+        options: {
+          create: options.map((text) => ({ text })),
+        },
       },
-    },
-    include: {
-      options: true,
-    },
-  });
+      include: {
+        options: true,
+      },
+    });
 
-  res.status(201).json(poll);
+    res.status(201).json(poll);
+  } catch (error: any) {
+    if (!isMissingPollSchemaError(error)) {
+      console.error('[posts] Failed to create poll:', error);
+      return res.status(500).json({ error: 'Failed to create poll' });
+    }
+    logPollSchemaFallback('POST /posts/:id/poll', error);
+    return res.status(503).json({
+      error: 'POLL_FEATURE_UNAVAILABLE',
+      message: 'Polls are temporarily unavailable. Please try again shortly.',
+    });
+  }
 });
 
 postsRouter.post('/:id/poll/vote', requireAuth as any, async (req: AuthedRequest, res) => {
@@ -415,12 +731,25 @@ postsRouter.post('/:id/poll/vote', requireAuth as any, async (req: AuthedRequest
     return res.status(404).json({ error: 'Post not found' });
   }
 
-  const poll = await prisma.poll.findUnique({ where: { post_id: postId }, include: { options: true } });
+  let poll: any;
+  try {
+    poll = await prisma.poll.findUnique({ where: { post_id: postId }, include: { options: true } });
+  } catch (error: any) {
+    if (!isMissingPollSchemaError(error)) {
+      console.error('[posts] Failed to load poll for voting:', error);
+      return res.status(500).json({ error: 'Failed to load poll' });
+    }
+    logPollSchemaFallback('POST /posts/:id/poll/vote', error);
+    return res.status(503).json({
+      error: 'POLL_FEATURE_UNAVAILABLE',
+      message: 'Poll voting is temporarily unavailable. Please try again shortly.',
+    });
+  }
   if (!poll) {
     return res.status(404).json({ error: 'Poll not found' });
   }
 
-  const option = poll.options.find((o) => o.id === option_id);
+  const option = poll.options.find((o: any) => o.id === option_id);
   if (!option) {
     return res.status(404).json({ error: 'Poll option not found' });
   }
@@ -475,15 +804,32 @@ postsRouter.get('/:id', async (req: AuthedRequest, res) => {
   const { id } = req.params;
   const currentUserId = req.user?.id ?? null;
 
-  const post = await prisma.post.findFirst({ 
-    where: { id, deleted_at: null }, 
-    include: { 
-      author: { select: { id: true, display_name: true, avatar_url: true } },
-      game: { select: { id: true, title: true, home_team: true, away_team: true, date: true } },
-      _count: { select: { comments: true, bookmarks: true } },
-      poll: { include: { options: true } },
-    } 
-  });
+  let post: any;
+  try {
+    post = await prisma.post.findFirst({ 
+      where: { id, deleted_at: null }, 
+      include: { 
+        author: { select: { id: true, username: true, display_name: true, avatar_url: true } },
+        game: { select: { id: true, title: true, home_team: true, away_team: true, date: true } },
+        _count: { select: { comments: true, bookmarks: true } },
+        poll: { include: { options: true } },
+      } 
+    });
+  } catch (error: any) {
+    if (!isMissingPollSchemaError(error)) {
+      console.error('[posts] Failed to fetch post:', error);
+      return res.status(500).json({ error: 'Failed to fetch post' });
+    }
+    logPollSchemaFallback('GET /posts/:id', error);
+    post = await prisma.post.findFirst({ 
+      where: { id, deleted_at: null }, 
+      include: { 
+        author: { select: { id: true, username: true, display_name: true, avatar_url: true } },
+        game: { select: { id: true, title: true, home_team: true, away_team: true, date: true } },
+        _count: { select: { comments: true, bookmarks: true } },
+      } 
+    });
+  }
   
   if (!post) return res.status(404).json({ error: 'Not found' });
 
@@ -568,9 +914,38 @@ postsRouter.get('/:id/comments', async (req, res) => {
 postsRouter.post('/:id/comments', requireAuth as any, async (req: AuthedRequest, res) => {
   // req.user is guaranteed by requireAuth middleware
   const { id } = req.params;
-  const postExists = await prisma.post.findFirst({ where: { id, deleted_at: null }, select: { id: true } });
-  if (!postExists) return res.status(404).json({ error: 'Post not found' });
-  const schema = z.object({ content: z.string().min(1).max(1000) });
+  const post = await prisma.post.findFirst({
+    where: { id, deleted_at: null },
+    select: { id: true, author_id: true, author: { select: { id: true, preferences: true } } },
+  });
+  if (!post) return res.status(404).json({ error: 'Post not found' });
+
+  // Enforce comment_permission: everyone | following | none (post author's preference)
+  const prefs = ((post as any).author?.preferences || {}) as any;
+  const commentPermission = prefs?.comment_permission ?? 'everyone';
+  if (commentPermission === 'none') {
+    return res.status(403).json({
+      error: 'Comments are disabled on this post.',
+      code: 'COMMENTS_DISABLED',
+    });
+  }
+  if (commentPermission === 'following' && post.author_id !== req.user!.id) {
+    const follows = await prisma.follows.findUnique({
+      where: { follower_id_following_id: { follower_id: req.user!.id, following_id: post.author_id } },
+      select: { follower_id: true },
+    });
+    if (!follows) {
+      return res.status(403).json({
+        error: 'Only people who follow this user can comment.',
+        code: 'COMMENTS_FOLLOWING_ONLY',
+      });
+    }
+  }
+
+  const schema = z.object({
+    content: z.string().min(1).max(1000),
+    parent_id: z.string().optional(),
+  });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({
@@ -578,33 +953,94 @@ postsRouter.post('/:id/comments', requireAuth as any, async (req: AuthedRequest,
       issues: parsed.error.issues.map((i) => ({ path: i.path, message: i.message })),
     });
   }
-  
-  const comment = await prisma.comment.create({ 
-    data: { post_id: id, author_id: req.user!.id, content: parsed.data.content },
-    include: {
-      author: { select: { id: true, display_name: true, avatar_url: true } }
+
+  const { content, parent_id } = parsed.data;
+  const sanitizedContent = stripHtml(content);
+
+  // Content filter: profanity, spam, bullying
+  const filterResult = validateContent({ content: sanitizedContent });
+  if (!filterResult.valid) {
+    return res.status(400).json({
+      error: filterResult.error,
+      code: filterResult.code,
+    });
+  }
+
+  // Validate parent_id if provided (reply to comment)
+  if (parent_id) {
+    const parentComment = await prisma.comment.findFirst({
+      where: { id: parent_id, post_id: id },
+      select: { id: true, author_id: true },
+    });
+    if (!parentComment) {
+      return res.status(404).json({ error: 'Parent comment not found' });
     }
+  }
+
+  const comment = await prisma.comment.create({
+    data: {
+      post_id: id,
+      author_id: req.user!.id,
+      content: sanitizedContent,
+      parent_id: parent_id || undefined,
+    },
+    include: {
+      author: { select: { id: true, username: true, display_name: true, avatar_url: true } },
+    },
   });
-  
-  // Notify post author (if not self)
+
+  const actorName = comment.author?.display_name || 'Someone';
+
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-    const post = await prisma.post.findFirst({ where: { id, deleted_at: null }, select: { author_id: true } });
-    const recipient = post?.author_id;
-    if (recipient && recipient !== req.user.id) {
-      await (prisma as any).notification.create({ 
-        data: { user_id: recipient, actor_id: req.user.id, type: 'COMMENT', post_id: id, comment_id: comment.id } 
+    const postAuthorId = post.author_id;
+
+    // Notify post author (if not self, and not a reply - replies notify comment author instead for COMMENT type)
+    const isReply = !!parent_id;
+    if (postAuthorId && postAuthorId !== req.user.id && !isReply) {
+      await prisma.notification.create({
+        data: {
+          user_id: postAuthorId,
+          actor_id: req.user.id,
+          type: 'COMMENT',
+          post_id: id,
+          comment_id: comment.id,
+        },
       });
-      
-      // Send push notification
-      await notifyPostInteraction(
-        recipient,
-        'comment',
-        req.user.id,
-        comment.author?.display_name || 'Someone',
-        id
-      );
+      await notifyPostInteraction(postAuthorId, 'comment', req.user.id, actorName, id);
     }
+
+    // Reply-to-comment: notify parent comment author
+    if (parent_id) {
+      const parentComment = await prisma.comment.findFirst({
+        where: { id: parent_id },
+        include: { author: { select: { id: true } } },
+      });
+      const parentAuthorId = parentComment?.author?.id;
+      if (parentAuthorId && parentAuthorId !== req.user.id) {
+        await prisma.notification.create({
+          data: {
+            user_id: parentAuthorId,
+            actor_id: req.user.id,
+            type: 'COMMENT_REPLY',
+            post_id: id,
+            comment_id: comment.id,
+            meta: { parent_comment_id: parent_id },
+          },
+        });
+        await notifyCommentReply(parentAuthorId, req.user.id, actorName, id, comment.id);
+      }
+    }
+
+    // Mention notifications (parse @username from content)
+    await notifyMentions({
+      content,
+      actorId: req.user.id,
+      actorName,
+      postId: id,
+      commentId: comment.id,
+      context: 'comment',
+    });
   } catch (e) {
     console.error('Failed to send comment notification:', e);
   }
@@ -690,24 +1126,62 @@ postsRouter.post('/:id/bookmark', requireAuth as any, async (req: AuthedRequest,
   return res.json({ has_bookmarked: true, bookmarks_count, bookmarked: true });
 });
 
-// Delete post (author only)
+// Share post (tracks share for notifications)
+postsRouter.post('/:id/share', requireAuth as any, async (req: AuthedRequest, res) => {
+  const postId = String(req.params.id);
+  const userId = req.user!.id;
+
+  const post = await prisma.post.findFirst({
+    where: { id: postId, deleted_at: null },
+    select: { id: true, author_id: true, author: { select: { display_name: true } } },
+  });
+  if (!post) return res.status(404).json({ error: 'Post not found' });
+
+  const postAuthorId = post.author_id;
+  if (postAuthorId && postAuthorId !== userId) {
+    try {
+      await prisma.notification.create({
+        data: {
+          user_id: postAuthorId,
+          actor_id: userId,
+          type: 'SHARE',
+          post_id: postId,
+        },
+      });
+      const actor = await prisma.user.findUnique({ where: { id: userId }, select: { display_name: true } });
+      await notifyPostInteraction(
+        postAuthorId,
+        'share',
+        userId,
+        actor?.display_name || 'Someone',
+        postId
+      );
+    } catch (e) {
+      console.error('Failed to send share notification:', e);
+    }
+  }
+  return res.json({ shared: true });
+});
+
+// Delete post (author, or coach/owner of team the post is associated with)
 postsRouter.delete('/:id', requireAuth as any, async (req: AuthedRequest, res) => {
   const postId = String(req.params.id);
   const userId = req.user!.id;
 
   try {
-    // Check if post exists and user is the author
-    const post = await prisma.post.findFirst({ 
+    const post = await prisma.post.findFirst({
       where: { id: postId, deleted_at: null },
-      select: { id: true, author_id: true }
+      select: { id: true, author_id: true, team_id: true, game_id: true },
     });
-    
+
     if (!post) {
       return res.status(404).json({ error: 'Post not found' });
     }
-    
-    if (post.author_id !== userId) {
-      return res.status(403).json({ error: 'You can only delete your own posts' });
+
+    const isAuthor = post.author_id === userId;
+    const isTeamCoach = await isCoachOfPostTeam(userId, post);
+    if (!isAuthor && !isTeamCoach) {
+      return res.status(403).json({ error: 'You can only delete your own posts or posts on your team page' });
     }
     
     const deletedAt = new Date();
@@ -745,15 +1219,29 @@ postsRouter.post('/:id/restore', requireAuth as any, async (req: AuthedRequest, 
       return res.status(410).json({ error: 'Restore window has expired' });
     }
 
-    const restored = await prisma.post.update({
-      where: { id: postId },
-      data: { deleted_at: null },
-      include: {
-        author: { select: { id: true, display_name: true, avatar_url: true } },
-        _count: { select: { comments: true, bookmarks: true } },
-        poll: { include: { options: true } },
-      },
-    });
+    let restored: any;
+    try {
+      restored = await prisma.post.update({
+        where: { id: postId },
+        data: { deleted_at: null },
+        include: {
+          author: { select: { id: true, username: true, display_name: true, avatar_url: true } },
+          _count: { select: { comments: true, bookmarks: true } },
+          poll: { include: { options: true } },
+        },
+      });
+    } catch (error: any) {
+      if (!isMissingPollSchemaError(error)) throw error;
+      logPollSchemaFallback('POST /posts/:id/restore', error);
+      restored = await prisma.post.update({
+        where: { id: postId },
+        data: { deleted_at: null },
+        include: {
+          author: { select: { id: true, username: true, display_name: true, avatar_url: true } },
+          _count: { select: { comments: true, bookmarks: true } },
+        },
+      });
+    }
     return res.json(restored);
   } catch (error) {
     console.error('Error restoring post:', error);
@@ -761,46 +1249,72 @@ postsRouter.post('/:id/restore', requireAuth as any, async (req: AuthedRequest, 
   }
 });
 
-// Update post (author only)
+// Update post (author: content/title/is_pinned; coach of team: is_pinned only)
 postsRouter.patch('/:id', requireAuth as any, async (req: AuthedRequest, res) => {
   const postId = String(req.params.id);
   const userId = req.user!.id;
-  
+
   const schema = z.object({
     content: z.string().min(1).max(5000).optional(),
     title: z.string().max(200).optional(),
+    is_pinned: z.boolean().optional(),
   });
-  
+
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
   }
 
   try {
-    // Check if post exists and user is the author
-    const post = await prisma.post.findFirst({ 
+    const post = await prisma.post.findFirst({
       where: { id: postId, deleted_at: null },
-      select: { id: true, author_id: true }
+      select: { id: true, author_id: true, team_id: true, game_id: true },
     });
-    
+
     if (!post) {
       return res.status(404).json({ error: 'Post not found' });
     }
-    
-    if (post.author_id !== userId) {
-      return res.status(403).json({ error: 'You can only edit your own posts' });
+
+    const isAuthor = post.author_id === userId;
+    const isTeamCoach = await isCoachOfPostTeam(userId, post);
+
+    let updateData: Record<string, unknown> = {};
+    if (isAuthor) {
+      updateData = parsed.data;
+    } else if (isTeamCoach && parsed.data.is_pinned !== undefined) {
+      // Coach can only toggle is_pinned
+      updateData = { is_pinned: parsed.data.is_pinned };
+    } else {
+      return res.status(403).json({ error: 'You can only edit your own posts or pin posts on your team page' });
     }
-    
-    // Update the post
-    const updatedPost = await prisma.post.update({ 
-      where: { id: postId },
-      data: parsed.data,
-      include: {
-        author: { select: { id: true, display_name: true, avatar_url: true } },
-        _count: { select: { comments: true } },
+
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({ error: 'No valid fields to update' });
+    }
+
+    // Content filter when updating content/title
+    if (updateData.content !== undefined || updateData.title !== undefined) {
+      const filterResult = validateContent({
+        title: updateData.title as string | undefined,
+        content: updateData.content as string | undefined,
+      });
+      if (!filterResult.valid) {
+        return res.status(400).json({
+          error: filterResult.error,
+          code: filterResult.code,
+        });
       }
+    }
+
+    const updatedPost = await prisma.post.update({
+      where: { id: postId },
+      data: updateData,
+      include: {
+        author: { select: { id: true, username: true, display_name: true, avatar_url: true } },
+        _count: { select: { comments: true } },
+      },
     });
-    
+
     res.json(updatedPost);
   } catch (error) {
     console.error('Error updating post:', error);
@@ -808,16 +1322,16 @@ postsRouter.patch('/:id', requireAuth as any, async (req: AuthedRequest, res) =>
   }
 });
 
-// Delete comment (author only)
+// Delete comment (author or post owner)
 postsRouter.delete('/:postId/comments/:commentId', requireAuth as any, async (req: AuthedRequest, res) => {
   const { postId, commentId } = req.params;
   const userId = req.user!.id;
 
   try {
-    // Check if comment exists and user is the author
+    // Check if comment exists and get post owner for permission check
     const comment = await prisma.comment.findUnique({ 
       where: { id: commentId },
-      select: { id: true, author_id: true, post_id: true }
+      include: { post: { select: { author_id: true } } }
     });
     
     if (!comment) {
@@ -828,8 +1342,10 @@ postsRouter.delete('/:postId/comments/:commentId', requireAuth as any, async (re
       return res.status(400).json({ error: 'Comment does not belong to this post' });
     }
     
-    if (comment.author_id !== userId) {
-      return res.status(403).json({ error: 'You can only delete your own comments' });
+    const isCommentAuthor = comment.author_id === userId;
+    const isPostOwner = comment.post?.author_id === userId;
+    if (!isCommentAuthor && !isPostOwner) {
+      return res.status(403).json({ error: 'You can only delete your own comments or comments on your posts' });
     }
     
     // Delete the comment
@@ -874,6 +1390,15 @@ postsRouter.patch('/:postId/comments/:commentId', requireAuth as any, async (req
     if (comment.author_id !== userId) {
       return res.status(403).json({ error: 'You can only edit your own comments' });
     }
+
+    // Content filter
+    const filterResult = validateContent({ content: parsed.data.content });
+    if (!filterResult.valid) {
+      return res.status(400).json({
+        error: filterResult.error,
+        code: filterResult.code,
+      });
+    }
     
     // Update the comment
     const updatedComment = await prisma.comment.update({ 
@@ -899,6 +1424,15 @@ postsRouter.post('/collage', requireVerified as any, async (req: AuthedRequest, 
     return res.status(400).json({ error: 'postIds must be a non-empty array' });
   }
 
+  const collageTitle = typeof title === 'string' ? title.trim() : 'My Collage';
+  const filterResult = validateContent({ title: collageTitle });
+  if (!filterResult.valid) {
+    return res.status(400).json({
+      error: filterResult.error,
+      code: filterResult.code,
+    });
+  }
+
   const posts = await prisma.post.findMany({
     where: {
       id: { in: postIds },
@@ -920,7 +1454,7 @@ postsRouter.post('/collage', requireVerified as any, async (req: AuthedRequest, 
 
   const newPost = await prisma.post.create({
     data: {
-      title: title || 'My Collage',
+      title: collageTitle || 'My Collage',
       content: `A collage of ${posts.length} posts.`,
       author_id: req.user!.id,
       type: 'collage',

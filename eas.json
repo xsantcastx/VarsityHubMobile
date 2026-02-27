@@ -8,11 +8,13 @@
       "node": "20.19.4",
       "developmentClient": true,
       "distribution": "internal",
+      "channel": "development",
       "env": {
         "NODE_ENV": "development",
         "SENTRY_ORG": "varsity-hub",
         "SENTRY_PROJECT": "varsity-hub-mobile",
-        "SENTRY_ALLOW_FAILURE": "true"
+        "SENTRY_ALLOW_FAILURE": "true",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       },
       "ios": {
         "resourceClass": "m-medium",
@@ -26,11 +28,13 @@
     "preview": {
       "node": "20.19.4",
       "distribution": "internal",
+      "channel": "preview",
       "env": {
         "NODE_ENV": "production",
         "SENTRY_ORG": "varsity-hub",
         "SENTRY_PROJECT": "varsity-hub-mobile",
-        "SENTRY_ALLOW_FAILURE": "true"
+        "SENTRY_ALLOW_FAILURE": "true",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       },
       "ios": {
         "resourceClass": "m-medium"
@@ -44,6 +48,7 @@
       "node": "20.19.4",
       "distribution": "store",
       "autoIncrement": true,
+      "channel": "production",
       "env": {
         "NODE_ENV": "production",
         "SENTRY_ORG": "varsity-hub",
@@ -67,11 +72,11 @@
     "production": {
       "ios": {
         "appleId": "sanchezemil82@gmail.com",
-        "ascAppId": "6758405187"
+        "ascAppId": "6758405187",
+        "appleTeamId": "B5H8F69RW5"
       },
       "android": {
-        "serviceAccountKeyPath": "./service-account-key.json",
-        "track": "internal"
+        "serviceAccountKeyPath": "./service-account-key.json"
       }
     }
   }

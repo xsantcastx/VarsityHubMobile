@@ -45,6 +45,7 @@ export default function SignInScreen() {
   const { checkAuth } = useAuth();
 
   const onSubmit = async () => {
+    if (loading) return;
     if (!email || !password) {
       setError('Please enter email and password');
       return;
@@ -131,10 +132,9 @@ export default function SignInScreen() {
       // Call checkAuth to set user state; AuthProvider will handle routing
       try {
         await checkAuth();
-      } catch (authError) {
-        // Token is saved, let AuthProvider handle routing
-        // Don't show error - token is valid, routing will happen
-        if (__DEV__) console.log('[sign-in] checkAuth after Google login:', authError);
+      } catch (authError: any) {
+        console.warn('[sign-in] checkAuth after Google login failed:', authError?.message);
+        setError('Sign-in succeeded but we could not load your profile. Please try again.');
       }
     } catch (e: any) {
       // Silently ignore user cancellation
@@ -182,10 +182,9 @@ export default function SignInScreen() {
       // Call checkAuth to set user state; AuthProvider will handle routing
       try {
         await checkAuth();
-      } catch (authError) {
-        // Token is saved, let AuthProvider handle routing
-        // Don't show error - token is valid, routing will happen
-        if (__DEV__) console.log('[sign-in] checkAuth after Apple login:', authError);
+      } catch (authError: any) {
+        console.warn('[sign-in] checkAuth after Apple login failed:', authError?.message);
+        setError('Sign-in succeeded but we could not load your profile. Please try again.');
       }
     } catch (e: any) {
       const message = e?.message || 'Apple sign in failed';

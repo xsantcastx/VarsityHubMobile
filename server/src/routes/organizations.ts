@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { validateContent } from '../lib/contentFilter.js';
 import { sendJoinRequestApproved, sendJoinRequestDenied, sendJoinRequestToAdmin, sendOrganizationInviteEmail } from '../lib/email.js';
 import { sendOrganizationApprovalEmail } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
@@ -40,15 +41,12 @@ function isOrganizationAdmin(role: string | null | undefined): boolean {
 // List organizations (public, with optional search)
 organizationsRouter.get('/', async (req, res) => {
   const q = String((req.query as any).q || '').trim();
-  const limit = Math.min(parseInt(String((req.query as any).limit || '50'), 10) || 50, 100);
-  
-  const where: any = q ? {
-    OR: [
-      { name: { contains: q, mode: 'insensitive' } },
-      { description: { contains: q, mode: 'insensitive' } },
-    ]
-  } : {};
-  
+  const limit = Math.min(parseInt(String((req.query as any).limit || '20'), 10) || 20, 50);
+
+  // Use startsWith (LIKE 'q%') so the @@index([name]) is used; leading-wildcard ILIKE
+  // would cause a full table scan. Description search is omitted for the same reason.
+  const where: any = q ? { name: { startsWith: q, mode: 'insensitive' } } : {};
+
   const organizations = await prisma.organization.findMany({
     where,
     take: limit,
@@ -96,12 +94,37 @@ organizationsRouter.get('/mine', requireAuth as any, async (req: AuthedRequest, 
   return res.json(orgs);
 });
 
+// Follow an organization
+organizationsRouter.post('/:id/follow', requireAuth as any, async (req: AuthedRequest, res) => {
+  const userId = req.user!.id;
+  const orgId = String(req.params.id);
+  const org = await prisma.organization.findUnique({ where: { id: orgId } });
+  if (!org) return res.status(404).json({ error: 'Organization not found' });
+  try {
+    await prisma.organizationFollow.create({ data: { user_id: userId, organization_id: orgId } });
+    return res.status(201).json({ is_following: true });
+  } catch (e: any) {
+    if (e?.code === 'P2002') return res.status(201).json({ is_following: true });
+    throw e;
+  }
+});
+
+// Unfollow an organization
+organizationsRouter.delete('/:id/follow', requireAuth as any, async (req: AuthedRequest, res) => {
+  const userId = req.user!.id;
+  const orgId = String(req.params.id);
+  await prisma.organizationFollow.deleteMany({ where: { user_id: userId, organization_id: orgId } });
+  return res.json({ is_following: false });
+});
+
 // Get single organization
 organizationsRouter.get('/:id', async (req, res) => {
   const id = String(req.params.id);
+  const currentUserId = (req as AuthedRequest).user?.id ?? null;
   const organization = await prisma.organization.findUnique({ 
     where: { id },
     include: {
+      _count: { select: { followers: true } },
       teams: {
         orderBy: { name: 'asc' },
         select: { 
@@ -134,7 +157,13 @@ organizationsRouter.get('/:id', async (req, res) => {
   });
   
   if (!organization) return res.status(404).json({ error: 'Organization not found' });
-  return res.json(organization);
+  const payload = { ...organization } as any;
+  payload.followers_count = (organization as any)._count?.followers ?? 0;
+  payload.is_following = currentUserId
+    ? !!(await prisma.organizationFollow.findFirst({ where: { user_id: currentUserId, organization_id: id } }))
+    : null;
+  delete payload._count;
+  return res.json(payload);
 });
 
 // Get organization members
@@ -191,24 +220,32 @@ organizationsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
   
   const data = parsed.data;
-  // Enhanced duplicate guard: check normalized name collisions within same zip_code regardless of org_type/sport
+  // Duplicate guard: when zip_code is provided scope to that area; otherwise skip the
+  // full-table scan (no zip_code means we can't reliably detect cross-area duplicates and
+  // `zip_code: undefined` in a Prisma where clause removes the filter entirely, causing a
+  // scan of ALL organizations).
   const nm = normalizeOrganizationName(data.name);
-  const possibleDuplicates = await prisma.organization.findMany({
-    where: {
-      zip_code: data.zip_code || undefined,
-      status: 'active'
-    },
-    select: { id: true, name: true, zip_code: true }
-  });
-  const dup = possibleDuplicates.find(o => normalizeOrganizationName(o.name) === nm);
+  let dup: { id: string; name: string } | null = null;
+  if (data.zip_code) {
+    const sameZipOrgs = await prisma.organization.findMany({
+      where: { zip_code: data.zip_code, status: 'active' },
+      select: { id: true, name: true },
+    });
+    dup = sameZipOrgs.find(o => normalizeOrganizationName(o.name) === nm) ?? null;
+  }
   if (dup) {
     return res.status(409).json({ error: 'DUPLICATE_ORGANIZATION', duplicate_of: { id: dup.id, name: dup.name } });
+  }
+  const filterResult = validateContent({ title: data.name, content: data.description ?? undefined });
+  if (!filterResult.valid) {
+    return res.status(400).json({ error: filterResult.error, code: filterResult.code });
   }
   const organization = await prisma.organization.create({ 
     data: {
       ...data,
       season_start: data.season_start ? new Date(data.season_start) : null,
       season_end: data.season_end ? new Date(data.season_end) : null,
+      updated_at: new Date(),
     }
   });
   
@@ -260,6 +297,10 @@ organizationsRouter.post('/create', requireAuth as any, async (req: AuthedReques
   if (dup) {
     return res.status(409).json({ error: 'DUPLICATE_ORGANIZATION', duplicate_of: { id: dup.id, name: dup.name } });
   }
+  const filterResult = validateContent({ title: data.name, content: data.description ?? undefined });
+  if (!filterResult.valid) {
+    return res.status(400).json({ error: filterResult.error, code: filterResult.code });
+  }
   
   // Create organization
   const organization = await prisma.organization.create({ 
@@ -272,6 +313,7 @@ organizationsRouter.post('/create', requireAuth as any, async (req: AuthedReques
       zip_code: data.zip_code,
       season_start: data.season_start ? new Date(data.season_start) : null,
       season_end: data.season_end ? new Date(data.season_end) : null,
+      updated_at: new Date(),
     }
   });
   
@@ -300,13 +342,21 @@ organizationsRouter.post('/create', requireAuth as any, async (req: AuthedReques
         skipDuplicates: true,
       });
       // Send invite emails (best effort)
-      const inviter = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { display_name: true } });
-      await Promise.all(invites.map(inv => 
+      const [inviter, createdInvites] = await Promise.all([
+        prisma.user.findUnique({ where: { id: req.user!.id }, select: { display_name: true } }),
+        prisma.organizationInvite.findMany({
+          where: { organization_id: organization.id, email: { in: invites.map(i => i.email) } },
+          select: { id: true, email: true },
+        }),
+      ]);
+      const tokenByEmail = Object.fromEntries(createdInvites.map(i => [i.email, i.id]));
+      await Promise.all(invites.map(inv =>
         sendOrganizationInviteEmail({
           to: inv.email,
           organizationName: organization.name,
           role: inv.role,
           inviterName: inviter?.display_name || 'An organizer',
+          inviteToken: tokenByEmail[inv.email],
         }).catch(() => false)
       ));
     }
@@ -384,6 +434,7 @@ organizationsRouter.post('/:id/invite', requireAuth as any, requirePlan('veteran
       organizationName: org.name,
       role: role || 'member',
       inviterName: inviter?.display_name || 'An organizer',
+      inviteToken: invite.id,
     }).catch(() => false);
   }
   

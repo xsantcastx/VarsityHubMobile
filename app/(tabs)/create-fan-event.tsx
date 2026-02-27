@@ -29,6 +29,7 @@ const EVENT_TYPES = [
   { value: 'fundraiser', label: 'Fundraiser', icon: 'cash' },
   { value: 'team_meeting', label: 'Pep Rallies', icon: 'people' },
   { value: 'bbq', label: 'BBQ/Social', icon: 'restaurant' },
+  { value: 'team_meal', label: 'Team Meal', icon: 'cafe' },
   { value: 'other', label: 'Other', icon: 'ellipsis-horizontal' },
 ];
 
@@ -64,7 +65,7 @@ export default function CreateFanEventScreen() {
   const [locationQuerying, setLocationQuerying] = useState(false);
   const [locationTouched, setLocationTouched] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<PlaceSuggestion | null>(null);
-  const locationTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const locationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [date, setDate] = useState(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)); // Default to next week
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
@@ -251,7 +252,7 @@ export default function CreateFanEventScreen() {
       Alert.alert(
         'Event Submitted!',
         'Your event has been submitted for approval. You\'ll be notified when it\'s reviewed.',
-        [{ text: 'OK', onPress: () => router.back() }]
+        [{ text: 'OK', onPress: () => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any) }]
       );
     } catch (e: any) {
       const errorCode = e?.code || e?.data?.code;

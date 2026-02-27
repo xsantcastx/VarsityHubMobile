@@ -15,10 +15,10 @@ if [ ! -f "app.json" ]; then
     echo "❌ ERROR: app.json not found"
     ((ERRORS++))
 else
-    if grep -q '"version": "1.0.0"' app.json; then
-        echo "✅ Version found: 1.0.0"
+    if grep -q '"version": "1.0.1"' app.json; then
+        echo "✅ Version found: 1.0.1"
     else
-        echo "⚠️  WARNING: Version not set to 1.0.0"
+        echo "⚠️  WARNING: Version not set to 1.0.1"
         ((WARNINGS++))
     fi
 fi

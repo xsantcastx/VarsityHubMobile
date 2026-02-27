@@ -195,15 +195,9 @@ export function BannerAd({
         contentFit={getContentFit()}
       />
 
-      {/* "Ad" Badge */}
-      <View style={styles.adBadge}>
-        <Text style={styles.adBadgeText}>Ad</Text>
-      </View>
-
-      {/* External Link Indicator - Only show if there's a target URL */}
+      {/* "Tap to visit" overlay — top-left */}
       {targetUrl && (
         <View style={styles.linkIndicator}>
-          <Ionicons name="open-outline" size={16} color="#FFFFFF" />
           <Text style={styles.linkIndicatorText}>Tap to visit</Text>
         </View>
       )}
@@ -216,7 +210,6 @@ const styles = StyleSheet.create({
     width: '100%',
     borderRadius: 12,
     overflow: 'hidden',
-    borderWidth: 1,
     position: 'relative',
   },
   image: {
@@ -239,36 +232,18 @@ const styles = StyleSheet.create({
     fontSize: 13,
     textAlign: 'center',
   },
-  adBadge: {
+  linkIndicator: {
     position: 'absolute',
     top: 8,
     left: 8,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 4,
-  },
-  adBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-  },
-  linkIndicator: {
-    position: 'absolute',
-    bottom: 8,
-    right: 8,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
+    borderRadius: 8,
   },
   linkIndicatorText: {
     color: '#FFFFFF',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
   },
 });

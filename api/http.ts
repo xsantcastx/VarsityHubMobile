@@ -36,7 +36,7 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
   const token = getAuthToken();
   if (token) headers['Authorization'] = `Bearer ${token}`;
   // Avoid stale caches/Etags for personalized endpoints
-  if (/^\/(me|auth\/me|rsvps|follows|support|users|teams|team-memberships|team-invites)/.test(path)) {
+  if (/^\/(me|auth\/me|rsvps|follows|support|search|users|teams|team-memberships|team-invites|events\/)/.test(path)) {
     headers['Cache-Control'] = headers['Cache-Control'] || 'no-store';
     headers['Pragma'] = headers['Pragma'] || 'no-cache';
     headers['If-None-Match'] = headers['If-None-Match'] || '';
@@ -105,8 +105,9 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
       err.data = data;
       err.isRailwayErrorPage = isRailwayErrorPage; // Flag for retry logic
       
-      // Clear token on auth errors and let AuthProvider handle session loss
-      if (err.status === 401 || err.status === 403) {
+      // Clear token on unauthorized responses and let AuthProvider handle session loss.
+      // Do not clear on 403 (forbidden) because role-based endpoints can return 403 for valid sessions.
+      if (err.status === 401) {
         try { 
           clearAuthToken();
         } catch (error) {
@@ -120,17 +121,21 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
     clearTimeout(timeoutId);
     // Suppress verbose logging for expected auth errors in dev mode
     const isAuthError = path.includes('/auth/') || path.includes('/me');
+    const isAbortError = error.name === 'AbortError';
     const isExpectedDevError = __DEV__ && isAuthError && (error.status === 401 || error.status === 408 || error.status === 400);
+    const isExpectedAbortInDev = __DEV__ && isAbortError;
     
     // Suppress logging for known missing endpoints
-    const isKnownMissingEndpoint = 
-      path.includes('/geocoding/autocomplete') || 
+    const isKnownMissingEndpoint =
+      path.includes('/geocoding/autocomplete') ||
       path.includes('/posts/trending') ||
       (path.includes('/users') && error.status === 403) ||
+      // Public user profile lookups that return 404 are expected (user deleted/not found)
+      (/^\/users\/[^/]+$/.test(path) && error.status === 404) ||
       (path.includes('/notifications') && error.status === 401);
     
     // Enhanced error logging with more context
-    if (!isExpectedDevError && !isKnownMissingEndpoint) {
+    if (!isExpectedDevError && !isKnownMissingEndpoint && !isExpectedAbortInDev) {
       const errorDetails = {
         url: base + path,
         method: options.method || 'GET',
@@ -148,6 +153,9 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
           extra: errorDetails 
         });
       }
+    }
+    if (isExpectedAbortInDev) {
+      console.debug(`[http] Request timed out: ${path}`);
     }
     
     // Handle 502 Bad Gateway errors with retry - backend may be temporarily down
@@ -207,16 +215,10 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
       throw err;
     }
     
-    // Handle 429 Rate Limit errors with retry
+    // Handle 429 Rate Limit errors — never retry, throw immediately.
+    // Retrying would just extend the wait and make things worse (retryAfter can be 900s+).
     if (error.status === 429) {
-      const retryAfter = error.data?.retryAfter || 5; // Default 5 seconds
-      if (retries > 0) {
-        // Wait for retryAfter seconds before retrying
-        await new Promise(r => setTimeout(r, retryAfter * 1000));
-        return request(path, options, timeoutMs, retries - 1);
-      }
-      // If no retries left, throw user-friendly error
-      const err: any = new Error(error.data?.message || 'Too many requests, please try again later.');
+      const err: any = new Error('Too many attempts. Please wait a moment and try again.');
       err.status = 429;
       err.data = error.data;
       throw err;
@@ -225,7 +227,7 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
     if (error.name === 'AbortError') {
       const err: any = new Error('Request timeout - server did not respond');
       err.status = 408;
-      if (!isExpectedDevError) {
+      if (!isExpectedDevError && !__DEV__) {
         captureException(err, { path, base, timeoutMs, method: options.method || 'GET' });
       }
       // Retry once on timeout if allowed
@@ -264,11 +266,12 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
   }
 }
 
-export function httpGet(path: string, options: RequestInit = {}, timeoutMs?: number) {
+export function httpGet(path: string, options: RequestInit = {}, timeoutMs?: number, retriesOverride?: number) {
   // Allow more retries for critical endpoints (helps with Railway infrastructure errors)
   // Critical endpoints get additional retries automatically in 502 handler
   const isCriticalEndpoint = path.includes('/payments/') || path.includes('/auth/') || path.includes('/me') || path.includes('/notifications');
-  const retries = isCriticalEndpoint ? 5 : 3; // More retries for critical endpoints
+  const defaultRetries = isCriticalEndpoint ? 5 : 3; // More retries for critical endpoints
+  const retries = typeof retriesOverride === 'number' ? Math.max(0, retriesOverride) : defaultRetries;
   return request(path, { ...options, method: 'GET' }, timeoutMs || 30000, retries);
 }
 // Default POST with moderate timeout - increased retries for reliability
@@ -276,6 +279,10 @@ export function httpPost(path: string, body?: any) {
   const isCriticalEndpoint = path.includes('/payments/') || path.includes('/auth/') || path.includes('/notifications');
   const retries = isCriticalEndpoint ? 5 : 3; // More retries for critical endpoints (especially for Railway infra errors)
   return request(path, { method: 'POST', body: JSON.stringify(body || {}) }, 15000, retries); 
+}
+// POST with explicit timeout/retry controls for endpoint-specific tuning.
+export function httpPostWithOptions(path: string, body: any, timeoutMs: number, retries: number = 0) {
+  return request(path, { method: 'POST', body: JSON.stringify(body || {}) }, timeoutMs, Math.max(0, retries));
 }
 // Long-timeout POST for heavy endpoints like register/reset/posts - increased retries
 export function httpPostLongTimeout(path: string, body?: any) {

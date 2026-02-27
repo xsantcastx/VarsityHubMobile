@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { isCloudinaryConfigured } from '../lib/cloudinary.js';
 import { getMissingEmailTemplates, isSendGridConfigured } from '../lib/email.js';
+import { getAllPlanDefinitions } from '../lib/planLimits.js';
 import { getEmailService } from '../services/email/service.js';
 import { isTwilioConfigured } from '../lib/twilio.js';
 import type { AuthedRequest } from '../middleware/auth.js';
@@ -13,6 +14,7 @@ export const healthRouter = Router();
  *
  * SECURITY: Only returns minimal info publicly.
  * Detailed integration status requires admin authentication.
+ * GET /health?include=payments - also returns payments config (fallback when /payments/config 404s)
  */
 healthRouter.get('/', async (req: AuthedRequest, res) => {
   const isAdmin = req.user?.is_admin === true;
@@ -59,7 +61,12 @@ healthRouter.get('/', async (req: AuthedRequest, res) => {
     .filter(([key]) => !['twilio', 'sentry', 'redis'].includes(key)) // Optional services
     .every(([, value]) => value);
 
-  res.json({
+  const stripePublishableKey =
+    process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ||
+    process.env.STRIPE_PUBLISHABLE_KEY ||
+    '';
+  const includePayments = req.query.include === 'payments';
+  const body: Record<string, unknown> = {
     status: 'ok',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development',
@@ -80,5 +87,15 @@ healthRouter.get('/', async (req: AuthedRequest, res) => {
     metadata: {
       missingEmailTemplates,
     },
-  });
+  };
+  if (includePayments) {
+    body.payments_config = {
+      stripe_publishable_key: stripePublishableKey,
+      available_plans: getAllPlanDefinitions(),
+      payments_enabled: true,
+      stripe_configured: !!(stripePublishableKey && process.env.STRIPE_SECRET_KEY),
+      has_webhook_secret: !!process.env.STRIPE_WEBHOOK_SECRET,
+    };
+  }
+  res.json(body);
 });

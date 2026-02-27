@@ -72,9 +72,9 @@ export default function EventMap({
     })();
   }, [showUserLocation, initialRegion]);
 
-  // Filter events that have coordinates
+  // Filter events that have coordinates (use != null so lat/lng of 0 are accepted)
   const eventsWithCoordinates = events.filter(
-    (event) => event.latitude && event.longitude
+    (event) => event.latitude != null && event.longitude != null
   );
 
   // Center map on all events

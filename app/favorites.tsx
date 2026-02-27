@@ -303,7 +303,7 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 16,
-    paddingTop: 8,
+    paddingTop: 2,
     paddingBottom: 12,
     gap: 6,
   },

@@ -110,7 +110,11 @@ export default function CreateCollageScreen() {
       }
       await Post.createCollage({ caption: '', preview_url: remoteUrl, collage });
       Alert.alert('Published', 'Your collage has been posted.');
-      router.back();
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace('/(tabs)' as any);
+      }
     } catch (e: any) {
       Alert.alert('Publish failed', e?.message || 'Try again later.');
     } finally {

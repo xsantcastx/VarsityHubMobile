@@ -459,35 +459,18 @@ export default function AdCalendarScreen() {
         return;
       }
       if (data?.url) {
-        Alert.alert(
-          'Complete Payment',
-          'You\'ll be redirected to Stripe to complete your payment. After payment, the app will automatically reopen to a confirmation screen.',
-          [
-            {
-              text: 'Continue to Payment',
-              onPress: async () => {
-                try {
-                  setSubmitting(true);
-                  await WebBrowser.openBrowserAsync(String(data.url));
-                  Alert.alert(
-                    'Check Payment Status',
-                    'If you completed checkout, a confirmation screen should appear shortly. If you canceled the payment, you can reopen checkout from this screen.',
-                  );
-                } catch (browserErr) {
-                  console.error('Browser error:', browserErr);
-                  Alert.alert('Error', 'Could not open payment page. Please try again.');
-                } finally {
-                  setSubmitting(false);
-                }
-              }
-            },
-            {
-              text: 'Cancel',
-              style: 'cancel',
-              onPress: () => setSubmitting(false)
-            }
-          ]
-        );
+        try {
+          await WebBrowser.openBrowserAsync(String(data.url));
+          Alert.alert(
+            'Check Payment Status',
+            'If you completed checkout, a confirmation screen should appear shortly. If you canceled the payment, you can reopen checkout from this screen.',
+          );
+        } catch (browserErr) {
+          console.error('Browser error:', browserErr);
+          Alert.alert('Error', 'Could not open payment page. Please try again.');
+        } finally {
+          setSubmitting(false);
+        }
         return;
       }
       throw new Error('Unexpected checkout response');
@@ -516,7 +499,7 @@ export default function AdCalendarScreen() {
           backgroundColor: Colors[colorScheme].card,
           borderBottomColor: Colors[colorScheme].border 
         }]}>
-          <Pressable onPress={() => void router.back()} style={[styles.iconBtn, { backgroundColor: Colors[colorScheme].surface }]}>
+          <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={[styles.iconBtn, { backgroundColor: Colors[colorScheme].surface }]}>
             <Text style={[styles.iconBtnText, { color: Colors[colorScheme].text }]}>{'<'}</Text>
           </Pressable>
           <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>Schedule Your Ad</Text>
@@ -670,10 +653,10 @@ export default function AdCalendarScreen() {
               <Text style={{ fontSize: 24 }}>👥</Text>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.noticeTitle, { color: colorScheme === 'dark' ? '#93C5FD' : '#1E40AF', fontSize: 16, marginBottom: 6 }]}>
-                  Ad Space Shared with 3 Companies
+                  Ad Space Shared with 2 Companies
                 </Text>
                 <Text style={[styles.noticeText, { color: colorScheme === 'dark' ? '#BFDBFE' : '#1E40AF', lineHeight: 20 }]}>
-                  Your ad will rotate with up to <Text style={{ fontWeight: '800', fontSize: 15 }}>3 other companies</Text> on selected dates. This ensures fair visibility and competitive pricing for all advertisers.
+                  Your ad will rotate with up to <Text style={{ fontWeight: '800', fontSize: 15 }}>2 other companies</Text> on selected dates.
                 </Text>
               </View>
             </View>
@@ -684,13 +667,13 @@ export default function AdCalendarScreen() {
           <Text style={[styles.cardTitle, { color: Colors[colorScheme].text }]}>Pricing</Text>
           <View style={styles.rowBetween}>
             <Text style={{ color: Colors[colorScheme].text, fontSize: 15 }}>Weekday Slot (Mon-Thu):</Text>
-            <Text style={[styles.bold, { color: Colors[colorScheme].text, fontSize: 17 }]}>${weekdayRate.toFixed(2)}/week</Text>
+            <Text style={[styles.bold, { color: Colors[colorScheme].text, fontSize: 17 }]}>${weekdayRate.toFixed(2)}</Text>
           </View>
           <View style={styles.rowBetween}>
             <Text style={{ color: Colors[colorScheme].text, fontSize: 15 }}>Weekend Slot (Fri-Sun):</Text>
-            <Text style={[styles.bold, { color: Colors[colorScheme].text, fontSize: 17 }]}>${weekendRate.toFixed(2)}/week</Text>
+            <Text style={[styles.bold, { color: Colors[colorScheme].text, fontSize: 17 }]}>${weekendRate.toFixed(2)}</Text>
           </View>
-          <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>Each ad slot is priced per week. Select multiple dates to see your total.</Text>
+          <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>Select dates to see your total.</Text>
           
         </View>
 
@@ -801,6 +784,15 @@ export default function AdCalendarScreen() {
               <Text style={[styles.bold, { color: Colors[colorScheme].text }]}>No dates selected</Text>
               <Text style={[styles.muted, { color: Colors[colorScheme].mutedText, textAlign: 'center' }]}>
                 Tap on dates in the calendar above to build your campaign
+              </Text>
+            </View>
+          )}
+
+          {sortedDates.length > 0 && (
+            <View style={[styles.rowBetween, { marginTop: 4 }]}>
+              <Text style={[styles.bold, { color: Colors[colorScheme].text }]}>Total Hours Booked:</Text>
+              <Text style={{ color: Colors[colorScheme].text, fontWeight: '700' }}>
+                {sortedDates.length * 24} hrs ({sortedDates.length} day{sortedDates.length !== 1 ? 's' : ''})
               </Text>
             </View>
           )}

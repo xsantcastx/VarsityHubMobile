@@ -1,5 +1,257 @@
 # Changelog
 
+## v1.0.0 - 2026-02-26
+
+### ✨ Features
+- Initial release
+
+
+
+## v1.0.0 - 2026-02-26
+
+### ✨ Features
+- Initial release
+
+
+
+## v1.0.0 - 2026-02-26
+
+### ✨ Features
+- Initial release
+
+
+
+## v1.0.0 - 2026-02-25
+
+### ✨ Features
+- Initial release
+
+
+
+## v1.0.0 - 2026-02-25
+
+### ✨ Features
+- Initial release
+
+
+
+## v1.0.0 - 2026-02-25
+
+### ✨ Features
+- Initial release
+
+
+
+## v1.0.0 - 2026-02-25
+
+### ✨ Features
+- Initial release
+
+
+
+## v1.0.0 - 2026-02-25
+
+### ✨ Features
+- Initial release
+
+
+
+## v1.0.0 - 2026-02-25
+
+### ✨ Features
+- Initial release
+
+
+
+## v1.0.0 - 2026-02-25
+
+### ✨ Features
+- Initial release
+
+
+
+## v1.0.0 - 2026-02-25
+
+### ✨ Features
+- Initial release
+
+
+
+## v1.0.0 - 2026-02-25
+
+### ✨ Features
+- Initial release
+
+
+
+## v1.0.0 - 2026-02-25
+
+### ✨ Features
+- Initial release
+
+
+
+## v1.0.0 - 2026-02-25
+
+### ✨ Features
+- Initial release
+
+
+
+## v1.0.0 - 2026-02-24
+
+### ✨ Features
+- Initial release
+
+
+
+## v1.0.0 - 2026-02-24
+
+### ✨ Features
+- Initial release
+
+
+
+## v1.0.0 - 2026-02-24
+
+### ✨ Features
+- Initial release
+
+
+
+## v1.0.0 - 2026-02-24
+
+### ✨ Features
+- Initial release
+
+
+
+## v1.0.0 - 2026-02-24
+
+### ✨ Features
+- Initial release
+
+
+
+## v1.0.0 - 2026-02-24
+
+### ✨ Features
+- Initial release
+
+
+
+## v1.0.0 - 2026-02-24
+
+### ✨ Features
+- Initial release
+
+
+
+## v1.0.0 - 2026-02-24
+
+### ✨ Features
+- Initial release
+
+
+
+## v1.0.0 - 2026-02-24
+
+### ✨ Features
+- Initial release
+
+
+
+## v1.0.0 - 2026-02-24
+
+### ✨ Features
+- Initial release
+
+
+
+## v1.0.0 - 2026-02-24
+
+### ✨ Features
+- Initial release
+
+
+
+## v1.0.0 - 2026-02-23
+
+### ✨ Features
+- Initial release
+
+
+
+## v1.0.0 - 2026-02-21
+
+### ✨ Features
+- Initial release
+
+
+
+## v1.0.0 - 2026-02-21
+
+### ✨ Features
+- Initial release
+
+
+
+## v1.0.0 - 2026-02-21
+
+### ✨ Features
+- Initial release
+
+
+
+## v1.0.0 - 2026-02-21
+
+### ✨ Features
+- Initial release
+
+
+
+## v1.0.0 - 2026-02-20
+
+### ✨ Features
+- Initial release
+
+
+
+## v1.0.0 - 2026-02-20
+
+### ✨ Features
+- Initial release
+
+
+
+## v1.0.0 - 2026-02-08
+
+### ✨ Features
+- Initial release
+
+
+
+## v1.0.0 - 2026-02-08
+
+### ✨ Features
+- Initial release
+
+
+
+## v1.0.0 - 2026-02-08
+
+### ✨ Features
+- Initial release
+
+
+
+## v1.0.0 - 2026-02-08
+
+### ✨ Features
+- Initial release
+
+
+
 ## v1.0.0 - 2026-02-04
 
 ### ✨ Features

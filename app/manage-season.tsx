@@ -726,11 +726,12 @@ export default function ManageSeasonScreen() {
       console.error('Error data:', error?.data);
       console.error('Error message:', error?.message);
       const details = error?.data?.issues ? `\nDetails: ${JSON.stringify(error.data.issues)}` : '';
-      const errorMsg = (error?.data?.error || error?.data?.message || error?.message || 'Unknown error') + details;
+      const rawMsg = (typeof error?.data === 'object' ? (error.data?.error || error.data?.message) : null) || error?.message || 'Unknown error';
+      const errorMsg = (typeof rawMsg === 'string' && (rawMsg.includes('<') || rawMsg.startsWith('Cannot '))) ? 'Server error. Please try again.' : rawMsg;
       setActionModal({
         visible: true,
         title: 'Error',
-        message: `Failed to add event: ${errorMsg}`,
+        message: `Failed to save event: ${errorMsg}${details}`,
         options: [{ label: 'OK', onPress: () => {}, color: undefined }],
       });
     }
@@ -1090,7 +1091,7 @@ export default function ManageSeasonScreen() {
       {/* SIMPLIFIED HEADER - Team Name with Back Button */}
       <View style={[styles.headerCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border, padding: 20 }]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Pressable onPress={() => void router.back()} style={{ padding: 8 }}>
+          <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={{ padding: 8 }}>
             <Ionicons name="arrow-back" size={24} color={Colors[colorScheme].text} />
           </Pressable>
           <Pressable onPress={() => setTeamSelectorOpen(true)} style={{ flex: 1 }}>
@@ -1120,37 +1121,6 @@ export default function ManageSeasonScreen() {
           <Ionicons name="add-outline" size={20} color="#fff" />
           <Text style={styles.quickActionText}>Add Event</Text>
         </Pressable>
-      </View>
-
-      {/* Season snapshot */}
-      <View style={[
-        styles.statsGradient,
-        { backgroundColor: Colors[colorScheme].tint, borderColor: Colors[colorScheme].border }
-      ]}>
-        <View style={styles.seasonHeader}>
-          <View style={styles.seasonInfo}>
-            <Text style={styles.seasonTitle}>{currentTeam?.name || 'Season Overview'}</Text>
-            <Text style={styles.seasonSubtitle}>
-              {seasonStats.gamesPlayed} / {seasonStats.totalGames} games played
-            </Text>
-          </View>
-          <View style={styles.settingsButton}>
-            <Text style={{ color: '#fff', fontWeight: '700' }}>{getWinPercentage()}%</Text>
-          </View>
-        </View>
-        <View style={styles.statsGrid}>
-          {[
-            { label: 'Wins', value: seasonStats.wins },
-            { label: 'Losses', value: seasonStats.losses },
-            { label: 'Points For', value: seasonStats.pointsFor },
-            { label: 'Points Against', value: seasonStats.pointsAgainst },
-          ].map((stat) => (
-            <View key={stat.label} style={styles.statItem}>
-              <Text style={styles.statNumber}>{stat.value}</Text>
-              <Text style={styles.statLabel}>{stat.label}</Text>
-            </View>
-          ))}
-        </View>
       </View>
 
       {/* Tab controls */}

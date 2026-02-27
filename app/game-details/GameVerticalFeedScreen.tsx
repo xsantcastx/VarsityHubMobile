@@ -516,8 +516,10 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
   const handleBack = useCallback(() => {
     if (onClose) {
       onClose();
-    } else {
+    } else if (router.canGoBack()) {
       router.back();
+    } else {
+      router.replace('/(tabs)' as any);
     }
   }, [onClose, router]);
 

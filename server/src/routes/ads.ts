@@ -343,11 +343,18 @@ adsRouter.get('/availability', async (req, res) => {
 });
 
 // Create reservation for a set of dates (yyyy-MM-dd strings)
-adsRouter.post('/reservations', requireVerified as any, async (req, res) => {
+adsRouter.post('/reservations', requireVerified as any, async (req: AuthedRequest, res) => {
   const { ad_id, dates } = req.body || {};
   if (!ad_id || !Array.isArray(dates) || dates.length === 0) {
     return res.status(400).json({ error: 'ad_id and dates[] are required' });
   }
+
+  // Guard: ad must belong to the requesting user and must be paid.
+  const ad = await prisma.ad.findUnique({ where: { id: String(ad_id) } });
+  if (!ad) return res.status(404).json({ error: 'Ad not found' });
+  if (ad.user_id !== req.user?.id) return res.status(403).json({ error: 'Forbidden' });
+  if (ad.payment_status !== 'paid') return res.status(403).json({ error: 'Ad is not paid' });
+
   const isoDates: string[] = Array.from(new Set(dates.map((d: any) => String(d))));
   // No global conflicts: allow multiple ads on the same date.
   // Enforce only one reservation per ad per date via DB unique constraint.

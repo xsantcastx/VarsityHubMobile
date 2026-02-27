@@ -87,7 +87,8 @@ gamesRouter.get('/', async (req, res) => {
         : { created_at: 'desc' as const };
   
   const limitRaw = Number.parseInt(String(req.query.limit ?? ''), 10);
-  const take = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 100) : undefined;
+  // Default to 50 when no limit is provided; cap at 100 to prevent unbounded fetches
+  const take = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 100) : 50;
   const lat = Number.parseFloat(String(req.query.lat ?? ''));
   const lng = Number.parseFloat(String(req.query.lng ?? ''));
   const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
@@ -200,7 +201,7 @@ gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
     // Expected attendance for events
     expected_attendance: z.number().int().min(1).max(99999).optional(),
     // Event type (game, fundraiser, watch_party, team_trip, meeting, other)
-    event_type: z.enum(['game', 'fundraiser', 'watch_party', 'team_trip', 'meeting', 'other']).optional(),
+    event_type: z.enum(['game', 'fundraiser', 'watch_party', 'team_trip', 'meeting', 'team_meal', 'other']).optional(),
     // Event type-specific fields
     donation_goal: z.number().min(0).optional(), // For fundraisers
     watch_location: z.string().trim().max(200).optional(), // For watch parties
@@ -395,6 +396,22 @@ gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
   }
 });
 
+// Batch vote summaries - avoids N+1 when loading feed with many games (must be before /:id)
+gamesRouter.get('/votes-summary', async (req: AuthedRequest, res) => {
+  const idsParam = String(req.query.ids || '').trim();
+  if (!idsParam) return res.status(400).json({ error: 'ids required (comma-separated game IDs)' });
+  const ids = idsParam.split(',').map((s) => s.trim()).filter(Boolean);
+  if (ids.length === 0) return res.json({});
+  if (ids.length > 50) return res.status(400).json({ error: 'Max 50 ids per request' });
+  const userId = req.user?.id ?? null;
+  const summaries = await Promise.all(ids.map((id) => summarizeVotes(id, userId)));
+  const result: Record<string, Awaited<ReturnType<typeof summarizeVotes>>> = {};
+  ids.forEach((id, i) => {
+    result[id] = summaries[i];
+  });
+  return res.json(result);
+});
+
 // Get single game by id
 gamesRouter.get('/:id', async (req, res) => {
   const id = String(req.params.id);
@@ -413,7 +430,10 @@ gamesRouter.get('/:id', async (req, res) => {
   return res.json({ ...rest, appearance: rest.appearance ?? null, event_id: event?.id ?? null });
 });
 
-// Compact summary payload for the Game Details screen
+// Compact summary payload for the Game Details screen.
+// Posts and stories are intentionally excluded here — the client fetches them
+// separately via GET /games/:id/posts and GET /games/:id/stories so this
+// endpoint stays fast (no heavy joins on potentially large post tables).
 gamesRouter.get('/:id/summary', async (req: AuthedRequest, res) => {
   const id = String(req.params.id);
   const game = await (prisma.game.findUnique as any)({
@@ -422,24 +442,16 @@ gamesRouter.get('/:id/summary', async (req: AuthedRequest, res) => {
       events: { orderBy: { date: 'asc' }, take: 1 },
       homeTeam: { select: { id: true, name: true, avatar_url: true } },
       awayTeam: { select: { id: true, name: true, avatar_url: true } },
-      posts: {
-        where: { game_id: id, deleted_at: null },
-        orderBy: [{ upvotes_count: 'desc' }, { created_at: 'desc' }],
-        take: 50,
-        include: {
-          author: { select: { id: true, display_name: true, avatar_url: true } },
-          _count: { select: { comments: true } },
-        },
-      },
-      stories: { orderBy: { created_at: 'desc' }, take: 50 },
     },
   });
   if (!game) return res.status(404).json({ error: 'Not found' });
 
   const g = game as any; // Type assertion for relation fields
   const event = g.events[0] ?? null;
-  const posts = g.posts.map(serializePost);
-  const media = g.stories.map(serializeMedia);
+  // Posts and media are no longer bundled in the summary — return empty arrays
+  // so the client can fetch them in parallel without blocking the metadata load.
+  const posts: any[] = [];
+  const media: any[] = [];
   const bannerUrl = pickBannerUrl(game, event, media);
   const location = game.location || event?.location || null;
   const anchorDate = event?.date ?? game.date;
@@ -463,6 +475,30 @@ gamesRouter.get('/:id/summary', async (req: AuthedRequest, res) => {
   })();
 
   const gameData = game as any; // Type assertion for updated schema
+
+  // Compute can_edit_result for coaches/owners/admins
+  let canEditResult = false;
+  if (req.user) {
+    const teamIds = [gameData.home_team_id, gameData.away_team_id].filter(Boolean) as string[];
+    if (teamIds.length > 0) {
+      const membership = await prisma.teamMembership.findFirst({
+        where: {
+          team_id: { in: teamIds },
+          user_id: req.user.id,
+          role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
+          status: 'active',
+        },
+        select: { id: true },
+      });
+      if (membership) canEditResult = true;
+    }
+    if (!canEditResult && gameData.created_by_id === req.user.id) canEditResult = true;
+    if (!canEditResult) {
+      const user = await prisma.user.findUnique({ where: { id: req.user.id }, select: { email: true } });
+      const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+      if (user?.email && adminEmails.includes(user.email.toLowerCase())) canEditResult = true;
+    }
+  }
   
   // Generate Google Maps link for venue
   const venueMapsLink = generateMapsLink(
@@ -509,6 +545,10 @@ gamesRouter.get('/:id/summary', async (req: AuthedRequest, res) => {
     reviewsCount,
     isPast,
     event: serializeEvent(event),
+    home_score: gameData.home_score ?? null,
+    away_score: gameData.away_score ?? null,
+    winner: gameData.winner ?? null,
+    can_edit_result: canEditResult,
   });
 });
 
@@ -662,13 +702,69 @@ gamesRouter.delete('/:id/media/:mediaId', requireAuth as any, async (req: Authed
 });
 
 // Legacy stories endpoints (kept for backwards compatibility)
-gamesRouter.get('/:id/stories', async (req, res) => {
-  const id = String(req.params.id);
-  const stories = await prisma.story.findMany({ where: { game_id: id }, orderBy: { created_at: 'desc' } });
-  return res.json(stories);
-});
+gamesRouter.get('/:id/stories', makeListMediaHandler({ prisma }));
 
 gamesRouter.post('/:id/stories', makeCreateStoryHandler({ prisma }));
+
+// Update game result (scores) - coaches and team owners only
+gamesRouter.patch('/:id/result', requireAuth as any, async (req: AuthedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+  const id = String(req.params.id);
+  const schema = z.object({
+    home_score: z.number().int().min(0).optional(),
+    away_score: z.number().int().min(0).optional(),
+    winner: z.enum(['home', 'away', 'tie']).optional().nullable(),
+  });
+  const parsed = schema.safeParse(req.body || {});
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', details: parsed.error });
+
+  const game = await prisma.game.findUnique({
+    where: { id },
+    select: { id: true, created_by_id: true, home_team_id: true, away_team_id: true },
+  });
+
+  if (!game) return res.status(404).json({ error: 'Game not found' });
+
+  const teamIds = [game.home_team_id, game.away_team_id].filter(Boolean) as string[];
+  let isCoach = false;
+  if (teamIds.length > 0) {
+    const membership = await prisma.teamMembership.findFirst({
+      where: {
+        team_id: { in: teamIds },
+        user_id: req.user.id,
+        role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
+        status: 'active',
+      },
+      select: { id: true },
+    });
+    isCoach = !!membership;
+  }
+
+  const isCreator = game.created_by_id === req.user.id;
+  const user = await prisma.user.findUnique({ where: { id: req.user.id }, select: { email: true } });
+  const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+  const isAdmin = user?.email ? adminEmails.includes(user.email.toLowerCase()) : false;
+
+  if (!isCreator && !isCoach && !isAdmin) {
+    return res.status(403).json({ error: 'Only coaches or team owners can update game results' });
+  }
+
+  const data: Record<string, any> = {};
+  if (typeof parsed.data.home_score === 'number') data.home_score = parsed.data.home_score;
+  if (typeof parsed.data.away_score === 'number') data.away_score = parsed.data.away_score;
+  if (parsed.data.winner !== undefined) data.winner = parsed.data.winner;
+
+  if (Object.keys(data).length === 0) {
+    return res.status(400).json({ error: 'At least one of home_score, away_score, or winner is required' });
+  }
+
+  const updated = await prisma.game.update({
+    where: { id },
+    data,
+  });
+  return res.json(updated);
+});
 
 // Update cover image
 gamesRouter.patch('/:id', requireAuth as any, async (req: AuthedRequest, res) => {
@@ -731,6 +827,138 @@ gamesRouter.patch('/:id', requireAuth as any, async (req: AuthedRequest, res) =>
     });
 
     return res.json(updatedGame);
+  } catch (error) {
+    console.error('Error updating game:', error);
+    return res.status(500).json({ error: 'Failed to update game' });
+  }
+});
+
+// Full update of a game (coaches, creators, admins)
+gamesRouter.put('/:id', requireAuth as any, async (req: AuthedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+  const id = String(req.params.id);
+
+  const schema = z.object({
+    title: z.string().trim().min(1).max(200).optional(),
+    home_team: z.string().trim().optional(),
+    away_team: z.string().trim().optional(),
+    home_team_id: z.string().trim().optional(),
+    away_team_id: z.string().trim().optional().nullable(),
+    away_team_name: z.string().trim().optional().nullable(),
+    date: z.string().datetime().optional(),
+    location: z.string().trim().optional().nullable(),
+    description: z.string().trim().optional().nullable(),
+    cover_image_url: z.string().url().optional().nullable(),
+    banner_url: z.string().url().optional().nullable(),
+    appearance: z.string().optional().nullable(),
+    expected_attendance: z.number().int().min(1).max(99999).optional().nullable(),
+    event_type: z.enum(['game', 'fundraiser', 'watch_party', 'team_trip', 'meeting', 'team_meal', 'other']).optional(),
+    donation_goal: z.number().min(0).optional().nullable(),
+    watch_location: z.string().trim().max(200).optional().nullable(),
+    watch_location_lat: z.number().optional().nullable(),
+    watch_location_lng: z.number().optional().nullable(),
+    watch_location_place_id: z.string().optional().nullable(),
+    destination: z.string().trim().max(200).optional().nullable(),
+    latitude: z.number().optional().nullable(),
+    longitude: z.number().optional().nullable(),
+    venue_place_id: z.string().optional().nullable(),
+    venue_address: z.string().trim().optional().nullable(),
+    venue_lat: z.number().optional().nullable(),
+    venue_lng: z.number().optional().nullable(),
+    is_neutral: z.boolean().optional(),
+  });
+
+  const parsed = schema.safeParse(req.body || {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Invalid game data', issues: parsed.error.issues });
+  }
+
+  try {
+    const game = await prisma.game.findUnique({
+      where: { id },
+      select: { id: true, created_by_id: true, home_team_id: true },
+    });
+
+    if (!game) return res.status(404).json({ error: 'Game not found' });
+
+    const isCreator = game.created_by_id === req.user.id;
+
+    const currentUser = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { email: true },
+    });
+    const isAdmin = isEmailAdmin(currentUser?.email);
+
+    let isCoach = false;
+    if (game.home_team_id) {
+      const membership = await prisma.teamMembership.findFirst({
+        where: {
+          team_id: game.home_team_id,
+          user_id: req.user.id,
+          role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
+          status: 'active',
+        },
+        select: { id: true },
+      });
+      isCoach = !!membership;
+    }
+
+    if (!isCreator && !isCoach && !isAdmin) {
+      return res.status(403).json({ error: 'Only the game creator, team coaches, or admins can update this event' });
+    }
+
+    // Build update payload — only include fields that were explicitly provided
+    const updateData: any = {};
+    const d = parsed.data;
+    if (d.title !== undefined) updateData.title = d.title;
+    if (d.home_team !== undefined) updateData.home_team = d.home_team;
+    if (d.away_team !== undefined) updateData.away_team = d.away_team;
+    if (d.home_team_id !== undefined) updateData.home_team_id = d.home_team_id;
+    if (d.away_team_id !== undefined) updateData.away_team_id = d.away_team_id;
+    if (d.away_team_name !== undefined) updateData.away_team_name = d.away_team_name;
+    if (d.date !== undefined) updateData.date = new Date(d.date);
+    if (d.location !== undefined) updateData.location = d.location;
+    if (d.description !== undefined) updateData.description = d.description;
+    if (d.cover_image_url !== undefined) updateData.cover_image_url = d.cover_image_url;
+    if (d.banner_url !== undefined) updateData.banner_url = d.banner_url;
+    if (d.appearance !== undefined) updateData.appearance = d.appearance;
+    if (d.expected_attendance !== undefined) updateData.expected_attendance = d.expected_attendance;
+    if (d.event_type !== undefined) updateData.event_type = d.event_type;
+    if (d.donation_goal !== undefined) updateData.donation_goal = d.donation_goal;
+    if (d.watch_location !== undefined) updateData.watch_location = d.watch_location;
+    if (d.watch_location_lat !== undefined) updateData.watch_location_lat = d.watch_location_lat;
+    if (d.watch_location_lng !== undefined) updateData.watch_location_lng = d.watch_location_lng;
+    if (d.watch_location_place_id !== undefined) updateData.watch_location_place_id = d.watch_location_place_id;
+    if (d.destination !== undefined) updateData.destination = d.destination;
+    if (d.latitude !== undefined) updateData.latitude = d.latitude;
+    if (d.longitude !== undefined) updateData.longitude = d.longitude;
+    if (d.venue_place_id !== undefined) updateData.venue_place_id = d.venue_place_id;
+    if (d.venue_address !== undefined) updateData.venue_address = d.venue_address;
+    if (d.venue_lat !== undefined) updateData.venue_lat = d.venue_lat;
+    if (d.venue_lng !== undefined) updateData.venue_lng = d.venue_lng;
+    if (d.is_neutral !== undefined) updateData.is_neutral = d.is_neutral;
+
+    const updated = await (prisma.game.update as any)({
+      where: { id },
+      data: updateData,
+      include: { events: { orderBy: { date: 'asc' }, take: 1 } },
+    });
+
+    // Keep the associated Event in sync when date/title/location change
+    const event = (updated as any).events?.[0];
+    if (event) {
+      const eventUpdate: any = {};
+      if (d.date !== undefined) eventUpdate.date = new Date(d.date);
+      if (d.title !== undefined) eventUpdate.title = d.title;
+      if (d.location !== undefined) eventUpdate.location = d.location;
+      if (Object.keys(eventUpdate).length > 0) {
+        await prisma.event.update({ where: { id: event.id }, data: eventUpdate });
+      }
+    }
+
+    const { events, ...rest } = updated as any;
+    return res.json({ ...rest, event_id: event?.id ?? null });
   } catch (error) {
     console.error('Error updating game:', error);
     return res.status(500).json({ error: 'Failed to update game' });

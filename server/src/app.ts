@@ -3,9 +3,11 @@ import 'dotenv/config';
 import express, { NextFunction, Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
+import cron from 'node-cron';
 import path from 'node:path';
 import pinoHttp from 'pino-http';
 import swaggerUi from 'swagger-ui-express';
+import { runGameReminders } from './cron/game-reminders.js';
 import { debugLog } from './lib/debugLog.js';
 import { verifyMediaSignature } from './lib/mediaAccess.js';
 import { addSentryErrorHandler, initSentry } from './lib/sentry.js';
@@ -28,7 +30,9 @@ import { organizationsRouter } from './routes/organizations.js';
 import { paymentsRouter } from './routes/payments.js';
 import { postsRouter } from './routes/posts.js';
 import { promosRouter } from './routes/promos.js';
+import { reportsRouter } from './routes/reports.js';
 import { rsvpsRouter } from './routes/rsvps.js';
+import { searchRouter } from './routes/search.js';
 import { supportRouter } from './routes/support.js';
 import { teamInvitesRouter } from './routes/team-invites.js';
 import { teamMembershipsRouter } from './routes/team-memberships.js';
@@ -38,6 +42,7 @@ import { testNotificationsRouter } from './routes/test-notifications.js';
 import { uploadRouter } from './routes/upload.js';
 import { uploadsRouter } from './routes/uploads.js';
 import { usersRouter } from './routes/users.js';
+import { wellKnownRouter } from './routes/well-known.js';
 
 const app = express();
 const isTest = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID != null;
@@ -189,6 +194,9 @@ const apiLimiter = rateLimit({
 
 app.use('/health', healthRouter);
 
+// Universal links - must be at /.well-known/ for iOS and Android
+app.use('/.well-known', wellKnownRouter);
+
 // API Documentation
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
   swaggerOptions: {
@@ -217,6 +225,8 @@ app.use('/geocoding', noStore, apiLimiter, geocodingRouter);
 app.use('/teams', apiLimiter, teamsRouter);
 app.use('/organizations', apiLimiter, organizationsRouter);
 app.use('/users', noStore, apiLimiter, usersRouter);
+app.use('/search', noStore, apiLimiter, searchRouter);
+app.use('/reports', noStore, apiLimiter, reportsRouter);
 app.use('/rsvps', noStore, apiLimiter, rsvpsRouter);
 app.use('/follows', noStore, apiLimiter, followsRouter);
 app.use('/support', noStore, apiLimiter, supportRouter);
@@ -242,6 +252,16 @@ app.use(errorHandler);
 // Add Sentry error handler (must be last)
 if (!isTest) {
   addSentryErrorHandler(app);
+}
+
+// Game reminder cron — runs every hour, checks for games starting in 12h and 1h
+if (!isTest) {
+  cron.schedule('0 * * * *', () => {
+    void runGameReminders().catch((err) =>
+      console.error('[cron] game-reminders failed:', err)
+    );
+  });
+  debugLog('[cron] Game reminder job scheduled (every hour)');
 }
 
 export { app };

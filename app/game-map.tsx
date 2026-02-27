@@ -51,40 +51,59 @@ export default function GameMapScreen() {
       const gamesList = Array.isArray(gamesResponse) ? gamesResponse : (gamesResponse?.items || []);
       const eventsList = Array.isArray(eventsResponse) ? eventsResponse : (eventsResponse?.items || []);
 
-      // Helper function to validate coordinates
-      const hasValidCoords = (item: any): boolean => {
-        return item.latitude != null && item.longitude != null &&
-               typeof item.latitude === 'number' && typeof item.longitude === 'number' &&
-               !isNaN(item.latitude) && !isNaN(item.longitude) &&
-               item.latitude >= -90 && item.latitude <= 90 &&
-               item.longitude >= -180 && item.longitude <= 180;
+      // Helper: resolve the best available lat/lng for a game or event.
+      // Games can store coordinates in multiple fields depending on how
+      // they were created, so we fall back in order of preference.
+      const resolveCoords = (item: any): { latitude: number; longitude: number } | null => {
+        // Prefer explicit game-level coordinates, then venue coordinates
+        const lat = item.latitude ?? item.venue_lat ?? item.watch_location_lat ?? null;
+        const lng = item.longitude ?? item.venue_lng ?? item.watch_location_lng ?? null;
+        if (
+          lat != null && lng != null &&
+          typeof lat === 'number' && typeof lng === 'number' &&
+          !isNaN(lat) && !isNaN(lng) &&
+          lat >= -90 && lat <= 90 &&
+          lng >= -180 && lng <= 180
+        ) {
+          return { latitude: lat, longitude: lng };
+        }
+        return null;
       };
+
+      const hasValidCoords = (item: any): boolean => resolveCoords(item) !== null;
 
       // Transform games to EventMapData format
       const gameMarkers: EventMapData[] = gamesList
         .filter(hasValidCoords)
-        .map((game: any) => ({
-          id: game.id,
-          title: game.title || 'Game',
-          date: game.date || new Date().toISOString(),
-          location: game.location,
-          latitude: game.latitude,
-          longitude: game.longitude,
-          type: 'game' as const,
-        }));
+        .map((game: any) => {
+          const coords = resolveCoords(game)!;
+          return {
+            id: game.id,
+            title: game.title || 'Game',
+            date: game.date || new Date().toISOString(),
+            location: game.location || game.venue_address,
+            latitude: coords.latitude,
+            longitude: coords.longitude,
+            type: 'game' as const,
+          };
+        });
 
-      // Transform events to EventMapData format
+      // Transform events to EventMapData format (never show cancelled events on map)
       const eventMarkers: EventMapData[] = eventsList
+        .filter((e: any) => e.status !== 'cancelled')
         .filter(hasValidCoords)
-        .map((event: any) => ({
-          id: event.id,
-          title: event.title || 'Event',
-          date: event.date || new Date().toISOString(),
-          location: event.location,
-          latitude: event.latitude,
-          longitude: event.longitude,
-          type: 'event' as const,
-        }));
+        .map((event: any) => {
+          const coords = resolveCoords(event)!;
+          return {
+            id: event.id,
+            title: event.title || 'Event',
+            date: event.date || new Date().toISOString(),
+            location: event.location,
+            latitude: coords.latitude,
+            longitude: coords.longitude,
+            type: 'event' as const,
+          };
+        });
 
       // Combine games and events
       const allMarkers = [...gameMarkers, ...eventMarkers];
@@ -128,7 +147,7 @@ export default function GameMapScreen() {
           headerStyle: { backgroundColor: Colors[colorScheme].background },
           headerTintColor: Colors[colorScheme].text,
           headerLeft: () => (
-            <Pressable onPress={() => void router.back()} style={styles.headerButton}>
+            <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={styles.headerButton}>
               <Ionicons name="arrow-back" size={24} color={Colors[colorScheme].text} />
             </Pressable>
           ),

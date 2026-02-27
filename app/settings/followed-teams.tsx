@@ -7,7 +7,6 @@ import { Colors } from '@/constants/Colors';
 
 export default function FollowedTeamsScreen() {
   const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<any[]>([]);
@@ -18,7 +17,7 @@ export default function FollowedTeamsScreen() {
     finally { setLoading(false); }
   })(); }, []);
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#111827' : '#FFFFFF' }]} edges={['bottom']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme ?? 'light'].background }]} edges={['bottom']}>
       <Stack.Screen options={{ title: 'Followed Teams', headerBackTitle: 'Back', headerShown: true }} />
       <View style={styles.content}>
         <Text style={[styles.title, { color: Colors[colorScheme ?? 'light'].text }]}>Followed Teams</Text>
@@ -49,7 +48,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { flex: 1, padding: 16, paddingTop: 24 },
   title: { fontSize: 20, fontWeight: '700', marginBottom: 12 },
-  error: { color: '#b91c1c', marginBottom: 8 },
+  error: { marginBottom: 8 },
   muted: { marginBottom: 8 },
   mutedSmall: { fontSize: 12 },
   row: { padding: 12, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth },

@@ -84,6 +84,7 @@ export default function CreatePostScreen() {
   const [locationError, setLocationError] = useState<string | null>(null);
   const [precisionBannerDismissed, setPrecisionBannerDismissed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [postSuccess, setPostSuccess] = useState(false);
   const showPrecisionWarning = Platform.OS === 'android' && permissionGranted && needsPreciseAccuracy && !precisionBannerDismissed;
   const locationReady = typeof location?.latitude === 'number' && typeof location?.longitude === 'number';
   const [draftReady, setDraftReady] = useState(false);
@@ -403,13 +404,19 @@ export default function CreatePostScreen() {
         Alert.alert('Permission required', 'Camera permission is needed to capture media.');
         return;
       }
+      // Version-safe mediaTypes: new SDK uses MediaType array, old SDK uses MediaTypeOptions
+      const anyIP = ImagePicker as any;
+      const cameraMediaTypes = anyIP?.MediaType
+        ? [anyIP.MediaType.Images, anyIP.MediaType.Videos]
+        : anyIP.MediaTypeOptions?.All;
+
       const r = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.All, // Allow both photo and video
+        mediaTypes: cameraMediaTypes,
         allowsEditing: false,
         quality: 0.85,
         exif: false,
         videoMaxDuration: 30,
-        legacy: false, // Use modern picker on iOS
+        legacy: false,
       } as any);
       if (!r.canceled && r.assets && r.assets[0]) {
         const a = r.assets[0];
@@ -612,11 +619,10 @@ export default function CreatePostScreen() {
             ? (payload.game_id ? 'Your highlight has been shared to the event.' : 'Your highlight has been shared to your profile.') 
             : `Your post has been created and will appear on the ${postDestination}.`);
       
-      Alert.alert(
-        postType === 'highlight' ? 'Highlight shared' : 'Posted successfully!',
-        successMessage
-      );
-      router.replace('/(tabs)');
+      setPostSuccess(true);
+      setTimeout(() => {
+        router.replace('/(tabs)');
+      }, 1500);
     } catch (e: any) {
       console.error('[CreatePost] Error creating post:', {
         message: e?.message,
@@ -633,7 +639,14 @@ export default function CreatePostScreen() {
         if (e?.status === 404 && selectedGameId && !isSampleEvent(selectedGameId)) {
           setError('Event not found. Please remove the event attachment and try again, or select a different event.');
         } else if (e?.status === 403) {
-          setError(e?.data?.message || 'You do not have permission to post to this event.');
+          const code = e?.data?.error;
+          if (code === 'POSTING_WINDOW_CLOSED') {
+            setError(`Not yet. ${e?.data?.message || 'Posting is not open for this event yet.'}`);
+          } else if (code === 'TOO_FAR_FROM_VENUE') {
+            setError(`You're too far from the venue. ${e?.data?.message || ''}`.trim());
+          } else {
+            setError(e?.data?.message || 'You do not have permission to post to this event.');
+          }
         } else {
           setError(e?.message || 'Failed to create post. Please try again.');
         }
@@ -654,12 +667,18 @@ export default function CreatePostScreen() {
       
       {/* Header */}
       <View style={[styles.header, { backgroundColor: Colors[colorScheme].background, borderBottomColor: Colors[colorScheme].border }]}>
-        <Pressable onPress={() => void router.back()} accessibilityLabel="Close" style={styles.iconBtn}>
+        <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} accessibilityLabel="Close" style={styles.iconBtn}>
           <Ionicons name="close" size={22} color={Colors[colorScheme].text} />
         </Pressable>
         <View style={styles.headerSpacer} />
         <View style={styles.postButtonContainer}>
-          <PrimaryButton label={buttonLabel} onPress={onSubmit} disabled={!canPost || submitting} loading={submitting} />
+          {postSuccess ? (
+            <View style={styles.successIndicator}>
+              <Text style={styles.successCheck}>✓</Text>
+            </View>
+          ) : (
+            <PrimaryButton label={buttonLabel} onPress={onSubmit} disabled={!canPost || submitting} loading={submitting} />
+          )}
         </View>
       </View>
 
@@ -1844,5 +1863,16 @@ const styles = StyleSheet.create({
   previewTipsText: {
     fontSize: 13,
     lineHeight: 20,
+  },
+  successIndicator: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+  },
+  successCheck: {
+    color: '#F59E0B',
+    fontSize: 22,
+    fontWeight: '800',
   },
 });

@@ -1,7 +1,7 @@
 import { BackHeader } from '@/components/ui/BackHeader';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
@@ -11,7 +11,7 @@ import MatchBanner from '../components/MatchBanner';
 import RsvpSheet from '../components/RsvpSheet';
 import { Colors } from '@/constants/Colors';
 
-type EventItem = { id: string | number; title?: string; date?: string; location?: string; description?: string; capacity?: number; attendees?: any[] };
+type EventItem = { id: string | number; title?: string; date?: string; location?: string; description?: string; capacity?: number; attendees?: any[]; status?: string; can_cancel?: boolean };
 
 export default function EventDetailScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -29,54 +29,61 @@ export default function EventDetailScreen() {
   const [rsvped, setRsvped] = useState<boolean>(false);
   const [attendeesCount, setAttendeesCount] = useState<number>(0);
   const [rsvpSheetVisible, setRsvpSheetVisible] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
-  useEffect(() => {
-    let mounted = true;
-    const load = async () => {
-      if (!id) { setLoading(false); return; }
-      setLoading(true);
-      setError(null);
+  const load = useCallback(async () => {
+    if (!id) { setLoading(false); return; }
+    setLoading(true);
+    setError(null);
+    try {
+      // Load event first (critical path)
+      let data: any = null;
       try {
-        // Load event first (critical path)
-        let data: any = null;
-        try {
-          data = await Event.get(String(id));
-        } catch (e: any) {
-          if (!mounted) return;
-          console.error('Failed to load event', e);
-          setError('Unable to load event. Please try again.');
-          setLoading(false);
-          return; // Stop here if event can't be loaded
+        const raw = await Event.get(String(id));
+        // Guard against 304 Not-Modified stubs returned by the HTTP client
+        // (they look like { _status: 304, _isNotModified: true }) — treat as miss
+        if (!raw || raw._isNotModified || typeof raw.id === 'undefined') {
+          throw new Error('Event not found');
         }
-
-        if (!mounted) return;
-        setEvent(data ?? null);
-
-        // Load user and RSVP status in parallel (best-effort, don't block)
-        try {
-          const [user, status]: any = await Promise.all([
-            User.me().catch(() => null),
-            Event.rsvpStatus(String(id)).catch(() => ({ attending: false, count: 0 })),
-          ]);
-          if (!mounted) return;
-          setMe(user);
-          setRsvped(!!status?.attending);
-          setAttendeesCount(Number(status?.count || data?.attendees_count || 0));
-        } catch (e: any) {
-          if (!mounted) return;
-          console.warn('Failed to load user/RSVP status (continuing with event data)', e);
-          // Don't set error; event is loaded and that's what matters
-          setAttendeesCount(Number(data?.attendees_count || 0));
-        }
-      } finally {
-        if (mounted) setLoading(false);
+        data = raw;
+      } catch (e: any) {
+        console.error('[event-detail] Failed to load event', { id, status: e?.status, message: e?.message });
+        setError(e?.status === 404 ? 'Event not found.' : 'Unable to load event. Please try again.');
+        return;
       }
-    };
-    void load();
-    return () => { mounted = false; };
+
+      setEvent(data ?? null);
+
+      // Load user and RSVP status in parallel (best-effort, don't block render)
+      try {
+        const [user, status]: any = await Promise.all([
+          User.me().catch(() => null),
+          Event.rsvpStatus(String(id)).catch(() => ({ attending: false, count: 0 })),
+        ]);
+        setMe(user);
+        setRsvped(!!(status?.attending ?? status?.going));
+        setAttendeesCount(Number(status?.count || data?.attendees_count || data?.rsvp_count || 0));
+      } catch (e: any) {
+        console.warn('[event-detail] Failed to load user/RSVP status (non-critical)', e);
+        setAttendeesCount(Number(data?.attendees_count || data?.rsvp_count || 0));
+      }
+    } finally {
+      setLoading(false);
+    }
   }, [id]);
 
+  useEffect(() => {
+    void load();
+  }, [load]);
+
   const attendeeCount = useMemo(() => attendeesCount, [attendeesCount]);
+  const eventHasPassed = useMemo(() => {
+    const iso = event?.date;
+    if (!iso) return false;
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return false;
+    return date.getTime() < Date.now();
+  }, [event?.date]);
 
   const router = useRouter();
 
@@ -97,6 +104,10 @@ export default function EventDetailScreen() {
 
   const toggleRsvp = async () => {
     if (!event) return;
+    if (eventHasPassed) {
+      Alert.alert('RSVP closed', 'You cannot RSVP to events that have already occurred.');
+      return;
+    }
     if (!me) {
       Alert.alert('Sign In Required', 'Please sign in to RSVP to events.', [
         { text: 'Cancel', style: 'cancel' },
@@ -110,7 +121,11 @@ export default function EventDetailScreen() {
       setAttendeesCount(Number(res?.count || 0));
       Alert.alert('Success', res?.attending ? 'RSVP confirmed.' : 'RSVP canceled.');
     } catch (e: any) {
-      if (e?.response?.status === 401 || e?.message?.includes('Unauthorized')) {
+      const status = e?.status ?? e?.response?.status;
+      const message = String(e?.message || e?.data?.error || '');
+      if (status === 400 && /event has passed/i.test(message)) {
+        Alert.alert('RSVP closed', 'You cannot RSVP to events that have already occurred.');
+      } else if (status === 401 || message.includes('Unauthorized')) {
         Alert.alert('Session Expired', 'Please sign in again to RSVP.', [
           { text: 'Cancel', style: 'cancel' },
           { text: 'Sign In', onPress: () => void router.push('/sign-in') }
@@ -122,6 +137,10 @@ export default function EventDetailScreen() {
   };
 
   const handleRsvpPress = () => {
+    if (eventHasPassed) {
+      Alert.alert('RSVP closed', 'You cannot RSVP to events that have already occurred.');
+      return;
+    }
     if (!me) {
       Alert.alert('Sign In Required', 'Please sign in to RSVP to events.', [
         { text: 'Cancel', style: 'cancel' },
@@ -130,6 +149,34 @@ export default function EventDetailScreen() {
       return;
     }
     setRsvpSheetVisible(true);
+  };
+
+  const handleCancelEvent = async () => {
+    if (!event?.id || !me) return;
+    Alert.alert(
+      'Cancel Event',
+      'Are you sure you want to cancel this event? All RSVPed attendees will be notified.',
+      [
+        { text: 'Keep Event', style: 'cancel' },
+        {
+          text: 'Cancel Event',
+          style: 'destructive',
+          onPress: async () => {
+            setCancelling(true);
+            try {
+              await Event.cancel(String(event.id));
+              setEvent((prev) => (prev ? { ...prev, status: 'cancelled' } : null));
+              Alert.alert('Event Cancelled', 'The event has been cancelled. Attendees have been notified.');
+            } catch (e: any) {
+              const msg = e?.data?.error || e?.message || 'Unable to cancel event.';
+              Alert.alert('Error', msg);
+            } finally {
+              setCancelling(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const openInMaps = async () => {
@@ -197,13 +244,24 @@ export default function EventDetailScreen() {
         }}
         showsVerticalScrollIndicator={false}
       >
-        {!id && <Text style={styles.error}>Missing event id.</Text>}
-        {loading && (
-          <View style={{ paddingVertical: 24, alignItems: 'center' }}>
-            <ActivityIndicator />
+        {!id && !loading && (
+          <View style={{ paddingVertical: 40, alignItems: 'center', gap: 12 }}>
+            <Text style={[styles.error, { textAlign: 'center' }]}>No event selected.</Text>
           </View>
         )}
-        {error && !loading && <Text style={styles.error}>{error}</Text>}
+        {loading && (
+          <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+            <ActivityIndicator size="large" />
+          </View>
+        )}
+        {error && !loading && (
+          <View style={{ paddingVertical: 40, alignItems: 'center', gap: 16 }}>
+            <Text style={[styles.error, { textAlign: 'center' }]}>{error}</Text>
+            <Pressable style={styles.primaryBtn} onPress={load}>
+              <Text style={styles.primaryBtnText}>Retry</Text>
+            </Pressable>
+          </View>
+        )}
         {event && !loading && (
           <View style={{ gap: 8 }}>
             {/* Match banner with persistent RSVP badge */}
@@ -212,11 +270,13 @@ export default function EventDetailScreen() {
               rightImage={(event as any)?.awayLogo ?? null}
               leftName={(event as any)?.homeName ?? ''}
               rightName={(event as any)?.awayName ?? ''}
+              leftScore={(event as any)?.game?.home_score ?? null}
+              rightScore={(event as any)?.game?.away_score ?? null}
               height={220}
               appearance="classic"
               hero={false}
               goingCount={attendeeCount}
-              onGoingPress={() => setRsvpSheetVisible(true)}
+              onGoingPress={eventHasPassed ? undefined : () => setRsvpSheetVisible(true)}
             />
 
             <Text style={[styles.title, { color: theme.text }]}>{event.title || 'Event'}</Text>
@@ -254,13 +314,28 @@ export default function EventDetailScreen() {
             })()}
             {event.description ? <Text style={{ color: theme.text }}>{event.description}</Text> : null}
 
-            <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
-              <Pressable style={styles.primaryBtn} onPress={me ? toggleRsvp : handleRsvpPress}>
-                <Text style={styles.primaryBtnText}>{rsvped ? 'Cancel RSVP' : 'RSVP'}</Text>
-              </Pressable>
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+              {(event as EventItem).status !== 'cancelled' && (
+                <Pressable
+                  style={[styles.primaryBtn, eventHasPassed ? styles.primaryBtnDisabled : null]}
+                  disabled={eventHasPassed}
+                  onPress={me ? toggleRsvp : handleRsvpPress}
+                >
+                  <Text style={styles.primaryBtnText}>{eventHasPassed ? 'Event Ended' : (rsvped ? 'Cancel RSVP' : 'RSVP')}</Text>
+                </Pressable>
+              )}
               <Pressable style={[styles.outlineBtn, { borderColor: Colors[colorScheme ?? 'light'].border }]} onPress={shareEvent}>
                 <Text style={[styles.outlineBtnText, { color: Colors[colorScheme ?? 'light'].text }]}>Share</Text>
               </Pressable>
+              {(event as EventItem).can_cancel && (event as EventItem).status !== 'cancelled' && (
+                <Pressable
+                  style={[styles.cancelEventBtn, { borderColor: '#DC2626' }]}
+                  disabled={cancelling}
+                  onPress={handleCancelEvent}
+                >
+                  <Text style={styles.cancelEventBtnText}>{cancelling ? 'Cancelling…' : 'Cancel Event'}</Text>
+                </Pressable>
+              )}
             </View>
           </View>
         )}
@@ -322,7 +397,17 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
   },
   primaryBtn: { backgroundColor: '#111827', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10 },
+  primaryBtnDisabled: { opacity: 0.6 },
   primaryBtnText: { color: 'white', fontWeight: '700' },
   outlineBtn: { borderWidth: StyleSheet.hairlineWidth, borderColor: '#D1D5DB', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10 },
-  outlineBtnText: { color: 'transparent', fontWeight: '700' }, // Will be overridden with Colors[colorScheme].text
+  outlineBtnText: { color: '#111827', fontWeight: '700' },
+  cancelledBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  cancelledBadgeText: { color: '#DC2626', fontWeight: '700', fontSize: 12 },
+  cancelEventBtn: { borderWidth: 1, borderColor: '#DC2626', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10 },
+  cancelEventBtnText: { color: '#DC2626', fontWeight: '700' },
 });

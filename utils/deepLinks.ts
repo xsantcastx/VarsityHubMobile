@@ -5,10 +5,11 @@
  * to the appropriate screen in the app.
  * 
  * Supports:
- * - varsityhub://post/123
- * - varsityhub://game/456
- * - varsityhub://team/789
- * - varsityhub://profile/abc
+ * - varsityhubmobile://post/123
+ * - varsityhubmobile://game/456
+ * - varsityhubmobile://team/789
+ * - varsityhubmobile://profile/abc
+ * - https://varsityhub.app/posts/123
  * - https://varsityhub.com/share?type=post&id=123
  * 
  * @module utils/deepLinks
@@ -16,10 +17,11 @@
 
 import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
+import { getConfig } from '@/config/env';
 
-// App scheme and web domain
-const APP_SCHEME = 'varsityhub';
-const WEB_DOMAINS = ['varsityhub.com', 'www.varsityhub.com'];
+// App scheme and web domain (must match app.json scheme and shared URLs)
+const APP_SCHEME = getConfig().appScheme || 'varsityhubmobile';
+const WEB_DOMAINS = ['varsityhub.com', 'www.varsityhub.com', 'varsityhub.app', 'www.varsityhub.app'];
 
 /**
  * Parsed deep link result
@@ -36,6 +38,7 @@ interface ParsedDeepLink {
  */
 const ROUTE_MAP: Record<string, string> = {
   post: '/post-detail',
+  posts: '/post-detail', // /posts/:id (web URL format)
   game: '/game-detail',
   event: '/event-detail',
   team: '/team-detail',

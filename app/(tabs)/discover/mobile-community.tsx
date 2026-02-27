@@ -9,7 +9,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
-import { Game, Post, Team, User } from '@/api/entities';
+import { Game, Organization, Post, Search, Team, User } from '@/api/entities';
 import EventMap, { EventMapData } from '@/components/EventMap';
 import PostCard from '@/components/PostCard';
 import QuickAddGameModal, { QuickGameData } from '@/components/QuickAddGameModal';
@@ -101,6 +101,9 @@ export default function CommunityDiscoverScreen() {
   const [precisionBannerDismissed, setPrecisionBannerDismissed] = useState(false);
   const [personalizationNotice, setPersonalizationNotice] = useState<string | null>(null);
   const showPrecisionBanner = Platform.OS === 'android' && permissionGranted && needsPreciseAccuracy && !precisionBannerDismissed;
+  // Unified search (users, teams, organizations) - uses same query as zip search
+  const [unifiedSearchResults, setUnifiedSearchResults] = useState<{ users: any[]; teams: any[]; organizations: any[] } | null>(null);
+  const [unifiedSearchLoading, setUnifiedSearchLoading] = useState(false);
 
   const toFeedPost = useCallback((p: any): FeedPost => {
     const mediaUrl: string | null = typeof p?.media_url === 'string' ? p.media_url : (typeof p?.media?.url === 'string' ? p.media.url : null);
@@ -290,6 +293,31 @@ export default function CommunityDiscoverScreen() {
   useEffect(() => {
     void load().catch(() => {});
   }, [load]);
+
+  // Debounced unified search (users, teams, organizations)
+  useEffect(() => {
+    const trimmed = query.trim();
+    if (!trimmed || trimmed.length < 2) {
+      setUnifiedSearchResults(null);
+      return;
+    }
+    const t = setTimeout(async () => {
+      setUnifiedSearchLoading(true);
+      try {
+        const res = await Search.unified(trimmed, 10);
+        setUnifiedSearchResults({
+          users: res?.users ?? [],
+          teams: res?.teams ?? [],
+          organizations: res?.organizations ?? [],
+        });
+      } catch {
+        setUnifiedSearchResults({ users: [], teams: [], organizations: [] });
+      } finally {
+        setUnifiedSearchLoading(false);
+      }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [query]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -550,7 +578,7 @@ export default function CommunityDiscoverScreen() {
         <View style={[styles.searchBox, { flex: 1, backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
           <Ionicons name="search" size={20} color={Colors[colorScheme].mutedText} />
           <TextInput
-            placeholder="Search by keyword or Zip Code..."
+            placeholder="Search people, teams, organizations, or zip..."
             placeholderTextColor={Colors[colorScheme].mutedText}
             value={query}
             onChangeText={(v) => {
@@ -589,6 +617,107 @@ export default function CommunityDiscoverScreen() {
               <Text style={[styles.zipSuggestionCount, { color: Colors[colorScheme].mutedText }]}>{entry.count === 1 ? '1 game' : `${entry.count} games`}</Text>
             </Pressable>
           ))}
+        </View>
+      ) : null}
+
+      {/* Unified search results - People, Teams, Organizations */}
+      {unifiedSearchLoading ? (
+        <View style={{ paddingVertical: 24, alignItems: 'center' }}>
+          <ActivityIndicator size="small" color={Colors[colorScheme].tint} />
+        </View>
+      ) : unifiedSearchResults ? (
+        <View style={[styles.unifiedSearchResults, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
+          {unifiedSearchResults.users.length > 0 ? (
+            <View style={styles.searchSection}>
+              <Text style={[styles.searchSectionTitle, { color: Colors[colorScheme].mutedText }]}>People</Text>
+              {unifiedSearchResults.users.map((u) => (
+                <Pressable
+                  key={u.id}
+                  style={[styles.searchResultRow, { borderBottomColor: Colors[colorScheme].border }]}
+                  onPress={() => { setQuery(''); setUnifiedSearchResults(null); void router.push(`/user-profile?id=${u.id}`); }}
+                >
+                  <View style={styles.searchResultLeft}>
+                    {u.avatar_url ? (
+                      <Image source={{ uri: u.avatar_url }} style={styles.searchResultAvatar} contentFit="cover" />
+                    ) : (
+                      <LinearGradient colors={['#1e293b', '#0f172a']} style={styles.searchResultAvatar} />
+                    )}
+                    <View>
+                      <Text style={[styles.searchResultName, { color: Colors[colorScheme].text }]} numberOfLines={1}>{u.display_name || u.username || 'User'}</Text>
+                      <Text style={[styles.searchResultSub, { color: Colors[colorScheme].mutedText }]} numberOfLines={1}>@{u.username || 'user'}</Text>
+                    </View>
+                  </View>
+                  {me?.id !== u.id ? (
+                    <Pressable
+                      onPress={async (e) => { e.stopPropagation(); const next = !u.is_following; setUnifiedSearchResults((prev) => prev ? { ...prev, users: prev.users.map((x) => x.id === u.id ? { ...x, is_following: next } : x) } : null); try { if (next) await User.follow(u.id); else await User.unfollow(u.id); } catch { setUnifiedSearchResults((prev) => prev ? { ...prev, users: prev.users.map((x) => x.id === u.id ? { ...x, is_following: !next } : x) } : null); } }}
+                      style={[styles.searchFollowBtn, { backgroundColor: u.is_following ? Colors[colorScheme].border : Colors[colorScheme].tint }]}
+                    >
+                      <Text style={[styles.searchFollowBtnText, { color: u.is_following ? Colors[colorScheme].text : Colors[colorScheme].background }]}>{u.is_following ? 'Following' : 'Follow'}</Text>
+                    </Pressable>
+                  ) : null}
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+          {unifiedSearchResults.teams.length > 0 ? (
+            <View style={styles.searchSection}>
+              <Text style={[styles.searchSectionTitle, { color: Colors[colorScheme].mutedText }]}>Teams</Text>
+              {unifiedSearchResults.teams.map((t) => (
+                <Pressable
+                  key={t.id}
+                  style={[styles.searchResultRow, { borderBottomColor: Colors[colorScheme].border }]}
+                  onPress={() => { setQuery(''); setUnifiedSearchResults(null); void router.push(`/team-profile?id=${t.id}`); }}
+                >
+                  <View style={styles.searchResultLeft}>
+                    {t.logo_url || t.avatar_url ? (
+                      <Image source={{ uri: t.logo_url || t.avatar_url }} style={styles.searchResultAvatar} contentFit="cover" />
+                    ) : (
+                      <LinearGradient colors={['#1e293b', '#0f172a']} style={styles.searchResultAvatar} />
+                    )}
+                    <View>
+                      <Text style={[styles.searchResultName, { color: Colors[colorScheme].text }]} numberOfLines={1}>{t.name}</Text>
+                      <Text style={[styles.searchResultSub, { color: Colors[colorScheme].mutedText }]} numberOfLines={1}>{t.sport ? `${t.sport} • ${t.members || 0} members` : `${t.members || 0} members`}</Text>
+                    </View>
+                  </View>
+                  <Pressable
+                    onPress={async (e) => { e.stopPropagation(); const next = !t.is_following; setUnifiedSearchResults((prev) => prev ? { ...prev, teams: prev.teams.map((x) => x.id === t.id ? { ...x, is_following: next } : x) } : null); try { if (next) await Team.follow(t.id); else await Team.unfollow(t.id); } catch { setUnifiedSearchResults((prev) => prev ? { ...prev, teams: prev.teams.map((x) => x.id === t.id ? { ...x, is_following: !next } : x) } : null); } }}
+                    style={[styles.searchFollowBtn, { backgroundColor: t.is_following ? Colors[colorScheme].border : Colors[colorScheme].tint }]}
+                  >
+                    <Text style={[styles.searchFollowBtnText, { color: t.is_following ? Colors[colorScheme].text : Colors[colorScheme].background }]}>{t.is_following ? 'Following' : 'Follow'}</Text>
+                  </Pressable>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+          {unifiedSearchResults.organizations.length > 0 ? (
+            <View style={styles.searchSection}>
+              <Text style={[styles.searchSectionTitle, { color: Colors[colorScheme].mutedText }]}>Organizations</Text>
+              {unifiedSearchResults.organizations.map((o) => (
+                <Pressable
+                  key={o.id}
+                  style={[styles.searchResultRow, { borderBottomColor: Colors[colorScheme].border }]}
+                  onPress={() => { setQuery(''); setUnifiedSearchResults(null); void router.push(`/organization?id=${o.id}`); }}
+                >
+                  <View style={styles.searchResultLeft}>
+                    <LinearGradient colors={['#1e293b', '#0f172a']} style={[styles.searchResultAvatar, { borderRadius: 8 }]} />
+                    <View>
+                      <Text style={[styles.searchResultName, { color: Colors[colorScheme].text }]} numberOfLines={1}>{o.name}</Text>
+                      <Text style={[styles.searchResultSub, { color: Colors[colorScheme].mutedText }]} numberOfLines={1}>{o.sport ? `${o.sport} • ${o.members || 0} members` : `${o.members || 0} members`}</Text>
+                    </View>
+                  </View>
+                  <Pressable
+                    onPress={async (e) => { e.stopPropagation(); const next = !o.is_following; setUnifiedSearchResults((prev) => prev ? { ...prev, organizations: prev.organizations.map((x) => x.id === o.id ? { ...x, is_following: next } : x) } : null); try { if (next) await Organization.follow(o.id); else await Organization.unfollow(o.id); } catch { setUnifiedSearchResults((prev) => prev ? { ...prev, organizations: prev.organizations.map((x) => x.id === o.id ? { ...x, is_following: !next } : x) } : null); } }}
+                    style={[styles.searchFollowBtn, { backgroundColor: o.is_following ? Colors[colorScheme].border : Colors[colorScheme].tint }]}
+                  >
+                    <Text style={[styles.searchFollowBtnText, { color: o.is_following ? Colors[colorScheme].text : Colors[colorScheme].background }]}>{o.is_following ? 'Following' : 'Follow'}</Text>
+                  </Pressable>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+          {unifiedSearchResults.users.length === 0 && unifiedSearchResults.teams.length === 0 && unifiedSearchResults.organizations.length === 0 ? (
+            <Text style={[styles.searchEmpty, { color: Colors[colorScheme].mutedText }]}>No results found</Text>
+          ) : null}
         </View>
       ) : null}
 
@@ -715,7 +844,7 @@ export default function CommunityDiscoverScreen() {
                 <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Team Schedule</Text>
                 <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Manage games and season</Text>
               </Pressable>
-              <Pressable 
+              <Pressable
                 style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: 12 }]}
                 onPress={() => void router.push('/event-approvals')}
               >
@@ -723,12 +852,31 @@ export default function CommunityDiscoverScreen() {
                 <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Approvals</Text>
                 <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Review pending events</Text>
               </Pressable>
+              <Pressable
+                style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: 12 }]}
+                onPress={() => void router.push('/organization')}
+              >
+                <Ionicons name="business" size={24} color={Colors[colorScheme].tint} />
+                <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Manage Org</Text>
+                <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Your organization</Text>
+              </Pressable>
             </>
           ) : (
             <>
+              {/* Organizer-only card (shown before fan actions for organizer role) */}
+              {me?.preferences?.role === 'organizer' && (
+                <Pressable
+                  style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30' }]}
+                  onPress={() => void router.push('/organization')}
+                >
+                  <Ionicons name="business" size={24} color={Colors[colorScheme].tint} />
+                  <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Manage Org</Text>
+                  <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Your organization</Text>
+                </Pressable>
+              )}
               {/* Fan actions */}
-              <Pressable 
-                style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30' }]}
+              <Pressable
+                style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: me?.preferences?.role === 'organizer' ? 12 : 0 }]}
                 onPress={() => void router.push('/create-fan-event')}
               >
                 <Ionicons name="people" size={24} color={Colors[colorScheme].tint} />
@@ -1082,6 +1230,17 @@ const styles = StyleSheet.create({
   zipSuggestionItem: { paddingHorizontal: 16, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   zipSuggestionZip: { fontWeight: '700', color: '#111827', fontSize: 15 },
   zipSuggestionCount: { color: '#6b7280', fontSize: 12 },
+  unifiedSearchResults: { marginTop: 6, marginBottom: 12, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden', maxHeight: 360 },
+  searchSection: { paddingTop: 8 },
+  searchSectionTitle: { fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5, paddingHorizontal: 12, paddingBottom: 6 },
+  searchResultRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth },
+  searchResultLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
+  searchResultAvatar: { width: 40, height: 40, borderRadius: 20 },
+  searchResultName: { fontWeight: '700', fontSize: 15 },
+  searchResultSub: { fontSize: 12, marginTop: 1 },
+  searchFollowBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999 },
+  searchFollowBtnText: { fontWeight: '800', fontSize: 13 },
+  searchEmpty: { padding: 16, textAlign: 'center', fontSize: 14 },
   followingCard: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, borderWidth: StyleSheet.hairlineWidth, marginTop: 4, marginBottom: 10 },
   followingText: { color: '#1e3a8a', fontWeight: '700' },
   followingBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: '#1D4ED8' },

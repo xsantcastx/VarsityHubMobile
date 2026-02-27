@@ -11,6 +11,8 @@ interface ShareLinkOptions {
   title?: string | null;
   caption?: string | null;
   contextLines?: Array<string | null | undefined>;
+  /** Called when user completes a share (e.g. to track share for notifications). Only for kind='post'. */
+  onShareSuccess?: (postId: string) => void;
 }
 
 const formatLink = (options: ShareLinkOptions): ShareableLink | null => {
@@ -35,7 +37,7 @@ const formatLink = (options: ShareLinkOptions): ShareableLink | null => {
 };
 
 export function useShareLink(options: ShareLinkOptions) {
-  const { caption, id, kind, title, contextLines } = options;
+  const { caption, id, kind, title, contextLines, onShareSuccess } = options;
 
   const link = useMemo(
     () => formatLink({ caption, id, kind, title }),
@@ -72,17 +74,20 @@ export function useShareLink(options: ShareLinkOptions) {
       return;
     }
     try {
-      await Share.share({
+      const result = await Share.share({
         message: contextMessage || link.shareMessage,
         url: link.webUrl,
         title: title || link.webUrl,
       });
+      if (result.action === Share.sharedAction && kind === 'post' && id && onShareSuccess) {
+        onShareSuccess(String(id));
+      }
     } catch (error) {
       console.warn('[share] Failed to open share sheet', error);
       await copyLink(true);
       Alert.alert('Share unavailable', 'Link copied to clipboard so you can paste it manually.');
     }
-  }, [contextMessage, copyLink, link, title]);
+  }, [contextMessage, copyLink, id, kind, link, onShareSuccess, title]);
 
   return {
     share,

@@ -116,10 +116,9 @@ export default function ReportAbuseScreen() {
 
       await Support.contact({
         name: name.trim() || 'VarsityHub user',
-        email: 'support@varsityhub.app',
+        email: email.trim(),
         subject: subject.trim(),
         message: compiledMessage,
-        from_email: email.trim(),
       });
       Alert.alert(
         'Report sent',

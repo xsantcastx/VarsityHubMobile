@@ -221,11 +221,15 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
               {author?.avatar_url ? (
                 <Image source={{ uri: String(author.avatar_url) }} style={styles.authorAvatar} contentFit="cover" />
               ) : (
-                <LinearGradient colors={["#1e293b", "#0f172a"]} style={styles.authorAvatar} />
+                <View style={[styles.authorAvatar, styles.avatarFallback]}>
+                  <Text style={styles.avatarFallbackText}>
+                    {(author?.display_name || author?.username || '?').charAt(0).toUpperCase()}
+                  </Text>
+                </View>
               )}
             </View>
             <Text numberOfLines={1} style={[styles.authorName, { color: Colors[colorScheme].text }]}>
-              {author?.username ? `@${author.username}` : 'User'}
+              {author?.display_name || (author?.username ? `@${author.username}` : 'User')}
             </Text>
           </Pressable>
           {isAuthor && (
@@ -333,8 +337,8 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
                 setEditModalVisible(true);
               }}
             >
-              <Ionicons name="pencil" size={20} color="#374151" />
-              <Text style={styles.actionText}>Edit Post</Text>
+              <Ionicons name="pencil" size={20} color={theme.icon} />
+              <Text style={[styles.actionText, { color: theme.text }]}>Edit Post</Text>
             </Pressable>
             <View style={styles.actionSeparator} />
             <Pressable
@@ -360,9 +364,9 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
         <View style={[styles.editModal, { backgroundColor: theme.background }]}>
           <View style={styles.editHeader}>
             <Pressable onPress={() => setEditModalVisible(false)}>
-              <Text style={styles.cancelButton}>Cancel</Text>
+              <Text style={[styles.cancelButton, { color: theme.mutedText }]}>Cancel</Text>
             </Pressable>
-            <Text style={styles.editTitle}>Edit Post</Text>
+            <Text style={[styles.editTitle, { color: theme.text }]}>Edit Post</Text>
             <Pressable onPress={handleEditPost} disabled={updating}>
               <Text style={[styles.saveButton, updating && styles.saveButtonDisabled]}>
                 {updating ? 'Saving...' : 'Save'}
@@ -438,6 +442,8 @@ const styles = StyleSheet.create({
   authorInfo: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
   authorAvatarWrap: { width: 28, height: 28, borderRadius: 14, overflow: 'hidden' },
   authorAvatar: { width: 28, height: 28, borderRadius: 14 },
+  avatarFallback: { backgroundColor: '#374151', alignItems: 'center', justifyContent: 'center' },
+  avatarFallbackText: { color: '#fff', fontWeight: '700', fontSize: 12 },
   authorName: { fontWeight: '700', maxWidth: 220 },
   actionsButton: { padding: 4, borderRadius: 12 },
   

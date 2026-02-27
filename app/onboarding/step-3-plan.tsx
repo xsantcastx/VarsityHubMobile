@@ -50,7 +50,16 @@ function PlanCard({
   const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
   const continueDisabled = saving || disabled;
-  
+
+  const getPlanColor = (id: string): string => {
+    switch (id) {
+      case 'legend': return '#FFD700';
+      case 'veteran': return '#C0C0C0';
+      case 'rookie':
+      default: return '#CD7F32';
+    }
+  };
+
   // Icon mapping - using Ionicons
   const getIconName = (): any => {
     switch (option.icon) {
@@ -71,12 +80,12 @@ function PlanCard({
         styles.card, 
         selected && styles.cardSelected,
         selected && styles.cardWithButton,
-        { borderColor: selected ? (isDark ? '#60A5FA' : '#111827') : (isDark ? '#374151' : '#E5E7EB') },
+        { borderColor: selected ? getPlanColor(option.id) : (isDark ? '#374151' : '#E5E7EB') },
         { backgroundColor: selected ? (isDark ? '#1F2937' : '#FFFFFF') : (isDark ? '#111827' : '#F9FAFB') }
       ]}>
       <View style={styles.cardHeader}>
         <View style={styles.titleRow}>
-          <Ionicons name={getIconName()} size={24} color={isDark ? '#60A5FA' : '#2563EB'} />
+          <Ionicons name={getIconName()} size={24} color={getPlanColor(option.id)} />
           <Text style={[styles.cardTitle, { color: isDark ? '#F9FAFB' : '#111827' }]}>{option.name}</Text>
         </View>
       </View>
@@ -135,6 +144,7 @@ export default function Step3Plan() {
   const [paymentsStatus, setPaymentsStatus] = useState<{ stripe_configured?: boolean; has_webhook_secret?: boolean } | null>(null);
   const [paymentsStatusLoading, setPaymentsStatusLoading] = useState(true);
   const [paymentsStatusError, setPaymentsStatusError] = useState<string | null>(null);
+  const displayedPlanOptions = PLAN_OPTIONS;
   const paymentsTemporarilyDisabled = paymentsStatus?.stripe_configured === false;
   const showPaymentsWarning =
     (!paymentsStatusLoading && paymentsTemporarilyDisabled) ||
@@ -142,6 +152,13 @@ export default function Step3Plan() {
   const paymentsWarningMessage = paymentsTemporarilyDisabled
     ? 'Coach plan checkout is temporarily unavailable while payments are being configured. You can continue with the Rookie plan or try again later.'
     : paymentsStatusError;
+
+  // Fans should never see this coach-only plan selection screen
+  useEffect(() => {
+    if (ob.role === 'fan') {
+      router.replace('/onboarding/step-7-profile');
+    }
+  }, [ob.role, router]);
 
   useEffect(() => {
     let mounted = true;
@@ -376,7 +393,7 @@ export default function Step3Plan() {
             </Text>
           </View>
         ) : null}
-        {PLAN_OPTIONS.map((option) => (
+        {displayedPlanOptions.map((option) => (
           <PlanCard
             key={option.id}
             option={option as PlanOption}
@@ -384,7 +401,9 @@ export default function Step3Plan() {
             onPress={() => handleSelectPlan(option.id as Plan)}
             onContinue={plan === option.id ? onContinue : undefined}
             disabled={option.id !== 'rookie' && paymentsTemporarilyDisabled}
-            disabledReason={option.id !== 'rookie' && paymentsTemporarilyDisabled ? 'Checkout unavailable' : undefined}
+            disabledReason={
+              option.id !== 'rookie' && paymentsTemporarilyDisabled ? 'Checkout unavailable' : undefined
+            }
             saving={saving}
           />
         ))}

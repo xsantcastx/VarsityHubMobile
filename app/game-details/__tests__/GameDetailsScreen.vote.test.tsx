@@ -34,13 +34,13 @@ jest.mock('react-native/Libraries/Animated/Animated', () => {
 
 // Mock requestAnimationFrame and cancelAnimationFrame for React Native animations
 beforeAll(() => {
-  global.requestAnimationFrame = (cb: FrameRequestCallback): number => setTimeout(cb, 16) as unknown as number;
-  global.cancelAnimationFrame = (id: number) => clearTimeout(id);
+  globalThis.requestAnimationFrame = (cb: FrameRequestCallback): number => setTimeout(cb, 16) as unknown as number;
+  globalThis.cancelAnimationFrame = (id: number) => clearTimeout(id);
 });
 
 afterAll(() => {
-  (global as any).requestAnimationFrame = undefined;
-  (global as any).cancelAnimationFrame = undefined;
+  (globalThis as any).requestAnimationFrame = undefined;
+  (globalThis as any).cancelAnimationFrame = undefined;
 });
 // Use fake timers for all tests in this file
 

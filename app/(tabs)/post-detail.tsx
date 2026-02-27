@@ -2,9 +2,12 @@ import VideoPlayer from '@/components/VideoPlayer';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { formatCount, getCountryFlag, timeAgo } from '@/utils/format';
+import { safeGoBack } from '@/utils/navigation';
 import { Image as ExpoImage } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     Alert,
@@ -76,9 +79,35 @@ export default function PostDetailScreen() {
   const [editCommentId, setEditCommentId] = useState<string | null>(null);
   const [editCommentText, setEditCommentText] = useState('');
   const [updatingComment, setUpdatingComment] = useState(false);
+  const [replyingToComment, setReplyingToComment] = useState<{ id: string; authorName: string } | null>(null);
   const [following, setFollowing] = useState(false);
   const [saved, setSaved] = useState(false);
   const [fullscreenMedia, setFullscreenMedia] = useState(false);
+  const [imageRotation, setImageRotation] = useState(0);
+  const imageScale = useSharedValue(1);
+  const savedScale = useSharedValue(1);
+
+  const resetFullscreen = () => {
+    setImageRotation(0);
+    imageScale.value = 1;
+    savedScale.value = 1;
+  };
+
+  const pinchGesture = Gesture.Pinch()
+    .onUpdate((e) => {
+      imageScale.value = Math.max(0.5, Math.min(5, savedScale.value * e.scale));
+    })
+    .onEnd(() => {
+      savedScale.value = imageScale.value;
+      if (imageScale.value < 1) {
+        imageScale.value = withSpring(1);
+        savedScale.value = 1;
+      }
+    });
+
+  const imageAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: imageScale.value }],
+  }));
 
   // Skeleton loading component
   const SkeletonLoader = () => (
@@ -263,7 +292,7 @@ export default function PostDetailScreen() {
   const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
     if (viewableItems && viewableItems.length > 0) {
       const visibleIndex = viewableItems[0].index;
-      if (visibleIndex !== undefined && visibleIndex !== currentPostIndex) {
+      if (visibleIndex !== undefined) {
         setCurrentPostIndex(visibleIndex);
         // Don't call load() here - the useEffect will handle it automatically
       }
@@ -273,24 +302,36 @@ export default function PostDetailScreen() {
   const onUpvote = async () => {
     if (!currentPostId || voting) return;
     setVoting(true);
+    // Optimistic update for immediate visual feedback
+    const prevPost = post;
+    setPost((p: any) => {
+      if (!p) return p;
+      const optimisticNext = !p.has_upvoted;
+      const next = {
+        ...p,
+        has_upvoted: optimisticNext,
+        upvotes_count: Math.max(0, (p.upvotes_count || 0) + (optimisticNext ? 1 : -1)),
+      };
+      if (currentPostId) setPostsById((prev) => ({ ...prev, [currentPostId]: next }));
+      return next;
+    });
     try {
       const r: any = await PostApi.toggleUpvote(currentPostId);
-      // Update post upvote count and user's upvote status
+      // Reconcile with server values
       setPost((p: any) => {
         const next = {
           ...(p || {}),
-          upvotes_count: typeof r?.count === 'number' ? r.count : r?.upvotes_count || (p?.upvotes_count || 0),
-          has_upvoted: typeof r?.has_upvoted === 'boolean' ? r.has_upvoted : r?.upvoted || false
+          upvotes_count: typeof r?.count === 'number' ? r.count : typeof r?.upvotes_count === 'number' ? r.upvotes_count : (p?.upvotes_count || 0),
+          has_upvoted: typeof r?.has_upvoted === 'boolean' ? r.has_upvoted : Boolean(r?.upvoted),
         };
-        if (currentPostId) {
-          setPostsById((prev) => ({ ...prev, [currentPostId]: next }));
-        }
+        if (currentPostId) setPostsById((prev) => ({ ...prev, [currentPostId]: next }));
         return next;
       });
     } catch (error) {
+      // Revert optimistic update on failure
+      setPost(prevPost);
+      if (currentPostId && prevPost) setPostsById((prev) => ({ ...prev, [currentPostId]: prevPost }));
       console.error('Error toggling upvote:', error);
-      const err = error as any;
-      console.error('Upvote error details:', err?.response?.data || err?.message || error);
     } finally {
       setVoting(false);
     }
@@ -299,20 +340,19 @@ export default function PostDetailScreen() {
   const onAddComment = async () => {
     if (!currentPostId || !comment.trim()) return;
     setCommenting(true);
+    const parentId = replyingToComment?.id;
     try {
-      const created = await PostApi.addComment(currentPostId, comment.trim());
-      setComments((arr) => {
-        const next = [created, ...arr];
-        if (currentPostId) {
-          setCommentsById((prev) => ({ ...prev, [currentPostId]: next }));
-        }
-        return next;
-      });
+      const created = await PostApi.addComment(currentPostId, comment.trim(), parentId);
+      // Fix: build next array once, then update both states separately (not nested setState)
+      const next = [created, ...comments];
+      setComments(next);
+      setCommentsById((prev) => ({ ...prev, [currentPostId]: next }));
       setComment('');
+      setReplyingToComment(null);
     } catch (error) {
-      console.error('Error adding comment:', error);
       const err = error as any;
-      console.error('Comment error details:', err?.response?.data || err?.message || error);
+      console.error('Error adding comment:', err?.message || error);
+      Alert.alert('Error', err?.message || 'Failed to post comment. Please try again.');
     } finally {
       setCommenting(false);
     }
@@ -338,6 +378,9 @@ export default function PostDetailScreen() {
     title: post?.title || 'VarsityHub Post',
     caption: post?.caption,
     contextLines: postShareContext,
+    onShareSuccess: (postId) => {
+      PostApi.share(postId).catch((err) => __DEV__ && console.warn('[post-detail] Share tracking failed:', err));
+    },
   });
 
   const onShare = () => {
@@ -462,11 +505,11 @@ export default function PostDetailScreen() {
                         await load();
                       } catch (restoreError: any) {
                         Alert.alert('Error', restoreError?.message || 'Restore window expired.');
-                        router.back();
+                        safeGoBack(router);
                       }
                     }
                   },
-                  { text: 'Close', style: 'destructive', onPress: () => router.back() },
+                  { text: 'Close', style: 'destructive', onPress: () => { safeGoBack(router); } },
                 ]
               );
             } catch (error: any) {
@@ -534,7 +577,7 @@ export default function PostDetailScreen() {
           <Pressable style={styles.retryButton} onPress={() => void load()}>
             <Text style={styles.retryButtonText}>Try Again</Text>
           </Pressable>
-          <Pressable style={[styles.retryButton, { marginTop: 8, backgroundColor: Colors[colorScheme].surface }]} onPress={() => router.back()}>
+          <Pressable style={[styles.retryButton, { marginTop: 8, backgroundColor: Colors[colorScheme].surface }]} onPress={() => { safeGoBack(router); }}>
             <Text style={[styles.retryButtonText, { color: Colors[colorScheme].text }]}>Go Back</Text>
           </Pressable>
         </View>
@@ -554,7 +597,7 @@ export default function PostDetailScreen() {
           <Pressable style={styles.retryButton} onPress={() => void load()}>
             <Text style={styles.retryButtonText}>Try Again</Text>
           </Pressable>
-          <Pressable style={[styles.retryButton, { marginTop: 8, backgroundColor: Colors[colorScheme].surface }]} onPress={() => router.back()}>
+          <Pressable style={[styles.retryButton, { marginTop: 8, backgroundColor: Colors[colorScheme].surface }]} onPress={() => { safeGoBack(router); }}>
             <Text style={[styles.retryButtonText, { color: Colors[colorScheme].text }]}>Go Back</Text>
           </Pressable>
         </View>
@@ -569,7 +612,7 @@ export default function PostDetailScreen() {
   const currentIsVideo = post.media_url && post.media_url.match(/\.(mp4|mov|webm|m4v|avi)$/i);
 
   // Render single post content (reusable for both single and multi-post views)
-  const renderPostContent = (postData: any, commentsData: any[]) => {
+  const renderPostContent = (postData: any, commentsData: any[], isInsidePager = false) => {
     const isImage = postData.media_url && !postData.media_url.match(/\.(mp4|mov|webm|m4v|avi)$/i);
     const isVideo = postData.media_url && postData.media_url.match(/\.(mp4|mov|webm|m4v|avi)$/i);
     const hasMedia = isImage || isVideo;
@@ -580,7 +623,10 @@ export default function PostDetailScreen() {
     <ScrollView
       style={[styles.content, { backgroundColor: Colors[colorScheme].background }]}
       showsVerticalScrollIndicator={false}
-      scrollEnabled={false}
+      scrollEnabled
+      nestedScrollEnabled={isInsidePager}
+      directionalLockEnabled
+      keyboardShouldPersistTaps="handled"
     >
         {/* Hero Media Section */}
         <View style={styles.heroSection}>
@@ -803,7 +849,18 @@ export default function PostDetailScreen() {
           </View>
           
           {/* Add Comment */}
-          <View style={[styles.addCommentContainer, { borderBottomColor: Colors[colorScheme].border }]}>
+          <View style={[styles.addCommentWrapper, { borderBottomColor: Colors[colorScheme].border }]}>
+            {replyingToComment && (
+              <View style={[styles.replyingToBar, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
+                <Text style={[styles.replyingToText, { color: Colors[colorScheme].mutedText }]}>
+                  Replying to {replyingToComment.authorName}
+                </Text>
+                <Pressable onPress={() => setReplyingToComment(null)} hitSlop={8}>
+                  <Ionicons name="close" size={18} color={Colors[colorScheme].mutedText} />
+                </Pressable>
+              </View>
+            )}
+            <View style={styles.addCommentContainer}>
             {currentUser?.avatar_url ? (
               <ExpoImage source={{ uri: currentUser.avatar_url }} style={styles.commentAvatar} />
             ) : (
@@ -818,7 +875,7 @@ export default function PostDetailScreen() {
                 borderColor: Colors[colorScheme].border,
                 color: Colors[colorScheme].text
               }]}
-              placeholder="Add a comment..."
+              placeholder={replyingToComment ? `Reply to ${replyingToComment.authorName}...` : 'Add a comment...'}
               placeholderTextColor={Colors[colorScheme].tabIconDefault}
               value={comment}
               onChangeText={setComment}
@@ -836,6 +893,7 @@ export default function PostDetailScreen() {
                 color={(commenting || !comment.trim()) ? "#94a3b8" : "#2563EB"} 
               />
             </Pressable>
+            </View>
           </View>
 
           {/* Comments List */}
@@ -871,25 +929,35 @@ export default function PostDetailScreen() {
                       </View>
                     </Pressable>
                     
-                    {currentUser && c.author_id && String(currentUser.id) === String(c.author_id) && (
-                      <View style={styles.commentActions}>
+                    <View style={styles.commentActions}>
+                      {currentUser && (
                         <Pressable
                           style={styles.commentActionBtn}
-                          onPress={() => {
-                            setEditCommentId(String(c.id));
-                            setEditCommentText(c.content || '');
-                          }}
+                          onPress={() => setReplyingToComment({ id: String(c.id), authorName: c.author?.username ? `@${c.author.username}` : c.author?.display_name || 'User' })}
                         >
-                          <Ionicons name="pencil" size={16} color="#6B7280" />
+                          <Ionicons name="arrow-undo-outline" size={16} color="#6B7280" />
                         </Pressable>
-                        <Pressable
-                          style={styles.commentActionBtn}
-                          onPress={() => handleDeleteComment(String(c.id))}
-                        >
-                          <Ionicons name="trash" size={16} color="#DC2626" />
-                        </Pressable>
-                      </View>
-                    )}
+                      )}
+                      {currentUser && c.author_id && String(currentUser.id) === String(c.author_id) && (
+                        <>
+                          <Pressable
+                            style={styles.commentActionBtn}
+                            onPress={() => {
+                              setEditCommentId(String(c.id));
+                              setEditCommentText(c.content || '');
+                            }}
+                          >
+                            <Ionicons name="pencil" size={16} color="#6B7280" />
+                          </Pressable>
+                          <Pressable
+                            style={styles.commentActionBtn}
+                            onPress={() => handleDeleteComment(String(c.id))}
+                          >
+                            <Ionicons name="trash" size={16} color="#DC2626" />
+                          </Pressable>
+                        </>
+                      )}
+                    </View>
                   </View>
                   <Text style={[styles.commentText, { color: Colors[colorScheme].text }]}>{c.content}</Text>
                 </View>
@@ -908,7 +976,7 @@ export default function PostDetailScreen() {
       
       {/* Custom Header */}
       <View style={[styles.header, { backgroundColor: Colors[colorScheme].surface, borderBottomColor: Colors[colorScheme].border }]}>
-        <Pressable style={styles.backButton} onPress={() => void router.back()}>
+        <Pressable style={styles.backButton} onPress={() => { safeGoBack(router); }}>
           <Ionicons name="arrow-back" size={24} color={Colors[colorScheme].text} />
         </Pressable>
         <View style={styles.headerCenter}>
@@ -940,10 +1008,13 @@ export default function PostDetailScreen() {
           horizontal
           pagingEnabled
           scrollEnabled={true}
+          nestedScrollEnabled
+          directionalLockEnabled
           showsHorizontalScrollIndicator={false}
           scrollEventThrottle={16}
           decelerationRate="fast"
           keyExtractor={(item) => item}
+          extraData={comments}
           initialScrollIndex={initialIndex}
           getItemLayout={(data, index) => ({
             length: SCREEN_WIDTH,
@@ -957,7 +1028,7 @@ export default function PostDetailScreen() {
             const commentsData = item === currentPostId ? comments : commentsById[item];
             return (
               <View style={{ width: SCREEN_WIDTH }}>
-                {postData ? renderPostContent(postData, commentsData) : (
+                {postData ? renderPostContent(postData, commentsData, true) : (
                   <View style={[styles.loadingPlaceholder, { backgroundColor: Colors[colorScheme].background }]} />
                 )}
               </View>
@@ -965,7 +1036,7 @@ export default function PostDetailScreen() {
           }}
         />
       ) : (
-        post ? renderPostContent(post, comments) : null
+        post ? renderPostContent(post, comments, false) : null
       )}
 
       {/* Edit Comment Modal */}
@@ -1015,27 +1086,41 @@ export default function PostDetailScreen() {
       <Modal
         visible={fullscreenMedia}
         animationType="fade"
-        onRequestClose={() => setFullscreenMedia(false)}
+        onRequestClose={() => { setFullscreenMedia(false); resetFullscreen(); }}
       >
         <View style={styles.fullscreenContainer}>
-          <Pressable 
+          <Pressable
             style={styles.fullscreenCloseButton}
-            onPress={() => setFullscreenMedia(false)}
+            onPress={() => { setFullscreenMedia(false); resetFullscreen(); }}
           >
             <Ionicons name="close" size={32} color="#fff" />
           </Pressable>
-          
+
           {currentIsImage && post.media_url && (
-            <ExpoImage 
-              source={{ uri: post.media_url }} 
-              style={styles.fullscreenImage} 
-              contentFit="contain"
-            />
+            <>
+              <GestureDetector gesture={pinchGesture}>
+                <Animated.View style={[styles.fullscreenImageWrapper, imageAnimatedStyle]}>
+                  <ExpoImage
+                    source={{ uri: post.media_url }}
+                    style={[styles.fullscreenImage, { transform: [{ rotate: `${imageRotation}deg` }] }]}
+                    contentFit="contain"
+                  />
+                </Animated.View>
+              </GestureDetector>
+              {/* Rotate button */}
+              <Pressable
+                style={styles.fullscreenRotateButton}
+                onPress={() => setImageRotation((r) => (r + 90) % 360)}
+                hitSlop={8}
+              >
+                <Ionicons name="refresh" size={26} color="#fff" />
+              </Pressable>
+            </>
           )}
-          
+
           {currentIsVideo && post.media_url && (
-            <VideoPlayer 
-              uri={post.media_url} 
+            <VideoPlayer
+              uri={post.media_url}
               style={styles.fullscreenVideo}
             />
           )}
@@ -1494,12 +1579,25 @@ const styles = StyleSheet.create({
   },
 
   // Add Comment
+  addCommentWrapper: {
+    borderBottomWidth: 1,
+  },
   addCommentContainer: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 12,
     padding: 16,
+  },
+  replyingToBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     borderBottomWidth: 1,
+  },
+  replyingToText: {
+    fontSize: 13,
   },
   commentAvatar: {
     width: 36,
@@ -1719,6 +1817,21 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
     padding: 8,
     borderRadius: 24,
+  },
+  fullscreenRotateButton: {
+    position: 'absolute',
+    bottom: Platform.OS === 'ios' ? 60 : 40,
+    right: 20,
+    zIndex: 10,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    padding: 8,
+    borderRadius: 24,
+  },
+  fullscreenImageWrapper: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   fullscreenImage: {
     width: '100%',

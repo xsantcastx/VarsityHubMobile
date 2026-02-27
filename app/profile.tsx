@@ -113,6 +113,7 @@ export default function ProfileScreen() {
   const hasLoadedOnce = useRef(false);
   const isInitialMount = useRef(true);
   const lastUsernameRef = useRef<string | null>(null);
+  const meRef = useRef<CurrentUser | null>(null);
   const [activeTab, setActiveTab] = useState<'posts' | 'replies' | 'upvotes'>(() => {
     try { return (globalThis?.localStorage?.getItem('profile.activeTab') as any) || 'posts'; } catch (error) { console.warn('[profile] Failed to read activeTab from localStorage:', error); return 'posts'; }
   });
@@ -144,6 +145,10 @@ export default function ProfileScreen() {
   const viewingUserId = params.id;
   const [isFollowing, setIsFollowing] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [userTeams, setUserTeams] = useState<Array<{ id: string; name: string; logo_url?: string | null; role?: string; position?: string | null; jersey_number?: string | number | null }>>([]);
+  const [avatarViewerVisible, setAvatarViewerVisible] = useState(false);
+
+  const isOwnProfile = !viewingUserId || viewingUserId === currentUserId;
 
   const setIfDifferent = useCallback((setter: any, next: any) => {
     setter((prev: any) => {
@@ -193,6 +198,7 @@ export default function ProfileScreen() {
 
   const refreshPosts = useCallback(async (userId: string) => {
     if (postsRequestInFlight.current) return;
+    if (!userId || userId === 'undefined' || userId === 'null') return;
     postsRequestInFlight.current = true;
     setPostsLoading(true);
     try {
@@ -209,6 +215,7 @@ export default function ProfileScreen() {
 
   const refreshReplies = useCallback(async (userId: string) => {
     if (repliesRequestInFlight.current) return;
+    if (!userId || userId === 'undefined' || userId === 'null') return;
     repliesRequestInFlight.current = true;
     setRepliesLoading(true);
     try {
@@ -225,6 +232,7 @@ export default function ProfileScreen() {
 
   const refreshUpvotes = useCallback(async (userId: string) => {
     if (upvotesRequestInFlight.current) return;
+    if (!userId || userId === 'undefined' || userId === 'null') return;
     upvotesRequestInFlight.current = true;
     setUpvotesLoading(true);
     try {
@@ -330,7 +338,7 @@ export default function ProfileScreen() {
     profileRequestInFlight.current = true;
     
     // Only show loading skeleton on very first load (initial mount with no data)
-    const isInitialLoad = isInitialMount.current && !hasLoadedOnce.current && !me;
+    const isInitialLoad = isInitialMount.current && !hasLoadedOnce.current && !meRef.current;
     if (!options?.silent && isInitialLoad) {
       setLoading(true);
     }
@@ -357,10 +365,9 @@ export default function ProfileScreen() {
         u = currentUser;
       }
       
-      if (__DEV__) console.warn('[profile] Loaded user data:', { id: u?.id, username: u?.username });
       if (u && !u._isNotModified) {
+        meRef.current = u ?? null;
         setMe(u ?? null);
-        if (__DEV__) console.warn('[profile] Updated me state with username:', u?.username);
       }
       if (!u?.id) { 
         setError(viewingUserId ? 'User not found.' : 'You need to sign in to view your profile.');
@@ -389,11 +396,15 @@ export default function ProfileScreen() {
         }
       }
     } catch (e: any) {
-      console.error('[Profile] Failed to load profile:', e);
+      if (e?.status !== 404) {
+        console.error('[Profile] Failed to load profile:', e);
+      }
       // Only show error if not silent refresh
       if (!options?.silent) {
         if (e && e.status === 401) {
           setError('You need to sign in to view your profile.');
+        } else if (e?.status === 404 && viewingUserId) {
+          setError('This user was not found or may have been deleted.');
         } else if (e?.isNetworkError || e?.status === 0) {
           setError('Unable to connect to server. Please check your internet connection.');
         } else {
@@ -406,7 +417,8 @@ export default function ProfileScreen() {
       profileRequestInFlight.current = false;
       setLoading(false);
     }
-  }, [activeTab, refreshPosts, refreshReplies, refreshUpvotes, me]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, refreshPosts, refreshReplies, refreshUpvotes, viewingUserId]);
 
   // Initial load on mount - only once
   useEffect(() => {
@@ -420,49 +432,31 @@ export default function ProfileScreen() {
   useEffect(() => {
     const currentUsername = userFromHook?.username || userFromAuth?.username;
     const previousUsername = lastUsernameRef.current;
-    const currentMeUsername = me?.username;
     
-    if (__DEV__) console.warn('[profile] Username sync check:', { 
-      currentUsername, 
-      previousUsername, 
-      currentMeUsername,
-      userFromHookUsername: userFromHook?.username,
-      userFromAuthUsername: userFromAuth?.username
-    });
-    
-    // If username changed and we have a new username, refresh profile
+    // Only refresh if the username actually changed from what we last saw
     if (currentUsername && currentUsername !== previousUsername) {
-      if (__DEV__) console.warn('[profile] Username changed, refreshing profile:', { previous: previousUsername, current: currentUsername });
-      lastUsernameRef.current = currentUsername;
-      void loadProfile({ silent: true });
-    } else if (currentUsername && currentUsername !== currentMeUsername && hasLoadedOnce.current) {
-      // Username in hooks doesn't match profile - force refresh
-      if (__DEV__) console.warn('[profile] Username mismatch detected, forcing refresh:', { hook: currentUsername, profile: currentMeUsername });
       lastUsernameRef.current = currentUsername;
       void loadProfile({ silent: true });
     } else if (currentUsername) {
       lastUsernameRef.current = currentUsername;
     }
-  }, [userFromHook?.username, userFromAuth?.username, me?.username, loadProfile, hasLoadedOnce]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userFromHook?.username, userFromAuth?.username]);
 
   // Silent refresh on focus - NEVER show skeleton after first load
   useFocusEffect(
     useCallback(() => {
-      if (__DEV__) console.warn('[profile] Screen focused, checking if refresh needed');
-      // Refresh user data from hooks first, then refresh profile
       if (hasLoadedOnce.current) {
-        if (__DEV__) console.warn('[profile] Refreshing user hooks and profile on focus (silent)');
         // Refresh hooks first to get latest username
         Promise.all([
           refreshUserFromHook().catch(() => {}),
           loadProfile({ silent: true })
         ]).catch(() => {});
       } else if (isInitialMount.current && !profileRequestInFlight.current) {
-        // Only do full load if this is the initial mount and nothing is in flight
-        if (__DEV__) console.warn('[profile] Initial load on mount');
         void loadProfile();
       }
-    }, [loadProfile, refreshUserFromHook])
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [refreshUserFromHook])
   );
 
   // Load organizations separately to avoid blocking profile render
@@ -571,6 +565,7 @@ export default function ProfileScreen() {
 
   const loadMorePosts = useCallback(async (userId: string) => {
     if (postsLoading || !postsHasMore) return;
+    if (!userId || userId === 'undefined' || userId === 'null') return;
     setPostsLoading(true);
     try {
       const page = await User.postsForProfile(String(userId), { limit: 10, sort, cursor: postsCursor || undefined });
@@ -585,6 +580,7 @@ export default function ProfileScreen() {
 
   const loadMoreReplies = useCallback(async (userId: string) => {
     if (repliesLoading || !repliesHasMore) return;
+    if (!userId || userId === 'undefined' || userId === 'null') return;
     setRepliesLoading(true);
     try {
       const page = await User.interactionsForProfile(String(userId), { limit: 10, sort, type: 'comment', cursor: repliesCursor || undefined });
@@ -599,6 +595,7 @@ export default function ProfileScreen() {
 
   const loadMoreUpvotes = useCallback(async (userId: string) => {
     if (upvotesLoading || !upvotesHasMore) return;
+    if (!userId || userId === 'undefined' || userId === 'null') return;
     setUpvotesLoading(true);
     try {
       const page = await User.interactionsForProfile(String(userId), { limit: 10, sort, type: 'like', cursor: upvotesCursor || undefined });
@@ -728,7 +725,7 @@ export default function ProfileScreen() {
           
           {/* Settings Button - Only when viewing own profile */}
           {!viewingUserId || viewingUserId === currentUserId ? (
-            <Pressable onPress={() => void router.push('/settings')} style={[styles.controlButton, { backgroundColor: colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)' }]}>
+            <Pressable onPress={() => router.push('/settings')} hitSlop={12} style={[styles.controlButton, { backgroundColor: colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)' }]}>
               <Ionicons name="settings-outline" size={18} color={colorScheme === 'dark' ? '#FFFFFF' : '#333'} />
             </Pressable>
           ) : null}
@@ -737,7 +734,13 @@ export default function ProfileScreen() {
         {/* Profile Content - Avatar on Bottom-Left of Banner */}
         <View style={styles.profileContent}>
           {/* Large Avatar - Overlapping Banner */}
-          <Pressable onPress={handleAvatarPress} disabled={isUploadingAvatar} style={styles.avatarSection}>
+          <Pressable
+            onPress={isOwnProfile
+              ? handleAvatarPress
+              : (me?.avatar_url ? () => setAvatarViewerVisible(true) : undefined)}
+            disabled={isOwnProfile && isUploadingAvatar}
+            style={styles.avatarSection}
+          >
             <View style={styles.avatarContainer}>
               {me?.avatar_url ? (
                 <Image source={{ uri: String(me?.avatar_url) }} style={styles.avatarImage} contentFit="cover" />
@@ -810,6 +813,38 @@ export default function ProfileScreen() {
             </Text>
             <Text style={[styles.statLabel, { color: colorScheme === 'dark' ? theme.mutedText : '#4B5563' }]}> Followers</Text>
           </View>
+
+          {/* Teams - Athlete profile section */}
+          {userTeams.length > 0 && (
+            <View style={[styles.teamsSection, { borderColor: theme.border, backgroundColor: theme.surface || theme.background }]}>
+              <Text style={[styles.teamsSectionTitle, { color: theme.text }]}>Teams</Text>
+              <View style={styles.teamsList}>
+                {userTeams.map((t) => (
+                  <Pressable
+                    key={t.id}
+                    style={({ pressed }) => [
+                      styles.teamChip,
+                      { borderColor: theme.border, backgroundColor: pressed ? theme.background : theme.card },
+                    ]}
+                    onPress={() => void router.push({ pathname: '/team-page', params: { id: t.id, name: t.name } } as any)}
+                  >
+                    {t.logo_url || t.avatar_url ? (
+                      <Image source={{ uri: t.logo_url || t.avatar_url || '' }} style={styles.teamChipAvatar} contentFit="cover" />
+                    ) : (
+                      <View style={[styles.teamChipPlaceholder, { backgroundColor: theme.tint + '30' }]}>
+                        <Ionicons name="people" size={14} color={theme.tint} />
+                      </View>
+                    )}
+                    <Text style={[styles.teamChipName, { color: theme.text }]} numberOfLines={1}>{t.name}</Text>
+                    {t.role && (
+                      <Text style={[styles.teamChipRole, { color: theme.mutedText }]}>{String(t.role).replace(/_/g, ' ')}</Text>
+                    )}
+                    <Ionicons name="chevron-forward" size={12} color={theme.mutedText} />
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          )}
         </View>
       </View>
 
@@ -1157,6 +1192,33 @@ export default function ProfileScreen() {
         />
       )}
 
+      {/* Avatar Viewer — shown when tapping another user's profile picture */}
+      <Modal
+        visible={avatarViewerVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setAvatarViewerVisible(false)}
+      >
+        <Pressable
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', alignItems: 'center', justifyContent: 'center' }}
+          onPress={() => setAvatarViewerVisible(false)}
+        >
+          {me?.avatar_url && (
+            <Image
+              source={{ uri: String(me.avatar_url) }}
+              style={{ width: 300, height: 300, borderRadius: 150 }}
+              contentFit="cover"
+            />
+          )}
+          <Pressable
+            onPress={() => setAvatarViewerVisible(false)}
+            style={{ position: 'absolute', top: insets.top + 12, right: 16, padding: 8, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 20 }}
+          >
+            <Ionicons name="close" size={24} color="white" />
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       <Modal visible={viewerOpen} animationType="slide" onRequestClose={() => setViewerOpen(false)}>
         <GameVerticalFeedScreen
           onClose={() => setViewerOpen(false)}
@@ -1201,7 +1263,8 @@ const styles = StyleSheet.create({
   headerControls: {
     position: 'absolute',
     right: 16,
-    zIndex: 10,
+    zIndex: 200,
+    elevation: 200,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
@@ -1328,7 +1391,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   editButtonBelowBannerText: {
-    color: 'transparent', // Will be overridden with theme color
     fontSize: 14,
     fontWeight: '600',
   },
@@ -1381,9 +1443,10 @@ const styles = StyleSheet.create({
   usernameRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'flex-end',
     paddingHorizontal: 16,
     paddingTop: 0,
-    paddingBottom: 0, // Removed padding to close gap
+    paddingBottom: 0,
     gap: 12,
   },
   userHandle: {
@@ -1423,6 +1486,43 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '500', // Slightly bolder for better readability
   },
+  teamsSection: {
+    marginTop: 16,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  teamsSectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 10,
+  },
+  teamsList: {
+    gap: 8,
+  },
+  teamChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    gap: 10,
+  },
+  teamChipAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+  },
+  teamChipPlaceholder: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  teamChipName: { flex: 1, fontSize: 15, fontWeight: '600', minWidth: 0 },
+  teamChipRole: { fontSize: 12, textTransform: 'capitalize' },
   athleteCredentialsCompact: {
     paddingHorizontal: 16,
     paddingBottom: 8,

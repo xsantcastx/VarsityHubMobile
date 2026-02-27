@@ -1,9 +1,12 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { sendTeamInviteEmail } from '../lib/email.js';
+import { validateContent } from '../lib/contentFilter.js';
+import { sendPushNotification } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/requireAuth.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { requirePlan } from '../middleware/subscription.js';
@@ -200,13 +203,37 @@ teamsRouter.get('/', async (req, res) => {
   return res.json(list);
 });
 
+// Follow a team
+teamsRouter.post('/:id/follow', requireAuth as any, async (req: AuthedRequest, res) => {
+  const userId = req.user!.id;
+  const teamId = String(req.params.id);
+  const team = await prisma.team.findUnique({ where: { id: teamId } });
+  if (!team) return res.status(404).json({ error: 'Team not found' });
+  try {
+    await prisma.teamFollow.create({ data: { user_id: userId, team_id: teamId } });
+    return res.status(201).json({ is_following: true });
+  } catch (e: any) {
+    if (e?.code === 'P2002') return res.status(201).json({ is_following: true }); // Already following
+    throw e;
+  }
+});
+
+// Unfollow a team
+teamsRouter.delete('/:id/follow', requireAuth as any, async (req: AuthedRequest, res) => {
+  const userId = req.user!.id;
+  const teamId = String(req.params.id);
+  await prisma.teamFollow.deleteMany({ where: { user_id: userId, team_id: teamId } });
+  return res.json({ is_following: false });
+});
+
 // Team details with counts
 teamsRouter.get('/:id', async (req, res) => {
   const id = String(req.params.id);
+  const currentUserId = (req as AuthedRequest).user?.id ?? null;
   const t = await prisma.team.findUnique({
     where: { id },
     include: {
-      _count: { select: { memberships: true } },
+      _count: { select: { memberships: true, followers: true } },
       organization: {
         select: {
           id: true,
@@ -236,6 +263,10 @@ teamsRouter.get('/:id', async (req, res) => {
         }
       : null,
     members: (t as any)._count.memberships,
+    followers_count: (t as any)._count.followers ?? 0,
+    is_following: currentUserId
+      ? !!(await prisma.teamFollow.findFirst({ where: { user_id: currentUserId, team_id: id } }))
+      : null,
     logo_url: (t as any).logo_url || null,
     avatar_url: (t as any).avatar_url || null,
     created_at: t.created_at,
@@ -308,7 +339,10 @@ teamsRouter.get('/members/all', async (req, res) => {
 });
 
 // Create team (auth required). Creator becomes owner.
-const createSchema = z.object({ name: z.string().trim().min(2), description: z.string().trim().optional() });
+const createSchema = z.object({
+  name: z.string().trim().min(2).max(100),
+  description: z.string().trim().optional(),
+});
 teamsRouter.post('/', requireVerified as any, requirePlan('rookie') as any, async (req: AuthedRequest, res) => {
   // req.user is guaranteed by requireVerified middleware
   const parsed = createSchema.safeParse(req.body);
@@ -353,6 +387,11 @@ teamsRouter.post('/', requireVerified as any, requirePlan('rookie') as any, asyn
       upgrade_required: true
     });
   }
+
+  const filterResult = validateContent({ title: parsed.data.name, content: parsed.data.description ?? undefined });
+  if (!filterResult.valid) {
+    return res.status(400).json({ error: filterResult.error, code: filterResult.code });
+  }
   
   const t = await prisma.team.create({ data: { name: parsed.data.name, description: parsed.data.description } });
   await prisma.teamMembership.create({ data: { team_id: t.id, user_id: me.id, role: 'owner' } });
@@ -363,7 +402,7 @@ teamsRouter.post('/', requireVerified as any, requirePlan('rookie') as any, asyn
 // Accept full URLs or relative paths (uploads return .path) or empty string to clear
 const logoUrlString = z.union([z.string().url(), z.string().regex(/^\/uploads\//).optional().or(z.string()), z.literal('')]);
 const updateSchema = z.object({
-  name: z.string().trim().min(2).optional(),
+  name: z.string().trim().min(2).max(100).optional(),
   description: z.string().trim().optional(),
   sport: z.string().trim().optional(),
   season: z.string().trim().optional(),
@@ -404,8 +443,20 @@ teamsRouter.put('/:id', requireVerified as any, async (req: AuthedRequest, res) 
   }
   
   const updateData: any = {};
-  if (parsed.data.name !== undefined) updateData.name = parsed.data.name;
-  if (parsed.data.description !== undefined) updateData.description = parsed.data.description;
+  if (parsed.data.name !== undefined) {
+    const filterResult = validateContent({ title: parsed.data.name, content: parsed.data.description ?? undefined });
+    if (!filterResult.valid) {
+      return res.status(400).json({ error: filterResult.error, code: filterResult.code });
+    }
+    updateData.name = parsed.data.name;
+  }
+  if (parsed.data.description !== undefined) {
+    const filterResult = validateContent({ content: parsed.data.description });
+    if (!filterResult.valid) {
+      return res.status(400).json({ error: filterResult.error, code: filterResult.code });
+    }
+    updateData.description = parsed.data.description;
+  }
   if (parsed.data.sport !== undefined) updateData.sport = parsed.data.sport;
   if (parsed.data.season !== undefined) updateData.season = parsed.data.season;
   if (parsed.data.organization_id !== undefined) {
@@ -533,6 +584,7 @@ const createTeamSchema = z.object({
   season_start: z.string().optional(),
   season_end: z.string().optional(),
   organization_id: z.string().optional(),
+  organization_name: z.string().max(255).optional(),
   logo_url: z.string().optional(),
   city: z.string().max(100).optional(),
   state: z.string().max(100).optional(),
@@ -666,58 +718,58 @@ teamsRouter.post('/create', requireVerified as any, requirePlan('rookie') as any
     }
   }
 
-  // CRITICAL: Team creation must associate an organization
-  // If organization_id not provided, create organization from team name
+  // If organization_id not provided, try organization_name first, then team name.
+  // This is non-fatal: organization_id is optional in the Team schema (String?).
   let organizationId = data.organization_id;
-  
+  const requestedOrganizationName = String(data.organization_name || '').trim();
+
   if (!organizationId) {
-    // Auto-create organization if missing (fail fast on errors)
+    let normalizedOrgName = ''; // hoisted so the catch block can reference it
     try {
-      const orgName = data.name; // Use team name as organization name
-      const normalizedOrgName = orgName.trim();
-      
-      // Check for duplicate organization
+      normalizedOrgName = (requestedOrganizationName || data.name.trim()).trim();
+
+      // Reuse an existing active org with the same name if one exists
       const possibleDuplicates = await prisma.organization.findMany({
         where: {
           name: { equals: normalizedOrgName, mode: 'insensitive' },
-          status: 'active'
+          status: 'active',
         },
-        select: { id: true, name: true }
+        select: { id: true, name: true },
       });
-      
+
       if (possibleDuplicates.length > 0) {
-        // Use existing organization
         organizationId = possibleDuplicates[0].id;
       } else {
-        // Create new organization
         const newOrg = await prisma.organization.create({
           data: {
             name: normalizedOrgName,
             description: data.description || undefined,
             sport: data.sport || undefined,
-            org_type: 'club', // Default org type
+            org_type: 'club',
             location: data.city || data.venue_address || undefined,
-            zip_code: undefined, // Can be added later
-          }
+            updated_at: new Date(),
+          },
         });
         organizationId = newOrg.id;
-        
-        // Add creator as organization owner
+
         await prisma.organizationMembership.create({
-          data: {
-            organization_id: newOrg.id,
-            user_id: me.id,
-            role: 'owner'
-          }
+          data: { organization_id: newOrg.id, user_id: me.id, role: 'owner' },
         });
       }
     } catch (orgError: any) {
       console.error('[Teams] Failed to create/associate organization:', orgError);
-      return res.status(500).json({
-        error: 'Failed to create organization',
-        message: 'Unable to associate team with organization. Please try again.',
-        detail: orgError?.message || String(orgError)
-      });
+      // P2002 = unique constraint — a concurrent/prior attempt already created this org; find & reuse it
+      if (orgError?.code === 'P2002' && normalizedOrgName) {
+        try {
+          const existingOrg = await prisma.organization.findFirst({
+            where: { name: { equals: normalizedOrgName, mode: 'insensitive' } },
+            select: { id: true },
+          });
+          if (existingOrg) organizationId = existingOrg.id;
+        } catch { /* ignore — continue without org */ }
+      }
+      // For any unrecoverable error: continue team creation without an org
+      // (organization_id is optional — the user can link one later)
     }
   } else {
     // Validate organization_id if provided (fail fast if invalid)
@@ -856,10 +908,17 @@ teamsRouter.post('/create', requireVerified as any, requirePlan('rookie') as any
             data: invites,
             skipDuplicates: true,
           });
-          
+
           // Send invite emails (non-blocking)
           try {
-            const inviter = await prisma.user.findUnique({ where: { id: me.id }, select: { display_name: true } });
+            const [inviter, createdInvites] = await Promise.all([
+              prisma.user.findUnique({ where: { id: me.id }, select: { display_name: true } }),
+              prisma.teamInvite.findMany({
+                where: { team_id: team.id, email: { in: invites.map(i => i.email) } },
+                select: { id: true, email: true },
+              }),
+            ]);
+            const tokenByEmail = Object.fromEntries(createdInvites.map(i => [i.email, i.id]));
             await Promise.all(invites.map(async (inv) => {
               try {
                 await sendTeamInviteEmail({
@@ -870,6 +929,7 @@ teamsRouter.post('/create', requireVerified as any, requirePlan('rookie') as any
                   inviterName: inviter?.display_name || 'Team Owner',
                   teamHeroUrl: team.logo_url || undefined,
                   teamLogoUrl: team.avatar_url || undefined,
+                  inviteToken: tokenByEmail[inv.email],
                 });
               } catch (error) {
                 console.warn('[Teams] Failed to send team invite email:', error);
@@ -1002,14 +1062,18 @@ teamsRouter.post('/:id/invite', async (req: AuthedRequest, res) => {
       teamHeroUrl: team.logo_url || undefined,
       teamLogoUrl: team.avatar_url || undefined,
       inviterName: inviter?.display_name || 'Team Owner',
+      inviteToken: invite.id,
     });
   } catch (_error) {}
   
   // Find the invited user by email and create notification if they exist
-  const invitedUser = await prisma.user.findUnique({ where: { email } });
+  const invitedUser = await prisma.user.findUnique({
+    where: { email },
+    select: { id: true, preferences: true },
+  });
   if (invitedUser) {
     try {
-      await (prisma as any).notification.create({
+      await prisma.notification.create({
         data: {
           user_id: invitedUser.id,
           actor_id: req.user.id,
@@ -1022,6 +1086,23 @@ teamsRouter.post('/:id/invite', async (req: AuthedRequest, res) => {
           }
         }
       });
+      // Push notification (respect team_updates preference)
+      const prefs = (invitedUser.preferences || {}) as any;
+      if (prefs?.notifications?.team_updates !== false) {
+        const inviterName = inviter?.display_name || 'A coach';
+        await sendPushNotification(
+          invitedUser.id,
+          `${inviterName} invited you to join ${team.name}`,
+          'Tap to view',
+          {
+            type: 'team_invite',
+            actor_id: req.user.id,
+            team_id: team.id,
+            invite_id: invite.id,
+            screen: 'team-invites',
+          }
+        );
+      }
     } catch (error) {
       console.error('Failed to create team invite notification:', error);
       // Continue even if notification fails

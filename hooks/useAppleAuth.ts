@@ -68,22 +68,15 @@ export function useAppleAuth() {
           ]);
           console.log('[Apple Auth] Got credential from native sign-in');
         } catch (appleErr: any) {
-          // Log detailed error for diagnostics
           const errCode = String(appleErr?.code || '').toLowerCase();
           const errMsg = String(appleErr?.message || '').toLowerCase();
-          
-          console.error('[Apple Auth] signInAsync error (scoped):', {
-            code: appleErr?.code,
-            domain: appleErr?.domain,
-            message: appleErr?.message,
-          });
 
           // Check if user actually canceled
-          const isCanceled = 
-            errCode.includes('canceled') || 
+          const isCanceled =
+            errCode.includes('canceled') ||
             errCode.includes('cancelled') ||
             errCode === 'err_request_canceled' ||
-            errMsg.includes('canceled') || 
+            errMsg.includes('canceled') ||
             errMsg.includes('cancelled') ||
             errMsg.includes('user canceled');
 
@@ -92,35 +85,40 @@ export function useAppleAuth() {
             throw new Error('User canceled Apple sign-in');
           }
 
-          // Second attempt: retry with no scopes (sometimes fixes unknown auth errors)
-          try {
-            console.log('[Apple Auth] Retrying with no scopes...');
-            credential = await attemptNativeSignIn([]);
-            console.log('[Apple Auth] Got credential from retry');
-          } catch (retryErr: any) {
-            const retryCode = String(retryErr?.code || '').toLowerCase();
-            const retryMsg = String(retryErr?.message || '').toLowerCase();
-            
-            console.error('[Apple Auth] signInAsync retry error (no scopes):', {
-              code: retryErr?.code,
-              domain: retryErr?.domain,
-              message: retryErr?.message,
-            });
-
-            // Check if this is also a cancellation
-            const isRetryCanceled = 
-              retryCode.includes('canceled') || 
-              retryCode.includes('cancelled') ||
-              retryCode === 'err_request_canceled' ||
-              retryMsg.includes('canceled') || 
-              retryMsg.includes('cancelled');
-            
-            if (isRetryCanceled) {
-              console.log('[Apple Auth] User canceled on retry (not an error)');
-              throw new Error('User canceled Apple sign-in');
+          // ERR_REQUEST_UNKNOWN in simulator = Apple Sign-In doesn't work there
+          // Fall back to simulator mock so dev/testing can continue
+          const isSimulatorUnknown =
+            errCode === 'err_request_unknown' ||
+            errMsg.includes('unknown reason');
+          if (__DEV__ && Platform.OS === 'ios' && isSimulatorUnknown) {
+            console.log('[Apple Auth] Simulator fallback (native auth unavailable)');
+            credential = {
+              user: 'sim-dev-apple-user',
+              authorizationCode: null,
+              identityToken: null,
+              email: 'simulator@appleid.local',
+              fullName: null,
+              state: null,
+              realUserStatus: 1,
+            };
+          } else {
+            // Retry with no scopes (sometimes fixes unknown auth on real device)
+            try {
+              credential = await attemptNativeSignIn([]);
+            } catch (retryErr: any) {
+              const retryCode = String(retryErr?.code || '').toLowerCase();
+              const retryMsg = String(retryErr?.message || '').toLowerCase();
+              const isRetryCanceled =
+                retryCode.includes('canceled') ||
+                retryCode.includes('cancelled') ||
+                retryCode === 'err_request_canceled' ||
+                retryMsg.includes('canceled') ||
+                retryMsg.includes('cancelled');
+              if (isRetryCanceled) {
+                throw new Error('User canceled Apple sign-in');
+              }
+              throw retryErr;
             }
-
-            throw retryErr; // bubble up for general handler
           }
         }
       }

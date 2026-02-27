@@ -6,10 +6,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useColorScheme, View } from 'react-native';
+import { ActivityIndicator, Alert, Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useColorScheme, View } from 'react-native';
 // @ts-ignore
 import { Organization, Team } from '@/api/entities';
-import { autocompleteLocations, PlaceSuggestion } from '@/api/geocoding';
+import { PlaceSuggestion } from '@/api/geocoding';
+import LocationPicker from '@/components/LocationPicker';
 import { httpPost } from '@/api/http';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { useOrganizationSearch } from '@/hooks/useOrganizationSearch';
@@ -41,13 +42,9 @@ export default function Step4Organization() {
   const [joinMessage, setJoinMessage] = useState('');
   const [selectedOrg, setSelectedOrg] = useState<any>(null);
   const [showTypePicker, setShowTypePicker] = useState(false);
-  const searchTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [selectedPlace, setSelectedPlace] = useState<PlaceSuggestion | null>(null);
   const [selectedPlaceZip, setSelectedPlaceZip] = useState<string | null>(null);
-  const [locationSuggestions, setLocationSuggestions] = useState<PlaceSuggestion[]>([]);
-  const [locationQuerying, setLocationQuerying] = useState(false);
-  const [locationTouched, setLocationTouched] = useState(false);
-  const locationTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [emailVerified, setEmailVerified] = useState<boolean | null>(null);
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
 
@@ -175,13 +172,13 @@ export default function Step4Organization() {
 
   const canContinue = useMemo(() => {
     if (saving) return false;
-    
+
     // If team/org already exists, user can continue immediately
     if (alreadyExists) return true;
-    
-    // All coaches need organization fields
-    return orgName.trim().length > 0 && !!orgType && !!selectedPlace;
-  }, [orgName, orgType, saving, alreadyExists, selectedPlace]);
+
+    // All coaches need organization fields; location may be typed or autocomplete-selected
+    return orgName.trim().length > 0 && !!orgType && (!!selectedPlace || location.trim().length >= 2);
+  }, [orgName, orgType, saving, alreadyExists, selectedPlace, location]);
 
   // Format organization type for display (capitalize & friendly term mapping)
   const formatOrgType = (raw?: string) => {
@@ -210,28 +207,6 @@ export default function Step4Organization() {
     searchOrganizations({ query: term, limit: 20, mode: 'nearby', orgType: orgType || undefined }).catch(() => {});
   }, [clearOrganizations, orgType, searchOrganizations, searchZip]);
 
-  const requestLocationSuggestions = useCallback((text: string) => {
-    if (locationTimerRef.current) {
-      clearTimeout(locationTimerRef.current);
-    }
-    if (text.trim().length < 3) {
-      setLocationSuggestions([]);
-      setLocationQuerying(false);
-      return;
-    }
-    setLocationQuerying(true);
-    locationTimerRef.current = setTimeout(async () => {
-      try {
-        const suggestions = await autocompleteLocations(text, 6);
-        setLocationSuggestions(suggestions);
-      } catch (error) {
-        console.warn('Location autocomplete failed:', error);
-      } finally {
-        setLocationQuerying(false);
-      }
-    }, 350);
-  }, []);
-
   const handleSearchInput = useCallback((text: string) => {
     setSearchZip(text);
     if (searchTimerRef.current) {
@@ -246,42 +221,36 @@ export default function Step4Organization() {
     }
   }, [clearOrganizations, executeNearbySearch]);
 
-  const handleLocationChange = useCallback((text: string) => {
-    setLocation(text);
-    setLocationTouched(true);
-    setSelectedPlace(null);
-    setSelectedPlaceZip(null);
-    requestLocationSuggestions(text);
-  }, [requestLocationSuggestions]);
-
-  const handleSelectLocation = useCallback((suggestion: PlaceSuggestion) => {
-    setSelectedPlace(suggestion);
-    setLocation(suggestion.description);
-    setLocationSuggestions([]);
-    setLocationQuerying(false);
-    setLocationTouched(true);
-    const zipMatch = suggestion.description.match(/\b\d{5}(?:-\d{4})?\b/);
-    if (zipMatch && zipMatch[0]) {
-      const normalizedZip = zipMatch[0].slice(0, 5);
-      setSelectedPlaceZip(normalizedZip);
-      setSearchZip(normalizedZip);
-    }
-    // Check for duplicates by place_id
-    void (async () => {
-      try {
-        const res = await httpPost('/organizations/check-duplicate', {
-          place_id: suggestion.place_id,
-          name: orgName.trim(),
-        });
-        if (res && (res as any).exists) {
-          setDuplicateWarning(`An organization at "${suggestion.description}" already exists. Use Search to find it.`);
-        } else {
+  const handleLocationSelect = useCallback(({ address, placeId }: { address: string; placeId?: string; latitude?: number; longitude?: number }) => {
+    setLocation(address);
+    if (placeId) {
+      setSelectedPlace({ description: address, place_id: placeId });
+      const zipMatch = address.match(/\b\d{5}(?:-\d{4})?\b/);
+      if (zipMatch?.[0]) {
+        const normalizedZip = zipMatch[0].slice(0, 5);
+        setSelectedPlaceZip(normalizedZip);
+        setSearchZip(normalizedZip);
+      }
+      void (async () => {
+        try {
+          const res = await httpPost('/organizations/check-duplicate', {
+            place_id: placeId,
+            name: orgName.trim(),
+          });
+          if (res && (res as any).exists) {
+            setDuplicateWarning(`An organization at "${address}" already exists. Use Search to find it.`);
+          } else {
+            setDuplicateWarning(null);
+          }
+        } catch {
           setDuplicateWarning(null);
         }
-      } catch {
-        setDuplicateWarning(null);
-      }
-    })();
+      })();
+    } else {
+      setSelectedPlace(null);
+      setSelectedPlaceZip(null);
+      setDuplicateWarning(null);
+    }
   }, [setSearchZip, orgName]);
 
   // Cleanup search timer on unmount to prevent memory leaks
@@ -290,10 +259,6 @@ export default function Step4Organization() {
       if (searchTimerRef.current) {
         clearTimeout(searchTimerRef.current);
         searchTimerRef.current = null;
-      }
-      if (locationTimerRef.current) {
-        clearTimeout(locationTimerRef.current);
-        locationTimerRef.current = null;
       }
     };
   }, []);
@@ -385,15 +350,12 @@ export default function Step4Organization() {
       const locationLabel = selectedPlace?.description || location.trim();
       const desc = `${orgType === 'school' ? 'School' : 'Organization'}` + (locationLabel ? ` in ${locationLabel}` : '');
       // Create an organization using the dedicated API
+      // Note: server schema expects location as a string (not an object)
       const payload: any = {
         name: orgName.trim(),
         description: desc,
         org_type: orgType,
-        location: {
-          address: selectedPlace?.description,
-          place_id: selectedPlace?.place_id,
-          zip_code: (selectedPlaceZip || searchZip.trim()) || undefined,
-        },
+        location: locationLabel || undefined,
         zip_code: (selectedPlaceZip || searchZip.trim()) || undefined,
       };
       // include plan if present in onboarding state
@@ -647,44 +609,11 @@ export default function Step4Organization() {
         {!showSearch && (
           <>
             <Text style={styles.label}>Location</Text>
-            <View style={styles.locationFieldWrapper}>
-              <Input 
-                value={location} 
-                onChangeText={handleLocationChange} 
-                placeholder="Start typing an address, school, or city" 
-                autoCapitalize="words"
-                autoCorrect={false}
-              />
-              {locationQuerying && (
-                <ActivityIndicator size="small" color={Colors[colorScheme].tint} style={styles.locationSpinner} />
-              )}
-              {locationSuggestions.length > 0 && (
-                <View style={styles.locationSuggestionList}>
-                  {locationSuggestions.map((suggestion, index) => (
-                    <Pressable
-                      key={suggestion.place_id}
-                      style={[
-                        styles.locationSuggestionItem,
-                        index === locationSuggestions.length - 1 && styles.locationSuggestionItemLast,
-                      ]}
-                      onPress={() => handleSelectLocation(suggestion)}
-                    >
-                      <Text style={styles.locationSuggestionMain}>
-                        {suggestion.structured_formatting?.main_text || suggestion.description}
-                      </Text>
-                      {suggestion.structured_formatting?.secondary_text ? (
-                        <Text style={styles.locationSuggestionSecondary}>
-                          {suggestion.structured_formatting.secondary_text}
-                        </Text>
-                      ) : null}
-                    </Pressable>
-                  ))}
-                </View>
-              )}
-            </View>
-            {!selectedPlace && locationTouched && (
-              <Text style={styles.inputHelperText}>Select a suggested location to continue.</Text>
-            )}
+            <LocationPicker
+              value={location}
+              onLocationSelect={handleLocationSelect}
+              placeholder="Start typing an address, school, or city"
+            />
             {duplicateWarning && (
               <View style={styles.duplicateWarningBox}>
                 <Ionicons name="warning" size={16} color="#F59E0B" style={{ marginRight: 8 }} />
@@ -778,7 +707,7 @@ export default function Step4Organization() {
               {['school','club','league','tournament','university','college','professional'].map(t => (
                 <Pressable
                   key={t}
-                  onPress={() => setOrgType(t as any)}
+                  onPress={() => { Keyboard.dismiss(); setOrgType(t as any); }}
                   accessibilityRole="radio"
                   accessibilityState={{ selected: orgType === t }}
                   style={[styles.typeOption, orgType === t && styles.typeOptionActive]}
@@ -808,10 +737,10 @@ export default function Step4Organization() {
         {!showSearch && (
           ob.plan === 'rookie' ? (
             <LinearGradient
-              // Deeper metallic silver (cooler dark edges -> bright center -> soft falloff)
+              // Metallic bronze (dark bronze edges -> warm center)
               colors={colorScheme === 'dark'
-                ? ['#3F4751','#707B85','#3F4751']
-                : ['#9FA2A5','#ECEEEF','#9FA2A5']}
+                ? ['#3D2211','#7B4A25','#3D2211']
+                : ['#8B5A2B','#D4943A','#8B5A2B']}
               locations={[0,0.52,1]}
               start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
               style={styles.planReminderRookie}
@@ -848,16 +777,16 @@ export default function Step4Organization() {
               <View style={styles.benefitsList}>
                 {(ob.plan === 'veteran') && (
                   <>
-                    <View style={styles.benefitRow}><Ionicons name="cash" size={14} color={colorScheme === 'dark' ? '#93C5FD' : '#1E3A8A'} /><Text style={styles.benefitItem}>$1.50/month per team</Text></View>
-                    <View style={styles.benefitRow}><Ionicons name="people-circle" size={14} color={colorScheme === 'dark' ? '#93C5FD' : '#1E3A8A'} /><Text style={styles.benefitItem}>Up to 12 authorized users</Text></View>
-                    <View style={styles.benefitRow}><Ionicons name="settings" size={14} color={colorScheme === 'dark' ? '#93C5FD' : '#1E3A8A'} /><Text style={styles.benefitItem}>Advanced features</Text></View>
+                    <View style={styles.benefitRow}><Ionicons name="cash" size={14} color="#C0C0C0" /><Text style={styles.benefitItem}>$1.50/month per team</Text></View>
+                    <View style={styles.benefitRow}><Ionicons name="people-circle" size={14} color="#C0C0C0" /><Text style={styles.benefitItem}>Up to 12 authorized users</Text></View>
+                    <View style={styles.benefitRow}><Ionicons name="settings" size={14} color="#C0C0C0" /><Text style={styles.benefitItem}>Advanced features</Text></View>
                   </>
                 )}
                 {(ob.plan === 'legend') && (
                   <>
-                    <View style={styles.benefitRow}><Ionicons name="trophy" size={14} color={colorScheme === 'dark' ? '#93C5FD' : '#1E3A8A'} /><Text style={styles.benefitItem}>$20/year unlimited teams</Text></View>
-                    <View style={styles.benefitRow}><Ionicons name="infinite" size={14} color={colorScheme === 'dark' ? '#93C5FD' : '#1E3A8A'} /><Text style={styles.benefitItem}>Unlimited authorized users</Text></View>
-                    <View style={styles.benefitRow}><Ionicons name="star" size={14} color={colorScheme === 'dark' ? '#93C5FD' : '#1E3A8A'} /><Text style={styles.benefitItem}>Premium features</Text></View>
+                    <View style={styles.benefitRow}><Ionicons name="trophy" size={14} color="#FFD700" /><Text style={styles.benefitItem}>$20/year unlimited teams</Text></View>
+                    <View style={styles.benefitRow}><Ionicons name="infinite" size={14} color="#FFD700" /><Text style={styles.benefitItem}>Unlimited authorized users</Text></View>
+                    <View style={styles.benefitRow}><Ionicons name="star" size={14} color="#FFD700" /><Text style={styles.benefitItem}>Premium features</Text></View>
                   </>
                 )}
               </View>

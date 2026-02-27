@@ -1,26 +1,19 @@
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
-import { BlurView } from 'expo-blur';
 import { StyleSheet, View } from 'react-native';
 
 export default function BlurTabBarBackground() {
   const colorScheme = useColorScheme();
 
-  // In dark mode, use an opaque black background for maximum contrast
-  if (colorScheme === 'dark') {
-    return (
-      <View
-        style={[
-          StyleSheet.absoluteFill,
-          { backgroundColor: '#0f172a', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#334155' },
-        ]}
-      />
-    );
-  }
-
-  // Light mode: keep native blur for a polished look
+  // Use solid opaque backgrounds - BlurView causes sawtooth/zigzag artifact at bottom edge on iOS
+  const backgroundColor = colorScheme === 'dark' ? '#0f172a' : '#FFFFFF';
   return (
-    <BlurView tint="light" intensity={100} style={StyleSheet.absoluteFill} />
+    <View
+      style={[
+        StyleSheet.absoluteFill,
+        { backgroundColor, overflow: 'hidden' },
+      ]}
+    />
   );
 }
 

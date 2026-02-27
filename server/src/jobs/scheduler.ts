@@ -60,6 +60,29 @@ const SCHEDULED_JOBS: ScheduledJob[] = [
     },
   },
   {
+    name: 'cleanup-expired-stories',
+    cron: '0 * * * *', // Every hour
+    description: 'Delete expired stories (24h after creation)',
+    handler: async () => {
+      try {
+        const { prisma } = await import('../lib/prisma.js');
+        const now = new Date();
+        const result = await prisma.story.deleteMany({
+          where: { expires_at: { lt: now } },
+        });
+        if (result.count > 0) {
+          console.log(`[Scheduler] Cleaned up ${result.count} expired stories`);
+        }
+      } catch (err: any) {
+        if (err?.code === 'P2022' || err?.message?.includes('expires_at')) {
+          console.warn('[Scheduler] Story expires_at column may not exist yet, skipping cleanup');
+        } else {
+          console.error('[Scheduler] Failed to cleanup expired stories:', err);
+        }
+      }
+    },
+  },
+  {
     name: 'verify-push-receipts',
     cron: '*/15 * * * *', // Every 15 minutes
     description: 'Check push notification delivery receipts',

@@ -162,7 +162,7 @@ export function OBProvider({ children }: PropsWithChildren) {
   const clearOnboarding = useCallback(async () => {
     setState({});
     setProgress(0);
-    dispatch({ type: 'INIT_FROM_PROFILE', profile: {} });
+    dispatch({ type: 'RESET' });
     try {
       await AsyncStorage.removeItem(ONBOARDING_STATE_KEY);
       await AsyncStorage.removeItem(ONBOARDING_PROGRESS_KEY);

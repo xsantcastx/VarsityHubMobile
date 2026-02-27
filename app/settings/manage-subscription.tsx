@@ -10,7 +10,6 @@ import { Colors } from '@/constants/Colors';
 
 export default function ManageSubscription() {
   const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
   const [loading, setLoading] = useState(false);
   const [plan, setPlan] = useState<string | null>(null);
 
@@ -57,8 +56,8 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
   const onSubscribe = async (targetPlan: 'veteran' | 'legend') => {
     if (Platform.OS === 'ios') {
       Alert.alert(
-        'Upgrade on the web',
-        'Coach subscriptions are managed through our secure web portal. Please sign in at varsityhub.app from a desktop browser to upgrade your plan.',
+        'Not available on iOS',
+        'Paid coach plan upgrades are currently unavailable in the iOS app.',
       );
       return;
     }
@@ -121,7 +120,7 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#111827' : '#FFFFFF' }]} edges={['bottom']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme ?? 'light'].background }]} edges={['bottom']}>
       <Stack.Screen options={{ title: 'Manage Subscription', headerBackTitle: 'Back', headerShown: true }} />
       <ScrollView contentContainerStyle={styles.contentContainer}>
         <Text style={[styles.title, { color: Colors[colorScheme ?? 'light'].text }]}>Subscription</Text>
@@ -141,6 +140,10 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
                 <Text>Cancel subscription</Text>
               </Button>
             </View>
+          ) : Platform.OS === 'ios' ? (
+            <Text style={[styles.description, { color: Colors[colorScheme ?? 'light'].mutedText }]}>
+              Paid coach plan upgrades are currently unavailable in the iOS app.
+            </Text>
           ) : (
             // Free plan (rookie) or no plan - show upgrade options
             <>

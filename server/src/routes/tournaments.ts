@@ -43,6 +43,7 @@ tournamentsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res: 
         org_type: 'tournament',
         sport,
         location,
+        updated_at: new Date(),
       },
     });
 

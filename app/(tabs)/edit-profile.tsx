@@ -497,7 +497,11 @@ export default function EditProfileScreen() {
         router.replace('/team-profile');
       } else {
         // Fans go back to previous screen
-        router.back();
+        if (router.canGoBack()) {
+          router.back();
+        } else {
+          router.replace('/(tabs)' as any);
+        }
       }
     } catch (e: any) {
       console.error('Save error:', e);
@@ -521,7 +525,7 @@ export default function EditProfileScreen() {
           headerStyle: { backgroundColor: Colors[colorScheme].background },
           headerTintColor: Colors[colorScheme].text,
           headerLeft: () => (
-            <Pressable onPress={() => router.back()} style={{ paddingLeft: 8 }}>
+            <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={{ paddingLeft: 8 }}>
               <Ionicons name="chevron-back" size={24} color={Colors[colorScheme].tint} />
             </Pressable>
           ),
