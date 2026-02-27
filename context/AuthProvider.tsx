@@ -14,6 +14,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import { useRouter, useSegments } from 'expo-router';
+import { AppState } from 'react-native';
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 // @ts-ignore JS exports
 import auth from '@/api/auth';
@@ -305,6 +306,16 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       mounted = false;
     };
   }, [navReady, checkHealth, checkAuth]);
+
+  // Re-check auth when app comes to foreground
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active' && !initializing) {
+        checkAuth().catch(() => {});
+      }
+    });
+    return () => subscription.remove();
+  }, [checkAuth, initializing]);
 
   // Safety timeout - force initialization complete after 5 seconds
   useEffect(() => {

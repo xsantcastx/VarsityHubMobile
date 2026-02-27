@@ -5,6 +5,7 @@ import { sendOrganizationApprovalEmail } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
+import { requirePlan } from '../middleware/subscription.js';
 import { debugLog } from '../lib/debugLog.js';
 import { getAuthorizedUsersOrgLimit } from '../lib/planLimits.js';
 
@@ -320,7 +321,7 @@ const inviteUserSchema = z.object({
 });
 
 // Invite user to organization
-organizationsRouter.post('/:id/invite', requireAuth as any, async (req: AuthedRequest, res) => {
+organizationsRouter.post('/:id/invite', requireAuth as any, requirePlan('veteran') as any, async (req: AuthedRequest, res) => {
   const id = String(req.params.id);
   const parsed = inviteUserSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });

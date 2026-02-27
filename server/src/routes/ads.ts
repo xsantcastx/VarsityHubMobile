@@ -4,6 +4,7 @@ import { geocodeLocation } from '../lib/geocoding.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
+import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { debugLog } from '../lib/debugLog.js';
 import { calculateAdPriceDollars } from '../utils/adPricing.js';
@@ -33,6 +34,7 @@ export const adsRouter = Router();
 
 // Create an Ad (optionally associated to the authenticated user)
 adsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) => {
+  const { payment_status: _ps, status: _st, ...safeBody } = req.body || {};
   const {
     contact_name,
     contact_email,
@@ -43,9 +45,7 @@ adsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) => {
     target_zip_code,
     radius,
     description,
-    status,
-    payment_status,
-  } = req.body || {};
+  } = safeBody;
   if (!contact_name || !contact_email || !business_name || !target_zip_code) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
@@ -61,8 +61,8 @@ adsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) => {
       target_zip_code: String(target_zip_code),
       radius: typeof radius === 'number' ? radius : 45,
       description: description ? String(description) : null,
-      status: status ? String(status) : 'draft',
-      payment_status: payment_status ? String(payment_status) : 'unpaid',
+      status: 'draft',
+      payment_status: 'unpaid',
     },
   });
   return res.status(201).json(ad);
@@ -177,20 +177,19 @@ adsRouter.get('/:id', async (req, res) => {
 });
 
 // Update an Ad (owner-only if authenticated)
-adsRouter.put('/:id', async (req: AuthedRequest, res) => {
+adsRouter.put('/:id', requireAuth as any, async (req: AuthedRequest, res) => {
   const id = String(req.params.id);
-  const existing = await prisma.ad.findUnique({ where: { id } });
-  if (!existing) return res.status(404).json({ error: 'Not found' });
-  if (existing.user_id && req.user?.id && existing.user_id !== req.user.id) {
-    return res.status(403).json({ error: 'Forbidden' });
-  }
+  const ad = await prisma.ad.findUnique({ where: { id } });
+  if (!ad) return res.status(404).json({ error: 'Ad not found' });
+  if (ad.user_id !== req.user!.id) return res.status(403).json({ error: 'Not authorized' });
+  const { payment_status, ...safeBody } = req.body || {};
   const data: any = {};
-  const allowed = ['contact_name','contact_email','business_name','banner_url','banner_fit_mode','target_url','target_zip_code','radius','description','status','payment_status'] as const;
+  const allowed = ['contact_name','contact_email','business_name','banner_url','banner_fit_mode','target_url','target_zip_code','radius','description','status'] as const;
   for (const k of allowed) {
-    if (k in (req.body || {})) (data as any)[k] = (req.body as any)[k];
+    if (k in safeBody) (data as any)[k] = (safeBody as any)[k];
   }
-  const ad = await prisma.ad.update({ where: { id }, data });
-  return res.json(ad);
+  const updated = await prisma.ad.update({ where: { id }, data });
+  return res.json(updated);
 });
 
 // Delete an Ad (owner-only if authenticated)

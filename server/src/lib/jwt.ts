@@ -11,8 +11,7 @@ if (!jwtSecretString || jwtSecretString === 'dev-secret-change-me' || jwtSecretS
   console.warn('WARNING: Using weak JWT_SECRET. Generate a secure secret with: openssl rand -base64 32');
 }
 
-// Reduced access token expiry - use refresh tokens for long-lived sessions
-const DEFAULT_ACCESS_TOKEN_EXPIRY = '1h';
+const DEFAULT_ACCESS_TOKEN_EXPIRY = '7d';
 
 export function signJwt(payload: Record<string, unknown>, expiresIn: string = DEFAULT_ACCESS_TOKEN_EXPIRY): string {
   // @ts-expect-error - expiresIn accepts string but SignOptions type is strict

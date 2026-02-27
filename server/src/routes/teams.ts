@@ -6,6 +6,7 @@ import type { AuthedRequest } from '../middleware/auth.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
 import { requireVerified } from '../middleware/requireVerified.js';
+import { requirePlan } from '../middleware/subscription.js';
 import { getAuthorizedUsersPerTeam, getMaxTeamsForPlan } from '../lib/planLimits.js';
 
 export const teamsRouter = Router();
@@ -308,7 +309,7 @@ teamsRouter.get('/members/all', async (req, res) => {
 
 // Create team (auth required). Creator becomes owner.
 const createSchema = z.object({ name: z.string().trim().min(2), description: z.string().trim().optional() });
-teamsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) => {
+teamsRouter.post('/', requireVerified as any, requirePlan('rookie') as any, async (req: AuthedRequest, res) => {
   // req.user is guaranteed by requireVerified middleware
   const parsed = createSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -548,7 +549,7 @@ const createTeamSchema = z.object({
   })).optional(),
 });
 
-teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, res) => {
+teamsRouter.post('/create', requireVerified as any, requirePlan('rookie') as any, async (req: AuthedRequest, res) => {
   // req.user is guaranteed by requireVerified middleware
   const parsed = createTeamSchema.safeParse(req.body);
   if (!parsed.success) {
