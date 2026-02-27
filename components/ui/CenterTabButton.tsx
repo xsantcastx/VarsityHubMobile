@@ -56,12 +56,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#111827',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 4,
-    // Ensure perfect centering
+    // Removed shadow/elevation to fix sawtooth zigzag artifact at tab bar
     display: 'flex',
   },
   buttonActive: {

@@ -660,13 +660,22 @@ ${APP_BASE_URL}
   // ALWAYS use the fallback email with code in subject and body
   // This ensures the verification code is ALWAYS visible to the user
   // regardless of whether SendGrid templates are configured correctly
-  console.log('[email] Sending verification email with code in subject and body');
-  return sendEmail({
-    to: email,
-    subject: `${token} is your VarsityHub verification code`,
-    text: plainTextContent,
-    html: htmlContent,
-  });
+  console.log('[email] Sending verification email to:', email);
+  console.log('[email] Subject:', `${token} is your VarsityHub verification code`);
+
+  try {
+    const result = await sendEmail({
+      to: email,
+      subject: `${token} is your VarsityHub verification code`,
+      text: plainTextContent,
+      html: htmlContent,
+    });
+    console.log('[email] Verification email send result:', result);
+    return result;
+  } catch (error: any) {
+    console.error('[email] Verification email send error:', error?.message || error);
+    return false;
+  }
 }
 
 /**

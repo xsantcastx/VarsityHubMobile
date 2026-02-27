@@ -233,8 +233,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "if [[ -f \"$PODS_ROOT/../.xcode.env\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env\"\nfi\nif [[ -f \"$PODS_ROOT/../.xcode.env.local\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env.local\"\nfi\n\n# The project root by default is one level up from the ios directory\nexport PROJECT_ROOT=\"$PROJECT_DIR\"/..\n\nif [[ \"$CONFIGURATION\" = *Debug* ]]; then\n  export SKIP_BUNDLING=1\nfi\nif [[ -z \"$ENTRY_FILE\" ]]; then\n  # Set the entry JS file using the bundler's entry resolution.\n  export ENTRY_FILE=\"$(\"$NODE_BINARY\" -e \"require('expo/scripts/resolveAppEntry')\" \"$PROJECT_ROOT\" ios absolute | tail -n 1)\"\nfi\n\nif [[ -z \"$CLI_PATH\" ]]; then\n  # Use Expo CLI\n  export CLI_PATH=\"$(\"$NODE_BINARY\" --print \"require.resolve('@expo/cli', { paths: [require.resolve('expo/package.json')] })\")\"\nfi\nif [[ -z \"$BUNDLE_COMMAND\" ]]; then\n  # Default Expo CLI command for bundling\n  export BUNDLE_COMMAND=\"export:embed\"\nfi\n\n# Source .xcode.env.updates if it exists to allow\n# SKIP_BUNDLING to be unset if needed\nif [[ -f \"$PODS_ROOT/../.xcode.env.updates\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env.updates\"\nfi\n# Source local changes to allow overrides\n# if needed\nif [[ -f \"$PODS_ROOT/../.xcode.env.local\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env.local\"\nfi\n\n# Run Sentry upload script - allow failures if SENTRY_ALLOW_FAILURE is set (safety net)
-# This enables Sentry to work properly when token is configured\n# If SENTRY_DISABLE_AUTO_UPLOAD or SENTRY_ALLOW_FAILURE is set, Sentry script won't fail the build\nSENTRY_SCRIPT=\"`\"$NODE_BINARY\" --print \"require('path').dirname(require.resolve('@sentry/react-native/package.json')) + '/scripts/sentry-xcode.sh'\"`\"\nRN_SCRIPT=\"`\"$NODE_BINARY\" --print \"require('path').dirname(require.resolve('react-native/package.json')) + '/scripts/react-native-xcode.sh'\"`\"\n\n# If SENTRY_DISABLE_AUTO_UPLOAD is set, skip Sentry entirely\n# If SENTRY_ALLOW_FAILURE is set, allow Sentry to work but don't fail build on error\n# Otherwise, let Sentry work normally\nif [[ \"$SENTRY_DISABLE_AUTO_UPLOAD\" == \"true\" ]]; then\n  echo \"⚠️  Sentry upload skipped (SENTRY_DISABLE_AUTO_UPLOAD=true)\"\n  /bin/sh \"$RN_SCRIPT\"\nelif [[ \"$SENTRY_ALLOW_FAILURE\" == \"true\" ]]; then\n  /bin/sh \"$SENTRY_SCRIPT\" \"$RN_SCRIPT\" || echo \"⚠️  Sentry upload failed but continuing build (SENTRY_ALLOW_FAILURE=true)\"\nelse\n  /bin/sh \"$SENTRY_SCRIPT\" \"$RN_SCRIPT\"\nfi\n\n";
+			shellScript = "if [[ -f \"$PODS_ROOT/../.xcode.env\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env\"\nfi\nif [[ -f \"$PODS_ROOT/../.xcode.env.local\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env.local\"\nfi\n\n# The project root by default is one level up from the ios directory\nexport PROJECT_ROOT=\"$PROJECT_DIR\"/..\n\nif [[ \"$CONFIGURATION\" = *Debug* ]]; then\n  export SKIP_BUNDLING=1\nfi\nif [[ -z \"$ENTRY_FILE\" ]]; then\n  # Set the entry JS file using the bundler's entry resolution.\n  export ENTRY_FILE=\"$(\"$NODE_BINARY\" -e \"require('expo/scripts/resolveAppEntry')\" \"$PROJECT_ROOT\" ios absolute | tail -n 1)\"\nfi\n\nif [[ -z \"$CLI_PATH\" ]]; then\n  # Use Expo CLI\n  export CLI_PATH=\"$(\"$NODE_BINARY\" --print \"require.resolve('@expo/cli', { paths: [require.resolve('expo/package.json')] })\")\"\nfi\nif [[ -z \"$BUNDLE_COMMAND\" ]]; then\n  # Default Expo CLI command for bundling\n  export BUNDLE_COMMAND=\"export:embed\"\nfi\n\n# Source .xcode.env.updates if it exists to allow\n# SKIP_BUNDLING to be unset if needed\nif [[ -f \"$PODS_ROOT/../.xcode.env.updates\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env.updates\"\nfi\n# Source local changes to allow overrides\n# if needed\nif [[ -f \"$PODS_ROOT/../.xcode.env.local\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env.local\"\nfi\n\n# Run Sentry upload script - allow failures if SENTRY_ALLOW_FAILURE is set (safety net)\n# This enables Sentry to work properly when token is configured\n# If SENTRY_DISABLE_AUTO_UPLOAD or SENTRY_ALLOW_FAILURE is set, Sentry script won't fail the build\nSENTRY_SCRIPT=\"`\"$NODE_BINARY\" --print \"require('path').dirname(require.resolve('@sentry/react-native/package.json')) + '/scripts/sentry-xcode.sh'\"`\"\nRN_SCRIPT=\"`\"$NODE_BINARY\" --print \"require('path').dirname(require.resolve('react-native/package.json')) + '/scripts/react-native-xcode.sh'\"`\"\n\n# If SENTRY_DISABLE_AUTO_UPLOAD is set, skip Sentry entirely\n# If SENTRY_ALLOW_FAILURE is set, allow Sentry to work but don't fail build on error\n# Otherwise, let Sentry work normally\nif [[ \"$SENTRY_DISABLE_AUTO_UPLOAD\" == \"true\" ]]; then\n  echo \"⚠️  Sentry upload skipped (SENTRY_DISABLE_AUTO_UPLOAD=true)\"\n  /bin/sh \"$RN_SCRIPT\"\nelif [[ \"$SENTRY_ALLOW_FAILURE\" == \"true\" ]]; then\n  /bin/sh \"$SENTRY_SCRIPT\" \"$RN_SCRIPT\" || echo \"⚠️  Sentry upload failed but continuing build (SENTRY_ALLOW_FAILURE=true)\"\nelse\n  /bin/sh \"$SENTRY_SCRIPT\" \"$RN_SCRIPT\"\nfi\n\n";
 		};
 		08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -402,10 +401,10 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = VarsityHub/VarsityHub.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
-			CODE_SIGN_STYLE = Automatic;
-			CURRENT_PROJECT_VERSION = 1;
-			DEVELOPMENT_TEAM = B5H8F69RW5;
-			ENABLE_BITCODE = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = B5H8F69RW5;
+				ENABLE_BITCODE = NO;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(inherited)",
 					"FB_SONARKIT_ENABLED=1",
@@ -439,11 +438,11 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = VarsityHub/VarsityHub.entitlements;
-			CODE_SIGN_IDENTITY = "Apple Development";
-			CODE_SIGN_STYLE = Automatic;
-			CURRENT_PROJECT_VERSION = 1;
-			DEVELOPMENT_TEAM = B5H8F69RW5;
-			INFOPLIST_FILE = VarsityHub/Info.plist;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = B5H8F69RW5;
+				INFOPLIST_FILE = VarsityHub/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

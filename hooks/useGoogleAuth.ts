@@ -15,6 +15,18 @@ type GoogleAuthResult = Awaited<ReturnType<typeof User.loginViaGoogle>>;
 
 const appConfig = getConfig();
 
+// Helper to get reversed client ID for iOS OAuth redirect
+const getReversedClientId = (clientId: string | undefined): string | undefined => {
+  if (!clientId) return undefined;
+  // Client ID format: 123456789-abcdef.apps.googleusercontent.com
+  // Reversed format: com.googleusercontent.apps.123456789-abcdef
+  const parts = clientId.split('.');
+  if (parts.length >= 3) {
+    return parts.reverse().join('.');
+  }
+  return undefined;
+};
+
 const googleClientConfig = (opts: { shouldUseProxy: boolean }) => {
   const { google } = appConfig;
   const androidClientId = google.androidClientId;
@@ -23,10 +35,9 @@ const googleClientConfig = (opts: { shouldUseProxy: boolean }) => {
   const expoClientId = google.expoClientId;
 
   const isDevSimulator = opts.shouldUseProxy && Constants.appOwnership === 'expo' && Platform.OS === 'ios';
-  const isStandaloneIOS = Platform.OS === 'ios' && Constants.appOwnership !== 'expo';
 
   // For dev simulator, use Expo Client ID (registered with auth.expo.io)
-  // For standalone iOS builds, use web client with varsityhub.app domain
+  // For standalone iOS builds, use the native iOS client ID with custom scheme redirect
   if (isDevSimulator && expoClientId) {
     return {
       androidClientId: expoClientId,
@@ -37,15 +48,7 @@ const googleClientConfig = (opts: { shouldUseProxy: boolean }) => {
     } as const;
   }
 
-  if (isStandaloneIOS && webClientId) {
-    return {
-      androidClientId: webClientId,
-      iosClientId: webClientId,
-      webClientId,
-      expoClientId: webClientId,
-    } as const;
-  }
-
+  // For native builds (iOS standalone, Android), use platform-specific client IDs
   return { androidClientId, iosClientId, webClientId, expoClientId } as const;
 };
 
@@ -112,21 +115,24 @@ export function useGoogleAuth() {
       console.warn('[google-auth] failed to build proxy redirect uri', err);
     }
 
-    // For production iOS with web client, use web redirect
-    const isStandaloneIOS = Platform.OS === 'ios' && Constants.appOwnership !== 'expo';
-    if (isStandaloneIOS) {
-      uri = `${appConfig.webBaseUrl}/auth/google/callback`;
-      console.log('[google-auth] Using production web redirect (standalone):', uri);
-      return uri;
+    // For iOS native builds, use reversed client ID as the scheme (required by Google)
+    if (Platform.OS === 'ios') {
+      const reversedClientId = getReversedClientId(clients.iosClientId);
+      if (reversedClientId) {
+        uri = `${reversedClientId}:/oauthredirect`;
+        console.log('[google-auth] Using iOS reversed client ID redirect:', uri);
+        return uri;
+      }
     }
 
+    // For Android or fallback, use bundle ID scheme
     uri = makeRedirectUri({
       native: `${Application.applicationId}:/oauthredirect`,
       scheme: appConfig.appScheme,
     });
     console.log('[google-auth] Using custom scheme redirect:', uri, '(app scheme:', appConfig.appScheme, ')');
     return uri;
-  }, [shouldUseProxy]);
+  }, [shouldUseProxy, clients.iosClientId]);
 
   useEffect(() => {
     if (proxyRequested && !PROJECT_FULL_NAME) {
@@ -194,15 +200,50 @@ export function useGoogleAuth() {
         throw err;
       }
 
-      // Handle other non-success responses
-      if (response.type !== 'success' || !response.authentication?.idToken) {
+      // Handle non-success responses
+      if (response.type !== 'success') {
         const errorMsg = `Google sign-in failed: ${response.type}`;
         console.error('[google-auth]', errorMsg, response);
         throw new Error(errorMsg);
       }
 
+      let idToken: string | undefined;
+
+      // Check if we got tokens directly (web/Expo Go flow)
+      if (response.authentication?.idToken) {
+        console.log('[google-auth] Got idToken directly from response');
+        idToken = response.authentication.idToken;
+      }
+      // Check if we got an authorization code (native iOS flow) - exchange for tokens
+      else if (response.params?.code) {
+        console.log('[google-auth] Got authorization code, exchanging for tokens...');
+        const code = response.params.code;
+
+        // Exchange the authorization code for tokens
+        const tokenResponse = await AuthSession.exchangeCodeAsync(
+          {
+            clientId: clients.iosClientId || '',
+            code,
+            redirectUri,
+            extraParams: {
+              code_verifier: request.codeVerifier || '',
+            },
+          },
+          { tokenEndpoint: 'https://oauth2.googleapis.com/token' }
+        );
+
+        console.log('[google-auth] Token exchange response:', tokenResponse);
+        idToken = tokenResponse.idToken;
+      }
+
+      if (!idToken) {
+        const errorMsg = 'Google sign-in failed: No ID token received';
+        console.error('[google-auth]', errorMsg, response);
+        throw new Error(errorMsg);
+      }
+
       console.log('[google-auth] Got idToken, sending to server...');
-      const serverResponse = await User.loginViaGoogle(response.authentication.idToken);
+      const serverResponse = await User.loginViaGoogle(idToken);
       console.log('[google-auth] Server accepted token, logged in as:', serverResponse);
       return serverResponse as GoogleAuthResult;
     } catch (err: any) {

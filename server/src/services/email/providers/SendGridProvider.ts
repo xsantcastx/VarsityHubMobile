@@ -61,6 +61,7 @@ export class SendGridProvider implements EmailProvider {
 
   async send(options: BaseEmailOptions): Promise<EmailResult> {
     if (!this.isConfigured()) {
+      console.error('[SendGridProvider] Not configured - apiKey:', !!this.apiKey, 'defaultFrom:', !!this.defaultFrom);
       return {
         success: false,
         error: 'SendGrid is not configured',
@@ -71,7 +72,13 @@ export class SendGridProvider implements EmailProvider {
 
     try {
       const mailData = this.buildMailData(options);
-      
+      console.log('[SendGridProvider] Sending plain email:', {
+        to: options.to,
+        subject: options.subject,
+        hasText: !!options.text,
+        hasHtml: !!options.html
+      });
+
       // Add timeout protection
       const sendPromise = sgMail.send(mailData);
       const timeoutPromise = new Promise<EmailResult>((resolve) => {
@@ -97,6 +104,11 @@ export class SendGridProvider implements EmailProvider {
       const messageId = Array.isArray(result)
         ? result[0]?.headers?.['x-message-id'] || undefined
         : undefined;
+
+      console.log('[SendGridProvider] Plain email sent successfully:', {
+        to: options.to,
+        messageId
+      });
 
       return {
         success: true,
@@ -185,22 +197,14 @@ export class SendGridProvider implements EmailProvider {
     };
 
     // Add text/html if not using template
+    // Note: @sendgrid/mail handles converting text/html to content array internally
+    // Do NOT add both text/html AND content array - it causes issues
     if (!('templateId' in options)) {
       if (options.text) {
         baseData.text = options.text;
       }
       if (options.html) {
         baseData.html = options.html;
-      }
-      // Ensure content array is present for MailDataRequired
-      if (!baseData.content) {
-        baseData.content = [];
-        if (baseData.text) {
-          baseData.content.push({ type: 'text/plain', value: baseData.text });
-        }
-        if (baseData.html) {
-          baseData.content.push({ type: 'text/html', value: baseData.html });
-        }
       }
     }
 
@@ -253,6 +257,16 @@ export class SendGridProvider implements EmailProvider {
   private handleError(error: any): EmailResult {
     const errorCode = this.classifyError(error);
     const retryable = this.isRetryableError(error);
+
+    // Log detailed error for debugging
+    console.error('[SendGridProvider] Email send error:', {
+      message: error.message,
+      code: error.code,
+      statusCode: error.response?.statusCode,
+      body: error.response?.body,
+      errorCode,
+      retryable
+    });
 
     return {
       success: false,

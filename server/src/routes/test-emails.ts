@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { requireAdmin } from '../middleware/auth.js';
+import { requireAdmin } from '../middleware/requireAdmin.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import {
     sendBillingNoticeEmail,

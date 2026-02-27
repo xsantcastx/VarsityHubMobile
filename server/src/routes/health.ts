@@ -15,7 +15,7 @@ export const healthRouter = Router();
  * Detailed integration status requires admin authentication.
  */
 healthRouter.get('/', async (req: AuthedRequest, res) => {
-  const isAdmin = req.user?.is_admin === true;
+  const isAdmin = (req.user as any)?.is_admin === true;
 
   // Public health check - minimal info for load balancers / monitoring
   if (!isAdmin) {
