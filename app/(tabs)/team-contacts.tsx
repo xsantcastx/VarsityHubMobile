@@ -8,7 +8,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as MediaLibrary from 'expo-media-library';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Clipboard, FlatList, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Animated, Clipboard, FlatList, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { formatFileSize, uploadDocument, uploadImage, UploadResponse } from '@/utils/uploadUtils';
 // @ts-ignore
@@ -1486,7 +1486,8 @@ export default function TeamChatScreen() {
     return (
       <SafeAreaView style={[styles.container, styles.centerContent, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
         <Stack.Screen options={{ title: 'Team Chat' }} />
-        <Text style={[styles.loadingText, { color: Colors[colorScheme].text }]}>Loading team chat...</Text>
+        <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
+        <Text style={[styles.loadingText, { color: Colors[colorScheme].mutedText }]}>Loading team chat...</Text>
       </SafeAreaView>
     );
   }
@@ -1495,7 +1496,14 @@ export default function TeamChatScreen() {
     return (
       <SafeAreaView style={[styles.container, styles.centerContent, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
         <Stack.Screen options={{ title: 'Team Chat' }} />
+        <Ionicons name="cloud-offline-outline" size={48} color={Colors[colorScheme].mutedText} />
         <Text style={[styles.errorText, { color: '#EF4444' }]}>{error}</Text>
+        <Pressable
+          style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: Colors[colorScheme].tint, borderRadius: 10 }}
+          onPress={() => { setError(null); setLoading(true); void (async () => { try { const membersData = await TeamApi.members(String(id)); const formattedMembers: TeamMember[] = Array.isArray(membersData) ? membersData.map((m: any) => ({ id: String(m.id), user: m.user ? { id: String(m.user.id), display_name: m.user.display_name || m.user.name, email: m.user.email, avatar_url: m.user.avatar_url } : undefined, role: m.role || 'player', status: 'offline' as const, })) : []; setMembers(formattedMembers); const savedMessages = await loadMessages(); setMessages(savedMessages.length > 0 ? savedMessages : mockMessages); } catch { setError('Failed to load team chat'); } finally { setLoading(false); } })(); }}
+        >
+          <Text style={{ color: '#fff', fontWeight: '700' }}>Retry</Text>
+        </Pressable>
       </SafeAreaView>
     );
   }

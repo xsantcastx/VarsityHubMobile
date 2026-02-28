@@ -3,7 +3,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, useColorScheme, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, useColorScheme, View } from 'react-native';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
 
@@ -114,11 +114,16 @@ export default function RoleOnboardingScreen() {
   const handleSelectAccountType = async (type: AccountType) => {
     setAccountType(type);
     setShowAccountSelection(false);
-    
-    // If coach, show tier selection
+
+    // If coach, show tier selection (skip on iOS — auto-select rookie)
     if (type === 'coach') {
       logTelemetry('select-account-type', { type });
-      setShowCoachTierSelection(true);
+      if (Platform.OS === 'ios') {
+        // On iOS, auto-select rookie tier — no paid plan UI
+        await handleSelectCoachTier('rookie');
+      } else {
+        setShowCoachTierSelection(true);
+      }
     } else {
       // If fan, save immediately
       setSaving(true);
@@ -229,12 +234,12 @@ export default function RoleOnboardingScreen() {
     },
   ];
 
-  // Veteran Coach actions - paid tier ($1.50/team after first 2)
+  // Veteran Coach actions - paid tier
   const veteranActions: OnboardingAction[] = [
     {
       icon: 'trophy',
       title: 'Unlimited Teams',
-      description: 'Add as many teams as you need - $1.50/month each',
+      description: Platform.OS === 'ios' ? 'Add as many teams as you need' : 'Add as many teams as you need - $1.50/month each',
       route: '/manage-teams',
       gradient: ['#f59e0b', '#d97706'],
     },
@@ -489,7 +494,7 @@ export default function RoleOnboardingScreen() {
     } else if (coachTier === 'veteran') {
       actions = veteranActions;
       welcomeTitle = 'Welcome, Veteran Coach! 🏆';
-      welcomeSubtitle = 'Unlimited teams at $1.50/month each (first 2 free)';
+      welcomeSubtitle = Platform.OS === 'ios' ? 'Unlimited teams' : 'Unlimited teams at $1.50/month each (first 2 free)';
     } else if (coachTier === 'legend') {
       actions = legendActions;
       welcomeTitle = 'Welcome, Legend Coach! ⚡';

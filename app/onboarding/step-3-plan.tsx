@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Modal, Pressable, StyleSheet, Text, TextInput, View, useColorScheme } from 'react-native';
+import { ActivityIndicator, Alert, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View, useColorScheme } from 'react-native';
 // @ts-ignore
 import { Payments, Subscriptions, User } from '@/api/entities';
 import { PLAN_DEFINITIONS, Plan } from '@/constants/plans';
@@ -159,6 +159,24 @@ export default function Step3Plan() {
       router.replace('/onboarding/step-7-profile');
     }
   }, [ob.role, router]);
+
+  // On iOS, auto-select rookie and skip this step — no paid plan UI
+  useEffect(() => {
+    if (Platform.OS === 'ios') {
+      setPlan('rookie');
+      setOB((prev) => ({ ...prev, plan: 'rookie', payment_pending: false }));
+      void (async () => {
+        try {
+          await User.updatePreferences({ plan: 'rookie', payment_pending: false });
+        } catch {
+          // non-critical
+        }
+        setProgress(3);
+        navigateNext();
+      })();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     let mounted = true;

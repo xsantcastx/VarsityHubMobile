@@ -1,8 +1,9 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 // @ts-ignore
 import { User } from '@/api/entities';
 
@@ -10,6 +11,8 @@ export default function CreateScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const [me, setMe] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const verified = !!me?.email_verified;
   useEffect(() => {
     let mounted = true;
@@ -17,11 +20,13 @@ export default function CreateScreen() {
       try {
         const u = await User.me();
         if (mounted) setMe(u);
-      } catch (error: any) {
+      } catch (e: any) {
+        if (mounted) setError('Unable to load your account.');
         if (__DEV__) {
-          console.warn('[CreateScreen] Failed to load user:', error?.message || error);
+          console.warn('[CreateScreen] Failed to load user:', e?.message || e);
         }
-        // Silently fail - user can still use create screen
+      } finally {
+        if (mounted) setLoading(false);
       }
     })();
     return () => { mounted = false; };
@@ -38,6 +43,32 @@ export default function CreateScreen() {
       router.push('/(tabs)' as any);
     }
   };
+
+  if (loading) {
+    return (
+      <View style={styles.overlay}>
+        <Stack.Screen options={{ presentation: 'modal', title: 'Create' }} />
+        <View style={[styles.sheet, { backgroundColor: Colors[colorScheme].background, alignItems: 'center', paddingVertical: 40 }]}>
+          <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
+        </View>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.overlay}>
+        <Stack.Screen options={{ presentation: 'modal', title: 'Create' }} />
+        <View style={[styles.sheet, { backgroundColor: Colors[colorScheme].background, alignItems: 'center', paddingVertical: 32 }]}>
+          <Ionicons name="alert-circle-outline" size={40} color={Colors[colorScheme].mutedText} />
+          <Text style={{ color: Colors[colorScheme].mutedText, marginTop: 8, fontSize: 15 }}>{error}</Text>
+          <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border, marginTop: 16, width: '100%' }]} onPress={safeBack}>
+            <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>Close</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.overlay}>

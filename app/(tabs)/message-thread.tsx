@@ -302,7 +302,14 @@ export default function MessageThreadScreen() {
             <View style={styles.center}><ActivityIndicator /></View>
           )}
           {error && !loading && <Text style={styles.error}>{error}</Text>}
-          {!loading && (
+          {!loading && !error && msgs.length === 0 && (
+            <View style={styles.emptyState}>
+              <Ionicons name="chatbubble-outline" size={48} color={Colors[colorScheme].mutedText} />
+              <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text }]}>Start the conversation</Text>
+              <Text style={[styles.emptySubtitle, { color: Colors[colorScheme].mutedText }]}>Send a message below to get started</Text>
+            </View>
+          )}
+          {!loading && msgs.length > 0 && (
             <FlatList
               ref={flatRef}
               data={msgs}
@@ -523,6 +530,9 @@ const styles = StyleSheet.create({
   },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   error: { color: '#EF4444', padding: 16, textAlign: 'center' },
+  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
+  emptyTitle: { fontSize: 18, fontWeight: '700', marginTop: 12, marginBottom: 6 },
+  emptySubtitle: { fontSize: 14, textAlign: 'center' },
   messagesList: {
     paddingVertical: 16,
     paddingHorizontal: 12,

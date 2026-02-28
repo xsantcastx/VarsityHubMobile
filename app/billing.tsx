@@ -7,7 +7,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 export default function BillingScreen() {
   const router = useRouter();
@@ -108,9 +108,42 @@ export default function BillingScreen() {
     }
   };
 
+  // ── iOS: Simple free-plan screen with no pricing ────────────────────
+  if (Platform.OS === 'ios') {
+    return (
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <Stack.Screen options={{
+          title: 'Billing',
+          headerLeft: () => (
+            <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={{ paddingLeft: 8 }}>
+              <Ionicons name="chevron-back" size={24} color="#3B82F6" />
+            </Pressable>
+          ),
+        }} />
+        <Text style={[styles.title, { color: theme.text }]}>Your Plan</Text>
+        <Text style={[styles.subtitle, { color: theme.mutedText }]}>
+          Your free plan includes up to 2 teams with no charges.
+        </Text>
+        <View style={[styles.planCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <Text style={styles.planBadge}>Free plan</Text>
+          <Text style={[styles.planPrice, { color: theme.text }]}>Free</Text>
+          <View style={styles.featureList}>
+            {['Up to 2 teams', 'Roster management', 'Game scheduling', 'Team feed & posts'].map((feature) => (
+              <View style={styles.featureItem} key={feature}>
+                <Ionicons name="checkmark-circle" size={16} color="#16A34A" />
+                <Text style={[styles.featureText, { color: theme.text }]}>{feature}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      </View>
+    );
+  }
+
+  // ── Android / Web: Full billing screen ─────────────────────────────
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <Stack.Screen options={{ 
+      <Stack.Screen options={{
         title: 'Billing',
         headerLeft: () => (
           <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={{ paddingLeft: 8 }}>

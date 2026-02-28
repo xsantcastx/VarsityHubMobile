@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Modal, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { Alert, Modal, Platform, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
 // @ts-ignore
 import { httpPost } from '@/api/http';
 import { Colors } from '@/constants/Colors';
@@ -164,6 +164,13 @@ export default function Step6AuthorizedUsers() {
 
       // USER_LIMIT_REACHED: Show upgrade prompt (match TEAM_LIMIT_EXCEEDED pattern)
       if (e?.status === 403 && (errorCode === 'USER_LIMIT_REACHED' || /USER_LIMIT_REACHED/i.test(String(msg)))) {
+        if (Platform.OS === 'ios') {
+          Alert.alert(
+            'User Limit Reached',
+            'You have reached the maximum number of authorized users for your plan.'
+          );
+          return;
+        }
         const currentPlan = getPlanDefinition(ob.plan);
         const nextPlan = ob.plan === 'rookie' ? getPlanDefinition('veteran') : getPlanDefinition('legend');
         const nextLimit = nextPlan.max_authorized_users_per_team == null
@@ -297,7 +304,9 @@ export default function Step6AuthorizedUsers() {
           </View>
           {!canAddMore && (
             <Text style={styles.limitWarning}>
-              You've reached your plan limit. Upgrade for more users.
+              {Platform.OS === 'ios'
+                ? 'You have reached the maximum number of authorized users.'
+                : "You've reached your plan limit. Upgrade for more users."}
             </Text>
           )}
         </View>

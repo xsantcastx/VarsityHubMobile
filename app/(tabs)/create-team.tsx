@@ -6,7 +6,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Pressable, ScrollView as RNScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Platform, Pressable, ScrollView as RNScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Subscriptions, Team, User } from '@/api/entities';
@@ -246,18 +246,34 @@ export default function CreateTeamScreen() {
       // Only enforce limits for coaches
       if (userRole === 'coach') {
         if (!canCreateMore) {
-          Alert.alert(
-            'Limit Reached',
-            `Your ${userPlan === 'rookie' ? 'Rookie' : userPlan === 'veteran' ? 'Veteran' : 'current'} plan has reached its team limit. Upgrade to add more teams.`,
-            [
-              { text: 'Cancel', style: 'cancel', onPress: () => setSubmitting(false) },
-              { text: 'View Plans', onPress: () => { setSubmitting(false); router.push('/subscription-paywall'); } }
-            ]
-          );
+          if (Platform.OS === 'ios') {
+            Alert.alert(
+              'Limit Reached',
+              "You've reached the maximum number of teams.",
+              [{ text: 'OK', onPress: () => setSubmitting(false) }]
+            );
+          } else {
+            Alert.alert(
+              'Limit Reached',
+              `Your ${userPlan === 'rookie' ? 'Rookie' : userPlan === 'veteran' ? 'Veteran' : 'current'} plan has reached its team limit. Upgrade to add more teams.`,
+              [
+                { text: 'Cancel', style: 'cancel', onPress: () => setSubmitting(false) },
+                { text: 'View Plans', onPress: () => { setSubmitting(false); router.push('/subscription-paywall'); } }
+              ]
+            );
+          }
           return;
         }
 
         if (userPlan === 'rookie' && teamCount >= 2) {
+          if (Platform.OS === 'ios') {
+            Alert.alert(
+              'Limit Reached',
+              "You've reached the maximum number of teams.",
+              [{ text: 'OK', onPress: () => setSubmitting(false) }]
+            );
+            return;
+          }
           const newTeamCount = teamCount + 1;
           Alert.alert(
             'Upgrade Required',
@@ -433,7 +449,7 @@ export default function CreateTeamScreen() {
               <Text style={[styles.limitBadge, { backgroundColor: Colors[colorScheme].tint + '15', color: Colors[colorScheme].tint }]}>
                 {planBadgeText}
               </Text>
-              {limitReached && (
+              {limitReached && Platform.OS !== 'ios' && (
                 <Pressable onPress={() => router.push('/subscription-paywall')} style={styles.limitUpgradeLink}>
                   <Ionicons name="arrow-forward-circle" size={18} color={Colors[colorScheme].tint} />
                   <Text style={[styles.limitUpgradeText, { color: Colors[colorScheme].tint }]}>View plans</Text>
@@ -449,7 +465,7 @@ export default function CreateTeamScreen() {
                 </Text>
                 <Text style={[styles.limitDescription, { color: Colors[colorScheme].mutedText }]}>
                   {limitReached
-                    ? 'Upgrade your plan to add more teams and authorized staff.'
+                    ? (Platform.OS === 'ios' ? "You've reached the maximum number of teams." : 'Upgrade your plan to add more teams and authorized staff.')
                     : remainingCount === null
                       ? 'Unlimited teams on this plan.'
                       : `${remainingCount} team${remainingCount === 1 ? '' : 's'} remaining on your plan.`}
@@ -564,18 +580,25 @@ export default function CreateTeamScreen() {
                 onPress={async () => {
                   const userPlan = (teamLimits?.subscription_tier || 'rookie').toLowerCase();
                   if (userPlan !== 'legend') {
-                    Alert.alert(
-                      'Legend Plan Required',
-                      'Extracurricular clubs (Theater, Chess, Debate, etc.) require the Legend plan ($19.99/year). Upgrade to create clubs beyond sports teams.',
-                      [
-                        { text: 'Cancel', style: 'cancel' },
-                        { 
-                          text: 'View Plans', 
-                          onPress: () => router.push('/subscription-paywall'),
-                          style: 'default'
-                        }
-                      ]
-                    );
+                    if (Platform.OS === 'ios') {
+                      Alert.alert(
+                        'Not Available',
+                        'Extracurricular clubs are not available on your current plan.'
+                      );
+                    } else {
+                      Alert.alert(
+                        'Legend Plan Required',
+                        'Extracurricular clubs (Theater, Chess, Debate, etc.) require the Legend plan ($19.99/year). Upgrade to create clubs beyond sports teams.',
+                        [
+                          { text: 'Cancel', style: 'cancel' },
+                          {
+                            text: 'View Plans',
+                            onPress: () => router.push('/subscription-paywall'),
+                            style: 'default'
+                          }
+                        ]
+                      );
+                    }
                     return;
                   }
                   setClubType('extracurricular');
@@ -806,7 +829,9 @@ export default function CreateTeamScreen() {
             <View style={styles.limitWarning}>
               <Ionicons name="alert-circle" size={18} color={colorScheme === 'dark' ? Colors[colorScheme].tint : '#B45309'} />
               <Text style={styles.limitWarningText}>
-                You’ve reached the {planDisplayName} plan limit. Upgrade to create more teams.
+                {Platform.OS === 'ios'
+                  ? "You've reached the maximum number of teams."
+                  : `You've reached the ${planDisplayName} plan limit. Upgrade to create more teams.`}
               </Text>
             </View>
           )}

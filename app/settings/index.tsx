@@ -383,7 +383,7 @@ export default function SettingsScreen() {
                     {/* Billing (coaches only) */}
                     {role === 'coach' && (
                       <SectionCard title="Billing">
-                        <NavRow title="Manage Subscription" subtitle={plan ? String(plan) : 'No subscription'} onPress={() => void router.push('/settings/manage-subscription')} />
+                        <NavRow title="Manage Subscription" subtitle={Platform.OS === 'ios' ? 'Plan: Free' : (plan ? String(plan) : 'No subscription')} onPress={() => void router.push('/settings/manage-subscription')} />
                       </SectionCard>
                     )}
 

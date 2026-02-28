@@ -27,13 +27,13 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function SubscriptionPaywallScreen() {
-  const _router = useRouter();
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
-  const [selectedTier, setSelectedTier] = useState<CoachTier>(Platform.OS === 'ios' ? 'rookie' : 'veteran');
+  const isIOS = Platform.OS === 'ios';
+  const [selectedTier, setSelectedTier] = useState<CoachTier>(isIOS ? 'rookie' : 'veteran');
   const [loading, setLoading] = useState(false);
   const [promoCode, setPromoCode] = useState('');
-  const availableTiers: CoachTier[] = Platform.OS === 'ios'
+  const availableTiers: CoachTier[] = isIOS
     ? ['rookie']
     : ['rookie', 'veteran', 'legend'];
   const [modal, setModal] = useState<{
@@ -44,13 +44,10 @@ export default function SubscriptionPaywallScreen() {
   } | null>(null);
 
   const handleSubscribe = async () => {
-    if (Platform.OS === 'ios') {
-      setModal({
-        visible: true,
-        title: 'Not available on iOS',
-        message: 'Paid coach plan upgrades are currently unavailable in the iOS app.',
-        options: [{ label: 'Got it', onPress: () => setModal(null) }],
-      });
+    if (isIOS) {
+      // On iOS, just navigate back — no paid plans exist
+      if (router.canGoBack()) router.back();
+      else router.replace('/(tabs)' as any);
       return;
     }
     if (selectedTier === 'rookie') {
@@ -65,11 +62,11 @@ export default function SubscriptionPaywallScreen() {
 
     setLoading(true);
     try {
-      const data: any = await httpPost('/payments/subscribe', { 
+      const data: any = await httpPost('/payments/subscribe', {
         plan: selectedTier,
-        promo_code: promoCode.trim() || undefined 
+        promo_code: promoCode.trim() || undefined
       });
-      
+
       if (data?.url) {
         // Open Stripe checkout in browser
         await WebBrowser.openBrowserAsync(String(data.url));
@@ -90,9 +87,54 @@ export default function SubscriptionPaywallScreen() {
     }
   };
 
+  // ── iOS: Simple free-plan-only screen ──────────────────────────────
+  if (isIOS) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
+        <Stack.Screen options={{
+          title: 'Your Plan',
+          headerLeft: () => (
+            <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={{ paddingLeft: 8 }}>
+              <Ionicons name="chevron-back" size={24} color="#3B82F6" />
+            </Pressable>
+          ),
+        }} />
+
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          <View style={styles.header}>
+            <Text style={[styles.title, { color: Colors[colorScheme].text }]}>
+              Rookie Plan
+            </Text>
+            <Text style={[styles.subtitle, { color: '#6B7280' }]}>
+              Everything you need to manage your program
+            </Text>
+          </View>
+
+          <View style={styles.benefitsSection}>
+            <CoachTierBenefits tier="rookie" compact={false} />
+          </View>
+
+          <View style={styles.ctaSection}>
+            <Pressable
+              style={[styles.ctaButton, { backgroundColor: getTierColor('rookie') }]}
+              onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)}
+            >
+              <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+              <Text style={styles.ctaButtonText}>You're All Set</Text>
+            </Pressable>
+            <Text style={[styles.ctaSubtext, { color: '#6B7280' }]}>
+              Free • No credit card required
+            </Text>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
+  // ── Android / Web: Full paywall with all tiers ─────────────────────
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
-      <Stack.Screen options={{ 
+      <Stack.Screen options={{
         title: 'Choose Your Plan',
         headerLeft: () => (
           <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={{ paddingLeft: 8 }}>
@@ -144,7 +186,7 @@ export default function SubscriptionPaywallScreen() {
           <Text style={[styles.comparisonTitle, { color: Colors[colorScheme].text }]}>
             Compare Plans
           </Text>
-          
+
           <View style={styles.comparisonTable}>
             {/* Header Row */}
             <View style={[styles.comparisonRow, styles.comparisonHeader]}>

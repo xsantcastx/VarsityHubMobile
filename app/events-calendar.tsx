@@ -24,6 +24,7 @@ export default function EventsCalendarScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [games, setGames] = useState<GameEvent[]>([]);
   const [followedTeams, setFollowedTeams] = useState<string[]>([]);
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -72,6 +73,7 @@ export default function EventsCalendarScreen() {
         setGames(filteredGames);
       } catch (err) {
         console.error('Failed to load calendar data:', err);
+        if (mounted) setError('Unable to load events. Please try again.');
       } finally {
         if (mounted) setLoading(false);
       }
@@ -143,6 +145,18 @@ export default function EventsCalendarScreen() {
     );
   }
 
+  if (error) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
+        <Stack.Screen options={{ title: 'Team Calendar', headerShown: true }} />
+        <View style={styles.loadingContainer}>
+          <Ionicons name="cloud-offline-outline" size={48} color={Colors[colorScheme].mutedText} />
+          <Text style={[styles.emptyStateText, { color: Colors[colorScheme].text, marginTop: 12 }]}>{error}</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['bottom']}>
       <Stack.Screen options={{ title: 'Team Calendar', headerShown: true }} />
@@ -164,6 +178,17 @@ export default function EventsCalendarScreen() {
             <Ionicons name="calendar" size={20} color={Colors[colorScheme].tint} />
             <Text style={[styles.infoText, { color: Colors[colorScheme].mutedText }]}>
               Showing events for {followedTeams.length} followed {followedTeams.length === 1 ? 'team' : 'teams'}
+            </Text>
+          </View>
+        )}
+
+        {/* No events state when teams are followed but no games */}
+        {followedTeams.length > 0 && games.length === 0 && (
+          <View style={[styles.emptyState, { backgroundColor: Colors[colorScheme].surface, marginBottom: 16 }]}>
+            <Ionicons name="calendar-outline" size={48} color={Colors[colorScheme].mutedText} />
+            <Text style={[styles.emptyStateText, { color: Colors[colorScheme].text }]}>No events found</Text>
+            <Text style={[styles.emptyStateSubtext, { color: Colors[colorScheme].mutedText }]}>
+              Your followed teams have no scheduled events yet
             </Text>
           </View>
         )}

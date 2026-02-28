@@ -404,7 +404,7 @@ export default function MessagesScreen() {
           <View style={styles.emptyState}>
             <Ionicons name="chatbubbles-outline" size={64} color={Colors[colorScheme].tabIconDefault} />
             <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text }]}>
-              {query ? 'No conversations found' : 'No messages yet'}
+              {query ? 'No conversations found' : 'No conversations yet'}
             </Text>
             <Text style={[styles.emptySubtitle, { color: Colors[colorScheme].tabIconDefault }]}>
               {query ? 'Try a different search term' : 'Start a conversation to get connected'}
