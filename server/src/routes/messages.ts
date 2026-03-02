@@ -161,8 +161,19 @@ const [me, recipient] = await Promise.all([
   prisma.user.findUnique({ where: { id: meId }, select: { preferences: true } }),
   prisma.user.findUnique({ where: { id: toId! }, select: { preferences: true } }),
 ]);
+
+if (!recipient) {
+  return res.status(404).json({ error: 'Recipient not found' });
+}
+
+// Prevent messaging organization accounts
+const recipientPrefs = (recipient.preferences || {}) as any;
+if (recipientPrefs.account_type === 'organization') {
+  return res.status(403).json({ error: 'ORG_ACCOUNT', message: 'Organization accounts cannot receive direct messages.' });
+}
+
 const senderAge = ageFromDob((me?.preferences as any)?.dob);
-const recipientAge = ageFromDob((recipient?.preferences as any)?.dob);
+const recipientAge = ageFromDob(recipientPrefs?.dob);
 
 // Minor (under 18) may only message accounts they follow
 if (senderAge !== null && senderAge < 18) {

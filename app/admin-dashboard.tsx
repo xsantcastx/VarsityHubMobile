@@ -122,12 +122,18 @@ export default function AdminDashboardScreen() {
       style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} 
       edges={['top']}
     >
-      <Stack.Screen 
-        options={{ 
+      <Stack.Screen
+        options={{
           title: 'Admin Dashboard',
+          headerShown: true,
           headerStyle: { backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white' },
           headerTintColor: colorScheme === 'dark' ? '#ECEDEE' : '#111827',
-        }} 
+          headerLeft: () => (
+            <Pressable onPress={() => router.back()} style={{ paddingRight: 8 }}>
+              <Ionicons name="chevron-back" size={28} color="#007AFF" />
+            </Pressable>
+          ),
+        }}
       />
 
       {loading && !refreshing ? (

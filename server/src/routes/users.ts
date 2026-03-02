@@ -706,6 +706,7 @@ usersRouter.get('/search/mentions', requireAuth as any, mentionsSearchLimiter as
       display_name: true,
       avatar_url: true,
       email_verified: true,
+      preferences: true,
     },
     take: limit,
     orderBy: [
@@ -713,16 +714,45 @@ usersRouter.get('/search/mentions', requireAuth as any, mentionsSearchLimiter as
     ]
   });
 
-  // Ensure all fields have safe defaults (no null values that will crash React Native)
-  const safeUsers = users.map(user => ({
-    id: user.id,
-    username: user.username || user.display_name || 'user',
-    display_name: user.display_name || user.username || 'User',
-    avatar_url: user.avatar_url,
-    email_verified: user.email_verified,
-  }));
+  // Filter out organization accounts and ensure safe defaults
+  const safeUsers = users
+    .filter(user => (user.preferences as any)?.account_type !== 'organization')
+    .map(user => ({
+      id: user.id,
+      username: user.username || user.display_name || 'user',
+      display_name: user.display_name || user.username || 'User',
+      avatar_url: user.avatar_url,
+      email_verified: user.email_verified,
+    }));
 
   res.json(safeUsers);
+});
+
+// Get blocked users
+// NOTE: Must be defined BEFORE the /:id catch-all route, otherwise Express
+// matches "blocked" as an :id parameter and returns 404.
+usersRouter.get('/blocked', requireAuth as any, async (req: AuthedRequest, res) => {
+  try {
+    const blocks = await prisma.blockedUser.findMany({
+      where: { blocker_id: req.user!.id },
+      include: {
+        blocked: {
+          select: {
+            id: true,
+            display_name: true,
+            avatar_url: true,
+            email: true,
+          },
+        },
+      },
+      orderBy: { created_at: 'desc' },
+    });
+
+    return res.json(blocks.map(b => b.blocked));
+  } catch (error) {
+    console.error('Get blocked users error:', error);
+    return res.status(500).json({ error: 'Failed to get blocked users' });
+  }
 });
 
 // Public profile: basic user info plus counts and is_following flag
@@ -846,27 +876,4 @@ usersRouter.delete('/:id/block', requireAuth as any, async (req: AuthedRequest, 
   }
 });
 
-// Get blocked users
-usersRouter.get('/blocked', requireAuth as any, async (req: AuthedRequest, res) => {
-  try {
-    const blocks = await prisma.blockedUser.findMany({
-      where: { blocker_id: req.user!.id },
-      include: {
-        blocked: {
-          select: {
-            id: true,
-            display_name: true,
-            avatar_url: true,
-            email: true,
-          },
-        },
-      },
-      orderBy: { created_at: 'desc' },
-    });
 
-    return res.json(blocks.map(b => b.blocked));
-  } catch (error) {
-    console.error('Get blocked users error:', error);
-    return res.status(500).json({ error: 'Failed to get blocked users' });
-  }
-});

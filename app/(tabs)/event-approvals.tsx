@@ -1,7 +1,7 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -68,6 +68,7 @@ const ROLE_LABELS: Record<string, string> = {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function EventApprovalsScreen() {
+  const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const C = Colors[colorScheme];
 
@@ -394,7 +395,11 @@ export default function EventApprovalsScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: C.background }]} edges={['bottom']}>
-      <Stack.Screen options={{ title: 'Approvals', headerShown: true }} />
+      <Stack.Screen options={{ title: 'Approvals', headerShown: true, headerLeft: () => (
+            <Pressable onPress={() => router.back()} style={{ paddingRight: 8 }}>
+              <Ionicons name="chevron-back" size={28} color="#007AFF" />
+            </Pressable>
+          ) }} />
 
       {isLoading && !refreshing ? (
         <View style={styles.loadingContainer}>

@@ -164,7 +164,11 @@ export default function PublicEventScreen() {
   
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
-      <Stack.Screen options={{ title: 'Public Event' }} />
+      <Stack.Screen options={{ title: 'Public Event', headerShown: true, headerLeft: () => (
+            <Pressable onPress={() => router.back()} style={{ paddingRight: 8 }}>
+              <Ionicons name="chevron-back" size={28} color="#007AFF" />
+            </Pressable>
+          ) }} />
       
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.headerSection}>

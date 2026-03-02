@@ -77,22 +77,22 @@ function PlanCard({
   return (
     <View style={styles.cardWrapper}>
       <Pressable onPress={onPress} style={[
-        styles.card, 
+        styles.card,
         selected && styles.cardSelected,
         selected && styles.cardWithButton,
         { borderColor: selected ? getPlanColor(option.id) : (isDark ? '#374151' : '#E5E7EB') },
-        { backgroundColor: selected ? (isDark ? '#1F2937' : '#FFFFFF') : (isDark ? '#111827' : '#F9FAFB') }
+        { backgroundColor: selected ? getPlanColor(option.id) : (isDark ? '#111827' : '#F9FAFB') }
       ]}>
       <View style={styles.cardHeader}>
         <View style={styles.titleRow}>
-          <Ionicons name={getIconName()} size={24} color={getPlanColor(option.id)} />
-          <Text style={[styles.cardTitle, { color: isDark ? '#F9FAFB' : '#111827' }]}>{option.name}</Text>
+          <Ionicons name={getIconName()} size={24} color={selected ? '#FFFFFF' : getPlanColor(option.id)} />
+          <Text style={[styles.cardTitle, { color: selected ? '#FFFFFF' : (isDark ? '#F9FAFB' : '#111827') }]}>{option.name}</Text>
         </View>
       </View>
-      <Text style={[styles.price, { color: isDark ? '#F9FAFB' : '#111827' }]}>{option.price} <Text style={[styles.period, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>{option.period}</Text></Text>
+      <Text style={[styles.price, { color: selected ? '#FFFFFF' : (isDark ? '#F9FAFB' : '#111827') }]}>{option.price} <Text style={[styles.period, { color: selected ? 'rgba(255,255,255,0.8)' : (isDark ? '#9CA3AF' : '#6B7280') }]}>{option.period}</Text></Text>
       <View style={styles.benefitsList}>
         {option.features.map((benefit) => (
-          <Text key={benefit} style={[styles.benefitItem, { color: isDark ? '#34D399' : '#16A34A' }]}>{`- ${benefit}`}</Text>
+          <Text key={benefit} style={[styles.benefitItem, { color: selected ? 'rgba(255,255,255,0.95)' : (isDark ? '#34D399' : '#16A34A') }]}>{`- ${benefit}`}</Text>
         ))}
       </View>
       </Pressable>

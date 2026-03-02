@@ -41,7 +41,7 @@ export default function SignInScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { signInWithGoogle, loading: googleLoading, ready: googleReady } = useGoogleAuth();
-  const { signInWithApple } = useAppleAuth();
+  const { signInWithApple, loading: appleLoading } = useAppleAuth();
   const { checkAuth } = useAuth();
 
   const onSubmit = async () => {
@@ -164,6 +164,7 @@ export default function SignInScreen() {
   };
 
   const handleAppleLogin = async () => {
+    if (appleLoading) return;
     if (Platform.OS !== 'ios') {
       setError('Apple sign in is only available on iOS.');
       return;

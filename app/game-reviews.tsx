@@ -1,6 +1,7 @@
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 // @ts-ignore
 import { Post as PostApi } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
@@ -8,6 +9,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 
 export default function GameReviewsScreen() {
   const colorScheme = useColorScheme() ?? 'light';
+  const router = useRouter();
   const { game_id } = useLocalSearchParams<{ game_id?: string }>();
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<any[]>([]);
@@ -34,7 +36,11 @@ export default function GameReviewsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
-      <Stack.Screen options={{ title: 'Reviews' }} />
+      <Stack.Screen options={{ title: 'Reviews', headerShown: true, headerLeft: () => (
+            <Pressable onPress={() => router.back()} style={{ paddingRight: 8 }}>
+              <Ionicons name="chevron-back" size={28} color="#007AFF" />
+            </Pressable>
+          ) }} />
       {loading && <ActivityIndicator />}
       <FlatList
         data={items}

@@ -1,4 +1,4 @@
-import { applyClearVote, applyVoteSelection, buildVoteSummary, parseVoteSummary } from '../voteSummary';
+import { applyClearVote, applyVoteSelection, buildVoteSummary, parseVoteSummary } from '@/utils/voteSummary';
 
 describe('voteSummary helpers', () => {
   it('buildVoteSummary clamps negatives and computes percentages', () => {

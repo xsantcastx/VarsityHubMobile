@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import * as ImagePicker from 'expo-image-picker';
-import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { Stack, useRouter } from 'expo-router';
 import { useMemo, useRef, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { captureRef } from 'react-native-view-shot';
@@ -124,6 +125,11 @@ export default function CreateCollageScreen() {
 
   return (
     <ScrollView contentContainerStyle={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
+      <Stack.Screen options={{ title: 'Create Collage', headerShown: true, headerLeft: () => (
+            <Pressable onPress={() => router.back()} style={{ paddingRight: 8 }}>
+              <Ionicons name="chevron-back" size={28} color="#007AFF" />
+            </Pressable>
+          ) }} />
       <Text style={[styles.h1, { color: Colors[colorScheme].text }]}>Create Collage</Text>
       <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>Choose from organic layouts for a more natural look</Text>
       <Text style={[styles.sectionLabel, { color: Colors[colorScheme].text }]}>Organic Templates</Text>

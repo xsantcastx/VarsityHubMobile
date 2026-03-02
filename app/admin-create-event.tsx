@@ -20,13 +20,13 @@ import { httpPost } from '@/api/http';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 const EVENT_TYPES = [
-  { value: 'game', label: '🏈 Game/Match', icon: 'football' },
-  { value: 'watch_party', label: '📺 Watch Party', icon: 'tv' },
-  { value: 'fundraiser', label: '💰 Fundraiser', icon: 'cash' },
-  { value: 'tryout', label: '🏃 Tryout/Practice', icon: 'fitness' },
-  { value: 'bbq', label: '🍔 BBQ/Social', icon: 'restaurant' },
-  { value: 'team_meal', label: '🍽️ Team Meal', icon: 'cafe' },
-  { value: 'other', label: '📌 Other', icon: 'ellipsis-horizontal' },
+  { value: 'game', label: 'Game/Match', emoji: '🏈' },
+  { value: 'watch_party', label: 'Watch Party', emoji: '📺' },
+  { value: 'fundraiser', label: 'Fundraiser', emoji: '💰' },
+  { value: 'tryout', label: 'Tryout/Practice', emoji: '🏃' },
+  { value: 'bbq', label: 'BBQ/Social', emoji: '🍔' },
+  { value: 'team_meal', label: 'Team Meal', emoji: '🍽️' },
+  { value: 'other', label: 'Other', emoji: '📌' },
 ];
 
 export default function CreateEventScreen() {
@@ -199,11 +199,7 @@ export default function CreateEventScreen() {
                 ]}
                 onPress={() => setEventType(type.value)}
               >
-                <Ionicons
-                  name={type.icon as any}
-                  size={20}
-                  color={eventType === type.value ? Colors[colorScheme].tint : Colors[colorScheme].mutedText}
-                />
+                <Text style={{ fontSize: 24 }}>{type.emoji}</Text>
                 <Text
                   style={[
                     styles.typeLabel,

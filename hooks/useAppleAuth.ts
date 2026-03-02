@@ -1,7 +1,7 @@
 import { User } from '@/api/entities';
 import { getApiBaseUrl } from '@/api/http';
 import * as AppleAuthentication from 'expo-apple-authentication';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 
 type AppleAuthResult = Awaited<ReturnType<typeof User.loginViaApple>>;
@@ -30,7 +30,14 @@ export function useAppleAuth() {
     return () => { mounted = false; };
   }, []);
 
+  const signInInProgressRef = useRef(false);
+
   const signInWithApple = useCallback(async (): Promise<AppleAuthResult> => {
+    if (signInInProgressRef.current) {
+      console.log('[Apple Auth] Sign-in already in progress, skipping duplicate call');
+      throw new Error('User canceled Apple sign-in');
+    }
+    signInInProgressRef.current = true;
     setError(null);
     setLoading(true);
     try {
@@ -235,6 +242,7 @@ export function useAppleAuth() {
       throw err;
     } finally {
       setLoading(false);
+      signInInProgressRef.current = false;
     }
   }, [available]);
 

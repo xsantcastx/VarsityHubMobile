@@ -109,9 +109,15 @@ export default function AdminTeamsScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'bottom']}>
-      <Stack.Screen 
-        options={{ 
+      <Stack.Screen
+        options={{
           title: 'Admin · All Teams',
+          headerShown: true,
+          headerLeft: () => (
+            <Pressable onPress={() => router.back()} style={{ paddingRight: 8 }}>
+              <Ionicons name="chevron-back" size={28} color="#007AFF" />
+            </Pressable>
+          ),
           headerRight: () => (
             <View style={{ flexDirection: 'row', gap: 12, marginRight: 8 }}>
               {bulkMode && (

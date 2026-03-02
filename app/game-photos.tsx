@@ -1,9 +1,10 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 // @ts-ignore
 import { Post as PostApi } from '@/api/entities';
 
@@ -36,7 +37,11 @@ export default function GamePhotosScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
-      <Stack.Screen options={{ title: 'Photos' }} />
+      <Stack.Screen options={{ title: 'Photos', headerShown: true, headerLeft: () => (
+            <Pressable onPress={() => router.back()} style={{ paddingRight: 8 }}>
+              <Ionicons name="chevron-back" size={28} color="#007AFF" />
+            </Pressable>
+          ) }} />
       {loading && <ActivityIndicator color={Colors[colorScheme].tint} />}
       <FlatList
         data={items}

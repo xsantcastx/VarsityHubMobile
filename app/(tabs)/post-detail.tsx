@@ -5,7 +5,7 @@ import { formatCount, getCountryFlag, timeAgo } from '@/utils/format';
 import { safeGoBack } from '@/utils/navigation';
 import { Image as ExpoImage } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -61,10 +61,25 @@ export default function PostDetailScreen() {
   const currentPostId = useMemo(() => {
     return postIdsArray[currentPostIndex] || params.id;
   }, [postIdsArray, currentPostIndex, params.id]);
-  
+
   // FlatList ref for programmatic scrolling
   const flatListRef = useRef<FlatList>(null);
   const isInitialLoad = useRef(true);
+
+  // Sync currentPostIndex every time this screen gains focus (screen stays mounted in tabs)
+  useFocusEffect(
+    useCallback(() => {
+      const newIndex = params.index ? parseInt(params.index, 10) : 0;
+      setCurrentPostIndex(newIndex);
+      setTimeout(() => {
+        if (flatListRef.current && postIdsArray.length > 1) {
+          try {
+            flatListRef.current.scrollToIndex({ index: newIndex, animated: false });
+          } catch (_) { /* scrollToIndex may fail before layout */ }
+        }
+      }, 50);
+    }, [params.index, params.postIds, postIdsArray.length])
+  );
 
   const [loading, setLoading] = useState(true);
   const [post, setPost] = useState<any>(null);
@@ -146,14 +161,14 @@ export default function PostDetailScreen() {
         </View>
         
         {/* Comments Skeleton */}
-        <View style={[styles.commentsSection, { backgroundColor: Colors[colorScheme].card }]}>
-          <View style={[styles.commentsHeader, { borderBottomColor: Colors[colorScheme].border }]}>
+        <View style={[styles.commentsSection, { backgroundColor: 'transparent' }]}>
+          <View style={styles.commentsHeader}>
             <View style={[styles.skeletonCommentsTitle, { backgroundColor: Colors[colorScheme].surface }]} />
             <View style={[styles.skeletonCommentsCount, { backgroundColor: Colors[colorScheme].surface }]} />
           </View>
-          
+
           {Array.from({ length: 3 }).map((_, i) => (
-            <View key={i} style={[styles.commentCard, { borderBottomColor: Colors[colorScheme].surface }]}>
+            <View key={i} style={styles.commentCard}>
               <View style={styles.commentHeader}>
                 <View style={styles.commentAuthor}>
                   <View style={[styles.commentAvatar, { backgroundColor: Colors[colorScheme].surface }]} />
@@ -411,23 +426,26 @@ export default function PostDetailScreen() {
     );
   };
 
+  const followInFlight = useRef(false);
   const onFollow = async () => {
-    if (!post?.author_id) return;
-    
+    if (!post?.author_id || followInFlight.current) return;
+    followInFlight.current = true;
+
+    const prev = following;
+    setFollowing(!prev); // Optimistic update
+
     try {
-      if (following) {
-        // Unfollow
-        await User.unfollow(post.author_id);
-        setFollowing(false);
+      const authorId = String(post.author_id);
+      if (prev) {
+        await User.unfollow(authorId);
       } else {
-        // Follow
-        await User.follow(post.author_id);
-        setFollowing(true);
+        await User.follow(authorId);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('[post-detail] Error toggling follow:', error);
-      // Revert optimistic update on error
-      setFollowing(following);
+      setFollowing(prev); // Revert on error
+    } finally {
+      followInFlight.current = false;
     }
   };
 
@@ -762,27 +780,23 @@ export default function PostDetailScreen() {
             </Pressable>
             
             {postData.author_id && String(postData.author_id) !== String(currentUser?.id) && (
-              <Pressable 
+              <Pressable
                 style={[
-                  styles.followButton, 
-                  { 
-                    borderColor: following ? Colors[colorScheme].tint : Colors[colorScheme].tint,
-                    backgroundColor: following ? Colors[colorScheme].tint + '20' : 'transparent'
-                  }
-                ]} 
+                  styles.followButton,
+                  following
+                    ? { borderColor: '#FFB800', backgroundColor: 'transparent' }
+                    : { borderColor: Colors[colorScheme].border, backgroundColor: Colors[colorScheme].card }
+                ]}
                 onPress={onFollow}
               >
-                <Ionicons 
-                  name={following ? "checkmark" : "person-add"} 
-                  size={16} 
-                  color={following ? Colors[colorScheme].tint : Colors[colorScheme].tint} 
-                />
-                <Text style={[
-                  styles.followText, 
-                  { color: following ? Colors[colorScheme].tint : Colors[colorScheme].tint }
-                ]}>
-                  {following ? "Following" : "Follow"}
-                </Text>
+                {following ? (
+                  <Ionicons name="checkmark-circle" size={18} color="#FFB800" />
+                ) : (
+                  <>
+                    <Ionicons name="person-add-outline" size={15} color={Colors[colorScheme].text} />
+                    <Text style={[styles.followText, { color: Colors[colorScheme].text }]}>Follow</Text>
+                  </>
+                )}
               </Pressable>
             )}
           </View>
@@ -829,11 +843,11 @@ export default function PostDetailScreen() {
                 </Text>
               </Pressable>
               
-              <Pressable style={styles.actionButton} onPress={onSave}>
-                <Ionicons 
-                  name={saved ? "bookmark" : "bookmark-outline"} 
-                  size={20} 
-                  color={saved ? "#FFB800" : Colors[colorScheme].mutedText} 
+              <Pressable style={[styles.actionButton, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]} onPress={onSave}>
+                <Ionicons
+                  name={saved ? "bookmark" : "bookmark-outline"}
+                  size={20}
+                  color={saved ? "#FFB800" : Colors[colorScheme].icon}
                 />
               </Pressable>
             </View>
@@ -842,14 +856,14 @@ export default function PostDetailScreen() {
         </View>
 
         {/* Comments Section */}
-        <View style={[styles.commentsSection, { backgroundColor: Colors[colorScheme].card }]}>
-          <View style={[styles.commentsHeader, { borderBottomColor: Colors[colorScheme].border }]}>
+        <View style={[styles.commentsSection, { backgroundColor: 'transparent' }]}>
+          <View style={styles.commentsHeader}>
             <Text style={[styles.commentsTitle, { color: Colors[colorScheme].text }]}>Comments</Text>
-            <Text style={[styles.commentsCount, { color: Colors[colorScheme].tabIconDefault, backgroundColor: Colors[colorScheme].surface }]}>{localComments.length}</Text>
+            <Text style={[styles.commentsCount, { color: Colors[colorScheme].mutedText }]}>{localComments.length}</Text>
           </View>
           
           {/* Add Comment */}
-          <View style={[styles.addCommentWrapper, { borderBottomColor: Colors[colorScheme].border }]}>
+          <View style={styles.addCommentWrapper}>
             {replyingToComment && (
               <View style={[styles.replyingToBar, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
                 <Text style={[styles.replyingToText, { color: Colors[colorScheme].mutedText }]}>
@@ -906,7 +920,7 @@ export default function PostDetailScreen() {
           ) : (
             <View style={styles.commentsList}>
               {localComments.map((c) => (
-                <View key={String(c.id)} style={[styles.commentCard, { borderBottomColor: Colors[colorScheme].surface }]}>
+                <View key={String(c.id)} style={styles.commentCard}>
                   <View style={styles.commentHeader}>
                     <Pressable 
                       style={styles.commentAuthor}
@@ -935,7 +949,7 @@ export default function PostDetailScreen() {
                           style={styles.commentActionBtn}
                           onPress={() => setReplyingToComment({ id: String(c.id), authorName: c.author?.username ? `@${c.author.username}` : c.author?.display_name || 'User' })}
                         >
-                          <Ionicons name="arrow-undo-outline" size={16} color="#6B7280" />
+                          <Ionicons name="arrow-undo-outline" size={16} color={Colors[colorScheme].icon} />
                         </Pressable>
                       )}
                       {currentUser && c.author_id && String(currentUser.id) === String(c.author_id) && (
@@ -947,7 +961,7 @@ export default function PostDetailScreen() {
                               setEditCommentText(c.content || '');
                             }}
                           >
-                            <Ionicons name="pencil" size={16} color="#6B7280" />
+                            <Ionicons name="pencil" size={16} color={Colors[colorScheme].icon} />
                           </Pressable>
                           <Pressable
                             style={styles.commentActionBtn}
@@ -976,7 +990,7 @@ export default function PostDetailScreen() {
       
       {/* Custom Header */}
       <View style={[styles.header, { backgroundColor: Colors[colorScheme].surface, borderBottomColor: Colors[colorScheme].border }]}>
-        <Pressable style={styles.backButton} onPress={() => { safeGoBack(router); }}>
+        <Pressable style={styles.backButton} onPress={() => { router.back(); }}>
           <Ionicons name="arrow-back" size={24} color={Colors[colorScheme].text} />
         </Pressable>
         <View style={styles.headerCenter}>
@@ -1486,6 +1500,11 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#D1D5DB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.12,
+    shadowRadius: 3,
+    elevation: 2,
   },
   upvoteButton: {
     backgroundColor: '#2563EB',
@@ -1546,25 +1565,16 @@ const styles = StyleSheet.create({
 
   // Comments Section
   commentsSection: {
-    margin: 16,
-    borderRadius: 16,
-    ...Platform.select({
-      ios: {
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 8,
   },
   commentsHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
+    paddingHorizontal: 4,
+    paddingVertical: 12,
   },
   commentsTitle: {
     fontSize: 20,
@@ -1580,7 +1590,6 @@ const styles = StyleSheet.create({
 
   // Add Comment
   addCommentWrapper: {
-    borderBottomWidth: 1,
   },
   addCommentContainer: {
     flexDirection: 'row',
@@ -1641,7 +1650,6 @@ const styles = StyleSheet.create({
   },
   commentCard: {
     padding: 16,
-    borderBottomWidth: 1,
   },
   commentHeader: {
     flexDirection: 'row',
@@ -1677,7 +1685,8 @@ const styles = StyleSheet.create({
   },
   commentText: {
     fontSize: 15,
-    lineHeight: 20,
+    lineHeight: 22,
+    letterSpacing: 0.1,
   },
 
   // Edit Modal

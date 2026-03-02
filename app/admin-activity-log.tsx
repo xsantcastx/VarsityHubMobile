@@ -2,7 +2,7 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 import { Ionicons } from '@expo/vector-icons';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -21,6 +21,7 @@ interface ActivityLogItem {
 
 export default function AdminActivityLogScreen() {
   const colorScheme = useColorScheme() ?? 'light';
+  const router = useRouter();
   const { isAdmin, loading: _authLoading } = useRequireAdmin();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -154,8 +155,14 @@ export default function AdminActivityLogScreen() {
       <Stack.Screen
         options={{
           title: 'Activity Log',
+          headerShown: true,
           headerStyle: { backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white' },
           headerTintColor: colorScheme === 'dark' ? '#ECEDEE' : '#111827',
+          headerLeft: () => (
+            <Pressable onPress={() => router.back()} style={{ paddingRight: 8 }}>
+              <Ionicons name="chevron-back" size={28} color="#007AFF" />
+            </Pressable>
+          ),
         }}
       />
 

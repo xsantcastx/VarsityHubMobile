@@ -1,6 +1,6 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Modal, Platform, Pressable, Image as RNImage, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Animated, Modal, Platform, Pressable, Image as RNImage, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Game, Post, User } from '@/api/entities';
@@ -9,7 +9,7 @@ import { uploadFile } from '@/api/upload';
 import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 import { PromptPresets } from '@/components/RotatingPrompts';
 import { MentionInput } from '@/components/ui/MentionInput';
-import PrimaryButton from '@/components/ui/PrimaryButton';
+
 import VideoPlayer from '@/components/VideoPlayer';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -85,6 +85,7 @@ export default function CreatePostScreen() {
   const [precisionBannerDismissed, setPrecisionBannerDismissed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [postSuccess, setPostSuccess] = useState(false);
+  const successScale = useRef(new Animated.Value(0)).current;
   const showPrecisionWarning = Platform.OS === 'android' && permissionGranted && needsPreciseAccuracy && !precisionBannerDismissed;
   const locationReady = typeof location?.latitude === 'number' && typeof location?.longitude === 'number';
   const [draftReady, setDraftReady] = useState(false);
@@ -620,9 +621,16 @@ export default function CreatePostScreen() {
             : `Your post has been created and will appear on the ${postDestination}.`);
       
       setPostSuccess(true);
+      successScale.setValue(0);
+      Animated.spring(successScale, {
+        toValue: 1,
+        friction: 4,
+        tension: 80,
+        useNativeDriver: true,
+      }).start();
       setTimeout(() => {
         router.replace('/(tabs)');
-      }, 1500);
+      }, 1800);
     } catch (e: any) {
       console.error('[CreatePost] Error creating post:', {
         message: e?.message,
@@ -673,11 +681,26 @@ export default function CreatePostScreen() {
         <View style={styles.headerSpacer} />
         <View style={styles.postButtonContainer}>
           {postSuccess ? (
-            <View style={styles.successIndicator}>
-              <Text style={styles.successCheck}>✓</Text>
-            </View>
+            <Animated.View style={[styles.successIndicator, { transform: [{ scale: successScale }] }]}>
+              <Ionicons name="checkmark-circle" size={48} color="#F59E0B" />
+              <Text style={styles.successLabel}>Posted!</Text>
+            </Animated.View>
           ) : (
-            <PrimaryButton label={buttonLabel} onPress={onSubmit} disabled={!canPost || submitting} loading={submitting} />
+            <Pressable
+              onPress={onSubmit}
+              disabled={!canPost || submitting}
+              style={[styles.headerPostBtn, (!canPost || submitting) && { opacity: 0.45 }]}
+              accessibilityLabel={buttonLabel}
+            >
+              {submitting ? (
+                <Text style={styles.headerPostBtnText}>Posting...</Text>
+              ) : (
+                <>
+                  <Ionicons name="send" size={16} color="#FFFFFF" />
+                  <Text style={styles.headerPostBtnText}>{postType === 'highlight' ? 'Share' : 'Post'}</Text>
+                </>
+              )}
+            </Pressable>
           )}
         </View>
       </View>
@@ -1109,7 +1132,7 @@ export default function CreatePostScreen() {
               >
                 <Ionicons name="checkmark-circle" size={20} color="#fff" />
                 <Text style={styles.confirmButtonText}>
-                  {submitting ? 'Posting...' : 'Confirm & Upload'}
+                  {submitting ? 'Posting...' : (picked?.uri ? 'Confirm & Upload' : 'Confirm & Post')}
                 </Text>
               </Pressable>
             </View>
@@ -1867,12 +1890,32 @@ const styles = StyleSheet.create({
   successIndicator: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
-  successCheck: {
+  successLabel: {
     color: '#F59E0B',
-    fontSize: 22,
-    fontWeight: '800',
+    fontSize: 14,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  headerPostBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#F59E0B',
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 999,
+    shadowColor: '#F59E0B',
+    shadowOpacity: 0.3,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  headerPostBtnText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
   },
 });

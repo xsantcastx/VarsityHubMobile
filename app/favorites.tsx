@@ -246,10 +246,15 @@ export default function FavoritesScreen() {
   if (loading && items.length === 0) {
     return (
       <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.background }]} edges={['top', 'bottom']}>
-        <Stack.Screen options={{ 
+        <Stack.Screen options={{
           title: 'Favorites',
           headerBackTitle: 'Back',
           headerShown: true,
+          headerLeft: () => (
+            <Pressable onPress={() => router.back()} style={{ paddingRight: 8 }}>
+              <Ionicons name="chevron-back" size={28} color="#007AFF" />
+            </Pressable>
+          ),
         }} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator color={palette.tint} size="large" />

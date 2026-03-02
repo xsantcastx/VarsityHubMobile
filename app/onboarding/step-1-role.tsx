@@ -217,6 +217,12 @@ export default function Step1Role() {
         if (__DEV__) console.warn('[COACH ONBOARDING] ✅ Continuing as coach (preserving state)');
         dispatch({ type: 'UPDATE_DRAFT', data: { role: 'coach' } });
         setOB((prev) => ({ ...prev, role: 'coach' }));
+      } else if (role === 'fan' && wasCoachBefore) {
+        // Stale coach data in context — clear before starting fan onboarding
+        if (__DEV__) console.warn('[FAN ONBOARDING] 🔄 Clearing stale coach data');
+        await clearOnboarding();
+        dispatch({ type: 'INIT_FROM_PROFILE', profile: { role: 'fan' } });
+        setOB({ role: 'fan' });
       } else {
         dispatch({ type: 'UPDATE_DRAFT', data: { role } });
         setOB((prev) => ({ ...prev, role }));
@@ -238,7 +244,7 @@ export default function Step1Role() {
         router.replace('/onboarding/step-10-confirmation');
       } else {
         // Use reducer to calculate next step deterministically
-        const updatedState = (role === 'coach' && !wasCoachBefore)
+        const updatedState = (role === 'coach' && !wasCoachBefore) || (role === 'fan' && wasCoachBefore)
           ? { role }
           : { ...ob, role };
         const nextStepIndex = nextIncompleteStep(updatedState, role);

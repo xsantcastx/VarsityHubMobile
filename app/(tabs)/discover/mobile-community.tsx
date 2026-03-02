@@ -1051,8 +1051,14 @@ export default function CommunityDiscoverScreen() {
   );
 
   return (
-  <View style={[styles.container, { paddingTop: 12 + insets.top, backgroundColor: Colors[colorScheme].background }]}>      
+  <View style={[styles.container, { paddingTop: 12 + insets.top, backgroundColor: Colors[colorScheme].background }]}>
       <Stack.Screen options={{ title: 'Discover' }} />
+      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingBottom: 4 }}>
+        <Pressable onPress={() => router.back()} style={{ paddingRight: 8 }} accessibilityRole="button" accessibilityLabel="Go back">
+          <Ionicons name="chevron-back" size={28} color="#007AFF" />
+        </Pressable>
+        <Text style={{ fontSize: 20, fontWeight: '800', color: Colors[colorScheme].text, flex: 1 }}>Discover</Text>
+      </View>
       
       {viewMode === 'map' ? (
         /* Map View - Simplified without ListHeader */

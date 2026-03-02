@@ -11,7 +11,7 @@ import * as AuthSession from 'expo-auth-session';
 import * as Google from 'expo-auth-session/providers/google';
 import Constants from 'expo-constants';
 import * as WebBrowser from 'expo-web-browser';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -95,7 +95,6 @@ export function useGoogleAuth() {
         // Fallback to production URL for SSR or missing window
         uri = appConfig.webBaseUrl || 'https://varsityhub.app';
       }
-      console.log('[google-auth] Using web redirect:', uri);
       return uri;
     }
 
@@ -106,7 +105,6 @@ export function useGoogleAuth() {
       } catch {
         uri = `https://auth.expo.io/${PROJECT_FULL_NAME}`;
       }
-      console.log('[google-auth] Using Expo proxy redirect:', uri);
       return uri;
     }
 
@@ -121,7 +119,6 @@ export function useGoogleAuth() {
       uri = makeRedirectUri({
         native: `${scheme}:/oauthredirect`,
       });
-      console.log('[google-auth] Using iOS native redirect:', uri);
       return uri;
     }
 
@@ -129,7 +126,6 @@ export function useGoogleAuth() {
       native: `${Application.applicationId}:/oauthredirect`,
       scheme: appConfig.appScheme,
     });
-    console.log('[google-auth] Using custom scheme redirect:', uri, '(app scheme:', appConfig.appScheme, ')');
     return uri;
   }, [shouldUseProxy]);
 
@@ -171,6 +167,7 @@ export function useGoogleAuth() {
 
   // Always call useAuthRequest (React rules of hooks)
   const [request, , promptAsync] = Google.useAuthRequest(requestConfig);
+  const exchangeInProgressRef = useRef(false);
 
   const signInWithGoogle = useCallback(async (): Promise<GoogleAuthResult> => {
     if (!isConfigured) {
@@ -179,6 +176,10 @@ export function useGoogleAuth() {
     if (!request) {
       throw new Error('Google sign-in is not ready yet');
     }
+    if (exchangeInProgressRef.current) {
+      throw new Error('GOOGLE_SIGN_IN_CANCELLED');
+    }
+    exchangeInProgressRef.current = true;
     setError(null);
     setLoading(true);
     try {
@@ -205,7 +206,6 @@ export function useGoogleAuth() {
       }
       // Path 2: iOS native — Google returns an auth code, exchange it for an id_token
       else if (response.params?.code) {
-        console.log('[google-auth] token exchange params:', { requestRedirectUri: request.redirectUri, codeVerifier: !!request.codeVerifier, clientId: clients.iosClientId, redirectUriInBody: request.redirectUri });
         const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -228,8 +228,6 @@ export function useGoogleAuth() {
         throw new Error('Google sign-in failed: no id_token received');
       }
 
-      console.log('[google-auth] Got id_token, aud:', JSON.parse(atob(idToken.split('.')[1])).aud);
-
       const serverResponse = await User.loginViaGoogle(idToken);
       return serverResponse as GoogleAuthResult;
     } catch (err: any) {
@@ -243,6 +241,7 @@ export function useGoogleAuth() {
       throw err instanceof Error ? err : new Error(message);
     } finally {
       setLoading(false);
+      exchangeInProgressRef.current = false;
     }
   }, [isConfigured, promptAsync, request, clients]);
 

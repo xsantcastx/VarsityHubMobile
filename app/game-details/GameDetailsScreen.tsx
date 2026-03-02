@@ -24,7 +24,7 @@ import settings from '@/api/settings';
 import { uploadFile } from '@/api/upload';
 import VideoPlayer from '@/components/VideoPlayer';
 import GameVerticalFeedScreen from './GameVerticalFeedScreen';
-import { applyClearVote, applyVoteSelection, buildVoteSummary, parseVoteSummary, type VoteOption, type VoteSummary } from './voteSummary';
+import { applyClearVote, applyVoteSelection, buildVoteSummary, parseVoteSummary, type VoteOption, type VoteSummary } from '@/utils/voteSummary';
 
 import type { ColorValue } from 'react-native';
 const PLACEHOLDER_GRADIENT: readonly [ColorValue, ColorValue, ...ColorValue[]] = ['#1e293b', '#1d4ed8', '#38bdf8'];

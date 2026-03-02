@@ -65,6 +65,33 @@ export default function MessagesScreen() {
   }, [sharePostId, router]);
   const [searchResults, setSearchResults] = useState<MiniUser[]>([]);
   const [searchingUsers, setSearchingUsers] = useState(false);
+  const [suggested, setSuggested] = useState<MiniUser[]>([]);
+  const [suggestedLoaded, setSuggestedLoaded] = useState(false);
+
+  // Load suggested users (people the user follows) when compose modal opens
+  useEffect(() => {
+    if (!composeOpen || suggestedLoaded || !me?.id) return;
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await User.following(String(me.id));
+        if (!mounted) return;
+        const items: MiniUser[] = (res?.items || [])
+          .filter((u: any) => u?.id && u.id !== me.id)
+          .map((u: any) => ({
+            id: u.id,
+            display_name: u.display_name || u.username || 'User',
+            avatar_url: u.avatar_url ?? undefined,
+            email: u.email,
+          }));
+        setSuggested(items.slice(0, 15));
+        setSuggestedLoaded(true);
+      } catch {
+        // Non-critical: silently ignore
+      }
+    })();
+    return () => { mounted = false; };
+  }, [composeOpen, suggestedLoaded, me]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -237,7 +264,12 @@ export default function MessagesScreen() {
     if (prefillMessage) setPrefillMessage(null);
   };
 
-  const startConversation = (user: MiniUser) => {
+  const startConversation = (user: MiniUser & { account_type?: string }) => {
+    // Prevent messaging organization accounts
+    if (user.account_type === 'organization') {
+      Alert.alert('Cannot Message', 'Organization accounts cannot receive direct messages.');
+      return;
+    }
     // When starting a conversation, immediately clear the sharePost param
     // so the compose modal doesn't re-open on its own.
     if (sharePostId) {
@@ -492,7 +524,18 @@ export default function MessagesScreen() {
               />
             )}
 
-            {searchUserQuery.length < 2 && (
+            {searchUserQuery.length < 2 && suggested.length > 0 && (
+              <FlatList
+                data={suggested}
+                keyExtractor={(item) => item.id}
+                renderItem={renderUserSearchItem}
+                ListHeaderComponent={
+                  <Text style={[styles.suggestedHeader, { color: Colors[colorScheme].mutedText }]}>Suggested</Text>
+                }
+              />
+            )}
+
+            {searchUserQuery.length < 2 && suggested.length === 0 && (
               <View style={styles.emptyState}>
                 <Ionicons name="mail-outline" size={48} color={Colors[colorScheme].tabIconDefault} />
                 <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text, fontSize: 16 }]}>
@@ -754,6 +797,15 @@ const styles = StyleSheet.create({
   userSearchEmail: {
     fontSize: 14,
     marginTop: 2,
+  },
+  suggestedHeader: {
+    fontSize: 13,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
   },
   sheetBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'flex-end' },
   sheet: { width: '100%', borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 16, gap: 10 },

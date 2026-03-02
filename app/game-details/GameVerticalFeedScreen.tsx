@@ -35,19 +35,13 @@ import { AppLinks } from '@/utils/links';
 
 const { height: windowHeight, width: windowWidth } = Dimensions.get('window');
 
-let FastImage: any = null;
-try {
-  FastImage = require('react-native-fast-image');
-} catch (error) {
-  console.warn('[GameVerticalFeedScreen] FastImage not available, using fallback:', error);
-  FastImage = ({ source, style, resizeMode }: any) => (
-    <Image
-      source={source}
-      style={style}
-      contentFit={resizeMode === 'contain' ? 'contain' : 'cover'}
-    />
-  );
-}
+const FastImage = ({ source, style, resizeMode }: any) => (
+  <Image
+    source={source}
+    style={style}
+    contentFit={resizeMode === 'contain' ? 'contain' : 'cover'}
+  />
+);
 
 export type FeedPost = {
   id: string;

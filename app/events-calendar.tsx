@@ -134,7 +134,11 @@ export default function EventsCalendarScreen() {
   if (loading) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
-        <Stack.Screen options={{ title: 'Team Calendar', headerShown: true }} />
+        <Stack.Screen options={{ title: 'Team Calendar', headerShown: true, headerLeft: () => (
+            <Pressable onPress={() => router.back()} style={{ paddingRight: 8 }}>
+              <Ionicons name="chevron-back" size={28} color="#007AFF" />
+            </Pressable>
+          ) }} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
           <Text style={[styles.loadingText, { color: Colors[colorScheme].mutedText }]}>
@@ -148,7 +152,11 @@ export default function EventsCalendarScreen() {
   if (error) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
-        <Stack.Screen options={{ title: 'Team Calendar', headerShown: true }} />
+        <Stack.Screen options={{ title: 'Team Calendar', headerShown: true, headerLeft: () => (
+            <Pressable onPress={() => router.back()} style={{ paddingRight: 8 }}>
+              <Ionicons name="chevron-back" size={28} color="#007AFF" />
+            </Pressable>
+          ) }} />
         <View style={styles.loadingContainer}>
           <Ionicons name="cloud-offline-outline" size={48} color={Colors[colorScheme].mutedText} />
           <Text style={[styles.emptyStateText, { color: Colors[colorScheme].text, marginTop: 12 }]}>{error}</Text>

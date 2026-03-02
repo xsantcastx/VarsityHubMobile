@@ -29,7 +29,7 @@
         "config/*"
       ],
       "@/data/*": [
-        "app/data/*"
+        "data/*"
       ],
       "@/ui/*": [
         "components/ui/*"

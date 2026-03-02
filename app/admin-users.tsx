@@ -1,6 +1,7 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
+import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -64,7 +65,11 @@ export default function AdminUsersScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
-      <Stack.Screen options={{ title: 'Admin · Users' }} />
+      <Stack.Screen options={{ title: 'Admin · Users', headerShown: true, headerLeft: () => (
+            <Pressable onPress={() => router.back()} style={{ paddingRight: 8 }}>
+              <Ionicons name="chevron-back" size={28} color="#007AFF" />
+            </Pressable>
+          ) }} />
       <View style={styles.bar}>
         <TextInput value={q} onChangeText={setQ} placeholder="Search by name or email" placeholderTextColor={Colors[colorScheme].mutedText} style={[styles.search, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border, color: Colors[colorScheme].text }]} />
         <Pressable style={[styles.toggle, { borderColor: Colors[colorScheme].border }, showBanned && { backgroundColor: Colors[colorScheme].tint }]} onPress={() => setShowBanned((x) => !x)}>

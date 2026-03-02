@@ -1,9 +1,10 @@
 import CustomActionModal from '@/components/CustomActionModal';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Team as TeamApi } from '@/api/entities';
@@ -60,7 +61,11 @@ export default function TeamInvitesScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
-      <Stack.Screen options={{ title: 'Team Invites' }} />
+      <Stack.Screen options={{ title: 'Team Invites', headerShown: true, headerLeft: () => (
+            <Pressable onPress={() => router.back()} style={{ paddingRight: 8 }}>
+              <Ionicons name="chevron-back" size={28} color="#007AFF" />
+            </Pressable>
+          ) }} />
       <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Team Invites</Text>
       {loading && <View style={{ paddingVertical: 16 }}><ActivityIndicator /></View>}
       {invitesError && !loading && <Text style={styles.error}>{invitesError}</Text>}

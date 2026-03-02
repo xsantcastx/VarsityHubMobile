@@ -13,7 +13,7 @@ const isPlaceholderDsn = (dsn: string) => {
   return (
     lower.includes('your-key-here') ||
     !lower.startsWith('http') ||
-    !lower.includes('ingest.sentry.io')
+    !lower.includes('.sentry.io')
   );
 };
 

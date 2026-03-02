@@ -77,6 +77,8 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState<boolean>(false);
 
   const ONBOARDING_COMPLETE_KEY = '@onboarding_completed_once';
+  const ONBOARDING_COMPLETE_USER_KEY = '@onboarding_completed_user_id';
+  const LAST_ONBOARDING_USER_KEY = '@last_onboarding_user_id';
   
   const router = useRouter();
   const segments = useSegments();
@@ -197,19 +199,39 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         }
 
         const me: any = await User.me();
-        setUser(me);
-        setPendingVerificationEmail(null); // Clear pending email after successful auth
-
-        // ALWAYS sync local flag with server truth
         const serverComplete = me?.preferences?.onboarding_completed === true;
-        if (serverComplete && !hasCompletedOnboarding) {
+
+        // Sync local onboarding flag BEFORE setUser to prevent routing race condition.
+        // The routing effect fires when `user` changes — if hasCompletedOnboarding is
+        // stale from a different account, needsOnboarding evaluates wrong for one cycle.
+        if (serverComplete) {
           setHasCompletedOnboarding(true);
           await AsyncStorage.setItem(ONBOARDING_COMPLETE_KEY, 'true');
-        } else if (!serverComplete && hasCompletedOnboarding) {
-          // Server says incomplete but local says complete - trust server, clear local
+          await AsyncStorage.setItem(ONBOARDING_COMPLETE_USER_KEY, me.id);
+        } else {
+          // Server says incomplete — clear local flag regardless of who it belonged to
           setHasCompletedOnboarding(false);
           await AsyncStorage.removeItem(ONBOARDING_COMPLETE_KEY);
+          await AsyncStorage.removeItem(ONBOARDING_COMPLETE_USER_KEY);
         }
+
+        // Clear stale onboarding context data when a DIFFERENT user needs onboarding
+        if (!serverComplete && me?.id) {
+          const lastUserId = await AsyncStorage.getItem(LAST_ONBOARDING_USER_KEY);
+          if (lastUserId && lastUserId !== me.id) {
+            console.log('[AuthProvider] Different user needs onboarding — clearing stale data');
+            await AsyncStorage.multiRemove([
+              'onboarding_state',
+              'onboarding_progress',
+              'onboarding_reducer_state',
+            ]);
+          }
+          await AsyncStorage.setItem(LAST_ONBOARDING_USER_KEY, me.id);
+        }
+
+        // NOW set user — routing effect will fire with correct hasCompletedOnboarding
+        setUser(me);
+        setPendingVerificationEmail(null);
 
         // Push notifications are requested during onboarding step 9 (with pre-prompt),
         // not immediately after login.
@@ -225,7 +247,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         throw err;
       }
     },
-    [hasCompletedOnboarding]
+    []
   );
 
   const checkAuthRef = React.useRef(checkAuth);
@@ -243,7 +265,13 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       setUser(null);
       setPendingVerificationEmail(null);
       setHasCompletedOnboarding(false);
-      await AsyncStorage.removeItem(ONBOARDING_COMPLETE_KEY);
+      await AsyncStorage.multiRemove([
+        ONBOARDING_COMPLETE_KEY,
+        ONBOARDING_COMPLETE_USER_KEY,
+        'onboarding_state',
+        'onboarding_progress',
+        'onboarding_reducer_state',
+      ]);
       lastPushRegistrationRef.current = null;
       router.replace('/sign-in');
     }
@@ -258,15 +286,19 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     try {
       setHasCompletedOnboarding(true);
       await AsyncStorage.setItem(ONBOARDING_COMPLETE_KEY, 'true');
+      if (user?.id) {
+        await AsyncStorage.setItem(ONBOARDING_COMPLETE_USER_KEY, user.id);
+      }
     } catch (error) {
       console.warn('[Auth] Failed to persist onboarding completion flag:', error);
     }
-  }, []);
+  }, [user?.id]);
 
   const markOnboardingIncompleteLocally = useCallback(async () => {
     try {
       setHasCompletedOnboarding(false);
       await AsyncStorage.removeItem(ONBOARDING_COMPLETE_KEY);
+      await AsyncStorage.removeItem(ONBOARDING_COMPLETE_USER_KEY);
     } catch (error) {
       console.warn('[Auth] Failed to clear onboarding completion flag:', error);
     }
@@ -357,10 +389,17 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
 
     (async () => {
       try {
-        const storedValue = await AsyncStorage.getItem(ONBOARDING_COMPLETE_KEY);
+        const [storedValue, storedUserId] = await AsyncStorage.multiGet([
+          ONBOARDING_COMPLETE_KEY,
+          ONBOARDING_COMPLETE_USER_KEY,
+        ]);
         clearTimeout(timeout);
         if (mounted) {
-          setHasCompletedOnboarding(storedValue === 'true');
+          const flagValue = storedValue[1] === 'true';
+          const hasUserId = !!storedUserId[1];
+          // Only trust the flag if it has a user ID (will be validated in checkAuth)
+          // Flags without a user ID are legacy/stale — ignore them
+          setHasCompletedOnboarding(flagValue && hasUserId);
         }
       } catch (error) {
         clearTimeout(timeout);

@@ -18,7 +18,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Dimensions, FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import GameVerticalFeedScreen, { FeedPost } from './game-details/GameVerticalFeedScreen';
 
@@ -38,6 +38,7 @@ type ProfilePreferences = {
 };
 const uploadAvatar = uploadFile.uploadFile;
 
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const VIDEO_EXT = /\.(mp4|mov|webm|m4v|avi)$/i;
 const HEADER_IMAGE_DRAG_LIMIT = 120;
 const clampValue = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
@@ -699,26 +700,35 @@ export default function ProfileScreen() {
             end={{ x: 1, y: 1 }}
           />
         )}
-        
-        {/* Settings Button & Follow Button - Lower Position (Bio Level) */}
-        <View style={[styles.headerControls, { top: 145 }]}>
+        {/* Dark scrim at the bottom of the header for text readability */}
+        <LinearGradient
+          colors={['transparent', 'rgba(0,0,0,0.55)']}
+          style={styles.headerGradient}
+          start={{ x: 0, y: 0.3 }}
+          end={{ x: 0, y: 1 }}
+          pointerEvents="none"
+        />
+
+        {/* Settings Button & Follow Button - Top Right Corner */}
+        <View style={[styles.headerControls, { top: 12 }]}>
           {/* Follow Button - Only for viewing other users */}
           {viewingUserId && viewingUserId !== currentUserId ? (
-            <Pressable 
+            <Pressable
               style={[
                 styles.headerFollowButton,
-                {
-                  backgroundColor: isFollowing ? theme.tint : 'transparent',
-                  borderColor: theme.tint,
-                  borderWidth: 1,
-                }
-              ]} 
+                isFollowing
+                  ? { backgroundColor: 'transparent', borderColor: '#FFB800', borderWidth: 1.5 }
+                  : { backgroundColor: 'transparent', borderColor: '#FFFFFF', borderWidth: 1.5 }
+              ]}
               onPress={handleFollowToggle}
             >
               {isFollowing ? (
-                <Ionicons name="checkmark-circle" size={18} color="#fff" />
+                <Ionicons name="checkmark-circle" size={18} color="#FFB800" />
               ) : (
-                <Text style={[styles.headerFollowButtonText, { color: theme.tint }]}>Follow</Text>
+                <>
+                  <Ionicons name="person-add-outline" size={15} color="#FFFFFF" />
+                  <Text style={[styles.headerFollowButtonText, { color: '#FFFFFF' }]}>Follow</Text>
+                </>
               )}
             </Pressable>
           ) : null}
@@ -735,9 +745,9 @@ export default function ProfileScreen() {
         <View style={styles.profileContent}>
           {/* Large Avatar - Overlapping Banner */}
           <Pressable
-            onPress={isOwnProfile
-              ? handleAvatarPress
-              : (me?.avatar_url ? () => setAvatarViewerVisible(true) : undefined)}
+            onPress={me?.avatar_url
+              ? () => setAvatarViewerVisible(true)
+              : (isOwnProfile ? handleAvatarPress : undefined)}
             disabled={isOwnProfile && isUploadingAvatar}
             style={styles.avatarSection}
           >
@@ -760,7 +770,7 @@ export default function ProfileScreen() {
           {/* User Info - Next to Avatar ON BANNER */}
           <View style={styles.userInfo}>
             <View style={styles.nameRow}>
-              <Text style={[styles.userName, { color: userNameTextColor }]}>{displayUsername}</Text>
+              <Text style={[styles.userName, { color: '#FFFFFF' }]}>{displayUsername}</Text>
               {roleLabel && (
                 <View style={[styles.roleBadge, 
                   roleRaw === 'coach' && styles.coachBadge,
@@ -986,7 +996,7 @@ export default function ProfileScreen() {
           keyExtractor={(item) => item.id}
           ListHeaderComponent={renderHeader}
           ListEmptyComponent={renderEmptyPosts}
-          contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16), paddingHorizontal: 8 }}
+          contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16) }}
           onEndReachedThreshold={0.5}
           onEndReached={onEndReachedPosts}
           renderItem={({ item, index }) => {
@@ -1058,7 +1068,7 @@ export default function ProfileScreen() {
           }}
           ListHeaderComponent={renderHeader}
           ListEmptyComponent={renderEmptyReplies}
-          contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16), paddingHorizontal: 8 }}
+          contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16) }}
           onEndReachedThreshold={0.5}
           onEndReached={onEndReachedReplies}
           renderItem={({ item, index }) => {
@@ -1130,7 +1140,7 @@ export default function ProfileScreen() {
           }}
           ListHeaderComponent={renderHeader}
           ListEmptyComponent={renderEmptyUpvotes}
-          contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16), paddingHorizontal: 8 }}
+          contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16) }}
           onEndReachedThreshold={0.5}
           onEndReached={onEndReachedUpvotes}
           renderItem={({ item, index }) => {
@@ -1192,27 +1202,28 @@ export default function ProfileScreen() {
         />
       )}
 
-      {/* Avatar Viewer — shown when tapping another user's profile picture */}
+      {/* Avatar Viewer — full-screen enlarged profile picture */}
       <Modal
         visible={avatarViewerVisible}
         transparent
         animationType="fade"
+        statusBarTranslucent
         onRequestClose={() => setAvatarViewerVisible(false)}
       >
         <Pressable
-          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', alignItems: 'center', justifyContent: 'center' }}
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', alignItems: 'center', justifyContent: 'center' }}
           onPress={() => setAvatarViewerVisible(false)}
         >
           {me?.avatar_url && (
             <Image
               source={{ uri: String(me.avatar_url) }}
-              style={{ width: 300, height: 300, borderRadius: 150 }}
+              style={{ width: SCREEN_WIDTH - 32, height: SCREEN_WIDTH - 32, borderRadius: (SCREEN_WIDTH - 32) / 2 }}
               contentFit="cover"
             />
           )}
           <Pressable
             onPress={() => setAvatarViewerVisible(false)}
-            style={{ position: 'absolute', top: insets.top + 12, right: 16, padding: 8, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 20 }}
+            style={{ position: 'absolute', top: insets.top + 12, right: 16, padding: 8, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 20 }}
           >
             <Ionicons name="close" size={24} color="white" />
           </Pressable>
@@ -1270,11 +1281,13 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   headerFollowButton: {
+    flexDirection: 'row',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
+    gap: 5,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.2,
@@ -1374,9 +1387,9 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '700',
     color: '#ffffff', // Default, will be overridden dynamically
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowColor: 'rgba(0, 0, 0, 0.6)',
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+    textShadowRadius: 4,
     flexShrink: 1, // Allow text to shrink if needed
     maxWidth: '100%', // Prevent overflow
   },
@@ -1691,9 +1704,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
   },
-  gridRow: { 
+  gridRow: {
     gap: 12, // Spacing between cards like event page
-    paddingHorizontal: 0,
+    paddingHorizontal: 8,
     marginBottom: 12, // Vertical spacing between rows
   },
   gridItem: { 

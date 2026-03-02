@@ -19,28 +19,47 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
-import { Game } from '@/api/entities';
+// @ts-ignore
+import { Game, User } from '@/api/entities';
 import { autocompleteLocations, PlaceSuggestion } from '@/api/geocoding';
 import { httpGet } from '@/api/http';
 
 const EVENT_TYPES = [
-  { value: 'game', label: 'Game/Match', icon: 'trophy' },
-  { value: 'watch_party', label: 'Watch Party', icon: 'tv' },
-  { value: 'fundraiser', label: 'Fundraiser', icon: 'cash' },
-  { value: 'team_meeting', label: 'Pep Rallies', icon: 'people' },
-  { value: 'bbq', label: 'BBQ/Social', icon: 'restaurant' },
-  { value: 'team_meal', label: 'Team Meal', icon: 'cafe' },
-  { value: 'other', label: 'Other', icon: 'ellipsis-horizontal' },
+  { value: 'game', label: 'Game/Match', emoji: '🏈' },
+  { value: 'watch_party', label: 'Watch Party', emoji: '📺' },
+  { value: 'fundraiser', label: 'Fundraiser', emoji: '💰' },
+  { value: 'team_meeting', label: 'Pep Rally', emoji: '📣' },
+  { value: 'bbq', label: 'BBQ/Social', emoji: '🍔' },
+  { value: 'team_meal', label: 'Team Meal', emoji: '🍽️' },
+  { value: 'other', label: 'Other', emoji: '📌' },
 ];
 
 export default function CreateFanEventScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
-  
-  // Load followed teams (teams user is a member of)
+
+  // Detect user role to differentiate Pitch Event (fan) vs Create Event (coach)
+  const [userRole, setUserRole] = useState<string>('fan');
+  useEffect(() => {
+    User.me()
+      .then((u: any) => {
+        const role = u?.preferences?.role || 'fan';
+        setUserRole(role);
+        // Fans can't create game events — default to watch_party
+        if (role !== 'coach') {
+          setEventType('watch_party');
+        }
+      })
+      .catch(() => {
+        setEventType('watch_party');
+      });
+  }, []);
+  const isCoach = userRole === 'coach';
+
+  // Load followed teams
   const [rawTeams, setRawTeams] = useState<any[]>([]);
   const [_teamsLoading, setTeamsLoading] = useState(true);
-  
+
   useEffect(() => {
     const loadFollowedTeams = async () => {
       try {
@@ -56,54 +75,37 @@ export default function CreateFanEventScreen() {
     };
     void loadFollowedTeams();
   }, []);
-  
+
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [eventType, setEventType] = useState<string>('game'); // Default to game
+  const [eventType, setEventType] = useState<string>('game');
   const [location, setLocation] = useState('');
   const [locationSuggestions, setLocationSuggestions] = useState<PlaceSuggestion[]>([]);
   const [locationQuerying, setLocationQuerying] = useState(false);
   const [locationTouched, setLocationTouched] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<PlaceSuggestion | null>(null);
   const locationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [date, setDate] = useState(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)); // Default to next week
+  const [date, setDate] = useState(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<{[key: string]: string}>({});
-  
-  // Game-specific fields
-  const [currentTeam, setCurrentTeam] = useState('My Team');
-  const [currentTeamId, setCurrentTeamId] = useState('');
+
+  // Game-specific fields (coach only)
+  const [selectedTeam, setSelectedTeam] = useState('');
+  const [selectedTeamId, setSelectedTeamId] = useState('');
   const [opponent, setOpponent] = useState('');
-  const [opponentTeamId, setOpponentTeamId] = useState('');
   const [gameType, setGameType] = useState<'home' | 'away'>('home');
   const [showTeamPicker, setShowTeamPicker] = useState(false);
-  const [showOpponentPicker, setShowOpponentPicker] = useState(false);
-  const [opponentSearchText, setOpponentSearchText] = useState('');
-  const [showManualOpponentInput, setShowManualOpponentInput] = useState(false);
-  const [manualOpponentName, setManualOpponentName] = useState('');
-  
+
   const teams = useMemo(() => {
-    if (!Array.isArray(rawTeams) || rawTeams.length === 0) {
-      return [{ id: 'my-team', name: 'My Team', logo: undefined as string | undefined }];
-    }
+    if (!Array.isArray(rawTeams) || rawTeams.length === 0) return [];
     return rawTeams.map((team: any) => ({
       id: String(team.id),
       name: team.name || 'Unknown Team',
       logo: (team.logo_url || team.avatar_url || undefined) as string | undefined,
     }));
   }, [rawTeams]);
-  
-  const getFilteredOpponentTeams = () => {
-    // Only filter from followed teams (already loaded from /follows/teams)
-    return teams
-      .filter(team => team.name !== currentTeam)
-      .filter(team => 
-        opponentSearchText === '' || 
-        team.name.toLowerCase().includes(opponentSearchText.toLowerCase())
-      );
-  };
 
   // Google Maps location autocomplete
   const requestLocationSuggestions = useCallback((text: string) => {
@@ -111,13 +113,13 @@ export default function CreateFanEventScreen() {
       clearTimeout(locationTimerRef.current);
       locationTimerRef.current = null;
     }
-    
+
     if (text.length < 3) {
       setLocationSuggestions([]);
       setLocationQuerying(false);
       return;
     }
-    
+
     setLocationQuerying(true);
     locationTimerRef.current = setTimeout(async () => {
       try {
@@ -129,7 +131,7 @@ export default function CreateFanEventScreen() {
       } finally {
         setLocationQuerying(false);
       }
-    }, 300); // Debounce 300ms
+    }, 300);
   }, []);
 
   const handleLocationChange = useCallback((text: string) => {
@@ -137,7 +139,7 @@ export default function CreateFanEventScreen() {
     setLocationTouched(true);
     setSelectedPlace(null);
     setErrors(prev => ({ ...prev, location: '' }));
-    
+
     if (text.length >= 3) {
       requestLocationSuggestions(text);
     } else {
@@ -154,7 +156,6 @@ export default function CreateFanEventScreen() {
     setErrors(prev => ({ ...prev, location: '' }));
   }, []);
 
-  // Cleanup timer on unmount
   useEffect(() => {
     return () => {
       if (locationTimerRef.current) {
@@ -162,57 +163,50 @@ export default function CreateFanEventScreen() {
       }
     };
   }, []);
-  
+
   const validateForm = (): boolean => {
     const newErrors: {[key: string]: string} = {};
-    
-    if (eventType === 'game') {
-      // Games require team and opponent
-      if (!currentTeam.trim()) {
-        newErrors.currentTeam = 'Your team is required';
+
+    if (isCoach && eventType === 'game') {
+      if (!selectedTeam.trim()) {
+        newErrors.selectedTeam = 'Team is required';
       }
       if (!opponent.trim()) {
-        newErrors.opponent = 'Opponent team is required';
+        newErrors.opponent = 'Opponent is required';
       }
     } else {
-      // Other events require title
       if (!title.trim()) {
         newErrors.title = 'Event title is required';
       }
     }
-    
+
     if (!location.trim()) {
       newErrors.location = 'Location is required';
     }
-    // Note: We allow manual location entry even if not selected from suggestions
-    // The backend will handle geocoding if needed
-    
+
     if (date < new Date()) {
       newErrors.date = 'Event date cannot be in the past';
     }
-    
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
-  
+
   const handleSubmit = async () => {
-    if (!validateForm()) {
-      return;
-    }
-    
+    if (!validateForm()) return;
+
     setSubmitting(true);
-    
+
     try {
-      // Parse date and time to create ISO datetime
       const gameDateTime = new Date(date);
-      
-      if (eventType === 'game') {
-        // Create game with opponent
-        const homeTeamId = gameType === 'home' ? currentTeamId : opponentTeamId;
-        const awayTeamId = gameType === 'home' ? opponentTeamId : currentTeamId;
-        
+
+      if (isCoach && eventType === 'game') {
+        // Coach creating a game event — include team IDs
+        const homeTeamName = gameType === 'home' ? selectedTeam : opponent;
+        const awayTeamName = gameType === 'home' ? opponent : selectedTeam;
+
         const gamePayload: Record<string, any> = {
-          title: `${gameType === 'home' ? currentTeam : opponent} vs ${gameType === 'home' ? opponent : currentTeam}`,
+          title: `${homeTeamName} vs ${awayTeamName}`,
           date: gameDateTime.toISOString(),
           location: selectedPlace?.description || location,
           venue_address: selectedPlace?.description || location,
@@ -220,22 +214,20 @@ export default function CreateFanEventScreen() {
           description: description || undefined,
           event_type: 'game',
         };
-        
-        // Add team fields
-        gamePayload.home_team = gameType === 'home' ? currentTeam : opponent;
-        gamePayload.away_team = gameType === 'home' ? opponent : currentTeam;
-        
-        if (homeTeamId) gamePayload.home_team_id = homeTeamId;
-        if (awayTeamId) {
-          gamePayload.away_team_id = awayTeamId;
-        } else if (gameType === 'home' ? opponent : currentTeam) {
-          gamePayload.away_team_name = gameType === 'home' ? opponent : currentTeam;
+
+        gamePayload.home_team = homeTeamName;
+        gamePayload.away_team = awayTeamName;
+
+        if (gameType === 'home' && selectedTeamId) {
+          gamePayload.home_team_id = selectedTeamId;
+        } else if (gameType === 'away' && selectedTeamId) {
+          gamePayload.away_team_id = selectedTeamId;
         }
-        
+
         await Game.create(gamePayload);
       } else {
-        // Create regular event (non-game)
-        const eventData = {
+        // Non-game event or fan pitch
+        const eventData: Record<string, any> = {
           title,
           description,
           event_type: eventType,
@@ -244,20 +236,21 @@ export default function CreateFanEventScreen() {
           venue_place_id: selectedPlace?.place_id,
           date: gameDateTime.toISOString(),
         };
-        
-        // Use Game.create for consistency (it handles both games and events)
+
         await Game.create(eventData);
       }
-      
+
       Alert.alert(
-        'Event Submitted!',
-        'Your event has been submitted for approval. You\'ll be notified when it\'s reviewed.',
+        isCoach ? 'Event Created!' : 'Event Pitched!',
+        isCoach
+          ? 'Your event has been submitted for review.'
+          : 'Your event idea has been submitted! A coach or admin will review it and you\'ll be notified.',
         [{ text: 'OK', onPress: () => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any) }]
       );
     } catch (e: any) {
       const errorCode = e?.code || e?.data?.code;
       const errorMessage = e?.message || e?.data?.message;
-      
+
       if (errorCode === 'EVENT_LIMIT_EXCEEDED') {
         Alert.alert(
           'Event Limit Reached',
@@ -268,7 +261,6 @@ export default function CreateFanEventScreen() {
           ]
         );
       } else {
-        // Show more detailed error message
         const detailedError = errorMessage || e?.data?.message || e?.message || 'Failed to create event. Please try again.';
         console.error('[CreateFanEvent] Create event error:', {
           error: e,
@@ -282,7 +274,7 @@ export default function CreateFanEventScreen() {
       setSubmitting(false);
     }
   };
-  
+
   const handleDateChange = (event: any, selectedDate?: Date) => {
     if (Platform.OS === 'android') {
       setShowDatePicker(false);
@@ -294,7 +286,7 @@ export default function CreateFanEventScreen() {
       }
     }
   };
-  
+
   const handleTimeChange = (event: any, selectedDate?: Date) => {
     if (Platform.OS === 'android') {
       setShowTimePicker(false);
@@ -309,83 +301,107 @@ export default function CreateFanEventScreen() {
       }
     }
   };
-  
-  const isGameEvent = eventType === 'game';
-  
+
+  const isGameEvent = isCoach && eventType === 'game';
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['bottom']}>
-      <Stack.Screen 
-        options={{ 
-          title: 'Create Event', 
+      <Stack.Screen
+        options={{
+          title: isCoach ? 'Create Event' : 'Pitch Event',
           headerShown: true,
           headerBackTitle: 'Back',
           headerBackVisible: true,
-        }} 
+        }}
       />
-      
+
       <KeyboardAwareScreen style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         {/* Header */}
         <View style={styles.header}>
           <Text style={[styles.title, { color: Colors[colorScheme].text }]}>
-            Create Community Event
+            {isCoach ? 'Create Event' : 'Pitch an Event'}
           </Text>
           <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>
-            Share local sports events, watch parties, fundraisers, and more with your community
+            {isCoach
+              ? 'Create a game, watch party, fundraiser, or other team event'
+              : 'Suggest a community event — watch parties, fundraisers, socials, and more. A coach or admin will review your idea.'}
           </Text>
         </View>
-        
+
         {/* Event Type */}
         <View style={styles.section}>
           <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Event Type *</Text>
           <View style={styles.typeGrid}>
-            {EVENT_TYPES.map((type) => (
-              <Pressable
-                key={type.value}
-                style={[
-                  styles.typeButton,
-                  { 
-                    backgroundColor: Colors[colorScheme].card,
-                    borderColor: eventType === type.value ? Colors[colorScheme].tint : Colors[colorScheme].border,
-                  },
-                  eventType === type.value && styles.typeButtonActive,
-                ]}
-                onPress={() => {
-                  setEventType(type.value);
-                  if (type.value !== 'game') {
-                    // Reset game-specific fields
-                    setOpponent('');
-                    setOpponentTeamId('');
-                  }
-                }}
-              >
-                <Ionicons 
-                  name={type.icon as any} 
-                  size={24} 
-                  color={eventType === type.value ? Colors[colorScheme].tint : Colors[colorScheme].text} 
-                />
-                <Text 
+            {EVENT_TYPES.map((type) => {
+              // Fans cannot create game events — only coaches can
+              if (!isCoach && type.value === 'game') return null;
+              return (
+                <Pressable
+                  key={type.value}
                   style={[
-                    styles.typeLabel, 
-                    { color: eventType === type.value ? Colors[colorScheme].tint : Colors[colorScheme].text }
+                    styles.typeButton,
+                    {
+                      backgroundColor: Colors[colorScheme].card,
+                      borderColor: eventType === type.value ? Colors[colorScheme].tint : Colors[colorScheme].border,
+                    },
+                    eventType === type.value && styles.typeButtonActive,
                   ]}
+                  onPress={() => {
+                    setEventType(type.value);
+                    if (type.value !== 'game') {
+                      setOpponent('');
+                    }
+                  }}
                 >
-                  {type.label}
-                </Text>
-              </Pressable>
-            ))}
+                  <Text style={styles.typeEmoji}>{type.emoji}</Text>
+                  <Text
+                    style={[
+                      styles.typeLabel,
+                      { color: eventType === type.value ? Colors[colorScheme].tint : Colors[colorScheme].text }
+                    ]}
+                  >
+                    {type.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
         </View>
-        
-        {/* Game-specific fields: Your Team */}
+
+        {/* Title — always required for fans, required for non-game coach events */}
+        {(!isCoach || !isGameEvent) && (
+          <View style={styles.section}>
+            <Text style={[styles.label, { color: Colors[colorScheme].text }]}>
+              {isCoach ? 'Event Title *' : 'Event Name *'}
+            </Text>
+            <TextInput
+              style={[
+                styles.input,
+                {
+                  backgroundColor: Colors[colorScheme].card,
+                  borderColor: errors.title ? '#DC2626' : Colors[colorScheme].border,
+                  color: Colors[colorScheme].text,
+                },
+              ]}
+              placeholder={isCoach ? 'e.g., Varsity Football Watch Party' : 'e.g., Homecoming Tailgate Party'}
+              placeholderTextColor={Colors[colorScheme].mutedText}
+              value={title}
+              onChangeText={setTitle}
+            />
+            {errors.title && <Text style={styles.errorText}>{errors.title}</Text>}
+          </View>
+        )}
+
+        {/* Team — single dropdown from followed teams (coach game events only) */}
         {isGameEvent && (
           <View style={styles.section}>
-            <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Your Team *</Text>
+            <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Team *</Text>
             <Pressable
               style={[
                 styles.input,
-                { 
+                {
                   backgroundColor: Colors[colorScheme].card,
-                  borderColor: errors.currentTeam ? '#DC2626' : Colors[colorScheme].border,
+                  borderColor: errors.selectedTeam ? '#DC2626' : Colors[colorScheme].border,
                   flexDirection: 'row',
                   alignItems: 'center',
                   justifyContent: 'space-between',
@@ -393,42 +409,39 @@ export default function CreateFanEventScreen() {
               ]}
               onPress={() => setShowTeamPicker(true)}
             >
-              <Text style={[{ color: currentTeam ? Colors[colorScheme].text : Colors[colorScheme].mutedText }]}>
-                {currentTeam}
+              <Text style={[{ color: selectedTeam ? Colors[colorScheme].text : Colors[colorScheme].mutedText }]}>
+                {selectedTeam || 'Select a team'}
               </Text>
               <Ionicons name="chevron-down" size={20} color={Colors[colorScheme].mutedText} />
             </Pressable>
-            {errors.currentTeam && <Text style={styles.errorText}>{errors.currentTeam}</Text>}
+            {errors.selectedTeam && <Text style={styles.errorText}>{errors.selectedTeam}</Text>}
           </View>
         )}
-        
-        {/* Game-specific fields: Opponent */}
+
+        {/* Opponent — simple text input (coach game events only) */}
         {isGameEvent && (
           <View style={styles.section}>
-            <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Opponent Team *</Text>
-            <Pressable
+            <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Opponent *</Text>
+            <TextInput
               style={[
                 styles.input,
-                { 
+                {
                   backgroundColor: Colors[colorScheme].card,
                   borderColor: errors.opponent ? '#DC2626' : Colors[colorScheme].border,
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
+                  color: Colors[colorScheme].text,
                 },
               ]}
-              onPress={() => setShowOpponentPicker(true)}
-            >
-              <Text style={[{ color: opponent ? Colors[colorScheme].text : Colors[colorScheme].mutedText }]}>
-                {opponent || 'Select opponent team'}
-              </Text>
-              <Ionicons name="chevron-down" size={20} color={Colors[colorScheme].mutedText} />
-            </Pressable>
+              placeholder="Enter opponent team name"
+              placeholderTextColor={Colors[colorScheme].mutedText}
+              value={opponent}
+              onChangeText={setOpponent}
+              autoCapitalize="words"
+            />
             {errors.opponent && <Text style={styles.errorText}>{errors.opponent}</Text>}
           </View>
         )}
-        
-        {/* Game Type (Home/Away) - Only for games */}
+
+        {/* Game Type (Home/Away) — coach game events only */}
         {isGameEvent && (
           <View style={styles.section}>
             <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Game Type</Text>
@@ -451,7 +464,7 @@ export default function CreateFanEventScreen() {
                   Home Game
                 </Text>
               </Pressable>
-              
+
               <Pressable
                 style={[
                   styles.gameTypeButton,
@@ -473,42 +486,22 @@ export default function CreateFanEventScreen() {
             </View>
           </View>
         )}
-        
-        {/* Title - Only for non-game events */}
-        {!isGameEvent && (
-          <View style={styles.section}>
-            <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Event Title *</Text>
-            <TextInput
-              style={[
-                styles.input,
-                { 
-                  backgroundColor: Colors[colorScheme].card,
-                  borderColor: errors.title ? '#DC2626' : Colors[colorScheme].border,
-                  color: Colors[colorScheme].text,
-                },
-              ]}
-              placeholder="e.g., Varsity Football Watch Party"
-              placeholderTextColor={Colors[colorScheme].mutedText}
-              value={title}
-              onChangeText={setTitle}
-            />
-            {errors.title && <Text style={styles.errorText}>{errors.title}</Text>}
-          </View>
-        )}
-        
+
         {/* Description */}
         <View style={styles.section}>
-          <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Description</Text>
+          <Text style={[styles.label, { color: Colors[colorScheme].text }]}>
+            {isCoach ? 'Description' : 'Tell us about your idea'}
+          </Text>
           <TextInput
             style={[
               styles.textArea,
-              { 
+              {
                 backgroundColor: Colors[colorScheme].card,
                 borderColor: Colors[colorScheme].border,
                 color: Colors[colorScheme].text,
               },
             ]}
-            placeholder="Describe your event..."
+            placeholder={isCoach ? 'Describe your event...' : 'What\'s the event about? Who should come? Any details a reviewer should know?'}
             placeholderTextColor={Colors[colorScheme].mutedText}
             value={description}
             onChangeText={setDescription}
@@ -517,7 +510,7 @@ export default function CreateFanEventScreen() {
             textAlignVertical="top"
           />
         </View>
-        
+
         {/* Date & Time */}
         <View style={styles.section}>
           <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Date & Time *</Text>
@@ -525,7 +518,7 @@ export default function CreateFanEventScreen() {
             <Pressable
               style={[
                 styles.dateTimeButton,
-                { 
+                {
                   backgroundColor: Colors[colorScheme].card,
                   borderColor: errors.date ? '#DC2626' : Colors[colorScheme].border,
                 },
@@ -537,11 +530,11 @@ export default function CreateFanEventScreen() {
                 {date.toLocaleDateString()}
               </Text>
             </Pressable>
-            
+
             <Pressable
               style={[
                 styles.dateTimeButton,
-                { 
+                {
                   backgroundColor: Colors[colorScheme].card,
                   borderColor: Colors[colorScheme].border,
                 },
@@ -556,7 +549,7 @@ export default function CreateFanEventScreen() {
           </View>
           {errors.date && <Text style={styles.errorText}>{errors.date}</Text>}
         </View>
-        
+
         {showDatePicker && (
           <DateTimePicker
             value={date}
@@ -566,7 +559,7 @@ export default function CreateFanEventScreen() {
             minimumDate={new Date()}
           />
         )}
-        
+
         {showTimePicker && (
           <DateTimePicker
             value={date}
@@ -575,7 +568,7 @@ export default function CreateFanEventScreen() {
             onChange={handleTimeChange}
           />
         )}
-        
+
         {/* Location with Google Maps Autocomplete */}
         <View style={styles.section}>
           <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Location *</Text>
@@ -583,7 +576,7 @@ export default function CreateFanEventScreen() {
             <TextInput
               style={[
                 styles.input,
-                { 
+                {
                   backgroundColor: Colors[colorScheme].card,
                   borderColor: errors.location ? '#DC2626' : Colors[colorScheme].border,
                   color: Colors[colorScheme].text,
@@ -634,15 +627,17 @@ export default function CreateFanEventScreen() {
             </Text>
           )}
         </View>
-        
+
         {/* Info Box */}
         <View style={[styles.infoBox, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
           <Ionicons name="information-circle" size={20} color={Colors[colorScheme].tint} />
           <Text style={[styles.infoText, { color: Colors[colorScheme].mutedText }]}>
-            Fan-submitted events will be reviewed by coaches or admins before appearing publicly.
+            {isCoach
+              ? 'Your event will be reviewed before appearing publicly.'
+              : 'Event pitches are reviewed by coaches or admins. You\'ll be notified once it\'s approved.'}
           </Text>
         </View>
-        
+
         {/* Submit Button */}
         <Pressable
           style={[
@@ -656,14 +651,16 @@ export default function CreateFanEventScreen() {
           {submitting ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (
-            <Text style={styles.submitButtonText}>Create Event</Text>
+            <Text style={styles.submitButtonText}>
+              {isCoach ? 'Create Event' : 'Submit Pitch'}
+            </Text>
           )}
         </Pressable>
-        
+
         <View style={{ height: 40 }} />
       </KeyboardAwareScreen>
-      
-      {/* Team Picker Modal */}
+
+      {/* Team Picker Modal — single dropdown of followed teams */}
       <Modal
         visible={showTeamPicker}
         transparent
@@ -676,21 +673,28 @@ export default function CreateFanEventScreen() {
               <Pressable onPress={() => setShowTeamPicker(false)}>
                 <Text style={[styles.pickerHeaderButton, { color: Colors[colorScheme].text }]}>Cancel</Text>
               </Pressable>
-              <Text style={[styles.pickerTitle, { color: Colors[colorScheme].text }]}>Select Your Team</Text>
+              <Text style={[styles.pickerTitle, { color: Colors[colorScheme].text }]}>Select Team</Text>
               <View style={{ width: 50 }} />
             </View>
             <ScrollView style={styles.pickerList}>
+              {teams.length === 0 && (
+                <View style={styles.noResultsContainer}>
+                  <Text style={[styles.noResultsText, { color: Colors[colorScheme].mutedText }]}>
+                    No followed teams found. Follow a team first.
+                  </Text>
+                </View>
+              )}
               {teams.map((team) => (
                 <Pressable
                   key={team.id}
                   style={[
                     styles.pickerItem,
                     { borderBottomColor: Colors[colorScheme].border },
-                    currentTeam === team.name && { backgroundColor: Colors[colorScheme].surface }
+                    selectedTeam === team.name && { backgroundColor: Colors[colorScheme].surface }
                   ]}
                   onPress={() => {
-                    setCurrentTeam(team.name);
-                    setCurrentTeamId(team.id);
+                    setSelectedTeam(team.name);
+                    setSelectedTeamId(team.id);
                     setShowTeamPicker(false);
                   }}
                 >
@@ -702,176 +706,11 @@ export default function CreateFanEventScreen() {
                       {team.name}
                     </Text>
                   </View>
-                  {currentTeam === team.name && (
+                  {selectedTeam === team.name && (
                     <Ionicons name="checkmark" size={20} color={Colors[colorScheme].tint} />
                   )}
                 </Pressable>
               ))}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-      
-      {/* Opponent Picker Modal */}
-      <Modal
-        visible={showOpponentPicker}
-        transparent
-        animationType="slide"
-        onRequestClose={() => {
-          setShowOpponentPicker(false);
-          setOpponentSearchText('');
-          setShowManualOpponentInput(false);
-          setManualOpponentName('');
-        }}
-      >
-        <View style={styles.pickerOverlay}>
-          <View style={[styles.pickerContainer, { backgroundColor: Colors[colorScheme].background }]}>
-            <View style={styles.pickerHeader}>
-              <Pressable onPress={() => {
-                setShowOpponentPicker(false);
-                setOpponentSearchText('');
-                setShowManualOpponentInput(false);
-                setManualOpponentName('');
-              }}>
-                <Text style={[styles.pickerHeaderButton, { color: Colors[colorScheme].text }]}>Cancel</Text>
-              </Pressable>
-              <Text style={[styles.pickerTitle, { color: Colors[colorScheme].text }]}>Select Opponent</Text>
-              <View style={{ width: 50 }} />
-            </View>
-            
-            {/* Search Bar - Only searches teams, not users */}
-            <View style={[styles.searchContainer, { borderBottomColor: Colors[colorScheme].border }]}>
-              <Ionicons name="search-outline" size={20} color={Colors[colorScheme].mutedText} />
-              <TextInput
-                style={[styles.searchInput, { color: Colors[colorScheme].text }]}
-                placeholder="Search teams you follow..."
-                placeholderTextColor={Colors[colorScheme].mutedText}
-                value={opponentSearchText}
-                onChangeText={setOpponentSearchText}
-                autoCapitalize="words"
-              />
-              {opponentSearchText.length > 0 && (
-                <Pressable onPress={() => setOpponentSearchText('')}>
-                  <Ionicons name="close-circle" size={20} color={Colors[colorScheme].mutedText} />
-                </Pressable>
-              )}
-            </View>
-            
-            <ScrollView style={styles.pickerList}>
-              {showManualOpponentInput ? (
-                <View style={[styles.manualInputContainer, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border, margin: 16 }]}>
-                  <Text style={[styles.manualInputLabel, { color: Colors[colorScheme].text }]}>Enter Opponent Team Name</Text>
-                  <TextInput
-                    style={[styles.manualInput, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border, color: Colors[colorScheme].text }]}
-                    placeholder="Team name"
-                    placeholderTextColor={Colors[colorScheme].mutedText}
-                    value={manualOpponentName || opponentSearchText}
-                    onChangeText={(text) => {
-                      setManualOpponentName(text);
-                      setOpponentSearchText(text);
-                    }}
-                    autoCapitalize="words"
-                    autoFocus
-                  />
-                  <View style={styles.manualInputActions}>
-                    <Pressable
-                      style={[styles.manualInputButton, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
-                      onPress={() => {
-                        setShowManualOpponentInput(false);
-                        setManualOpponentName('');
-                      }}
-                    >
-                      <Text style={[styles.manualInputButtonText, { color: Colors[colorScheme].text }]}>Cancel</Text>
-                    </Pressable>
-                    <Pressable
-                      style={[styles.manualInputButton, { backgroundColor: Colors[colorScheme].tint }]}
-                      onPress={() => {
-                        const finalName = (manualOpponentName || opponentSearchText).trim();
-                        if (finalName) {
-                          setOpponent(finalName);
-                          setOpponentTeamId(''); // No team ID for manual entry
-                          setOpponentSearchText('');
-                          setShowManualOpponentInput(false);
-                          setManualOpponentName('');
-                          setShowOpponentPicker(false);
-                        }
-                      }}
-                    >
-                      <Text style={styles.manualInputButtonText}>Add</Text>
-                    </Pressable>
-                  </View>
-                </View>
-              ) : (
-                <>
-                  {getFilteredOpponentTeams().map((team) => (
-                    <Pressable
-                      key={team.id}
-                      style={[
-                        styles.pickerItem,
-                        { borderBottomColor: Colors[colorScheme].border },
-                        opponent === team.name && { backgroundColor: Colors[colorScheme].surface }
-                      ]}
-                      onPress={() => {
-                        setOpponent(team.name);
-                        setOpponentTeamId(team.id);
-                        setOpponentSearchText('');
-                        setShowOpponentPicker(false);
-                        setShowManualOpponentInput(false);
-                      }}
-                    >
-                      <View style={styles.pickerItemContent}>
-                        {team.logo && (
-                          <Image source={{ uri: team.logo }} style={styles.teamLogo} />
-                        )}
-                        <Text style={[styles.pickerItemText, { color: Colors[colorScheme].text }]}>
-                          {team.name}
-                        </Text>
-                      </View>
-                      {opponent === team.name && (
-                        <Ionicons name="checkmark" size={20} color={Colors[colorScheme].tint} />
-                      )}
-                    </Pressable>
-                  ))}
-                  {getFilteredOpponentTeams().length === 0 && opponentSearchText.length > 0 && (
-                    <Pressable
-                      style={[styles.pickerItem, { borderBottomColor: Colors[colorScheme].border }]}
-                      onPress={() => {
-                        setManualOpponentName(opponentSearchText);
-                        setShowManualOpponentInput(true);
-                      }}
-                    >
-                      <View style={styles.pickerItemContent}>
-                        <Ionicons name="add-circle-outline" size={20} color={Colors[colorScheme].tint} />
-                        <Text style={[styles.pickerItemText, { color: Colors[colorScheme].tint }]}>
-                          Add "{opponentSearchText}" as opponent
-                        </Text>
-                      </View>
-                      <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
-                    </Pressable>
-                  )}
-                  {getFilteredOpponentTeams().length === 0 && opponentSearchText.length === 0 && (
-                    <View style={styles.noResultsContainer}>
-                      <Text style={[styles.noResultsText, { color: Colors[colorScheme].mutedText }]}>
-                        Search for a team or add manually
-                      </Text>
-                      <Pressable
-                        style={[styles.pickerItem, { borderBottomColor: Colors[colorScheme].border, marginTop: 16 }]}
-                        onPress={() => {
-                          setShowManualOpponentInput(true);
-                        }}
-                      >
-                        <View style={styles.pickerItemContent}>
-                          <Ionicons name="add-circle-outline" size={20} color={Colors[colorScheme].tint} />
-                          <Text style={[styles.pickerItemText, { color: Colors[colorScheme].tint }]}>
-                            Add Opponent Manually
-                          </Text>
-                        </View>
-                        <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
-                      </Pressable>
-                    </View>
-                  )}
-                </>
-              )}
             </ScrollView>
           </View>
         </View>
@@ -926,6 +765,9 @@ const styles = StyleSheet.create({
   },
   typeButtonActive: {
     borderWidth: 2,
+  },
+  typeEmoji: {
+    fontSize: 28,
   },
   typeLabel: {
     fontSize: 12,
@@ -1040,18 +882,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
   },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    gap: 8,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-  },
   pickerList: {
     maxHeight: 400,
   },
@@ -1083,55 +913,6 @@ const styles = StyleSheet.create({
   noResultsText: {
     fontSize: 14,
     textAlign: 'center',
-  },
-  manualEntryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  manualEntryButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  manualInputContainer: {
-    padding: 16,
-    margin: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    gap: 12,
-  },
-  manualInputLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  manualInput: {
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    fontSize: 16,
-  },
-  manualInputActions: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 8,
-  },
-  manualInputButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    borderWidth: 1,
-  },
-  manualInputButtonText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '600',
   },
   locationFieldWrapper: {
     position: 'relative',

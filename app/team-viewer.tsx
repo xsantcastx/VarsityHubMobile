@@ -192,7 +192,11 @@ export default function TeamViewerScreen() {
   if (loading && !refreshing) {
     return (
       <SafeAreaView style={[styles.container, styles.centered, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
-        <Stack.Screen options={{ title: 'Loading Team...' }} />
+        <Stack.Screen options={{ title: 'Loading Team...', headerShown: true, headerLeft: () => (
+            <Pressable onPress={() => router.back()} style={{ paddingRight: 8 }}>
+              <Ionicons name="chevron-back" size={28} color="#007AFF" />
+            </Pressable>
+          ) }} />
         <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
         <Text style={[styles.loadingText, { color: Colors[colorScheme].mutedText }]}>
           Loading team details...
@@ -204,7 +208,11 @@ export default function TeamViewerScreen() {
   if (error || !team) {
     return (
       <SafeAreaView style={[styles.container, styles.centered, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
-        <Stack.Screen options={{ title: 'Team Not Found' }} />
+        <Stack.Screen options={{ title: 'Team Not Found', headerShown: true, headerLeft: () => (
+            <Pressable onPress={() => router.back()} style={{ paddingRight: 8 }}>
+              <Ionicons name="chevron-back" size={28} color="#007AFF" />
+            </Pressable>
+          ) }} />
         <Ionicons name="alert-circle-outline" size={64} color={Colors[colorScheme].mutedText} />
         <Text style={[styles.errorTitle, { color: Colors[colorScheme].text }]}>
           {error || 'Team not found'}
@@ -224,12 +232,18 @@ export default function TeamViewerScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['bottom']}>
-      <Stack.Screen 
-        options={{ 
+      <Stack.Screen
+        options={{
           title: team.name,
+          headerShown: true,
           headerStyle: { backgroundColor: Colors[colorScheme].background },
           headerTintColor: Colors[colorScheme].text,
-        }} 
+          headerLeft: () => (
+            <Pressable onPress={() => router.back()} style={{ paddingRight: 8 }}>
+              <Ionicons name="chevron-back" size={28} color="#007AFF" />
+            </Pressable>
+          ),
+        }}
       />
 
       {/* Team Header */}
