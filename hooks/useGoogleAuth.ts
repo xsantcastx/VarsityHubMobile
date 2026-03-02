@@ -182,33 +182,55 @@ export function useGoogleAuth() {
     setError(null);
     setLoading(true);
     try {
-      console.log('[google-auth] Starting Google sign-in...');
-      console.log('[google-auth] Using redirect URI:', redirectUri);
-      console.log('[google-auth] Request config:', requestConfig);
-
       const response = await promptAsync();
-      console.log('[google-auth] Response from Google:', response);
 
       // Handle user cancellation gracefully - don't throw
       if (response.type === 'cancel' || response.type === 'dismiss') {
-        console.log('[google-auth] User cancelled sign-in');
         setLoading(false);
-        // Return a specific error that can be caught and ignored
         const err: any = new Error('GOOGLE_SIGN_IN_CANCELLED');
         err.code = 'CANCELLED';
         throw err;
       }
 
-      // Handle other non-success responses
-      if (response.type !== 'success' || !response.authentication?.idToken) {
-        const errorMsg = `Google sign-in failed: ${response.type}`;
-        console.error('[google-auth]', errorMsg, response);
-        throw new Error(errorMsg);
+      // Handle non-success responses
+      if (response.type !== 'success') {
+        throw new Error(`Google sign-in failed: ${response.type}`);
       }
 
-      console.log('[google-auth] Got idToken, sending to server...');
-      const serverResponse = await User.loginViaGoogle(response.authentication.idToken);
-      console.log('[google-auth] Server accepted token, logged in as:', serverResponse);
+      let idToken: string | undefined;
+
+      // Path 1: Expo Go / proxy flow — response.authentication has the id_token directly
+      if (response.authentication?.idToken) {
+        idToken = response.authentication.idToken;
+      }
+      // Path 2: iOS native — Google returns an auth code, exchange it for an id_token
+      else if (response.params?.code) {
+        console.log('[google-auth] token exchange params:', { requestRedirectUri: request.redirectUri, codeVerifier: !!request.codeVerifier, clientId: clients.iosClientId, redirectUriInBody: request.redirectUri });
+        const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            client_id: clients.iosClientId || '',
+            redirect_uri: request.redirectUri,
+            code: response.params.code,
+            code_verifier: request.codeVerifier || '',
+            grant_type: 'authorization_code',
+          }).toString(),
+        });
+        const tokenData = await tokenResponse.json();
+        if (!tokenResponse.ok || !tokenData.id_token) {
+          throw new Error(tokenData.error_description || tokenData.error || 'Token exchange failed');
+        }
+        idToken = tokenData.id_token;
+      }
+
+      if (!idToken) {
+        throw new Error('Google sign-in failed: no id_token received');
+      }
+
+      console.log('[google-auth] Got id_token, aud:', JSON.parse(atob(idToken.split('.')[1])).aud);
+
+      const serverResponse = await User.loginViaGoogle(idToken);
       return serverResponse as GoogleAuthResult;
     } catch (err: any) {
       // If user cancelled, re-throw so caller can handle gracefully
@@ -217,13 +239,12 @@ export function useGoogleAuth() {
       }
 
       const message = err?.message || 'Unable to sign in with Google';
-      console.error('[google-auth] Error:', message, err);
       setError(message);
       throw err instanceof Error ? err : new Error(message);
     } finally {
       setLoading(false);
     }
-  }, [isConfigured, promptAsync, request, redirectUri, requestConfig]);
+  }, [isConfigured, promptAsync, request, clients]);
 
   return {
     ready: isConfigured && !!request,
