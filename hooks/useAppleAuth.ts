@@ -1,4 +1,5 @@
 import { User } from '@/api/entities';
+import { getApiBaseUrl } from '@/api/http';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { useCallback, useEffect, useState } from 'react';
 import { Platform } from 'react-native';
@@ -38,10 +39,20 @@ export function useAppleAuth() {
       // Determine availability: if Apple Sign In isn't available (e.g., Simulator),
       // fall back to a mock credential to allow local dev flows.
       const isSimulator = Platform.OS === 'ios' && !available;
-      
+
+      // Don't send mock tokens to production — they'll be rejected.
+      // Mock tokens only work against a local dev server.
+      if (isSimulator) {
+        const apiBase = getApiBaseUrl();
+        const isProduction = !apiBase.includes('localhost') && !apiBase.includes('127.0.0.1');
+        if (isProduction) {
+          throw new Error('Apple Sign-In is not available in the simulator. Please test on a real device or use email/password.');
+        }
+      }
+
       let credential;
       if (isSimulator) {
-        console.log('[Apple Auth] Using simulator mock credential');
+        console.log('[Apple Auth] Using simulator mock credential (local dev server)');
         // Create a STABLE mock credential for testing - same ID every time
         // This prevents creating duplicate accounts in simulator
         credential = {
@@ -197,30 +208,9 @@ export function useAppleAuth() {
         console.log('[Apple Auth] Native Apple auth unavailable (expected in simulator)');
       }
       
-      // Dev-only fallback: if native Apple auth fails, use a dev token
-      // This is CRITICAL for simulator testing where Apple auth isn't available
-      if (__DEV__ && Platform.OS === 'ios') {
-        try {
-          console.log('[Apple Auth] Attempting dev fallback auth...');
-          // Use the owner's email so the dev account is recognized as admin
-          // CRITICAL: Use stable token (no timestamp) to prevent duplicate accounts
-          const devEmail = 'emancero@varsityhub.app';
-          const devToken = `sim-dev-${devEmail}`;  // Stable - same user every time
-          const res = await User.loginViaApple(devToken);
-          if (res?.access_token) {
-            console.log('[Apple Auth] Dev fallback succeeded');
-            return res as any;
-          }
-        } catch (fallbackErr) {
-          console.log('[Apple Auth] Dev fallback auth not available (expected), continuing to error handling');
-          // continue to normal error mapping below
-        }
-      }
-      
       // In dev/simulator mode, suppress user-facing errors for expected auth failures
       if (__DEV__ && Platform.OS === 'ios') {
         console.log('[Apple Auth] Native auth not available in simulator - expected behavior');
-        // Let the error propagate silently so AuthProvider can handle fallback
         throw err;
       }
       

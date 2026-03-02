@@ -187,7 +187,8 @@ export function useGoogleAuth() {
       console.log('[google-auth] Request config:', requestConfig);
 
       const response = await promptAsync();
-      console.log('[google-auth] Response from Google:', response);
+      // DEBUG: (1) full Google auth response
+      console.log('[google-auth] DEBUG full response:', JSON.stringify(response, null, 2));
 
       // Handle user cancellation gracefully - don't throw
       if (response.type === 'cancel' || response.type === 'dismiss') {
@@ -200,14 +201,94 @@ export function useGoogleAuth() {
       }
 
       // Handle other non-success responses
-      if (response.type !== 'success' || !response.authentication?.idToken) {
+      if (response.type !== 'success') {
         const errorMsg = `Google sign-in failed: ${response.type}`;
         console.error('[google-auth]', errorMsg, response);
         throw new Error(errorMsg);
       }
 
+      let idToken: string | null = response.authentication?.idToken ?? null;
+
+      // Auth code flow: exchange the code for tokens when no idToken is directly available
+      if (!idToken && response.params?.code) {
+        console.log('[google-auth] Got auth code, exchanging for tokens...');
+
+        const clientId =
+          Platform.OS === 'ios'
+            ? (clients.iosClientId || clients.webClientId || '')
+            : Platform.OS === 'android'
+              ? (clients.androidClientId || clients.webClientId || '')
+              : (clients.webClientId || '');
+
+        const body: Record<string, string> = {
+          code: response.params.code,
+          client_id: clientId,
+          redirect_uri: redirectUri,
+          grant_type: 'authorization_code',
+        };
+
+        // Include PKCE code verifier if present (expo-auth-session uses PKCE by default)
+        if (request?.codeVerifier) {
+          body.code_verifier = request.codeVerifier;
+        }
+
+        // DEBUG: compare redirect_uri and client_id between auth request and token exchange
+        console.log('[google-auth] DEBUG auth request redirectUri:', requestConfig.redirectUri);
+        console.log('[google-auth] DEBUG token exchange redirect_uri:', body.redirect_uri);
+        console.log('[google-auth] DEBUG redirect_uri match:', requestConfig.redirectUri === body.redirect_uri);
+        console.log('[google-auth] DEBUG token exchange client_id:', body.client_id);
+        console.log('[google-auth] DEBUG request.url (actual auth URL):', request?.url);
+        console.log('[google-auth] DEBUG has code_verifier:', !!body.code_verifier);
+
+        const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: Object.entries(body)
+            .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+            .join('&'),
+        });
+
+        const tokenData = await tokenResponse.json();
+
+        if (tokenData.id_token) {
+          idToken = tokenData.id_token;
+          console.log('[google-auth] Got idToken from code exchange');
+        } else if (tokenData.access_token) {
+          idToken = tokenData.access_token;
+          console.log('[google-auth] Using access_token as fallback from code exchange');
+        } else {
+          console.error('[google-auth] Token exchange failed:', tokenData);
+          throw new Error(tokenData.error_description || 'Failed to exchange auth code for tokens');
+        }
+      }
+
+      if (!idToken) {
+        throw new Error('Google sign-in completed but no token was received');
+      }
+
+      // DEBUG: (2) token preview
+      console.log('[google-auth] DEBUG idToken preview:', idToken.substring(0, 50) + '...' + idToken.substring(idToken.length - 20));
+      // DEBUG: (3) decode JWT payload to see aud/iss
+      try {
+        const parts = idToken.split('.');
+        if (parts.length === 3) {
+          const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+          console.log('[google-auth] DEBUG JWT aud:', payload.aud);
+          console.log('[google-auth] DEBUG JWT iss:', payload.iss);
+          console.log('[google-auth] DEBUG JWT email:', payload.email);
+          console.log('[google-auth] DEBUG JWT azp:', payload.azp);
+        } else {
+          console.log('[google-auth] DEBUG token is NOT a JWT (parts:', parts.length, ')');
+        }
+      } catch (decodeErr) {
+        console.log('[google-auth] DEBUG JWT decode failed:', decodeErr);
+      }
+      // DEBUG: (4) exact request to backend
+      const apiBase = require('@/api/http').getApiBaseUrl();
+      console.log('[google-auth] DEBUG sending to:', apiBase + '/auth/google', JSON.stringify({ id_token: idToken.substring(0, 30) + '...' }));
+
       console.log('[google-auth] Got idToken, sending to server...');
-      const serverResponse = await User.loginViaGoogle(response.authentication.idToken);
+      const serverResponse = await User.loginViaGoogle(idToken);
       console.log('[google-auth] Server accepted token, logged in as:', serverResponse);
       return serverResponse as GoogleAuthResult;
     } catch (err: any) {

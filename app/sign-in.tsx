@@ -201,10 +201,10 @@ export default function SignInScreen() {
       }
       
       // Show user-friendly error
-      if (message.includes('Network') || message.includes('timeout') || message.includes('fetch')) {
+      if (message.includes('not available in the simulator') || message.includes('simulator')) {
+        setError('Apple Sign-In requires a real device. Use email/password in the simulator.');
+      } else if (message.includes('Network') || message.includes('timeout') || message.includes('fetch')) {
         setError('Unable to connect to server. Please check your internet connection.');
-      } else if (message.includes('not available') || message.includes('simulator')) {
-        setError('Apple sign-in is not available in simulator. Please use email/password login.');
       } else {
         setError(message || 'Apple sign-in failed. Please try again.');
       }

@@ -286,6 +286,8 @@ authRouter.post('/google', async (req, res) => {
       return res.status(400).json({ error: 'Google account email is not verified' });
     }
 
+    console.log('[auth/google] audience check:', JSON.stringify({ allowedAudiences: GOOGLE_ALLOWED_AUDIENCES, incomingAudience: audience }));
+
     if (GOOGLE_ALLOWED_AUDIENCES.length && (!audience || !GOOGLE_ALLOWED_AUDIENCES.includes(audience))) {
       req.log?.warn?.({ audience }, '[auth/google] audience mismatch');
       return res.status(400).json({ error: 'Google credential not issued for this application' });
@@ -356,8 +358,14 @@ authRouter.post('/google', async (req, res) => {
       needs_onboarding: needsOnboarding,
       created,
     });
-  } catch (err) {
-    console.error('[auth/google] unexpected error', err);
+  } catch (err: any) {
+    console.error('[auth/google] unexpected error', {
+      message: err?.message,
+      code: err?.code,
+      meta: err?.meta,
+      name: err?.name,
+      stack: err?.stack?.split('\n').slice(0, 5).join('\n'),
+    });
     return res.status(500).json({ error: 'Failed to authenticate with Google' });
   }
 });
