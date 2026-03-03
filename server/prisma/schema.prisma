@@ -18,7 +18,7 @@ model User {
   google_id                  String?   @unique
   apple_id                   String?   @unique
   display_name               String?
-  username                   String?   // Will add unique constraint later after data migration
+  username                   String?   @unique
   avatar_url                 String?
   bio                        String?
   created_at                 DateTime  @default(now())
@@ -35,7 +35,7 @@ model User {
   subscription_tier          String    @default("free") // free | premium | pro
   subscription_status        String    @default("active") // active | cancelled | expired
   subscription_expires_at    DateTime?
-  stripe_customer_id         String?
+  stripe_customer_id         String?   @unique
   max_teams                  Int       @default(2) // Free users get 2 teams
 
   // Relations
@@ -294,6 +294,7 @@ model Message {
   @@index([sender_id, created_at])
   @@index([recipient_id, created_at])
   @@index([recipient_id, read])
+  @@index([conversation_id])
 }
 
 model BlockedUser {
@@ -888,7 +889,7 @@ model TransactionLog {
   updated_at          DateTime          @updatedAt
   
   // Relations
-  user                User?             @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user                User?             @relation(fields: [user_id], references: [id], onDelete: SetNull)
   
   @@index([user_id])
   @@index([stripe_session_id])
