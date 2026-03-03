@@ -50,6 +50,9 @@ adsRouter.post('/', requireVerified as any, adCreationLimiter, async (req: Authe
   if (!contact_name || !contact_email || !business_name || !target_zip_code) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
+  if (!/^\d{5}$/.test(String(target_zip_code))) {
+    return res.status(400).json({ error: 'target_zip_code must be a 5-digit US zip code' });
+  }
   const ad = await prisma.ad.create({
     data: {
       user_id: req.user?.id,

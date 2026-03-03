@@ -45,7 +45,7 @@ const getSportCategory = (title?: string | null, content?: string | null) => {
 };
 
 export default function PostDetailScreen() {
-  const params = useLocalSearchParams<{ id?: string; postIds?: string; index?: string }>();
+  const params = useLocalSearchParams<{ id?: string; postIds?: string; index?: string; from?: string }>();
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const postCache = usePostCache();
@@ -990,7 +990,18 @@ export default function PostDetailScreen() {
       
       {/* Custom Header */}
       <View style={[styles.header, { backgroundColor: Colors[colorScheme].surface, borderBottomColor: Colors[colorScheme].border }]}>
-        <Pressable style={styles.backButton} onPress={() => { router.back(); }}>
+        <Pressable style={styles.backButton} onPress={() => {
+          if (params.from === 'highlights') {
+            // Explicit navigation back to highlights tab — router.back() unreliably
+            // returns to the feed tab because post-detail is a sibling tab screen,
+            // not a stacked screen within the highlights tab.
+            router.navigate('/(tabs)/highlights' as any);
+          } else if (router.canGoBack()) {
+            router.back();
+          } else {
+            router.replace('/(tabs)' as any);
+          }
+        }}>
           <Ionicons name="arrow-back" size={24} color={Colors[colorScheme].text} />
         </Pressable>
         <View style={styles.headerCenter}>
@@ -1191,8 +1202,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    paddingTop: Platform.OS === 'ios' ? 44 : StatusBar.currentHeight || 0,
+    paddingVertical: 8,
     borderBottomWidth: 1,
   },
   backButton: {

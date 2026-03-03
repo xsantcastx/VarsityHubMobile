@@ -9,6 +9,7 @@ interface OnboardingLayoutProps {
   totalSteps?: number;
   title: string;
   subtitle?: string;
+  aboveTitle?: ReactNode;
   children: ReactNode;
   onBack?: () => void;
   onBackPress?: () => void;
@@ -25,6 +26,7 @@ export default function OnboardingLayout({
   totalSteps = 10,
   title,
   subtitle,
+  aboveTitle,
   children,
   onBack,
   onBackPress,
@@ -119,6 +121,7 @@ export default function OnboardingLayout({
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.titleSection}>
+            {aboveTitle}
             <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
             {subtitle && (
               <Text style={[styles.subtitle, { color: colors.textMuted }]}>{subtitle}</Text>

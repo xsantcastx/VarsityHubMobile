@@ -6,11 +6,11 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import LocationPicker from '@/components/LocationPicker';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { httpGet } from '@/api/http';
 // @ts-ignore
-import { Advertisement as AdsApi, User } from '@/api/entities';
+import { Advertisement as AdsApi } from '@/api/entities';
 
 type BannerFitValue = 'rotate' | 'fill' | 'stretch' | `rotate:${number}`;
 
@@ -47,7 +47,8 @@ export default function SubmitAdScreen() {
 
   const canSubmit = useMemo(() => {
     // Website link is required; description is optional
-    if (!name.trim() || !email.trim() || !business.trim() || !zip.trim()) return false;
+    if (!name.trim() || !email.trim() || !business.trim()) return false;
+    if (!/^\d{5}$/.test(zip.trim())) return false; // Must be a valid 5-digit zip
     if (!bannerUrl) return false; // Banner is mandatory
     if (!targetUrl.trim()) return false; // Website link mandatory
     return true;
@@ -68,16 +69,19 @@ export default function SubmitAdScreen() {
     try {
       let currentUserId: string | null = null;
       let normalizedEmail = email.trim().toLowerCase();
+      // Quick-fail /me call (3s timeout, 0 retries) — only needed for local cache scoping.
+      // The default User.me() uses 5 retries × 30s timeout = up to 3 min blocking.
       try {
-        const me: any = await User.me();
+        const me: any = await httpGet('/me', {}, 3000, 0);
         currentUserId = me?.id ? String(me.id) : null;
         if (!normalizedEmail && typeof me?.email === 'string') {
           normalizedEmail = me.email.trim().toLowerCase();
         }
       } catch {}
 
-      // Try server-side creation first
+      // Create ad on server
       let serverId: string | null = null;
+      let createError: string | null = null;
       try {
         const created: any = await AdsApi.create({
           contact_name: name.trim(),
@@ -95,7 +99,13 @@ export default function SubmitAdScreen() {
         if (typeof created?.contact_email === 'string') {
           normalizedEmail = created.contact_email.trim().toLowerCase();
         }
-      } catch {}
+      } catch (err: any) {
+        createError = err?.message || 'Could not create ad on server';
+        if (err?.status === 403) {
+          Alert.alert('Verification Required', 'Please verify your email before submitting an ad.');
+          return;
+        }
+      }
 
       const adId = serverId || `local-${Date.now()}-${Math.round(Math.random() * 1e6)}`;
       // Keep a local copy so My Ads can show offline
@@ -206,13 +216,14 @@ export default function SubmitAdScreen() {
             />
 
             <Text style={[styles.label, { color: theme.text }]}>Target Zip Code *</Text>
-            <LocationPicker
+            <TextInput
               value={zip}
-              onLocationSelect={({ address }) => {
-                const zipMatch = address.match(/\b\d{5}(?:-\d{4})?\b/);
-                setZip(zipMatch ? zipMatch[0].slice(0, 5) : address);
-              }}
-              placeholder="Enter zip code or city"
+              onChangeText={setZip}
+              placeholder="12345"
+              style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
+              placeholderTextColor={theme.mutedText}
+              keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
+              maxLength={5}
             />
 
             {/* Reach Map Preview - Shows advertisers exactly where their ad will appear */}

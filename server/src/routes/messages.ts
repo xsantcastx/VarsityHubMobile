@@ -172,6 +172,21 @@ if (recipientPrefs.account_type === 'organization') {
   return res.status(403).json({ error: 'ORG_ACCOUNT', message: 'Organization accounts cannot receive direct messages.' });
 }
 
+// Enforce recipient's DM policy
+const dmPolicy = recipientPrefs.dm_policy || 'everyone';
+if (dmPolicy === 'no_one') {
+  return res.status(403).json({ error: 'DM_RESTRICTED', message: 'This user does not accept direct messages.' });
+}
+if (dmPolicy === 'following') {
+  // Recipient only accepts DMs from people they follow
+  const recipientFollowsSender = await prisma.follows.findUnique({
+    where: { follower_id_following_id: { follower_id: toId!, following_id: meId } },
+  });
+  if (!recipientFollowsSender) {
+    return res.status(403).json({ error: 'DM_RESTRICTED', message: 'This user only accepts messages from people they follow.' });
+  }
+}
+
 const senderAge = ageFromDob((me?.preferences as any)?.dob);
 const recipientAge = ageFromDob(recipientPrefs?.dob);
 

@@ -906,6 +906,7 @@ authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
     push_token: z.string().optional(),
     profile_private: z.boolean().optional(),
     comment_permission: z.enum(['everyone', 'following', 'none']).optional(),
+    dm_policy: z.enum(['everyone', 'following', 'no_one']).optional(),
   }).partial();
   
   const parsed = schema.safeParse(req.body || {});
@@ -982,6 +983,7 @@ const completeOnboardingSchema = z.object({
   team_name: z.string().optional(),
   organization_id: z.string().optional(),
   organization_name: z.string().optional(),
+  join_request_pending: z.boolean().optional(),
   sport: z.string().optional(),
   
   // Season
@@ -1072,6 +1074,7 @@ authRouter.post('/me/complete-onboarding', async (req: AuthedRequest, res) => {
     team_name: data.team_name,
     organization_id: data.organization_id,
     organization_name: data.organization_name,
+    join_request_pending: data.join_request_pending,
     sport: data.sport,
     season_start: data.season_start,
     season_end: data.season_end,

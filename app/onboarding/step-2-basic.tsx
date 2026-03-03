@@ -3,13 +3,14 @@ import { Input } from '@/components/ui/input';
 import PrimaryButton from '@/components/ui/PrimaryButton';
 import { Type } from '@/ui/tokens';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, Animated, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useOnboarding, type Affiliation } from '@/context/OnboardingContext';
 import { STEP_ROUTES, nextIncompleteStep } from '@/context/onboardingReducer';
+import { getConfig } from '@/config/env';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useFocusEffect } from '@react-navigation/native';
 import OnboardingLayout from './components/OnboardingLayout';
@@ -17,6 +18,61 @@ import OnboardingLayout from './components/OnboardingLayout';
 // Username validation: lowercase letters, numbers, dots, underscores only (matches backend)
 // Spaces are normalized to underscores BEFORE validation
 const usernameRe = /^[a-z0-9_.]+$/;
+
+const SPORT_BALLS = ['⚽', '🎾', '🏈', '🏀'];
+
+function SportBallRow() {
+  const [active, setActive] = useState(0);
+  const scales = useRef(SPORT_BALLS.map(() => new Animated.Value(0.7))).current;
+  const opacities = useRef(SPORT_BALLS.map(() => new Animated.Value(0.35))).current;
+
+  useEffect(() => {
+    // Animate the first emoji immediately on mount
+    Animated.parallel([
+      Animated.spring(scales[0], { toValue: 1.2, useNativeDriver: true, friction: 5 }),
+      Animated.timing(opacities[0], { toValue: 1, duration: 300, useNativeDriver: true }),
+    ]).start();
+
+    const interval = setInterval(() => {
+      setActive(prev => (prev + 1) % SPORT_BALLS.length);
+    }, 800);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    SPORT_BALLS.forEach((_, i) => {
+      Animated.parallel([
+        Animated.spring(scales[i], {
+          toValue: i === active ? 1.2 : 0.7,
+          useNativeDriver: true,
+          friction: 5,
+        }),
+        Animated.timing(opacities[i], {
+          toValue: i === active ? 1 : 0.35,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    });
+  }, [active]);
+
+  return (
+    <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 12, marginBottom: 8 }}>
+      {SPORT_BALLS.map((emoji, i) => (
+        <Animated.Text
+          key={emoji}
+          style={{
+            fontSize: 28,
+            opacity: opacities[i],
+            transform: [{ scale: scales[i] }],
+          }}
+        >
+          {emoji}
+        </Animated.Text>
+      ))}
+    </View>
+  );
+}
 
 export default function Step2Basic() {
   const router = useRouter();
@@ -249,6 +305,7 @@ export default function Step2Basic() {
       step={2}
       title="Basic Information"
       subtitle="We'll set up your account with a username and preferences"
+      aboveTitle={<SportBallRow />}
       onBack={onBack}
       emailVerified={emailVerified === null ? undefined : emailVerified}
       onVerifyEmail={() => void router.push('/verify-email')}
@@ -321,15 +378,25 @@ export default function Step2Basic() {
         <Text style={styles.error}>VarsityHub is not available for users under 13. Please have a parent or guardian contact support@varsityhub.app.</Text>
       )}
 
-      <Text style={styles.label}>Zip code</Text>
-      <Input 
-        value={zip} 
-        onChangeText={setZip} 
-        autoCapitalize="none" 
-        placeholder="12345" 
-        keyboardType="numeric" 
+      <Text style={styles.label}>Zip code <Text style={styles.muted}>(optional)</Text></Text>
+      <Input
+        value={zip}
+        onChangeText={setZip}
+        autoCapitalize="none"
+        placeholder="12345"
+        keyboardType="numeric"
         maxLength={5}
       />
+      {/^\d{5}$/.test(zip) && (() => {
+        const key = getConfig().mapsKey;
+        if (!key) return null;
+        const uri = `https://maps.googleapis.com/maps/api/staticmap?center=${zip},US&zoom=10&size=600x200&scale=2&key=${key}`;
+        return (
+          <View style={styles.mapContainer}>
+            <Image source={{ uri }} style={styles.mapImage} resizeMode="cover" />
+          </View>
+        );
+      })()}
 
       <View style={{ marginTop: 20 }}>
         <PrimaryButton
@@ -441,5 +508,16 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   affiliationLabelSelected: {
     color: Colors[colorScheme].tint,
     fontWeight: '700',
+  },
+  mapContainer: {
+    marginTop: 8,
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: Colors[colorScheme].border,
+  },
+  mapImage: {
+    width: '100%',
+    height: 120,
   },
 });

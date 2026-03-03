@@ -2,7 +2,7 @@
  * Banner Spec Upload Component
  * 
  * Handles banner/logo upload for advertisements with preview and fit options
- * Supports rotate, fill, and stretch transformations
+ * Supports rotate and fill transformations
  */
 
 import { uploadFile } from '@/api/upload';
@@ -182,11 +182,7 @@ export function BannerUpload({
   const handleFitModeChange = (newMode: BannerFitMode) => {
     setFitMode(newMode);
     // Reset transformations when switching modes
-    if (newMode === 'stretch') {
-      setScale(1);
-      setRotation(0);
-      setPosition({ x: 50, y: 50 });
-    } else if (newMode === 'rotate') {
+    if (newMode === 'rotate') {
       setScale(1);
       setRotation(0);
       setPosition({ x: 50, y: 50 });
@@ -196,12 +192,10 @@ export function BannerUpload({
     }
   };
 
-  const getContentFit = (): 'contain' | 'cover' | 'fill' => {
+  const getContentFit = (): 'contain' | 'cover' => {
     switch (fitMode) {
       case 'rotate':
         return 'contain'; // Fits entire image, may show bars
-      case 'stretch':
-        return 'fill'; // Stretches to fill, may distort
       case 'fill':
       default:
         return 'cover'; // Fills container, may crop
@@ -406,7 +400,7 @@ export function BannerUpload({
             Banner Fit:
           </Text>
           <View style={styles.fitModeButtons}>
-            {(['rotate', 'fill', 'stretch'] as BannerFitMode[]).map((mode) => (
+            {(['rotate', 'fill'] as BannerFitMode[]).map((mode) => (
               <Pressable
                 key={mode}
                 style={[
@@ -449,22 +443,6 @@ export function BannerUpload({
         </View>
       )}
 
-      {/* Fit Mode Descriptions */}
-      {value && (
-        <View style={styles.descriptionContainer}>
-          <Text style={[styles.descriptionText, { color: Colors[colorScheme].mutedText }]}>
-            {getFitModeDescription(fitMode)}
-          </Text>
-          {(fitMode === 'fill' || fitMode === 'rotate') && (
-            <Text style={[styles.descriptionText, { color: Colors[colorScheme].mutedText }]}>
-              {fitMode === 'fill'
-                ? 'Pinch to zoom, rotate, and pan to reposition'
-                : 'Rotate to adjust orientation'}
-            </Text>
-          )}
-        </View>
-      )}
-
       {/* Upload button (alternative to tap-to-upload) */}
       {!value && (
         <Pressable
@@ -495,8 +473,6 @@ function getFitModeIcon(mode: BannerFitMode): keyof typeof Ionicons.glyphMap {
   switch (mode) {
     case 'rotate':
       return 'refresh';
-    case 'stretch':
-      return 'resize-outline';
     case 'fill':
     default:
       return 'crop-outline';
@@ -507,23 +483,9 @@ function getFitModeLabel(mode: BannerFitMode): string {
   switch (mode) {
     case 'rotate':
       return 'Rotate';
-    case 'stretch':
-      return 'Stretch';
     case 'fill':
     default:
       return 'Fill';
-  }
-}
-
-function getFitModeDescription(mode: BannerFitMode): string {
-  switch (mode) {
-    case 'rotate':
-      return 'Shows entire image with padding bars (no cropping, no distortion). Rotate to adjust orientation.';
-    case 'stretch':
-      return 'Stretches image to fill entire space (may distort aspect ratio)';
-    case 'fill':
-    default:
-      return 'Fills entire space by cropping edges (maintains aspect ratio)';
   }
 }
 
@@ -589,16 +551,6 @@ const styles = StyleSheet.create({
   fitModeButtonText: {
     fontSize: 13,
     fontWeight: '600',
-  },
-  descriptionContainer: {
-    padding: 12,
-    backgroundColor: '#F3F4F6',
-    borderRadius: 8,
-  },
-  descriptionText: {
-    fontSize: 12,
-    lineHeight: 18,
-    textAlign: 'center',
   },
   uploadButton: {
     flexDirection: 'row',

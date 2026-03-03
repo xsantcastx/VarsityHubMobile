@@ -6,12 +6,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useColorScheme, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useColorScheme, View } from 'react-native';
 // @ts-ignore
 import { Organization, Team } from '@/api/entities';
 import { PlaceSuggestion } from '@/api/geocoding';
 import LocationPicker from '@/components/LocationPicker';
 import { httpPost } from '@/api/http';
+import { getConfig } from '@/config/env';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { useOrganizationSearch } from '@/hooks/useOrganizationSearch';
 import OnboardingLayout from './components/OnboardingLayout';
@@ -46,7 +47,9 @@ export default function Step4Organization() {
   const [selectedPlace, setSelectedPlace] = useState<PlaceSuggestion | null>(null);
   const [selectedPlaceZip, setSelectedPlaceZip] = useState<string | null>(null);
   const [emailVerified, setEmailVerified] = useState<boolean | null>(null);
-  const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
+  const [duplicateOrg, setDuplicateOrg] = useState<{ id: string; name: string; location?: string; sport?: string } | null>(null);
+  const duplicateWarning = duplicateOrg ? `An organization with a similar name already exists: "${duplicateOrg.name}"` : null;
+  const dupCheckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const styles = useMemo(() => createStyles(colorScheme), [colorScheme]);
 
@@ -233,32 +236,65 @@ export default function Step4Organization() {
       }
       void (async () => {
         try {
+          const zip = zipMatch?.[0]?.slice(0, 5) || undefined;
           const res = await httpPost('/organizations/check-duplicate', {
-            place_id: placeId,
             name: orgName.trim(),
+            zip_code: zip,
           });
-          if (res && (res as any).exists) {
-            setDuplicateWarning(`An organization at "${address}" already exists. Use Search to find it.`);
+          if (res && (res as any).exists && (res as any).organization) {
+            setDuplicateOrg((res as any).organization);
           } else {
-            setDuplicateWarning(null);
+            setDuplicateOrg(null);
           }
         } catch {
-          setDuplicateWarning(null);
+          setDuplicateOrg(null);
         }
       })();
     } else {
       setSelectedPlace(null);
       setSelectedPlaceZip(null);
-      setDuplicateWarning(null);
+      setDuplicateOrg(null);
     }
   }, [setSearchZip, orgName]);
 
-  // Cleanup search timer on unmount to prevent memory leaks
+  // Debounced duplicate check when org name changes
+  const handleOrgNameChange = useCallback((text: string) => {
+    setOrgName(text);
+    if (dupCheckTimerRef.current) {
+      clearTimeout(dupCheckTimerRef.current);
+    }
+    if (text.trim().length >= 3) {
+      dupCheckTimerRef.current = setTimeout(async () => {
+        try {
+          const zip = selectedPlaceZip || searchZip.trim() || undefined;
+          const res = await httpPost('/organizations/check-duplicate', {
+            name: text.trim(),
+            zip_code: zip,
+          });
+          if (res && (res as any).exists && (res as any).organization) {
+            setDuplicateOrg((res as any).organization);
+          } else {
+            setDuplicateOrg(null);
+          }
+        } catch {
+          setDuplicateOrg(null);
+        }
+      }, 800);
+    } else {
+      setDuplicateOrg(null);
+    }
+  }, [selectedPlaceZip, searchZip]);
+
+  // Cleanup timers on unmount to prevent memory leaks
   useEffect(() => {
     return () => {
       if (searchTimerRef.current) {
         clearTimeout(searchTimerRef.current);
         searchTimerRef.current = null;
+      }
+      if (dupCheckTimerRef.current) {
+        clearTimeout(dupCheckTimerRef.current);
+        dupCheckTimerRef.current = null;
       }
     };
   }, []);
@@ -511,11 +547,11 @@ export default function Step4Organization() {
             </View>
 
             <Text style={styles.label}>Organization Name</Text>
-            <Input 
-              value={orgName} 
-              onChangeText={setOrgName} 
-              placeholder="Westhill High School" 
-              style={{ marginBottom: 12 }} 
+            <Input
+              value={orgName}
+              onChangeText={handleOrgNameChange}
+              placeholder="Westhill High School"
+              style={{ marginBottom: 12 }}
             />
             
             <Text style={styles.label}>Organization Type</Text>
@@ -571,6 +607,17 @@ export default function Step4Organization() {
                     </TouchableOpacity>
                   </View>
 
+                  {/^\d{5}$/.test(searchZip) && (() => {
+                    const key = getConfig().mapsKey;
+                    if (!key) return null;
+                    const uri = `https://maps.googleapis.com/maps/api/staticmap?center=${searchZip},US&zoom=10&size=600x200&scale=2&key=${key}`;
+                    return (
+                      <View style={styles.mapContainer}>
+                        <Image source={{ uri }} style={styles.mapImage} resizeMode="cover" />
+                      </View>
+                    );
+                  })()}
+
                   {nearbyOrgs.length > 0 && (
                     <ScrollView style={styles.orgList} showsVerticalScrollIndicator={false}>
                       <Text style={styles.resultsHeader}>
@@ -614,12 +661,46 @@ export default function Step4Organization() {
               onLocationSelect={handleLocationSelect}
               placeholder="Start typing an address, school, or city"
             />
-            {duplicateWarning && (
+            {duplicateOrg && (
               <View style={styles.duplicateWarningBox}>
-                <Ionicons name="warning" size={16} color="#F59E0B" style={{ marginRight: 8 }} />
-                <Text style={styles.duplicateWarningText}>{duplicateWarning}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+                  <Ionicons name="warning" size={16} color="#F59E0B" style={{ marginRight: 8 }} />
+                  <Text style={[styles.duplicateWarningText, { flex: 1 }]}>
+                    An organization with a similar name already exists: <Text style={{ fontWeight: '700' }}>{duplicateOrg.name}</Text>
+                    {duplicateOrg.location ? ` (${duplicateOrg.location})` : ''}
+                  </Text>
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 }}>
+                  <TouchableOpacity
+                    style={styles.duplicateJoinButton}
+                    onPress={() => requestToJoin(duplicateOrg)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Join ${duplicateOrg.name}`}
+                  >
+                    <Ionicons name="log-in-outline" size={16} color="#fff" style={{ marginRight: 4 }} />
+                    <Text style={styles.duplicateJoinButtonText}>Join {duplicateOrg.name}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => setDuplicateOrg(null)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Create new organization anyway"
+                  >
+                    <Text style={styles.duplicateCreateAnywayText}>Create new anyway</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             )}
+
+            {selectedPlaceZip && /^\d{5}$/.test(selectedPlaceZip) && (() => {
+              const key = getConfig().mapsKey;
+              if (!key) return null;
+              const uri = `https://maps.googleapis.com/maps/api/staticmap?center=${selectedPlaceZip},US&zoom=12&size=600x200&scale=2&key=${key}`;
+              return (
+                <View style={styles.mapContainer}>
+                  <Image source={{ uri }} style={styles.mapImage} resizeMode="cover" />
+                </View>
+              );
+            })()}
           </>
         )}
 
@@ -1497,8 +1578,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     fontSize: 16,
   },
   duplicateWarningBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'column',
     backgroundColor: colorScheme === 'dark' ? 'rgba(245, 158, 11, 0.15)' : '#FEF3C7',
     paddingVertical: 10,
     paddingHorizontal: 12,
@@ -1508,9 +1588,38 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     borderColor: colorScheme === 'dark' ? 'rgba(245, 158, 11, 0.3)' : '#FDE68A',
   },
   duplicateWarningText: {
-    flex: 1,
     fontSize: 13,
     color: colorScheme === 'dark' ? '#FCD34D' : '#92400E',
     lineHeight: 18,
+  },
+  duplicateJoinButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colorScheme === 'dark' ? '#1D4ED8' : '#2563EB',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+  },
+  duplicateJoinButtonText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  duplicateCreateAnywayText: {
+    fontSize: 13,
+    color: colorScheme === 'dark' ? '#94A3B8' : '#64748B',
+    textDecorationLine: 'underline',
+  },
+  mapContainer: {
+    marginTop: 8,
+    marginBottom: 12,
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: Colors[colorScheme].border,
+  },
+  mapImage: {
+    width: '100%',
+    height: 120,
   },
 });

@@ -543,11 +543,12 @@ usersRouter.post('/:id/follow', requireAuth as any, async (req: AuthedRequest, r
   }
 
   try {
-    await prisma.follows.create({
-      data: {
-        follower_id,
-        following_id,
+    await prisma.follows.upsert({
+      where: {
+        follower_id_following_id: { follower_id, following_id },
       },
+      create: { follower_id, following_id },
+      update: {},  // already following — no-op
     });
     // Create follow notification for the recipient
     try {
@@ -559,11 +560,11 @@ usersRouter.post('/:id/follow', requireAuth as any, async (req: AuthedRequest, r
             type: 'FOLLOW' as any,
           },
         });
-        
+
         // Send push notification
-        const follower = await prisma.user.findUnique({ 
-          where: { id: follower_id }, 
-          select: { display_name: true } 
+        const follower = await prisma.user.findUnique({
+          where: { id: follower_id },
+          select: { display_name: true }
         });
         if (follower) {
           await notifyNewFollower(
@@ -579,6 +580,7 @@ usersRouter.post('/:id/follow', requireAuth as any, async (req: AuthedRequest, r
     // Return is_following_author for caller
     res.status(201).json({ is_following_author: true });
   } catch (error) {
+    console.error('Follow error:', error);
     res.status(500).json({ error: 'Something went wrong.' });
   }
 });
@@ -589,16 +591,12 @@ usersRouter.delete('/:id/follow', requireAuth as any, async (req: AuthedRequest,
   const following_id = req.params.id;
 
   try {
-    await prisma.follows.delete({
-      where: {
-        follower_id_following_id: {
-          follower_id,
-          following_id,
-        },
-      },
+    await prisma.follows.deleteMany({
+      where: { follower_id, following_id },
     });
-    res.status(200).json({ success: true });
+    res.status(200).json({ success: true, is_following_author: false });
   } catch (error) {
+    console.error('Unfollow error:', error);
     res.status(500).json({ error: 'Something went wrong.' });
   }
 });

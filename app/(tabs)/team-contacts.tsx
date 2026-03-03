@@ -1485,7 +1485,11 @@ export default function TeamChatScreen() {
   if (loading) {
     return (
       <SafeAreaView style={[styles.container, styles.centerContent, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
-        <Stack.Screen options={{ title: 'Team Chat' }} />
+        <Stack.Screen options={{ title: 'Team Chat', headerShown: true, headerLeft: () => (
+            <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={{ paddingRight: 8 }}>
+              <Ionicons name="chevron-back" size={28} color={Colors[colorScheme].tint} />
+            </Pressable>
+          ) }} />
         <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
         <Text style={[styles.loadingText, { color: Colors[colorScheme].mutedText }]}>Loading team chat...</Text>
       </SafeAreaView>
@@ -1495,7 +1499,11 @@ export default function TeamChatScreen() {
   if (error) {
     return (
       <SafeAreaView style={[styles.container, styles.centerContent, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
-        <Stack.Screen options={{ title: 'Team Chat' }} />
+        <Stack.Screen options={{ title: 'Team Chat', headerShown: true, headerLeft: () => (
+            <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={{ paddingRight: 8 }}>
+              <Ionicons name="chevron-back" size={28} color={Colors[colorScheme].tint} />
+            </Pressable>
+          ) }} />
         <Ionicons name="cloud-offline-outline" size={48} color={Colors[colorScheme].mutedText} />
         <Text style={[styles.errorText, { color: '#EF4444' }]}>{error}</Text>
         <Pressable
@@ -1514,17 +1522,23 @@ export default function TeamChatScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
-      <Stack.Screen 
-        options={{ 
+      <Stack.Screen
+        options={{
           title: 'Team Chat',
+          headerShown: true,
           headerStyle: { backgroundColor: Colors[colorScheme].background },
           headerTintColor: Colors[colorScheme].text,
+          headerLeft: () => (
+            <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={{ paddingRight: 8 }}>
+              <Ionicons name="chevron-back" size={28} color={Colors[colorScheme].tint} />
+            </Pressable>
+          ),
           headerRight: () => (
             <Pressable onPress={() => showModal('Chat Settings', 'Chat settings are managed in the VarsityHub web dashboard.')}>
               <Ionicons name="settings-outline" size={24} color={Colors[colorScheme].text} />
             </Pressable>
           ),
-        }} 
+        }}
       />
 
       {/* Tab Navigation */}

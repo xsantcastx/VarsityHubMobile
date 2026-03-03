@@ -545,7 +545,7 @@ export const Advertisement = {
   },
   reservationsForAd: (ad_id: string) => httpGet('/ads/reservations?ad_id=' + encodeURIComponent(ad_id)),
   reserve: (ad_id: string, dates: string[]) => httpPost('/ads/reservations', { ad_id, dates }),
-  create: (data: any) => httpPost('/ads', data),
+  create: (data: any) => httpPostWithOptions('/ads', data, 15000, 0),
   listMine: () => httpGet('/ads?mine=1'),
   listAll: () => httpGet('/ads?all=1'),
   get: (id: string) => httpGet('/ads/' + encodeURIComponent(id)),

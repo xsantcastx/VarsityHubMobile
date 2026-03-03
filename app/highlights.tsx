@@ -526,25 +526,13 @@ export default function HighlightsScreen() {
     
   }, [highlights, activeTab]);
 
-  const handleHighlightPress = useCallback((item: HighlightItem, index?: number) => {
-    try {
-      // Navigate to post-detail with all highlights for swipe navigation
-      const filtered = getFilteredHighlights();
-      const targetIndex = index !== undefined ? index : filtered.findIndex(h => h.id === item.id);
-      const postIds = filtered.map(h => h.id).filter(Boolean).join(',');
-      
-      if (postIds && filtered.length > 0) {
-        router.push(`/post-detail?postIds=${postIds}&index=${Math.max(0, targetIndex)}`);
-      } else {
-        // Fallback to single post if no filtered highlights
-        router.push(`/post-detail?id=${item.id}`);
-      }
-    } catch (error) {
-      console.error('Navigation error in handleHighlightPress:', error);
-      // Fallback to single post navigation on error
-      router.push(`/post-detail?id=${item.id}`);
-    }
-  }, [router, getFilteredHighlights]);
+  const handleHighlightPress = useCallback((item: HighlightItem, _index?: number) => {
+    // Navigate to post-detail with the tapped post's ID.
+    // Previously passed all filtered IDs + index, but re-computing the filtered
+    // list at tap-time could yield a different sort order (e.g. after an upvote),
+    // causing the index to point to the wrong post.
+    router.push(`/post-detail?id=${item.id}&from=highlights`);
+  }, [router]);
 
   const handleAuthorPress = useCallback((authorId: string) => {
     // Navigate to user profile

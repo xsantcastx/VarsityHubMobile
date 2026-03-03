@@ -3,6 +3,7 @@ import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
+import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
@@ -73,7 +74,15 @@ export default function ResetPasswordScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: palette.background }]} edges={['top', 'bottom']}>
-      <Stack.Screen options={{ title: 'Reset Password' }} />
+      <Stack.Screen options={{
+        title: 'Reset Password',
+        headerShown: true,
+        headerLeft: () => (
+          <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/sign-in' as any)} style={{ paddingLeft: 8 }}>
+            <Ionicons name="chevron-back" size={24} color={palette.tint} />
+          </Pressable>
+        ),
+      }} />
       <KeyboardAwareScreen contentContainerStyle={styles.content}>
         <View style={[styles.card, { backgroundColor: palette.elevated, borderColor: palette.border }]}>
           <Text style={[styles.title, { color: palette.text }]}>Enter your reset code</Text>

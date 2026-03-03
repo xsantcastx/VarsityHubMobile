@@ -1,10 +1,11 @@
+import { User } from '@/api/entities';
 import settingsStore, { SETTINGS_KEYS } from '@/api/settings';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 type Policy = 'everyone' | 'following' | 'no_one';
@@ -18,6 +19,21 @@ export default function DMRestrictionsScreen() {
   useEffect(() => {
     let mounted = true;
     void (async () => {
+      try {
+        // Load from server (source of truth), fall back to local cache
+        const me = await User.me();
+        const serverPolicy = (me?.preferences as any)?.dm_policy;
+        if (!mounted) return;
+        if (serverPolicy && ['everyone', 'following', 'no_one'].includes(serverPolicy)) {
+          setPolicy(serverPolicy as Policy);
+          // Sync local cache
+          await settingsStore.setString(SETTINGS_KEYS.DM_POLICY, serverPolicy);
+          return;
+        }
+      } catch {
+        // Server unavailable — fall back to local cache
+      }
+      if (!mounted) return;
       const p = await settingsStore.getString(SETTINGS_KEYS.DM_POLICY, 'everyone');
       if (!mounted) return;
       setPolicy((p as Policy) || 'everyone');
@@ -27,7 +43,17 @@ export default function DMRestrictionsScreen() {
 
   const save = async (p: Policy) => {
     setSaving(true);
-    await settingsStore.setString(SETTINGS_KEYS.DM_POLICY, p);
+    setPolicy(p);
+    try {
+      // Persist to server so it's enforced on message send
+      await User.updatePreferences({ dm_policy: p });
+      // Also cache locally for fast loading
+      await settingsStore.setString(SETTINGS_KEYS.DM_POLICY, p);
+    } catch {
+      Alert.alert('Error', 'Failed to save DM preference. Please try again.');
+      setSaving(false);
+      return;
+    }
     setSaving(false);
     if (router.canGoBack()) {
       router.back();
@@ -37,7 +63,7 @@ export default function DMRestrictionsScreen() {
   };
 
   const Row = ({ k, title, desc }: { k: Policy; title: string; desc: string }) => (
-    <Pressable onPress={() => save(k)} style={[styles.row, { backgroundColor: Colors[colorScheme].card, borderColor: policy === k ? Colors[colorScheme].tint : Colors[colorScheme].border }]}>
+    <Pressable onPress={() => save(k)} disabled={saving} style={[styles.row, { backgroundColor: Colors[colorScheme].card, borderColor: policy === k ? Colors[colorScheme].tint : Colors[colorScheme].border, opacity: saving ? 0.6 : 1 }]}>
       <View style={{ flex: 1 }}>
         <Text style={[styles.rowTitle, { color: Colors[colorScheme].text }]}>{title}</Text>
         <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>{desc}</Text>
@@ -48,7 +74,7 @@ export default function DMRestrictionsScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
-      <Stack.Screen options={{ 
+      <Stack.Screen options={{
         title: 'DM Restrictions',
         headerLeft: () => (
           <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={{ paddingLeft: 8 }}>

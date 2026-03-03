@@ -709,6 +709,17 @@ export default function ProfileScreen() {
           pointerEvents="none"
         />
 
+        {/* Back Button - Only when viewing another user's profile */}
+        {viewingUserId && viewingUserId !== currentUserId ? (
+          <Pressable
+            onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)}
+            hitSlop={12}
+            style={[styles.controlButton, { position: 'absolute', left: 16, top: 12, zIndex: 200, elevation: 200, backgroundColor: colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)' }]}
+          >
+            <Ionicons name="chevron-back" size={18} color={colorScheme === 'dark' ? '#FFFFFF' : '#333'} />
+          </Pressable>
+        ) : null}
+
         {/* Settings Button & Follow Button - Top Right Corner */}
         <View style={[styles.headerControls, { top: 12 }]}>
           {/* Follow Button - Only for viewing other users */}

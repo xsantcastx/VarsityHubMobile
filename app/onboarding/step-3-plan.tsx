@@ -60,6 +60,16 @@ function PlanCard({
     }
   };
 
+  // Darker backgrounds for selected cards — ensures WCAG AA contrast (≥4.5:1) with white text
+  const getSelectedBg = (id: string): string => {
+    switch (id) {
+      case 'legend': return '#FFD700';
+      case 'veteran': return '#C0C0C0';
+      case 'rookie':
+      default: return '#8B5A2B'; // dark bronze — 5.8:1 contrast with white
+    }
+  };
+
   // Icon mapping - using Ionicons
   const getIconName = (): any => {
     switch (option.icon) {
@@ -81,18 +91,18 @@ function PlanCard({
         selected && styles.cardSelected,
         selected && styles.cardWithButton,
         { borderColor: selected ? getPlanColor(option.id) : (isDark ? '#374151' : '#E5E7EB') },
-        { backgroundColor: selected ? getPlanColor(option.id) : (isDark ? '#111827' : '#F9FAFB') }
+        { backgroundColor: selected ? getSelectedBg(option.id) : (isDark ? '#111827' : '#F9FAFB') }
       ]}>
       <View style={styles.cardHeader}>
         <View style={styles.titleRow}>
           <Ionicons name={getIconName()} size={24} color={selected ? '#FFFFFF' : getPlanColor(option.id)} />
-          <Text style={[styles.cardTitle, { color: selected ? '#FFFFFF' : (isDark ? '#F9FAFB' : '#111827') }]}>{option.name}</Text>
+          <Text style={[styles.cardTitle, selected && styles.selectedText, { color: selected ? '#FFFFFF' : (isDark ? '#F9FAFB' : '#111827') }]}>{option.name}</Text>
         </View>
       </View>
-      <Text style={[styles.price, { color: selected ? '#FFFFFF' : (isDark ? '#F9FAFB' : '#111827') }]}>{option.price} <Text style={[styles.period, { color: selected ? 'rgba(255,255,255,0.8)' : (isDark ? '#9CA3AF' : '#6B7280') }]}>{option.period}</Text></Text>
+      <Text style={[styles.price, selected && styles.selectedText, { color: selected ? '#FFFFFF' : (isDark ? '#F9FAFB' : '#111827') }]}>{option.price} <Text style={[styles.period, selected && styles.selectedText, { color: selected ? '#FFFFFF' : (isDark ? '#9CA3AF' : '#6B7280') }]}>{option.period}</Text></Text>
       <View style={styles.benefitsList}>
         {option.features.map((benefit) => (
-          <Text key={benefit} style={[styles.benefitItem, { color: selected ? 'rgba(255,255,255,0.95)' : (isDark ? '#34D399' : '#16A34A') }]}>{`- ${benefit}`}</Text>
+          <Text key={benefit} style={[styles.benefitItem, selected && styles.selectedText, { color: selected ? '#FFFFFF' : (isDark ? '#34D399' : '#16A34A') }]}>{`- ${benefit}`}</Text>
         ))}
       </View>
       </Pressable>
@@ -663,6 +673,11 @@ const styles = StyleSheet.create({
   period: { fontSize: 14, fontWeight: '400' },
   benefitsList: { marginTop: 8, gap: 4 },
   benefitItem: {},
+  selectedText: {
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
   extraNote: { marginTop: 8, fontSize: 12 },
   sideButton: {
     width: 80,

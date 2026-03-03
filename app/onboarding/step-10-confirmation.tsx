@@ -309,6 +309,7 @@ export default function Step10Confirmation() {
         team_name: finalIsCoach ? latestOb.team_name : undefined,
         organization_id: finalIsCoach ? latestOb.organization_id : undefined,
         organization_name: finalIsCoach ? latestOb.organization_name : undefined,
+        join_request_pending: finalIsCoach ? latestOb.join_request_pending : undefined,
         sport: finalIsCoach ? latestOb.sport : undefined,
 
         authorized: finalIsCoach ? latestOb.authorized : undefined,

@@ -1,7 +1,6 @@
 import { Game, Post, Team, User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
-import { calculateContrastRatio } from '@/utils/accessibility';
 import { getGradientForColor } from '@/utils/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
@@ -515,30 +514,6 @@ export default function TeamScreen() {
     ? ['rgba(4,7,20,0.85)', 'rgba(15,23,42,0.45)']
     : (getGradientForColor(teamThemeColor) as [string, string, ...string[]]);
   
-  const getTextColorForBackground = (bgColor: string): string => {
-    let hexColor = bgColor;
-    if (bgColor.startsWith('rgba')) {
-      const match = bgColor.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
-      if (match) {
-        const r = parseInt(match[1], 10);
-        const g = parseInt(match[2], 10);
-        const b = parseInt(match[3], 10);
-        hexColor = `#${[r, g, b].map(x => {
-          const hex = x.toString(16);
-          return hex.length === 1 ? '0' + hex : hex;
-        }).join('')}`;
-      }
-    }
-    const whiteContrast = calculateContrastRatio('#FFFFFF', hexColor);
-    if (whiteContrast && whiteContrast >= 3.0) {
-      return '#FFFFFF';
-    }
-    return '#000000';
-  };
-  
-  const firstGradientColor = heroGradientColors[0] || teamThemeColor;
-  const teamNameTextColor = getTextColorForBackground(firstGradientColor);
-  
   const teamName = team?.name || 'Team';
   const teamHandle = `@${(team?.name || 'team').toLowerCase().replace(/\s+/g, '')}`;
 
@@ -569,7 +544,15 @@ export default function TeamScreen() {
             end={{ x: 1, y: 1 }}
           />
         )}
-        
+        {/* Dark scrim at the bottom of the header for text readability */}
+        <LinearGradient
+          colors={['transparent', 'rgba(0,0,0,0.55)']}
+          style={styles.headerGradient}
+          start={{ x: 0, y: 0.3 }}
+          end={{ x: 0, y: 1 }}
+          pointerEvents="none"
+        />
+
         {/* Back Button - Top Left */}
         <View style={[styles.headerControls, { top: Math.max(12, insets.top), left: 16 }]}>
           <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={styles.controlButton}>
@@ -604,7 +587,7 @@ export default function TeamScreen() {
           {/* Team Info - Next to Avatar ON BANNER */}
           <View style={styles.userInfo}>
             <View style={styles.nameRow}>
-              <Text style={[styles.userName, { color: teamNameTextColor }]}>{teamName}</Text>
+              <Text style={[styles.userName, { color: '#FFFFFF' }]}>{teamName}</Text>
               <View style={[styles.roleBadge, styles.teamBadge]}>
                 <Text style={styles.roleText}>TEAM</Text>
               </View>
@@ -1163,7 +1146,7 @@ const styles = StyleSheet.create({
     position: 'relative',
     width: '100%',
     overflow: 'visible',
-    backgroundColor: '#ffffff',
+    backgroundColor: 'transparent',
   },
   headerBackgroundPressable: {
     position: 'relative',
@@ -1182,7 +1165,11 @@ const styles = StyleSheet.create({
   headerControls: {
     position: 'absolute',
     right: 16,
-    zIndex: 10,
+    zIndex: 200,
+    elevation: 200,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   controlButton: {
     width: 36,
@@ -1215,6 +1202,8 @@ const styles = StyleSheet.create({
     zIndex: 99999,
     elevation: 99999,
     position: 'relative',
+    marginRight: 0,
+    flexShrink: 0,
   },
   avatarContainer: {
     position: 'relative',
@@ -1250,19 +1239,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     flexWrap: 'wrap',
-    marginBottom: 4,
+    marginBottom: 0,
+    flexShrink: 1,
   },
   userInfo: {
     flex: 1,
-    paddingBottom: 4,
+    paddingBottom: 0,
+    minWidth: 0,
+    marginLeft: 8,
+    paddingRight: 8,
   },
   userName: {
     fontSize: 22,
     fontWeight: '700',
     color: '#ffffff',
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowColor: 'rgba(0, 0, 0, 0.6)',
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+    textShadowRadius: 4,
+    flexShrink: 1,
+    maxWidth: '100%',
   },
   roleBadge: {
     flexDirection: 'row',
@@ -1322,13 +1317,13 @@ const styles = StyleSheet.create({
   },
   profileDetailsContainer: {
     backgroundColor: 'transparent',
-    paddingTop: 30,
+    paddingTop: 8,
     marginBottom: 0,
     paddingBottom: 0,
   },
   userDetails: {
     paddingHorizontal: 16,
-    paddingTop: 0,
+    paddingTop: 4,
     paddingBottom: 4,
   },
   usernameRow: {

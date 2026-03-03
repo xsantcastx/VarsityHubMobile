@@ -13,6 +13,18 @@ import { eventCreationLimiter, rsvpLimiter } from '../middleware/rateLimiters.js
 
 export const eventsRouter = Router();
 
+// Check if a user holds an admin-level role in any organization
+async function isOrgAdmin(userId: string): Promise<boolean> {
+  const membership = await prisma.organizationMembership.findFirst({
+    where: {
+      user_id: userId,
+      role: { in: ['owner', 'manager', 'administrator'] },
+      status: 'active',
+    },
+  });
+  return !!membership;
+}
+
 const serializeEvent = (event: any, opts: { includeGame?: boolean; rsvpCount?: number; includeCreator?: boolean } = {}) => {
   const base: any = {
     id: event.id,
@@ -406,8 +418,8 @@ eventsRouter.post('/', requireVerified as any, eventCreationLimiter, async (req:
     }
   }
   
-  // Coaches/organizers get auto-approval, fans need approval
-  const autoApprove = userRole === 'coach' || userRole === 'organizer';
+  // Coaches/organizers/org admins get auto-approval, fans need approval
+  const autoApprove = userRole === 'coach' || userRole === 'organizer' || await isOrgAdmin(user.id);
   
   // Use capacity if provided, otherwise max_attendees (for backward compatibility)
   const capacity = data.max_attendees ?? null;
@@ -470,14 +482,14 @@ eventsRouter.put('/:id/approve', requireVerified as any, async (req: AuthedReque
   const userRole = prefs.role || 'fan';
   const isAdmin = await getIsAdmin(req as any);
   
-  if (!isAdmin && userRole !== 'coach' && userRole !== 'organizer') {
+  if (!isAdmin && userRole !== 'coach' && userRole !== 'organizer' && !(await isOrgAdmin(user.id))) {
     return res.status(403).json({ error: 'Only coaches and admins can approve events' });
   }
-  
+
   const eventId = String(req.params.id);
   const event = await prisma.event.findUnique({ where: { id: eventId } });
   if (!event) return res.status(404).json({ error: 'Event not found' });
-  
+
   // Validate event is in pending state
   if (event.approval_status === 'approved') {
     return res.status(400).json({ 
@@ -553,7 +565,7 @@ eventsRouter.put('/:id/reject', requireVerified as any, async (req: AuthedReques
   const userRole = prefs.role || 'fan';
   const isAdmin = await getIsAdmin(req as any);
   
-  if (!isAdmin && userRole !== 'coach' && userRole !== 'organizer') {
+  if (!isAdmin && userRole !== 'coach' && userRole !== 'organizer' && !(await isOrgAdmin(user.id))) {
     return res.status(403).json({ error: 'Only coaches and admins can reject events' });
   }
   

@@ -31,8 +31,10 @@ if (!isExpoGo) {
 interface AuthUser {
   id: string;
   email: string;
+  email_verified?: boolean;
   username?: string;
   role?: string;
+  is_admin?: boolean;
   preferences?: {
     onboarding_completed?: boolean;
   };
@@ -443,6 +445,19 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
 
     // Authenticated routing
     if (user) {
+      // If user hasn't verified their email, redirect to verify screen
+      // This prevents unverified users from accessing protected features (e.g. creating posts)
+      // that the server's requireVerified middleware would reject with 403
+      const verifyRoutes = new Set(['verify', 'verify-email', 'verify-identity']);
+      if (user.email_verified === false && !verifyRoutes.has(firstSegment)) {
+        console.log('[AuthProvider] User email not verified, redirecting to verify');
+        if (lastRedirectRef.current !== '/verify') {
+          lastRedirectRef.current = '/verify';
+          router.replace('/verify');
+        }
+        return;
+      }
+
       // SERVER IS SOURCE OF TRUTH for onboarding completion
       // Admin accounts always have onboarding_completed=true on server, so they bypass onboarding
       // Regular users are marked false if they haven't completed onboarding

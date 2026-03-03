@@ -561,33 +561,47 @@ organizationsRouter.get('/search/nearby', async (req, res) => {
   return res.json(organizations);
 });
 
-// Check for duplicate organizations
+// Check for duplicate organizations using normalized name comparison
 organizationsRouter.post('/check-duplicate', async (req, res) => {
   const { name, zip_code } = req.body;
-  
+
   if (!name) {
     return res.status(400).json({ error: 'name is required' });
   }
-  
-  const where: any = {
-    name: { equals: name, mode: 'insensitive' },
-    status: 'active'
-  };
-  
-  if (zip_code) {
-    where.zip_code = zip_code;
+
+  const normalizedInput = normalizeOrganizationName(name);
+  if (!normalizedInput) {
+    return res.json({ exists: false, organization: null });
   }
-  
-  const existing = await prisma.organization.findFirst({ where });
-  
-  return res.json({ 
-    exists: !!existing,
-    organization: existing ? {
-      id: existing.id,
-      name: existing.name,
-      location: existing.location,
-      sport: existing.sport,
-    } : null
+
+  // If zip_code provided, check orgs in that zip first
+  if (zip_code) {
+    const localOrgs = await prisma.organization.findMany({
+      where: { zip_code, status: 'active' },
+      select: { id: true, name: true, location: true, sport: true },
+    });
+    const localMatch = localOrgs.find(
+      (o) => normalizeOrganizationName(o.name) === normalizedInput
+    );
+    if (localMatch) {
+      return res.json({ exists: true, organization: localMatch });
+    }
+  }
+
+  // Broader name-only scan as fallback (recent 200 active orgs)
+  const recentOrgs = await prisma.organization.findMany({
+    where: { status: 'active' },
+    orderBy: { created_at: 'desc' },
+    take: 200,
+    select: { id: true, name: true, location: true, sport: true },
+  });
+  const broadMatch = recentOrgs.find(
+    (o) => normalizeOrganizationName(o.name) === normalizedInput
+  );
+
+  return res.json({
+    exists: !!broadMatch,
+    organization: broadMatch ?? null,
   });
 });
 
@@ -872,7 +886,7 @@ organizationsRouter.post('/join-requests/:requestId/deny', requireAuth as any, a
     }
   });
   
-  if (!membership || !['owner', 'manager'].includes(membership.role)) {
+  if (!membership || !isOrganizationAdmin(membership.role)) {
     return res.status(403).json({ error: 'Insufficient permissions' });
   }
   

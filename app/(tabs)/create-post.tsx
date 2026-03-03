@@ -1,6 +1,6 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Animated, Modal, Platform, Pressable, Image as RNImage, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, Animated, Easing, Modal, Platform, Pressable, Image as RNImage, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Game, Post, User } from '@/api/entities';
@@ -16,6 +16,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { useDeviceLocation } from '@/hooks/useDeviceLocation';
 import { pickerMediaTypeFor } from '@/utils/picker';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 
@@ -85,12 +86,32 @@ export default function CreatePostScreen() {
   const [precisionBannerDismissed, setPrecisionBannerDismissed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [postSuccess, setPostSuccess] = useState(false);
-  const successScale = useRef(new Animated.Value(0)).current;
+  // Celebration overlay animations
+  const celebrationScale = useRef(new Animated.Value(0)).current;
+  const celebrationOpacity = useRef(new Animated.Value(0)).current;
+  const confettiAnim = useRef(new Animated.Value(0)).current;
   const showPrecisionWarning = Platform.OS === 'android' && permissionGranted && needsPreciseAccuracy && !precisionBannerDismissed;
   const locationReady = typeof location?.latitude === 'number' && typeof location?.longitude === 'number';
   const [draftReady, setDraftReady] = useState(false);
   const draftLoadedRef = useRef(false);
   const draftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Reset form state when returning to this tab (handles stuck postSuccess)
+  useFocusEffect(
+    useCallback(() => {
+      if (postSuccess) {
+        setPostSuccess(false);
+        setContent('');
+        setPicked(null);
+        setError(null);
+        setSubmitting(false);
+        setPreviewVisible(false);
+        setSuggestedGame(null);
+        setSelectedGameId(gameId);
+        draftLoadedRef.current = false;
+      }
+    }, [postSuccess, gameId])
+  );
 
   useEffect(() => {
     let active = true;
@@ -621,16 +642,39 @@ export default function CreatePostScreen() {
             : `Your post has been created and will appear on the ${postDestination}.`);
       
       setPostSuccess(true);
-      successScale.setValue(0);
-      Animated.spring(successScale, {
-        toValue: 1,
-        friction: 4,
-        tension: 80,
-        useNativeDriver: true,
-      }).start();
+
+      // Full-screen celebration animation
+      celebrationOpacity.setValue(0);
+      celebrationScale.setValue(0.3);
+      confettiAnim.setValue(0);
+
+      Animated.parallel([
+        Animated.timing(celebrationOpacity, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.spring(celebrationScale, {
+          toValue: 1,
+          friction: 4,
+          tension: 60,
+          useNativeDriver: true,
+        }),
+        Animated.timing(confettiAnim, {
+          toValue: 1,
+          duration: 2000,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]).start();
+
       setTimeout(() => {
+        setPostSuccess(false);
+        setContent('');
+        setPicked(null);
+        setError(null);
         router.replace('/(tabs)');
-      }, 1800);
+      }, 2200);
     } catch (e: any) {
       console.error('[CreatePost] Error creating post:', {
         message: e?.message,
@@ -648,12 +692,21 @@ export default function CreatePostScreen() {
           setError('Event not found. Please remove the event attachment and try again, or select a different event.');
         } else if (e?.status === 403) {
           const code = e?.data?.error;
-          if (code === 'POSTING_WINDOW_CLOSED') {
+          if (code === 'Email verification required') {
+            Alert.alert(
+              'Verify Your Email',
+              'You need to verify your email before posting.',
+              [
+                { text: 'Later', style: 'cancel' },
+                { text: 'Verify Now', onPress: () => router.push('/verify' as any) },
+              ]
+            );
+          } else if (code === 'POSTING_WINDOW_CLOSED') {
             setError(`Not yet. ${e?.data?.message || 'Posting is not open for this event yet.'}`);
           } else if (code === 'TOO_FAR_FROM_VENUE') {
             setError(`You're too far from the venue. ${e?.data?.message || ''}`.trim());
           } else {
-            setError(e?.data?.message || 'You do not have permission to post to this event.');
+            setError(e?.data?.error || e?.data?.message || 'You do not have permission to post to this event.');
           }
         } else {
           setError(e?.message || 'Failed to create post. Please try again.');
@@ -680,28 +733,21 @@ export default function CreatePostScreen() {
         </Pressable>
         <View style={styles.headerSpacer} />
         <View style={styles.postButtonContainer}>
-          {postSuccess ? (
-            <Animated.View style={[styles.successIndicator, { transform: [{ scale: successScale }] }]}>
-              <Ionicons name="checkmark-circle" size={48} color="#F59E0B" />
-              <Text style={styles.successLabel}>Posted!</Text>
-            </Animated.View>
-          ) : (
-            <Pressable
-              onPress={onSubmit}
-              disabled={!canPost || submitting}
-              style={[styles.headerPostBtn, (!canPost || submitting) && { opacity: 0.45 }]}
-              accessibilityLabel={buttonLabel}
-            >
-              {submitting ? (
-                <Text style={styles.headerPostBtnText}>Posting...</Text>
-              ) : (
-                <>
-                  <Ionicons name="send" size={16} color="#FFFFFF" />
-                  <Text style={styles.headerPostBtnText}>{postType === 'highlight' ? 'Share' : 'Post'}</Text>
-                </>
-              )}
-            </Pressable>
-          )}
+          <Pressable
+            onPress={onSubmit}
+            disabled={!canPost || submitting || postSuccess}
+            style={[styles.headerPostBtn, (!canPost || submitting || postSuccess) && { opacity: 0.45 }]}
+            accessibilityLabel={buttonLabel}
+          >
+            {submitting ? (
+              <Text style={styles.headerPostBtnText}>Posting...</Text>
+            ) : (
+              <>
+                <Ionicons name="send" size={16} color="#FFFFFF" />
+                <Text style={styles.headerPostBtnText}>{postType === 'highlight' ? 'Share' : 'Post'}</Text>
+              </>
+            )}
+          </Pressable>
         </View>
       </View>
 
@@ -1154,6 +1200,61 @@ export default function CreatePostScreen() {
           </ScrollView>
         </SafeAreaView>
       </Modal>
+
+      {/* Full-screen celebration overlay */}
+      {postSuccess && (
+        <Animated.View style={[styles.celebrationOverlay, { opacity: celebrationOpacity }]}>
+          <Animated.View style={[styles.celebrationContent, { transform: [{ scale: celebrationScale }] }]}>
+            {/* Confetti particles */}
+            {[...Array(12)].map((_, i) => {
+              const angle = (i / 12) * 2 * Math.PI;
+              const radius = 80;
+              return (
+                <Animated.View
+                  key={i}
+                  style={[
+                    styles.confettiDot,
+                    {
+                      backgroundColor: ['#F59E0B', '#10B981', '#3B82F6', '#EF4444', '#8B5CF6', '#EC4899'][i % 6],
+                      transform: [
+                        {
+                          translateX: confettiAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0, Math.cos(angle) * radius],
+                          }),
+                        },
+                        {
+                          translateY: confettiAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0, Math.sin(angle) * radius + 40],
+                          }),
+                        },
+                        {
+                          scale: confettiAnim.interpolate({
+                            inputRange: [0, 0.5, 1],
+                            outputRange: [0, 1.2, 0],
+                          }),
+                        },
+                      ],
+                      opacity: confettiAnim.interpolate({
+                        inputRange: [0, 0.3, 0.8, 1],
+                        outputRange: [0, 1, 1, 0],
+                      }),
+                    },
+                  ]}
+                />
+              );
+            })}
+            <Animated.View style={{ transform: [{ scale: celebrationScale }] }}>
+              <Ionicons name="checkmark-circle" size={96} color="#F59E0B" />
+            </Animated.View>
+            <Text style={styles.celebrationTitle}>Posted!</Text>
+            <Text style={styles.celebrationSubtitle}>
+              {postType === 'highlight' ? 'Your highlight is live' : 'Your post is live'}
+            </Text>
+          </Animated.View>
+        </Animated.View>
+      )}
     </SafeAreaView>
   );
 }
@@ -1887,17 +1988,35 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 20,
   },
-  successIndicator: {
+  celebrationOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 999,
+  },
+  celebrationContent: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
   },
-  successLabel: {
+  celebrationTitle: {
     color: '#F59E0B',
-    fontSize: 14,
-    fontWeight: '700',
-    marginTop: 2,
+    fontSize: 28,
+    fontWeight: '800',
+    marginTop: 16,
+    letterSpacing: 0.5,
+  },
+  celebrationSubtitle: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: 16,
+    fontWeight: '500',
+    marginTop: 8,
+  },
+  confettiDot: {
+    position: 'absolute',
+    width: 10,
+    height: 10,
+    borderRadius: 5,
   },
   headerPostBtn: {
     flexDirection: 'row',

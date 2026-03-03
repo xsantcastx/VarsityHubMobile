@@ -1105,6 +1105,21 @@ export async function sendJoinRequestToAdmin(params: {
   requestId: string;
   orgLogoUrl?: string;
 }): Promise<boolean> {
+  if (!TEMPLATE_IDS.JOIN_REQUEST_ADMIN) {
+    console.warn('[email] SendGrid join request admin template not configured, using fallback');
+    const lines = [
+      `Hi ${params.adminName},`,
+      `${params.requesterName} has requested to join ${params.organizationName}.`,
+    ];
+    if (params.message) {
+      lines.push(`Message: "${params.message}"`);
+    }
+    lines.push(
+      `Review this request in your VarsityHub dashboard: ${APP_BASE_URL}/organizations`,
+    );
+    return genericTemplateEmail(params.adminEmail, `New join request for ${params.organizationName}`, lines);
+  }
+
   return sendTemplateEmail(
     TEMPLATE_IDS.JOIN_REQUEST_ADMIN,
     params.adminEmail,
@@ -1133,31 +1148,29 @@ export async function sendJoinRequestApproved(params: {
   adminName: string;
   orgLogoUrl?: string;
 }): Promise<boolean> {
-  if (!SENDGRID_API_KEY || !TEMPLATE_IDS.JOIN_REQUEST_APPROVED) {
-    console.warn('[email] SendGrid join request approved template not configured');
-    return false;
+  if (!TEMPLATE_IDS.JOIN_REQUEST_APPROVED) {
+    console.warn('[email] SendGrid join request approved template not configured, using fallback');
+    return genericTemplateEmail(params.userEmail, 'Join Request Approved', [
+      `Hi ${params.userName},`,
+      `Your request to join ${params.organizationName} has been approved.`,
+      `Visit your organization page: ${APP_BASE_URL}/organizations`,
+    ]);
   }
 
-  try {
-    await sgMail.send({
-      to: params.userEmail,
-      from: EMAIL_FROM,
-      templateId: TEMPLATE_IDS.JOIN_REQUEST_APPROVED,
-      dynamicTemplateData: {
-        ...getCommonTemplateData(),
-        user_name: params.userName,
-        org_name: params.organizationName,
-        admin_name: params.adminName,
-        org_url: `${APP_BASE_URL}/organizations`,
-        logo_image: params.orgLogoUrl || `${APP_BASE_URL}/default-org-logo.jpg`,
-      },
-    });
-    debugLog(`✅ Join request approved notification sent to ${params.userEmail}`);
-    return true;
-  } catch (error) {
-    console.error('❌ Failed to send join request approved notification:', error);
-    return false;
-  }
+  return sendTemplateEmail(
+    TEMPLATE_IDS.JOIN_REQUEST_APPROVED,
+    params.userEmail,
+    'Join Request Approved',
+    {
+      ...getCommonTemplateData(),
+      user_name: params.userName,
+      org_name: params.organizationName,
+      admin_name: params.adminName,
+      org_url: `${APP_BASE_URL}/organizations`,
+      logo_image: params.orgLogoUrl || `${APP_BASE_URL}/default-org-logo.jpg`,
+    },
+    `Join request approved notification sent to ${params.userEmail}`
+  );
 }
 
 /**
@@ -1170,30 +1183,28 @@ export async function sendJoinRequestDenied(params: {
   reason?: string;
   orgLogoUrl?: string;
 }): Promise<boolean> {
-  if (!SENDGRID_API_KEY || !TEMPLATE_IDS.JOIN_REQUEST_DENIED) {
-    console.warn('[email] SendGrid join request denied template not configured');
-    return false;
+  if (!TEMPLATE_IDS.JOIN_REQUEST_DENIED) {
+    console.warn('[email] SendGrid join request denied template not configured, using fallback');
+    return genericTemplateEmail(params.userEmail, 'Join Request Update', [
+      `Hi ${params.userName},`,
+      `Your request to join ${params.organizationName} was not approved.`,
+      params.reason ? `Reason: ${params.reason}` : null,
+    ]);
   }
 
-  try {
-    await sgMail.send({
-      to: params.userEmail,
-      from: EMAIL_FROM,
-      templateId: TEMPLATE_IDS.JOIN_REQUEST_DENIED,
-      dynamicTemplateData: {
-        ...getCommonTemplateData(),
-        user_name: params.userName,
-        org_name: params.organizationName,
-        reason: params.reason || '',
-        logo_image: params.orgLogoUrl || `${APP_BASE_URL}/default-org-logo.jpg`,
-      },
-    });
-    debugLog(`✅ Join request denied notification sent to ${params.userEmail}`);
-    return true;
-  } catch (error) {
-    console.error('❌ Failed to send join request denied notification:', error);
-    return false;
-  }
+  return sendTemplateEmail(
+    TEMPLATE_IDS.JOIN_REQUEST_DENIED,
+    params.userEmail,
+    'Join Request Update',
+    {
+      ...getCommonTemplateData(),
+      user_name: params.userName,
+      org_name: params.organizationName,
+      reason: params.reason || '',
+      logo_image: params.orgLogoUrl || `${APP_BASE_URL}/default-org-logo.jpg`,
+    },
+    `Join request denied notification sent to ${params.userEmail}`
+  );
 }
 
 /**
@@ -1205,29 +1216,26 @@ export async function sendOrganizationApprovalEmail(params: {
   dashboardLink?: string;
   orgLogoUrl?: string;
 }): Promise<boolean> {
-  if (!SENDGRID_API_KEY || !TEMPLATE_IDS.ORG_APPROVAL) {
-    console.warn('[email] SendGrid org approval template not configured');
-    return false;
+  if (!TEMPLATE_IDS.ORG_APPROVAL) {
+    console.warn('[email] SendGrid org approval template not configured, using fallback');
+    return genericTemplateEmail(params.to, 'Organization Approved', [
+      `Your organization ${params.organizationName} has been approved.`,
+      `View your dashboard: ${params.dashboardLink || `${APP_BASE_URL}/team-hub`}`,
+    ]);
   }
 
-  try {
-    await sgMail.send({
-      to: params.to,
-      from: EMAIL_FROM,
-      templateId: TEMPLATE_IDS.ORG_APPROVAL,
-      dynamicTemplateData: {
-        ...getCommonTemplateData(),
-        org_name: params.organizationName,
-        dashboard_url: params.dashboardLink || `${APP_BASE_URL}/team-hub`,
-        logo_image: params.orgLogoUrl || `${APP_BASE_URL}/default-org-logo.jpg`,
-      },
-    });
-    debugLog(`✅ Organization approval email sent to ${params.to}`);
-    return true;
-  } catch (error) {
-    console.error('❌ Failed to send organization approval email:', error);
-    return false;
-  }
+  return sendTemplateEmail(
+    TEMPLATE_IDS.ORG_APPROVAL,
+    params.to,
+    'Organization Approved',
+    {
+      ...getCommonTemplateData(),
+      org_name: params.organizationName,
+      dashboard_url: params.dashboardLink || `${APP_BASE_URL}/team-hub`,
+      logo_image: params.orgLogoUrl || `${APP_BASE_URL}/default-org-logo.jpg`,
+    },
+    `Organization approval email sent to ${params.to}`
+  );
 }
 
 /**
@@ -1239,29 +1247,26 @@ export async function sendOrganizationDenialEmail(params: {
   reason?: string;
   orgLogoUrl?: string;
 }): Promise<boolean> {
-  if (!SENDGRID_API_KEY || !TEMPLATE_IDS.ORG_DENIAL) {
-    console.warn('[email] SendGrid org denial template not configured');
-    return false;
+  if (!TEMPLATE_IDS.ORG_DENIAL) {
+    console.warn('[email] SendGrid org denial template not configured, using fallback');
+    return genericTemplateEmail(params.to, 'Organization Update', [
+      `Your organization ${params.organizationName} was not approved.`,
+      params.reason ? `Reason: ${params.reason}` : null,
+    ]);
   }
 
-  try {
-    await sgMail.send({
-      to: params.to,
-      from: EMAIL_FROM,
-      templateId: TEMPLATE_IDS.ORG_DENIAL,
-      dynamicTemplateData: {
-        ...getCommonTemplateData(),
-        org_name: params.organizationName,
-        reason: params.reason || '',
-        logo_image: params.orgLogoUrl || `${APP_BASE_URL}/default-org-logo.jpg`,
-      },
-    });
-    debugLog(`✅ Organization denial email sent to ${params.to}`);
-    return true;
-  } catch (error) {
-    console.error('❌ Failed to send organization denial email:', error);
-    return false;
-  }
+  return sendTemplateEmail(
+    TEMPLATE_IDS.ORG_DENIAL,
+    params.to,
+    'Organization Update',
+    {
+      ...getCommonTemplateData(),
+      org_name: params.organizationName,
+      reason: params.reason || '',
+      logo_image: params.orgLogoUrl || `${APP_BASE_URL}/default-org-logo.jpg`,
+    },
+    `Organization denial email sent to ${params.to}`
+  );
 }
 
 
@@ -1275,30 +1280,28 @@ export async function sendContentModerationEmail(params: {
   reason?: string;
   nextSteps?: string;
 }): Promise<boolean> {
-  if (!SENDGRID_API_KEY || !TEMPLATE_IDS.CONTENT_MODERATION) {
-    console.warn('[email] SendGrid content moderation template not configured');
-    return false;
+  if (!TEMPLATE_IDS.CONTENT_MODERATION) {
+    console.warn('[email] SendGrid content moderation template not configured, using fallback');
+    return genericTemplateEmail(params.to, 'Content Moderation Notice', [
+      `Your content has been ${params.action}.`,
+      params.reason ? `Reason: ${params.reason}` : null,
+      params.nextSteps || "If you believe this is a mistake, reply to this email and we'll review it.",
+    ]);
   }
 
-  try {
-    await sgMail.send({
-      to: params.to,
-      from: EMAIL_FROM,
-      templateId: TEMPLATE_IDS.CONTENT_MODERATION,
-      dynamicTemplateData: {
-        ...getCommonTemplateData(),
-        action: params.action,
-        post_id: params.postId || '',
-        reason: params.reason || '',
-        next_steps: params.nextSteps || "If you believe this is a mistake, reply to this email and we'll review it.",
-      },
-    });
-    debugLog(`✅ Content moderation email sent to ${params.to} (action: ${params.action})`);
-    return true;
-  } catch (error) {
-    console.error('❌ Failed to send content moderation email:', error);
-    return false;
-  }
+  return sendTemplateEmail(
+    TEMPLATE_IDS.CONTENT_MODERATION,
+    params.to,
+    'Content Moderation Notice',
+    {
+      ...getCommonTemplateData(),
+      action: params.action,
+      post_id: params.postId || '',
+      reason: params.reason || '',
+      next_steps: params.nextSteps || "If you believe this is a mistake, reply to this email and we'll review it.",
+    },
+    `Content moderation email sent to ${params.to} (action: ${params.action})`
+  );
 }
 
 /**
@@ -1314,33 +1317,48 @@ export async function sendBillingNoticeEmail(params: {
   orgName?: string;
   perks?: string[];
 }): Promise<boolean> {
-  if (!SENDGRID_API_KEY || !TEMPLATE_IDS.BILLING_NOTICE) {
-    console.warn('[email] SendGrid billing notice template not configured');
-    return false;
+  const billingSubjects: Record<string, string> = {
+    trial_ending: 'Your Trial is Ending Soon',
+    payment_succeeded: 'Payment Received',
+    payment_failed: 'Payment Failed',
+    subscription_canceled: 'Subscription Canceled',
+    subscription_renewed: 'Subscription Renewed',
+  };
+  const subject = billingSubjects[params.type] || 'Billing Notice';
+
+  if (!TEMPLATE_IDS.BILLING_NOTICE) {
+    console.warn('[email] SendGrid billing notice template not configured, using fallback');
+    const planLabel = params.planName || 'VarsityHub Subscription';
+    const billingMessages: Record<string, string> = {
+      trial_ending: `Your trial for ${planLabel} is ending soon.`,
+      payment_succeeded: `We received your payment for ${planLabel}.`,
+      payment_failed: `Your payment for ${planLabel} failed. Please update your billing info.`,
+      subscription_canceled: `Your ${planLabel} subscription has been canceled.`,
+      subscription_renewed: `Your ${planLabel} subscription has been renewed.`,
+    };
+    return genericTemplateEmail(params.to, subject, [
+      billingMessages[params.type] || `Billing update for ${planLabel}.`,
+      params.amount ? `Amount: ${params.amount}` : null,
+      `Manage your subscription: ${params.manageLink || `${APP_BASE_URL}/settings/manage-subscription`}`,
+    ]);
   }
 
-  try {
-    await sgMail.send({
-      to: params.to,
-      from: EMAIL_FROM,
-      templateId: TEMPLATE_IDS.BILLING_NOTICE,
-      dynamicTemplateData: {
-        ...getCommonTemplateData(),
-        notice_type: params.type,
-        plan_name: params.planName || 'VarsityHub Subscription',
-        amount: params.amount || '',
-        manage_url: params.manageLink || `${APP_BASE_URL}/settings/manage-subscription`,
-        team_name: params.teamName || '',
-        org_name: params.orgName || '',
-        perks: params.perks || [],
-      },
-    });
-    debugLog(`✅ Billing notice sent to ${params.to} (type: ${params.type})`);
-    return true;
-  } catch (error) {
-    console.error('❌ Failed to send billing notice:', error);
-    return false;
-  }
+  return sendTemplateEmail(
+    TEMPLATE_IDS.BILLING_NOTICE,
+    params.to,
+    subject,
+    {
+      ...getCommonTemplateData(),
+      notice_type: params.type,
+      plan_name: params.planName || 'VarsityHub Subscription',
+      amount: params.amount || '',
+      manage_url: params.manageLink || `${APP_BASE_URL}/settings/manage-subscription`,
+      team_name: params.teamName || '',
+      org_name: params.orgName || '',
+      perks: params.perks || [],
+    },
+    `Billing notice sent to ${params.to} (type: ${params.type})`
+  );
 }
 
 /**
