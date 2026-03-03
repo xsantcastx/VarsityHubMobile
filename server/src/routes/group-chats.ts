@@ -1,9 +1,9 @@
-import { PrismaClient } from '@prisma/client';
 import { Router } from 'express';
+import { validateContent } from '../lib/contentFilter.js';
+import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 
-const prisma = new PrismaClient();
 const groupChatsRouter = Router();
 
 // Get all group chats for the current user
@@ -24,7 +24,6 @@ groupChatsRouter.get('/', requireAuth as any, async (req: AuthedRequest, res) =>
                     id: true,
                     display_name: true,
                     avatar_url: true,
-                    email: true,
                   },
                 },
               },
@@ -48,13 +47,22 @@ groupChatsRouter.get('/', requireAuth as any, async (req: AuthedRequest, res) =>
       orderBy: { joined_at: 'desc' },
     });
 
+    const unreadCounts = await Promise.all(
+      memberships.map((m) =>
+        prisma.groupChatMessage.count({
+          where: {
+            chat_id: m.chat_id,
+            sender_id: { not: req.user!.id },
+            ...(m.last_read_at ? { created_at: { gt: m.last_read_at } } : {}),
+          },
+        })
+      )
+    );
+    const unreadByChatId = new Map(memberships.map((m, idx) => [m.chat_id, unreadCounts[idx]]));
+
     const chats = memberships.map(m => {
       const lastMessage = m.chat.messages[0] || null;
-      const unreadCount = m.last_read_at
-        ? m.chat.messages.filter(msg => 
-            msg.created_at > m.last_read_at! && msg.sender_id !== req.user!.id
-          ).length
-        : 0;
+      const unreadCount = unreadByChatId.get(m.chat_id) || 0;
 
       return {
         ...m.chat,
@@ -66,7 +74,7 @@ groupChatsRouter.get('/', requireAuth as any, async (req: AuthedRequest, res) =>
     return res.json(chats);
   } catch (error: any) {
     console.error('Error fetching group chats:', error);
-    return res.status(500).json({ error: error.message || 'Failed to fetch group chats' });
+    return res.status(500).json({ error: 'Failed to fetch group chats' });
   }
 });
 
@@ -97,7 +105,6 @@ groupChatsRouter.get('/:chatId/messages', requireAuth as any, async (req: Authed
             id: true,
             display_name: true,
             avatar_url: true,
-            email: true,
           },
         },
       },
@@ -108,7 +115,7 @@ groupChatsRouter.get('/:chatId/messages', requireAuth as any, async (req: Authed
     return res.json(messages);
   } catch (error: any) {
     console.error('Error fetching group chat messages:', error);
-    return res.status(500).json({ error: error.message || 'Failed to fetch messages' });
+    return res.status(500).json({ error: 'Failed to fetch messages' });
   }
 });
 
@@ -123,6 +130,12 @@ groupChatsRouter.post('/:chatId/messages', requireAuth as any, async (req: Authe
     // SECURITY: Type validation for content (must be string)
     if (typeof content !== 'string' || !content.trim()) {
       return res.status(400).json({ error: 'Message content required' });
+    }
+
+    const normalizedContent = content.trim();
+    const filterResult = validateContent({ content: normalizedContent });
+    if (!filterResult.valid) {
+      return res.status(400).json({ error: filterResult.error, code: filterResult.code });
     }
 
     // Verify user is a member of this chat
@@ -141,7 +154,7 @@ groupChatsRouter.post('/:chatId/messages', requireAuth as any, async (req: Authe
       data: {
         chat_id: chatId,
         sender_id: req.user.id,
-        content: content.trim(),
+        content: normalizedContent,
       },
       include: {
         sender: {
@@ -149,7 +162,6 @@ groupChatsRouter.post('/:chatId/messages', requireAuth as any, async (req: Authe
             id: true,
             display_name: true,
             avatar_url: true,
-            email: true,
           },
         },
       },
@@ -158,7 +170,7 @@ groupChatsRouter.post('/:chatId/messages', requireAuth as any, async (req: Authe
     return res.status(201).json(message);
   } catch (error: any) {
     console.error('Error sending group chat message:', error);
-    return res.status(500).json({ error: error.message || 'Failed to send message' });
+    return res.status(500).json({ error: 'Failed to send message' });
   }
 });
 
@@ -244,7 +256,6 @@ groupChatsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) =
                 id: true,
                 display_name: true,
                 avatar_url: true,
-                email: true,
               },
             },
           },
@@ -255,7 +266,7 @@ groupChatsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) =
     return res.status(201).json(chat);
   } catch (error: any) {
     console.error('Error creating group chat:', error);
-    return res.status(500).json({ error: error.message || 'Failed to create group chat' });
+    return res.status(500).json({ error: 'Failed to create group chat' });
   }
 });
 

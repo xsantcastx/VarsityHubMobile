@@ -19,12 +19,57 @@ const MAX_AUTH_ATTEMPTS = 5;
 const AUTH_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 
 // Dedicated failed-attempt tracking for password reset code verification
-const resetFailures: Map<string, { attempts: number; lockedUntil: number }> = new Map();
+type ResetFailureRecord = { attempts: number; lockedUntil: number; lastAttempt: number };
+const resetFailures: Map<string, ResetFailureRecord> = new Map();
 const MAX_RESET_FAILURES = 5;
 const RESET_LOCKOUT_MS = 15 * 60 * 1000; // 15 minutes
+const MAX_RATE_TRACKED_KEYS = 10_000;
+const RATE_MAP_PRUNE_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+const RESET_FAILURE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+let lastRatePruneAt = 0;
+
+function trimMapByOldestValue<K, V>(map: Map<K, V>, targetSize: number, getSortValue: (value: V) => number): void {
+  if (map.size <= targetSize) return;
+  const entries = [...map.entries()].sort((a, b) => getSortValue(a[1]) - getSortValue(b[1]));
+  const removeCount = Math.max(0, map.size - targetSize);
+  for (let i = 0; i < removeCount; i++) {
+    map.delete(entries[i][0]);
+  }
+}
+
+function maybePruneRateMaps(now: number = Date.now(), force = false): void {
+  if (!force && now - lastRatePruneAt < RATE_MAP_PRUNE_INTERVAL_MS) return;
+  lastRatePruneAt = now;
+
+  for (const [key, record] of authRate.entries()) {
+    if (record.resetAt <= now) authRate.delete(key);
+  }
+
+  for (const [key, record] of resetFailures.entries()) {
+    const lockExpired = record.lockedUntil > 0 && record.lockedUntil <= now;
+    const staleRecord = now - record.lastAttempt > RESET_FAILURE_TTL_MS;
+    if (lockExpired || staleRecord) resetFailures.delete(key);
+  }
+
+  for (const [key, record] of verifyRate.entries()) {
+    if (now - record.hourStart > 2 * 3600_000) verifyRate.delete(key);
+  }
+
+  const targetSize = Math.floor(MAX_RATE_TRACKED_KEYS * 0.8);
+  if (authRate.size > MAX_RATE_TRACKED_KEYS) {
+    trimMapByOldestValue(authRate, targetSize, (value) => value.resetAt);
+  }
+  if (resetFailures.size > MAX_RATE_TRACKED_KEYS) {
+    trimMapByOldestValue(resetFailures, targetSize, (value) => value.lastAttempt);
+  }
+  if (verifyRate.size > MAX_RATE_TRACKED_KEYS) {
+    trimMapByOldestValue(verifyRate, targetSize, (value) => value.hourStart);
+  }
+}
 
 function checkResetAttempt(email: string): { allowed: boolean; retryAfterMs?: number } {
   const now = Date.now();
+  maybePruneRateMaps(now, resetFailures.size >= MAX_RATE_TRACKED_KEYS);
   const record = resetFailures.get(email);
 
   if (!record) return { allowed: true };
@@ -45,14 +90,16 @@ function checkResetAttempt(email: string): { allowed: boolean; retryAfterMs?: nu
 
 function recordResetFailure(email: string): void {
   const now = Date.now();
+  maybePruneRateMaps(now, resetFailures.size >= MAX_RATE_TRACKED_KEYS);
   const record = resetFailures.get(email);
 
   if (!record) {
-    resetFailures.set(email, { attempts: 1, lockedUntil: 0 });
+    resetFailures.set(email, { attempts: 1, lockedUntil: 0, lastAttempt: now });
     return;
   }
 
   record.attempts++;
+  record.lastAttempt = now;
   if (record.attempts >= MAX_RESET_FAILURES) {
     record.lockedUntil = now + RESET_LOCKOUT_MS;
   }
@@ -69,6 +116,7 @@ const debugLog = (...args: Parameters<typeof console.log>) => {
 
 function checkAuthRateLimit(identifier: string): boolean {
   const now = Date.now();
+  maybePruneRateMaps(now, authRate.size >= MAX_RATE_TRACKED_KEYS);
   const record = authRate.get(identifier);
   
   if (!record || now > record.resetAt) {
@@ -175,8 +223,8 @@ authRouter.post('/register', asyncHandler(async (req, res) => {
     });
   }
   const password_hash = await bcrypt.hash(password, 10);
-  const code = String(Math.floor(100000 + Math.random() * 900000));
-  console.log(`[verify-code] [register] Code generated: ${code} for ${sanitizedEmail}`);
+  const code = String(crypto.randomInt(100000, 1000000));
+  debugLog(`[verify-code] [register] Verification code generated for ${sanitizedEmail}`);
   const exp = new Date(Date.now() + 30 * 60 * 1000);
   const userRole = role || 'fan';
 
@@ -201,10 +249,10 @@ authRouter.post('/register', asyncHandler(async (req, res) => {
       preferences: initialPreferences
     }
   });
-  console.log(`[verify-code] [register] Code stored in DB for user ${user.id} (expires ${exp.toISOString()})`);
+  debugLog(`[verify-code] [register] Verification code stored for user ${user.id} (expires ${exp.toISOString()})`);
   const access_token = signJwt({ id: user.id });
   try {
-    console.log(`[verify-code] [register] Calling sendVerificationEmail → to: ${email}`);
+    debugLog(`[verify-code] [register] Sending verification email to ${email}`);
     const emailSend = sendVerificationEmail(email, code, display_name || sanitizedEmail.split('@')[0]);
     const EMAIL_TIMEOUT_MS = 5000;
     const timed = await Promise.race([
@@ -216,7 +264,7 @@ authRouter.post('/register', asyncHandler(async (req, res) => {
     } else if (timed === false) {
       console.error('[verify-code] [register] sendVerificationEmail returned false — email was NOT sent (check SendGridProvider logs above for the specific error)');
     } else {
-      console.log('[verify-code] [register] sendVerificationEmail returned true — email accepted by SendGrid');
+      debugLog('[verify-code] [register] sendVerificationEmail returned true — email accepted by SendGrid');
     }
   } catch (e) {
     console.error('[verify-code] [register] sendVerificationEmail threw:', e);
@@ -230,7 +278,7 @@ authRouter.post('/register', asyncHandler(async (req, res) => {
 
 const loginSchema = z.object({ email: z.string().email(), password: z.string().min(1) });
 
-authRouter.post('/login', async (req, res) => {
+authRouter.post('/login', asyncHandler(async (req, res) => {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid credentials' });
   const { email, password } = parsed.data;
@@ -252,7 +300,7 @@ authRouter.post('/login', async (req, res) => {
   const body: any = { access_token, user: sanitized, needs_onboarding: needsOnboarding };
   if (!user.email_verified) body.needs_verification = true;
   return res.json(body);
-});
+}));
 
 const googleAuthSchema = z.object({
   id_token: z.string().min(10),
@@ -552,7 +600,7 @@ authRouter.post('/password/forgot', async (req, res) => {
   }
   debugLog('[password-reset] User found:', user.id, user.email);
 
-  const code = String(Math.floor(10000000 + Math.random() * 90000000)); // 8-digit code (~90M possibilities)
+  const code = String(crypto.randomInt(10000000, 100000000)); // 8-digit code (~90M possibilities)
   const expires = new Date(Date.now() + 30 * 60 * 1000);
 
   await prisma.user.update({
@@ -1134,22 +1182,23 @@ authRouter.post('/verify/request', async (req: AuthedRequest, res) => {
   if (user.email_verified) return res.json({ ok: true, already_verified: true });
   const now = Date.now();
   const key = user.id;
+  maybePruneRateMaps(now, verifyRate.size >= MAX_RATE_TRACKED_KEYS);
   const rec = verifyRate.get(key) || { last: 0, count: 0, hourStart: now };
   if (now - rec.hourStart > 3600_000) { rec.hourStart = now; rec.count = 0; }
   if (now - rec.last < 30_000) return res.status(429).json({ error: 'Please wait before requesting another code' });
   if (rec.count >= 5) return res.status(429).json({ error: 'Too many requests' });
-  const code = String(Math.floor(100000 + Math.random() * 900000));
-  console.log(`[verify-code] [verify/request] Code generated: ${code} for user ${user.id} (${user.email})`);
+  const code = String(crypto.randomInt(100000, 1000000));
+  debugLog(`[verify-code] [verify/request] Verification code generated for user ${user.id}`);
   const exp = new Date(Date.now() + 30 * 60 * 1000);
   await prisma.user.update({ where: { id: user.id }, data: { email_verification_code: code, email_verification_expires: exp } });
-  console.log(`[verify-code] [verify/request] Code stored in DB (expires ${exp.toISOString()})`);
+  debugLog(`[verify-code] [verify/request] Verification code stored in DB (expires ${exp.toISOString()})`);
   try {
-    console.log(`[verify-code] [verify/request] Calling sendVerificationEmail → to: ${user.email}`);
+    debugLog(`[verify-code] [verify/request] Sending verification email to ${user.email}`);
     const sent = await sendVerificationEmail(user.email, code, user.display_name || user.email.split('@')[0]);
     if (!sent) {
       console.error('[verify-code] [verify/request] sendVerificationEmail returned false — email was NOT sent (check SendGridProvider logs above for the specific error)');
     } else {
-      console.log('[verify-code] [verify/request] sendVerificationEmail returned true — email accepted by SendGrid');
+      debugLog('[verify-code] [verify/request] sendVerificationEmail returned true — email accepted by SendGrid');
     }
   } catch (e) {
     console.error('[verify-code] [verify/request] sendVerificationEmail threw:', e);

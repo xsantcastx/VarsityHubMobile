@@ -172,16 +172,19 @@ adsRouter.get('/for-feed', async (req, res) => {
 });
 
 // Get a single Ad with its reservations (dates)
-adsRouter.get('/:id', async (req, res) => {
+adsRouter.get('/:id([a-z0-9-]{20,40})', requireAuth as any, async (req: AuthedRequest, res) => {
   const id = String(req.params.id);
   const ad = await prisma.ad.findUnique({ where: { id } });
   if (!ad) return res.status(404).json({ error: 'Not found' });
+  const isAdmin = await getIsAdmin(req);
+  const isOwner = !!ad.user_id && ad.user_id === req.user!.id;
+  if (!isOwner && !isAdmin) return res.status(403).json({ error: 'Forbidden' });
   const dates = await prisma.adReservation.findMany({ where: { ad_id: id }, orderBy: { date: 'asc' } });
   return res.json({ ...ad, dates: dates.map((r) => r.date.toISOString().slice(0, 10)) });
 });
 
 // Update an Ad (owner-only if authenticated)
-adsRouter.put('/:id', requireAuth as any, async (req: AuthedRequest, res) => {
+adsRouter.put('/:id([a-z0-9-]{20,40})', requireAuth as any, async (req: AuthedRequest, res) => {
   const id = String(req.params.id);
   const ad = await prisma.ad.findUnique({ where: { id } });
   if (!ad) return res.status(404).json({ error: 'Ad not found' });
@@ -197,7 +200,7 @@ adsRouter.put('/:id', requireAuth as any, async (req: AuthedRequest, res) => {
 });
 
 // Delete an Ad (owner-only if authenticated)
-adsRouter.delete('/:id', requireVerified as any, async (req: AuthedRequest, res) => {
+adsRouter.delete('/:id([a-z0-9-]{20,40})', requireVerified as any, async (req: AuthedRequest, res) => {
   const id = String(req.params.id);
   debugLog('[ads] DELETE /:id request', { id, userId: req.user?.id });
   
@@ -207,12 +210,15 @@ adsRouter.delete('/:id', requireVerified as any, async (req: AuthedRequest, res)
     return res.status(404).json({ error: 'Not found' });
   }
   
-  // Check ownership
-  if (existing.user_id && req.user?.id && existing.user_id !== req.user.id) {
+  const isAdmin = await getIsAdmin(req);
+  const isOwner = existing.user_id === req.user?.id;
+
+  // Only the owner (or an admin) can delete. Ads without owner can no longer be deleted by any authenticated user.
+  if (!isOwner && !isAdmin) {
     console.warn('[ads] DELETE /:id - Forbidden (user does not own ad)', { 
       id, 
       adUserId: existing.user_id, 
-      requestUserId: req.user.id 
+      requestUserId: req.user?.id 
     });
     return res.status(403).json({ error: 'Forbidden' });
   }

@@ -315,28 +315,63 @@ teamsRouter.get('/:id/members', async (req, res) => {
   return res.json(list);
 });
 
-// All members across teams (for admin screens); optional search q
-teamsRouter.get('/members/all', async (req, res) => {
-  const q = String((req.query as any).q || '').trim().toLowerCase();
+// All members across teams (admin screens). Paged and DB-filtered to avoid unbounded scans.
+teamsRouter.get('/members/all', requireAuth as any, async (req: AuthedRequest, res) => {
+  const isAdmin = await getIsAdmin(req);
+  if (!isAdmin) return res.status(403).json({ error: 'Admin only' });
+
+  const q = String((req.query as any).q || '').trim();
+  const limitRaw = Number.parseInt(String((req.query as any).limit || '100'), 10);
+  const offsetRaw = Number.parseInt(String((req.query as any).offset || '0'), 10);
+  const take = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 100) : 100;
+  const skip = Number.isFinite(offsetRaw) && offsetRaw > 0 ? offsetRaw : 0;
+
+  const where = q
+    ? {
+        OR: [
+          { user: { display_name: { contains: q, mode: 'insensitive' as const } } },
+          { user: { email: { contains: q, mode: 'insensitive' as const } } },
+          { team: { name: { contains: q, mode: 'insensitive' as const } } },
+        ],
+      }
+    : {};
+
   const mems = await prisma.teamMembership.findMany({
+    where,
     orderBy: { created_at: 'desc' },
-    include: { user: true, team: true },
+    skip,
+    take,
+    select: {
+      id: true,
+      role: true,
+      status: true,
+      user_id: true,
+      team_id: true,
+      user: {
+        select: {
+          id: true,
+          email: true,
+          display_name: true,
+        },
+      },
+      team: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    },
   });
+
   const list = mems.map((m) => ({
     id: m.id,
     role: m.role,
     status: m.status,
-    user: { id: m.user_id, email: (m as any).user?.email || '', display_name: (m as any).user?.display_name || '' },
-    team: { id: m.team_id, name: (m as any).team?.name || '' },
+    user: { id: m.user_id, email: m.user?.email || '', display_name: m.user?.display_name || '' },
+    team: { id: m.team_id, name: m.team?.name || '' },
   }));
-  const filtered = q
-    ? list.filter((r) =>
-        r.user.display_name.toLowerCase().includes(q) ||
-        r.user.email.toLowerCase().includes(q) ||
-        r.team.name.toLowerCase().includes(q)
-      )
-    : list;
-  return res.json(filtered);
+
+  return res.json(list);
 });
 
 // Create team (auth required). Creator becomes owner.

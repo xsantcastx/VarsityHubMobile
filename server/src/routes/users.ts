@@ -739,7 +739,6 @@ usersRouter.get('/blocked', requireAuth as any, async (req: AuthedRequest, res) 
             id: true,
             display_name: true,
             avatar_url: true,
-            email: true,
           },
         },
       },
