@@ -154,12 +154,13 @@ const normalizePostItems = (input: any) => {
 };
 
 const normalizePostPage = (input: any) => {
-  if (!input) return { items: [] as any[], nextCursor: null, followed_feed_meta: undefined };
-  if (Array.isArray(input)) return { items: input, nextCursor: null, followed_feed_meta: undefined };
+  if (!input) return { items: [] as any[], nextCursor: null, followed_feed_meta: undefined, followed_teams_feed_meta: undefined };
+  if (Array.isArray(input)) return { items: input, nextCursor: null, followed_feed_meta: undefined, followed_teams_feed_meta: undefined };
   return {
     items: Array.isArray(input.items) ? input.items : [],
     nextCursor: typeof input.nextCursor === 'string' ? input.nextCursor : null,
     followed_feed_meta: input.followed_feed_meta ?? undefined,
+    followed_teams_feed_meta: input.followed_teams_feed_meta ?? undefined,
   };
 };
 

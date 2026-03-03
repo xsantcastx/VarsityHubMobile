@@ -21,7 +21,7 @@ async function resolveUploadToken(): Promise<string | null> {
   const fromSession = await auth.getToken();
   if (fromSession) return fromSession;
   try {
-    const refreshed = await auth.refreshToken();
+    const refreshed = await auth.getToken();
     return refreshed || null;
   } catch {
     return null;
@@ -209,7 +209,7 @@ export async function uploadFile(baseUrl: string | null | undefined, uri: string
       const isTimeout = isAbort || /timeout|timed out/i.test(String(err?.message || ''));
       if (err?.status === 401 && !refreshAttempted) {
         refreshAttempted = true;
-        const refreshed = await auth.refreshToken();
+        const refreshed = await auth.getToken();
         if (refreshed) {
           headers.Authorization = `Bearer ${refreshed}`;
           continue;

@@ -58,12 +58,14 @@ type TeamMember = {
   user_id?: string;
   team_id?: string;
   role?: string;
+  status?: string;
   jersey_number?: string | number;
   position?: string;
   user?: {
     id: string;
     display_name?: string;
     full_name?: string;
+    username?: string;
     avatar_url?: string;
     is_parent?: boolean;
   };
@@ -166,7 +168,7 @@ export default function TeamScreen() {
             return homeTeam.includes(teamNameLower) || awayTeam.includes(teamNameLower);
           });
       
-      const gameIds = teamGames.map(g => g.id);
+      const gameIds = teamGames.map((g: GameItem) => g.id);
       if (!mounted.current) return;
       
       if (gameIds.length === 0) {
@@ -178,7 +180,7 @@ export default function TeamScreen() {
       }
       
       // Fetch posts for all team games (aggregate from all games)
-      const postPromises = gameIds.slice(0, 10).map(gameId => 
+      const postPromises = gameIds.slice(0, 10).map((gameId: string) =>
         Post.filter({ game_id: gameId }, '-created_at', 20).catch(() => [])
       );
       const postBatches = await Promise.all(postPromises);
