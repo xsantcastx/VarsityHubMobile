@@ -1,9 +1,7 @@
-import { PrismaClient } from '@prisma/client';
 import { Router } from 'express';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
-
-const prisma = new PrismaClient();
+import { prisma } from '../lib/prisma.js';
 const groupChatsRouter = Router();
 
 // Get all group chats for the current user
@@ -24,7 +22,6 @@ groupChatsRouter.get('/', requireAuth as any, async (req: AuthedRequest, res) =>
                     id: true,
                     display_name: true,
                     avatar_url: true,
-                    email: true,
                   },
                 },
               },
@@ -97,7 +94,6 @@ groupChatsRouter.get('/:chatId/messages', requireAuth as any, async (req: Authed
             id: true,
             display_name: true,
             avatar_url: true,
-            email: true,
           },
         },
       },
@@ -149,7 +145,6 @@ groupChatsRouter.post('/:chatId/messages', requireAuth as any, async (req: Authe
             id: true,
             display_name: true,
             avatar_url: true,
-            email: true,
           },
         },
       },
@@ -244,7 +239,6 @@ groupChatsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) =
                 id: true,
                 display_name: true,
                 avatar_url: true,
-                email: true,
               },
             },
           },

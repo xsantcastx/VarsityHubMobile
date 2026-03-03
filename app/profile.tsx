@@ -146,7 +146,7 @@ export default function ProfileScreen() {
   const viewingUserId = params.id;
   const [isFollowing, setIsFollowing] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [userTeams, setUserTeams] = useState<Array<{ id: string; name: string; logo_url?: string | null; role?: string; position?: string | null; jersey_number?: string | number | null }>>([]);
+  const [userTeams, setUserTeams] = useState<Array<{ id: string; name: string; logo_url?: string | null; avatar_url?: string | null; role?: string; position?: string | null; jersey_number?: string | number | null }>>([]);
   const [avatarViewerVisible, setAvatarViewerVisible] = useState(false);
 
   const isOwnProfile = !viewingUserId || viewingUserId === currentUserId;

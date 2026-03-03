@@ -176,7 +176,7 @@ authRouter.post('/register', asyncHandler(async (req, res) => {
   }
   const password_hash = await bcrypt.hash(password, 10);
   const code = String(Math.floor(100000 + Math.random() * 900000));
-  console.log(`[verify-code] [register] Code generated: ${code} for ${sanitizedEmail}`);
+  if (process.env.NODE_ENV === 'development') console.log(`[verify-code] [register] Code generated: ${code} for ${sanitizedEmail}`);
   const exp = new Date(Date.now() + 30 * 60 * 1000);
   const userRole = role || 'fan';
 
@@ -201,10 +201,10 @@ authRouter.post('/register', asyncHandler(async (req, res) => {
       preferences: initialPreferences
     }
   });
-  console.log(`[verify-code] [register] Code stored in DB for user ${user.id} (expires ${exp.toISOString()})`);
+  if (process.env.NODE_ENV === 'development') console.log(`[verify-code] [register] Code stored in DB for user ${user.id} (expires ${exp.toISOString()})`);
   const access_token = signJwt({ id: user.id });
   try {
-    console.log(`[verify-code] [register] Calling sendVerificationEmail → to: ${email}`);
+    if (process.env.NODE_ENV === 'development') console.log(`[verify-code] [register] Calling sendVerificationEmail → to: ${email}`);
     const emailSend = sendVerificationEmail(email, code, display_name || sanitizedEmail.split('@')[0]);
     const EMAIL_TIMEOUT_MS = 5000;
     const timed = await Promise.race([
@@ -1139,12 +1139,12 @@ authRouter.post('/verify/request', async (req: AuthedRequest, res) => {
   if (now - rec.last < 30_000) return res.status(429).json({ error: 'Please wait before requesting another code' });
   if (rec.count >= 5) return res.status(429).json({ error: 'Too many requests' });
   const code = String(Math.floor(100000 + Math.random() * 900000));
-  console.log(`[verify-code] [verify/request] Code generated: ${code} for user ${user.id} (${user.email})`);
+  if (process.env.NODE_ENV === 'development') console.log(`[verify-code] [verify/request] Code generated: ${code} for user ${user.id} (${user.email})`);
   const exp = new Date(Date.now() + 30 * 60 * 1000);
   await prisma.user.update({ where: { id: user.id }, data: { email_verification_code: code, email_verification_expires: exp } });
-  console.log(`[verify-code] [verify/request] Code stored in DB (expires ${exp.toISOString()})`);
+  if (process.env.NODE_ENV === 'development') console.log(`[verify-code] [verify/request] Code stored in DB (expires ${exp.toISOString()})`);
   try {
-    console.log(`[verify-code] [verify/request] Calling sendVerificationEmail → to: ${user.email}`);
+    if (process.env.NODE_ENV === 'development') console.log(`[verify-code] [verify/request] Calling sendVerificationEmail → to: ${user.email}`);
     const sent = await sendVerificationEmail(user.email, code, user.display_name || user.email.split('@')[0]);
     if (!sent) {
       console.error('[verify-code] [verify/request] sendVerificationEmail returned false — email was NOT sent (check SendGridProvider logs above for the specific error)');

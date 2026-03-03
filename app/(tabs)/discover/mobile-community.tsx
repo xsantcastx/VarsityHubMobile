@@ -161,7 +161,7 @@ export default function CommunityDiscoverScreen() {
         const normalizedZip = zip.replace(/[-\s]/g, '').toLowerCase();
         const withZip: GameItem[] = [];
         const withoutZip: GameItem[] = [];
-        normalizedGames.forEach((g) => {
+        normalizedGames.forEach((g: GameItem) => {
           const hay = `${(g as any)?.location || ''} ${(g as any)?.address || ''} ${(g as any)?.city || ''}`.toLowerCase();
           // Extract zip codes from location string and check if any match
           const zipMatches = hay.match(/\b\d{5}(?:-\d{4})?\b/g);

@@ -278,11 +278,11 @@ export default function FeedScreen() {
       // Load followed posts (people + teams) when signed in, highlights, and ads
       const [followedPage, followedTeamsPage, highlightsData, forFeedAds] = await Promise.all([
         user
-          ? PostApi.filterPage({ followed_only: true }, null, 20, '-created_at').catch(() => ({ items: [], nextCursor: null, followed_feed_meta: undefined }))
-          : Promise.resolve({ items: [], nextCursor: null, followed_feed_meta: undefined }),
+          ? PostApi.filterPage({ followed_only: true }, null, 20, '-created_at').catch(() => ({ items: [], nextCursor: null, followed_feed_meta: undefined, followed_teams_feed_meta: undefined }))
+          : Promise.resolve({ items: [], nextCursor: null, followed_feed_meta: undefined, followed_teams_feed_meta: undefined }),
         user
-          ? PostApi.filterPage({ followed_teams: true }, null, 20, '-created_at').catch(() => ({ items: [], nextCursor: null, followed_teams_feed_meta: undefined }))
-          : Promise.resolve({ items: [], nextCursor: null, followed_teams_feed_meta: undefined }),
+          ? PostApi.filterPage({ followed_teams: true }, null, 20, '-created_at').catch(() => ({ items: [], nextCursor: null, followed_feed_meta: undefined, followed_teams_feed_meta: undefined }))
+          : Promise.resolve({ items: [], nextCursor: null, followed_feed_meta: undefined, followed_teams_feed_meta: undefined }),
         Highlights.fetch(countryCode ? { country: countryCode, limit: 20 } : { limit: 20 }).catch((err) => {
           if (__DEV__) console.warn('Highlights preview load failed', err);
           return null;

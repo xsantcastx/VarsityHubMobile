@@ -29,7 +29,6 @@ searchRouter.get('/', authMiddleware as any, async (req: AuthedRequest, res) => 
             OR: [
               { username: { contains: q, mode: 'insensitive' } },
               { display_name: { contains: q, mode: 'insensitive' } },
-              { email: { contains: q, mode: 'insensitive' } },
             ],
           },
         ],
