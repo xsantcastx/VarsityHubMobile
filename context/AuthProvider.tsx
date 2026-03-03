@@ -15,7 +15,7 @@ import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import { useRouter, useSegments } from 'expo-router';
 import { AppState } from 'react-native';
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 // @ts-ignore JS exports
 import auth from '@/api/auth';
 import { User } from '@/api/entities';
@@ -510,7 +510,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     }
   }, [user, pendingVerificationEmail, initializing, healthOk, router, hasCompletedOnboarding]);
 
-  const value: AuthContextType = {
+  const value = useMemo<AuthContextType>(() => ({
     user,
     pendingVerificationEmail,
     loading,
@@ -522,7 +522,19 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     registerPushToken,
     markOnboardingCompleteLocally,
     markOnboardingIncompleteLocally,
-  };
+  }), [
+    user,
+    pendingVerificationEmail,
+    loading,
+    healthOk,
+    healthError,
+    isAdmin,
+    checkAuth,
+    signOut,
+    registerPushToken,
+    markOnboardingCompleteLocally,
+    markOnboardingIncompleteLocally,
+  ]);
 
   return (
     <AuthContext.Provider value={value}>

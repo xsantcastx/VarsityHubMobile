@@ -1,7 +1,7 @@
 import { Colors } from '@/constants/Colors';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Platform, Pressable, ScrollView, Share, StyleSheet, Switch, Text, useColorScheme, View } from 'react-native';
+import { Alert, Modal, Platform, Pressable, ScrollView, Share, StyleSheet, Switch, Text, TextInput, useColorScheme, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Event, User } from '@/api/entities';
@@ -72,7 +72,7 @@ function SwitchRow({ title, subtitle, value, onValueChange }: { title: string; s
 export default function SettingsScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
-  const { checkAuth, markOnboardingIncompleteLocally } = useAuth();
+  const { checkAuth, markOnboardingIncompleteLocally, signOut } = useAuth();
   const obCtx = useOnboardingOptional();
   const setOB = obCtx?.setState;
   const appConfig = getConfig();
@@ -99,6 +99,9 @@ export default function SettingsScreen() {
   const [_pendingHostRequests, setPendingHostRequests] = useState<any[]>([]);
   const [_pendingLoading, setPendingLoading] = useState(false);
   const [_pendingError, setPendingError] = useState<string | null>(null);
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deletingAccount, setDeletingAccount] = useState(false);
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   // Debounced PATCH updater for preferences
@@ -179,6 +182,64 @@ export default function SettingsScreen() {
                   }
                   router.replace('/onboarding');
                 }
+              };
+
+              const performSignOut = async () => {
+                try {
+                  void obCtx?.clearOnboarding?.();
+                } catch (error: any) {
+                  console.warn('[settings] Failed to clear onboarding:', error);
+                }
+
+                try {
+                  await signOut();
+                } catch (error: any) {
+                  console.warn('[settings] Sign out via AuthProvider failed:', error);
+                  router.replace('/sign-in');
+                }
+              };
+
+              const performDeleteAccount = async () => {
+                if (deletingAccount) return;
+                setDeletingAccount(true);
+                try {
+                  const { httpDelete } = await import('@/api/http');
+                  await httpDelete('/users/me');
+                } catch (error: any) {
+                  console.error('[settings] Account deletion failed:', error);
+                  Alert.alert('Delete failed', error?.message || 'Could not delete your account.');
+                  setDeletingAccount(false);
+                  return;
+                }
+
+                setDeleteModalVisible(false);
+                setDeleteConfirmText('');
+                setDeletingAccount(false);
+                await performSignOut();
+              };
+
+              const confirmDeleteAccount = () => {
+                if (Platform.OS === 'ios' && Alert.prompt) {
+                  Alert.prompt('Delete Account', 'This permanently deletes your account. Type DELETE to confirm.', [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Confirm',
+                      style: 'destructive',
+                      onPress: (val: string | undefined) => {
+                        const value = String(val || '').trim();
+                        if (value !== 'DELETE') {
+                          Alert.alert('Confirmation required', 'Type DELETE in all caps to confirm.');
+                          return;
+                        }
+                        void performDeleteAccount();
+                      },
+                    },
+                  ], 'plain-text');
+                  return;
+                }
+
+                setDeleteConfirmText('');
+                setDeleteModalVisible(true);
               };
 
               // Move the async logic into useEffect
@@ -442,73 +503,10 @@ export default function SettingsScreen() {
                       <NavRow title="Log Out" destructive onPress={() => {
                         Alert.alert('Log out', 'Are you sure you want to log out?', [
                           { text: 'Cancel', style: 'cancel' },
-                          { text: 'Log Out', style: 'destructive', onPress: async () => {
-                            try { 
-                              await User.logout(); 
-                            } catch (error: any) {
-                              console.warn('[settings] Logout failed:', error);
-                              // Continue with navigation even if logout fails
-                            }
-                            try { 
-                              void obCtx?.clearOnboarding?.(); 
-                            } catch (error: any) {
-                              console.warn('[settings] Failed to clear onboarding:', error);
-                              // Non-critical - continue with logout
-                            }
-                            router.replace('/sign-in');
-                          } },
+                          { text: 'Log Out', style: 'destructive', onPress: () => { void performSignOut(); } },
                         ]);
                       }} />
-                      <NavRow title="Delete Account" destructive onPress={() => {
-                        let _input = '';
-                        Alert.prompt?.('Delete Account', 'This permanently deletes your account. Type DELETE to confirm.', [
-                          { text: 'Cancel', style: 'cancel' },
-                          { text: 'Confirm', style: 'destructive', onPress: async (val: string | undefined) => {
-                            const v = String(val || '').trim();
-                            if (v !== 'DELETE') { Alert.alert('Confirmation required', 'Type DELETE in all caps to confirm.'); return; }
-                            try {
-                              // Use API client instead of direct fetch
-                              const { httpDelete } = await import('@/api/http');
-                              await httpDelete('/users/me');
-                            } catch (error: any) {
-                              console.error('[settings] Account deletion failed:', error);
-                              Alert.alert('Delete failed', error?.message || 'Could not delete your account.');
-                              return;
-                            }
-                            try { 
-                              await User.logout(); 
-                            } catch (error: any) {
-                              console.warn('[settings] Logout after deletion failed:', error);
-                              // Continue with navigation even if logout fails
-                            }
-                            router.replace('/sign-in');
-                          }}
-                        ], 'plain-text');
-                        // Fallback for Android (no Alert.prompt)
-                        if (!Alert.prompt) {
-                          Alert.alert('Delete Account', 'This permanently deletes your account. Type DELETE to confirm.', [
-                            { text: 'Cancel', style: 'cancel' },
-                            { text: 'Confirm', style: 'destructive', onPress: async () => {
-                              // Simple confirm-only for Android fallback
-                              try {
-                                const { httpDelete } = await import('@/api/http');
-                                await httpDelete('/users/me');
-                              } catch (error: any) {
-                                console.error('[settings] Account deletion failed (Android):', error);
-                                Alert.alert('Delete failed', error?.message || 'Could not delete your account.');
-                                return;
-                              }
-                              try { 
-                                await User.logout(); 
-                              } catch (error: any) {
-                                console.warn('[settings] Logout after deletion failed (Android):', error);
-                                // Continue with navigation even if logout fails
-                              }
-                              router.replace('/sign-in');
-                            } },
-                          ]);
-                        }
-                      }} />
+                      <NavRow title="Delete Account" destructive onPress={confirmDeleteAccount} />
                       <NavRow title="Upgrade to Coach Account" onPress={() => {
                         Alert.alert('Upgrade to Coach Account', 'You\'ll be taken through the coach setup flow.', [
                           { text: 'Cancel', style: 'cancel' },
@@ -524,6 +522,54 @@ export default function SettingsScreen() {
                       </Text>
                     </View>
                     </ScrollView>
+                    <Modal
+                      visible={deleteModalVisible}
+                      transparent
+                      animationType="fade"
+                      onRequestClose={() => {
+                        if (!deletingAccount) setDeleteModalVisible(false);
+                      }}
+                    >
+                      <View style={styles.deleteModalBackdrop}>
+                        <View style={[styles.deleteModalCard, { backgroundColor: Colors[colorScheme ?? 'light'].card, borderColor: Colors[colorScheme ?? 'light'].border }]}>
+                          <Text style={[styles.deleteModalTitle, { color: Colors[colorScheme ?? 'light'].text }]}>Delete Account</Text>
+                          <Text style={[styles.deleteModalBody, { color: Colors[colorScheme ?? 'light'].mutedText }]}>
+                            This permanently deletes your account. Type DELETE to confirm.
+                          </Text>
+                          <TextInput
+                            value={deleteConfirmText}
+                            onChangeText={setDeleteConfirmText}
+                            autoCapitalize="characters"
+                            autoCorrect={false}
+                            editable={!deletingAccount}
+                            placeholder="DELETE"
+                            placeholderTextColor={Colors[colorScheme ?? 'light'].mutedText}
+                            style={[styles.deleteInput, { color: Colors[colorScheme ?? 'light'].text, borderColor: Colors[colorScheme ?? 'light'].border }]}
+                          />
+                          <View style={styles.deleteModalActions}>
+                            <Pressable
+                              style={[styles.deleteActionBtn, styles.deleteCancelBtn]}
+                              onPress={() => {
+                                if (!deletingAccount) setDeleteModalVisible(false);
+                              }}
+                            >
+                              <Text style={[styles.deleteActionText, { color: Colors[colorScheme ?? 'light'].text }]}>Cancel</Text>
+                            </Pressable>
+                            <Pressable
+                              style={[
+                                styles.deleteActionBtn,
+                                styles.deleteConfirmBtn,
+                                (deleteConfirmText.trim() !== 'DELETE' || deletingAccount) && styles.deleteConfirmBtnDisabled,
+                              ]}
+                              disabled={deleteConfirmText.trim() !== 'DELETE' || deletingAccount}
+                              onPress={() => { void performDeleteAccount(); }}
+                            >
+                              <Text style={styles.deleteConfirmText}>{deletingAccount ? 'Deleting…' : 'Delete'}</Text>
+                            </Pressable>
+                          </View>
+                        </View>
+                      </View>
+                    </Modal>
                   </SafeAreaView>
                 </>
               );
@@ -581,5 +627,63 @@ export default function SettingsScreen() {
               themeOptionSubtext: {
                 fontSize: 12,
                 marginLeft: 'auto',
+              },
+              deleteModalBackdrop: {
+                flex: 1,
+                backgroundColor: 'rgba(0,0,0,0.45)',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 20,
+              },
+              deleteModalCard: {
+                width: '100%',
+                maxWidth: 420,
+                borderRadius: 12,
+                borderWidth: StyleSheet.hairlineWidth,
+                padding: 16,
+                gap: 10,
+              },
+              deleteModalTitle: {
+                fontSize: 18,
+                fontWeight: '700',
+              },
+              deleteModalBody: {
+                fontSize: 14,
+                lineHeight: 20,
+              },
+              deleteInput: {
+                borderWidth: 1,
+                borderRadius: 8,
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+                fontSize: 16,
+                letterSpacing: 0.8,
+              },
+              deleteModalActions: {
+                marginTop: 4,
+                flexDirection: 'row',
+                justifyContent: 'flex-end',
+                gap: 10,
+              },
+              deleteActionBtn: {
+                paddingHorizontal: 14,
+                paddingVertical: 10,
+                borderRadius: 8,
+              },
+              deleteCancelBtn: {
+                backgroundColor: '#E5E7EB',
+              },
+              deleteConfirmBtn: {
+                backgroundColor: '#DC2626',
+              },
+              deleteConfirmBtnDisabled: {
+                opacity: 0.5,
+              },
+              deleteActionText: {
+                fontWeight: '600',
+              },
+              deleteConfirmText: {
+                fontWeight: '700',
+                color: '#FFFFFF',
               },
             });

@@ -1,10 +1,10 @@
 import { AppLinks } from '@/utils/links';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Image, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, AppState, type AppStateStatus, FlatList, Image, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Message, User } from '@/api/entities';
@@ -40,6 +40,7 @@ type Conversation = {
 
 export default function MessagesScreen() {
   const router = useRouter();
+  const isFocused = useIsFocused();
   const params = useLocalSearchParams<{ sharePost?: string }>();
   const sharePostId = params?.sharePost ? String(params.sharePost) : undefined;
   const colorScheme = useColorScheme();
@@ -67,6 +68,7 @@ export default function MessagesScreen() {
   const [searchingUsers, setSearchingUsers] = useState(false);
   const [suggested, setSuggested] = useState<MiniUser[]>([]);
   const [suggestedLoaded, setSuggestedLoaded] = useState(false);
+  const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
 
   // Load suggested users (people the user follows) when compose modal opens
   useEffect(() => {
@@ -122,6 +124,13 @@ export default function MessagesScreen() {
     }
   }, []);
 
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      setAppState(nextState);
+    });
+    return () => subscription.remove();
+  }, []);
+
   // Load on mount
   useEffect(() => {
     void load();
@@ -135,8 +144,9 @@ export default function MessagesScreen() {
     }, [load])
   );
 
-  // Poll every 3 seconds for new conversations (same as message thread)
+  // Poll only when focused and foregrounded to avoid background battery/network drain.
   useEffect(() => {
+    if (!isFocused || appState !== 'active') return;
     let mounted = true;
     const interval = setInterval(async () => {
       if (!mounted) return;
@@ -150,12 +160,12 @@ export default function MessagesScreen() {
       } catch {
         // Silently fail - don't disrupt inbox
       }
-    }, 3000);
+    }, 15000);
     return () => {
       mounted = false;
       clearInterval(interval);
     };
-  }, []);
+  }, [appState, isFocused]);
 
   // Group messages into conversations
   const conversations = useMemo((): Conversation[] => {

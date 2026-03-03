@@ -1,8 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import { useIsFocused } from '@react-navigation/native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, AppState, type AppStateStatus, FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Message as MessageApi, User } from '@/api/entities';
@@ -25,6 +26,7 @@ type Msg = {
 export default function MessageThreadScreen() {
   const { conversation_id, with: withParam, prefill } = useLocalSearchParams<{ conversation_id?: string; with?: string; prefill?: string }>();
   const router = useRouter();
+  const isFocused = useIsFocused();
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme();
   const [loading, setLoading] = useState(true);
@@ -36,6 +38,7 @@ export default function MessageThreadScreen() {
   const [safetyOpen, setSafetyOpen] = useState(false);
   const [restrictionModal, setRestrictionModal] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
   const [prefillApplied, setPrefillApplied] = useState(false);
+  const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
 
   // Clear the prefill param once we've used it
   useEffect(() => {
@@ -65,6 +68,13 @@ export default function MessageThreadScreen() {
 
   useEffect(() => { void load(); }, [load]);
 
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      setAppState(nextState);
+    });
+    return () => subscription.remove();
+  }, []);
+
   // Mark as read on open
   useEffect(() => {
     void (async () => {
@@ -89,31 +99,30 @@ export default function MessageThreadScreen() {
     }
   }, [prefill, prefillApplied, router]);
 
-  // INSTANT MESSAGING: Poll every 3 seconds while in conversation
+  // Poll only while focused and foregrounded to avoid background churn.
   useEffect(() => {
+    if (!isFocused || appState !== 'active') return;
     let mounted = true;
     const interval = setInterval(async () => {
       if (!mounted) return;
       try {
-        const user = await User.me();
         let list: Msg[] = [];
         if (conversation_id) list = await MessageApi.threadByConversation(String(conversation_id), 100);
         else if (withParam) list = await MessageApi.threadWith(String(withParam), 100);
         list = Array.isArray(list) ? list.slice().reverse() : [];
         if (mounted) {
           setMsgs(list);
-          setMe(user);
         }
       } catch {
         // Silently fail - don't disrupt conversation
       }
-    }, 3000); // Check for new messages every 3 seconds
+    }, 5000);
 
     return () => {
       mounted = false;
       clearInterval(interval);
     };
-  }, [conversation_id, withParam]);
+  }, [appState, conversation_id, isFocused, withParam]);
 
   useEffect(() => {
     // Auto-scroll to bottom when messages change

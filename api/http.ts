@@ -274,23 +274,17 @@ export function httpGet(path: string, options: RequestInit = {}, timeoutMs?: num
   const retries = typeof retriesOverride === 'number' ? Math.max(0, retriesOverride) : defaultRetries;
   return request(path, { ...options, method: 'GET' }, timeoutMs || 30000, retries);
 }
-// Default POST with moderate timeout - increased retries for reliability
+// Default POST should never retry automatically (prevents duplicate mutations).
 export function httpPost(path: string, body?: any) { 
-  const isCriticalEndpoint = path.includes('/payments/') || path.includes('/auth/') || path.includes('/notifications');
-  const retries = isCriticalEndpoint ? 5 : 3; // More retries for critical endpoints (especially for Railway infra errors)
-  return request(path, { method: 'POST', body: JSON.stringify(body || {}) }, 15000, retries); 
+  return request(path, { method: 'POST', body: JSON.stringify(body || {}) }, 15000, 0); 
 }
 // POST with explicit timeout/retry controls for endpoint-specific tuning.
 export function httpPostWithOptions(path: string, body: any, timeoutMs: number, retries: number = 0) {
   return request(path, { method: 'POST', body: JSON.stringify(body || {}) }, timeoutMs, Math.max(0, retries));
 }
-// Long-timeout POST for heavy endpoints like register/reset/posts - increased retries
+// Long-timeout POST for heavy endpoints, still no automatic retries for safety.
 export function httpPostLongTimeout(path: string, body?: any) {
-  // Posts and critical endpoints get more retries for reliability
-  const isPostEndpoint = path.includes('/posts');
-  const isCriticalEndpoint = path.includes('/payments/') || path.includes('/auth/') || path.includes('/notifications');
-  const retries = (isPostEndpoint || isCriticalEndpoint) ? 5 : 3;
-  return request(path, { method: 'POST', body: JSON.stringify(body || {}) }, 180000, retries); // 3 minute timeout
+  return request(path, { method: 'POST', body: JSON.stringify(body || {}) }, 180000, 0); // 3 minute timeout
 }
 // PUT/PATCH/DELETE should NOT retry - they are state-changing operations
 // Retrying could cause duplicate updates or delete operations on already-deleted resources

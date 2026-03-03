@@ -105,6 +105,11 @@ export const auth = {
       new_password: newPassword,
     });
   },
+  async refreshToken() {
+    // Current auth flow uses long-lived JWTs without a refresh endpoint.
+    // Rehydrate and return the stored token for callers expecting refresh semantics.
+    return loadToken();
+  },
   getToken: loadToken,
 };
 
