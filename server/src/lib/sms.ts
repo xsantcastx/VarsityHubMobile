@@ -17,7 +17,7 @@ const client = (accountSid && authToken) ? twilio(accountSid, authToken) : null;
  */
 export async function sendSmsVerification(phone: string): Promise<any> {
   if (!client || !verifySid) {
-    console.log(`[dev] SMS verification for ${phone}: returning mock success.`);
+    console.log('[dev] SMS verification: returning mock success.');
     return { status: 'pending' };
   }
 
@@ -25,10 +25,10 @@ export async function sendSmsVerification(phone: string): Promise<any> {
     const verification = await client.verify.v2.services(verifySid)
       .verifications
       .create({ to: phone, channel: 'sms' });
-    console.log(`[Twilio] Verification sent to ${phone}. Status: ${verification.status}`);
+    console.log(`[Twilio] Verification sent. Status: ${verification.status}`);
     return verification;
   } catch (error) {
-    console.error(`[Twilio] Failed to send verification to ${phone}:`, error);
+    console.error('[Twilio] Failed to send verification:', error);
     throw new Error('Failed to send SMS verification.');
   }
 }
@@ -41,7 +41,7 @@ export async function sendSmsVerification(phone: string): Promise<any> {
  */
 export async function checkSmsVerification(phone: string, code: string): Promise<any> {
   if (!client || !verifySid) {
-    console.log(`[dev] SMS verification check for ${phone} with code ${code}: returning mock success.`);
+    console.log('[dev] SMS verification check: returning mock success.');
     // In dev, any 6-digit code starting with '1' is valid
     if (code.length === 6 && code.startsWith('1')) {
         return { status: 'approved' };
@@ -53,10 +53,10 @@ export async function checkSmsVerification(phone: string, code: string): Promise
     const verificationCheck = await client.verify.v2.services(verifySid)
       .verificationChecks
       .create({ to: phone, code });
-    console.log(`[Twilio] Verification check for ${phone}. Status: ${verificationCheck.status}`);
+    console.log(`[Twilio] Verification check complete. Status: ${verificationCheck.status}`);
     return verificationCheck;
   } catch (error) {
-    console.error(`[Twilio] Failed to check verification for ${phone}:`, error);
+    console.error('[Twilio] Failed to check verification:', error);
     throw new Error('Failed to check SMS verification.');
   }
 }

@@ -1035,33 +1035,50 @@ export default function ProfileScreen() {
                     <View style={styles.gridImageOverlay} />
                   </View>
                 ) : (
-                  <View style={[styles.gridImage, styles.gridImageFallback]}>
-                    <LinearGradient 
-                      colors={["#667eea", "#764ba2", "#f093fb"]} 
-                      style={StyleSheet.absoluteFillObject as any} 
-                      start={{ x: 0, y: 0 }} 
-                      end={{ x: 1, y: 1 }}
-                    />
-                    <View style={styles.textPostOverlay}>
-                      <Text numberOfLines={4} style={styles.gridTextOnly}>{String(item.caption || item.content || '').trim() || 'Post'}</Text>
+                  <View style={[styles.gridImage, styles.textPostCard]}>
+                    <View style={styles.textPostCardHeader}>
+                      {item.author?.avatar_url ? (
+                        <Image source={{ uri: item.author.avatar_url }} style={styles.textPostAvatar} />
+                      ) : (
+                        <View style={[styles.textPostAvatar, styles.textPostAvatarFallback]}>
+                          <Ionicons name="person" size={12} color="#9CA3AF" />
+                        </View>
+                      )}
+                      <View style={{ flex: 1 }}>
+                        <Text numberOfLines={1} style={styles.textPostUsername}>@{item.author?.username || 'user'}</Text>
+                        {item.created_at && <Text style={styles.textPostDate}>{new Date(item.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' })}</Text>}
+                      </View>
+                    </View>
+                    <Text numberOfLines={4} style={styles.textPostContent}>{String(item.caption || item.content || '').trim() || 'Post'}</Text>
+                    <View style={styles.textPostCounts}>
+                      <View style={styles.gridCountItem}>
+                        <Ionicons name="arrow-up" size={11} color="#9CA3AF" />
+                        <Text style={styles.textPostCountText}>{likes}</Text>
+                      </View>
+                      <View style={styles.gridCountItem}>
+                        <Ionicons name="chatbubble-ellipses" size={11} color="#9CA3AF" />
+                        <Text style={styles.textPostCountText}>{comments}</Text>
+                      </View>
                     </View>
                   </View>
                 )}
-                {/* Counts overlay (shown for both media and text tiles) */}
-                <View style={styles.gridCounts}>
-                  <View style={styles.gridCountItem}>
-                    <Ionicons name="arrow-up" size={12} color="#fff" />
-                    <Text style={styles.gridCountText}>{likes}</Text>
-                  </View>
-                  <View style={styles.gridCountItem}>
-                    <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
-                    <Text style={styles.gridCountText}>{comments}</Text>
-                  </View>
-                </View>
-                {/* Bottom-right badge: camera for media, text icon for text-only */}
-                <View style={styles.gridIconBadge}>
-                  <Ionicons name={thumb ? 'camera-outline' : 'text'} size={14} color="#fff" />
-                </View>
+                {thumb && (
+                  <>
+                    <View style={styles.gridCounts}>
+                      <View style={styles.gridCountItem}>
+                        <Ionicons name="arrow-up" size={12} color="#fff" />
+                        <Text style={styles.gridCountText}>{likes}</Text>
+                      </View>
+                      <View style={styles.gridCountItem}>
+                        <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
+                        <Text style={styles.gridCountText}>{comments}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.gridIconBadge}>
+                      <Ionicons name="camera-outline" size={14} color="#fff" />
+                    </View>
+                  </>
+                )}
               </Pressable>
             );
           }}
@@ -1107,33 +1124,50 @@ export default function ProfileScreen() {
                     <View style={styles.gridImageOverlay} />
                   </View>
                 ) : (
-                  <View style={[styles.gridImage, styles.gridImageFallback]}>
-                    <LinearGradient 
-                      colors={["#667eea", "#764ba2", "#f093fb"]} 
-                      style={StyleSheet.absoluteFillObject as any} 
-                      start={{ x: 0, y: 0 }} 
-                      end={{ x: 1, y: 1 }}
-                    />
-                    <View style={styles.textPostOverlay}>
-                      <Text numberOfLines={4} style={styles.gridTextOnly}>{String(postItem?.caption || postItem?.content || '').trim() || 'Post'}</Text>
+                  <View style={[styles.gridImage, styles.textPostCard]}>
+                    <View style={styles.textPostCardHeader}>
+                      {postItem?.author?.avatar_url ? (
+                        <Image source={{ uri: postItem.author.avatar_url }} style={styles.textPostAvatar} />
+                      ) : (
+                        <View style={[styles.textPostAvatar, styles.textPostAvatarFallback]}>
+                          <Ionicons name="person" size={12} color="#9CA3AF" />
+                        </View>
+                      )}
+                      <View style={{ flex: 1 }}>
+                        <Text numberOfLines={1} style={styles.textPostUsername}>@{postItem?.author?.username || 'user'}</Text>
+                        {postItem?.created_at && <Text style={styles.textPostDate}>{new Date(postItem.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' })}</Text>}
+                      </View>
+                    </View>
+                    <Text numberOfLines={4} style={styles.textPostContent}>{String(postItem?.caption || postItem?.content || '').trim() || 'Post'}</Text>
+                    <View style={styles.textPostCounts}>
+                      <View style={styles.gridCountItem}>
+                        <Ionicons name="arrow-up" size={11} color="#9CA3AF" />
+                        <Text style={styles.textPostCountText}>{likes}</Text>
+                      </View>
+                      <View style={styles.gridCountItem}>
+                        <Ionicons name="chatbubble-ellipses" size={11} color="#9CA3AF" />
+                        <Text style={styles.textPostCountText}>{comments}</Text>
+                      </View>
                     </View>
                   </View>
                 )}
-                {/* Counts overlay (shown for both media and text tiles) */}
-                <View style={styles.gridCounts}>
-                  <View style={styles.gridCountItem}>
-                    <Ionicons name="arrow-up" size={12} color="#fff" />
-                    <Text style={styles.gridCountText}>{likes}</Text>
-                  </View>
-                  <View style={styles.gridCountItem}>
-                    <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
-                    <Text style={styles.gridCountText}>{comments}</Text>
-                  </View>
-                </View>
-                {/* Bottom-right badge: camera for media, text icon for text-only */}
-                <View style={styles.gridIconBadge}>
-                  <Ionicons name={thumb ? 'camera-outline' : 'text'} size={14} color="#fff" />
-                </View>
+                {thumb && (
+                  <>
+                    <View style={styles.gridCounts}>
+                      <View style={styles.gridCountItem}>
+                        <Ionicons name="arrow-up" size={12} color="#fff" />
+                        <Text style={styles.gridCountText}>{likes}</Text>
+                      </View>
+                      <View style={styles.gridCountItem}>
+                        <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
+                        <Text style={styles.gridCountText}>{comments}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.gridIconBadge}>
+                      <Ionicons name="camera-outline" size={14} color="#fff" />
+                    </View>
+                  </>
+                )}
               </Pressable>
             );
           }}
@@ -1179,33 +1213,50 @@ export default function ProfileScreen() {
                     <View style={styles.gridImageOverlay} />
                   </View>
                 ) : (
-                  <View style={[styles.gridImage, styles.gridImageFallback]}>
-                    <LinearGradient 
-                      colors={["#667eea", "#764ba2", "#f093fb"]} 
-                      style={StyleSheet.absoluteFillObject as any} 
-                      start={{ x: 0, y: 0 }} 
-                      end={{ x: 1, y: 1 }}
-                    />
-                    <View style={styles.textPostOverlay}>
-                      <Text numberOfLines={4} style={styles.gridTextOnly}>{String(postItem?.caption || postItem?.content || '').trim() || 'Post'}</Text>
+                  <View style={[styles.gridImage, styles.textPostCard]}>
+                    <View style={styles.textPostCardHeader}>
+                      {postItem?.author?.avatar_url ? (
+                        <Image source={{ uri: postItem.author.avatar_url }} style={styles.textPostAvatar} />
+                      ) : (
+                        <View style={[styles.textPostAvatar, styles.textPostAvatarFallback]}>
+                          <Ionicons name="person" size={12} color="#9CA3AF" />
+                        </View>
+                      )}
+                      <View style={{ flex: 1 }}>
+                        <Text numberOfLines={1} style={styles.textPostUsername}>@{postItem?.author?.username || 'user'}</Text>
+                        {postItem?.created_at && <Text style={styles.textPostDate}>{new Date(postItem.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' })}</Text>}
+                      </View>
+                    </View>
+                    <Text numberOfLines={4} style={styles.textPostContent}>{String(postItem?.caption || postItem?.content || '').trim() || 'Post'}</Text>
+                    <View style={styles.textPostCounts}>
+                      <View style={styles.gridCountItem}>
+                        <Ionicons name="arrow-up" size={11} color="#9CA3AF" />
+                        <Text style={styles.textPostCountText}>{likes}</Text>
+                      </View>
+                      <View style={styles.gridCountItem}>
+                        <Ionicons name="chatbubble-ellipses" size={11} color="#9CA3AF" />
+                        <Text style={styles.textPostCountText}>{comments}</Text>
+                      </View>
                     </View>
                   </View>
                 )}
-                {/* Counts overlay (shown for both media and text tiles) */}
-                <View style={styles.gridCounts}>
-                  <View style={styles.gridCountItem}>
-                    <Ionicons name="arrow-up" size={12} color="#fff" />
-                    <Text style={styles.gridCountText}>{likes}</Text>
-                  </View>
-                  <View style={styles.gridCountItem}>
-                    <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
-                    <Text style={styles.gridCountText}>{comments}</Text>
-                  </View>
-                </View>
-                {/* Bottom-right badge: camera for media, text icon for text-only */}
-                <View style={styles.gridIconBadge}>
-                  <Ionicons name={thumb ? 'camera-outline' : 'text'} size={14} color="#fff" />
-                </View>
+                {thumb && (
+                  <>
+                    <View style={styles.gridCounts}>
+                      <View style={styles.gridCountItem}>
+                        <Ionicons name="arrow-up" size={12} color="#fff" />
+                        <Text style={styles.gridCountText}>{likes}</Text>
+                      </View>
+                      <View style={styles.gridCountItem}>
+                        <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
+                        <Text style={styles.gridCountText}>{comments}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.gridIconBadge}>
+                      <Ionicons name="camera-outline" size={14} color="#fff" />
+                    </View>
+                  </>
+                )}
               </Pressable>
             );
           }}
@@ -1744,24 +1795,50 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.05)',
   },
   gridImageFallback: { alignItems: 'center', justifyContent: 'center', padding: 12, position: 'relative' },
-  textPostOverlay: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 12,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    borderRadius: 8,
-    margin: 8,
+  textPostCard: {
+    backgroundColor: '#111827',
+    padding: 10,
+    justifyContent: 'flex-start',
   },
-  gridTextOnly: { 
-    textAlign: 'center', 
-    color: '#ffffff', 
-    fontWeight: '700', 
-    fontSize: 12, 
+  textPostCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 6,
+  },
+  textPostAvatar: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+  },
+  textPostAvatarFallback: {
+    backgroundColor: '#374151',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  textPostUsername: {
+    color: '#D1D5DB',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  textPostDate: {
+    color: '#6B7280',
+    fontSize: 10,
+  },
+  textPostContent: {
+    color: '#F3F4F6',
+    fontSize: 12,
     lineHeight: 16,
-    textShadowColor: 'rgba(0,0,0,0.3)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2
+    flex: 1,
+  },
+  textPostCounts: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 6,
+  },
+  textPostCountText: {
+    color: '#9CA3AF',
+    fontSize: 11,
   },
   gridIconBadge: { 
     position: 'absolute', 

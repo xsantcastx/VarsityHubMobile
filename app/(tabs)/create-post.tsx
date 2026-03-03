@@ -693,6 +693,7 @@ export default function CreatePostScreen() {
         } else if (e?.status === 403) {
           const code = e?.data?.error;
           if (code === 'Email verification required') {
+            setError('You need to verify your email before posting.');
             Alert.alert(
               'Verify Your Email',
               'You need to verify your email before posting.',

@@ -4,6 +4,7 @@ import { validateContent } from '../lib/contentFilter.js';
 import { notifyNewMessage } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/requireAuth.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
 import { messageLimiter } from '../middleware/rateLimiters.js';
 
@@ -39,7 +40,7 @@ const u = await prisma.user.findUnique({ where: { email: withParam } });
 return u?.id;
 }
 
-messagesRouter.get('/', async (req: AuthedRequest, res) => {
+messagesRouter.get('/', requireAuth as any, async (req: AuthedRequest, res) => {
 if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 const orderBy = parseSort((req.query as any).sort);
 const limit = Math.min(parseInt(String((req.query as any).limit ?? '50'), 10) || 50, 200);
@@ -113,7 +114,7 @@ recipient_id: z.string().min(1).optional(),
 recipient_email: z.string().email().optional(),
 });
 
-messagesRouter.post('/', messageLimiter, async (req: AuthedRequest, res) => {
+messagesRouter.post('/', requireAuth as any, messageLimiter, async (req: AuthedRequest, res) => {
 if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 const parsed = sendSchema.safeParse(req.body);
 if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
@@ -261,7 +262,7 @@ if (toId !== meId) {
 return res.status(201).json(created);
 });
 
-messagesRouter.post('/mark-read', async (req: AuthedRequest, res) => {
+messagesRouter.post('/mark-read', requireAuth as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   
   const { conversation_id, with: withParam } = req.body || {};

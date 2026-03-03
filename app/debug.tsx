@@ -2,11 +2,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { Stack, useRouter } from 'expo-router';
+import { Redirect, Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 export default function DebugScreen() {
+  if (!__DEV__) return <Redirect href="/(tabs)" />;
+
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const [eventId, setEventId] = useState('');

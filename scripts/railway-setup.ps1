@@ -32,8 +32,8 @@ Write-Host "FROM_EMAIL=its.sc05@gmail.com" -ForegroundColor Gray
 Write-Host "ADMIN_EMAILS=xsancastrillonx@hotmail.com" -ForegroundColor Gray
 Write-Host "ALLOWED_ORIGINS=*" -ForegroundColor Gray
 Write-Host "APP_SCHEME=varsityhubmobile" -ForegroundColor Gray
-Write-Host "STRIPE_SECRET_KEY=sk_test_51S5t0kRuB2a0vFjp0bdj2NbzkDp6ACVhtWU48TXtNuviL0wnJxxIx0eBgg6whwiM9gJkNiqnINPbSQHqV9qRIxfe00KEwuxjwZ" -ForegroundColor Gray
-Write-Host "STRIPE_WEBHOOK_SECRET=whsec_8f60823f31adfb85a3616a110e6a3d97fcfb529f8c0868a67a83b1d69edc833a" -ForegroundColor Gray
+Write-Host "STRIPE_SECRET_KEY=sk_test_YOUR_KEY_HERE" -ForegroundColor Gray
+Write-Host "STRIPE_WEBHOOK_SECRET=whsec_YOUR_WEBHOOK_SECRET_HERE" -ForegroundColor Gray
 Write-Host "STRIPE_PRICE_VETERAN=price_1SCd6HRuB2a0vFjp1QlboTEv" -ForegroundColor Gray
 Write-Host "STRIPE_PRICE_LEGEND=price_1SCd6IRuB2a0vFjpQOSdctN4" -ForegroundColor Gray
 Write-Host ""

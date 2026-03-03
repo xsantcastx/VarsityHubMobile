@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
@@ -22,6 +22,11 @@ export default function VerifyScreen() {
   const [error, setError] = useState<string | null>(null);
   const [isVerified, setIsVerified] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
+  const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => { if (redirectTimerRef.current) clearTimeout(redirectTimerRef.current); };
+  }, []);
 
   useEffect(() => {
     if (resendCooldown <= 0) return;
@@ -80,8 +85,8 @@ export default function VerifyScreen() {
               destination = '/onboarding/step-1-role';
             }
           } else {
-            // Fan user - mark onboarding as complete
-            await markOnboardingCompleteLocally();
+            // Fan user - send to onboarding
+            destination = '/onboarding/step-1-role';
           }
         } catch (profileError) {
           captureException(
@@ -90,7 +95,7 @@ export default function VerifyScreen() {
           );
         }
 
-        setTimeout(() => {
+        redirectTimerRef.current = setTimeout(() => {
           router.replace(destination);
         }, 1200);
       } catch (userError) {
@@ -99,7 +104,7 @@ export default function VerifyScreen() {
           { tags: { context: 'verify-email-refresh' }, extra: { email } }
         );
         setError('Verification successful but failed to load profile. Please sign in again.');
-        setTimeout(() => {
+        redirectTimerRef.current = setTimeout(() => {
           router.replace('/sign-in');
         }, 2000);
       }
@@ -251,11 +256,6 @@ export default function VerifyScreen() {
         </View>
       )}
 
-      {!isVerified && (
-        <Pressable style={styles.skipButton} onPress={() => void router.replace('/onboarding/step-1-role')}>
-          <Text style={[styles.skipText, { color: Colors[colorScheme].mutedText }]}>Skip for now</Text>
-        </Pressable>
-      )}
 
       {isVerified && (
         <Text style={[styles.autoRedirectText, { color: Colors[colorScheme].mutedText }]}>
@@ -288,8 +288,6 @@ const styles = StyleSheet.create({
   footerText: { fontSize: 14 },
   linkText: { fontWeight: '700', fontSize: 14 },
   linkTextDisabled: { opacity: 0.5 },
-  skipButton: { marginTop: 20, alignItems: 'center', paddingVertical: 12 },
-  skipText: { fontSize: 14 },
   error: { color: '#DC2626', marginBottom: 12, textAlign: 'center', fontSize: 14 },
   info: { color: '#059669', marginBottom: 12, textAlign: 'center', fontSize: 14 },
   autoRedirectText: { fontSize: 14, textAlign: 'center', marginTop: 16, fontStyle: 'italic' },

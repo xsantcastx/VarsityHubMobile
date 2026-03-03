@@ -840,13 +840,13 @@ export default function Step4Organization() {
               />
               <View style={styles.planReminderRookieInner}>
                 <View style={styles.planReminderHeaderRow}>
-                  <View style={styles.planBadge}><Ionicons name="sparkles" size={16} color={colorScheme === 'dark' ? '#F3F4F6' : '#374151'} /></View>
+                  <View style={styles.planBadge}><Ionicons name="sparkles" size={16} color="#FFFFFF" /></View>
                   <Text style={[styles.planReminderTitle, styles.rookieTitle]}>Rookie Plan Benefits</Text>
                 </View>
                 <View style={styles.benefitsList}>
-                  <View style={styles.benefitRow}><Ionicons name="sparkles" size={16} color={colorScheme === 'dark' ? '#E5E7EB' : '#374151'} /><Text style={[styles.benefitItem, styles.rookieBenefitItem]}>First two teams free</Text></View>
-                  <View style={styles.benefitRow}><Ionicons name="people" size={16} color={colorScheme === 'dark' ? '#E5E7EB' : '#374151'} /><Text style={[styles.benefitItem, styles.rookieBenefitItem]}>Invite athletes</Text></View>
-                  <View style={styles.benefitRow}><Ionicons name="shield-checkmark" size={16} color={colorScheme === 'dark' ? '#E5E7EB' : '#374151'} /><Text style={[styles.benefitItem, styles.rookieBenefitItem]}>One administrator per team</Text></View>
+                  <View style={styles.benefitRow}><Ionicons name="sparkles" size={16} color="#FFFFFF" /><Text style={[styles.benefitItem, styles.rookieBenefitItem]}>First two teams free</Text></View>
+                  <View style={styles.benefitRow}><Ionicons name="people" size={16} color="#FFFFFF" /><Text style={[styles.benefitItem, styles.rookieBenefitItem]}>Invite athletes</Text></View>
+                  <View style={styles.benefitRow}><Ionicons name="shield-checkmark" size={16} color="#FFFFFF" /><Text style={[styles.benefitItem, styles.rookieBenefitItem]}>One administrator per team</Text></View>
                 </View>
               </View>
             </LinearGradient>
@@ -1250,10 +1250,10 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     bottom: 0,
   },
   rookieTitle: {
-    color: colorScheme === 'dark' ? '#F3F4F6' : '#374151'
+    color: '#FFFFFF'
   },
   rookieBenefitItem: {
-    color: colorScheme === 'dark' ? '#E5E7EB' : '#374151'
+    color: '#FFFFFF'
   },
   planReminderHeaderRow: {
     flexDirection: 'row',

@@ -327,7 +327,6 @@ class TestProvider implements EmailProvider {
 
   async send(options: BaseEmailOptions): Promise<EmailResult> {
     console.log('[TestProvider] Would send email:', {
-      to: options.to,
       subject: options.subject,
     });
     return {
@@ -339,7 +338,6 @@ class TestProvider implements EmailProvider {
 
   async sendTemplate(options: TemplateEmailOptions): Promise<EmailResult> {
     console.log('[TestProvider] Would send template email:', {
-      to: options.to,
       templateId: options.templateId,
     });
     return {

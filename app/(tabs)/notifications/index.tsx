@@ -16,7 +16,7 @@ type Notif = {
   type: 'FOLLOW' | 'UPVOTE' | 'COMMENT' | string;
   created_at?: string;
   read_at?: string | null;
-  actor?: { id: string; display_name?: string | null; avatar_url?: string | null } | null;
+  actor?: { id: string; username?: string | null; display_name?: string | null; avatar_url?: string | null } | null;
   post?: { id: string; content?: string | null; media_url?: string | null } | null;
   comment?: { id: string; content?: string | null; post_id?: string | null } | null;
   message?: { id: string; content?: string | null; conversation_id?: string | null } | null;
@@ -87,39 +87,40 @@ export default function NotificationsScreen() {
   };
 
   const renderItem = ({ item }: { item: Notif }) => {
+    const actorName = item.actor?.username ? `@${item.actor.username}` : (item.actor?.display_name || 'Someone');
     const title = item.type === 'FOLLOW'
-      ? `${item.actor?.display_name || 'Someone'} followed you`
+      ? `${actorName} followed you`
       : item.type === 'UPVOTE'
-      ? `${item.actor?.display_name || 'Someone'} upvoted your post`
+      ? `${actorName} upvoted your post`
       : item.type === 'COMMENT'
-      ? `${item.actor?.display_name || 'Someone'} commented on your post`
+      ? `${actorName} commented on your post`
       : item.type === 'MESSAGE'
-      ? `${item.actor?.display_name || 'Someone'} sent you a message`
+      ? `${actorName} sent you a message`
       : item.type === 'TEAM_INVITE'
-      ? `${item.actor?.display_name || 'Someone'} invited you to a team`
+      ? `${actorName} invited you to a team`
       : item.type === 'MENTION'
-      ? `${item.actor?.display_name || 'Someone'} mentioned you`
+      ? `${actorName} mentioned you`
       : item.type === 'COMMENT_REPLY'
-      ? `${item.actor?.display_name || 'Someone'} replied to your comment`
+      ? `${actorName} replied to your comment`
       : item.type === 'SHARE'
-      ? `${item.actor?.display_name || 'Someone'} shared your post`
+      ? `${actorName} shared your post`
       : item.type === 'GAME_REMINDER'
       ? `Game reminder: ${(item.event?.title || item.meta?.event_title) || 'Your game'}`
       : 'Notification';
     const onPress = () => {
       if (item.type === 'FOLLOW' && item.actor?.id) {
-        router.push(`/user-profile?id=${encodeURIComponent(item.actor.id)}`);
+        router.push(`/(tabs)/user-profile?id=${encodeURIComponent(item.actor.id)}` as any);
       } else if ((item.type === 'UPVOTE' || item.type === 'COMMENT' || item.type === 'MENTION' || item.type === 'COMMENT_REPLY' || item.type === 'SHARE') && item.post?.id) {
         const q = (item.type === 'MENTION' || item.type === 'COMMENT_REPLY') && item.comment?.id
           ? `?id=${encodeURIComponent(item.post.id)}&commentId=${encodeURIComponent(item.comment.id)}`
           : `?id=${encodeURIComponent(item.post.id)}`;
-        router.push(`/post-detail${q}` as any);
+        router.push(`/(tabs)/post-detail${q}` as any);
       } else if (item.type === 'MESSAGE' && item.message?.conversation_id) {
-        router.push(`/message-thread?conversation_id=${encodeURIComponent(item.message.conversation_id)}`);
+        router.push(`/(tabs)/message-thread?conversation_id=${encodeURIComponent(item.message.conversation_id)}` as any);
       } else if (item.type === 'TEAM_INVITE') {
         router.push('/team-invites');
       } else if (item.type === 'GAME_REMINDER' && (item.event?.id || item.meta?.event_id)) {
-        router.push(`/event-detail?id=${encodeURIComponent(item.event?.id || item.meta?.event_id || '')}`);
+        router.push(`/(tabs)/event-detail?id=${encodeURIComponent(item.event?.id || item.meta?.event_id || '')}` as any);
       }
       // Mark read optimistically
       if (!item.read_at) {
@@ -139,7 +140,9 @@ export default function NotificationsScreen() {
           {item.actor?.avatar_url ? (
             <Image source={{ uri: item.actor.avatar_url }} style={S.avatar} />
           ) : (
-            <View style={[S.avatar, { backgroundColor: '#E5E7EB' }]} />
+            <View style={[S.avatar, { backgroundColor: '#E5E7EB', alignItems: 'center', justifyContent: 'center' }]}>
+              <Ionicons name="person" size={20} color="#9CA3AF" />
+            </View>
           )}
         </View>
         <View style={{ flex: 1 }}>

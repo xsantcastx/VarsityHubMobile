@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/requireAuth.js';
 
 // Lazy load Stripe only if key present to avoid runtime crash in dev
 let stripe: any = null;
@@ -18,7 +19,7 @@ if (!frontendUrl && process.env.NODE_ENV === 'production') {
   throw new Error('FRONTEND_URL must be set in production');
 }
 
-billingRouter.post('/checkout/create-session', async (req: AuthedRequest, res) => {
+billingRouter.post('/checkout/create-session', requireAuth as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const { plan, team_count } = req.body || {};
   if (!plan || !['veteran','legend'].includes(String(plan))) {

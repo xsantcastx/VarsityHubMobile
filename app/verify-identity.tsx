@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
@@ -31,11 +31,13 @@ export default function VerifyScreen() {
   const [error, setError] = useState<string | null>(null);
   const [devCode, setDevCode] = useState<string | null>(null);
   const [isVerified, setIsVerified] = useState(false);
+  const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Clear any errors from previous screens on mount
   useEffect(() => {
     setError(null);
     setInfo(null);
+    return () => { if (redirectTimerRef.current) clearTimeout(redirectTimerRef.current); };
   }, []);
 
   // Require exactly 6-digit code for email verification
@@ -68,7 +70,7 @@ export default function VerifyScreen() {
         const needsOnboarding = userInfo?.preferences?.onboarding_completed === false;
 
         // Auto-redirect after 3 seconds
-        setTimeout(() => {
+        redirectTimerRef.current = setTimeout(() => {
           if (needsOnboarding) {
             router.replace('/onboarding/step-1-role');
           } else {
@@ -77,7 +79,7 @@ export default function VerifyScreen() {
         }, 3000);
 
       } catch {
-        setTimeout(() => {
+        redirectTimerRef.current = setTimeout(() => {
           router.replace('/onboarding/step-1-role');
         }, 3000);
       }

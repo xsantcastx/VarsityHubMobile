@@ -4,6 +4,7 @@ import multer from 'multer';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { AuthedRequest } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/requireAuth.js';
 
 export const uploadRouter = Router();
 
@@ -23,7 +24,7 @@ const uploadLimiter = rateLimit({
   },
 });
 
-uploadRouter.post('/avatar', uploadLimiter, memory.single('file'), async (req: AuthedRequest, res) => {
+uploadRouter.post('/avatar', requireAuth as any, uploadLimiter, memory.single('file'), async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   if (!req.file) return res.status(400).json({ error: 'Missing file' });
   

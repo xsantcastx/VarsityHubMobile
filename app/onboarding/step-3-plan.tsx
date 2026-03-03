@@ -170,23 +170,6 @@ export default function Step3Plan() {
     }
   }, [ob.role, router]);
 
-  // On iOS, auto-select rookie and skip this step — no paid plan UI
-  useEffect(() => {
-    if (Platform.OS === 'ios') {
-      setPlan('rookie');
-      setOB((prev) => ({ ...prev, plan: 'rookie', payment_pending: false }));
-      void (async () => {
-        try {
-          await User.updatePreferences({ plan: 'rookie', payment_pending: false });
-        } catch {
-          // non-critical
-        }
-        setProgress(3);
-        navigateNext();
-      })();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -279,17 +262,20 @@ export default function Step3Plan() {
         const me: any = await User.me();
         const currentPlan = me?.preferences?.plan ?? 'rookie'; // Default to rookie if no plan
         
-        // If already subscribed to the same plan, warn and continue
+        // If already subscribed to the same plan, save to OB state and continue
         if (currentPlan === plan) {
-          Alert.alert('Already subscribed', 'Our records show you already have this plan. No need to subscribe again.');
+          setOB((prev) => ({ ...prev, plan, payment_pending: false }));
+          setProgress(3);
           navigateNext();
           return;
         }
-        
+
         // Only block if they have a PAID plan different from what they're selecting
         // Allow upgrades from rookie to veteran/legend, and between veteran/legend
         if (currentPlan !== 'rookie' && currentPlan !== plan && plan !== 'rookie') {
           Alert.alert('Plan change', `You currently have the ${currentPlan} plan. To change plans, please manage your subscription in Settings or contact support.`);
+          setOB((prev) => ({ ...prev, plan: currentPlan as any, payment_pending: false }));
+          setProgress(3);
           navigateNext();
           return;
         }

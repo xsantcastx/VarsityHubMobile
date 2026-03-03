@@ -55,12 +55,13 @@ notificationsRouter.get('/', requireAuth as any, async (req: AuthedRequest, res)
         read_at: true,
         meta: true,
         // message_id removed - column doesn't exist in database yet
-        actor: { 
-          select: { 
-            id: true, 
-            display_name: true, 
-            avatar_url: true 
-          } 
+        actor: {
+          select: {
+            id: true,
+            username: true,
+            display_name: true,
+            avatar_url: true
+          }
         },
         post: { 
           select: { 
@@ -103,7 +104,7 @@ notificationsRouter.get('/', requireAuth as any, async (req: AuthedRequest, res)
         type: n.type,
         created_at: n.created_at,
         read_at: n.read_at,
-        actor: n.actor ? { id: n.actor.id, display_name: n.actor.display_name, avatar_url: n.actor.avatar_url } : null,
+        actor: n.actor ? { id: n.actor.id, username: n.actor.username, display_name: n.actor.display_name, avatar_url: n.actor.avatar_url } : null,
         post: n.post ? { id: n.post.id, content: n.post.content, media_url: n.post.media_url } : null,
         comment: n.comment ? { id: n.comment.id, content: n.comment.content, post_id: n.comment.post_id } : null,
         // message_id column doesn't exist in database yet, but we can extract from meta

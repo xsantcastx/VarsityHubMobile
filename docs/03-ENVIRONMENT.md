@@ -391,7 +391,7 @@ GOOGLE_MAPS_DEFAULT_COUNTRY=US
 
 **server/.env (Development):**
 ```properties
-STRIPE_SECRET_KEY=sk_test_51S5t0W2O6zyPvnQXG5RfQuafxC2kwQ1wVQG9smMbcBVSaDnMT10CKE7sUMsQwqNvAVqXSu6ij4VHXZsl34mikiuk00eMEk2X3q
+STRIPE_SECRET_KEY=sk_test_YOUR_KEY_HERE
 ```
 
 **Railway (Production):**

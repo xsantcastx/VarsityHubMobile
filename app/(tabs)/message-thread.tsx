@@ -126,9 +126,11 @@ export default function MessageThreadScreen() {
 
   useEffect(() => {
     // Auto-scroll to bottom when messages change
+    let scrollTimer: ReturnType<typeof setTimeout> | null = null;
     if (flatRef.current && msgs.length > 0) {
-      setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 100);
+      scrollTimer = setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 100);
     }
+    return () => { if (scrollTimer) clearTimeout(scrollTimer); };
   }, [msgs.length]);
 
   const send = async () => {

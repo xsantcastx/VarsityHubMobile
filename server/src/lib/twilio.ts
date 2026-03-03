@@ -47,7 +47,7 @@ export async function sendSmsVerificationCode(phoneNumber: string, code: string)
     debugLog(`[twilio] ✅ SMS sent successfully to ${phoneNumber}`);
     return true;
   } catch (error: any) {
-    console.error(`[twilio] ❌ Failed to send SMS to ${phoneNumber}:`, error?.message || error);
+    console.error('[twilio] Failed to send SMS:', error?.message || error);
     return false;
   }
 }
@@ -73,7 +73,7 @@ export async function sendSmsPasswordReset(phoneNumber: string, code: string): P
     debugLog(`[twilio] ✅ Password reset SMS sent successfully to ${phoneNumber}`);
     return true;
   } catch (error: any) {
-    console.error(`[twilio] ❌ Failed to send password reset SMS to ${phoneNumber}:`, error?.message || error);
+    console.error('[twilio] Failed to send password reset SMS:', error?.message || error);
     return false;
   }
 }
@@ -97,7 +97,7 @@ export async function sendSmsNotification(phoneNumber: string, message: string):
     debugLog(`[twilio] ✅ SMS notification sent successfully to ${phoneNumber}`);
     return true;
   } catch (error: any) {
-    console.error(`[twilio] ❌ Failed to send SMS notification to ${phoneNumber}:`, error?.message || error);
+    console.error('[twilio] Failed to send SMS notification:', error?.message || error);
     return false;
   }
 }

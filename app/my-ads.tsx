@@ -390,11 +390,14 @@ export default function MyAdsScreen() {
       />
       
       {/* Custom Header */}
-      <View style={[styles.header, { 
+      <View style={[styles.header, {
         backgroundColor: Colors[colorScheme].card,
-        borderBottomColor: Colors[colorScheme].border 
+        borderBottomColor: Colors[colorScheme].border
       }]}>
-        <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>My Ads</Text>
+        <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} hitSlop={8} style={{ padding: 4 }}>
+          <Ionicons name="chevron-back" size={24} color={Colors[colorScheme].text} />
+        </Pressable>
+        <Text style={[styles.headerTitle, { color: Colors[colorScheme].text, flex: 1 }]}>My Ads</Text>
         <Pressable 
           style={[styles.addButton, { backgroundColor: Colors[colorScheme].tint }]}
           onPress={() => { void router.push('/submit-ad'); }}

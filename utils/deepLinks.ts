@@ -37,13 +37,13 @@ interface ParsedDeepLink {
  * Route mappings from content type to screen path
  */
 const ROUTE_MAP: Record<string, string> = {
-  post: '/post-detail',
-  posts: '/post-detail', // /posts/:id (web URL format)
-  game: '/game-detail',
-  event: '/event-detail',
+  post: '/(tabs)/post-detail',
+  posts: '/(tabs)/post-detail', // /posts/:id (web URL format)
+  game: '/(tabs)/game-detail',
+  event: '/(tabs)/event-detail',
   team: '/team-page',
-  profile: '/public-profile',
-  user: '/public-profile',
+  profile: '/(tabs)/user-profile',
+  user: '/(tabs)/user-profile',
   // Auth-related routes
   'reset-password': '/reset-password',
   'verify-email': '/verify-email',

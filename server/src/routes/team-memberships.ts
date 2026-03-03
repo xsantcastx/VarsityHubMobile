@@ -56,7 +56,7 @@ teamMembershipsRouter.post('/', requireAuth as any, requirePlan('rookie') as any
 });
 
 // PATCH /team-memberships/:id { role? }
-teamMembershipsRouter.patch('/:id', async (req: AuthedRequest, res) => {
+teamMembershipsRouter.patch('/:id', requireAuth as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const id = String(req.params.id || '');
   const { role } = (req.body || {}) as any;
@@ -83,7 +83,7 @@ teamMembershipsRouter.patch('/:id', async (req: AuthedRequest, res) => {
 });
 
 // DELETE /team-memberships/:id
-teamMembershipsRouter.delete('/:id', async (req: AuthedRequest, res) => {
+teamMembershipsRouter.delete('/:id', requireAuth as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const id = String(req.params.id || '');
   if (!id) return res.status(400).json({ error: 'membership id required' });

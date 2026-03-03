@@ -974,7 +974,7 @@ paymentsRouter.post('/admin/reset-unpaid-subscriptions', requireVerified as any,
         });
         resetCount++;
       } catch (error) {
-        console.error(`❌ Failed to reset ${user.email}:`, (error as any)?.message || error);
+        console.error(`[payments] Failed to reset user ${user.id}:`, (error as any)?.message || error);
       }
     }
 

@@ -2,7 +2,7 @@
  * Banner Spec Upload Component
  * 
  * Handles banner/logo upload for advertisements with preview and fit options
- * Supports rotate and fill transformations
+ * Supports fill transformation with pan/zoom
  */
 
 import { uploadFile } from '@/api/upload';
@@ -24,8 +24,8 @@ import {
     View,
 } from 'react-native';
 
-type BannerFitMode = 'rotate' | 'fill' | 'stretch';
-type BannerFitValue = BannerFitMode | `rotate:${number}`;
+type BannerFitMode = 'fill' | 'stretch';
+type BannerFitValue = BannerFitMode;
 
 type BannerPosition = { x: number; y: number }; // percent 0-100
 
@@ -61,26 +61,7 @@ export function BannerUpload({
   const hintOpacity = useRef(new Animated.Value(0)).current;
 
   const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
-  const normalizeRotation = (deg: number) => {
-    const mod = ((deg % 360) + 360) % 360;
-    return mod > 180 ? mod - 360 : mod;
-  };
-  const getRotateFitScale = (angleDeg: number, width: number, height: number) => {
-    if (!width || !height) return 1;
-    const rad = (Math.abs(angleDeg) % 360) * (Math.PI / 180);
-    const cos = Math.abs(Math.cos(rad));
-    const sin = Math.abs(Math.sin(rad));
-    const rotatedWidth = width * cos + height * sin;
-    const rotatedHeight = width * sin + height * cos;
-    const scaleX = width / rotatedWidth;
-    const scaleY = height / rotatedHeight;
-    return Math.min(scaleX, scaleY, 1);
-  };
-  const getFitValue = (mode: BannerFitMode, rotationDeg: number): BannerFitValue => {
-    if (mode !== 'rotate') return mode;
-    const rounded = Math.round(normalizeRotation(rotationDeg));
-    return rounded !== 0 ? (`rotate:${rounded}` as const) : 'rotate';
-  };
+  const getFitValue = (mode: BannerFitMode): BannerFitValue => mode;
 
   const handlePickImage = async () => {
     setUploading(true);
@@ -148,19 +129,20 @@ export function BannerUpload({
           throw new Error('Upload succeeded but no URL was returned.');
         }
 
-        onChange(String(uploadedUrl), getFitValue(fitMode, rotation), { x: 50, y: 50 });
+        onChange(String(uploadedUrl), getFitValue(fitMode), { x: 50, y: 50 });
       }
     } catch (error: any) {
-      // Handle iOS PHPicker "public.png" and iCloud sync errors gracefully
-      if (error?.message?.includes('public.png') || error?.message?.includes('Failed to read picked image')) {
+      const msg = error?.message || '';
+      const isICloudError = msg.includes('iCloud') || msg.includes('not downloaded') || msg.includes('cloud asset');
+      if (isICloudError) {
         Alert.alert(
           'Image Selection Failed',
           'Unable to load this image. This can happen with iCloud-synced photos. Please try selecting a different photo or take a new one with the camera.'
         );
       } else {
         Alert.alert(
-          'Error',
-          `Failed to pick image: ${error?.message || 'Unknown error'}. Please try again.`
+          'Image Error',
+          'Something went wrong loading this image. Please try a different photo or take a new one.'
         );
       }
     } finally {
@@ -174,37 +156,25 @@ export function BannerUpload({
       {
         text: 'Remove',
         style: 'destructive',
-        onPress: () => onChange('', getFitValue(fitMode, rotation), position),
+        onPress: () => onChange('', getFitValue(fitMode), position),
       },
     ]);
   };
 
   const handleFitModeChange = (newMode: BannerFitMode) => {
     setFitMode(newMode);
-    // Reset transformations when switching modes
-    if (newMode === 'rotate') {
-      setScale(1);
-      setRotation(0);
-      setPosition({ x: 50, y: 50 });
-    }
     if (value) {
-      onChange(value, getFitValue(newMode, rotation), newMode === 'fill' ? position : { x: 50, y: 50 });
+      onChange(value, getFitValue(newMode), newMode === 'fill' ? position : { x: 50, y: 50 });
     }
   };
 
   const getContentFit = (): 'contain' | 'cover' => {
-    switch (fitMode) {
-      case 'rotate':
-        return 'contain'; // Fits entire image, may show bars
-      case 'fill':
-      default:
-        return 'cover'; // Fills container, may crop
-    }
+    return 'cover'; // Fills container, may crop
   };
 
   // Quick, minimal hint when Fill or Rotate mode is active
   useEffect(() => {
-    if (value && (fitMode === 'fill' || fitMode === 'rotate')) {
+    if (value && fitMode === 'fill') {
       setShowHint(true);
       hintOpacity.setValue(0);
       Animated.sequence([
@@ -264,9 +234,6 @@ export function BannerUpload({
                 fitMode === 'fill' && {
                   transform: [{ scale }, { rotate: `${rotation}deg` }],
                 },
-                fitMode === 'rotate' && {
-                  transform: [{ scale }, { rotate: `${rotation}deg` }],
-                },
               ]}
               contentFit={getContentFit()}
               contentPosition={
@@ -284,14 +251,12 @@ export function BannerUpload({
                   { opacity: hintOpacity },
                 ]}
               >
-                <Ionicons name={fitMode === 'rotate' ? 'refresh' : 'resize-outline'} size={16} color="#111827" />
-                <Text style={styles.hintText}>
-                  {fitMode === 'rotate' ? 'Rotate to adjust' : 'Pinch to zoom'}
-                </Text>
+                <Ionicons name="resize-outline" size={16} color="#111827" />
+                <Text style={styles.hintText}>Pinch to zoom</Text>
               </Animated.View>
             )}
-            {/* Gesture overlay for Fill and Rotate modes */}
-            {(fitMode === 'fill' || fitMode === 'rotate') && (
+            {/* Gesture overlay for Fill mode */}
+            {fitMode === 'fill' && (
               <View
                 style={StyleSheet.absoluteFill}
                 onStartShouldSetResponder={() => true}
@@ -330,13 +295,10 @@ export function BannerUpload({
                       setScale(newScale);
                     }
 
-                    // Rotation for Fill and Rotate modes
+                    // Rotation for Fill mode
                     const angleDiff = currentAngle - initialRotation.current;
                     const nextRotation = initialRotation.current + angleDiff;
                     setRotation(nextRotation);
-                    if (fitMode === 'rotate') {
-                      setScale(getRotateFitScale(nextRotation, width, height));
-                    }
                   } else if (touches.length === 1) {
                     // Reset pinch state when back to single finger
                     if (initialDistance.current !== 0) {
@@ -358,9 +320,9 @@ export function BannerUpload({
                   onScrollLock?.(false);
                   if (!value) return;
                   if (fitMode === 'fill') {
-                    onChange(value, getFitValue(fitMode, rotation), position);
+                    onChange(value, getFitValue(fitMode), position);
                   } else {
-                    onChange(value, getFitValue(fitMode, rotation), { x: 50, y: 50 });
+                    onChange(value, getFitValue(fitMode), { x: 50, y: 50 });
                   }
                 }}
                 onResponderTerminate={() => {
@@ -393,55 +355,7 @@ export function BannerUpload({
         )}
       </View>
 
-      {/* Fit Mode Selector */}
-      {value && (
-        <View style={styles.fitModeContainer}>
-          <Text style={[styles.fitModeLabel, { color: Colors[colorScheme].text }]}>
-            Banner Fit:
-          </Text>
-          <View style={styles.fitModeButtons}>
-            {(['rotate', 'fill'] as BannerFitMode[]).map((mode) => (
-              <Pressable
-                key={mode}
-                style={[
-                  styles.fitModeButton,
-                  {
-                    backgroundColor:
-                      fitMode === mode
-                        ? Colors[colorScheme].tint
-                        : Colors[colorScheme].surface,
-                    borderColor: Colors[colorScheme].border,
-                  },
-                ]}
-                onPress={() => handleFitModeChange(mode)}
-                >
-                  <Ionicons
-                    name={getFitModeIcon(mode)}
-                    size={18}
-                  color={
-                    fitMode === mode
-                      ? '#FFFFFF'
-                      : Colors[colorScheme].text
-                  }
-                />
-                  <Text
-                    style={[
-                      styles.fitModeButtonText,
-                      {
-                        color:
-                          fitMode === mode
-                            ? '#FFFFFF'
-                            : Colors[colorScheme].text,
-                      },
-                    ]}
-                  >
-                  {getFitModeLabel(mode)}
-                  </Text>
-                </Pressable>
-            ))}
-          </View>
-        </View>
-      )}
+      {/* Fit mode is always 'fill' — no selector needed */}
 
       {/* Upload button (alternative to tap-to-upload) */}
       {!value && (
@@ -469,25 +383,6 @@ export function BannerUpload({
   );
 }
 
-function getFitModeIcon(mode: BannerFitMode): keyof typeof Ionicons.glyphMap {
-  switch (mode) {
-    case 'rotate':
-      return 'refresh';
-    case 'fill':
-    default:
-      return 'crop-outline';
-  }
-}
-
-function getFitModeLabel(mode: BannerFitMode): string {
-  switch (mode) {
-    case 'rotate':
-      return 'Rotate';
-    case 'fill':
-    default:
-      return 'Fill';
-  }
-}
 
 const styles = StyleSheet.create({
   container: {
@@ -525,32 +420,6 @@ const styles = StyleSheet.create({
     right: 8,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
     borderRadius: 14,
-  },
-  fitModeContainer: {
-    gap: 8,
-  },
-  fitModeLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  fitModeButtons: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  fitModeButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  fitModeButtonText: {
-    fontSize: 13,
-    fontWeight: '600',
   },
   uploadButton: {
     flexDirection: 'row',

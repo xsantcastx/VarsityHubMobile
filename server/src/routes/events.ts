@@ -13,6 +13,18 @@ import { eventCreationLimiter, rsvpLimiter } from '../middleware/rateLimiters.js
 
 export const eventsRouter = Router();
 
+// Check if a user holds a coaching/management role on any team (DB truth, not preferences)
+async function isTeamCoach(userId: string): Promise<boolean> {
+  const membership = await prisma.teamMembership.findFirst({
+    where: {
+      user_id: userId,
+      role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
+      status: 'active',
+    },
+  });
+  return !!membership;
+}
+
 // Check if a user holds an admin-level role in any organization
 async function isOrgAdmin(userId: string): Promise<boolean> {
   const membership = await prisma.organizationMembership.findFirst({
@@ -118,7 +130,7 @@ eventsRouter.get('/', async (req, res) => {
 });
 
 // List current user's RSVPs with event basics
-eventsRouter.get('/my-rsvps', async (req: AuthedRequest, res) => {
+eventsRouter.get('/my-rsvps', requireAuth as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const rows = await prisma.eventRsvp.findMany({
     where: { user_id: req.user.id },
@@ -232,7 +244,7 @@ eventsRouter.get('/:id/rsvp', async (req: AuthedRequest, res) => {
 // Toggle/set RSVP
 const rsvpSchema = z.object({ attending: z.boolean().optional(), going: z.boolean().optional() });
 
-eventsRouter.post('/:id/rsvp', rsvpLimiter, async (req: AuthedRequest, res) => {
+eventsRouter.post('/:id/rsvp', requireAuth as any, rsvpLimiter, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const id = String(req.params.id);
   
@@ -388,27 +400,21 @@ eventsRouter.post('/', requireVerified as any, eventCreationLimiter, async (req:
     });
   }
   
-  const user = await prisma.user.findUnique({ 
-    where: { id: req.user!.id }, 
-    select: { id: true, preferences: true } 
-  });
-  if (!user) return res.status(401).json({ error: 'Unauthorized' });
-  
-  const prefs = (user.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
-  const userRole = prefs.role || 'fan';
-  const userPlan = prefs.plan || 'rookie';
-  
-  // Check event limit for free tier
-  if (userRole === 'fan' && (userPlan === 'rookie' || !userPlan || userPlan === 'free')) {
+  const userId = req.user!.id;
+  const userIsCoach = await isTeamCoach(userId);
+  const userIsOrgAdmin = await isOrgAdmin(userId);
+
+  // Check event limit for non-coach/non-org-admin free tier users
+  if (!userIsCoach && !userIsOrgAdmin) {
     const pendingCount = await prisma.event.count({
       where: {
-        creator_id: user.id,
+        creator_id: userId,
         approval_status: 'pending',
       },
     });
-    
+
     if (pendingCount >= 3) {
-      return res.status(403).json({ 
+      return res.status(403).json({
         error: 'Event limit reached',
         message: "You've reached your limit of 3 pending events. Upgrade to Veteran to create unlimited community events.",
         code: 'EVENT_LIMIT_EXCEEDED',
@@ -417,9 +423,9 @@ eventsRouter.post('/', requireVerified as any, eventCreationLimiter, async (req:
       });
     }
   }
-  
+
   // Coaches/organizers/org admins get auto-approval, fans need approval
-  const autoApprove = userRole === 'coach' || userRole === 'organizer' || await isOrgAdmin(user.id);
+  const autoApprove = userIsCoach || userIsOrgAdmin;
   
   // Use capacity if provided, otherwise max_attendees (for backward compatibility)
   const capacity = data.max_attendees ?? null;
@@ -439,31 +445,31 @@ eventsRouter.post('/', requireVerified as any, eventCreationLimiter, async (req:
       contact_info: data.contact_info,
       banner_url: data.banner_url,
       game_id: data.game_id,
-      creator_id: user.id,
-      creator_role: userRole,
+      creator_id: userId,
+      creator_role: userIsCoach ? 'coach' : userIsOrgAdmin ? 'organizer' : 'fan',
       approval_status: autoApprove ? 'approved' : 'pending',
       status: autoApprove ? 'approved' : 'draft',
       approved_at: autoApprove ? new Date() : null,
     },
   });
   
-  // Get pending count for response (helpful for fans to know their limit status)
-  const pendingCount = userRole === 'fan' && (userPlan === 'rookie' || !userPlan || userPlan === 'free')
+  // Get pending count for response (helpful for non-coaches to know their limit status)
+  const pendingCount = !autoApprove
     ? await prisma.event.count({
         where: {
-          creator_id: user.id,
+          creator_id: userId,
           approval_status: 'pending',
         },
       })
     : null;
-  
+
   return res.status(201).json({
     ...serializeEvent(event),
-    message: autoApprove 
-      ? 'Event created and published successfully!' 
+    message: autoApprove
+      ? 'Event created and published successfully!'
       : 'Your event has been submitted for approval.',
     pending_count: pendingCount,
-    limit: userRole === 'fan' && (userPlan === 'rookie' || !userPlan || userPlan === 'free') ? 3 : null,
+    limit: !autoApprove ? 3 : null,
   });
 });
 
@@ -472,17 +478,10 @@ eventsRouter.put('/:id/approve', requireVerified as any, async (req: AuthedReque
   // req.user is guaranteed by requireVerified middleware
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   
-  const user = await prisma.user.findUnique({ 
-    where: { id: req.user.id }, 
-    select: { id: true, preferences: true } 
-  });
-  if (!user) return res.status(401).json({ error: 'Unauthorized' });
-  
-  const prefs = (user.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
-  const userRole = prefs.role || 'fan';
+  const userId = req.user.id;
   const isAdmin = await getIsAdmin(req as any);
-  
-  if (!isAdmin && userRole !== 'coach' && userRole !== 'organizer' && !(await isOrgAdmin(user.id))) {
+
+  if (!isAdmin && !(await isTeamCoach(userId)) && !(await isOrgAdmin(userId))) {
     return res.status(403).json({ error: 'Only coaches and admins can approve events' });
   }
 
@@ -517,7 +516,7 @@ eventsRouter.put('/:id/approve', requireVerified as any, async (req: AuthedReque
     data: {
       approval_status: 'approved',
       status: 'approved',
-      approved_by: user.id,
+      approved_by: userId,
       approved_at: new Date(),
     },
     include: {
@@ -555,20 +554,13 @@ eventsRouter.put('/:id/reject', requireVerified as any, async (req: AuthedReques
   // req.user is guaranteed by requireVerified middleware
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   
-  const user = await prisma.user.findUnique({ 
-    where: { id: req.user.id }, 
-    select: { id: true, preferences: true } 
-  });
-  if (!user) return res.status(401).json({ error: 'Unauthorized' });
-  
-  const prefs = (user.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
-  const userRole = prefs.role || 'fan';
+  const userId = req.user.id;
   const isAdmin = await getIsAdmin(req as any);
-  
-  if (!isAdmin && userRole !== 'coach' && userRole !== 'organizer' && !(await isOrgAdmin(user.id))) {
+
+  if (!isAdmin && !(await isTeamCoach(userId)) && !(await isOrgAdmin(userId))) {
     return res.status(403).json({ error: 'Only coaches and admins can reject events' });
   }
-  
+
   const eventId = String(req.params.id);
   const event = await prisma.event.findUnique({ where: { id: eventId } });
   if (!event) return res.status(404).json({ error: 'Event not found' });

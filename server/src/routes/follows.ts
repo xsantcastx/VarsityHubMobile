@@ -1,12 +1,13 @@
 import { Router } from 'express';
 import type { AuthedRequest } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/requireAuth.js';
 import { prisma } from '../lib/prisma.js';
 
 export const followsRouter = Router();
 
 // GET /follows/teams?user_id=me
 // Returns teams the user has explicitly followed via POST /teams/:id/follow.
-followsRouter.get('/teams', async (req: AuthedRequest, res) => {
+followsRouter.get('/teams', requireAuth as any, async (req: AuthedRequest, res) => {
   // SECURITY FIX: Require authentication for all requests
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 

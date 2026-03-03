@@ -14,6 +14,7 @@ export async function ensureUploadableUri(uri: string, mimeType?: string): Promi
   
   // For images: re-encode to compress and ensure it's a local file
   if (isPhoto) {
+    // Attempt 1: re-encode with no transforms
     try {
       if (__DEV__) console.log('[media] Re-encoding image for compression...');
       const manip = await ImageManipulator.manipulateAsync(uri, [], { compress: 0.9, format: ImageManipulator.SaveFormat.JPEG });
@@ -22,7 +23,17 @@ export async function ensureUploadableUri(uri: string, mimeType?: string): Promi
         return { uri: manip.uri, mimeType };
       }
     } catch (e) {
-      console.warn('[media] Failed to re-encode image:', e);
+      console.warn('[media] Re-encode attempt 1 failed, retrying with resize:', e);
+    }
+    // Attempt 2: resize to force iOS to materialize the file from PhotoKit
+    try {
+      const manip = await ImageManipulator.manipulateAsync(uri, [{ resize: { width: 1200 } }], { compress: 0.9, format: ImageManipulator.SaveFormat.JPEG });
+      if (manip && manip.uri) {
+        if (__DEV__) console.log('[media] Image re-encoded (resize fallback) to:', manip.uri);
+        return { uri: manip.uri, mimeType };
+      }
+    } catch (e) {
+      console.warn('[media] Re-encode attempt 2 (resize) also failed:', e);
       // Fallback: return original URI
     }
   }

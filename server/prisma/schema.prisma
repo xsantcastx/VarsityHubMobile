@@ -280,10 +280,10 @@ model Message {
   conversation_id String?
 
   sender_id    String
-  recipient_id String
+  recipient_id String?
 
-  sender    User @relation("message_sender", fields: [sender_id], references: [id], onDelete: Cascade)
-  recipient User @relation("message_recipient", fields: [recipient_id], references: [id], onDelete: Cascade)
+  sender    User  @relation("message_sender", fields: [sender_id], references: [id], onDelete: Cascade)
+  recipient User? @relation("message_recipient", fields: [recipient_id], references: [id], onDelete: SetNull)
   notifications Notification[]
 
   content    String?
@@ -315,12 +315,12 @@ model GroupChat {
   id         String   @id @default(cuid())
   name       String
   team_id    String?
-  created_by String
+  created_by String?
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
   team       Team?              @relation(fields: [team_id], references: [id], onDelete: Cascade)
-  creator    User               @relation(fields: [created_by], references: [id], onDelete: Cascade)
+  creator    User?              @relation(fields: [created_by], references: [id], onDelete: SetNull)
   members    GroupChatMember[]
   messages   GroupChatMessage[]
 
@@ -442,7 +442,7 @@ model AdReservation {
 model Ad {
   id              String   @id @default(cuid())
   user_id         String?
-  user            User?    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user            User?    @relation(fields: [user_id], references: [id], onDelete: SetNull)
   contact_name    String?
   contact_email   String?
   business_name   String?
@@ -459,6 +459,7 @@ model Ad {
   reservations AdReservation[]
 
   @@index([user_id, created_at])
+  @@index([status])
 }
 
 model Category {
@@ -560,7 +561,7 @@ enum NotificationType {
 model Notification {
   id         String           @id @default(cuid())
   user_id    String
-  actor_id   String
+  actor_id   String?
   type       NotificationType
   post_id    String?
   comment_id String?
@@ -569,14 +570,15 @@ model Notification {
   created_at DateTime         @default(now())
   read_at    DateTime?
 
-  user   User @relation("notification_user", fields: [user_id], references: [id], onDelete: Cascade)
-  actor  User @relation("notification_actor", fields: [actor_id], references: [id], onDelete: Cascade)
+  user   User  @relation("notification_user", fields: [user_id], references: [id], onDelete: Cascade)
+  actor  User? @relation("notification_actor", fields: [actor_id], references: [id], onDelete: SetNull)
   post   Post? @relation(fields: [post_id], references: [id], onDelete: SetNull)
   comment Comment? @relation(fields: [comment_id], references: [id], onDelete: SetNull)
   message Message? @relation(fields: [message_id], references: [id], onDelete: SetNull)
 
   @@index([user_id, created_at])
   @@index([user_id, read_at])
+  @@index([actor_id])
   @@index([type, created_at])
 }
 
@@ -627,6 +629,7 @@ model Team {
   @@index([name])
   @@index([city, state])
   @@index([sport])
+  @@index([organization_id])
 }
 
 model Organization {
@@ -816,13 +819,13 @@ model PromoCode {
 model PromoRedemption {
   id                       String   @id @default(cuid())
   promo_id                 String
-  user_id                  String
+  user_id                  String?
   order_id                 String?
   amount_discounted_cents  Int
   created_at               DateTime @default(now())
 
   promo PromoCode @relation(fields: [promo_id], references: [id])
-  user  User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user  User?     @relation(fields: [user_id], references: [id], onDelete: SetNull)
 
   @@unique([promo_id, order_id])
   @@index([promo_id, user_id])
@@ -934,7 +937,7 @@ model AdminActivityLog {
 
 model AbuseReport {
   id              String   @id @default(cuid())
-  reporter_id     String   // User who submitted the report
+  reporter_id     String?  // User who submitted the report
   reporter_name   String
   reporter_email  String
   subject         String
@@ -945,7 +948,7 @@ model AbuseReport {
   resolution_note String?  @db.Text // Admin notes about resolution
   created_at      DateTime @default(now())
   
-  reporter        User     @relation(fields: [reporter_id], references: [id], onDelete: Cascade)
+  reporter        User?    @relation(fields: [reporter_id], references: [id], onDelete: SetNull)
   
   @@index([reporter_id])
   @@index([status])

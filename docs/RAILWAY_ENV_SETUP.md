@@ -22,8 +22,8 @@ See `server/src/lib/env.ts` for the full Zod schema.
 | JWT_SECRET | ✅ Set | Auth tokens work |
 | SMTP_HOST/USER/PASS | ✅ Set | Email verification & password reset work |
 | SENTRY_DSN | ✅ Set | Server error tracking active |
-| **STRIPE_SECRET_KEY** | ✅ Set | `sk_test_51S5t0k...` configured |
-| **STRIPE_WEBHOOK_SECRET** | ✅ Set | `whsec_8f60823f...` configured |
+| **STRIPE_SECRET_KEY** | ✅ Set | `sk_test_...` configured |
+| **STRIPE_WEBHOOK_SECRET** | ✅ Set | `whsec_...` configured |
 | **STRIPE_PRICE_VETERAN** | ✅ Set | `price_1SCd6HRuB2a0vFjp1QlboTEv` |
 | **STRIPE_PRICE_LEGEND** | ✅ Set | `price_1SCd6IRuB2a0vFjpQOSdctN4` |
 | **CLOUDINARY_CLOUD_NAME** | ✅ Set | `varsityhub` |

@@ -21,7 +21,7 @@ const debugLog = (...args: Parameters<typeof console.log>) => {
 };
 
 // Get teams managed by current user (requires authentication)
-teamsRouter.get('/managed', authMiddleware as any, async (req: AuthedRequest, res) => {
+teamsRouter.get('/managed', requireAuth as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Authentication required' });
   
   const q = String((req.query as any).q || '').trim().toLowerCase();

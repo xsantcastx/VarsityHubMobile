@@ -11,6 +11,7 @@ import { signJwt } from '../lib/jwt.js';
 import { prisma } from '../lib/prisma.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/requireAuth.js';
 
 export const authRouter = Router();
 // Simple in-memory rate limiting for auth endpoints
@@ -591,14 +592,14 @@ authRouter.post('/password/forgot', async (req, res) => {
     return res.json({ ok: true });
   }
 
-  debugLog('[password-reset] Looking for user:', email);
+  debugLog('[password-reset] Looking for user by email');
   const user = await prisma.user.findFirst({ where: { email: { equals: email, mode: 'insensitive' } } });
   const payload: any = { ok: true };
   if (!user) {
-    debugLog('[password-reset] No user found for:', email);
+    debugLog('[password-reset] No user found');
     return res.json(payload);
   }
-  debugLog('[password-reset] User found:', user.id, user.email);
+  debugLog('[password-reset] User found:', user.id);
 
   const code = String(crypto.randomInt(10000000, 100000000)); // 8-digit code (~90M possibilities)
   const expires = new Date(Date.now() + 30 * 60 * 1000);
@@ -612,7 +613,7 @@ authRouter.post('/password/forgot', async (req, res) => {
   });
 
   try {
-    debugLog('[email] Sending password reset email to:', user.email);
+    debugLog('[email] Sending password reset email for user:', user.id);
     const sent = await sendPasswordResetEmail(user.email, code);
     if (!sent) {
       console.warn('[email] Password reset email skipped (SendGrid not configured)');
@@ -687,7 +688,7 @@ const passwordChangeSchema = z.object({
   new_password: z.string().min(8),
 });
 
-authRouter.post('/password/change', async (req: AuthedRequest, res) => {
+authRouter.post('/password/change', requireAuth as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const parsed = passwordChangeSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
@@ -722,7 +723,7 @@ authRouter.post('/password/change', async (req: AuthedRequest, res) => {
   return res.json({ ok: true });
 });
 
-authRouter.get('/me', async (req: AuthedRequest, res) => {
+authRouter.get('/me', requireAuth as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const user = await prisma.user.findUnique({
     where: { id: req.user.id },
@@ -779,7 +780,7 @@ const updateMeSchema = z.object({
   preferences: z.any().optional(),
 });
 
-authRouter.put('/me', async (req: AuthedRequest, res) => {
+authRouter.put('/me', requireAuth as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const parsed = updateMeSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -837,7 +838,7 @@ authRouter.put('/me', async (req: AuthedRequest, res) => {
 });
 
 // PATCH /me (alias) to support partial updates including preferences
-authRouter.patch('/me', async (req: AuthedRequest, res) => {
+authRouter.patch('/me', requireAuth as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const parsed = updateMeSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -923,7 +924,7 @@ function mergePreferences(base: any, incoming: any) {
 }
 
 // Partial update for user preferences
-authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
+authRouter.patch('/me/preferences', requireAuth as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const schema = z.object({
     notifications: z.object({
@@ -938,7 +939,8 @@ authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
     onboarding_completed: z.boolean().optional(),
     
     // New onboarding fields
-    plan: z.enum(['rookie', 'veteran', 'legend']).optional(),
+    // plan is set only by Stripe webhook / finalize-session — never by the client
+
     // Rookie is not a role
     role: z.enum(['fan', 'coach']).optional(),
     affiliation: z.enum(['school', 'independent']).optional(),
@@ -1021,8 +1023,7 @@ const completeOnboardingSchema = z.object({
   zip: z.string().optional(),
   zip_code: z.string().optional(),
   
-  // Plan and subscription
-  plan: z.enum(['rookie', 'veteran', 'legend']).optional(),
+  // plan is set only by Stripe webhook / finalize-session — never by the client
   payment_pending: z.union([z.boolean(), z.string()]).optional(),
   team_count_total: z.number().int().min(0).optional(),
   
@@ -1057,7 +1058,7 @@ const completeOnboardingSchema = z.object({
   messaging_policy_accepted: z.boolean().optional(),
 });
 
-authRouter.post('/me/complete-onboarding', async (req: AuthedRequest, res) => {
+authRouter.post('/me/complete-onboarding', requireAuth as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const parsed = completeOnboardingSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -1085,12 +1086,9 @@ authRouter.post('/me/complete-onboarding', async (req: AuthedRequest, res) => {
   
   // CRITICAL: For coaches, validate required steps are completed
   if (finalRole === 'coach') {
-    // Coaches MUST have: username, plan, and team/org
+    // Coaches MUST have: username and team/org (plan is set via Stripe payment)
     if (!data.username) {
       return res.status(400).json({ error: 'Username required for coach onboarding' });
-    }
-    if (!data.plan) {
-      return res.status(400).json({ error: 'Plan selection required for coach onboarding' });
     }
     if (!data.team_id && !data.organization_id) {
       return res.status(400).json({ error: 'Team or organization required for coach onboarding' });
@@ -1114,7 +1112,7 @@ authRouter.post('/me/complete-onboarding', async (req: AuthedRequest, res) => {
   const preferencesUpdate: any = {
     onboarding_completed: true,
     role: finalRole, // Always set role explicitly - never leave undefined
-    plan: data.plan,
+    // plan is set only by Stripe webhook / finalize-session
     affiliation: data.affiliation,
     dob: data.dob,
     zip_code: data.zip_code || data.zip,
@@ -1193,7 +1191,7 @@ authRouter.post('/verify/request', async (req: AuthedRequest, res) => {
   await prisma.user.update({ where: { id: user.id }, data: { email_verification_code: code, email_verification_expires: exp } });
   debugLog(`[verify-code] [verify/request] Verification code stored in DB (expires ${exp.toISOString()})`);
   try {
-    debugLog(`[verify-code] [verify/request] Sending verification email to ${user.email}`);
+    debugLog(`[verify-code] [verify/request] Sending verification email for user ${user.id}`);
     const sent = await sendVerificationEmail(user.email, code, user.display_name || user.email.split('@')[0]);
     if (!sent) {
       console.error('[verify-code] [verify/request] sendVerificationEmail returned false — email was NOT sent (check SendGridProvider logs above for the specific error)');

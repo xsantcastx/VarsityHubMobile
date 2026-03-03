@@ -103,7 +103,7 @@ adminReportsRouter.patch('/:id', requireAdmin as any, async (req: AuthedRequest,
     'abuse_report',
     id,
     `Changed report status to ${status}`,
-    { status, resolution_note, reporter: report.reporter.email }
+    { status, resolution_note, reporter: report.reporter?.email }
   );
   
   return res.json({ report });

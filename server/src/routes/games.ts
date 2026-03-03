@@ -411,11 +411,47 @@ gamesRouter.get('/votes-summary', async (req: AuthedRequest, res) => {
   if (ids.length === 0) return res.json({});
   if (ids.length > 50) return res.status(400).json({ error: 'Max 50 ids per request' });
   const userId = req.user?.id ?? null;
-  const summaries = await Promise.all(ids.map((id) => summarizeVotes(id, userId)));
+
+  // Batch: 1 groupBy query for all vote counts + 1 query for user votes (instead of 3N queries)
+  const [voteCounts, userVotes] = await Promise.all([
+    prisma.gameVote.groupBy({
+      by: ['game_id', 'team'],
+      _count: { _all: true },
+      where: { game_id: { in: ids } },
+    }),
+    userId
+      ? prisma.gameVote.findMany({
+          where: { game_id: { in: ids }, user_id: userId },
+          select: { game_id: true, team: true },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  // Build lookup maps
+  const countMap = new Map<string, { A: number; B: number }>();
+  for (const row of voteCounts) {
+    if (!countMap.has(row.game_id)) countMap.set(row.game_id, { A: 0, B: 0 });
+    const entry = countMap.get(row.game_id)!;
+    if (row.team === 'A') entry.A = row._count._all;
+    else if (row.team === 'B') entry.B = row._count._all;
+  }
+  const userVoteMap = new Map(userVotes.map((v) => [v.game_id, v.team]));
+
   const result: Record<string, Awaited<ReturnType<typeof summarizeVotes>>> = {};
-  ids.forEach((id, i) => {
-    result[id] = summaries[i];
-  });
+  for (const id of ids) {
+    const counts = countMap.get(id) || { A: 0, B: 0 };
+    const total = counts.A + counts.B;
+    const pctA = total ? Math.round((counts.A / total) * 100) : 0;
+    const pctB = total ? 100 - pctA : 0;
+    result[id] = {
+      teamA: counts.A,
+      teamB: counts.B,
+      total,
+      pctA,
+      pctB,
+      userVote: userVoteMap.get(id) ?? null,
+    };
+  }
   return res.json(result);
 });
 
@@ -711,7 +747,7 @@ gamesRouter.delete('/:id/media/:mediaId', requireAuth as any, async (req: Authed
 // Legacy stories endpoints (kept for backwards compatibility)
 gamesRouter.get('/:id/stories', makeListMediaHandler({ prisma }));
 
-gamesRouter.post('/:id/stories', makeCreateStoryHandler({ prisma }));
+gamesRouter.post('/:id/stories', requireAuth as any, makeCreateStoryHandler({ prisma }));
 
 // Update game result (scores) - coaches and team owners only
 gamesRouter.patch('/:id/result', requireAuth as any, async (req: AuthedRequest, res) => {

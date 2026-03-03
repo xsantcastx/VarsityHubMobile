@@ -585,7 +585,7 @@ export default function RoleOnboardingScreen() {
 
             <Pressable
               style={[styles.continueButton, { backgroundColor: Colors[colorScheme].tint }]}
-              onPress={() => void router.replace('/feed')}
+              onPress={() => void router.replace('/(tabs)/feed')}
             >
               <Text style={styles.continueButtonText}>Continue to Feed</Text>
               <Ionicons name="arrow-forward" size={20} color="#fff" />

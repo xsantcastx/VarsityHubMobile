@@ -47,18 +47,26 @@ groupChatsRouter.get('/', requireAuth as any, async (req: AuthedRequest, res) =>
       orderBy: { joined_at: 'desc' },
     });
 
-    const unreadCounts = await Promise.all(
-      memberships.map((m) =>
-        prisma.groupChatMessage.count({
-          where: {
-            chat_id: m.chat_id,
-            sender_id: { not: req.user!.id },
-            ...(m.last_read_at ? { created_at: { gt: m.last_read_at } } : {}),
-          },
-        })
-      )
-    );
-    const unreadByChatId = new Map(memberships.map((m, idx) => [m.chat_id, unreadCounts[idx]]));
+    // Batch unread counts into a single raw query instead of N COUNT queries.
+    // Each membership has a different last_read_at, so we use a raw query with
+    // a VALUES list to do a conditional count per chat in one round-trip.
+    const unreadByChatId = new Map<string, number>();
+    if (memberships.length > 0) {
+      const unreadRows = await prisma.$queryRawUnsafe<Array<{ chat_id: string; unread: bigint }>>(
+        `SELECT m.chat_id, COUNT(msg.id) AS unread
+         FROM "GroupChatMember" m
+         LEFT JOIN "GroupChatMessage" msg
+           ON msg.chat_id = m.chat_id
+           AND msg.sender_id != $1
+           AND (m.last_read_at IS NULL OR msg.created_at > m.last_read_at)
+         WHERE m.user_id = $1
+         GROUP BY m.chat_id`,
+        req.user!.id
+      );
+      for (const row of unreadRows) {
+        unreadByChatId.set(row.chat_id, Number(row.unread));
+      }
+    }
 
     const chats = memberships.map(m => {
       const lastMessage = m.chat.messages[0] || null;

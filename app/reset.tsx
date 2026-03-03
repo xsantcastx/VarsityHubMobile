@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     StyleSheet,
@@ -27,6 +27,11 @@ export default function ResetScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => { if (redirectTimerRef.current) clearTimeout(redirectTimerRef.current); };
+  }, []);
 
   // Extract code from URL on web
   useEffect(() => {
@@ -73,7 +78,7 @@ export default function ResetScreen() {
       setPassword('');
       setConfirmPassword('');
       // Redirect to sign-in after 2 seconds
-      setTimeout(() => {
+      redirectTimerRef.current = setTimeout(() => {
         void router.push('/sign-in');
       }, 2000);
     } catch (e: any) {

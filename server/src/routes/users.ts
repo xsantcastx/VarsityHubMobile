@@ -312,14 +312,15 @@ usersRouter.get('/:id/interactions', async (req: AuthedRequest, res) => {
   const sort = typeof req.query.sort === 'string' ? req.query.sort : 'newest';
   const type = typeof req.query.type === 'string' ? req.query.type : 'all';
 
-  // Collect interactions
+  // Collect interactions (capped at 200 per type to prevent OOM on prolific users)
+  const interactionLimit = 200;
   const likeRows = (type === 'all' || type === 'like')
-    ? await prisma.postUpvote.findMany({ where: { user_id: id }, select: { post_id: true, created_at: true } }) : [];
+    ? await prisma.postUpvote.findMany({ where: { user_id: id }, select: { post_id: true, created_at: true }, orderBy: { created_at: 'desc' }, take: interactionLimit }) : [];
   const commentRows = (type === 'all' || type === 'comment')
-    ? await prisma.comment.findMany({ where: { author_id: id } as any, select: { post_id: true, created_at: true } }) : [];
+    ? await prisma.comment.findMany({ where: { author_id: id } as any, select: { post_id: true, created_at: true }, orderBy: { created_at: 'desc' }, take: interactionLimit }) : [];
   // No repost model yet
   const saveRows = (type === 'all' || type === 'save')
-    ? await prisma.postBookmark.findMany({ where: { user_id: id }, select: { post_id: true, created_at: true } }) : [];
+    ? await prisma.postBookmark.findMany({ where: { user_id: id }, select: { post_id: true, created_at: true }, orderBy: { created_at: 'desc' }, take: interactionLimit }) : [];
 
   type Item = { post_id: string; ts: Date };
   const merged: Record<string, Item> = {};

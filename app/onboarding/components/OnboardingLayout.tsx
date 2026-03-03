@@ -42,11 +42,25 @@ export default function OnboardingLayout({
   const isDark = colorScheme === 'dark';
   const insets = useSafeAreaInsets();
 
+  // Map each step number to the previous step's route
+  const previousStepRoute: Record<number, string> = {
+    2: '/onboarding/step-1-role',
+    3: '/onboarding/step-2-basic',
+    4: '/onboarding/step-3-plan',
+    6: '/onboarding/step-4-organization',
+    7: '/onboarding/step-6-authorized-users',
+    8: '/onboarding/step-7-profile',
+    9: '/onboarding/step-8-interests',
+    10: '/onboarding/step-9-features',
+  };
+
   const handleBack = () => {
     if (onBackPress) {
       onBackPress();
     } else if (onBack) {
       onBack();
+    } else if (previousStepRoute[step]) {
+      router.replace(previousStepRoute[step] as any);
     } else if (router.canGoBack()) {
       router.back();
     } else {

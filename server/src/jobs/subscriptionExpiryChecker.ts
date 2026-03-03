@@ -71,7 +71,7 @@ export async function checkExpiringSubscriptions() {
         
         // Don't send more than once per week
         if (hoursSinceLastEmail < 168) {
-          console.log(`[subscriptionExpiry] Skipping ${user.email} - email sent ${Math.floor(hoursSinceLastEmail)}h ago`);
+          console.log(`[subscriptionExpiry] Skipping user ${user.id} - email sent ${Math.floor(hoursSinceLastEmail)}h ago`);
           continue;
         }
       }
@@ -107,9 +107,9 @@ export async function checkExpiringSubscriptions() {
           }
         });
         
-        console.log(`[subscriptionExpiry] Sent expiry email to ${user.email} (${daysUntilExpiry} days remaining)`);
+        console.log(`[subscriptionExpiry] Sent expiry email to user ${user.id} (${daysUntilExpiry} days remaining)`);
       } catch (err) {
-        console.error(`[subscriptionExpiry] Failed to send email to ${user.email}:`, err);
+        console.error(`[subscriptionExpiry] Failed to send email to user ${user.id}:`, err);
       }
     }
     
