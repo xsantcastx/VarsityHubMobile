@@ -82,6 +82,7 @@ organizationsRouter.get('/mine', requireAuth as any, async (req: AuthedRequest, 
         }
       }
     },
+    take: 50,
     orderBy: { created_at: 'desc' },
     select: {
       id: true,
@@ -175,6 +176,7 @@ organizationsRouter.get('/:id/members', async (req, res) => {
   
   const members = await prisma.organizationMembership.findMany({
     where: { organization_id: id, status: 'active' },
+    take: 500,
     include: {
       user: {
         select: { 
@@ -231,6 +233,7 @@ organizationsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res
     const sameZipOrgs = await prisma.organization.findMany({
       where: { zip_code: data.zip_code, status: 'active' },
       select: { id: true, name: true },
+      take: 100,
     });
     dup = sameZipOrgs.find(o => normalizeOrganizationName(o.name) === nm) ?? null;
   }
@@ -292,7 +295,8 @@ organizationsRouter.post('/create', requireAuth as any, async (req: AuthedReques
       zip_code: data.zip_code || undefined,
       status: 'active'
     },
-    select: { id: true, name: true, zip_code: true }
+    select: { id: true, name: true, zip_code: true },
+    take: 100,
   });
   const dup = possibleDuplicates.find(o => normalizeOrganizationName(o.name) === nm);
   if (dup) {

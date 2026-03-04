@@ -52,9 +52,9 @@ usersRouter.get('/:id/full', requireAdmin as any, async (req, res) => {
   const id = String(req.params.id);
   const user = await prisma.user.findUnique({ where: { id }, select: { id: true, email: true, username: true, email_verified: true, banned: true, created_at: true } });
   if (!user) return res.status(404).json({ error: 'Not found' });
-  const ads = await prisma.ad.findMany({ where: { user_id: id }, orderBy: { created_at: 'desc' } });
+  const ads = await prisma.ad.findMany({ where: { user_id: id }, orderBy: { created_at: 'desc' }, take: 100 });
   const adIds = ads.map(a => a.id);
-  const reservations = adIds.length ? await prisma.adReservation.findMany({ where: { ad_id: { in: adIds } }, orderBy: { date: 'asc' } }) : [];
+  const reservations = adIds.length ? await prisma.adReservation.findMany({ where: { ad_id: { in: adIds } }, orderBy: { date: 'asc' }, take: 1000 }) : [];
   const datesByAd: Record<string, string[]> = {};
   for (const r of reservations) {
     const key = r.ad_id;
@@ -86,6 +86,7 @@ usersRouter.get('/me/export', requireAuth as any, async (req: AuthedRequest, res
       prisma.post.findMany({
         where: { author_id: id },
         orderBy: { created_at: 'desc' },
+        take: 5000,
         select: {
           id: true,
           title: true,
@@ -102,6 +103,7 @@ usersRouter.get('/me/export', requireAuth as any, async (req: AuthedRequest, res
       prisma.comment.findMany({
         where: { author_id: id } as any,
         orderBy: { created_at: 'desc' },
+        take: 5000,
         select: {
           id: true,
           post_id: true,
@@ -112,6 +114,7 @@ usersRouter.get('/me/export', requireAuth as any, async (req: AuthedRequest, res
       prisma.message.findMany({
         where: { sender_id: id },
         orderBy: { created_at: 'desc' },
+        take: 10000,
         select: {
           id: true,
           recipient_id: true,
@@ -122,10 +125,12 @@ usersRouter.get('/me/export', requireAuth as any, async (req: AuthedRequest, res
       }),
       prisma.follows.findMany({
         where: { follower_id: id },
+        take: 10000,
         select: { following_id: true, created_at: true },
       }),
       prisma.follows.findMany({
         where: { following_id: id },
+        take: 10000,
         select: { follower_id: true, created_at: true },
       }),
     ]);
@@ -184,9 +189,9 @@ usersRouter.get('/:id/export', requireAdmin as any, async (req, res) => {
   const id = String(req.params.id);
   const user = await prisma.user.findUnique({ where: { id }, select: { id: true, email: true, username: true } });
   if (!user) return res.status(404).send('Not found');
-  const ads = await prisma.ad.findMany({ where: { user_id: id }, orderBy: { created_at: 'desc' } });
+  const ads = await prisma.ad.findMany({ where: { user_id: id }, orderBy: { created_at: 'desc' }, take: 100 });
   const adIds = ads.map(a => a.id);
-  const reservations = adIds.length ? await prisma.adReservation.findMany({ where: { ad_id: { in: adIds } }, orderBy: { date: 'asc' } }) : [];
+  const reservations = adIds.length ? await prisma.adReservation.findMany({ where: { ad_id: { in: adIds } }, orderBy: { date: 'asc' }, take: 1000 }) : [];
   const datesByAd: Record<string, string[]> = {};
   for (const r of reservations) {
     const key = r.ad_id;

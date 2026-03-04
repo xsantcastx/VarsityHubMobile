@@ -557,16 +557,16 @@ export default function TeamScreen() {
 
         {/* Back Button - Top Left */}
         <View style={[styles.headerControls, { top: Math.max(12, insets.top), left: 16 }]}>
-          <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={styles.controlButton}>
-            <Ionicons name="arrow-back" size={18} color="#333" />
+          <Pressable onPress={() => router.back()} style={[styles.controlButton, { backgroundColor: colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)' }]}>
+            <Ionicons name="arrow-back" size={18} color={colorScheme === 'dark' ? '#FFFFFF' : '#333'} />
           </Pressable>
         </View>
-        
+
         {/* Settings Button - Top Right */}
         {isTeamAdmin && (
           <View style={[styles.headerControls, { top: Math.max(12, insets.top) }]}>
-            <Pressable onPress={() => void router.push('/settings')} style={styles.controlButton}>
-              <Ionicons name="settings-outline" size={18} color="#333" />
+            <Pressable onPress={() => void router.push('/settings')} style={[styles.controlButton, { backgroundColor: colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)' }]}>
+              <Ionicons name="settings-outline" size={18} color={colorScheme === 'dark' ? '#FFFFFF' : '#333'} />
             </Pressable>
           </View>
         )}
@@ -579,8 +579,8 @@ export default function TeamScreen() {
               {team?.logo_url ? (
                 <Image source={{ uri: String(team.logo_url) }} style={styles.avatarImage} contentFit="cover" />
               ) : (
-                <View style={styles.avatarPlaceholder}>
-                  <Ionicons name="people" size={48} color="#9CA3AF" />
+                <View style={[styles.avatarPlaceholder, { backgroundColor: theme.surface || theme.card }]}>
+                  <Ionicons name="people" size={48} color={theme.mutedText} />
                 </View>
               )}
             </View>
@@ -605,8 +605,8 @@ export default function TeamScreen() {
           <Text style={[styles.userHandle, { color: theme.text }]}>{teamHandle}</Text>
           <View style={{ flexDirection: 'row', gap: 8 }}>
             {isTeamAdmin && (
-              <Pressable style={styles.editButtonBelowBanner} onPress={() => void router.push(`/create-team?id=${team?.id}` as any)}>
-                <Text style={styles.editButtonBelowBannerText}>Edit profile</Text>
+              <Pressable style={[styles.editButtonBelowBanner, { backgroundColor: theme.surface || theme.background, borderColor: theme.border }]} onPress={() => void router.push(`/create-team?id=${team?.id}` as any)}>
+                <Text style={[styles.editButtonBelowBannerText, { color: theme.text }]}>Edit profile</Text>
               </Pressable>
             )}
             {!isTeamAdmin && (
@@ -875,7 +875,7 @@ export default function TeamScreen() {
           keyExtractor={(item) => item.id}
           ListHeaderComponent={renderHeader}
           ListEmptyComponent={renderEmptyPosts}
-          contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16), paddingHorizontal: 8 }}
+          contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16) }}
           onEndReachedThreshold={0.5}
           onEndReached={onEndReachedPosts}
           renderItem={({ item, index }) => {
@@ -885,7 +885,7 @@ export default function TeamScreen() {
             const comments = item.comments_count ?? item?._count?.comments ?? 0;
             return (
               <Pressable
-                style={styles.gridItem}
+                style={[styles.gridItem, { backgroundColor: theme.card }]}
                 onPress={() => {
                   const mapped = (posts || []).map(toFeedPost);
                   const items = mapped.filter(Boolean) as FeedPost[];
@@ -944,7 +944,7 @@ export default function TeamScreen() {
           }}
           ListHeaderComponent={renderHeader}
           ListEmptyComponent={renderEmptyReplies}
-          contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16), paddingHorizontal: 8 }}
+          contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16) }}
           onEndReachedThreshold={0.5}
           onEndReached={onEndReachedReplies}
           renderItem={({ item, index }) => {
@@ -955,7 +955,7 @@ export default function TeamScreen() {
             const comments = postItem?.comments_count ?? postItem?._count?.comments ?? 0;
             return (
               <Pressable
-                style={styles.gridItem}
+                style={[styles.gridItem, { backgroundColor: theme.card }]}
                 onPress={() => {
                   const mapped = (replies || []).map(unwrapPost).map(toFeedPost);
                   const items = mapped.filter(Boolean) as FeedPost[];
@@ -1014,7 +1014,7 @@ export default function TeamScreen() {
           }}
           ListHeaderComponent={renderHeader}
           ListEmptyComponent={renderEmptyUpvotes}
-          contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16), paddingHorizontal: 8 }}
+          contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16) }}
           onEndReachedThreshold={0.5}
           onEndReached={onEndReachedUpvotes}
           renderItem={({ item, index }) => {
@@ -1025,7 +1025,7 @@ export default function TeamScreen() {
             const comments = postItem?.comments_count ?? postItem?._count?.comments ?? 0;
             return (
               <Pressable
-                style={styles.gridItem}
+                style={[styles.gridItem, { backgroundColor: theme.card }]}
                 onPress={() => {
                   const mapped = (upvotes || []).map(unwrapPost).map(toFeedPost);
                   const items = mapped.filter(Boolean) as FeedPost[];
@@ -1293,7 +1293,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   editButtonBelowBannerText: {
-    color: '#374151',
     fontSize: 14,
     fontWeight: '600',
   },
@@ -1385,9 +1384,9 @@ const styles = StyleSheet.create({
   emptyContainer: { alignItems: 'center', justifyContent: 'center', padding: 40, gap: 16 },
   emptyTitle: { fontSize: 20, fontWeight: '800' },
   emptySubtitle: { textAlign: 'center', marginBottom: 20, fontSize: 15, lineHeight: 22 },
-  gridRow: { 
+  gridRow: {
     gap: 12,
-    paddingHorizontal: 0,
+    paddingHorizontal: 8,
     marginBottom: 12,
   },
   gridItem: { 

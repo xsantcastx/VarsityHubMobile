@@ -342,10 +342,9 @@ const styles = StyleSheet.create({
     gap: 12,
     marginBottom: 20,
   },
-  label: { 
+  label: {
     fontWeight: '700',
     fontSize: 15,
-    color: '#111827',
     marginBottom: 6,
   },
   input: { 
@@ -356,7 +355,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14, 
     backgroundColor: 'white',
     fontSize: 16,
-    color: '#111827',
   },
   infoCard: {
     flexDirection: 'row',
@@ -376,7 +374,6 @@ const styles = StyleSheet.create({
   infoValue: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#111827',
   },
   textArea: {
     height: 100,
@@ -471,8 +468,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   ctaSecondaryText: {
-    color: '#111827', 
-    fontWeight: '800', 
+    fontWeight: '800',
     fontSize: 17,
     letterSpacing: 0.3,
   },

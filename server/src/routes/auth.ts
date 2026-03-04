@@ -747,11 +747,11 @@ authRouter.get('/me', requireAuth as any, async (req: AuthedRequest, res) => {
     // Only set onboarding_completed=true for admin accounts
     ...(is_admin ? { onboarding_completed: true } : {}),
   };
-  // CRITICAL: Admin defaults must override DB values (second arg overrides first in mergePreferences)
-  // This ensures admin accounts always have onboarding_completed=true regardless of DB state
-  // Non-admin users' preferences are merged without forcing onboarding_completed
+  // Defaults fill in missing keys; user preferences override defaults
   const userPrefs = (user as any).preferences || {};
-  const prefs = mergePreferences(userPrefs, defaults);
+  const prefs = mergePreferences(defaults, userPrefs);
+  // Admin accounts always bypass onboarding regardless of DB state
+  if (is_admin) prefs.onboarding_completed = true;
   const { password_hash, ...rest } = user as any;
   return res.json({ ...rest, ...(is_admin ? { role: 'admin' } : {}), preferences: prefs, is_admin });
 });
@@ -766,8 +766,8 @@ const updateMeSchema = z.object({
         const parsed = new URL(url);
         // Only allow https
         if (parsed.protocol !== 'https:') return false;
-        // Allow specific domains (Cloudinary, etc.)
-        const allowedDomains = ['res.cloudinary.com', 'varsityhub.app', 'cdn.varsityhub.app'];
+        // Allow specific domains (Cloudinary, Google/Apple OAuth avatars, etc.)
+        const allowedDomains = ['res.cloudinary.com', 'varsityhub.app', 'cdn.varsityhub.app', 'lh3.googleusercontent.com', 'googleusercontent.com'];
         return allowedDomains.some(d => parsed.hostname.endsWith(d));
       } catch (error) {
         console.warn('[auth] Invalid avatar URL format:', error);
@@ -1094,7 +1094,13 @@ authRouter.post('/me/complete-onboarding', requireAuth as any, async (req: Authe
       return res.status(400).json({ error: 'Team or organization required for coach onboarding' });
     }
   }
-  
+
+  // Username is required for ALL roles — check payload OR existing DB value
+  const existingUser = await prisma.user.findUnique({ where: { id: req.user.id }, select: { username: true } });
+  if (!data.username && !existingUser?.username) {
+    return res.status(400).json({ error: 'Username is required to complete onboarding' });
+  }
+
   // Update user with direct fields
   const updateData: any = {};
   if (data.username) updateData.username = data.username;

@@ -100,7 +100,7 @@ adsRouter.get('/', async (req: AuthedRequest, res) => {
     const isAdmin = await getIsAdmin(req as any);
     if (!isAdmin) return res.status(403).json({ error: 'Admin only' });
     // return all ads
-    const list = await prisma.ad.findMany({ orderBy: { created_at: 'desc' } });
+    const list = await prisma.ad.findMany({ orderBy: { created_at: 'desc' }, take: 200 });
     debugLog('[ads] GET / admin all ads count:', list.length);
     return res.json(list);
   } else {
@@ -114,7 +114,7 @@ adsRouter.get('/', async (req: AuthedRequest, res) => {
     where.user_id = req.user.id;
   }
   
-  const list = await prisma.ad.findMany({ where, orderBy: { created_at: 'desc' } });
+  const list = await prisma.ad.findMany({ where, orderBy: { created_at: 'desc' }, take: 100 });
   debugLog('[ads] GET / returning ads:', { 
     count: list.length, 
     where,
@@ -124,23 +124,38 @@ adsRouter.get('/', async (req: AuthedRequest, res) => {
   return res.json(list);
 });
 
-// Ads for feed: return ads with a reservation for a specific date (default: today), optional zip filter, paid only
+// Ads for feed: return ads with a reservation for a specific date (default: today), filtered by location radius
 adsRouter.get('/for-feed', async (req, res) => {
   const dateParam = req.query.date ? String(req.query.date) : undefined; // yyyy-MM-dd
   const zip = req.query.zip ? String(req.query.zip) : undefined;
+  const lat = req.query.lat ? Number(req.query.lat) : undefined;
+  const lng = req.query.lng ? Number(req.query.lng) : undefined;
   const limit = Math.max(1, Math.min(Number(req.query.limit || 1) || 1, 5));
   // Build date range [start, next)
   const dateISO = dateParam || new Date().toISOString().slice(0, 10);
   const start = new Date(dateISO + 'T00:00:00.000Z');
   const next = new Date(start.getTime() + 24 * 60 * 60 * 1000);
 
-  debugLog('[ads] for-feed query:', { dateParam, dateISO, zip, limit, start, next });
+  debugLog('[ads] for-feed query:', { dateParam, dateISO, zip, lat, lng, limit, start, next });
+
+  // Resolve user coordinates from zip or lat/lng
+  let userCoords: { lat: number; lon: number } | null = null;
+  if (zip) {
+    userCoords = await getZipCoordinatesWithFallback(zip);
+  } else if (lat != null && lng != null && !isNaN(lat) && !isNaN(lng)) {
+    userCoords = { lat, lon: lng };
+  }
+
+  debugLog('[ads] for-feed user coordinates:', userCoords);
 
   const whereAd: any = {
     payment_status: 'paid',
-    // Removed banner_url requirement - allow ads with or without banners
   };
-  if (zip) whereAd.target_zip_code = zip;
+
+  // If no user location, only show untargeted (national) ads
+  if (!userCoords) {
+    whereAd.target_zip_code = null;
+  }
 
   debugLog('[ads] for-feed where clause for ads:', whereAd);
 
@@ -152,23 +167,41 @@ adsRouter.get('/for-feed', async (req, res) => {
       },
     },
     orderBy: { created_at: 'desc' },
-    take: limit,
+    take: 50, // Safety cap; distance filter applied below
     include: {
-      reservations: true, // Include reservations for debugging
+      reservations: true,
     },
   });
 
-  debugLog('[ads] for-feed found ads:', { 
-    count: ads.length, 
-    ads: ads.map(ad => ({
+  // Filter by distance when user location is available
+  let filtered = ads;
+  if (userCoords) {
+    filtered = ads.filter(ad => {
+      if (!ad.target_zip_code) return true; // Untargeted ads always shown
+      const adCoords = getZipCoordinates(ad.target_zip_code);
+      if (!adCoords) return false;
+      const dist = haversineDistance(userCoords!.lat, userCoords!.lon, adCoords.lat, adCoords.lon);
+      return dist <= (ad.radius || 45);
+    });
+  }
+
+  const result = filtered.slice(0, limit);
+
+  debugLog('[ads] for-feed found ads:', {
+    totalFetched: ads.length,
+    afterFilter: filtered.length,
+    returned: result.length,
+    ads: result.map(ad => ({
       id: ad.id,
       payment_status: ad.payment_status,
       banner_url: !!ad.banner_url,
+      target_zip_code: ad.target_zip_code,
+      radius: ad.radius,
       reservations: ad.reservations.map(r => ({ id: r.id, date: r.date, dateISO: r.date.toISOString() }))
     }))
   });
 
-  return res.json({ date: dateISO, ads: ads.map(ad => ({ ...ad, reservations: undefined })) }); // Remove reservations from response
+  return res.json({ date: dateISO, ads: result.map(ad => ({ ...ad, reservations: undefined })) });
 });
 
 // Get a single Ad with its reservations (dates)
@@ -252,7 +285,7 @@ adsRouter.get('/reservations', async (req, res) => {
   
   debugLog('[ads] GET /reservations query:', { from, to, adId, where });
   
-  const list = await prisma.adReservation.findMany({ where, orderBy: { date: 'asc' } });
+  const list = await prisma.adReservation.findMany({ where, orderBy: { date: 'asc' }, take: 1000 });
   const dates = list.map((r) => r.date.toISOString().slice(0, 10));
   
   debugLog('[ads] Found reservations:', { 
@@ -298,6 +331,7 @@ adsRouter.get('/availability', async (req, res) => {
       payment_status: 'paid', // Only count paid ads
     },
     select: { id: true },
+    take: 100,
   });
 
   const adIds = adsInZip.map(a => a.id);
@@ -414,6 +448,7 @@ adsRouter.get('/alternative-zips', async (req: AuthedRequest, res) => {
       id: true,
       target_zip_code: true,
     },
+    take: 500,
   });
 
   // Calculate distances and group by zip code
@@ -441,48 +476,55 @@ adsRouter.get('/alternative-zips', async (req: AuthedRequest, res) => {
     }
   }
   
-  // Check availability for each nearby zip
-  const alternatives: Array<{ zip: string; distance: number; available: boolean }> = [];
-  
-  for (const [nearbyZip, distance] of zipDistances.entries()) {
-    // Find ads in this zip code
-    const adsInZip = await prisma.ad.findMany({
-      where: {
-        target_zip_code: nearbyZip,
-        status: { in: ['draft', 'active'] },
-      },
-      include: {
-        reservations: {
-          where: {
-            date: {
-              in: dateList.map(d => new Date(d + 'T00:00:00.000Z')),
-            },
-          },
+  // Batch query: fetch all ads in nearby zips in a single query (avoids N+1)
+  const nearbyZips = Array.from(zipDistances.keys());
+  const allNearbyAds = nearbyZips.length > 0 ? await prisma.ad.findMany({
+    where: {
+      target_zip_code: { in: nearbyZips },
+      status: { in: ['draft', 'active'] },
+    },
+    include: {
+      reservations: {
+        where: {
+          date: { in: dateList.map(d => new Date(d + 'T00:00:00.000Z')) },
         },
       },
-    });
-    
-    // Check if ALL requested dates are available (no ads fully booked for all dates)
-    let hasAvailability = false;
-    
-    for (const ad of adsInZip) {
-      const bookedDates = new Set(ad.reservations.map(r => r.date.toISOString().split('T')[0]));
-      const allDatesBooked = dateList.every(date => bookedDates.has(date));
-      
-      if (!allDatesBooked) {
-        hasAvailability = true;
-        break;
+    },
+    take: 200,
+  }) : [];
+
+  // Group ads by zip code
+  const adsByZip = new Map<string, typeof allNearbyAds>();
+  for (const ad of allNearbyAds) {
+    const zip = ad.target_zip_code || '';
+    const list = adsByZip.get(zip) || [];
+    list.push(ad);
+    adsByZip.set(zip, list);
+  }
+
+  // Check availability for each nearby zip
+  const alternatives: Array<{ zip: string; distance: number; available: boolean }> = [];
+
+  for (const [nearbyZip, distance] of zipDistances.entries()) {
+    const adsInZip = adsByZip.get(nearbyZip) || [];
+
+    // If no ads exist in this zip, it's available
+    let hasAvailability = adsInZip.length === 0;
+
+    if (!hasAvailability) {
+      for (const ad of adsInZip) {
+        const bookedDates = new Set(ad.reservations.map(r => r.date.toISOString().split('T')[0]));
+        const allDatesBooked = dateList.every(date => bookedDates.has(date));
+        if (!allDatesBooked) {
+          hasAvailability = true;
+          break;
+        }
       }
     }
-    
-    // If no ads exist in this zip, it's available
-    if (adsInZip.length === 0) {
-      hasAvailability = true;
-    }
-    
+
     alternatives.push({
       zip: nearbyZip,
-      distance: Math.round(distance * 10) / 10, // Round to 1 decimal
+      distance: Math.round(distance * 10) / 10,
       available: hasAvailability,
     });
   }

@@ -2,7 +2,7 @@ import expressPkg, { Router } from 'express';
 import Stripe from 'stripe';
 import { Prisma } from '@prisma/client';
 import { debugLog } from '../lib/debugLog.js';
-import { sendBillingNoticeEmail } from '../lib/email.js';
+import { sendBillingNoticeEmail, sendEmail } from '../lib/email.js';
 import { getAllPlanDefinitions, getMaxTeamsForPlan } from '../lib/planLimits.js';
 import { prisma } from '../lib/prisma.js';
 import { previewPromo, redeemPromo } from '../lib/promos.js';
@@ -57,27 +57,154 @@ async function sendAdPaymentEmail({
   adId,
   dates,
   totalCents,
+  businessName,
+  zipCode,
 }: {
   userId?: string | null;
   fallbackEmail?: string | null;
   adId: string;
   dates: string[];
   totalCents?: number | null;
+  businessName?: string | null;
+  zipCode?: string | null;
 }) {
   const email = await getUserEmail(userId, fallbackEmail);
   if (!email) return;
   const amount = formatUsd(totalCents);
-  const perks = [
-    `Ad #${adId}`,
-    dates.length ? `Dates: ${dates.join(', ')}` : null,
-  ].filter(Boolean) as string[];
+
+  // Calculate hours from now to midnight of last booked date
+  let hoursLabel = '';
+  if (dates.length) {
+    const sorted = [...dates].sort();
+    const lastEnd = new Date(sorted[sorted.length - 1] + 'T23:59:59Z');
+    const hrs = Math.max(0, Math.round((lastEnd.getTime() - Date.now()) / 3600000));
+    hoursLabel = `${hrs} hrs (${dates.length} day${dates.length !== 1 ? 's' : ''})`;
+  }
+
+  // Format dates for display
+  const formattedDates = [...dates].sort().map((d) => {
+    try {
+      return new Date(d + 'T00:00:00Z').toLocaleDateString('en-US', {
+        weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
+      });
+    } catch { return d; }
+  });
+
+  const datesHtml = formattedDates.map((d) =>
+    `<div style="display:inline-block;background:#F0F9FF;border:1px solid #BAE6FD;border-radius:6px;padding:4px 10px;margin:3px 4px 3px 0;font-size:13px;color:#0C4A6E;">📅 ${d}</div>`
+  ).join('');
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#F3F4F6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F3F4F6;padding:24px 0;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#FFFFFF;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.1);">
+        <!-- Header -->
+        <tr>
+          <td style="background:linear-gradient(135deg,#0EA5E9,#2563EB);padding:32px 24px;text-align:center;">
+            <div style="font-size:28px;font-weight:800;color:#FFFFFF;letter-spacing:-0.5px;">VarsityHub</div>
+            <div style="font-size:14px;color:rgba(255,255,255,0.85);margin-top:4px;">Ad Reservation Confirmed</div>
+          </td>
+        </tr>
+        <!-- Success Badge -->
+        <tr>
+          <td style="padding:28px 24px 0;text-align:center;">
+            <div style="display:inline-block;background:#DCFCE7;border:1px solid #86EFAC;border-radius:50%;width:56px;height:56px;line-height:56px;font-size:28px;text-align:center;">✅</div>
+            <div style="font-size:22px;font-weight:700;color:#111827;margin-top:12px;">Payment Confirmed!</div>
+            <div style="font-size:14px;color:#6B7280;margin-top:4px;">Your ad reservation has been processed successfully.</div>
+          </td>
+        </tr>
+        <!-- Details Card -->
+        <tr>
+          <td style="padding:24px;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="background:#F9FAFB;border:1px solid #E5E7EB;border-radius:10px;overflow:hidden;">
+              ${businessName ? `
+              <tr>
+                <td style="padding:16px 16px 0;">
+                  <div style="font-size:11px;font-weight:700;color:#6B7280;letter-spacing:1px;text-transform:uppercase;">Business</div>
+                  <div style="font-size:16px;font-weight:600;color:#111827;margin-top:2px;">${businessName}</div>
+                </td>
+              </tr>` : ''}
+              ${zipCode ? `
+              <tr>
+                <td style="padding:12px 16px 0;">
+                  <div style="font-size:11px;font-weight:700;color:#6B7280;letter-spacing:1px;text-transform:uppercase;">Coverage Area</div>
+                  <div style="font-size:16px;font-weight:600;color:#111827;margin-top:2px;">ZIP ${zipCode}</div>
+                </td>
+              </tr>` : ''}
+              ${amount ? `
+              <tr>
+                <td style="padding:12px 16px 0;">
+                  <div style="font-size:11px;font-weight:700;color:#6B7280;letter-spacing:1px;text-transform:uppercase;">Amount Paid</div>
+                  <div style="font-size:20px;font-weight:700;color:#16A34A;margin-top:2px;">${amount}</div>
+                </td>
+              </tr>` : ''}
+              <tr>
+                <td style="padding:12px 16px 0;">
+                  <div style="font-size:11px;font-weight:700;color:#6B7280;letter-spacing:1px;text-transform:uppercase;">Status</div>
+                  <div style="margin-top:4px;">
+                    <span style="display:inline-block;background:#DBEAFE;border:1px solid #93C5FD;border-radius:6px;padding:3px 8px;font-size:11px;font-weight:700;color:#1E40AF;">PAID</span>
+                    <span style="display:inline-block;background:#DCFCE7;border:1px solid #86EFAC;border-radius:6px;padding:3px 8px;font-size:11px;font-weight:700;color:#166534;margin-left:4px;">ACTIVE</span>
+                  </div>
+                </td>
+              </tr>
+              ${hoursLabel ? `
+              <tr>
+                <td style="padding:12px 16px 0;">
+                  <div style="font-size:11px;font-weight:700;color:#6B7280;letter-spacing:1px;text-transform:uppercase;">Total Hours Booked</div>
+                  <div style="font-size:16px;font-weight:600;color:#111827;margin-top:2px;">${hoursLabel}</div>
+                </td>
+              </tr>` : ''}
+              ${formattedDates.length ? `
+              <tr>
+                <td style="padding:12px 16px 16px;">
+                  <div style="font-size:11px;font-weight:700;color:#6B7280;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">Reserved Dates (${formattedDates.length})</div>
+                  ${datesHtml}
+                </td>
+              </tr>` : '<tr><td style="padding:0 0 16px;"></td></tr>'}
+            </table>
+          </td>
+        </tr>
+        <!-- CTA -->
+        <tr>
+          <td style="padding:0 24px 24px;text-align:center;">
+            <a href="https://varsityhub.app" style="display:inline-block;background:#2563EB;color:#FFFFFF;font-size:16px;font-weight:700;text-decoration:none;padding:12px 32px;border-radius:10px;">Open VarsityHub</a>
+          </td>
+        </tr>
+        <!-- Footer -->
+        <tr>
+          <td style="background:#F9FAFB;border-top:1px solid #E5E7EB;padding:20px 24px;text-align:center;">
+            <div style="font-size:12px;color:#9CA3AF;">
+              VarsityHub &bull; <a href="https://limeprod.com/VarsityHubPrivacy" style="color:#6B7280;text-decoration:underline;">Privacy Policy</a> &bull; <a href="mailto:support@varsityhub.app" style="color:#6B7280;text-decoration:underline;">Support</a>
+            </div>
+            <div style="font-size:11px;color:#D1D5DB;margin-top:8px;">Ad ID: ${adId}</div>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+
+  const textFallback = [
+    'Payment Confirmed — Ad Reservation',
+    businessName ? `Business: ${businessName}` : null,
+    zipCode ? `Coverage: ZIP ${zipCode}` : null,
+    amount ? `Amount Paid: ${amount}` : null,
+    hoursLabel ? `Hours Booked: ${hoursLabel}` : null,
+    formattedDates.length ? `Dates: ${formattedDates.join(', ')}` : null,
+    `Ad ID: ${adId}`,
+  ].filter(Boolean).join('\n');
+
   try {
-    await sendBillingNoticeEmail({
+    await sendEmail({
       to: email,
-      type: 'payment_succeeded',
-      planName: 'Ad Reservation',
-      amount,
-      perks,
+      subject: 'Ad Reservation Confirmed — VarsityHub',
+      text: textFallback,
+      html,
     });
   } catch (err) {
     console.warn('[payments] Unable to send ad payment email:', (err as any)?.message || err);
@@ -319,6 +446,7 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paym
     const paidAdsInZip = await prisma.ad.findMany({
       where: { target_zip_code: ad.target_zip_code, payment_status: 'paid', NOT: { id: String(ad_id) } },
       select: { id: true },
+      take: 100,
     });
     if (paidAdsInZip.length > 0) {
       const dateObjects = isoDates.map((s) => new Date(s + 'T00:00:00.000Z'));
@@ -360,10 +488,10 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paym
   }
 
   // Total = (subtotal - discount) + tax
-  // Total = (subtotal - discount) + tax
   const total = Math.max(0, subtotal - discount + taxCents);
-  // If free after discount, finalize immediately without Stripe Checkout
-  if (total === 0) {
+  // If promo covers 100% of the base price, treat as free (absorb tax on complimentary orders)
+  const isFullyComped = discount >= subtotal;
+  if (total === 0 || isFullyComped) {
     // Record redemption and create reservations
     if (appliedCode) {
       await redeemPromo({ code: appliedCode, subtotalCents: subtotal, userId: req.user!.id, service: 'booking', orderId: `FREE-${Date.now()}` });
@@ -377,13 +505,22 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paym
       console.error('Failed to create ad reservations for free promo:', e);
       return res.status(500).json({ error: 'Failed to reserve ad dates. Please try again.' });
     }
+    // Send confirmation email (same as Stripe webhook path)
+    sendAdPaymentEmail({
+      userId: req.user!.id,
+      adId: String(ad_id),
+      dates: isoDates,
+      totalCents: 0,
+      businessName: ad.business_name,
+      zipCode: ad.target_zip_code,
+    }).catch((err) => console.warn('[payments] Free promo ad email failed:', err?.message || err));
     return res.json({ free: true });
   }
 
   // Use deep links for mobile app redirects
   const appScheme = 'varsityhubmobile';
   const success = `${appScheme}://payment-success?session_id={CHECKOUT_SESSION_ID}&type=ad`;
-  const cancel = `${appScheme}://payment-cancel`;
+  const cancel = `${appScheme}://payment-cancel?type=ad`;
 
   // Check if Stripe Price IDs are configured for ads (optional, fallback to price_data)
   const weekdayPriceId = process.env.STRIPE_PRICE_AD_WEEKDAY?.trim() || '';
@@ -922,7 +1059,8 @@ paymentsRouter.post('/admin/reset-unpaid-subscriptions', requireVerified as any,
         email: true,
         display_name: true,
         preferences: true
-      }
+      },
+      take: 10000
     });
 
     const usersToReset = allUsers.filter(user => {
@@ -947,35 +1085,39 @@ paymentsRouter.post('/admin/reset-unpaid-subscriptions', requireVerified as any,
 
     // Reset users
     let resetCount = 0;
-    const resetUsers = [];
+    const resetUsers: Array<{ email: string; name: string | null; previousPlan: string }> = [];
 
-    for (const user of usersToReset) {
-      try {
-        const currentPrefs = (user.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
-        const nextPrefs: any = { ...currentPrefs };
-        
-        // Reset subscription-related preferences
-        nextPrefs.plan = 'rookie';
-        delete nextPrefs.subscription_id;
-        delete nextPrefs.subscription_period_end;
-        delete nextPrefs.stripe_customer_id;
-        delete nextPrefs.payment_pending;
+    // Batch update: build all update operations, then execute in a single transaction
+    const updateOps = usersToReset.map((user) => {
+      const currentPrefs = (user.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
+      const nextPrefs: any = { ...currentPrefs };
+      nextPrefs.plan = 'rookie';
+      delete nextPrefs.subscription_id;
+      delete nextPrefs.subscription_period_end;
+      delete nextPrefs.stripe_customer_id;
+      delete nextPrefs.payment_pending;
 
-        await prisma.user.update({ 
-          where: { id: user.id }, 
-          data: { preferences: nextPrefs } 
-        });
+      resetUsers.push({
+        email: user.email,
+        name: user.display_name,
+        previousPlan: currentPrefs.plan,
+      });
 
-        debugLog(`✅ Admin reset: ${user.email} to rookie plan`);
-        resetUsers.push({
-          email: user.email,
-          name: user.display_name,
-          previousPlan: currentPrefs.plan
-        });
-        resetCount++;
-      } catch (error) {
-        console.error(`[payments] Failed to reset user ${user.id}:`, (error as any)?.message || error);
+      return prisma.user.update({
+        where: { id: user.id },
+        data: { preferences: nextPrefs },
+      });
+    });
+
+    try {
+      await prisma.$transaction(updateOps);
+      resetCount = usersToReset.length;
+      for (const u of resetUsers) {
+        debugLog(`✅ Admin reset: ${u.email} to rookie plan`);
       }
+    } catch (error) {
+      console.error('[payments] Failed to batch reset users:', (error as any)?.message || error);
+      // Partial failure info not available with $transaction, report total attempted
     }
 
     debugLog(`[payments] Admin bulk reset completed: ${resetCount}/${usersToReset.length} users`);
@@ -1014,7 +1156,31 @@ paymentsRouter.post('/finalize-session', expressPkg.json(), requireVerified as a
         return res.status(202).json({ pending: true, payment_status: session.payment_status, status: session.status });
       }
       await finalizeFromSession(session as Stripe.Checkout.Session);
-      return res.json({ ok: true });
+
+      // Return ad details for the confirmation screen
+      const sessionMeta = session.metadata || {};
+      const adId = sessionMeta.ad_id || '';
+      let adDates: string[] = [];
+      try { adDates = JSON.parse(String(sessionMeta.dates || '[]')); } catch { /* ignore */ }
+      let adDetails: any = null;
+      if (adId) {
+        const ad = await prisma.ad.findUnique({
+          where: { id: adId },
+          select: { id: true, business_name: true, status: true, payment_status: true, target_zip_code: true },
+        });
+        if (ad) {
+          adDetails = {
+            id: ad.id,
+            business_name: ad.business_name,
+            status: ad.status,
+            payment_status: ad.payment_status,
+            zip_code: ad.target_zip_code,
+            dates: adDates,
+          };
+        }
+      }
+      const amountPaid = typeof session.amount_total === 'number' ? session.amount_total : 0;
+      return res.json({ ok: true, ad: adDetails, amount_cents: amountPaid });
     } catch (err) {
       console.error('Failed to finalize session:', (err as any)?.message || err);
       return res.status(500).json({ error: 'Failed to finalize session' });
@@ -1069,6 +1235,7 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
           const paidAdsInZip = await tx.ad.findMany({
             where: { target_zip_code: adRecord.target_zip_code, payment_status: 'paid', NOT: { id: ad_id } },
             select: { id: true },
+            take: 100,
           });
           if (paidAdsInZip.length > 0) {
             const dateObjects = dates.map((s) => new Date(s + 'T00:00:00.000Z'));
@@ -1108,12 +1275,19 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
       await updateTransactionStatus(session.id, 'COMPLETED', {
         stripePaymentIntentId: session.payment_intent ? String(session.payment_intent) : undefined,
       });
+      // Fetch ad details for the email
+      const adForEmail = await prisma.ad.findUnique({
+        where: { id: ad_id },
+        select: { business_name: true, target_zip_code: true },
+      });
       await sendAdPaymentEmail({
         userId: inferredUserId,
         fallbackEmail,
         adId: String(ad_id),
         dates,
         totalCents,
+        businessName: adForEmail?.business_name,
+        zipCode: adForEmail?.target_zip_code,
       });
     } catch (e: any) {
       if (e?.slotFull) {

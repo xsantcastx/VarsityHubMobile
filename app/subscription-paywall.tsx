@@ -94,7 +94,7 @@ export default function SubscriptionPaywallScreen() {
         <Stack.Screen options={{
           title: 'Your Plan',
           headerLeft: () => (
-            <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={{ paddingLeft: 8 }}>
+            <Pressable onPress={() => router.back()} style={{ paddingLeft: 8 }}>
               <Ionicons name="chevron-back" size={24} color="#3B82F6" />
             </Pressable>
           ),
@@ -117,7 +117,7 @@ export default function SubscriptionPaywallScreen() {
           <View style={styles.ctaSection}>
             <Pressable
               style={[styles.ctaButton, { backgroundColor: getTierColor('rookie') }]}
-              onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)}
+              onPress={() => router.back()}
             >
               <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
               <Text style={styles.ctaButtonText}>You're All Set</Text>
@@ -137,7 +137,7 @@ export default function SubscriptionPaywallScreen() {
       <Stack.Screen options={{
         title: 'Choose Your Plan',
         headerLeft: () => (
-          <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={{ paddingLeft: 8 }}>
+          <Pressable onPress={() => router.back()} style={{ paddingLeft: 8 }}>
             <Ionicons name="chevron-back" size={24} color="#3B82F6" />
           </Pressable>
         ),
@@ -191,16 +191,16 @@ export default function SubscriptionPaywallScreen() {
             {/* Header Row */}
             <View style={[styles.comparisonRow, styles.comparisonHeader]}>
               <View style={styles.comparisonFeature}>
-                <Text style={styles.comparisonHeaderText}>Feature</Text>
+                <Text style={[styles.comparisonHeaderText, { color: Colors[colorScheme].mutedText }]}>Feature</Text>
               </View>
               <View style={styles.comparisonTier}>
-                <Text style={styles.comparisonHeaderText}>Rookie</Text>
+                <Text style={[styles.comparisonHeaderText, { color: Colors[colorScheme].mutedText }]}>Rookie</Text>
               </View>
               <View style={styles.comparisonTier}>
-                <Text style={styles.comparisonHeaderText}>Veteran</Text>
+                <Text style={[styles.comparisonHeaderText, { color: Colors[colorScheme].mutedText }]}>Veteran</Text>
               </View>
               <View style={styles.comparisonTier}>
-                <Text style={styles.comparisonHeaderText}>Legend</Text>
+                <Text style={[styles.comparisonHeaderText, { color: Colors[colorScheme].mutedText }]}>Legend</Text>
               </View>
             </View>
 
@@ -211,16 +211,16 @@ export default function SubscriptionPaywallScreen() {
                 style={[styles.comparisonRow, index % 2 === 0 && styles.comparisonRowAlt]}
               >
                 <View style={styles.comparisonFeature}>
-                  <Text style={styles.comparisonFeatureText}>{feature.name}</Text>
+                  <Text style={[styles.comparisonFeatureText, { color: Colors[colorScheme].text }]}>{feature.name}</Text>
                 </View>
                 <View style={styles.comparisonTier}>
-                  {renderFeatureValue(feature.rookie)}
+                  {renderFeatureValue(feature.rookie, colorScheme)}
                 </View>
                 <View style={styles.comparisonTier}>
-                  {renderFeatureValue(feature.veteran)}
+                  {renderFeatureValue(feature.veteran, colorScheme)}
                 </View>
                 <View style={styles.comparisonTier}>
-                  {renderFeatureValue(feature.legend)}
+                  {renderFeatureValue(feature.legend, colorScheme)}
                 </View>
               </View>
             ))}
@@ -322,7 +322,7 @@ function capitalize(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
-function renderFeatureValue(value: string | boolean) {
+function renderFeatureValue(value: string | boolean, scheme: 'light' | 'dark' = 'light') {
   if (typeof value === 'boolean') {
     return value ? (
       <Ionicons name="checkmark-circle" size={20} color="#10B981" />
@@ -330,7 +330,7 @@ function renderFeatureValue(value: string | boolean) {
       <Ionicons name="close-circle" size={20} color="#EF4444" />
     );
   }
-  return <Text style={styles.comparisonValueText}>{value}</Text>;
+  return <Text style={[styles.comparisonValueText, { color: Colors[scheme].mutedText }]}>{value}</Text>;
 }
 
 // Comparison table data
@@ -440,15 +440,12 @@ const styles = StyleSheet.create({
   comparisonHeaderText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#374151',
   },
   comparisonFeatureText: {
     fontSize: 13,
-    color: '#111827',
   },
   comparisonValueText: {
     fontSize: 13,
-    color: '#374151',
     fontWeight: '600',
   },
   promoSection: {

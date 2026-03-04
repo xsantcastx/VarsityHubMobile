@@ -10,6 +10,7 @@ import { requireAuth } from '../middleware/requireAuth.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { eventCreationLimiter, rsvpLimiter } from '../middleware/rateLimiters.js';
+import { haversineDistance, getZipCoordinates } from '../lib/geoUtils.js';
 
 export const eventsRouter = Router();
 
@@ -118,14 +119,43 @@ eventsRouter.get('/', async (req, res) => {
   }
   
   const orderBy = sort === 'date' ? { date: 'asc' as const } : { created_at: 'desc' as const };
-  const events = await prisma.event.findMany({
+
+  // Location filtering: resolve user coordinates from zip or lat/lng params
+  const showAll = String(req.query.show_all || '').toLowerCase() === 'true';
+  const eventRadius = Math.min(Number(req.query.radius) || 30, 500); // default 30mi
+  let userCoords: { lat: number; lon: number } | null = null;
+  if (!showAll) {
+    if (req.query.zip && typeof req.query.zip === 'string') {
+      userCoords = getZipCoordinates(req.query.zip as string);
+    } else if (req.query.lat && req.query.lng) {
+      const pLat = Number(req.query.lat);
+      const pLng = Number(req.query.lng);
+      if (Number.isFinite(pLat) && Number.isFinite(pLng)) {
+        userCoords = { lat: pLat, lon: pLng };
+      }
+    }
+  }
+
+  // Over-fetch when location filtering to compensate for filtered-out events
+  const fetchLimit = userCoords ? Math.min((take ?? 100) * 3, 300) : take;
+  let events = await prisma.event.findMany({
     where,
     orderBy,
-    take,
-    include: { 
+    take: fetchLimit,
+    include: {
       game: { select: { id: true, title: true, cover_image_url: true, date: true, location: true } }
     },
   });
+
+  // Apply location filter: keep events without coords + events within radius
+  if (userCoords) {
+    events = events.filter((e: any) => {
+      if (e.latitude == null || e.longitude == null) return true; // no location → always show
+      return haversineDistance(userCoords!.lat, userCoords!.lon, e.latitude, e.longitude) <= eventRadius;
+    });
+    if (take) events = events.slice(0, take);
+  }
+
   res.json(events.map((event) => serializeEvent(event, { includeGame: true, includeCreator: true })));
 });
 
@@ -136,6 +166,7 @@ eventsRouter.get('/my-rsvps', requireAuth as any, async (req: AuthedRequest, res
     where: { user_id: req.user.id },
     orderBy: { created_at: 'desc' },
     include: { event: { include: { game: { select: { id: true, title: true, cover_image_url: true, date: true, location: true } } } } },
+    take: 100,
   });
   const list = rows.map((r) => ({
     id: r.id,
@@ -151,6 +182,7 @@ eventsRouter.get('/my-events', requireAuth as any, async (req: AuthedRequest, re
   const events = await prisma.event.findMany({
     where: { creator_id: req.user!.id },
     orderBy: { created_at: 'desc' },
+    take: 50,
     select: {
       id: true,
       title: true,
@@ -183,10 +215,11 @@ eventsRouter.get('/pending', authMiddleware as any, async (req: AuthedRequest, r
   const events = await prisma.event.findMany({
     where: { approval_status: 'pending' },
     orderBy: { created_at: 'desc' },
-    include: { 
+    include: {
       game: { select: { id: true, title: true, cover_image_url: true, date: true, location: true } },
       creator: { select: { id: true, display_name: true, avatar_url: true } }
     },
+    take: 100,
   });
   
   return res.json(events.map((event) => serializeEvent(event, { includeGame: true, includeCreator: true })));
@@ -768,6 +801,7 @@ eventsRouter.patch('/:id', requireAuth as any, async (req: AuthedRequest, res) =
     const rsvps = await prisma.eventRsvp.findMany({
       where: { event_id: eventId },
       include: { user: { select: { id: true, email: true, display_name: true } } },
+      take: 10000,
     });
 
     const eventName = updated.title || event.title || 'Event';
@@ -861,6 +895,7 @@ eventsRouter.patch('/:id/cancel', requireAuth as any, async (req: AuthedRequest,
   const rsvps = await prisma.eventRsvp.findMany({
     where: { event_id: eventId },
     include: { user: { select: { id: true, email: true, display_name: true, preferences: true } } },
+    take: 10000,
   });
 
   const eventDate = event.date instanceof Date ? event.date : new Date(event.date);

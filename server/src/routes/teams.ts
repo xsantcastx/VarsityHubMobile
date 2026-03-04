@@ -48,7 +48,8 @@ teamsRouter.get('/managed', requireAuth as any, async (req: AuthedRequest, res) 
       { organization: { name: 'asc' } },
       { name: 'asc' }
     ],
-    include: { 
+    take: 100,
+    include: {
       _count: { select: { memberships: true } },
       memberships: {
         where: { user_id: userId, status: 'active' },
@@ -280,6 +281,7 @@ teamsRouter.get('/:id/members', async (req, res) => {
   const mems = await prisma.teamMembership.findMany({
     where: { team_id: id },
     orderBy: { created_at: 'asc' },
+    take: 500,
     include: { 
       user: {
         select: {
@@ -378,6 +380,7 @@ teamsRouter.get('/members/all', requireAuth as any, async (req: AuthedRequest, r
 const createSchema = z.object({
   name: z.string().trim().min(2).max(100),
   description: z.string().trim().optional(),
+  organization_id: z.string().min(1, 'Organization is required'),
   season_start: z.string().optional(),
   season_end: z.string().optional(),
 });
@@ -444,9 +447,14 @@ teamsRouter.post('/', requireVerified as any, requirePlan('rookie') as any, asyn
     return res.status(400).json({ error: filterResult.error, code: filterResult.code });
   }
   
+  // Validate organization exists
+  const org = await prisma.organization.findUnique({ where: { id: parsed.data.organization_id } });
+  if (!org) return res.status(400).json({ error: 'Organization not found' });
+
   const t = await prisma.team.create({ data: {
     name: parsed.data.name,
     description: parsed.data.description,
+    organization_id: parsed.data.organization_id,
     season_start: parsed.data.season_start ? new Date(parsed.data.season_start) : null,
     season_end: parsed.data.season_end ? new Date(parsed.data.season_end) : null,
   } });

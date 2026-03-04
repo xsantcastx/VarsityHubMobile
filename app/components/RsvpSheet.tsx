@@ -1,5 +1,6 @@
+import { Colors } from '@/constants/Colors';
 import { useMemo } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
 
 export type RsvpSheetProps = {
   visible: boolean;
@@ -11,25 +12,27 @@ export type RsvpSheetProps = {
 };
 
 export default function RsvpSheet({ visible, onClose, goingCount = 0, capacity = null, isGoing = false, onToggleRsvp }: RsvpSheetProps) {
+  const colorScheme = useColorScheme() ?? 'light';
+  const theme = Colors[colorScheme];
   const remaining = useMemo(() => (typeof capacity === 'number' ? Math.max(0, capacity - (goingCount || 0)) : null), [capacity, goingCount]);
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.backdrop}>
-        <View style={styles.sheet}>
+        <View style={[styles.sheet, { backgroundColor: theme.background }]}>
           <View style={{ alignItems: 'center', marginBottom: 8 }}>
             <View style={styles.handle} />
           </View>
-          <Text style={styles.title}>RSVP</Text>
-          <Text style={styles.meta}>Going: {goingCount}{typeof capacity === 'number' ? ` / ${capacity}` : ''}</Text>
-          {typeof remaining === 'number' && <Text style={styles.metaMuted}>{remaining} spots remaining</Text>}
+          <Text style={[styles.title, { color: theme.text }]}>RSVP</Text>
+          <Text style={[styles.meta, { color: theme.mutedText }]}>Going: {goingCount}{typeof capacity === 'number' ? ` / ${capacity}` : ''}</Text>
+          {typeof remaining === 'number' && <Text style={[styles.metaMuted, { color: theme.mutedText }]}>{remaining} spots remaining</Text>}
 
           <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
             <Pressable style={[styles.primaryBtn]} onPress={onToggleRsvp}>
               <Text style={styles.primaryBtnText}>{isGoing ? 'Cancel RSVP' : 'Confirm RSVP'}</Text>
             </Pressable>
-            <Pressable style={styles.outlineBtn} onPress={onClose}>
-              <Text style={styles.outlineBtnText}>Close</Text>
+            <Pressable style={[styles.outlineBtn, { borderColor: theme.border }]} onPress={onClose}>
+              <Text style={[styles.outlineBtnText, { color: theme.text }]}>Close</Text>
             </Pressable>
           </View>
         </View>
@@ -43,10 +46,10 @@ const styles = StyleSheet.create({
   sheet: { backgroundColor: '#fff', borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 16 },
   handle: { width: 44, height: 4, borderRadius: 2, backgroundColor: '#e5e7eb' },
   title: { fontSize: 18, fontWeight: '800', marginTop: 4 },
-  meta: { color: '#374151', marginTop: 6 },
+  meta: { marginTop: 6 },
   metaMuted: { color: '#6b7280' },
   primaryBtn: { backgroundColor: '#111827', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10 },
   primaryBtnText: { color: 'white', fontWeight: '700' },
   outlineBtn: { borderWidth: StyleSheet.hairlineWidth, borderColor: '#D1D5DB', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10 },
-  outlineBtnText: { color: '#111827', fontWeight: '700' },
+  outlineBtnText: { fontWeight: '700' },
 });

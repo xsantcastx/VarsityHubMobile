@@ -157,7 +157,7 @@ export default function SubmitAdScreen() {
           title: 'Submit Ad', 
           headerShown: true,
           headerLeft: () => (
-            <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={{ padding: 8 }} accessibilityLabel="Go back">
+            <Pressable onPress={() => router.back()} style={{ padding: 8 }} accessibilityLabel="Go back">
               <Ionicons name="arrow-back" size={24} color={theme.text} />
             </Pressable>
           ),
@@ -321,10 +321,9 @@ const styles = StyleSheet.create({
     gap: 12,
     marginBottom: 20,
   },
-  label: { 
+  label: {
     fontWeight: '700',
     fontSize: 15,
-    color: '#111827',
     marginBottom: 6,
   },
   input: { 
@@ -336,7 +335,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     fontSize: 16,
     letterSpacing: 0,
-    color: '#111827',
   },
   textArea: {
     height: 100,

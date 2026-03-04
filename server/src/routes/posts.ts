@@ -4,7 +4,9 @@ import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
+import { requireOnboarded } from '../middleware/requireOnboarded.js';
 import { postCreationLimiter, commentLimiter, interactionLimiter } from '../middleware/rateLimiters.js';
+import { haversineDistance, getZipCoordinates } from '../lib/geoUtils.js';
 
 export const postsRouter = Router();
 
@@ -155,6 +157,19 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
   if (req.query.type) where.type = String(req.query.type);
   if (req.query.user_id) where.author_id = String(req.query.user_id);
 
+  // Location filtering: resolve user coordinates from zip or lat/lng params
+  const feedRadius = Math.min(Number(req.query.radius) || 50, 500); // default 50mi, max 500mi
+  let userCoords: { lat: number; lon: number } | null = null;
+  if (req.query.zip && typeof req.query.zip === 'string') {
+    userCoords = getZipCoordinates(req.query.zip as string);
+  } else if (req.query.lat && req.query.lng) {
+    const pLat = Number(req.query.lat);
+    const pLng = Number(req.query.lng);
+    if (Number.isFinite(pLat) && Number.isFinite(pLng)) {
+      userCoords = { lat: pLat, lon: pLng };
+    }
+  }
+
   // Trending: fetch pool, compute time-decay score, sort, paginate
   if (sort === 'trending') {
     const poolQuery: any = {
@@ -181,6 +196,14 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
       delete fallback.include.poll;
       pool = await prisma.post.findMany(fallback);
     }
+    // Apply location filter to trending pool
+    if (userCoords) {
+      pool = pool.filter((post: any) => {
+        if (post.lat == null || post.lng == null) return true;
+        return haversineDistance(userCoords!.lat, userCoords!.lon, post.lat, post.lng) <= feedRadius;
+      });
+    }
+
     const ranked = pool
       .map((p) => ({
         post: p,
@@ -272,7 +295,8 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
       _count: { select: { comments: true, bookmarks: true } },
       poll: { include: { options: true } },
     },
-    take: limit + 1,
+    // Over-fetch when location filtering is active to compensate for filtered-out posts
+    take: userCoords ? Math.min((limit + 1) * 3, 150) : limit + 1,
   };
   if (cursor) {
     query.cursor = { id: cursor };
@@ -292,6 +316,15 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
     delete fallbackQuery.include.poll;
     rows = await prisma.post.findMany(fallbackQuery);
   }
+
+  // Apply location filter: keep posts without coords + posts within radius
+  if (userCoords) {
+    rows = rows.filter((post: any) => {
+      if (post.lat == null || post.lng == null) return true; // no location → always show
+      return haversineDistance(userCoords!.lat, userCoords!.lon, post.lat, post.lng) <= feedRadius;
+    });
+  }
+
   const items = rows.slice(0, limit);
   const nextCursor = rows.length > limit ? rows[limit].id : null;
 
@@ -451,7 +484,7 @@ import { notifyMentions } from '../lib/mentionNotifications.js';
 import { validateContent } from '../lib/contentFilter.js';
 import { stripHtml } from '../lib/sanitizeHtml.js';
 
-postsRouter.post('/', requireVerified as any, postCreationLimiter, async (req: AuthedRequest, res) => {
+postsRouter.post('/', requireVerified as any, requireOnboarded as any, postCreationLimiter, async (req: AuthedRequest, res) => {
   // req.user is guaranteed by requireVerified middleware
   const parsed = createPostSchema.safeParse(req.body);
   if (!parsed.success) {
