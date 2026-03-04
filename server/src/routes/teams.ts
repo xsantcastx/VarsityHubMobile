@@ -390,30 +390,43 @@ teamsRouter.post('/', requireVerified as any, requirePlan('rookie') as any, asyn
       issues: parsed.error.issues.map((i) => ({ path: i.path, message: i.message })),
     });
   }
-  const me = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { id: true, preferences: true } });
+  const userId = req.user!.id;
+  const me = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, preferences: true } });
   if (!me) return res.status(401).json({ error: 'Unauthorized' });
-  
-  // SECURITY: Enforce coach role requirement
-  const prefs = (me.preferences && typeof me.preferences === 'object') ? (me.preferences as any) : {};
-  const userRole = prefs.role || 'fan';
-  
-  if (userRole !== 'coach') {
+
+  // SECURITY: Enforce coach role via DB membership (not client-editable preferences)
+  const hasCoachRole = await prisma.teamMembership.findFirst({
+    where: {
+      user_id: userId,
+      role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
+      status: 'active',
+    },
+  });
+  const hasOrgRole = await prisma.organizationMembership.findFirst({
+    where: {
+      user_id: userId,
+      role: { in: ['owner', 'manager', 'administrator'] },
+      status: 'active',
+    },
+  });
+
+  if (!hasCoachRole && !hasOrgRole) {
     return res.status(403).json({
       error: 'COACH_ROLE_REQUIRED',
       message: 'Only coach accounts can create teams.',
       code: 'COACH_ROLE_REQUIRED'
     });
   }
-  
+
   // Check team ownership limit
   const ownedTeamsCount = await prisma.teamMembership.count({
     where: {
-      user_id: me.id,
+      user_id: userId,
       role: 'owner',
       status: 'active'
     }
   });
-  
+
   const maxTeams = (me as any).max_teams ?? 2; // Default to 2 for free users
   
   if (ownedTeamsCount >= maxTeams) {
@@ -655,22 +668,37 @@ teamsRouter.post('/create', requireVerified as any, requirePlan('rookie') as any
   }
   
   const data = parsed.data;
-  const me = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { id: true, preferences: true } });
+  const userId = req.user!.id;
+  const me = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, preferences: true } });
   if (!me) return res.status(401).json({ error: 'Unauthorized' });
-  
-  // Check team limit for free tier (Rookie plan)
-  const prefs = (me.preferences && typeof me.preferences === 'object') ? (me.preferences as any) : {};
-  const userPlan = prefs.plan || 'rookie';
-  const userRole = prefs.role || 'fan';
 
-  // Enforce coach role requirement for team creation
-  if (userRole !== 'coach') {
+  // SECURITY: Enforce coach role via DB membership (not client-editable preferences)
+  const hasCoachRole = await prisma.teamMembership.findFirst({
+    where: {
+      user_id: userId,
+      role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
+      status: 'active',
+    },
+  });
+  const hasOrgRole = await prisma.organizationMembership.findFirst({
+    where: {
+      user_id: userId,
+      role: { in: ['owner', 'manager', 'administrator'] },
+      status: 'active',
+    },
+  });
+
+  if (!hasCoachRole && !hasOrgRole) {
     return res.status(403).json({
       error: 'COACH_ROLE_REQUIRED',
       message: 'Only coach accounts can create teams.',
       code: 'COACH_ROLE_REQUIRED'
     });
   }
+
+  // Check team limit for free tier (Rookie plan)
+  const prefs = (me.preferences && typeof me.preferences === 'object') ? (me.preferences as any) : {};
+  const userPlan = prefs.plan || 'rookie';
   
   // Legend tier restriction: Only Legend users can create extracurricular clubs
   const clubType = data.club_type || 'sport';

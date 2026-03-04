@@ -172,18 +172,11 @@ eventsRouter.get('/my-events', requireAuth as any, async (req: AuthedRequest, re
 eventsRouter.get('/pending', authMiddleware as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   
-  const user = await prisma.user.findUnique({ 
-    where: { id: req.user.id }, 
-    select: { id: true, preferences: true } 
-  });
-  if (!user) return res.status(401).json({ error: 'Unauthorized' });
-  
-  const prefs = (user.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
-  const userRole = prefs.role || 'fan';
+  const userId = req.user.id;
   const isAdmin = await getIsAdmin(req as any);
-  
-  // Only coaches, organizers, and admins can view pending events
-  if (!isAdmin && userRole !== 'coach' && userRole !== 'organizer') {
+
+  // Only coaches, org admins, and platform admins can view pending events (DB-verified roles)
+  if (!isAdmin && !(await isTeamCoach(userId)) && !(await isOrgAdmin(userId))) {
     return res.status(403).json({ error: 'Only coaches and admins can view pending events' });
   }
   

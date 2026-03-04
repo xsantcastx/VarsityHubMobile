@@ -20,6 +20,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import auth from '@/api/auth';
 import { User } from '@/api/entities';
 import { httpGet } from '@/api/http';
+import { clearPostCacheOnLogout } from '@/context/PostCacheContext';
 
 // Conditionally import notifications only if not in Expo Go
 const isExpoGo = Constants.executionEnvironment === 'storeClient';
@@ -264,6 +265,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     } catch (error) {
       console.warn('[auth] Failed to clear persisted session during sign out:', error);
     } finally {
+      clearPostCacheOnLogout();
       setUser(null);
       setPendingVerificationEmail(null);
       setHasCompletedOnboarding(false);
