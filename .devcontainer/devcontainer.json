@@ -1,0 +1,29 @@
+{
+  "name": "VarsityHub Development",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:20",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "20"
+    }
+  },
+  "postCreateCommand": "npm install && cd server && npm install && npx prisma generate",
+  "postStartCommand": "npm --prefix server run build",
+  "forwardPorts": [8081, 3000],
+  "portsAttributes": {
+    "8081": { "label": "Metro Bundler" },
+    "3000": { "label": "API Server" }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "Prisma.prisma",
+        "ms-vscode.vscode-typescript-next"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "zsh"
+      }
+    }
+  }
+}
