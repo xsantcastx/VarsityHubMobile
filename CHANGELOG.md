@@ -14,6 +14,13 @@
 
 
 
+## v1.0.0 - 2026-03-05
+
+### ✨ Features
+- Initial release
+
+
+
 ## v1.0.0 - 2026-03-04
 
 ### ✨ Features
