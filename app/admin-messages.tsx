@@ -1,7 +1,7 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -51,7 +51,7 @@ export default function AdminMessagesScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
       <Stack.Screen options={{ title: 'Admin · All Messages', headerShown: true, headerLeft: () => (
             <Pressable onPress={() => router.back()} style={{ paddingRight: 8 }}>
-              <Ionicons name="chevron-back" size={28} color="#007AFF" />
+              <MaterialIcons name="chevron-left" size={28} color="#007AFF" />
             </Pressable>
           ) }} />
       {loading ? <View style={{ padding: 24, alignItems: 'center' }}><ActivityIndicator /></View> : null}

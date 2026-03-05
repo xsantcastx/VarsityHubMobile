@@ -1,8 +1,10 @@
 import { Subscriptions, User } from '@/api/entities';
+// @ts-ignore
+import { httpPost } from '@/api/http';
 import { Button } from '@/components/ui/button';
 import { useFocusEffect } from '@react-navigation/native';
 import { Stack } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
+import { usePaymentSheet } from '@stripe/stripe-react-native';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Platform, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -53,6 +55,8 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
     }, [refreshPlan])
   );
 
+  const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
+
   const onSubscribe = async (targetPlan: 'veteran' | 'legend') => {
     if (Platform.OS === 'ios') {
       Alert.alert(
@@ -63,20 +67,31 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
     }
     setLoading(true);
     try {
-      const res: any = await Subscriptions.createCheckout(targetPlan);
-      if (res?.url) {
-        const sessionId = typeof res.session_id === 'string' ? res.session_id : null;
-        try {
-          await WebBrowser.openBrowserAsync(res.url);
-        } finally {
-          if (sessionId) {
-            const finalized = await finalizeWithRetry(sessionId);
-            if (!finalized) {
-              console.warn('Subscription finalize pending after retries', { sessionId });
-            }
-          }
-          await refreshPlan();
+      const res: any = await httpPost('/payments/create-payment-sheet', { plan: targetPlan });
+      if (res?.paymentIntent) {
+        const { error: initError } = await initPaymentSheet({
+          paymentIntentClientSecret: res.paymentIntent,
+          customerEphemeralKeySecret: res.ephemeralKey,
+          customerId: res.customer,
+          merchantDisplayName: 'Varsity Hub',
+        });
+        if (initError) {
+          Alert.alert('Error', initError.message);
+          return;
         }
+        const { error } = await presentPaymentSheet();
+        if (error) {
+          if (error.code !== 'Canceled') Alert.alert('Payment Failed', error.message);
+          return;
+        }
+        // Payment succeeded — try to finalize
+        if (res.subscriptionId) {
+          const finalized = await finalizeWithRetry(res.subscriptionId);
+          if (!finalized) {
+            console.warn('Subscription finalize pending after retries', { subscriptionId: res.subscriptionId });
+          }
+        }
+        await refreshPlan();
       } else if (res?.free) {
         Alert.alert('Subscribed', 'Your plan is now active.');
         await refreshPlan();

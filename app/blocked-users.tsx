@@ -1,8 +1,7 @@
 import { User } from '@/api/entities';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, FlatList, Pressable, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
@@ -77,7 +76,7 @@ export default function BlockedUsersScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#111827' : '#FFFFFF' }]} edges={['bottom']}>
       <Stack.Screen options={{ title: 'Blocked Users', headerBackTitle: 'Back', headerShown: true, headerLeft: () => (
             <Pressable onPress={() => router.back()} style={{ paddingRight: 8 }}>
-              <Ionicons name="chevron-back" size={28} color="#007AFF" />
+              <MaterialIcons name="chevron-left" size={28} color="#007AFF" />
             </Pressable>
           ) }} />
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
@@ -92,9 +91,13 @@ export default function BlockedUsersScreen() {
             autoCapitalize="none"
             style={{ flex: 1 }}
           />
-          <Button onPress={add} disabled={loading || !username.trim()}>
-            <Text>{loading ? '...' : 'Block'}</Text>
-          </Button>
+          <Pressable
+            onPress={add}
+            disabled={loading || !username.trim()}
+            style={[styles.blockBtn, { backgroundColor: theme.tint, opacity: loading || !username.trim() ? 0.6 : 1 }]}
+          >
+            <Text style={styles.blockBtnText}>{loading ? '...' : 'Block'}</Text>
+          </Pressable>
         </View>
 
         {loading ? (
@@ -137,6 +140,8 @@ const styles = StyleSheet.create({
   muted: {},
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 12, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth },
   email: { fontWeight: '600' },
+  blockBtn: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, alignItems: 'center' as const, justifyContent: 'center' as const },
+  blockBtnText: { color: '#FFFFFF', fontWeight: '700', fontSize: 15 },
   removeBtn: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, backgroundColor: '#DC2626' },
   removeText: { color: 'white', fontWeight: '700' },
 });

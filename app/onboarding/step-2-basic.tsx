@@ -4,14 +4,14 @@ import PrimaryButton from '@/components/ui/PrimaryButton';
 import { Type } from '@/ui/tokens';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Animated, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useOnboarding, type Affiliation } from '@/context/OnboardingContext';
 import { STEP_ROUTES, nextIncompleteStep } from '@/context/onboardingReducer';
-import { getConfig } from '@/config/env';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { ZipCodeMapPreview } from '@/components/ZipCodeMapPreview';
 import { useFocusEffect } from '@react-navigation/native';
 import OnboardingLayout from './components/OnboardingLayout';
 
@@ -195,18 +195,11 @@ export default function Step2Basic() {
     (ob.role === 'fan' || affiliation); // Affiliation required for coaches only
 
   const onBack = () => {
-    // If we came from confirmation, go back to confirmation
     if (returnToConfirmation) {
       router.replace('/onboarding/step-10-confirmation');
     } else {
       setProgress(0);
-      // Safe navigation - check if we can go back
-      if (router.canGoBack()) {
-        router.back();
-      } else {
-        // Fallback to step 1 or main app
-        router.replace('/onboarding/step-1-role');
-      }
+      router.replace('/onboarding/step-1-role');
     }
   };
 
@@ -241,10 +234,11 @@ export default function Step2Basic() {
         dob,
         zip: zip || undefined,
         zip_code: zip || null,
+        step_2_visited: true,
       };
-      
-      setOB((prev) => ({ 
-        ...prev, 
+
+      setOB((prev) => ({
+        ...prev,
         ...updatedData,
       }));
       
@@ -387,16 +381,7 @@ export default function Step2Basic() {
         keyboardType="numeric"
         maxLength={5}
       />
-      {/^\d{5}$/.test(zip) && (() => {
-        const key = getConfig().mapsKey;
-        if (!key) return null;
-        const uri = `https://maps.googleapis.com/maps/api/staticmap?center=${zip},US&zoom=10&size=600x200&scale=2&key=${key}`;
-        return (
-          <View style={styles.mapContainer}>
-            <Image source={{ uri }} style={styles.mapImage} resizeMode="cover" />
-          </View>
-        );
-      })()}
+      <ZipCodeMapPreview zipCode={zip} title="Your Area" subtitle="We'll use this to show you local content near ZIP {zip}" showCircle={false} />
 
       <View style={{ marginTop: 20 }}>
         <PrimaryButton
@@ -508,16 +493,5 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   affiliationLabelSelected: {
     color: Colors[colorScheme].tint,
     fontWeight: '700',
-  },
-  mapContainer: {
-    marginTop: 8,
-    borderRadius: 12,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: Colors[colorScheme].border,
-  },
-  mapImage: {
-    width: '100%',
-    height: 120,
   },
 });

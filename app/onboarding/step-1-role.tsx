@@ -3,7 +3,7 @@ import { useOnboarding } from '@/context/OnboardingContext';
 import { STEP_ROUTES, nextIncompleteStep } from '@/context/onboardingReducer';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useFocusEffect } from '@react-navigation/native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -69,7 +69,7 @@ function RoleCard({
         ]}
       >
       <View style={styles.cardHeader}>
-        <Ionicons 
+        <MaterialIcons 
           name={icon as any} 
           size={36} 
           color={colors.iconColor} 
@@ -79,8 +79,8 @@ function RoleCard({
           <Text style={[styles.cardDescription, { color: colors.descColor }]}>{description}</Text>
         </View>
         {selected && (
-          <Ionicons 
-            name="checkmark-circle" 
+          <MaterialIcons 
+            name="check-circle" 
             size={24} 
             color={isDark ? accentColorLight : accentColor} 
           />
@@ -90,8 +90,8 @@ function RoleCard({
       <View style={styles.featuresList}>
         {features.map((feature, index) => (
           <View key={index} style={styles.featureItem}>
-            <Ionicons 
-              name="checkmark-circle" 
+            <MaterialIcons 
+              name="check-circle" 
               size={18} 
               color="#16A34A" 
               style={styles.checkIcon} 
@@ -115,7 +115,7 @@ function RoleCard({
           ) : (
             <>
               <Text style={styles.sideButtonText}>Continue</Text>
-              <Ionicons name="arrow-forward" size={20} color="white" />
+              <MaterialIcons name="arrow-forward" size={20} color="white" />
             </>
           )}
         </Pressable>

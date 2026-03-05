@@ -1,7 +1,7 @@
 import { Input } from '@/components/ui/input';
 import PrimaryButton from '@/components/ui/PrimaryButton';
 import { Type } from '@/ui/tokens';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -125,12 +125,13 @@ export default function Step7Profile() {
     setSaving(true);
     try {
       // Save to context
-      setOB((prev) => ({ 
-        ...prev, 
+      setOB((prev) => ({
+        ...prev,
         avatar_url: avatar || undefined,
         username: username || undefined,
         bio: bio || undefined,
-        sports_interests: interests as any
+        sports_interests: interests as any,
+        step_7_visited: true,
       }));
       
       // Save to backend
@@ -170,7 +171,7 @@ export default function Step7Profile() {
               <Image source={{ uri: avatar }} style={styles.avatar} />
             ) : (
               <View style={styles.avatarPlaceholder}>
-                <Ionicons name="person" size={32} color={Colors[colorScheme].mutedText} />
+                <MaterialIcons name="person" size={32} color={Colors[colorScheme].mutedText} />
               </View>
             )}
             {uploading && (
@@ -186,8 +187,8 @@ export default function Step7Profile() {
             accessibilityLabel={avatar ? 'Change Photo' : 'Pick Profile Picture'} 
             style={styles.photoButton}
           >
-            <Ionicons 
-              name="camera" 
+            <MaterialIcons 
+              name="camera-alt" 
               size={16} 
               color={Colors[colorScheme].text} 
               style={{ marginRight: 8 }} 

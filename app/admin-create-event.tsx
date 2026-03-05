@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
@@ -67,7 +67,7 @@ export default function CreateEventScreen() {
       await httpPost('/events', eventData);
 
       Alert.alert('Event Created!', 'Your event has been published successfully!', [
-        { text: 'OK', onPress: () => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any) },
+        { text: 'OK', onPress: () => router.back() },
       ]);
     } catch (e: any) {
       Alert.alert('Error', e.message || 'Failed to create event.');

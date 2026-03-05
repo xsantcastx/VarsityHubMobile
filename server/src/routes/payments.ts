@@ -664,6 +664,242 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paym
   return res.json({ url: session.url });
 });
 
+// ── In-App PaymentSheet endpoint ────────────────────────────────────────────
+// Returns client_secret, ephemeral key, customer id and publishable key
+// so the mobile app can present Stripe PaymentSheet without leaving the app.
+paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified as any, paymentLimiter, async (req: AuthedRequest, res) => {
+  if (!process.env.STRIPE_SECRET_KEY) return res.status(500).json({ error: 'Stripe not configured' });
+  const publishableKey = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || process.env.STRIPE_PUBLISHABLE_KEY || '';
+  const userId = req.user!.id;
+  const { ad_id, dates, promo_code, plan, team_count } = req.body || {};
+
+  // ── Get or create Stripe Customer ──
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, stripe_customer_id: true, preferences: true } });
+  let customerId = user?.stripe_customer_id;
+  if (!customerId) {
+    const customer = await stripe.customers.create({ email: user?.email || undefined, metadata: { user_id: userId } });
+    customerId = customer.id;
+    await prisma.user.update({ where: { id: userId }, data: { stripe_customer_id: customerId } });
+  }
+
+  // Create ephemeral key
+  const ephemeralKey = await stripe.ephemeralKeys.create(
+    { customer: customerId },
+    { apiVersion: '2024-06-20' }
+  );
+
+  // ── SUBSCRIPTION FLOW ──
+  if (typeof plan === 'string' && plan.trim()) {
+    const raw = plan.trim().toLowerCase();
+    if (raw !== 'veteran' && raw !== 'legend') return res.status(400).json({ error: 'Invalid plan for subscription' });
+    const chosen = raw as MembershipPlan;
+
+    // Validate team count for Veteran plan
+    if (chosen === 'veteran') {
+      if (typeof team_count !== 'number' || team_count < 3) {
+        return res.status(400).json({ error: 'Veteran plan requires at least 3 total teams (first 2 are free)' });
+      }
+    }
+
+    // Check if user already has this plan
+    const prefs = (user?.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
+    const currentPlan = prefs.plan || 'rookie';
+    if (currentPlan === chosen) return res.status(400).json({ error: 'You already have this subscription plan' });
+
+    const billableQuantity = chosen === 'veteran' && typeof team_count === 'number' ? Math.max(0, team_count - 2) : 1;
+    if (chosen === 'veteran' && billableQuantity === 0) {
+      return res.status(400).json({ error: 'Select at least one billable team (3 total) to use Veteran plan' });
+    }
+
+    // Build price / line items
+    const priceIdRaw = membershipPriceIds[chosen];
+    const normalizedPriceId = typeof priceIdRaw === 'string' ? priceIdRaw.trim() : '';
+    const hasExplicitPriceId = /^price_/i.test(normalizedPriceId) && !['price_xxx', 'price_yyy', 'your_price_id'].some((h) => normalizedPriceId.toLowerCase().includes(h));
+
+    const items = hasExplicitPriceId
+      ? [{ price: normalizedPriceId, quantity: chosen === 'veteran' ? billableQuantity : 1 }]
+      : [{
+          quantity: chosen === 'veteran' ? billableQuantity : 1,
+          price_data: {
+            currency: 'usd',
+            unit_amount: chosen === 'veteran' ? 150 : 2000,
+            recurring: { interval: chosen === 'veteran' ? ('month' as const) : ('year' as const) },
+            product_data: {
+              name: 'Membership - ' + chosen,
+              description: chosen === 'veteran'
+                ? `Veteran plan - $1.50/month per additional team (${billableQuantity} billable of ${team_count} total, 2 free)`
+                : 'Legend plan - $20.00/year unlimited',
+            },
+          },
+        }];
+
+    try {
+      const subscription = await stripe.subscriptions.create({
+        customer: customerId,
+        items: items as any,
+        payment_behavior: 'default_incomplete',
+        payment_settings: { save_default_payment_method: 'on_subscription' },
+        expand: ['latest_invoice.payment_intent'],
+        metadata: {
+          membership: '1',
+          plan: chosen,
+          user_id: userId,
+          promo_code: promo_code || '',
+          team_count_total: chosen === 'veteran' && team_count ? String(team_count) : '',
+          team_count_billable: chosen === 'veteran' ? String(billableQuantity) : '',
+        },
+      });
+
+      const invoice = subscription.latest_invoice as Stripe.Invoice;
+      const paymentIntent = invoice.payment_intent as Stripe.PaymentIntent;
+
+      // Log transaction
+      const amount = chosen === 'veteran' ? 150 * billableQuantity : 2000;
+      await logTransaction({
+        transactionType: 'SUBSCRIPTION_PURCHASE',
+        status: 'PENDING',
+        stripeSessionId: subscription.id,
+        userId,
+        userEmail: user?.email || 'unknown',
+        subtotalCents: amount,
+        taxCents: 0,
+        stripeFeeeCents: calculateStripeFee(amount),
+        discountCents: 0,
+        totalCents: amount,
+        promoCode: promo_code || undefined,
+        metadata: { plan: chosen, team_count_total: chosen === 'veteran' ? team_count : undefined, team_count_billable: chosen === 'veteran' ? billableQuantity : undefined },
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent'),
+      });
+
+      return res.json({
+        paymentIntent: paymentIntent.client_secret,
+        ephemeralKey: ephemeralKey.secret,
+        customer: customerId,
+        publishableKey,
+        subscriptionId: subscription.id,
+      });
+    } catch (err: any) {
+      captureException(err, { context: 'create_payment_sheet_subscription', plan: chosen });
+      return res.status(500).json({ error: err?.message || 'Unable to start subscription' });
+    }
+  }
+
+  // ── AD PAYMENT FLOW ──
+  if (!ad_id || !Array.isArray(dates) || dates.length === 0) return res.status(400).json({ error: 'ad_id and dates[] are required (or plan for subscription)' });
+  const isoDates: string[] = Array.from(new Set(dates.map((d: any) => String(d))));
+
+  const ad = await prisma.ad.findUnique({ where: { id: String(ad_id) } });
+  if (!ad) return res.status(404).json({ error: 'Ad not found' });
+
+  // Slot availability check
+  const MAX_AD_SLOTS = 3;
+  if (ad.target_zip_code) {
+    const paidAdsInZip = await prisma.ad.findMany({
+      where: { target_zip_code: ad.target_zip_code, payment_status: 'paid', NOT: { id: String(ad_id) } },
+      select: { id: true },
+      take: 100,
+    });
+    if (paidAdsInZip.length > 0) {
+      const dateObjects = isoDates.map((s) => new Date(s + 'T00:00:00.000Z'));
+      const bookedSlots = await prisma.adReservation.groupBy({
+        by: ['date'],
+        where: { ad_id: { in: paidAdsInZip.map((a) => a.id) }, date: { in: dateObjects } },
+        _count: { date: true },
+      });
+      const fullDates = bookedSlots.filter((s) => s._count.date >= MAX_AD_SLOTS);
+      if (fullDates.length > 0) {
+        return res.status(409).json({ error: 'One or more selected dates are fully booked', dates: fullDates.map((s) => s.date.toISOString().slice(0, 10)) });
+      }
+    }
+  }
+
+  const pricingResult = calculateAdPriceCents(isoDates);
+  const subtotal = pricingResult.totalCents;
+  if (subtotal <= 0) return res.status(400).json({ error: 'Invalid amount' });
+
+  const taxCents = ad.target_zip_code ? calculateSalesTax(subtotal, ad.target_zip_code) : 0;
+
+  let discount = 0;
+  let appliedCode: string | null = null;
+  if (promo_code && typeof promo_code === 'string') {
+    const preview = await previewPromo({ code: promo_code, subtotalCents: subtotal, userId, service: 'booking' });
+    if (!preview.valid) return res.status(400).json({ error: preview.reason });
+    discount = preview.discount_cents;
+    appliedCode = preview.code;
+  }
+
+  const total = Math.max(0, subtotal - discount + taxCents);
+  const isFullyComped = discount >= subtotal;
+  if (total === 0 || isFullyComped) {
+    // Free via promo — same logic as /checkout free path
+    if (appliedCode) {
+      await redeemPromo({ code: appliedCode, subtotalCents: subtotal, userId, service: 'booking', orderId: `FREE-${Date.now()}` });
+    }
+    try {
+      await prisma.$transaction([
+        prisma.ad.update({ where: { id: String(ad_id) }, data: { payment_status: 'paid' } }),
+        prisma.adReservation.createMany({ data: isoDates.map((s) => ({ ad_id: String(ad_id), date: new Date(s + 'T00:00:00.000Z') })), skipDuplicates: true }),
+      ]);
+    } catch (e) {
+      console.error('Failed to create ad reservations for free promo:', e);
+      return res.status(500).json({ error: 'Failed to reserve ad dates. Please try again.' });
+    }
+    sendAdPaymentEmail({ userId, adId: String(ad_id), dates: isoDates, totalCents: 0, businessName: ad.business_name, zipCode: ad.target_zip_code }).catch((err) => console.warn('[payments] Free promo ad email failed:', err?.message || err));
+    return res.json({ free: true });
+  }
+
+  try {
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: total,
+      currency: 'usd',
+      customer: customerId,
+      automatic_payment_methods: { enabled: true },
+      metadata: {
+        ad_id: String(ad_id),
+        dates: JSON.stringify(isoDates),
+        user_id: userId,
+        subtotal_cents: String(subtotal),
+        tax_cents: String(taxCents),
+        promo_code: appliedCode || '',
+        discount_cents: String(discount || 0),
+        weekday_blocks: String(pricingResult.weekdayBlocks),
+        weekend_blocks: String(pricingResult.weekendBlocks),
+      },
+    });
+
+    // Log transaction
+    await logTransaction({
+      transactionType: 'AD_PURCHASE',
+      status: 'PENDING',
+      stripeSessionId: paymentIntent.id,
+      userId,
+      userEmail: user?.email || 'unknown',
+      orderId: String(ad_id),
+      subtotalCents: subtotal,
+      taxCents,
+      stripeFeeeCents: calculateStripeFee(total),
+      discountCents: discount,
+      totalCents: total,
+      promoCode: appliedCode || undefined,
+      promoDiscountCents: discount,
+      metadata: { dates: isoDates, adId: ad_id, zipCode: ad.target_zip_code },
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+    });
+
+    return res.json({
+      paymentIntent: paymentIntent.client_secret,
+      ephemeralKey: ephemeralKey.secret,
+      customer: customerId,
+      publishableKey,
+    });
+  } catch (err: any) {
+    captureException(err, { context: 'create_payment_sheet_ad', ad_id });
+    return res.status(500).json({ error: err?.message || 'Unable to create payment' });
+  }
+});
+
 // Stripe webhook to finalize reservations on successful payment.
 // IMPORTANT: The raw body parser is registered at the app level (server/src/index.ts)
 // for route /payments/webhook BEFORE express.json(). Do not add parsers here.
@@ -767,6 +1003,77 @@ paymentsRouter.post('/webhook', async (req, res) => {
         amount: `$${((subscription.items.data[0]?.price?.unit_amount || 0) / 100).toFixed(2)}`,
         planName: subscription.items.data[0]?.price?.nickname || 'VarsityHub Subscription',
       }).catch(err => console.warn('[billing-email] subscription_renewed failed:', err));
+    }
+  }
+
+  // Handle PaymentSheet ad payments (PaymentIntent-based, no Checkout Session)
+  if (event.type === 'payment_intent.succeeded') {
+    const pi = event.data.object as Stripe.PaymentIntent;
+    const meta = pi.metadata || {};
+    if (meta.ad_id) {
+      const adId = meta.ad_id;
+      let piDates: string[] = [];
+      try { piDates = JSON.parse(String(meta.dates || '[]')); } catch { /* ignore */ }
+      if (piDates.length > 0) {
+        try {
+          await prisma.$transaction(async (tx) => {
+            const MAX_AD_SLOTS = 3;
+            const adRecord = await tx.ad.findUnique({ where: { id: adId }, select: { target_zip_code: true } });
+            if (adRecord?.target_zip_code) {
+              const paidAdsInZip = await tx.ad.findMany({
+                where: { target_zip_code: adRecord.target_zip_code, payment_status: 'paid', NOT: { id: adId } },
+                select: { id: true },
+                take: 100,
+              });
+              if (paidAdsInZip.length > 0) {
+                const dateObjects = piDates.map((s) => new Date(s + 'T00:00:00.000Z'));
+                const bookedSlots = await tx.adReservation.groupBy({
+                  by: ['date'],
+                  where: { ad_id: { in: paidAdsInZip.map((a) => a.id) }, date: { in: dateObjects } },
+                  _count: { date: true },
+                });
+                const fullDates = bookedSlots.filter((s) => s._count.date >= MAX_AD_SLOTS);
+                if (fullDates.length > 0) {
+                  const err = new Error('SLOT_FULL') as any;
+                  err.slotFull = true;
+                  err.dates = fullDates.map((s) => s.date.toISOString().slice(0, 10));
+                  throw err;
+                }
+              }
+            }
+            await tx.ad.update({ where: { id: adId }, data: { payment_status: 'paid', status: 'active' } });
+            await tx.adReservation.createMany({
+              data: piDates.map((s) => ({ ad_id: adId, date: new Date(s + 'T00:00:00.000Z') })),
+              skipDuplicates: true,
+            });
+          }, { isolationLevel: 'Serializable' });
+
+          // Update transaction & send email
+          await updateTransactionStatus(pi.id, 'COMPLETED', { stripePaymentIntentId: pi.id });
+          const adForEmail = await prisma.ad.findUnique({ where: { id: adId }, select: { business_name: true, target_zip_code: true } });
+          sendAdPaymentEmail({
+            userId: meta.user_id || null,
+            adId,
+            dates: piDates,
+            totalCents: pi.amount,
+            businessName: adForEmail?.business_name,
+            zipCode: adForEmail?.target_zip_code,
+          }).catch((err) => console.warn('[webhook] ad payment email failed:', err?.message || err));
+
+          // Redeem promo code if one was used
+          if (meta.promo_code) {
+            const promoSubtotal = Number(meta.subtotal_cents || 0) || 0;
+            await redeemPromo({ code: meta.promo_code, subtotalCents: promoSubtotal, userId: meta.user_id || '', service: 'booking', orderId: pi.id }).catch((e) => console.warn('[webhook] promo redeem failed:', e));
+          }
+        } catch (e: any) {
+          if (e?.slotFull) {
+            console.error('[payments] SLOT_FULL on payment_intent.succeeded — manual refund required', { ad_id: adId, dates: e.dates, pi_id: pi.id });
+          } else {
+            console.error('[payments] Error processing ad PI succeeded', { ad_id: adId, pi_id: pi.id, error: e });
+            captureException(e as Error, { context: 'payment_intent_succeeded_ad', adId, piId: pi.id });
+          }
+        }
+      }
     }
   }
 

@@ -1,6 +1,6 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -91,7 +91,7 @@ export default function RsvpHistoryScreen() {
       {/* Search and Filter Controls */}
       <View style={styles.filterSection}>
         <View style={[styles.searchContainer, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
-          <Ionicons name="search" size={20} color={Colors[colorScheme].mutedText} />
+          <MaterialIcons name="search" size={20} color={Colors[colorScheme].mutedText} />
           <TextInput
             style={[styles.searchInput, { color: Colors[colorScheme].text }]}
             placeholder="Search events by title or location..."
@@ -101,7 +101,7 @@ export default function RsvpHistoryScreen() {
           />
           {searchQuery.length > 0 && (
             <Pressable onPress={() => setSearchQuery('')}>
-              <Ionicons name="close-circle" size={20} color={Colors[colorScheme].mutedText} />
+              <MaterialIcons name="cancel" size={20} color={Colors[colorScheme].mutedText} />
             </Pressable>
           )}
         </View>
@@ -116,11 +116,11 @@ export default function RsvpHistoryScreen() {
             }
           }}
         >
-          <Ionicons name="calendar-outline" size={20} color={selectedDate ? Colors[colorScheme].tint : Colors[colorScheme].mutedText} />
+          <MaterialIcons name="event" size={20} color={selectedDate ? Colors[colorScheme].tint : Colors[colorScheme].mutedText} />
           <Text style={[styles.dateButtonText, { color: selectedDate ? Colors[colorScheme].tint : Colors[colorScheme].mutedText }, selectedDate && styles.dateButtonTextActive]}>
             {selectedDate ? selectedDate.toLocaleDateString() : 'Filter by date'}
           </Text>
-          {selectedDate && <Ionicons name="close-circle" size={16} color={Colors[colorScheme].tint} />}
+          {selectedDate && <MaterialIcons name="cancel" size={16} color={Colors[colorScheme].tint} />}
         </Pressable>
       </View>
 

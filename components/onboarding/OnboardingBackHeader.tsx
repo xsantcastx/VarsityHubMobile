@@ -2,7 +2,7 @@ import { useRouter } from 'expo-router';
 import { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 type Props = {
   title?: string;
@@ -30,7 +30,7 @@ export function OnboardingBackHeader({ title, subtitle, onBack, rightSlot }: Pro
     <SafeAreaView edges={['top', 'left', 'right']} style={[styles.safeArea, { paddingTop: Math.max(insets.top, 16) }]}>
       <View style={styles.headerRow}>
         <Pressable accessibilityRole="button" onPress={handleBack} style={styles.backButton}>
-          <Ionicons name="chevron-back" size={24} color="#111827" />
+          <MaterialIcons name="chevron-left" size={24} color="#111827" />
         </Pressable>
         <View style={styles.textContainer}>
           {title ? <Text style={styles.title}>{title}</Text> : null}

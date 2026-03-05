@@ -1,7 +1,7 @@
 import EventMap, { EventMapData } from '@/components/EventMap';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as Location from 'expo-location';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
@@ -147,8 +147,8 @@ export default function GameMapScreen() {
           headerStyle: { backgroundColor: Colors[colorScheme].background },
           headerTintColor: Colors[colorScheme].text,
           headerLeft: () => (
-            <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={styles.headerButton}>
-              <Ionicons name="arrow-back" size={24} color={Colors[colorScheme].text} />
+            <Pressable onPress={() => router.back()} style={styles.headerButton}>
+              <MaterialIcons name="arrow-back" size={24} color={Colors[colorScheme].text} />
             </Pressable>
           ),
         }}

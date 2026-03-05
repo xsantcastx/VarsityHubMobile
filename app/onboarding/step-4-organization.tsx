@@ -2,17 +2,17 @@ import { Input } from '@/components/ui/input';
 import PrimaryButton from '@/components/ui/PrimaryButton';
 import { Colors } from '@/constants/Colors';
 import { Type } from '@/ui/tokens';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useColorScheme, View } from 'react-native';
+import { ActivityIndicator, Alert, Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useColorScheme, View } from 'react-native';
 // @ts-ignore
 import { Organization, Team } from '@/api/entities';
 import { PlaceSuggestion } from '@/api/geocoding';
 import LocationPicker from '@/components/LocationPicker';
 import { httpPost } from '@/api/http';
-import { getConfig } from '@/config/env';
+import { ZipCodeMapPreview } from '@/components/ZipCodeMapPreview';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { useOrganizationSearch } from '@/hooks/useOrganizationSearch';
 import OnboardingLayout from './components/OnboardingLayout';
@@ -78,16 +78,17 @@ export default function Step4Organization() {
           setExistingTeam(firstTeam);
           setAlreadyExists(true);
           // Update onboarding state with existing team
-          setOB((prev) => ({ 
-            ...prev, 
-            team_id: firstTeam.id, 
-            team_name: firstTeam.name 
+          setOB((prev) => ({
+            ...prev,
+            team_id: firstTeam.id,
+            team_name: firstTeam.name,
           }));
-          
+
           // DON'T auto-skip - let user see step 4 even if team exists
           // They can still review/update organization info
           // Only skip in E2E tests
           if (e2e) {
+            setOB((prev) => ({ ...prev, step_4_visited: true }));
             setProgress(4); // step-6 is index 4
             if (returnToConfirmation) {
               router.replace('/onboarding/step-10-confirmation');
@@ -115,6 +116,7 @@ export default function Step4Organization() {
             // They can still review/update organization info
             // Only skip in E2E tests
             if (e2e) {
+              setOB((prev) => ({ ...prev, step_4_visited: true }));
               setProgress(4); // step-6 is index 4
               if (returnToConfirmation) {
                 router.replace('/onboarding/step-10-confirmation');
@@ -176,12 +178,12 @@ export default function Step4Organization() {
   const canContinue = useMemo(() => {
     if (saving) return false;
 
-    // If team/org already exists, user can continue immediately
-    if (alreadyExists) return true;
+    // If team/org already exists or join request was submitted, user can continue
+    if (alreadyExists || ob.join_request_pending) return true;
 
     // All coaches need organization fields; location may be typed or autocomplete-selected
     return orgName.trim().length > 0 && !!orgType && (!!selectedPlace || location.trim().length >= 2);
-  }, [orgName, orgType, saving, alreadyExists, selectedPlace, location]);
+  }, [orgName, orgType, saving, alreadyExists, ob.join_request_pending, selectedPlace, location]);
 
   // Format organization type for display (capitalize & friendly term mapping)
   const formatOrgType = (raw?: string) => {
@@ -327,7 +329,8 @@ export default function Step4Organization() {
                 ...prev,
                 organization_id: selectedOrg.id,
                 organization_name: selectedOrg.name,
-                join_request_pending: true
+                join_request_pending: true,
+                step_4_visited: true,
               }));
               
               if (returnToConfirmation) {
@@ -353,25 +356,12 @@ export default function Step4Organization() {
 
   const onContinue = async () => {
     if (!canContinue) return;
-    
-    // Guard: require email verification before creating org
-    if (emailVerified === false && !alreadyExists) {
-      Alert.alert(
-        'Email Verification Required',
-        'Please verify your email address before creating an organization.',
-        [
-          { text: 'Verify Now', onPress: () => router.push('/verify-email') },
-          { text: 'Cancel', style: 'cancel' }
-        ]
-      );
-      return;
-    }
-    
+
     setSaving(true);
     try {
-      // If team/org already exists, still navigate to step 6 (not step 7)
-      // User should still see step 4 to review, but can continue to step 6
-      if (alreadyExists) {
+      // If team/org already exists or join request pending, proceed to next step
+      if (alreadyExists || ob.join_request_pending) {
+        setOB((prev) => ({ ...prev, step_4_visited: true }));
         if (returnToConfirmation) {
           setProgress(7);
           router.replace('/onboarding/step-10-confirmation');
@@ -398,12 +388,13 @@ export default function Step4Organization() {
       if (ob.plan) payload.plan = ob.plan;
 
       const org = await Organization.createOrganization(payload);
-      setOB((prev) => ({ 
-        ...prev, 
-        organization_id: org?.id, 
+      setOB((prev) => ({
+        ...prev,
+        organization_id: org?.id,
         organization_name: orgName.trim(),
         organization_place_id: selectedPlace?.place_id ?? null,
         organization_location: locationLabel || null,
+        step_4_visited: true,
       }));
       
       // Show success toast
@@ -469,8 +460,8 @@ export default function Step4Organization() {
         // Show success message if team/org already exists
         <>
           <View style={styles.successBox}>
-            <Ionicons 
-              name="checkmark-circle" 
+            <MaterialIcons 
+              name="check-circle" 
               size={48} 
               color={colorScheme === 'dark' ? '#4ade80' : '#16A34A'} 
               style={{ marginBottom: 16 }} 
@@ -506,7 +497,7 @@ export default function Step4Organization() {
         <>
           <View style={styles.howItWorksCard} accessibilityRole="summary">
             <View style={styles.howItWorksHeaderRow}>
-              <Ionicons name="grid-outline" size={22} color={colorScheme === 'dark' ? '#1D4ED8' : '#1D4ED8'} style={{ marginRight: 10 }} />
+              <MaterialIcons name="grid-view" size={22} color={colorScheme === 'dark' ? '#1D4ED8' : '#1D4ED8'} style={{ marginRight: 10 }} />
               <Text style={styles.howItWorksTitle}>How It Works</Text>
             </View>
             <View style={styles.howItWorksTreeBox}>
@@ -531,7 +522,7 @@ export default function Step4Organization() {
                   accessibilityRole="button"
                   accessibilityLabel="Search for existing organization"
                 >
-                  <Ionicons name="search" size={16} color={showSearch ? '#fff' : (isDark ? '#E2E8F0' : '#0F172A')} />
+                  <MaterialIcons name="search" size={16} color={showSearch ? '#fff' : (isDark ? '#E2E8F0' : '#0F172A')} />
                   <Text style={[styles.modeToggleText, showSearch && styles.modeToggleTextActive]}>Search</Text>
                 </Pressable>
                 <Pressable
@@ -540,7 +531,7 @@ export default function Step4Organization() {
                   accessibilityRole="button"
                   accessibilityLabel="Create a new organization"
                 >
-                  <Ionicons name="add" size={16} color={!showSearch ? '#fff' : (isDark ? '#E2E8F0' : '#0F172A')} />
+                  <MaterialIcons name="add" size={16} color={!showSearch ? '#fff' : (isDark ? '#E2E8F0' : '#0F172A')} />
                   <Text style={[styles.modeToggleText, !showSearch && styles.modeToggleTextActive]}>Create New</Text>
                 </Pressable>
               </View>
@@ -567,7 +558,7 @@ export default function Step4Organization() {
               <Text style={styles.selectFieldText}>
                 {orgType ? formatOrgType(orgType) : 'Select organization type'}
               </Text>
-              <Ionicons name="chevron-down" size={18} color={isDark ? '#CBD5E1' : '#475569'} />
+              <MaterialIcons name="expand-more" size={18} color={isDark ? '#CBD5E1' : '#475569'} />
             </Pressable>
             <View style={{ height: 12 }} />
           </>
@@ -582,7 +573,7 @@ export default function Step4Organization() {
                       clearOrganizations();
                     }}
                   >
-                    <Ionicons name="arrow-back" size={20} color={Colors[colorScheme].tint} />
+                    <MaterialIcons name="arrow-back" size={20} color={Colors[colorScheme].tint} />
                     <Text style={styles.backButtonText}>Create New Instead</Text>
                   </TouchableOpacity>
 
@@ -602,21 +593,12 @@ export default function Step4Organization() {
                       {searching ? (
                         <ActivityIndicator size="small" color="#fff" />
                       ) : (
-                        <Ionicons name="search" size={20} color="#fff" />
+                        <MaterialIcons name="search" size={20} color="#fff" />
                       )}
                     </TouchableOpacity>
                   </View>
 
-                  {/^\d{5}$/.test(searchZip) && (() => {
-                    const key = getConfig().mapsKey;
-                    if (!key) return null;
-                    const uri = `https://maps.googleapis.com/maps/api/staticmap?center=${searchZip},US&zoom=10&size=600x200&scale=2&key=${key}`;
-                    return (
-                      <View style={styles.mapContainer}>
-                        <Image source={{ uri }} style={styles.mapImage} resizeMode="cover" />
-                      </View>
-                    );
-                  })()}
+                  <ZipCodeMapPreview zipCode={searchZip} title="Search Area" subtitle="Searching for organizations near ZIP {zip}" showCircle={false} />
 
                   {nearbyOrgs.length > 0 && (
                     <ScrollView style={styles.orgList} showsVerticalScrollIndicator={false}>
@@ -629,7 +611,7 @@ export default function Step4Organization() {
                             <Text style={styles.orgCardName}>{org.name}</Text>
                             {org.location && (
                               <Text style={styles.orgCardLocation}>
-                                <Ionicons name="location-outline" size={14} /> {org.location}
+                                <MaterialIcons name="location-on" size={14} /> {org.location}
                               </Text>
                             )}
                             {(org.org_type || org.type) && (
@@ -664,7 +646,7 @@ export default function Step4Organization() {
             {duplicateOrg && (
               <View style={styles.duplicateWarningBox}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
-                  <Ionicons name="warning" size={16} color="#F59E0B" style={{ marginRight: 8 }} />
+                  <MaterialIcons name="warning" size={16} color="#F59E0B" style={{ marginRight: 8 }} />
                   <Text style={[styles.duplicateWarningText, { flex: 1 }]}>
                     An organization with a similar name already exists: <Text style={{ fontWeight: '700' }}>{duplicateOrg.name}</Text>
                     {duplicateOrg.location ? ` (${duplicateOrg.location})` : ''}
@@ -677,7 +659,7 @@ export default function Step4Organization() {
                     accessibilityRole="button"
                     accessibilityLabel={`Join ${duplicateOrg.name}`}
                   >
-                    <Ionicons name="log-in-outline" size={16} color="#fff" style={{ marginRight: 4 }} />
+                    <MaterialIcons name="login" size={16} color="#fff" style={{ marginRight: 4 }} />
                     <Text style={styles.duplicateJoinButtonText}>Join {duplicateOrg.name}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
@@ -691,16 +673,7 @@ export default function Step4Organization() {
               </View>
             )}
 
-            {selectedPlaceZip && /^\d{5}$/.test(selectedPlaceZip) && (() => {
-              const key = getConfig().mapsKey;
-              if (!key) return null;
-              const uri = `https://maps.googleapis.com/maps/api/staticmap?center=${selectedPlaceZip},US&zoom=12&size=600x200&scale=2&key=${key}`;
-              return (
-                <View style={styles.mapContainer}>
-                  <Image source={{ uri }} style={styles.mapImage} resizeMode="cover" />
-                </View>
-              );
-            })()}
+            {selectedPlaceZip ? <ZipCodeMapPreview zipCode={selectedPlaceZip} title="Organization Location" subtitle="Your organization is located near ZIP {zip}" showCircle={false} /> : null}
           </>
         )}
 
@@ -710,7 +683,7 @@ export default function Step4Organization() {
             <View style={styles.enhancedModalCard}>
               <View style={styles.enhancedModalHeader}>
                 <View style={styles.enhancedModalIconCircle}>
-                  <Ionicons name="school" size={22} color="#fff" />
+                  <MaterialIcons name="school" size={22} color="#fff" />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.enhancedModalTitle}>Request to Join</Text>
@@ -721,7 +694,7 @@ export default function Step4Organization() {
                   onPress={() => { setRequestingJoin(false); setSelectedOrg(null); setJoinMessage(''); }}
                   style={styles.closeTouch}
                 >
-                  <Ionicons name="close" size={20} color={Colors[colorScheme].mutedText} />
+                  <MaterialIcons name="close" size={20} color={Colors[colorScheme].mutedText} />
                 </TouchableOpacity>
               </View>
 
@@ -750,7 +723,7 @@ export default function Step4Organization() {
                   onPress={() => { setRequestingJoin(false); setSelectedOrg(null); setJoinMessage(''); }}
                   accessibilityRole="button"
                 >
-                  <Ionicons name="arrow-back" size={16} color={Colors[colorScheme].tint} />
+                  <MaterialIcons name="arrow-back" size={16} color={Colors[colorScheme].tint} />
                   <Text style={styles.secondaryActionText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -763,7 +736,7 @@ export default function Step4Organization() {
                     <ActivityIndicator size="small" color="#fff" />
                   ) : (
                     <>
-                      <Ionicons name="send" size={16} color="#fff" style={{ marginRight: 6 }} />
+                      <MaterialIcons name="send" size={16} color="#fff" style={{ marginRight: 6 }} />
                       <Text style={styles.primaryActionText}>Send Request</Text>
                     </>
                   )}
@@ -771,7 +744,7 @@ export default function Step4Organization() {
               </View>
 
               <View style={styles.helperInfo}>
-                <Ionicons name="information-circle-outline" size={16} color={Colors[colorScheme].mutedText} />
+                <MaterialIcons name="info-outline" size={16} color={Colors[colorScheme].mutedText} />
                 <Text style={styles.helperInfoText}>
                   The administrator will review your request. You’ll get an email when it’s approved.
                 </Text>
@@ -793,7 +766,7 @@ export default function Step4Organization() {
                   accessibilityState={{ selected: orgType === t }}
                   style={[styles.typeOption, orgType === t && styles.typeOptionActive]}
                 >
-                  <Ionicons name={orgType === t ? 'radio-button-on' : 'radio-button-off'} size={18} color={orgType === t ? (isDark ? '#3B82F6' : '#1D4ED8') : (isDark ? '#94A3B8' : '#64748B')} />
+                  <MaterialIcons name={orgType === t ? 'radio-button-on' : 'radio-button-off'} size={18} color={orgType === t ? (isDark ? '#3B82F6' : '#1D4ED8') : (isDark ? '#94A3B8' : '#64748B')} />
                   <Text style={styles.typeOptionText}>{formatOrgType(t)}</Text>
                 </Pressable>
               ))}
@@ -840,13 +813,13 @@ export default function Step4Organization() {
               />
               <View style={styles.planReminderRookieInner}>
                 <View style={styles.planReminderHeaderRow}>
-                  <View style={styles.planBadge}><Ionicons name="sparkles" size={16} color="#FFFFFF" /></View>
+                  <View style={styles.planBadge}><MaterialIcons name="auto-awesome" size={16} color="#FFFFFF" /></View>
                   <Text style={[styles.planReminderTitle, styles.rookieTitle]}>Rookie Plan Benefits</Text>
                 </View>
                 <View style={styles.benefitsList}>
-                  <View style={styles.benefitRow}><Ionicons name="sparkles" size={16} color="#FFFFFF" /><Text style={[styles.benefitItem, styles.rookieBenefitItem]}>First two teams free</Text></View>
-                  <View style={styles.benefitRow}><Ionicons name="people" size={16} color="#FFFFFF" /><Text style={[styles.benefitItem, styles.rookieBenefitItem]}>Invite athletes</Text></View>
-                  <View style={styles.benefitRow}><Ionicons name="shield-checkmark" size={16} color="#FFFFFF" /><Text style={[styles.benefitItem, styles.rookieBenefitItem]}>One administrator per team</Text></View>
+                  <View style={styles.benefitRow}><MaterialIcons name="auto-awesome" size={16} color="#FFFFFF" /><Text style={[styles.benefitItem, styles.rookieBenefitItem]}>First two teams free</Text></View>
+                  <View style={styles.benefitRow}><MaterialIcons name="group" size={16} color="#FFFFFF" /><Text style={[styles.benefitItem, styles.rookieBenefitItem]}>Invite athletes</Text></View>
+                  <View style={styles.benefitRow}><MaterialIcons name="verified-user" size={16} color="#FFFFFF" /><Text style={[styles.benefitItem, styles.rookieBenefitItem]}>One administrator per team</Text></View>
                 </View>
               </View>
             </LinearGradient>
@@ -858,16 +831,16 @@ export default function Step4Organization() {
               <View style={styles.benefitsList}>
                 {(ob.plan === 'veteran') && (
                   <>
-                    <View style={styles.benefitRow}><Ionicons name="cash" size={14} color="#C0C0C0" /><Text style={styles.benefitItem}>$1.50/month per team</Text></View>
-                    <View style={styles.benefitRow}><Ionicons name="people-circle" size={14} color="#C0C0C0" /><Text style={styles.benefitItem}>Up to 12 authorized users</Text></View>
-                    <View style={styles.benefitRow}><Ionicons name="settings" size={14} color="#C0C0C0" /><Text style={styles.benefitItem}>Advanced features</Text></View>
+                    <View style={styles.benefitRow}><MaterialIcons name="payments" size={14} color="#C0C0C0" /><Text style={styles.benefitItem}>$1.50/month per team</Text></View>
+                    <View style={styles.benefitRow}><MaterialIcons name="group" size={14} color="#C0C0C0" /><Text style={styles.benefitItem}>Up to 12 authorized users</Text></View>
+                    <View style={styles.benefitRow}><MaterialIcons name="settings" size={14} color="#C0C0C0" /><Text style={styles.benefitItem}>Advanced features</Text></View>
                   </>
                 )}
                 {(ob.plan === 'legend') && (
                   <>
-                    <View style={styles.benefitRow}><Ionicons name="trophy" size={14} color="#FFD700" /><Text style={styles.benefitItem}>$20/year unlimited teams</Text></View>
-                    <View style={styles.benefitRow}><Ionicons name="infinite" size={14} color="#FFD700" /><Text style={styles.benefitItem}>Unlimited authorized users</Text></View>
-                    <View style={styles.benefitRow}><Ionicons name="star" size={14} color="#FFD700" /><Text style={styles.benefitItem}>Premium features</Text></View>
+                    <View style={styles.benefitRow}><MaterialIcons name="emoji-events" size={14} color="#FFD700" /><Text style={styles.benefitItem}>$20/year unlimited teams</Text></View>
+                    <View style={styles.benefitRow}><MaterialIcons name="all-inclusive" size={14} color="#FFD700" /><Text style={styles.benefitItem}>Unlimited authorized users</Text></View>
+                    <View style={styles.benefitRow}><MaterialIcons name="star" size={14} color="#FFD700" /><Text style={styles.benefitItem}>Premium features</Text></View>
                   </>
                 )}
               </View>
@@ -1609,17 +1582,5 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     fontSize: 13,
     color: colorScheme === 'dark' ? '#94A3B8' : '#64748B',
     textDecorationLine: 'underline',
-  },
-  mapContainer: {
-    marginTop: 8,
-    marginBottom: 12,
-    borderRadius: 12,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: Colors[colorScheme].border,
-  },
-  mapImage: {
-    width: '100%',
-    height: 120,
   },
 });

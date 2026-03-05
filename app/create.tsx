@@ -1,6 +1,6 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -60,7 +60,7 @@ export default function CreateScreen() {
       <View style={styles.overlay}>
         <Stack.Screen options={{ presentation: 'modal', title: 'Create' }} />
         <View style={[styles.sheet, { backgroundColor: Colors[colorScheme].background, alignItems: 'center', paddingVertical: 32 }]}>
-          <Ionicons name="alert-circle-outline" size={40} color={Colors[colorScheme].mutedText} />
+          <MaterialIcons name="error-outline" size={40} color={Colors[colorScheme].mutedText} />
           <Text style={{ color: Colors[colorScheme].mutedText, marginTop: 8, fontSize: 15 }}>{error}</Text>
           <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border, marginTop: 16, width: '100%' }]} onPress={safeBack}>
             <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>Close</Text>

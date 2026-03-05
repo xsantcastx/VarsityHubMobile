@@ -1,10 +1,11 @@
 import { AppLinks } from '@/utils/links';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, AppState, type AppStateStatus, FlatList, Image, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, AppState, type AppStateStatus, FlatList, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Message, User } from '@/api/entities';
@@ -323,13 +324,14 @@ export default function MessagesScreen() {
         onPress={() => openThread(item)}
       >
         <View style={styles.avatarContainer}>
+          {/* Always render letter fallback as base layer */}
+          <View style={[styles.avatarPlaceholder, { backgroundColor: Colors[colorScheme].tint }]}>
+            <Text style={styles.avatarText}>{name.charAt(0).toUpperCase()}</Text>
+          </View>
+          {/* Overlay actual image — if it fails to load, letter fallback stays visible */}
           {avatar ? (
-            <Image source={{ uri: avatar }} style={styles.avatar} />
-          ) : (
-            <View style={[styles.avatarPlaceholder, { backgroundColor: Colors[colorScheme].tint }]}>
-              <Text style={styles.avatarText}>{name.charAt(0).toUpperCase()}</Text>
-            </View>
-          )}
+            <Image source={{ uri: avatar }} style={[styles.avatar, styles.avatarOverlay]} contentFit="cover" />
+          ) : null}
           {hasUnread && <View style={styles.unreadDot} />}
         </View>
 
@@ -381,13 +383,14 @@ export default function MessagesScreen() {
         style={[styles.userSearchRow, { borderBottomColor: Colors[colorScheme].border }]}
         onPress={() => startConversation(item)}
       >
-        {avatar ? (
-          <Image source={{ uri: avatar }} style={styles.avatar} />
-        ) : (
+        <View style={styles.avatarContainer}>
           <View style={[styles.avatarPlaceholder, { backgroundColor: Colors[colorScheme].tint }]}>
             <Text style={styles.avatarText}>{name.charAt(0).toUpperCase()}</Text>
           </View>
-        )}
+          {avatar ? (
+            <Image source={{ uri: avatar }} style={[styles.avatar, styles.avatarOverlay]} contentFit="cover" />
+          ) : null}
+        </View>
         <View style={{ flex: 1 }}>
           <Text style={[styles.userSearchName, { color: Colors[colorScheme].text }]}>{name}</Text>
           {item.email && (
@@ -396,7 +399,7 @@ export default function MessagesScreen() {
             </Text>
           )}
         </View>
-        <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].tabIconDefault} />
+        <MaterialIcons name="chevron-right" size={20} color={Colors[colorScheme].tabIconDefault} />
       </Pressable>
     );
   };
@@ -411,18 +414,18 @@ export default function MessagesScreen() {
         style={[styles.headerGradient, { paddingTop: insets.top + 12 }]}
       >
         <View style={styles.headerRow}>
-          <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={styles.backButton} accessibilityRole="button" accessibilityLabel="Go back">
-            <Ionicons name="chevron-back" size={24} color={Colors[colorScheme].text} />
+          <Pressable onPress={() => router.back()} style={styles.backButton} accessibilityRole="button" accessibilityLabel="Go back">
+            <MaterialIcons name="chevron-left" size={24} color={Colors[colorScheme].text} />
           </Pressable>
           <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Messages</Text>
           <Pressable onPress={() => setSafetyOpen(true)} style={styles.iconButton} accessibilityLabel="Safety">
-            <Ionicons name="shield-checkmark-outline" size={24} color={Colors[colorScheme].text} />
+            <MaterialIcons name="verified-user" size={24} color={Colors[colorScheme].text} />
           </Pressable>
         </View>
 
         {/* Search bar */}
         <View style={[styles.searchContainer, { backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
-          <Ionicons name="search" size={20} color={Colors[colorScheme].tabIconDefault} />
+          <MaterialIcons name="search" size={20} color={Colors[colorScheme].tabIconDefault} />
           <TextInput
             placeholder="Search conversations..."
             placeholderTextColor={Colors[colorScheme].tabIconDefault}
@@ -432,7 +435,7 @@ export default function MessagesScreen() {
           />
           {query.length > 0 && (
             <Pressable onPress={() => setQuery('')}>
-              <Ionicons name="close-circle" size={20} color={Colors[colorScheme].tabIconDefault} />
+              <MaterialIcons name="cancel" size={20} color={Colors[colorScheme].tabIconDefault} />
             </Pressable>
           )}
         </View>
@@ -444,7 +447,7 @@ export default function MessagesScreen() {
 
         {!loading && filtered.length === 0 && !error && (
           <View style={styles.emptyState}>
-            <Ionicons name="chatbubbles-outline" size={64} color={Colors[colorScheme].tabIconDefault} />
+            <MaterialIcons name="forum" size={64} color={Colors[colorScheme].tabIconDefault} />
             <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text }]}>
               {query ? 'No conversations found' : 'No conversations yet'}
             </Text>
@@ -478,7 +481,7 @@ export default function MessagesScreen() {
           style={[styles.fab, { backgroundColor: Colors[colorScheme].tint, bottom: insets.bottom + 16 }]}
           onPress={() => setComposeOpen(true)}
         >
-          <Ionicons name="create-outline" size={24} color="white" />
+          <MaterialIcons name="edit" size={24} color="white" />
         </Pressable>
       )}
 
@@ -488,14 +491,14 @@ export default function MessagesScreen() {
           <View style={[styles.composeModal, { backgroundColor: Colors[colorScheme].background, paddingTop: insets.top + 16 }]}>
             <View style={styles.composeHeader}>
               <Pressable onPress={() => setComposeOpen(false)} style={styles.modalCloseButton}>
-                <Ionicons name="close" size={28} color={Colors[colorScheme].text} />
+                <MaterialIcons name="close" size={28} color={Colors[colorScheme].text} />
               </Pressable>
               <Text style={[styles.composeTitle, { color: Colors[colorScheme].text }]}>New Message</Text>
               <View style={{ width: 28 }} />
             </View>
 
             <View style={[styles.searchContainer, { backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)', marginHorizontal: 16, marginBottom: 8 }]}>
-              <Ionicons name="search" size={20} color={Colors[colorScheme].tabIconDefault} />
+              <MaterialIcons name="search" size={20} color={Colors[colorScheme].tabIconDefault} />
               <TextInput
                 placeholder="Search users by username..."
                 placeholderTextColor={Colors[colorScheme].tabIconDefault}
@@ -506,7 +509,7 @@ export default function MessagesScreen() {
               />
               {searchUserQuery.length > 0 && (
                 <Pressable onPress={() => setSearchUserQuery('')}>
-                  <Ionicons name="close-circle" size={20} color={Colors[colorScheme].tabIconDefault} />
+                  <MaterialIcons name="cancel" size={20} color={Colors[colorScheme].tabIconDefault} />
                 </Pressable>
               )}
             </View>
@@ -519,7 +522,7 @@ export default function MessagesScreen() {
 
             {!searchingUsers && searchUserQuery.length >= 2 && searchResults.length === 0 && (
               <View style={styles.emptyState}>
-                <Ionicons name="people-outline" size={48} color={Colors[colorScheme].tabIconDefault} />
+                <MaterialIcons name="group" size={48} color={Colors[colorScheme].tabIconDefault} />
                 <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text, fontSize: 16 }]}>
                   No users found
                 </Text>
@@ -547,7 +550,7 @@ export default function MessagesScreen() {
 
             {searchUserQuery.length < 2 && suggested.length === 0 && (
               <View style={styles.emptyState}>
-                <Ionicons name="mail-outline" size={48} color={Colors[colorScheme].tabIconDefault} />
+                <MaterialIcons name="mail-outline" size={48} color={Colors[colorScheme].tabIconDefault} />
                 <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text, fontSize: 16 }]}>
                   Search for someone
                 </Text>
@@ -566,19 +569,19 @@ export default function MessagesScreen() {
           <Pressable style={[styles.sheet, { backgroundColor: Colors[colorScheme].background }]} onPress={() => {}}>
             <Text style={[styles.sheetTitle, { color: Colors[colorScheme].text }]}>Safety</Text>
             <Pressable style={styles.sheetRow} onPress={() => { setSafetyOpen(false); void void void router.push('/report-abuse'); }}>
-              <Ionicons name="flag-outline" size={18} color={Colors[colorScheme].text} />
+              <MaterialIcons name="flag" size={18} color={Colors[colorScheme].text} />
               <Text style={[styles.sheetText, { color: Colors[colorScheme].text }]}>Report a message</Text>
             </Pressable>
             <Pressable style={styles.sheetRow} onPress={() => { setSafetyOpen(false); void void void router.push('/blocked-users'); }}>
-              <Ionicons name="person-remove-outline" size={18} color={Colors[colorScheme].text} />
+              <MaterialIcons name="person-remove" size={18} color={Colors[colorScheme].text} />
               <Text style={[styles.sheetText, { color: Colors[colorScheme].text }]}>Blocked users</Text>
             </Pressable>
             <Pressable style={styles.sheetRow} onPress={() => { setSafetyOpen(false); void void void router.push('/dm-restrictions'); }}>
-              <Ionicons name="options-outline" size={18} color={Colors[colorScheme].text} />
+              <MaterialIcons name="tune" size={18} color={Colors[colorScheme].text} />
               <Text style={[styles.sheetText, { color: Colors[colorScheme].text }]}>DM restrictions</Text>
             </Pressable>
             <Pressable style={styles.sheetRow} onPress={() => { setSafetyOpen(false); void void void router.push('/settings'); }}>
-              <Ionicons name="settings-outline" size={18} color={Colors[colorScheme].text} />
+              <MaterialIcons name="settings" size={18} color={Colors[colorScheme].text} />
               <Text style={[styles.sheetText, { color: Colors[colorScheme].text }]}>Privacy & settings</Text>
             </Pressable>
           </Pressable>
@@ -661,6 +664,11 @@ const styles = StyleSheet.create({
     borderRadius: 26,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  avatarOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
   },
   avatarText: {
     color: 'white',

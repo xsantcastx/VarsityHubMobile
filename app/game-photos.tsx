@@ -1,6 +1,6 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
@@ -39,7 +39,7 @@ export default function GamePhotosScreen() {
     <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
       <Stack.Screen options={{ title: 'Photos', headerShown: true, headerLeft: () => (
             <Pressable onPress={() => router.back()} style={{ paddingRight: 8 }}>
-              <Ionicons name="chevron-back" size={28} color="#007AFF" />
+              <MaterialIcons name="chevron-left" size={28} color="#007AFF" />
             </Pressable>
           ) }} />
       {loading && <ActivityIndicator color={Colors[colorScheme].tint} />}

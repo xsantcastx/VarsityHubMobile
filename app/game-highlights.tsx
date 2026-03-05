@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -40,8 +40,8 @@ export default function GameHighlightsScreen() {
       <Stack.Screen options={{ 
         title: 'Highlights',
         headerLeft: () => (
-          <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={{ paddingLeft: 8 }}>
-            <Ionicons name="chevron-back" size={24} color={theme.tint} />
+          <Pressable onPress={() => router.back()} style={{ paddingLeft: 8 }}>
+            <MaterialIcons name="chevron-left" size={24} color={theme.tint} />
           </Pressable>
         ),
       }} />
@@ -57,7 +57,7 @@ export default function GameHighlightsScreen() {
             accessibilityLabel="View highlight"
           >
             <View style={styles.cellVideo}>
-              <Ionicons name="play" size={22} color="#fff" />
+              <MaterialIcons name="play-arrow" size={22} color="#fff" />
             </View>
           </Pressable>
         )}

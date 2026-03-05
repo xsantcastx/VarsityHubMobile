@@ -1,7 +1,7 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useEffect, useState } from 'react';
@@ -64,8 +64,8 @@ export default function AdminUserDetailScreen() {
       <Stack.Screen options={{ 
         title: 'Admin · User Detail',
         headerLeft: () => (
-          <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={{ paddingLeft: 8 }}>
-            <Ionicons name="chevron-back" size={24} color="#3B82F6" />
+          <Pressable onPress={() => router.back()} style={{ paddingLeft: 8 }}>
+            <MaterialIcons name="chevron-left" size={24} color="#3B82F6" />
           </Pressable>
         ),
       }} />

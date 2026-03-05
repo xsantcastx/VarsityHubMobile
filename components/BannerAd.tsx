@@ -6,7 +6,7 @@
 
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
 import * as Linking from 'expo-linking';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -137,8 +137,8 @@ export function BannerAd({
         ]}
       >
         <View style={styles.placeholder}>
-          <Ionicons
-            name="image-outline"
+          <MaterialIcons
+            name="image"
             size={48}
             color={Colors[colorScheme].mutedText}
           />

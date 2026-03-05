@@ -1,7 +1,7 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useTeamOptions } from '@/hooks/useTeamOptions';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
@@ -159,7 +159,7 @@ export default function TeamSearchInput({
               </View>
             ) : (
               <View style={[styles.teamLogo, { backgroundColor: Colors[colorScheme].card }]}>
-                <Ionicons name="shield" size={16} color={Colors[colorScheme].mutedText} />
+                <MaterialIcons name="shield" size={16} color={Colors[colorScheme].mutedText} />
               </View>
             )}
             <View style={styles.teamInfo}>
@@ -173,7 +173,7 @@ export default function TeamSearchInput({
               )}
             </View>
           </View>
-          <Ionicons name="chevron-forward" size={16} color={Colors[colorScheme].mutedText} />
+          <MaterialIcons name="chevron-right" size={16} color={Colors[colorScheme].mutedText} />
         </View>
       </Pressable>
     );
@@ -208,10 +208,10 @@ export default function TeamSearchInput({
         </Text>
         {value && !disabled ? (
           <Pressable onPress={handleClear} hitSlop={8}>
-            <Ionicons name="close-circle" size={20} color={Colors[colorScheme].mutedText} />
+            <MaterialIcons name="cancel" size={20} color={Colors[colorScheme].mutedText} />
           </Pressable>
         ) : (
-          <Ionicons name="search" size={20} color={Colors[colorScheme].mutedText} />
+          <MaterialIcons name="search" size={20} color={Colors[colorScheme].mutedText} />
         )}
       </Pressable>
 
@@ -223,7 +223,7 @@ export default function TeamSearchInput({
       {/* Deep Link to Team Page */}
       {showDeepLink && selectedTeam && selectedTeam.id !== 'manual' && (
         <Pressable onPress={handleViewTeamPage} style={styles.deepLinkContainer}>
-          <Ionicons name="open-outline" size={14} color={Colors[colorScheme].tint} />
+          <MaterialIcons name="open-in-new" size={14} color={Colors[colorScheme].tint} />
           <Text style={[styles.deepLinkText, { color: Colors[colorScheme].tint }]}>
             View Team Page
           </Text>
@@ -247,7 +247,7 @@ export default function TeamSearchInput({
               {label}
             </Text>
             <Pressable onPress={() => setShowPicker(false)} hitSlop={8}>
-              <Ionicons name="close" size={24} color={Colors[colorScheme].text} />
+              <MaterialIcons name="close" size={24} color={Colors[colorScheme].text} />
             </Pressable>
           </View>
 
@@ -257,7 +257,7 @@ export default function TeamSearchInput({
               backgroundColor: Colors[colorScheme].card,
               borderColor: Colors[colorScheme].border 
             }]}>
-              <Ionicons name="search" size={20} color={Colors[colorScheme].mutedText} />
+              <MaterialIcons name="search" size={20} color={Colors[colorScheme].mutedText} />
               <TextInput
                 style={[styles.searchInput, { color: Colors[colorScheme].text }]}
                 placeholder={placeholder}
@@ -270,7 +270,7 @@ export default function TeamSearchInput({
               />
               {searchQuery.length > 0 && (
                 <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
-                  <Ionicons name="close-circle" size={20} color={Colors[colorScheme].mutedText} />
+                  <MaterialIcons name="cancel" size={20} color={Colors[colorScheme].mutedText} />
                 </Pressable>
               )}
             </View>
@@ -282,7 +282,7 @@ export default function TeamSearchInput({
               style={[styles.manualEntryButton, { borderColor: Colors[colorScheme].border }]}
               onPress={handleManualEntry}
             >
-              <Ionicons name="add-circle-outline" size={20} color={Colors[colorScheme].tint} />
+              <MaterialIcons name="add-circle-outline" size={20} color={Colors[colorScheme].tint} />
               <Text style={[styles.manualEntryText, { color: Colors[colorScheme].tint }]}>
                 Use "{searchQuery}" (not in directory)
               </Text>
@@ -305,7 +305,7 @@ export default function TeamSearchInput({
               contentContainerStyle={styles.listContent}
               ListEmptyComponent={
                 <View style={styles.emptyContainer}>
-                  <Ionicons name="search-outline" size={48} color={Colors[colorScheme].mutedText} />
+                  <MaterialIcons name="search" size={48} color={Colors[colorScheme].mutedText} />
                   <Text style={[styles.emptyText, { color: Colors[colorScheme].mutedText }]}>
                     {searchQuery ? 'No teams found' : 'Start typing to search teams'}
                   </Text>

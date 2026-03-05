@@ -1,6 +1,6 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -245,7 +245,7 @@ export default function CreateFanEventScreen() {
         isCoach
           ? 'Your event has been submitted for review.'
           : 'Your event idea has been submitted! A coach or admin will review it and you\'ll be notified.',
-        [{ text: 'OK', onPress: () => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any) }]
+        [{ text: 'OK', onPress: () => router.back() }]
       );
     } catch (e: any) {
       const errorCode = e?.code || e?.data?.code;
@@ -412,7 +412,7 @@ export default function CreateFanEventScreen() {
               <Text style={[{ color: selectedTeam ? Colors[colorScheme].text : Colors[colorScheme].mutedText }]}>
                 {selectedTeam || 'Select a team'}
               </Text>
-              <Ionicons name="chevron-down" size={20} color={Colors[colorScheme].mutedText} />
+              <MaterialIcons name="expand-more" size={20} color={Colors[colorScheme].mutedText} />
             </Pressable>
             {errors.selectedTeam && <Text style={styles.errorText}>{errors.selectedTeam}</Text>}
           </View>
@@ -456,7 +456,7 @@ export default function CreateFanEventScreen() {
                 ]}
                 onPress={() => setGameType('home')}
               >
-                <Ionicons name="home" size={20} color={gameType === 'home' ? '#fff' : Colors[colorScheme].text} />
+                <MaterialIcons name="home" size={20} color={gameType === 'home' ? '#fff' : Colors[colorScheme].text} />
                 <Text style={[
                   styles.gameTypeText,
                   { color: gameType === 'home' ? '#fff' : Colors[colorScheme].text }
@@ -475,7 +475,7 @@ export default function CreateFanEventScreen() {
                 ]}
                 onPress={() => setGameType('away')}
               >
-                <Ionicons name="airplane" size={20} color={gameType === 'away' ? '#fff' : Colors[colorScheme].text} />
+                <MaterialIcons name="flight" size={20} color={gameType === 'away' ? '#fff' : Colors[colorScheme].text} />
                 <Text style={[
                   styles.gameTypeText,
                   { color: gameType === 'away' ? '#fff' : Colors[colorScheme].text }
@@ -525,7 +525,7 @@ export default function CreateFanEventScreen() {
               ]}
               onPress={() => setShowDatePicker(true)}
             >
-              <Ionicons name="calendar" size={20} color={Colors[colorScheme].mutedText} />
+              <MaterialIcons name="event" size={20} color={Colors[colorScheme].mutedText} />
               <Text style={[styles.dateTimeText, { color: Colors[colorScheme].text }]}>
                 {date.toLocaleDateString()}
               </Text>
@@ -541,7 +541,7 @@ export default function CreateFanEventScreen() {
               ]}
               onPress={() => setShowTimePicker(true)}
             >
-              <Ionicons name="time" size={20} color={Colors[colorScheme].mutedText} />
+              <MaterialIcons name="access-time" size={20} color={Colors[colorScheme].mutedText} />
               <Text style={[styles.dateTimeText, { color: Colors[colorScheme].text }]}>
                 {date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </Text>
@@ -604,7 +604,7 @@ export default function CreateFanEventScreen() {
                     ]}
                     onPress={() => handleSelectLocation(suggestion)}
                   >
-                    <Ionicons name="location" size={16} color={Colors[colorScheme].tint} style={{ marginRight: 8 }} />
+                    <MaterialIcons name="location-on" size={16} color={Colors[colorScheme].tint} style={{ marginRight: 8 }} />
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.locationSuggestionMain, { color: Colors[colorScheme].text }]}>
                         {suggestion.structured_formatting?.main_text || suggestion.description}
@@ -630,7 +630,7 @@ export default function CreateFanEventScreen() {
 
         {/* Info Box */}
         <View style={[styles.infoBox, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
-          <Ionicons name="information-circle" size={20} color={Colors[colorScheme].tint} />
+          <MaterialIcons name="info" size={20} color={Colors[colorScheme].tint} />
           <Text style={[styles.infoText, { color: Colors[colorScheme].mutedText }]}>
             {isCoach
               ? 'Your event will be reviewed before appearing publicly.'
@@ -707,7 +707,7 @@ export default function CreateFanEventScreen() {
                     </Text>
                   </View>
                   {selectedTeam === team.name && (
-                    <Ionicons name="checkmark" size={20} color={Colors[colorScheme].tint} />
+                    <MaterialIcons name="check" size={20} color={Colors[colorScheme].tint} />
                   )}
                 </Pressable>
               ))}

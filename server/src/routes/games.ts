@@ -7,6 +7,8 @@ import { requireAuth } from '../middleware/requireAuth.js';
 import { makeCreateStoryHandler, makeListMediaHandler, serializeMedia } from './gameStories.js';
 import { debugLog } from '../lib/debugLog.js';
 import { gameCreationLimiter, voteLimiter } from '../middleware/rateLimiters.js';
+import { detectMediaType, getVideoPreviewUrl } from '../lib/mediaUtils.js';
+import { getExcludedPrivateAuthorIds } from '../lib/privacyUtils.js';
 
 export const gamesRouter = Router();
 
@@ -35,6 +37,8 @@ const generateMapsLink = (location?: string | null, lat?: number | null, lng?: n
 const serializePost = (post: any) => ({
   ...post,
   created_at: post.created_at instanceof Date ? post.created_at.toISOString() : post.created_at,
+  media_type: detectMediaType(post.media_url),
+  preview_url: getVideoPreviewUrl(post.media_url),
   author: post.author
     ? {
         id: post.author.id,
@@ -687,11 +691,13 @@ gamesRouter.delete('/:id', requireAuth as any, async (req: AuthedRequest, res) =
 });
 
 // Posts tied to a game
-gamesRouter.get('/:id/posts', async (req, res) => {
+gamesRouter.get('/:id/posts', async (req: AuthedRequest, res) => {
   const id = String(req.params.id);
   const limit = Math.min(parseInt(String(req.query.limit || '50'), 10) || 50, 100);
+  // Privacy: exclude posts from private-profile authors the viewer doesn't follow
+  const excludedIds = await getExcludedPrivateAuthorIds(req.user?.id ?? null);
   const posts = await prisma.post.findMany({
-    where: { game_id: id, deleted_at: null },
+    where: { game_id: id, deleted_at: null, ...(excludedIds.length ? { author_id: { notIn: excludedIds } } : {}) },
     orderBy: [{ upvotes_count: 'desc' }, { created_at: 'desc' }],
     take: limit,
     include: {

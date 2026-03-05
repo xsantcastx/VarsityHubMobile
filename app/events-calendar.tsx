@@ -1,7 +1,7 @@
 import { Game, User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { eachDayOfInterval, endOfMonth, format, isFuture, isPast, isSameDay, isToday, parseISO, startOfMonth } from 'date-fns';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -136,7 +136,7 @@ export default function EventsCalendarScreen() {
       <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
         <Stack.Screen options={{ title: 'Team Calendar', headerShown: true, headerLeft: () => (
             <Pressable onPress={() => router.back()} style={{ paddingRight: 8 }}>
-              <Ionicons name="chevron-back" size={28} color="#007AFF" />
+              <MaterialIcons name="chevron-left" size={28} color="#007AFF" />
             </Pressable>
           ) }} />
         <View style={styles.loadingContainer}>
@@ -154,11 +154,11 @@ export default function EventsCalendarScreen() {
       <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
         <Stack.Screen options={{ title: 'Team Calendar', headerShown: true, headerLeft: () => (
             <Pressable onPress={() => router.back()} style={{ paddingRight: 8 }}>
-              <Ionicons name="chevron-back" size={28} color="#007AFF" />
+              <MaterialIcons name="chevron-left" size={28} color="#007AFF" />
             </Pressable>
           ) }} />
         <View style={styles.loadingContainer}>
-          <Ionicons name="cloud-offline-outline" size={48} color={Colors[colorScheme].mutedText} />
+          <MaterialIcons name="cloud-off" size={48} color={Colors[colorScheme].mutedText} />
           <Text style={[styles.emptyStateText, { color: Colors[colorScheme].text, marginTop: 12 }]}>{error}</Text>
         </View>
       </SafeAreaView>
@@ -173,7 +173,7 @@ export default function EventsCalendarScreen() {
         {/* Info Banner */}
         {followedTeams.length === 0 ? (
           <View style={[styles.infoBanner, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
-            <Ionicons name="information-circle-outline" size={24} color={Colors[colorScheme].tint} />
+            <MaterialIcons name="info-outline" size={24} color={Colors[colorScheme].tint} />
             <View style={{ flex: 1 }}>
               <Text style={[styles.infoTitle, { color: Colors[colorScheme].text }]}>No Teams Followed</Text>
               <Text style={[styles.infoText, { color: Colors[colorScheme].mutedText }]}>
@@ -183,7 +183,7 @@ export default function EventsCalendarScreen() {
           </View>
         ) : (
           <View style={[styles.infoBanner, { backgroundColor: Colors[colorScheme].surface }]}>
-            <Ionicons name="calendar" size={20} color={Colors[colorScheme].tint} />
+            <MaterialIcons name="event" size={20} color={Colors[colorScheme].tint} />
             <Text style={[styles.infoText, { color: Colors[colorScheme].mutedText }]}>
               Showing events for {followedTeams.length} followed {followedTeams.length === 1 ? 'team' : 'teams'}
             </Text>
@@ -193,7 +193,7 @@ export default function EventsCalendarScreen() {
         {/* No events state when teams are followed but no games */}
         {followedTeams.length > 0 && games.length === 0 && (
           <View style={[styles.emptyState, { backgroundColor: Colors[colorScheme].surface, marginBottom: 16 }]}>
-            <Ionicons name="calendar-outline" size={48} color={Colors[colorScheme].mutedText} />
+            <MaterialIcons name="event" size={48} color={Colors[colorScheme].mutedText} />
             <Text style={[styles.emptyStateText, { color: Colors[colorScheme].text }]}>No events found</Text>
             <Text style={[styles.emptyStateSubtext, { color: Colors[colorScheme].mutedText }]}>
               Your followed teams have no scheduled events yet
@@ -204,13 +204,13 @@ export default function EventsCalendarScreen() {
         {/* Month Navigation */}
         <View style={[styles.monthHeader, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
           <Pressable onPress={handlePreviousMonth} style={styles.monthButton} accessibilityLabel="Previous month">
-            <Ionicons name="chevron-back" size={24} color={Colors[colorScheme].text} />
+            <MaterialIcons name="chevron-left" size={24} color={Colors[colorScheme].text} />
           </Pressable>
           <Text style={[styles.monthTitle, { color: Colors[colorScheme].text }]}>
             {format(currentMonth, 'MMMM yyyy')}
           </Text>
           <Pressable onPress={handleNextMonth} style={styles.monthButton} accessibilityLabel="Next month">
-            <Ionicons name="chevron-forward" size={24} color={Colors[colorScheme].text} />
+            <MaterialIcons name="chevron-right" size={24} color={Colors[colorScheme].text} />
           </Pressable>
         </View>
 
@@ -290,7 +290,7 @@ export default function EventsCalendarScreen() {
 
             {selectedDateGames.length === 0 ? (
               <View style={[styles.emptyState, { backgroundColor: Colors[colorScheme].surface }]}>
-                <Ionicons name="calendar-outline" size={48} color={Colors[colorScheme].mutedText} />
+                <MaterialIcons name="event" size={48} color={Colors[colorScheme].mutedText} />
                 <Text style={[styles.emptyStateText, { color: Colors[colorScheme].mutedText }]}>
                   No events on this day
                 </Text>
@@ -329,7 +329,7 @@ export default function EventsCalendarScreen() {
                       </Text>
                       {game.location && (
                         <View style={styles.locationRow}>
-                          <Ionicons name="location" size={14} color={Colors[colorScheme].mutedText} />
+                          <MaterialIcons name="location-on" size={14} color={Colors[colorScheme].mutedText} />
                           <Text style={[styles.locationText, { color: Colors[colorScheme].mutedText }]} numberOfLines={1}>
                             {game.location}
                           </Text>
@@ -337,7 +337,7 @@ export default function EventsCalendarScreen() {
                       )}
                     </View>
 
-                    <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
+                    <MaterialIcons name="chevron-right" size={20} color={Colors[colorScheme].mutedText} />
                   </Pressable>
                 );
               })
@@ -353,7 +353,7 @@ export default function EventsCalendarScreen() {
 
           {games.filter(g => g.date && isFuture(parseISO(g.date))).length === 0 ? (
             <View style={[styles.emptyState, { backgroundColor: Colors[colorScheme].surface }]}>
-              <Ionicons name="calendar-outline" size={48} color={Colors[colorScheme].mutedText} />
+              <MaterialIcons name="event" size={48} color={Colors[colorScheme].mutedText} />
               <Text style={[styles.emptyStateText, { color: Colors[colorScheme].mutedText }]}>
                 No upcoming events
               </Text>
@@ -387,14 +387,14 @@ export default function EventsCalendarScreen() {
                         {game.title}
                       </Text>
                       <View style={styles.upcomingGameMeta}>
-                        <Ionicons name="time-outline" size={14} color={Colors[colorScheme].mutedText} />
+                        <MaterialIcons name="access-time" size={14} color={Colors[colorScheme].mutedText} />
                         <Text style={[styles.upcomingGameTime, { color: Colors[colorScheme].mutedText }]}>
                           {dateStr} at {timeStr}
                         </Text>
                       </View>
                       {game.location && (
                         <View style={styles.upcomingGameMeta}>
-                          <Ionicons name="location-outline" size={14} color={Colors[colorScheme].mutedText} />
+                          <MaterialIcons name="location-on" size={14} color={Colors[colorScheme].mutedText} />
                           <Text style={[styles.upcomingGameLocation, { color: Colors[colorScheme].mutedText }]} numberOfLines={1}>
                             {game.location}
                           </Text>
@@ -402,7 +402,7 @@ export default function EventsCalendarScreen() {
                       )}
                     </View>
 
-                    <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
+                    <MaterialIcons name="chevron-right" size={20} color={Colors[colorScheme].mutedText} />
                   </Pressable>
                 );
               })

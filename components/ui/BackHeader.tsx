@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -28,10 +28,8 @@ export function BackHeader({
   const handleBack = () => {
     if (onBack) {
       onBack();
-    } else if (router.canGoBack()) {
-      router.back();
     } else {
-      router.push('/(tabs)' as any);
+      router.back();
     }
   };
 
@@ -55,7 +53,7 @@ export function BackHeader({
           accessibilityLabel="Go back"
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
         >
-          <Ionicons name="chevron-back" size={24} color={textColor} />
+          <MaterialIcons name="chevron-left" size={24} color={textColor} />
         </Pressable>
         
         {title && (

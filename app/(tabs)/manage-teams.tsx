@@ -1,6 +1,6 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
@@ -214,9 +214,9 @@ export default function ManageTeamsSimpleScreen() {
       <View style={[styles.header, { backgroundColor: Colors[colorScheme].background }]}>
         <Pressable 
           style={styles.backButton} 
-          onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)}
+          onPress={() => router.back()}
         >
-          <Ionicons name="arrow-back" size={28} color={Colors[colorScheme].text} />
+          <MaterialIcons name="arrow-back" size={28} color={Colors[colorScheme].text} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>My Teams</Text>
         <View style={{ width: 40 }} />
@@ -228,7 +228,7 @@ export default function ManageTeamsSimpleScreen() {
           style={[styles.inlineActionButton, { backgroundColor: Colors[colorScheme].tint }]}
           onPress={() => void router.push('/create-team')}
         >
-          <Ionicons name="add-circle-outline" size={24} color="#fff" />
+          <MaterialIcons name="add-circle-outline" size={24} color="#fff" />
           <Text style={styles.inlineActionText}>Create Team</Text>
         </Pressable>
         
@@ -239,7 +239,7 @@ export default function ManageTeamsSimpleScreen() {
             }
           }}
         >
-          <Ionicons name="basketball-outline" size={24} color="#fff" />
+          <MaterialIcons name="sports-basketball" size={24} color="#fff" />
           <Text style={styles.inlineActionText}>Add Event</Text>
         </Pressable>
       </View>
@@ -271,7 +271,7 @@ export default function ManageTeamsSimpleScreen() {
               style={styles.leagueGradient}
             >
               <View style={styles.leagueHeader}>
-                <Ionicons name="trophy" size={40} color="#FFF" />
+                <MaterialIcons name="emoji-events" size={40} color="#FFF" />
                 <View style={styles.leagueHeaderText}>
                   <Text style={styles.leagueLabel}>MY LEAGUE</Text>
                   <Text style={styles.leagueName}>{organization.name}</Text>
@@ -293,7 +293,7 @@ export default function ManageTeamsSimpleScreen() {
 
               <View style={styles.leagueAction}>
                 <Text style={styles.leagueActionText}>View League Page</Text>
-                <Ionicons name="arrow-forward" size={24} color="#FFF" />
+                <MaterialIcons name="arrow-forward" size={24} color="#FFF" />
               </View>
             </LinearGradient>
           </Pressable>
@@ -310,7 +310,7 @@ export default function ManageTeamsSimpleScreen() {
         {/* Error State */}
         {error && !loading && (
           <View style={styles.errorCard}>
-            <Ionicons name="alert-circle" size={48} color="#EF4444" />
+            <MaterialIcons name="error" size={48} color="#EF4444" />
             <Text style={styles.errorText}>{error}</Text>
             <Pressable style={styles.retryButton} onPress={loadTeams}>
               <Text style={styles.retryButtonText}>Try Again</Text>
@@ -361,7 +361,7 @@ export default function ManageTeamsSimpleScreen() {
             style={[styles.bigActionButton, { backgroundColor: Colors[colorScheme].tint }]}
             onPress={() => void router.push('/create-team')}
           >
-            <Ionicons name="add-circle" size={32} color="#FFF" />
+            <MaterialIcons name="add-circle" size={32} color="#FFF" />
             <Text style={styles.bigActionButtonText}>CREATE TEAM</Text>
           </Pressable>
 
@@ -369,7 +369,7 @@ export default function ManageTeamsSimpleScreen() {
             style={[styles.bigActionButton, { backgroundColor: '#10B981' }]}
             onPress={() => setShowQuickAddModal(true)}
           >
-            <Ionicons name="calendar" size={32} color="#FFF" />
+            <MaterialIcons name="event" size={32} color="#FFF" />
             <Text style={styles.bigActionButtonText}>ADD EVENT</Text>
           </Pressable>
         </View>

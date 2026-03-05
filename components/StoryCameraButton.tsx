@@ -6,16 +6,20 @@
  */
 
 import CustomActionModal from '@/components/CustomActionModal';
+import VideoPlayer from '@/components/VideoPlayer';
+import VideoTrimmer from '@/components/VideoTrimmer';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as ImagePicker from 'expo-image-picker';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
     ActivityIndicator,
+    Modal,
     Pressable,
     StyleSheet,
-    Text
+    Text,
+    View,
 } from 'react-native';
 
 interface StoryCameraButtonProps {
@@ -41,6 +45,8 @@ export function StoryCameraButton({
     message?: string;
     options: Array<{ label: string; onPress: () => void; color?: string }>;
   } | null>(null);
+  const [videoToTrim, setVideoToTrim] = useState<string | null>(null);
+  const [trimmedUri, setTrimmedUri] = useState<string | null>(null);
 
   const requestCameraPermission = async (): Promise<boolean> => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
@@ -85,8 +91,13 @@ export function StoryCameraButton({
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const asset = result.assets[0];
-        const mediaType = asset.type === 'video' ? 'video' : 'photo';
-        onCapture(asset.uri, mediaType);
+        if (asset.type === 'video') {
+          // Show trim preview for videos
+          setVideoToTrim(asset.uri);
+          setTrimmedUri(null);
+          return; // onCapture will be called after trim confirmation
+        }
+        onCapture(asset.uri, 'photo');
       }
     } catch (error) {
       console.error('Camera error:', error);
@@ -103,6 +114,39 @@ export function StoryCameraButton({
     }
   };
 
+  const confirmVideoTrim = useCallback(() => {
+    if (!videoToTrim) return;
+    onCapture(trimmedUri ?? videoToTrim, 'video');
+    setVideoToTrim(null);
+    setTrimmedUri(null);
+  }, [videoToTrim, trimmedUri, onCapture]);
+
+  const cancelVideoTrim = useCallback(() => {
+    setVideoToTrim(null);
+    setTrimmedUri(null);
+  }, []);
+
+  const trimModal = videoToTrim ? (
+    <Modal visible transparent animationType="slide" onRequestClose={cancelVideoTrim}>
+      <View style={styles.trimModalContainer}>
+        <VideoPlayer uri={trimmedUri ?? videoToTrim} style={styles.trimPreview} />
+        <VideoTrimmer
+          uri={videoToTrim}
+          onTrimComplete={(u) => setTrimmedUri(u)}
+          onTrimReset={() => setTrimmedUri(null)}
+        />
+        <View style={styles.trimActions}>
+          <Pressable onPress={cancelVideoTrim} style={styles.trimCancelBtn}>
+            <Text style={styles.trimBtnText}>Cancel</Text>
+          </Pressable>
+          <Pressable onPress={confirmVideoTrim} style={styles.trimConfirmBtn}>
+            <Text style={styles.trimBtnText}>Use Video</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+  ) : null;
+
   // Render based on variant
   if (variant === 'fab') {
     return (
@@ -116,11 +160,12 @@ export function StoryCameraButton({
             <ActivityIndicator color="#FFFFFF" />
           ) : (
             <>
-              <Ionicons name="camera" size={24} color="#FFFFFF" />
+              <MaterialIcons name="camera-alt" size={24} color="#FFFFFF" />
               <Text style={styles.fabLabel}>Story</Text>
             </>
           )}
         </Pressable>
+        {trimModal}
         {modal && (
           <CustomActionModal
             visible={modal.visible}
@@ -147,9 +192,10 @@ export function StoryCameraButton({
           {capturing ? (
             <ActivityIndicator size="small" color="#2563EB" />
           ) : (
-            <Ionicons name="camera" size={24} color={disabled ? '#9CA3AF' : '#2563EB'} />
+            <MaterialIcons name="camera-alt" size={24} color={disabled ? '#9CA3AF' : '#2563EB'} />
           )}
         </Pressable>
+        {trimModal}
         {modal && (
           <CustomActionModal
             visible={modal.visible}
@@ -181,11 +227,12 @@ export function StoryCameraButton({
           <ActivityIndicator color="#FFFFFF" />
         ) : (
           <>
-            <Ionicons name="camera" size={20} color="#FFFFFF" />
+            <MaterialIcons name="camera-alt" size={20} color="#FFFFFF" />
             <Text style={styles.buttonText}>Add to Story</Text>
           </>
         )}
       </Pressable>
+      {trimModal}
       {modal && (
         <CustomActionModal
           visible={modal.visible}
@@ -253,5 +300,41 @@ const styles = StyleSheet.create({
   },
   iconButtonDisabled: {
     opacity: 0.5,
+  },
+  trimModalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.9)',
+    justifyContent: 'center',
+    padding: 16,
+  },
+  trimPreview: {
+    width: '100%',
+    aspectRatio: 9 / 16,
+    borderRadius: 12,
+    alignSelf: 'center',
+    maxHeight: 350,
+  },
+  trimActions: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 16,
+    marginTop: 12,
+  },
+  trimCancelBtn: {
+    backgroundColor: '#333',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  trimConfirmBtn: {
+    backgroundColor: '#4A90D9',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  trimBtnText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 14,
   },
 });

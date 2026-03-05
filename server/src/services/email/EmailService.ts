@@ -83,6 +83,27 @@ export class EmailService {
     const correlationId = this.generateCorrelationId();
     const isTemplate = 'templateId' in options;
 
+    // --- Non-production email redirect & audit log ---
+    const isProduction = process.env.NODE_ENV === 'production';
+    const overrideRecipient = process.env.EMAIL_OVERRIDE_TO; // e.g. emancero@varsityhub.app
+    const originalRecipient = this.extractRecipient(options.to);
+
+    if (!isProduction && overrideRecipient) {
+      // Redirect all emails to the override address in staging/test
+      options = { ...options, to: overrideRecipient };
+    }
+
+    // Structured audit log for every outgoing email
+    console.log(JSON.stringify({
+      _tag: 'EMAIL_AUDIT',
+      timestamp: new Date().toISOString(),
+      originalRecipient,
+      actualRecipient: !isProduction && overrideRecipient ? overrideRecipient : originalRecipient,
+      subject: options.subject,
+      redirected: !isProduction && !!overrideRecipient,
+      environment: process.env.NODE_ENV || 'development',
+    }));
+
     // Validate inputs
     const validation = this.validateEmailOptions(options);
     if (!validation.valid) {

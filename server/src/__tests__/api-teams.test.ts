@@ -24,6 +24,7 @@ describe('API Team Endpoints', () => {
   let coachToken: string;
   let fanUserId: string;
   let fanToken: string;
+  let testOrgId: string;
 
   beforeAll(async () => {
     ({ prisma } = await import('../lib/prisma.js'));
@@ -38,11 +39,25 @@ describe('API Team Endpoints', () => {
         email_verified: true,
         preferences: {
           role: 'coach',
+          plan: 'rookie',
         },
       },
     });
     coachUserId = coach.id;
     coachToken = signJwt({ id: coachUserId });
+
+    // Create an organization (league page) for team creation
+    const org = await prisma.organization.create({
+      data: {
+        name: `Test League ${Date.now()}`,
+        org_type: 'club',
+        updated_at: new Date(),
+      },
+    });
+    testOrgId = org.id;
+    await prisma.organizationMembership.create({
+      data: { organization_id: testOrgId, user_id: coachUserId, role: 'owner' },
+    });
 
     // Create fan user
     const fanPasswordHash = await bcrypt.hash(TEST_PASSWORD, 10);
@@ -63,6 +78,11 @@ describe('API Team Endpoints', () => {
 
   afterAll(async () => {
     try {
+      // Clean up team memberships
+      await prisma.teamMembership.deleteMany({
+        where: { user_id: { in: [coachUserId, fanUserId] } },
+      });
+
       // Clean up teams
       await prisma.team.deleteMany({
         where: {
@@ -75,6 +95,12 @@ describe('API Team Endpoints', () => {
           },
         },
       });
+
+      // Clean up org memberships and org
+      if (testOrgId) {
+        await prisma.organizationMembership.deleteMany({ where: { organization_id: testOrgId } });
+        await prisma.organization.delete({ where: { id: testOrgId } }).catch(() => {});
+      }
 
       // Clean up users
       await prisma.user.deleteMany({
@@ -97,6 +123,7 @@ describe('API Team Endpoints', () => {
         .send({
           name: 'Test Team',
           description: 'A test team created via API',
+          organization_id: testOrgId,
         })
         .expect(201);
 
@@ -112,6 +139,7 @@ describe('API Team Endpoints', () => {
         .send({
           name: 'Fan Team',
           description: 'Should not be allowed',
+          organization_id: testOrgId,
         })
         .expect(403);
 
@@ -126,6 +154,7 @@ describe('API Team Endpoints', () => {
         .send({
           name: 'Unauthorized Team',
           description: 'Should fail',
+          organization_id: testOrgId,
         })
         .expect(401);
 
@@ -138,6 +167,7 @@ describe('API Team Endpoints', () => {
         .set('Authorization', `Bearer ${coachToken}`)
         .send({
           description: 'Team without name',
+          organization_id: testOrgId,
         })
         .expect(400);
 
@@ -151,6 +181,7 @@ describe('API Team Endpoints', () => {
         .send({
           name: '  Trimmed Team  ',
           description: 'Test',
+          organization_id: testOrgId,
         })
         .expect(201);
 
@@ -182,6 +213,7 @@ describe('API Team Endpoints', () => {
           .send({
             name: 'Over Limit Team',
             description: 'Should fail',
+            organization_id: testOrgId,
           })
           .expect(403);
 

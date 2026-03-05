@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Image } from 'expo-image';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -54,6 +54,7 @@ export default function EditProfileScreen() {
   const [dateOfBirth, setDateOfBirth] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [avatarTouched, setAvatarTouched] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [headerImageUrl, setHeaderImageUrl] = useState<string | null>(null);
   const [headerImageTouched, setHeaderImageTouched] = useState(false);
@@ -80,7 +81,7 @@ export default function EditProfileScreen() {
   // User info
   const [userRole, setUserRole] = useState<string | null>(null);
   const [hasTeamMembership, setHasTeamMembership] = useState(false);
-  const [me, _setMe] = useState<any>(null);
+  const [me, setMe] = useState<any>(null);
 
   const HEADER_IMAGE_DRAG_LIMIT = 120;
   const clampValue = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
@@ -131,8 +132,9 @@ export default function EditProfileScreen() {
     setError(null);
     try {
       const me: any = await User.me();
+      setMe(me);
       const prefs = me?.preferences || {};
-      
+
       // Direct fields
       setDisplayName(me?.display_name || '');
       setBio(me?.bio || '');
@@ -310,6 +312,7 @@ export default function EditProfileScreen() {
       
       if (uploadResult?.url) {
         setAvatarUrl(uploadResult.url);
+        setAvatarTouched(true);
         Alert.alert('Success', 'Profile picture uploaded successfully!');
       } else {
         throw new Error('Upload failed - no URL returned');
@@ -440,8 +443,8 @@ export default function EditProfileScreen() {
         bio: bio.trim() || undefined,
       };
 
-      // Include avatar URL if it was updated
-      if (avatarUrl) {
+      // Include avatar URL only if the user actually uploaded a new one
+      if (avatarTouched && avatarUrl) {
         directFields.avatar_url = avatarUrl;
       }
 
@@ -525,8 +528,8 @@ export default function EditProfileScreen() {
           headerStyle: { backgroundColor: Colors[colorScheme].background },
           headerTintColor: Colors[colorScheme].text,
           headerLeft: () => (
-            <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={{ paddingLeft: 8 }}>
-              <Ionicons name="chevron-back" size={24} color={Colors[colorScheme].tint} />
+            <Pressable onPress={() => router.back()} style={{ paddingLeft: 8 }}>
+              <MaterialIcons name="chevron-left" size={24} color={Colors[colorScheme].tint} />
             </Pressable>
           ),
         }} 
@@ -564,7 +567,7 @@ export default function EditProfileScreen() {
               borderColor: Colors[colorScheme].border,
             }]}>
               <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>
-                <Ionicons name="camera-outline" size={20} color={Colors[colorScheme].tint} />
+                <MaterialIcons name="camera-alt" size={20} color={Colors[colorScheme].tint} />
                 {' '}Profile Picture
               </Text>
               
@@ -578,7 +581,7 @@ export default function EditProfileScreen() {
                     />
                   ) : (
                     <View style={[styles.avatarPlaceholder, { backgroundColor: Colors[colorScheme].surface }]}>
-                      <Ionicons 
+                      <MaterialIcons 
                         name="person-outline" 
                         size={40} 
                         color={Colors[colorScheme].mutedText} 
@@ -601,7 +604,7 @@ export default function EditProfileScreen() {
                     opacity: uploadingAvatar ? 0.6 : 1,
                   }]}
                 >
-                  <Ionicons name="camera-outline" size={16} color="#FFFFFF" />
+                  <MaterialIcons name="camera-alt" size={16} color="#FFFFFF" />
                   <Text style={styles.changeAvatarText}>
                     {uploadingAvatar ? 'Uploading...' : 'Change Photo'}
                   </Text>
@@ -611,7 +614,7 @@ export default function EditProfileScreen() {
               {/* Profile Background Image */}
               <View style={styles.bannerSection}>
                 <Text style={[styles.bannerLabel, { color: Colors[colorScheme].text }]}>
-                  <Ionicons name="image-outline" size={18} color={Colors[colorScheme].tint} /> {' '}
+                  <MaterialIcons name="image" size={18} color={Colors[colorScheme].tint} /> {' '}
                   Profile Background
                 </Text>
                 <View style={[
@@ -636,7 +639,7 @@ export default function EditProfileScreen() {
                     </Animated.View>
                   ) : (
                     <View style={styles.bannerPlaceholder}>
-                      <Ionicons name="color-wand-outline" size={32} color={Colors[colorScheme].mutedText} />
+                      <MaterialIcons name="auto-fix-high" size={32} color={Colors[colorScheme].mutedText} />
                       <Text style={[styles.bannerPlaceholderText, { color: Colors[colorScheme].mutedText }]}>
                         Add a wide highlight photo to appear behind your avatar
                       </Text>
@@ -657,7 +660,7 @@ export default function EditProfileScreen() {
                       { backgroundColor: Colors[colorScheme].tint, opacity: uploadingHeaderImage ? 0.6 : 1 },
                     ]}
                   >
-                    <Ionicons name="image" size={16} color="#FFFFFF" />
+                    <MaterialIcons name="image" size={16} color="#FFFFFF" />
                     <Text style={styles.bannerButtonText}>
                       {uploadingHeaderImage ? 'Uploading...' : headerImageUrl ? 'Change Background' : 'Add Background'}
                     </Text>
@@ -667,7 +670,7 @@ export default function EditProfileScreen() {
                       onPress={removeHeaderImage}
                       style={[styles.bannerButton, styles.bannerRemoveButton]}
                     >
-                      <Ionicons name="trash-outline" size={16} color="#DC2626" />
+                      <MaterialIcons name="delete-outline" size={16} color="#DC2626" />
                       <Text style={[styles.bannerButtonText, { color: '#DC2626' }]}>Remove</Text>
                     </Pressable>
                   ) : null}
@@ -681,7 +684,7 @@ export default function EditProfileScreen() {
                       onPress={() => { setHeaderImageOffset(0); setHeaderImageOffsetTouched(true); }}
                       style={styles.bannerResetButton}
                     >
-                      <Ionicons name="refresh" size={16} color={Colors[colorScheme].tint} />
+                      <MaterialIcons name="refresh" size={16} color={Colors[colorScheme].tint} />
                       <Text style={[styles.bannerButtonText, { color: Colors[colorScheme].tint }]}>Reset Position</Text>
                     </Pressable>
                   </View>
@@ -699,7 +702,7 @@ export default function EditProfileScreen() {
               borderColor: Colors[colorScheme].border,
             }]}>
               <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>
-                <Ionicons name="person-circle-outline" size={20} color={Colors[colorScheme].tint} />
+                <MaterialIcons name="account-circle" size={20} color={Colors[colorScheme].tint} />
                 {' '}Basic Information
               </Text>
               
@@ -721,7 +724,7 @@ export default function EditProfileScreen() {
                   <Text style={{ color: Colors[colorScheme].text }}>
                     @{(me as any)?.username || 'not set'}
                   </Text>
-                  <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
+                  <MaterialIcons name="chevron-right" size={20} color={Colors[colorScheme].mutedText} />
                 </Pressable>
                 <Text style={[styles.hint, { color: Colors[colorScheme].mutedText, marginTop: 4, fontSize: 12 }]}>
                   Tap to edit your username
@@ -734,21 +737,6 @@ export default function EditProfileScreen() {
                   value={fullName} 
                   onChangeText={setFullName} 
                   placeholder="Your complete name" 
-                  placeholderTextColor={Colors[colorScheme].mutedText}
-                  style={[styles.input, { 
-                    borderColor: Colors[colorScheme].border,
-                    backgroundColor: Colors[colorScheme].surface,
-                    color: Colors[colorScheme].text,
-                  }]} 
-                />
-              </View>
-
-              <View style={styles.fieldGroup}>
-                <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Location / Team</Text>
-                <Input 
-                  value={location} 
-                  onChangeText={setLocation} 
-                  placeholder="e.g., Lincoln Lions or Gotcha" 
                   placeholderTextColor={Colors[colorScheme].mutedText}
                   style={[styles.input, { 
                     borderColor: Colors[colorScheme].border,
@@ -786,95 +774,13 @@ export default function EditProfileScreen() {
               </View>
             </View>
 
-            {/* Location & Details Section */}
-            <View style={[styles.section, { 
-              backgroundColor: Colors[colorScheme].card,
-              borderColor: Colors[colorScheme].border,
-            }]}>
-              <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>
-                <Ionicons name="location-outline" size={20} color={Colors[colorScheme].tint} />
-                {' '}Location & Details
-              </Text>
-              
-              <View style={styles.fieldGroup}>
-                <Text style={[styles.label, { color: Colors[colorScheme].text }]}>ZIP Code</Text>
-                <Input
-                  value={zipCode}
-                  onChangeText={handleZipChange}
-                  onBlur={validateZipOnBlur}
-                  placeholder="12345"
-                  placeholderTextColor={Colors[colorScheme].mutedText}
-                  keyboardType="numeric"
-                  maxLength={10}
-                  style={[styles.input, {
-                    borderColor: fieldErrors.zipCode ? '#DC2626' : Colors[colorScheme].border,
-                    backgroundColor: Colors[colorScheme].surface,
-                    color: Colors[colorScheme].text,
-                  }]}
-                />
-                {fieldErrors.zipCode ? (
-                  <Text style={[styles.fieldNote, { color: '#DC2626' }]}>
-                    {fieldErrors.zipCode}
-                  </Text>
-                ) : (
-                  <Text style={[styles.fieldNote, { color: Colors[colorScheme].mutedText }]}>
-                    Helps us show you local games and events
-                  </Text>
-                )}
-              </View>
-
-              <View style={styles.fieldGroup}>
-                <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Date of Birth</Text>
-                <Pressable
-                  onPress={() => setShowDatePicker(true)}
-                  style={[styles.input, { 
-                    borderColor: Colors[colorScheme].border,
-                    backgroundColor: Colors[colorScheme].surface,
-                    justifyContent: 'center',
-                  }]}
-                >
-                  <Text style={[
-                    styles.dateText,
-                    { 
-                      color: dateOfBirth ? Colors[colorScheme].text : Colors[colorScheme].mutedText 
-                    }
-                  ]}>
-                    {formatDateForDisplay(dateOfBirth)}
-                  </Text>
-                  <Ionicons 
-                    name="calendar-outline" 
-                    size={20} 
-                    color={Colors[colorScheme].mutedText}
-                    style={styles.dateIcon}
-                  />
-                </Pressable>
-                
-                {showDatePicker && (
-                  <DateTimePicker
-                    testID="dateTimePicker"
-                    value={dateOfBirth || new Date()}
-                    mode="date"
-                    is24Hour={true}
-                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                    onChange={onDateChange}
-                    maximumDate={new Date()}
-                    minimumDate={new Date(1900, 0, 1)}
-                  />
-                )}
-                
-                <Text style={[styles.fieldNote, { color: Colors[colorScheme].mutedText }]}>
-                  Used for age-appropriate content and team matching
-                </Text>
-              </View>
-            </View>
-
             {/* Sports & Interests Section */}
             <View style={[styles.section, { 
               backgroundColor: Colors[colorScheme].card,
               borderColor: Colors[colorScheme].border,
             }]}>
               <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>
-                <Ionicons name="football-outline" size={20} color={Colors[colorScheme].tint} />
+                <MaterialIcons name="sports-football" size={20} color={Colors[colorScheme].tint} />
                 {' '}Sports & Interests
               </Text>
               <Text style={[styles.sectionNote, { color: Colors[colorScheme].mutedText }]}>
@@ -923,7 +829,7 @@ export default function EditProfileScreen() {
               borderColor: Colors[colorScheme].border,
             }]}>
               <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>
-                <Ionicons name="color-palette-outline" size={20} color={Colors[colorScheme].tint} />
+                <MaterialIcons name="palette" size={20} color={Colors[colorScheme].tint} />
                 {' '}Profile Theme Color
               </Text>
               <Text style={[styles.sectionNote, { color: Colors[colorScheme].mutedText }]}>
@@ -947,7 +853,7 @@ export default function EditProfileScreen() {
                   >
                     <View style={[styles.colorSwatch, { backgroundColor: color.value }]}>
                       {themeColor === color.value && (
-                        <Ionicons name="checkmark-circle" size={24} color="#FFFFFF" />
+                        <MaterialIcons name="check-circle" size={24} color="#FFFFFF" />
                       )}
                     </View>
                     <Text style={[
@@ -984,7 +890,7 @@ export default function EditProfileScreen() {
                 borderColor: Colors[colorScheme].border,
               }]}>
                 <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>
-                  <Ionicons name="people-outline" size={20} color={Colors[colorScheme].tint} />
+                  <MaterialIcons name="group" size={20} color={Colors[colorScheme].tint} />
                   {' '}Team Member Info
                 </Text>
                 

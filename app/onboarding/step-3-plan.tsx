@@ -1,10 +1,12 @@
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
+import { usePaymentSheet } from '@stripe/stripe-react-native';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View, useColorScheme } from 'react-native';
 // @ts-ignore
-import { Payments, Subscriptions, User } from '@/api/entities';
+import { httpPost } from '@/api/http';
+// @ts-ignore
+import { Payments, User } from '@/api/entities';
 import { PLAN_DEFINITIONS, Plan } from '@/constants/plans';
 import { useOnboarding } from '@/context/OnboardingContext';
 import OnboardingLayout from './components/OnboardingLayout';
@@ -70,7 +72,7 @@ function PlanCard({
     }
   };
 
-  // Icon mapping - using Ionicons
+  // Icon mapping - using MaterialIcons
   const getIconName = (): any => {
     switch (option.icon) {
       case 'people':
@@ -95,7 +97,7 @@ function PlanCard({
       ]}>
       <View style={styles.cardHeader}>
         <View style={styles.titleRow}>
-          <Ionicons name={getIconName()} size={24} color={selected ? '#FFFFFF' : getPlanColor(option.id)} />
+          <MaterialIcons name={getIconName()} size={24} color={selected ? '#FFFFFF' : getPlanColor(option.id)} />
           <Text style={[styles.cardTitle, selected && styles.selectedText, { color: selected ? '#FFFFFF' : (isDark ? '#F9FAFB' : '#111827') }]}>{option.name}</Text>
         </View>
       </View>
@@ -154,6 +156,7 @@ export default function Step3Plan() {
   const [paymentsStatus, setPaymentsStatus] = useState<{ stripe_configured?: boolean; has_webhook_secret?: boolean } | null>(null);
   const [paymentsStatusLoading, setPaymentsStatusLoading] = useState(true);
   const [paymentsStatusError, setPaymentsStatusError] = useState<string | null>(null);
+  const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
   const displayedPlanOptions = PLAN_OPTIONS;
   const paymentsTemporarilyDisabled = paymentsStatus?.stripe_configured === false;
   const showPaymentsWarning =
@@ -192,6 +195,7 @@ export default function Step3Plan() {
   }, []);
 
   const navigateNext = () => {
+    setOB((prev) => ({ ...prev, step_3_visited: true }));
     if (returnToConfirmation) {
       router.replace('/onboarding/step-10-confirmation');
     } else {
@@ -307,7 +311,7 @@ export default function Step3Plan() {
         if (plan === 'veteran') {
           setOB((prev) => ({ ...prev, team_count_total: teamCount }));
         }
-        const res: any = await Subscriptions.createCheckout(plan, plan === 'veteran' ? teamCount : undefined);
+        const res: any = await httpPost('/payments/create-payment-sheet', { plan, team_count: plan === 'veteran' ? teamCount : undefined });
         if (res?.free) {
           // If marked as free, save the plan now
           try {
@@ -319,10 +323,23 @@ export default function Step3Plan() {
           navigateNext();
           return;
         }
-        if (res?.url) {
-          // Stripe checkout was successful, user will pay through Stripe
-          // The plan will be saved by the payment finalization process
-          await WebBrowser.openBrowserAsync(String(res.url));
+        if (res?.paymentIntent) {
+          const { error: initError } = await initPaymentSheet({
+            paymentIntentClientSecret: res.paymentIntent,
+            customerEphemeralKeySecret: res.ephemeralKey,
+            customerId: res.customer,
+            merchantDisplayName: 'Varsity Hub',
+          });
+          if (initError) {
+            Alert.alert('Error', initError.message);
+            return;
+          }
+          const { error } = await presentPaymentSheet();
+          if (error) {
+            if (error.code !== 'Canceled') Alert.alert('Payment Failed', error.message);
+            return;
+          }
+          // Payment succeeded
           setProgress(3);
           navigateNext();
           return;

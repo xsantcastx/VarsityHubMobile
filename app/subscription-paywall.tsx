@@ -10,12 +10,13 @@ import { CoachTier, CoachTierBadge, CoachTierBenefits } from '@/components/Coach
 import CustomActionModal from '@/components/CustomActionModal';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
+import { usePaymentSheet } from '@stripe/stripe-react-native';
 import { useState } from 'react';
 import {
     ActivityIndicator,
+    Alert,
     Platform,
     Pressable,
     ScrollView,
@@ -36,6 +37,7 @@ export default function SubscriptionPaywallScreen() {
   const availableTiers: CoachTier[] = isIOS
     ? ['rookie']
     : ['rookie', 'veteran', 'legend'];
+  const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
   const [modal, setModal] = useState<{
     visible: boolean;
     title: string;
@@ -62,17 +64,32 @@ export default function SubscriptionPaywallScreen() {
 
     setLoading(true);
     try {
-      const data: any = await httpPost('/payments/subscribe', {
+      const data: any = await httpPost('/payments/create-payment-sheet', {
         plan: selectedTier,
         promo_code: promoCode.trim() || undefined
       });
 
-      if (data?.url) {
-        // Open Stripe checkout in browser
-        await WebBrowser.openBrowserAsync(String(data.url));
-        // Don't redirect here - let the payment-success screen handle the redirect after Stripe callback
+      if (data?.paymentIntent) {
+        const { error: initError } = await initPaymentSheet({
+          paymentIntentClientSecret: data.paymentIntent,
+          customerEphemeralKeySecret: data.ephemeralKey,
+          customerId: data.customer,
+          merchantDisplayName: 'Varsity Hub',
+        });
+        if (initError) {
+          Alert.alert('Error', initError.message);
+          return;
+        }
+        const { error } = await presentPaymentSheet();
+        if (error) {
+          if (error.code !== 'Canceled') Alert.alert('Payment Failed', error.message);
+          return;
+        }
+        // Payment succeeded
+        if (router.canGoBack()) router.back();
+        else router.replace('/(tabs)' as any);
       } else {
-        throw new Error('No checkout URL received');
+        throw new Error('No payment sheet data received');
       }
     } catch (error) {
       console.error('Subscription error:', error);
@@ -95,7 +112,7 @@ export default function SubscriptionPaywallScreen() {
           title: 'Your Plan',
           headerLeft: () => (
             <Pressable onPress={() => router.back()} style={{ paddingLeft: 8 }}>
-              <Ionicons name="chevron-back" size={24} color="#3B82F6" />
+              <MaterialIcons name="chevron-left" size={24} color="#3B82F6" />
             </Pressable>
           ),
         }} />
@@ -119,7 +136,7 @@ export default function SubscriptionPaywallScreen() {
               style={[styles.ctaButton, { backgroundColor: getTierColor('rookie') }]}
               onPress={() => router.back()}
             >
-              <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+              <MaterialIcons name="check-circle" size={20} color="#FFFFFF" />
               <Text style={styles.ctaButtonText}>You're All Set</Text>
             </Pressable>
             <Text style={[styles.ctaSubtext, { color: '#6B7280' }]}>
@@ -138,7 +155,7 @@ export default function SubscriptionPaywallScreen() {
         title: 'Choose Your Plan',
         headerLeft: () => (
           <Pressable onPress={() => router.back()} style={{ paddingLeft: 8 }}>
-            <Ionicons name="chevron-back" size={24} color="#3B82F6" />
+            <MaterialIcons name="chevron-left" size={24} color="#3B82F6" />
           </Pressable>
         ),
       }} />
@@ -277,7 +294,7 @@ export default function SubscriptionPaywallScreen() {
                   {selectedTier === 'rookie' ? 'Current Plan' : `Upgrade to ${capitalize(selectedTier)}`}
                 </Text>
                 {selectedTier !== 'rookie' && (
-                  <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
+                  <MaterialIcons name="arrow-forward" size={20} color="#FFFFFF" />
                 )}
               </>
             )}
@@ -325,9 +342,9 @@ function capitalize(str: string): string {
 function renderFeatureValue(value: string | boolean, scheme: 'light' | 'dark' = 'light') {
   if (typeof value === 'boolean') {
     return value ? (
-      <Ionicons name="checkmark-circle" size={20} color="#10B981" />
+      <MaterialIcons name="check-circle" size={20} color="#10B981" />
     ) : (
-      <Ionicons name="close-circle" size={20} color="#EF4444" />
+      <MaterialIcons name="cancel" size={20} color="#EF4444" />
     );
   }
   return <Text style={[styles.comparisonValueText, { color: Colors[scheme].mutedText }]}>{value}</Text>;

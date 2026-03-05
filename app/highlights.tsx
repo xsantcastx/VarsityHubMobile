@@ -1,5 +1,6 @@
 import { Colors } from '@/constants/Colors';
 import { usePostCache } from '@/context/PostCacheContext';
+import { sanitizeTitle } from '@/lib/sanitizeTitle';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import AppLinks from '@/utils/links';
 import { Ionicons } from '@expo/vector-icons';
@@ -165,8 +166,8 @@ const HighlightCard = ({
                   </View>
                 </View>
               )}
-              {/* "NEW" badge for very recent posts (< 10 minutes) - more accurate than "LIVE" */}
-              {item.created_at && new Date(item.created_at).getTime() > Date.now() - 600000 && (
+              {/* "NEW" badge for very recent posts (< 10 minutes) — rank badge takes priority */}
+              {!showNumberedRank && item.created_at && new Date(item.created_at).getTime() > Date.now() - 600000 && (
                 <View style={[styles.liveBadge, { backgroundColor: '#3b82f6' }]}>
                   <Text style={styles.liveText}>NEW</Text>
                 </View>
@@ -197,7 +198,7 @@ const HighlightCard = ({
 
           {/* Title */}
           <Text style={[styles.cardTitle, { color: Colors[colorScheme].text }]} numberOfLines={2}>
-            {item.title || item.caption || item.content || 'Sports Update'}
+            {sanitizeTitle(item.title) || item.caption || ''}
           </Text>
 
           {/* Author & Time */}
@@ -255,8 +256,8 @@ const HighlightCard = ({
               onPress={async (e) => {
                 e.stopPropagation();
                 try {
-                  const link = AppLinks.post(String(item.id), item.caption || item.title);
-                  await Share.share({ message: link.shareMessage, url: link.webUrl, title: item.title || 'VarsityHub Highlight' });
+                  const link = AppLinks.post(String(item.id), item.caption || (sanitizeTitle(item.title) ?? undefined));
+                  await Share.share({ message: link.shareMessage, url: link.webUrl, title: sanitizeTitle(item.title) || 'VarsityHub Highlight' });
                 } catch {
                   try {
                     const mod = await import('expo-clipboard').catch(() => null);
@@ -660,7 +661,7 @@ export default function HighlightsScreen() {
       <View style={[styles.header, { paddingTop: insets.top, backgroundColor: Colors[colorScheme].card, borderBottomColor: Colors[colorScheme].border }]}>
         {/* Back button and title */}
         <View style={styles.headerRow}>
-          <Pressable style={styles.headerSpacer} onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} hitSlop={8}>
+          <Pressable style={styles.headerSpacer} onPress={() => router.back()} hitSlop={8}>
             <Ionicons name="chevron-back" size={24} color={Colors[colorScheme].text} />
           </Pressable>
           <Text style={[styles.headerTitleText, { color: Colors[colorScheme].text }]} numberOfLines={1}>

@@ -448,6 +448,10 @@ export const Team = {
   limits: () => httpGet('/teams/limits'),
 };
 
+export const Report = {
+  create: (data: { target_type: string; target_id: string; reason: string; details?: string }) => httpPost('/reports', data),
+};
+
 export const Support = {
   contact: (data: { name: string; email: string; subject: string; message: string; from_email?: string }) => httpPost('/support/contact', data),
   feedback: (data: { user_id?: string; category: 'bug' | 'idea' | 'other'; message: string; screenshot_url?: string }) => httpPost('/support/feedback', data),
@@ -552,11 +556,15 @@ export const Advertisement = {
   get: (id: string) => httpGet('/ads/' + encodeURIComponent(id)),
   update: (id: string, data: any) => httpPut('/ads/' + encodeURIComponent(id), data),
   delete: (id: string) => httpDelete('/ads/' + encodeURIComponent(id)),
-  forFeed: (dateISO?: string, zip?: string, limit: number = 1) => {
+  forFeed: (dateISO?: string, zip?: string, limit: number = 1, lat?: number, lng?: number) => {
     const q: string[] = [];
     if (dateISO) q.push('date=' + encodeURIComponent(dateISO));
     if (zip) q.push('zip=' + encodeURIComponent(zip));
     if (limit) q.push('limit=' + String(limit));
+    if (lat != null && lng != null) {
+      q.push('lat=' + String(lat));
+      q.push('lng=' + String(lng));
+    }
     return httpGet('/ads/for-feed' + (q.length ? '?' + q.join('&') : ''));
   },
 };

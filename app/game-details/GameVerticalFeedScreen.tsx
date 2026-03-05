@@ -1,5 +1,6 @@
 import CollageView, { type CollageData } from '@/components/CollageView';
 import { Colors } from '@/constants/Colors';
+import { sanitizeTitle } from '@/lib/sanitizeTitle';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -86,7 +87,7 @@ export const mapHighlightToFeedPost = (item: any): FeedPost | null => {
     id,
     media_url: mediaUrl,
     media_type: mediaType,
-    caption: item?.caption ?? item?.title ?? null,
+    caption: item?.caption ?? sanitizeTitle(item?.title) ?? null,
     upvotes_count: typeof item?.upvotes_count === 'number' ? item.upvotes_count : 0,
     comments_count: typeof item?._count?.comments === 'number' ? item._count.comments : (typeof item?.comments_count === 'number' ? item.comments_count : 0),
     bookmarks_count: typeof item?.bookmarks_count === 'number' ? item.bookmarks_count : 0,

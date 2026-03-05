@@ -126,20 +126,11 @@ notificationsRouter.get('/', requireAuth as any, async (req: AuthedRequest, res)
         nextCursor: null 
       });
     }
-    // Log full error details for debugging
-    console.error('[notifications] Full error details:', {
-      message: error.message,
-      code: error.code,
-      meta: error.meta,
-      stack: error.stack?.split('\n').slice(0, 5).join('\n')
-    });
-    
     // Return graceful error response - don't crash the app
-    return res.status(500).json({ 
+    return res.status(500).json({
       error: 'Failed to fetch notifications',
-      message: error.message || 'Unknown error',
       items: [],
-      nextCursor: null 
+      nextCursor: null
     });
   }
 });
@@ -157,7 +148,7 @@ notificationsRouter.post('/:id/read', requireAuth as any, async (req: AuthedRequ
     return res.json({ ok: true, id });
   } catch (error: any) {
     console.error('[notifications] Error marking notification as read:', error);
-    return res.status(500).json({ error: 'Failed to mark notification as read', message: error.message });
+    return res.status(500).json({ error: 'Failed to mark notification as read' });
   }
 });
 
@@ -172,6 +163,6 @@ notificationsRouter.post('/mark-read-all', requireAuth as any, async (req: Authe
     return res.json({ ok: true });
   } catch (error: any) {
     console.error('[notifications] Error marking all notifications as read:', error);
-    return res.status(500).json({ error: 'Failed to mark all notifications as read', message: error.message });
+    return res.status(500).json({ error: 'Failed to mark all notifications as read' });
   }
 });

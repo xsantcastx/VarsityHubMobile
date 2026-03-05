@@ -19,6 +19,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { ThemeProvider } from '@/hooks/useCustomColorScheme';
 import { handleInitialDeepLink, setupDeepLinkListener } from '@/utils/deepLinks';
 import { initSentry } from '@/utils/sentry';
+import { StripeProvider } from '@stripe/stripe-react-native';
 
 // Conditionally import notifications only if not in Expo Go
 const isExpoGo = Constants.executionEnvironment === 'storeClient';
@@ -109,19 +110,20 @@ export default function RootLayout() {
 
       devLog('[Notifications] User tapped notification:', data.type);
 
-      // Navigate based on notification type
+      // Navigate based on notification type.
+      // Use /(tabs)/ prefix so the tab bar stays visible.
       try {
         switch (data.type) {
           case 'new_message':
             devLog('[Notifications] Navigating to messages');
-            router.push('/messages');
+            router.push('/(tabs)/messages' as any);
             break;
 
           case 'post_interaction':
             if (data.post_id) {
               devLog('[Notifications] Navigating to post:', data.post_id);
               router.push({
-                pathname: '/post-detail',
+                pathname: '/(tabs)/post-detail',
                 params: { id: data.post_id },
               } as any);
             }
@@ -130,9 +132,11 @@ export default function RootLayout() {
           case 'mention':
           case 'comment_reply':
             if (data.post_id) {
-              const q = data.comment_id ? `?id=${data.post_id}&commentId=${data.comment_id}` : `?id=${data.post_id}`;
               devLog('[Notifications] Navigating to post/comment:', data.post_id, data.comment_id);
-              router.push(`/post-detail${q}` as any);
+              router.push({
+                pathname: '/(tabs)/post-detail',
+                params: { id: data.post_id, ...(data.comment_id ? { commentId: data.comment_id } : {}) },
+              } as any);
             }
             break;
 
@@ -140,7 +144,7 @@ export default function RootLayout() {
             if (data.follower_id) {
               devLog('[Notifications] Navigating to profile:', data.follower_id);
               router.push({
-                pathname: '/user-profile',
+                pathname: '/(tabs)/user-profile',
                 params: { userId: data.follower_id },
               } as any);
             }
@@ -148,14 +152,14 @@ export default function RootLayout() {
 
           case 'team_invite':
             devLog('[Notifications] Navigating to team invites');
-            router.push('/team-invites');
+            router.push('/team-invites' as any);
             break;
 
           case 'game_reminder':
             if (data.event_id) {
               devLog('[Notifications] Navigating to event:', data.event_id);
               router.push({
-                pathname: '/event-detail',
+                pathname: '/(tabs)/event-detail',
                 params: { id: data.event_id },
               } as any);
             }
@@ -187,6 +191,10 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <ErrorBoundary>
         <GestureHandlerRootView style={{ flex: 1 }}>
+          <StripeProvider
+            publishableKey={process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || ''}
+            merchantIdentifier="merchant.app.varsityhub"
+          >
           <ThemeProvider>
             <PostCacheProvider>
               <AuthProvider navReady={!!navState?.key}>
@@ -217,6 +225,7 @@ export default function RootLayout() {
               </AuthProvider>
             </PostCacheProvider>
           </ThemeProvider>
+        </StripeProvider>
         </GestureHandlerRootView>
       </ErrorBoundary>
     </SafeAreaProvider>

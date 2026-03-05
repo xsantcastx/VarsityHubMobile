@@ -1,8 +1,9 @@
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
 import { ReactNode } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useOnboarding } from '@/context/OnboardingContext';
 
 interface OnboardingLayoutProps {
   step: number;
@@ -41,18 +42,29 @@ export default function OnboardingLayout({
   const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
   const insets = useSafeAreaInsets();
+  const { state: ob } = useOnboarding();
 
-  // Map each step number to the previous step's route
-  const previousStepRoute: Record<number, string> = {
-    2: '/onboarding/step-1-role',
-    3: '/onboarding/step-2-basic',
-    4: '/onboarding/step-3-plan',
-    6: '/onboarding/step-4-organization',
-    7: '/onboarding/step-6-authorized-users',
-    8: '/onboarding/step-7-profile',
-    9: '/onboarding/step-8-interests',
-    10: '/onboarding/step-9-features',
-  };
+  // Map each step number to the previous step's route, role-aware
+  // Fans skip steps 3, 4, 6 so their back navigation must skip those too
+  const isFan = ob.role !== 'coach';
+  const previousStepRoute: Record<number, string> = isFan
+    ? {
+        2: '/onboarding/step-1-role',
+        7: '/onboarding/step-2-basic',
+        8: '/onboarding/step-7-profile',
+        9: '/onboarding/step-8-interests',
+        10: '/onboarding/step-9-features',
+      }
+    : {
+        2: '/onboarding/step-1-role',
+        3: '/onboarding/step-2-basic',
+        4: '/onboarding/step-3-plan',
+        6: '/onboarding/step-4-organization',
+        7: '/onboarding/step-6-authorized-users',
+        8: '/onboarding/step-7-profile',
+        9: '/onboarding/step-8-interests',
+        10: '/onboarding/step-9-features',
+      };
 
   const handleBack = () => {
     if (onBackPress) {
@@ -61,8 +73,6 @@ export default function OnboardingLayout({
       onBack();
     } else if (previousStepRoute[step]) {
       router.replace(previousStepRoute[step] as any);
-    } else if (router.canGoBack()) {
-      router.back();
     } else {
       router.replace('/onboarding/step-1-role');
     }
@@ -92,7 +102,7 @@ export default function OnboardingLayout({
             accessibilityLabel="Go back"
             accessibilityRole="button"
           >
-            <Ionicons name="chevron-back" size={24} color={colors.text} />
+            <MaterialIcons name="chevron-left" size={24} color={colors.text} />
           </Pressable>
         ) : (
           <View style={styles.backButton} />
@@ -104,7 +114,7 @@ export default function OnboardingLayout({
         
         {emailVerified === false && onVerifyEmail ? (
           <Pressable onPress={onVerifyEmail} style={styles.verifyButton} hitSlop={8}>
-            <Ionicons name="mail-outline" size={18} color="#EF4444" />
+            <MaterialIcons name="mail-outline" size={18} color="#EF4444" />
             <Text style={styles.verifyButtonText}>Verify</Text>
           </Pressable>
         ) : (

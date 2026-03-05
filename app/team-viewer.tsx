@@ -1,6 +1,6 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -194,7 +194,7 @@ export default function TeamViewerScreen() {
       <SafeAreaView style={[styles.container, styles.centered, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
         <Stack.Screen options={{ title: 'Loading Team...', headerShown: true, headerLeft: () => (
             <Pressable onPress={() => router.back()} style={{ paddingRight: 8 }}>
-              <Ionicons name="chevron-back" size={28} color="#007AFF" />
+              <MaterialIcons name="chevron-left" size={28} color="#007AFF" />
             </Pressable>
           ) }} />
         <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
@@ -210,10 +210,10 @@ export default function TeamViewerScreen() {
       <SafeAreaView style={[styles.container, styles.centered, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
         <Stack.Screen options={{ title: 'Team Not Found', headerShown: true, headerLeft: () => (
             <Pressable onPress={() => router.back()} style={{ paddingRight: 8 }}>
-              <Ionicons name="chevron-back" size={28} color="#007AFF" />
+              <MaterialIcons name="chevron-left" size={28} color="#007AFF" />
             </Pressable>
           ) }} />
-        <Ionicons name="alert-circle-outline" size={64} color={Colors[colorScheme].mutedText} />
+        <MaterialIcons name="error-outline" size={64} color={Colors[colorScheme].mutedText} />
         <Text style={[styles.errorTitle, { color: Colors[colorScheme].text }]}>
           {error || 'Team not found'}
         </Text>
@@ -240,7 +240,7 @@ export default function TeamViewerScreen() {
           headerTintColor: Colors[colorScheme].text,
           headerLeft: () => (
             <Pressable onPress={() => router.back()} style={{ paddingRight: 8 }}>
-              <Ionicons name="chevron-back" size={28} color="#007AFF" />
+              <MaterialIcons name="chevron-left" size={28} color="#007AFF" />
             </Pressable>
           ),
         }}
@@ -343,7 +343,7 @@ export default function TeamViewerScreen() {
               
               <View style={styles.overviewGrid}>
                 <View style={[styles.overviewItem, { backgroundColor: Colors[colorScheme].background }]}>
-                  <Ionicons name="people" size={24} color={Colors[colorScheme].tint} />
+                  <MaterialIcons name="group" size={24} color={Colors[colorScheme].tint} />
                   <Text style={[styles.overviewValue, { color: Colors[colorScheme].text }]}>
                     {members.length}
                   </Text>
@@ -353,7 +353,7 @@ export default function TeamViewerScreen() {
                 </View>
                 
                 <View style={[styles.overviewItem, { backgroundColor: Colors[colorScheme].background }]}>
-                  <Ionicons name="calendar" size={24} color={Colors[colorScheme].tint} />
+                  <MaterialIcons name="event" size={24} color={Colors[colorScheme].tint} />
                   <Text style={[styles.overviewValue, { color: Colors[colorScheme].text }]}>
                     {getUpcomingGames().length}
                   </Text>
@@ -457,7 +457,7 @@ export default function TeamViewerScreen() {
                   </View>
 
                   <View style={styles.memberRoleContainer}>
-                    <Ionicons 
+                    <MaterialIcons 
                       name={getRoleIcon(member.role) as any} 
                       size={16} 
                       color={getRoleColor(member.role)} 
@@ -529,7 +529,7 @@ export default function TeamViewerScreen() {
 
                   <View style={styles.fullMemberMeta}>
                     <View style={styles.memberRoleContainer}>
-                      <Ionicons 
+                      <MaterialIcons 
                         name={getRoleIcon(member.role) as any} 
                         size={16} 
                         color={getRoleColor(member.role)} 

@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -131,16 +131,16 @@ export default function VerifyScreen() {
       <KeyboardAwareScreen contentContainerStyle={styles.content}>
         {/* Back Button */}
         <Pressable 
-          onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)}
+          onPress={() => router.back()}
           style={styles.backButton}
           hitSlop={8}
         >
-          <Ionicons name="arrow-back" size={24} color={Colors[colorScheme].text} />
+          <MaterialIcons name="arrow-back" size={24} color={Colors[colorScheme].text} />
         </Pressable>
         
         {/* Header Icon */}
         <View style={styles.iconContainer}>
-          <Ionicons 
+          <MaterialIcons 
             name="mail-outline" 
             size={64} 
             color={colorScheme === 'dark' ? '#60A5FA' : '#2563EB'} 
@@ -159,7 +159,7 @@ export default function VerifyScreen() {
         
         {devCode ? (
           <View style={styles.devCodeContainer}>
-            <Ionicons name="bug-outline" size={16} color="#059669" />
+            <MaterialIcons name="bug-report" size={16} color="#059669" />
             <Text style={styles.devCodeText}>Dev Code: {devCode}</Text>
           </View>
         ) : null}

@@ -1,11 +1,11 @@
 import { Colors } from '@/constants/Colors';
 import { spacing, typography } from '@/constants/Theme';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
 
 export interface SettingItemProps {
-  icon?: keyof typeof Ionicons.glyphMap;
+  icon?: keyof typeof MaterialIcons.glyphMap;
   label: string;
   value?: string;
   onPress: () => void;
@@ -67,7 +67,7 @@ export function SettingItem({
     >
       {/* Icon */}
       {icon && (
-        <Ionicons 
+        <MaterialIcons 
           name={icon} 
           size={24} 
           color={iconColor} 
@@ -101,8 +101,8 @@ export function SettingItem({
 
       {/* Chevron */}
       {showChevron && (
-        <Ionicons 
-          name="chevron-forward" 
+        <MaterialIcons 
+          name="chevron-right" 
           size={20} 
           color={Colors[colorScheme].mutedText} 
         />

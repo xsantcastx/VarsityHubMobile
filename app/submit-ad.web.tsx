@@ -2,7 +2,7 @@ import settings from '@/api/settings';
 import { BannerUpload } from '@/components/BannerUpload';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -146,8 +146,8 @@ export default function SubmitAdScreen() {
           title: 'Submit Ad', 
           headerShown: true,
           headerLeft: () => (
-            <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={{ padding: 8 }} accessibilityLabel="Go back">
-              <Ionicons name="arrow-back" size={24} color={theme.text} />
+            <Pressable onPress={() => router.back()} style={{ padding: 8 }} accessibilityLabel="Go back">
+              <MaterialIcons name="arrow-back" size={24} color={theme.text} />
             </Pressable>
           ),
         }} 

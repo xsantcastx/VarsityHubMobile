@@ -9,7 +9,7 @@ import { Advertisement, Event, Game, Highlights, Notification as NotificationApi
 import { BannerAd } from '@/components/BannerAd';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { format } from 'date-fns';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -258,6 +258,27 @@ export default function FeedScreen() {
         ? String(user.preferences.country_code).toUpperCase()
         : undefined;
       const todayISO = new Date().toISOString().slice(0, 10);
+
+      // Resolve user location for ad targeting
+      const userZip = typeof user?.preferences?.zip_code === 'string' ? user.preferences.zip_code : undefined;
+      let deviceLat: number | undefined;
+      let deviceLng: number | undefined;
+      if (!userZip) {
+        try {
+          const { status } = await Location.getForegroundPermissionsAsync();
+          if (status === 'granted') {
+            const loc = await Location.getLastKnownPositionAsync().catch(() => null)
+              || await Location.getCurrentPositionAsync({}).catch(() => null);
+            if (loc) {
+              deviceLat = loc.coords.latitude;
+              deviceLng = loc.coords.longitude;
+            }
+          }
+        } catch (e) {
+          if (__DEV__) console.warn('Feed: location for ads failed', e);
+        }
+      }
+
       // Load games with better error handling
       let gamesData: any = null;
       try {
@@ -287,7 +308,7 @@ export default function FeedScreen() {
           if (__DEV__) console.warn('Highlights preview load failed', err);
           return null;
         }),
-        Advertisement.forFeed(todayISO, undefined, 5).catch(() => null),
+        Advertisement.forFeed(todayISO, userZip, 5, deviceLat, deviceLng).catch(() => null),
       ]);
       setFollowedPosts(Array.isArray(followedPage?.items) ? followedPage.items : []);
       setFollowedFeedMeta(followedPage?.followed_feed_meta);
@@ -695,7 +716,7 @@ export default function FeedScreen() {
               accessibilityLabel="Open notifications"
             >
               <View>
-                <Ionicons name="notifications-outline" size={24} color={Colors[colorScheme].text} />
+                <MaterialIcons name="notifications-none" size={24} color={Colors[colorScheme].text} />
                 {hasUnreadAlerts ? (
                   <View style={styles.alertDot} />
                 ) : null}
@@ -716,12 +737,12 @@ export default function FeedScreen() {
           {/* Messages on RIGHT */}
           <View style={styles.headerActions}>
             <Pressable 
-              onPress={() => void router.push('/messages')} 
+              onPress={() => void router.push('/(tabs)/messages' as any)}
               style={styles.iconButton} 
               accessibilityRole="button" 
               accessibilityLabel="Open messages"
             >
-              <Ionicons name="chatbubbles-outline" size={24} color={Colors[colorScheme].text} />
+              <MaterialIcons name="forum" size={24} color={Colors[colorScheme].text} />
             </Pressable>
           </View>
         </View>
@@ -771,9 +792,9 @@ export default function FeedScreen() {
         accessibilityHint="Double tap to open map"
         accessible
       >
-        <Ionicons name="map" size={24} color="#FFFFFF" />
+        <MaterialIcons name="map" size={24} color="#FFFFFF" />
         <Text style={styles.mapsButtonText}>View Nearby Games on Map</Text>
-        <Ionicons name="chevron-forward" size={20} color="#FFFFFF" />
+        <MaterialIcons name="chevron-right" size={20} color="#FFFFFF" />
       </View>
 
       <Text style={[styles.helper, { color: Colors[colorScheme].mutedText }]}>Showing upcoming and recent games in your area.</Text>
@@ -842,7 +863,7 @@ export default function FeedScreen() {
                           styles.promoIcon,
                           { borderColor: colorScheme === 'dark' ? '#60A5FA' : '#2563EB', justifyContent: 'center', alignItems: 'center' },
                         ]}>
-                          <Ionicons name="megaphone-outline" size={24} color={colorScheme === 'dark' ? '#60A5FA' : '#2563EB'} />
+                          <MaterialIcons name="campaign" size={24} color={colorScheme === 'dark' ? '#60A5FA' : '#2563EB'} />
                         </View>
                         <View style={{ flex: 1, paddingRight: 12 }}>
                           <Text style={[
@@ -866,7 +887,7 @@ export default function FeedScreen() {
                             styles.promoteCtaIcon,
                             { borderColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center' },
                           ]}>
-                            <Ionicons name="arrow-forward" size={12} color="#FFFFFF" />
+                            <MaterialIcons name="arrow-forward" size={12} color="#FFFFFF" />
                           </View>
                           <Text style={styles.promoteCtaText}>Click Here</Text>
                         </View>
@@ -898,7 +919,7 @@ export default function FeedScreen() {
                       />
                     ) : (
                       <View style={[styles.adPlaceholder, { backgroundColor: colorScheme === 'dark' ? '#1E293B' : '#F3F4F6' }]}>
-                        <Ionicons name="megaphone-outline" size={48} color={colorScheme === 'dark' ? '#64748B' : '#9CA3AF'} />
+                        <MaterialIcons name="campaign" size={48} color={colorScheme === 'dark' ? '#64748B' : '#9CA3AF'} />
                       </View>
                     )}
                   </View>
@@ -961,7 +982,7 @@ export default function FeedScreen() {
                   />
                   <View style={styles.gridContent}>
                     <View style={styles.gridDateChip}>
-                      <Ionicons name="calendar-outline" size={12} color="#FFFFFF" />
+                      <MaterialIcons name="event" size={12} color="#FFFFFF" />
                       <Text style={styles.gridDateText}>{eventDate}</Text>
                     </View>
                     <Text style={styles.gridTitle} numberOfLines={2}>
@@ -972,11 +993,11 @@ export default function FeedScreen() {
                     </Text>
                     <View style={styles.gridStatsRow}>
                       <View style={styles.gridStat}>
-                        <Ionicons name="chatbubble-ellipses-outline" size={12} color="#F9FAFB" />
+                        <MaterialIcons name="chat-bubble-outline" size={12} color="#F9FAFB" />
                         <Text style={styles.gridStatText}>{reviewsCount}</Text>
                       </View>
                       <View style={styles.gridStat}>
-                        <Ionicons name="image-outline" size={12} color="#F9FAFB" />
+                        <MaterialIcons name="image" size={12} color="#F9FAFB" />
                         <Text style={styles.gridStatText}>{mediaCount}</Text>
                       </View>
                     </View>
@@ -1014,7 +1035,7 @@ export default function FeedScreen() {
               </View>
             ) : (
               <View style={[styles.socialFeedEmpty, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
-                <Ionicons name="people-outline" size={48} color={Colors[colorScheme].mutedText} />
+                <MaterialIcons name="group" size={48} color={Colors[colorScheme].mutedText} />
                 <Text style={[styles.socialFeedEmptyTitle, { color: Colors[colorScheme].text }]}>
                   {followedFeedMeta?.following_count === 0
                     ? 'Follow users or teams to see their posts here'
@@ -1092,11 +1113,11 @@ export default function FeedScreen() {
                         ) : null}
                         <View style={styles.gridStatsRow}>
                           <View style={styles.gridStat}>
-                            <Ionicons name="arrow-up" size={12} color="#F9FAFB" />
+                            <MaterialIcons name="arrow-upward" size={12} color="#F9FAFB" />
                             <Text style={styles.gridStatText}>{post.upvotes_count ?? 0}</Text>
                           </View>
                           <View style={styles.gridStat}>
-                            <Ionicons name="chatbubble-ellipses-outline" size={12} color="#F9FAFB" />
+                            <MaterialIcons name="chat-bubble-outline" size={12} color="#F9FAFB" />
                             <Text style={styles.gridStatText}>{post.comments_count ?? 0}</Text>
                           </View>
                         </View>
@@ -1107,7 +1128,7 @@ export default function FeedScreen() {
               </View>
             ) : (
               <View style={[styles.socialFeedEmpty, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
-                <Ionicons name="shirt-outline" size={48} color={Colors[colorScheme].mutedText} />
+                <MaterialIcons name="dry-cleaning" size={48} color={Colors[colorScheme].mutedText} />
                 <Text style={[styles.socialFeedEmptyTitle, { color: Colors[colorScheme].text }]}>
                   {followedTeamsFeedMeta?.followed_teams_count === 0
                     ? 'Follow teams to see their posts here'
@@ -1195,7 +1216,7 @@ export default function FeedScreen() {
                     />
                     <View style={styles.gridContent}>
                       <View style={styles.gridDateChip}>
-                        <Ionicons name="calendar-outline" size={12} color="#FFFFFF" />
+                        <MaterialIcons name="event" size={12} color="#FFFFFF" />
                         <Text style={styles.gridDateText}>{eventDate}</Text>
                       </View>
                       <Text style={styles.gridTitle} numberOfLines={2}>
@@ -1206,11 +1227,11 @@ export default function FeedScreen() {
                       </Text>
                       <View style={styles.gridStatsRow}>
                         <View style={styles.gridStat}>
-                          <Ionicons name="chatbubble-ellipses-outline" size={12} color="#F9FAFB" />
+                          <MaterialIcons name="chat-bubble-outline" size={12} color="#F9FAFB" />
                           <Text style={styles.gridStatText}>{reviewsCount}</Text>
                         </View>
                         <View style={styles.gridStat}>
-                          <Ionicons name="image-outline" size={12} color="#F9FAFB" />
+                          <MaterialIcons name="image" size={12} color="#F9FAFB" />
                           <Text style={styles.gridStatText}>{mediaCount}</Text>
                         </View>
                       </View>
@@ -1256,7 +1277,7 @@ export default function FeedScreen() {
               />
               <View style={styles.verticalFeedContent}>
                 <View style={styles.verticalFeedBadge}>
-                  <Ionicons name="play" size={18} color="#fff" />
+                  <MaterialIcons name="play-arrow" size={18} color="#fff" />
                 </View>
                 <Text style={styles.verticalFeedTitleText}>Watch Highlights</Text>
                 {verticalFeedAuthorText ? (
@@ -1295,7 +1316,7 @@ export default function FeedScreen() {
               accessibilityLabel="Close notifications"
               accessibilityRole="button"
             >
-              <Ionicons name="close" size={28} color={Colors[colorScheme].text} />
+              <MaterialIcons name="close" size={28} color={Colors[colorScheme].text} />
             </Pressable>
           </View>
 
@@ -1307,7 +1328,7 @@ export default function FeedScreen() {
               <View style={styles.center}><ActivityIndicator /></View>
             ) : notificationsList.length === 0 ? (
               <View style={{ padding: 24, alignItems: 'center' }}>
-                <Ionicons name="notifications-off-outline" size={48} color={Colors[colorScheme].mutedText} />
+                <MaterialIcons name="notifications-off" size={48} color={Colors[colorScheme].mutedText} />
                 <Text style={[styles.emptyText, { color: Colors[colorScheme].mutedText }]}>No notifications</Text>
               </View>
             ) : (
@@ -1357,11 +1378,14 @@ export default function FeedScreen() {
                           }}
                         >
                           <View style={styles.listAvatarWrap}>
+                            {/* Always render fallback as base layer */}
+                            <View style={[styles.listAvatar, { backgroundColor: Colors[colorScheme].border }]}>
+                              <MaterialIcons name="person" size={22} color={Colors[colorScheme].mutedText} />
+                            </View>
+                            {/* Overlay actual image — if it fails, fallback stays visible */}
                             {item.actor?.avatar_url ? (
-                              <Image source={{ uri: item.actor.avatar_url }} style={styles.listAvatar} />
-                            ) : (
-                              <View style={[styles.listAvatar, { backgroundColor: Colors[colorScheme].border }]} />
-                            )}
+                              <Image source={{ uri: item.actor.avatar_url }} style={[styles.listAvatar, { position: 'absolute', top: 0, left: 0 }]} contentFit="cover" />
+                            ) : null}
                           </View>
                           <View style={{ flex: 1 }}>
                             <Text style={[styles.listTitle, { color: Colors[colorScheme].text }]}>{title}</Text>
@@ -1691,7 +1715,7 @@ const styles = StyleSheet.create({
   sectionTitle: { fontWeight: '800', marginBottom: 8 },
   zipSuggestionList: { marginTop: 6, marginBottom: 8, borderRadius: 12, backgroundColor: '#FFFFFF', borderWidth: StyleSheet.hairlineWidth, borderColor: '#E2E8F0', overflow: 'hidden', shadowColor: '#0f172a', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
   zipSuggestionItem: { paddingHorizontal: 16, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  zipSuggestionZip: { fontWeight: '700', color: '#111827', fontSize: 15 },
+  zipSuggestionZip: { fontWeight: '700', fontSize: 15 },
   zipSuggestionCount: { color: '#6b7280', fontSize: 12 },
   verticalFeedSection: { marginTop: 32, marginBottom: 24 },
   verticalFeedCard: { marginTop: 12, borderRadius: 20, overflow: 'hidden', backgroundColor: '#0f172a', minHeight: 220, aspectRatio: 1, justifyContent: 'flex-end' },

@@ -1,6 +1,6 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import {
     Pressable,
@@ -32,8 +32,8 @@ export default function CoreValuesScreen() {
               onPress={() => void router.push('/dm-restrictions')}
               style={styles.headerButton}
             >
-              <Ionicons
-                name="settings-outline"
+              <MaterialIcons
+                name="settings"
                 size={24}
                 color={isDark ? '#ECEDEE' : '#11181C'}
               />
@@ -54,8 +54,8 @@ export default function CoreValuesScreen() {
           ]}
         >
           <View style={styles.cardHeader}>
-            <Ionicons
-              name="flag-outline"
+            <MaterialIcons
+              name="flag"
               size={28}
               color={isDark ? '#60A5FA' : '#3B82F6'}
             />
@@ -82,8 +82,8 @@ export default function CoreValuesScreen() {
           ]}
         >
           <View style={styles.cardHeader}>
-            <Ionicons
-              name="shield-checkmark"
+            <MaterialIcons
+              name="verified-user"
               size={28}
               color={isDark ? '#34D399' : '#10B981'}
             />
@@ -121,8 +121,8 @@ export default function CoreValuesScreen() {
           ]}
         >
           <View style={styles.cardHeader}>
-            <Ionicons
-              name="people-outline"
+            <MaterialIcons
+              name="group"
               size={28}
               color={isDark ? '#F59E0B' : '#F59E0B'}
             />
@@ -160,8 +160,8 @@ export default function CoreValuesScreen() {
           ]}
         >
           <View style={styles.cardHeader}>
-            <Ionicons
-              name="checkmark-circle"
+            <MaterialIcons
+              name="check-circle"
               size={28}
               color={isDark ? '#8B5CF6' : '#7C3AED'}
             />
@@ -199,7 +199,7 @@ export default function CoreValuesScreen() {
           ]}
           onPress={() => void router.push('/dm-restrictions')}
         >
-          <Ionicons name="settings-outline" size={20} color="#FFFFFF" />
+          <MaterialIcons name="settings" size={20} color="#FFFFFF" />
           <Text style={styles.safeZoneButtonText}>Manage DM Settings</Text>
         </Pressable>
       </ScrollView>

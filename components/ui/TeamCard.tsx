@@ -1,7 +1,7 @@
 import { Colors } from '@/constants/Colors';
 import { radius, spacing, typography } from '@/constants/Theme';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image, StyleSheet, Text, View, ViewStyle } from 'react-native';
 import { Card } from './card';
 
@@ -88,7 +88,7 @@ export function TeamCard({
           />
         ) : (
           <View style={[styles.logoPlaceholder, { backgroundColor: Colors[colorScheme].surface }]}>
-            <Ionicons name="shield-outline" size={24} color={Colors[colorScheme].icon} />
+            <MaterialIcons name="shield" size={24} color={Colors[colorScheme].icon} />
           </View>
         )}
 
@@ -113,8 +113,8 @@ export function TeamCard({
             <View style={styles.metaRow}>
               {team.sport && (
                 <View style={styles.metaItem}>
-                  <Ionicons 
-                    name="basketball-outline" 
+                  <MaterialIcons 
+                    name="sports-basketball" 
                     size={14} 
                     color={Colors[colorScheme].mutedText} 
                   />
@@ -131,8 +131,8 @@ export function TeamCard({
               )}
               {team.season && (
                 <View style={styles.metaItem}>
-                  <Ionicons 
-                    name="calendar-outline" 
+                  <MaterialIcons 
+                    name="event" 
                     size={14} 
                     color={Colors[colorScheme].mutedText} 
                   />
@@ -154,8 +154,8 @@ export function TeamCard({
           {team.member_count !== undefined && (
             <View style={styles.metaRow}>
               <View style={styles.metaItem}>
-                <Ionicons 
-                  name="people-outline" 
+                <MaterialIcons 
+                  name="group" 
                   size={14} 
                   color={Colors[colorScheme].mutedText} 
                 />
@@ -175,8 +175,8 @@ export function TeamCard({
 
         {/* Chevron */}
         {onPress && (
-          <Ionicons 
-            name="chevron-forward" 
+          <MaterialIcons 
+            name="chevron-right" 
             size={24} 
             color={Colors[colorScheme].mutedText} 
           />

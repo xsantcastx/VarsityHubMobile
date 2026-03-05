@@ -1,6 +1,6 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
@@ -413,9 +413,9 @@ export default function CreateTeamScreen() {
         <View style={[styles.header, { paddingTop: 12 + insets.top }]}>
           <Pressable 
             style={styles.backButton} 
-            onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)}
+            onPress={() => router.back()}
           >
-            <Ionicons name="arrow-back" size={24} color={Colors[colorScheme].text} />
+            <MaterialIcons name="arrow-back" size={24} color={Colors[colorScheme].text} />
           </Pressable>
           <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>Create Team</Text>
           <View style={{ width: 32 }} />
@@ -424,7 +424,7 @@ export default function CreateTeamScreen() {
         {/* Intro Card */}
         <View style={[styles.introCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
           <LinearGradient colors={[Colors[colorScheme].tint, Colors[colorScheme].tint + 'CC']} style={styles.introIcon}>
-            <Ionicons name="people" size={28} color="#fff" />
+            <MaterialIcons name="group" size={28} color="#fff" />
           </LinearGradient>
           <Text style={[styles.introTitle, { color: Colors[colorScheme].text }]}>
             Start Your Team
@@ -451,7 +451,7 @@ export default function CreateTeamScreen() {
               </Text>
               {limitReached && Platform.OS !== 'ios' && (
                 <Pressable onPress={() => router.push('/subscription-paywall')} style={styles.limitUpgradeLink}>
-                  <Ionicons name="arrow-forward-circle" size={18} color={Colors[colorScheme].tint} />
+                  <MaterialIcons name="arrow-circle-right" size={18} color={Colors[colorScheme].tint} />
                   <Text style={[styles.limitUpgradeText, { color: Colors[colorScheme].tint }]}>View plans</Text>
                 </Pressable>
               )}
@@ -487,7 +487,7 @@ export default function CreateTeamScreen() {
               Team Name <Text style={{ color: Colors[colorScheme].destructive }}>*</Text>
             </Text>
             <View style={[styles.inputContainer, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-              <Ionicons name="trophy-outline" size={20} color={Colors[colorScheme].mutedText} />
+              <MaterialIcons name="emoji-events" size={20} color={Colors[colorScheme].mutedText} />
               <TextInput
                 value={name}
                 onChangeText={setName}
@@ -510,7 +510,7 @@ export default function CreateTeamScreen() {
                   <Image source={{ uri: logoUri }} style={styles.logoImage} />
                 ) : (
                   <>
-                    <Ionicons name="camera-outline" size={32} color={Colors[colorScheme].mutedText} />
+                    <MaterialIcons name="camera-alt" size={32} color={Colors[colorScheme].mutedText} />
                     <Text style={[styles.logoPlaceholderText, { color: Colors[colorScheme].mutedText }]}>
                       Add Logo
                     </Text>
@@ -522,7 +522,7 @@ export default function CreateTeamScreen() {
                   style={[styles.logoActionButton, { backgroundColor: Colors[colorScheme].tint }]}
                   onPress={showImagePicker}
                 >
-                  <Ionicons name="add" size={20} color="#fff" />
+                  <MaterialIcons name="add" size={20} color="#fff" />
                   <Text style={styles.logoActionText}>
                     {logoUri ? 'Change' : 'Add Logo'}
                   </Text>
@@ -532,7 +532,7 @@ export default function CreateTeamScreen() {
                     style={[styles.logoActionButton, { backgroundColor: '#EF4444' }]}
                     onPress={() => setLogoUri(null)}
                   >
-                    <Ionicons name="trash-outline" size={20} color="#fff" />
+                    <MaterialIcons name="delete-outline" size={20} color="#fff" />
                     <Text style={styles.logoActionText}>Remove</Text>
                   </Pressable>
                 )}
@@ -560,7 +560,7 @@ export default function CreateTeamScreen() {
                   setExtracurricularCategory('');
                 }}
               >
-                <Ionicons name="football-outline" size={20} color={clubType === 'sport' ? '#fff' : Colors[colorScheme].text} />
+                <MaterialIcons name="sports-football" size={20} color={clubType === 'sport' ? '#fff' : Colors[colorScheme].text} />
                 <Text style={[
                   styles.clubTypeText,
                   { color: clubType === 'sport' ? '#fff' : Colors[colorScheme].text }
@@ -605,7 +605,7 @@ export default function CreateTeamScreen() {
                   setSport('');
                 }}
               >
-                <Ionicons name="school-outline" size={20} color={clubType === 'extracurricular' ? '#fff' : Colors[colorScheme].text} />
+                <MaterialIcons name="school" size={20} color={clubType === 'extracurricular' ? '#fff' : Colors[colorScheme].text} />
                 <Text style={[
                   styles.clubTypeText,
                   { color: clubType === 'extracurricular' ? '#fff' : Colors[colorScheme].text }
@@ -623,7 +623,7 @@ export default function CreateTeamScreen() {
               <View style={styles.fieldGroup}>
                 <Text style={[styles.fieldLabel, { color: Colors[colorScheme].text }]}>Club Category</Text>
                 <View style={[styles.inputContainer, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-                  <Ionicons name="library-outline" size={20} color={Colors[colorScheme].mutedText} />
+                  <MaterialIcons name="local-library" size={20} color={Colors[colorScheme].mutedText} />
                   <TextInput
                     value={extracurricularCategory}
                     onChangeText={setExtracurricularCategory}
@@ -702,8 +702,8 @@ export default function CreateTeamScreen() {
                   ]}
                   onPress={() => handleSeasonTypeSelect(type)}
                 >
-                  <Ionicons 
-                    name="calendar-outline" 
+                  <MaterialIcons 
+                    name="event" 
                     size={16} 
                     color={seasonType === type ? Colors[colorScheme].tint : Colors[colorScheme].mutedText} 
                   />
@@ -764,7 +764,7 @@ export default function CreateTeamScreen() {
                   onPress={() => setTeamColor(color.value)}
                 >
                   {teamColor === color.value && (
-                    <Ionicons name="checkmark" size={20} color="#fff" />
+                    <MaterialIcons name="check" size={20} color="#fff" />
                   )}
                 </Pressable>
               ))}
@@ -827,7 +827,7 @@ export default function CreateTeamScreen() {
         <View style={styles.actionSection}>
           {limitReached && (
             <View style={styles.limitWarning}>
-              <Ionicons name="alert-circle" size={18} color={colorScheme === 'dark' ? Colors[colorScheme].tint : '#B45309'} />
+              <MaterialIcons name="error" size={18} color={colorScheme === 'dark' ? Colors[colorScheme].tint : '#B45309'} />
               <Text style={styles.limitWarningText}>
                 {Platform.OS === 'ios'
                   ? "You've reached the maximum number of teams."
@@ -849,7 +849,7 @@ export default function CreateTeamScreen() {
             {submitting ? (
               <ActivityIndicator color="#fff" size="small" />
             ) : (
-              <Ionicons name="checkmark" size={20} color="#fff" />
+              <MaterialIcons name="check" size={20} color="#fff" />
             )}
             <Text style={styles.createButtonText}>
               {submitting ? 'Creating Team...' : 'Create Team'}

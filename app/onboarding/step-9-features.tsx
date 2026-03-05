@@ -1,7 +1,7 @@
 import PrimaryButton from '@/components/ui/PrimaryButton';
 import { Colors } from '@/constants/Colors';
 import { Type } from '@/ui/tokens';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, StyleSheet, Switch, Text, View, useColorScheme } from 'react-native';
@@ -117,6 +117,7 @@ export default function Step9Features() {
         location_enabled: locationEnabled,
         notifications_enabled: notificationsEnabled,
         messaging_policy_accepted: true,
+        step_9_visited: true,
       }));
 
       // Save to backend
@@ -189,7 +190,7 @@ export default function Step9Features() {
       <View style={[styles.featureCard, styles.blueCard]}>
           <View style={styles.featureHeader}>
             <View style={[styles.featureIconContainer, styles.blueIconContainer]}>
-              <Ionicons name="location" size={24} color="#ffffff" />
+              <MaterialIcons name="location-on" size={24} color="#ffffff" />
             </View>
             <View style={styles.featureContent}>
               <Text style={styles.featureTitle}>Location Access</Text>
@@ -215,7 +216,7 @@ export default function Step9Features() {
         <View style={[styles.featureCard, styles.redCard]}>
           <View style={styles.featureHeader}>
             <View style={[styles.featureIconContainer, styles.redIconContainer]}>
-              <Ionicons name="notifications" size={24} color="#ffffff" />
+              <MaterialIcons name="notifications" size={24} color="#ffffff" />
             </View>
             <View style={styles.featureContent}>
               <Text style={styles.featureTitle}>Push Notifications</Text>

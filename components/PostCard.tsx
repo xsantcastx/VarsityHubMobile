@@ -1,8 +1,9 @@
-import { Post } from '@/api/entities';
+import { Post, Report } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
+import { sanitizeTitle } from '@/lib/sanitizeTitle';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -39,7 +40,35 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
   const [editContent, setEditContent] = useState(post.content || '');
   const [editTitle, setEditTitle] = useState(post.title || '');
   const [updating, setUpdating] = useState(false);
+  const [showReportMenu, setShowReportMenu] = useState(false);
+  const [reportSubmitting, setReportSubmitting] = useState(false);
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const REPORT_REASONS = [
+    { value: 'spam', label: 'Spam' },
+    { value: 'harassment', label: 'Harassment' },
+    { value: 'hate_speech', label: 'Hate speech' },
+    { value: 'violence', label: 'Violence' },
+    { value: 'false_information', label: 'False information' },
+    { value: 'other', label: 'Other' },
+  ];
+
+  const handleReportPost = async (reason: string) => {
+    setReportSubmitting(true);
+    try {
+      await Report.create({ target_type: 'post', target_id: String(post.id), reason });
+      Alert.alert('Report Submitted', 'Thank you for helping keep our community safe.');
+    } catch (error: any) {
+      if (error?.status === 409) {
+        Alert.alert('Already Reported', 'You have already reported this post.');
+      } else {
+        Alert.alert('Error', error?.message || 'Failed to submit report. Please try again.');
+      }
+    } finally {
+      setReportSubmitting(false);
+      setShowReportMenu(false);
+    }
+  };
 
   const onUpvote = async () => {
     try {
@@ -168,7 +197,7 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
     const b = anyP.team_b?.name || anyP.teamB?.name || anyP.team_b_name || anyP.teamBName;
     if (a || b) return { teamA: String(a || 'Team A'), teamB: String(b || 'Team B') };
     // From title/caption using vs
-    const source = [String(anyP.title || ''), String(anyP.caption || anyP.content || '')].join(' \u2022 ');
+    const source = [String(sanitizeTitle(anyP.title) || ''), String(anyP.caption || anyP.content || '')].join(' \u2022 ');
     const parts = source.split(/\s+vs\.?\s+/i).map((s) => s.trim()).filter(Boolean);
     if (parts.length >= 2) return { teamA: parts[0], teamB: parts[1] };
     return null;
@@ -177,7 +206,7 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
 
   const StatPill = ({ icon, value }: { icon: any; value: number }) => (
     <View style={styles.statPill}>
-      <Ionicons name={icon} size={12} color="#fff" />
+      <MaterialIcons name={icon} size={12} color="#fff" />
       <Text style={styles.statPillText}>{value}</Text>
     </View>
   );
@@ -232,12 +261,12 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
               {author?.display_name || (author?.username ? `@${author.username}` : 'User')}
             </Text>
           </Pressable>
-          {isAuthor && (
+          {currentUser && (
             <Pressable
               style={styles.actionsButton}
               onPress={() => setShowActionsMenu(true)}
             >
-              <Ionicons name="ellipsis-horizontal" size={20} color={Colors[colorScheme].text} />
+              <MaterialIcons name="more-horiz" size={20} color={Colors[colorScheme].text} />
             </Pressable>
           )}
         </View>
@@ -273,7 +302,7 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
           </View>
           {isVideo ? (
             <View style={styles.playOverlay}>
-              <Ionicons name="play" size={24} color="#fff" />
+              <MaterialIcons name="play-arrow" size={24} color="#fff" />
             </View>
           ) : null}
         </View>
@@ -304,16 +333,16 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
           accessibilityRole="button" 
           accessibilityLabel="Upvote"
         >
-          <Ionicons name="arrow-up" size={16} color={Colors[colorScheme].background} />
+          <MaterialIcons name="arrow-upward" size={16} color={Colors[colorScheme].background} />
           <Text style={[styles.upvoteText, { color: Colors[colorScheme].background }]}>{upvotesCount}</Text>
         </Pressable>
         <View style={{ flex: 1 }} />
         <View style={styles.metaRow}>
-          <Ionicons name="chatbubble-ellipses-outline" size={16} color={Colors[colorScheme].mutedText} />
+          <MaterialIcons name="chat-bubble-outline" size={16} color={Colors[colorScheme].mutedText} />
           <Text style={[styles.metaText, { color: Colors[colorScheme].mutedText }]}>{post.comments_count || 0}</Text>
         </View>
         <Pressable onPress={onBookmark} style={[styles.bookmarkBtn, { backgroundColor: Colors[colorScheme].surface }]} accessibilityRole="button" accessibilityLabel="Bookmark">
-          <Ionicons name={bookmarked ? 'bookmark' : 'bookmark-outline'} size={18} color={Colors[colorScheme].text} />
+          <MaterialIcons name={bookmarked ? 'bookmark' : 'bookmark-outline'} size={18} color={Colors[colorScheme].text} />
           <Text style={[styles.bookmarkText, { color: Colors[colorScheme].text }]}>{bookmarksCount}</Text>
         </Pressable>
       </View>
@@ -325,32 +354,75 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
         animationType="fade"
         onRequestClose={() => setShowActionsMenu(false)}
       >
-        <Pressable 
+        <Pressable
           style={styles.modalOverlay}
           onPress={() => setShowActionsMenu(false)}
         >
           <View style={[styles.actionsMenu, { backgroundColor: theme.card }]}>
-            <Pressable
-              style={styles.actionItem}
-              onPress={() => {
-                setShowActionsMenu(false);
-                setEditModalVisible(true);
-              }}
-            >
-              <Ionicons name="pencil" size={20} color={theme.icon} />
-              <Text style={[styles.actionText, { color: theme.text }]}>Edit Post</Text>
-            </Pressable>
-            <View style={styles.actionSeparator} />
-            <Pressable
-              style={styles.actionItem}
-              onPress={() => {
-                setShowActionsMenu(false);
-                void handleDeletePost().catch(() => {});
-              }}
-            >
-              <Ionicons name="trash" size={20} color="#dc2626" />
-              <Text style={[styles.actionText, { color: '#dc2626' }]}>Delete Post</Text>
-            </Pressable>
+            {isAuthor ? (
+              <>
+                <Pressable
+                  style={styles.actionItem}
+                  onPress={() => {
+                    setShowActionsMenu(false);
+                    setEditModalVisible(true);
+                  }}
+                >
+                  <MaterialIcons name="edit" size={20} color={theme.icon} />
+                  <Text style={[styles.actionText, { color: theme.text }]}>Edit Post</Text>
+                </Pressable>
+                <View style={[styles.actionSeparator, { backgroundColor: theme.border }]} />
+                <Pressable
+                  style={styles.actionItem}
+                  onPress={() => {
+                    setShowActionsMenu(false);
+                    void handleDeletePost().catch(() => {});
+                  }}
+                >
+                  <MaterialIcons name="delete" size={20} color="#dc2626" />
+                  <Text style={[styles.actionText, { color: '#dc2626' }]}>Delete Post</Text>
+                </Pressable>
+              </>
+            ) : (
+              <Pressable
+                style={styles.actionItem}
+                onPress={() => {
+                  setShowActionsMenu(false);
+                  setShowReportMenu(true);
+                }}
+              >
+                <MaterialIcons name="flag" size={20} color={theme.icon} />
+                <Text style={[styles.actionText, { color: theme.text }]}>Report Post</Text>
+              </Pressable>
+            )}
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* Report Reason Picker Modal */}
+      <Modal
+        visible={showReportMenu}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowReportMenu(false)}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => !reportSubmitting && setShowReportMenu(false)}
+        >
+          <View style={[styles.actionsMenu, { backgroundColor: theme.card, minWidth: 220 }]}>
+            <Text style={[styles.reportTitle, { color: theme.text }]}>Why are you reporting this?</Text>
+            <View style={[styles.actionSeparator, { backgroundColor: theme.border }]} />
+            {REPORT_REASONS.map((r) => (
+              <Pressable
+                key={r.value}
+                style={styles.actionItem}
+                disabled={reportSubmitting}
+                onPress={() => void handleReportPost(r.value)}
+              >
+                <Text style={[styles.actionText, { color: theme.text, opacity: reportSubmitting ? 0.5 : 1 }]}>{r.label}</Text>
+              </Pressable>
+            ))}
           </View>
         </Pressable>
       </Modal>
@@ -362,28 +434,30 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
         onRequestClose={() => setEditModalVisible(false)}
       >
         <View style={[styles.editModal, { backgroundColor: theme.background }]}>
-          <View style={styles.editHeader}>
+          <View style={[styles.editHeader, { borderBottomColor: theme.border }]}>
             <Pressable onPress={() => setEditModalVisible(false)}>
               <Text style={[styles.cancelButton, { color: theme.mutedText }]}>Cancel</Text>
             </Pressable>
             <Text style={[styles.editTitle, { color: theme.text }]}>Edit Post</Text>
             <Pressable onPress={handleEditPost} disabled={updating}>
-              <Text style={[styles.saveButton, updating && styles.saveButtonDisabled]}>
+              <Text style={[styles.saveButton, { color: theme.tint }, updating && styles.saveButtonDisabled]}>
                 {updating ? 'Saving...' : 'Save'}
               </Text>
             </Pressable>
           </View>
           <View style={styles.editContent}>
             <TextInput
-              style={styles.titleInput}
+              style={[styles.titleInput, { borderColor: theme.border, color: theme.text }]}
               placeholder="Title (optional)"
+              placeholderTextColor={theme.mutedText}
               value={editTitle}
               onChangeText={setEditTitle}
               multiline
             />
             <TextInput
-              style={styles.contentInput}
+              style={[styles.contentInput, { borderColor: theme.border, color: theme.text }]}
               placeholder="What's happening?"
+              placeholderTextColor={theme.mutedText}
               value={editContent}
               onChangeText={setEditContent}
               multiline
@@ -464,4 +538,7 @@ const styles = StyleSheet.create({
   editContent: { flex: 1, padding: 16 },
   titleInput: { borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, padding: 12, fontSize: 16, marginBottom: 12, minHeight: 50 },
   contentInput: { borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, padding: 12, fontSize: 16, flex: 1, minHeight: 120 },
+
+  // Report modal styles
+  reportTitle: { fontSize: 16, fontWeight: '700', paddingHorizontal: 16, paddingVertical: 12 },
 });

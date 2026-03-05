@@ -5,7 +5,7 @@
 
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { StyleSheet, Text, View } from 'react-native';
 
 interface ReachMapPreviewProps {
@@ -20,7 +20,7 @@ export function ReachMapPreview({ zipCode, radiusKm = 15 }: ReachMapPreviewProps
   return (
     <View style={[styles.container, { backgroundColor: Colors[colorScheme].surface }]}>
       <View style={styles.content}>
-        <Ionicons name="map-outline" size={48} color={Colors[colorScheme].mutedText} />
+        <MaterialIcons name="map" size={48} color={Colors[colorScheme].mutedText} />
         <Text style={[styles.title, { color: Colors[colorScheme].text }]}>
           Map Preview
         </Text>

@@ -749,9 +749,9 @@ export default function TeamScreen() {
             }}
             disabled={!team?.organization_id}
           >
-            <Ionicons 
-              name="business-outline" 
-              size={16} 
+            <Ionicons
+              name="business-outline"
+              size={16}
               color={team?.organization_id ? theme.tint : theme.mutedText} 
             />
             <Text style={[
@@ -1246,18 +1246,20 @@ const styles = StyleSheet.create({
   },
   userInfo: {
     flex: 1,
-    paddingBottom: 0,
     minWidth: 0,
     marginLeft: 8,
-    paddingRight: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
   },
   userName: {
     fontSize: 22,
     fontWeight: '700',
     color: '#ffffff',
-    textShadowColor: 'rgba(0, 0, 0, 0.6)',
+    textShadowColor: 'rgba(0, 0, 0, 0.8)',
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
+    textShadowRadius: 6,
     flexShrink: 1,
     maxWidth: '100%',
   },
@@ -1318,20 +1320,19 @@ const styles = StyleSheet.create({
   },
   profileDetailsContainer: {
     backgroundColor: 'transparent',
-    paddingTop: 8,
+    paddingTop: 48, // Clear the avatar overlap (40px + 8px gap)
     marginBottom: 0,
     paddingBottom: 0,
   },
   userDetails: {
     paddingHorizontal: 16,
     paddingTop: 4,
-    paddingBottom: 4,
+    paddingBottom: 0,
   },
   usernameRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingTop: 0,
     paddingBottom: 4,
     gap: 12,
   },
@@ -1345,6 +1346,9 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     marginBottom: 4,
     lineHeight: 20,
+    textShadowColor: 'rgba(0, 0, 0, 0.15)',
+    textShadowOffset: { width: 0, height: 0.5 },
+    textShadowRadius: 2,
   },
   metaItem: {
     flexDirection: 'row',
@@ -1504,7 +1508,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginTop: 12,
+    marginTop: 8,
+    marginBottom: 0,
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 8,
@@ -1516,7 +1521,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   rosterSection: {
-    marginTop: 16,
+    marginTop: 8,
     padding: 12,
     borderRadius: 12,
     borderWidth: 1,

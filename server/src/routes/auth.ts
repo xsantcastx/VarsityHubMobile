@@ -3,7 +3,7 @@ import crypto, { createPublicKey, type KeyObject } from 'crypto';
 import { Router } from 'express';
 import jwt, { type JwtPayload } from 'jsonwebtoken';
 import { z } from 'zod';
-import { sendPasswordChangedEmail, sendPasswordResetEmail, sendVerificationEmail } from '../lib/email.js';
+import { sendPasswordChangedEmail, sendPasswordResetEmail, sendVerificationEmail, sendWelcomeEmail } from '../lib/email.js';
 import { validateContent } from '../lib/contentFilter.js';
 import { ConflictError } from '../lib/errors/ConflictError.js';
 import { ValidationError } from '../lib/errors/ValidationError.js';
@@ -270,6 +270,11 @@ authRouter.post('/register', asyncHandler(async (req, res) => {
   } catch (e) {
     console.error('[verify-code] [register] sendVerificationEmail threw:', e);
     req.log?.warn?.({ err: e }, 'Email send failed; returning code in dev');
+  }
+  try {
+    await sendWelcomeEmail(sanitizedEmail, display_name || sanitizedEmail.split('@')[0]);
+  } catch (e) {
+    console.error('[register] sendWelcomeEmail failed:', e);
   }
   const payload: any = { access_token, user: sanitizeUser(user) };
   if (process.env.NODE_ENV !== 'production') payload.dev_verification_code = code;

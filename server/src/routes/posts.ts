@@ -7,6 +7,8 @@ import { requireVerified } from '../middleware/requireVerified.js';
 import { requireOnboarded } from '../middleware/requireOnboarded.js';
 import { postCreationLimiter, commentLimiter, interactionLimiter } from '../middleware/rateLimiters.js';
 import { haversineDistance, getZipCoordinates } from '../lib/geoUtils.js';
+import { detectMediaType, getVideoPreviewUrl } from '../lib/mediaUtils.js';
+import { getExcludedPrivateAuthorIds, isAuthorHiddenFromViewer } from '../lib/privacyUtils.js';
 
 export const postsRouter = Router();
 
@@ -17,12 +19,6 @@ const debugLog = (...args: Parameters<typeof console.log>) => {
   }
 };
 
-const VIDEO_EXTENSIONS = ['.mp4', '.mov', '.webm', '.m4v', '.avi', '.mkv'];
-const detectMediaType = (url?: string | null): 'video' | 'image' => {
-  if (!url) return 'image';
-  const sanitized = url.split('?')[0].split('#')[0].toLowerCase();
-  return VIDEO_EXTENSIONS.some((ext) => sanitized.endsWith(ext)) ? 'video' : 'image';
-};
 const isMissingPollSchemaError = (error: any): boolean => {
   if (!error || (error.code !== 'P2021' && error.code !== 'P2022')) return false;
   const table = String(error?.meta?.table ?? '');
@@ -157,6 +153,17 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
   if (req.query.type) where.type = String(req.query.type);
   if (req.query.user_id) where.author_id = String(req.query.user_id);
 
+  // Privacy: hide posts from private-profile authors the viewer doesn't follow
+  if (req.query.user_id) {
+    // Specific user requested — block if private and viewer is not a follower
+    const hidden = await isAuthorHiddenFromViewer(String(req.query.user_id), currentUserId);
+    if (hidden) return res.json({ items: [], nextCursor: null });
+  } else {
+    // General feed — exclude all private authors the viewer doesn't follow
+    const excludedIds = await getExcludedPrivateAuthorIds(currentUserId);
+    if (excludedIds.length) where.author_id = { ...(typeof where.author_id === 'object' ? where.author_id : {}), notIn: excludedIds };
+  }
+
   // Location filtering: resolve user coordinates from zip or lat/lng params
   const feedRadius = Math.min(Number(req.query.radius) || 50, 500); // default 50mi, max 500mi
   let userCoords: { lat: number; lon: number } | null = null;
@@ -268,6 +275,7 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
       content: post.content ?? null,
       media_url: post.media_url ?? null,
       media_type: detectMediaType(post.media_url),
+      preview_url: getVideoPreviewUrl(post.media_url),
       caption: post.content ?? null,
       upvotes_count: post.upvotes_count ?? 0,
       comments_count: post._count?.comments ?? 0,
@@ -373,6 +381,7 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
     content: post.content ?? null, // Include content for editing
     media_url: post.media_url ?? null,
     media_type: detectMediaType(post.media_url),
+    preview_url: getVideoPreviewUrl(post.media_url),
     caption: post.content ?? null,
     upvotes_count: post.upvotes_count ?? 0,
     comments_count: post._count?.comments ?? 0,
@@ -685,10 +694,11 @@ postsRouter.post('/', requireVerified as any, requireOnboarded as any, postCreat
     }
   }
 
-  res.status(201).json({ 
-    ...post, 
+  res.status(201).json({
+    ...post,
     title: cleanTitle(post.title),
-    location: { lat, lng, place_name, country_code } 
+    preview_url: getVideoPreviewUrl(post.media_url),
+    location: { lat, lng, place_name, country_code }
   });
 });
 
@@ -867,6 +877,12 @@ postsRouter.get('/:id', async (req: AuthedRequest, res) => {
   
   if (!post) return res.status(404).json({ error: 'Not found' });
 
+  // Privacy: hide posts from private-profile authors the viewer doesn't follow
+  if (post.author_id) {
+    const hidden = await isAuthorHiddenFromViewer(post.author_id, currentUserId);
+    if (hidden) return res.status(404).json({ error: 'Not found' });
+  }
+
   let has_upvoted = false;
   let has_bookmarked = false;
   let is_following_author = false;
@@ -900,6 +916,7 @@ postsRouter.get('/:id', async (req: AuthedRequest, res) => {
     has_bookmarked,
     is_following_author,
     media_type: detectMediaType(post.media_url),
+    preview_url: getVideoPreviewUrl(post.media_url),
     caption: post.content ?? null,
     bookmarks_count: post._count?.bookmarks ?? 0,
     comments_count: post._count?.comments ?? 0,
@@ -921,10 +938,15 @@ postsRouter.get('/:id', async (req: AuthedRequest, res) => {
 });
 
 // Comments
-postsRouter.get('/:id/comments', async (req, res) => {
+postsRouter.get('/:id/comments', async (req: AuthedRequest, res) => {
   const { id } = req.params;
-  const post = await prisma.post.findFirst({ where: { id, deleted_at: null }, select: { id: true } });
+  const post = await prisma.post.findFirst({ where: { id, deleted_at: null }, select: { id: true, author_id: true } });
   if (!post) return res.status(404).json({ error: 'Post not found' });
+  // Privacy: block comments on private-profile authors' posts for non-followers
+  if (post.author_id) {
+    const hidden = await isAuthorHiddenFromViewer(post.author_id, req.user?.id ?? null);
+    if (hidden) return res.status(404).json({ error: 'Post not found' });
+  }
   const limit = Math.min(parseInt(String(req.query.limit ?? '20'), 10) || 20, 50);
   const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : null;
   const query: any = {
@@ -1349,7 +1371,11 @@ postsRouter.patch('/:id', requireAuth as any, async (req: AuthedRequest, res) =>
       },
     });
 
-    res.json(updatedPost);
+    res.json({
+      ...updatedPost,
+      media_type: detectMediaType(updatedPost.media_url),
+      preview_url: getVideoPreviewUrl(updatedPost.media_url),
+    });
   } catch (error) {
     console.error('Error updating post:', error);
     res.status(500).json({ error: 'Failed to update post' });

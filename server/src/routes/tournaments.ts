@@ -50,7 +50,7 @@ tournamentsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res: 
     return res.status(201).json(tournament);
   } catch (error: any) {
     console.error('Failed to create tournament:', error);
-    return res.status(500).json({ error: error.message || 'Failed to create tournament' });
+    return res.status(500).json({ error: 'Failed to create tournament' });
   }
 });
 
@@ -76,7 +76,7 @@ tournamentsRouter.get('/', async (_req: Request, res: Response) => {
     return res.json(tournaments);
   } catch (error: any) {
     console.error('Failed to fetch tournaments:', error);
-    return res.status(500).json({ error: error.message || 'Failed to fetch tournaments' });
+    return res.status(500).json({ error: 'Failed to fetch tournaments' });
   }
 });
 
@@ -112,7 +112,7 @@ tournamentsRouter.get('/:id', async (req: Request, res: Response) => {
     return res.json(tournament);
   } catch (error: any) {
     console.error('Failed to fetch tournament:', error);
-    return res.status(500).json({ error: error.message || 'Failed to fetch tournament' });
+    return res.status(500).json({ error: 'Failed to fetch tournament' });
   }
 });
 
@@ -154,7 +154,7 @@ tournamentsRouter.patch('/:id', requireAuth as any, async (req: AuthedRequest, r
     return res.json(tournament);
   } catch (error: any) {
     console.error('Failed to update tournament:', error);
-    return res.status(500).json({ error: error.message || 'Failed to update tournament' });
+    return res.status(500).json({ error: 'Failed to update tournament' });
   }
 });
 
@@ -186,7 +186,7 @@ tournamentsRouter.post('/:id/teams', requireAuth as any, async (req: AuthedReque
     return res.json(team);
   } catch (error: any) {
     console.error('Failed to add team to tournament:', error);
-    return res.status(500).json({ error: error.message || 'Failed to add team' });
+    return res.status(500).json({ error: 'Failed to add team' });
   }
 });
 
@@ -239,6 +239,6 @@ tournamentsRouter.post('/:id/games', requireAuth as any, async (req: AuthedReque
     return res.status(201).json(game);
   } catch (error: any) {
     console.error('Failed to create tournament game:', error);
-    return res.status(500).json({ error: error.message || 'Failed to create game' });
+    return res.status(500).json({ error: 'Failed to create game' });
   }
 });

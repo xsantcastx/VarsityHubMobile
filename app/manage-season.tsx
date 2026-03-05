@@ -1091,7 +1091,7 @@ export default function ManageSeasonScreen() {
       {/* SIMPLIFIED HEADER - Team Name with Back Button */}
       <View style={[styles.headerCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border, padding: 20 }]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={{ padding: 8 }}>
+          <Pressable onPress={() => router.back()} style={{ padding: 8 }}>
             <Ionicons name="arrow-back" size={24} color={Colors[colorScheme].text} />
           </Pressable>
           <Pressable onPress={() => setTeamSelectorOpen(true)} style={{ flex: 1 }}>
@@ -1429,7 +1429,7 @@ export default function ManageSeasonScreen() {
                   <Ionicons name="trophy-outline" size={20} color={Colors[colorScheme].tint} />
                 </Pressable>
               </View>
-              
+
               {/* Playoff Info */}
               <View style={[styles.playoffInfo, { backgroundColor: Colors[colorScheme].background }]}>
                 <Ionicons name="information-circle-outline" size={16} color={Colors[colorScheme].tint} />

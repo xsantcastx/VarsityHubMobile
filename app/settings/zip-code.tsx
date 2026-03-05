@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { User } from '@/api/entities';
 import { useUserProfile } from '@/hooks/useUser';
 import { Colors } from '@/constants/Colors';
+import { ZipCodeMapPreview } from '@/components/ZipCodeMapPreview';
 
 function isValidZip(v: string) {
   const us = /^\d{5}$/;
@@ -57,6 +58,7 @@ export default function ZipCodeScreen() {
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         <Text style={[styles.title, { color: Colors[colorScheme ?? 'light'].text }]}>ZIP / Postal Code</Text>
         <Input placeholder="94105" value={zip} onChangeText={setZip} keyboardType="number-pad" style={{ marginBottom: 12 }} />
+        <ZipCodeMapPreview zipCode={zip} title="Your Location" subtitle="Content near ZIP {zip} will be prioritized for you" showCircle={false} />
         <Button onPress={onSave} disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
       </ScrollView>
     </SafeAreaView>

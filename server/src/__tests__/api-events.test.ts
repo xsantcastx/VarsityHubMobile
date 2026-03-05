@@ -24,6 +24,7 @@ describe('API Event Endpoints', () => {
   let coachToken: string;
   let fanUserId: string;
   let fanToken: string;
+  let testOrgId: string;
 
   beforeAll(async () => {
     ({ prisma } = await import('../lib/prisma.js'));
@@ -38,11 +39,25 @@ describe('API Event Endpoints', () => {
         email_verified: true,
         preferences: {
           role: 'coach',
+          plan: 'rookie',
         },
       },
     });
     coachUserId = coach.id;
     coachToken = signJwt({ id: coachUserId });
+
+    // Give the coach an org membership so isOrgAdmin() returns true for auto-approval
+    const org = await prisma.organization.create({
+      data: {
+        name: `Test Event League ${Date.now()}`,
+        org_type: 'club',
+        updated_at: new Date(),
+      },
+    });
+    testOrgId = org.id;
+    await prisma.organizationMembership.create({
+      data: { organization_id: testOrgId, user_id: coachUserId, role: 'owner' },
+    });
 
     // Create fan user
     const fanPasswordHash = await bcrypt.hash(TEST_PASSWORD, 10);
@@ -71,6 +86,12 @@ describe('API Event Endpoints', () => {
           },
         },
       });
+
+      // Clean up org memberships and org
+      if (testOrgId) {
+        await prisma.organizationMembership.deleteMany({ where: { organization_id: testOrgId } });
+        await prisma.organization.delete({ where: { id: testOrgId } }).catch(() => {});
+      }
 
       // Clean up users
       await prisma.user.deleteMany({

@@ -1,7 +1,7 @@
 import { Advertisement } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -86,7 +86,7 @@ export default function AdConfirmationScreen() {
           {/* Success Animation */}
           <View style={styles.animationContainer}>
             <View style={[styles.successCircle, { backgroundColor: colorScheme === 'dark' ? '#065F46' : '#D1FAE5' }]}>
-              <Ionicons name="checkmark-circle" size={100} color="#10B981" />
+              <MaterialIcons name="check-circle" size={100} color="#10B981" />
             </View>
           </View>
 
@@ -104,7 +104,7 @@ export default function AdConfirmationScreen() {
           {bannerUrl && (
             <View style={[styles.previewSection, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
               <View style={styles.previewHeader}>
-                <Ionicons name="eye" size={20} color={Colors[colorScheme].text} />
+                <MaterialIcons name="visibility" size={20} color={Colors[colorScheme].text} />
                 <Text style={[styles.previewTitle, { color: Colors[colorScheme].text }]}>
                   Ad Preview
                 </Text>
@@ -118,7 +118,7 @@ export default function AdConfirmationScreen() {
               </View>
               {adDetails?.target_url && (
                 <View style={styles.linkRow}>
-                  <Ionicons name="link" size={16} color={Colors[colorScheme].mutedText} />
+                  <MaterialIcons name="link" size={16} color={Colors[colorScheme].mutedText} />
                   <Text style={[styles.linkText, { color: Colors[colorScheme].mutedText }]} numberOfLines={1}>
                     {adDetails.target_url}
                   </Text>
@@ -133,7 +133,7 @@ export default function AdConfirmationScreen() {
             style={[styles.detailsCard, { borderColor: Colors[colorScheme].border }]}
           >
           <View style={styles.detailRow}>
-            <Ionicons name="business" size={24} color="#10B981" />
+            <MaterialIcons name="business" size={24} color="#10B981" />
             <View style={{ flex: 1, marginLeft: 12 }}>
               <Text style={[styles.detailLabel, { color: Colors[colorScheme].mutedText }]}>
                 Business Name
@@ -147,7 +147,7 @@ export default function AdConfirmationScreen() {
           <View style={[styles.divider, { backgroundColor: Colors[colorScheme].border }]} />
 
           <View style={styles.detailRow}>
-            <Ionicons name="calendar" size={24} color="#10B981" />
+            <MaterialIcons name="event" size={24} color="#10B981" />
             <View style={{ flex: 1, marginLeft: 12 }}>
               <Text style={[styles.detailLabel, { color: Colors[colorScheme].mutedText }]}>
                 Campaign Dates
@@ -161,7 +161,7 @@ export default function AdConfirmationScreen() {
           <View style={[styles.divider, { backgroundColor: Colors[colorScheme].border }]} />
 
           <View style={styles.detailRow}>
-            <Ionicons name="cash" size={24} color="#10B981" />
+            <MaterialIcons name="payments" size={24} color="#10B981" />
             <View style={{ flex: 1, marginLeft: 12 }}>
               <Text style={[styles.detailLabel, { color: Colors[colorScheme].mutedText }]}>
                 Total Paid
@@ -175,7 +175,7 @@ export default function AdConfirmationScreen() {
 
         {/* Info Box */}
         <View style={[styles.infoBox, { backgroundColor: colorScheme === 'dark' ? '#1e293b' : '#EFF6FF', borderColor: colorScheme === 'dark' ? '#334155' : '#BFDBFE' }]}>
-          <Ionicons name="information-circle" size={24} color="#3B82F6" />
+          <MaterialIcons name="info" size={24} color="#3B82F6" />
           <View style={{ flex: 1, marginLeft: 12 }}>
             <Text style={[styles.infoText, { color: colorScheme === 'dark' ? '#93C5FD' : '#1E40AF' }]}>
               <Text style={{ fontWeight: '700' }}>What's Next?</Text>{'\n'}
@@ -190,7 +190,7 @@ export default function AdConfirmationScreen() {
             style={[styles.primaryButton, { backgroundColor: '#10B981' }]}
             onPress={() => void router.replace('/(tabs)/my-ads')}
           >
-            <Ionicons name="briefcase" size={20} color="#ffffff" />
+            <MaterialIcons name="work" size={20} color="#ffffff" />
             <Text style={styles.primaryButtonText}>View My Ads</Text>
           </Pressable>
 
@@ -198,7 +198,7 @@ export default function AdConfirmationScreen() {
             style={[styles.secondaryButton, { borderColor: Colors[colorScheme].border, backgroundColor: Colors[colorScheme].card }]}
             onPress={() => void router.replace('/(tabs)')}
           >
-            <Ionicons name="home" size={20} color={Colors[colorScheme].text} />
+            <MaterialIcons name="home" size={20} color={Colors[colorScheme].text} />
             <Text style={[styles.secondaryButtonText, { color: Colors[colorScheme].text }]}>
               Back to Feed
             </Text>
@@ -210,7 +210,7 @@ export default function AdConfirmationScreen() {
           style={styles.supportLink}
           onPress={() => void router.push('/help')}
         >
-          <Ionicons name="help-circle-outline" size={16} color={Colors[colorScheme].mutedText} />
+          <MaterialIcons name="help-outline" size={16} color={Colors[colorScheme].mutedText} />
           <Text style={[styles.supportText, { color: Colors[colorScheme].mutedText }]}>
             Need help? Contact Support
           </Text>

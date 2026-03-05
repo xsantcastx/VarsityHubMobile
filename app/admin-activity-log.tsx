@@ -1,7 +1,7 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -117,7 +117,7 @@ export default function AdminActivityLogScreen() {
     >
       <View style={styles.logHeader}>
         <View style={[styles.iconCircle, { backgroundColor: getActionColor(item.action) + '20' }]}>
-          <Ionicons name={getActionIcon(item.target_type) as any} size={20} color={getActionColor(item.action)} />
+          <MaterialIcons name={getActionIcon(item.target_type) as any} size={20} color={getActionColor(item.action)} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={[styles.logAction, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
@@ -160,7 +160,7 @@ export default function AdminActivityLogScreen() {
           headerTintColor: colorScheme === 'dark' ? '#ECEDEE' : '#111827',
           headerLeft: () => (
             <Pressable onPress={() => router.back()} style={{ paddingRight: 8 }}>
-              <Ionicons name="chevron-back" size={28} color="#007AFF" />
+              <MaterialIcons name="chevron-left" size={28} color="#007AFF" />
             </Pressable>
           ),
         }}
@@ -197,12 +197,12 @@ export default function AdminActivityLogScreen() {
         </View>
       ) : error ? (
         <View style={styles.centerContainer}>
-          <Ionicons name="warning-outline" size={48} color="#EF4444" />
+          <MaterialIcons name="warning-amber" size={48} color="#EF4444" />
           <Text style={styles.errorText}>{error}</Text>
         </View>
       ) : items.length === 0 ? (
         <View style={styles.centerContainer}>
-          <Ionicons name="clipboard-outline" size={64} color={colorScheme === 'dark' ? '#374151' : '#D1D5DB'} />
+          <MaterialIcons name="content-paste" size={64} color={colorScheme === 'dark' ? '#374151' : '#D1D5DB'} />
           <Text style={[styles.emptyText, { color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280' }]}>
             No activity found
           </Text>

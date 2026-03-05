@@ -150,7 +150,7 @@ export default function PollCard({ poll, onVote }: PollCardProps) {
         {poll.endsAt && (
           <View style={styles.footerRight}>
             <Ionicons 
-              name={isExpired ? "close-circle" : "time"} 
+              name={isExpired ? "close-circle" : "time"}
               size={14} 
               color={isExpired ? "#EF4444" : Colors[colorScheme].mutedText} 
             />

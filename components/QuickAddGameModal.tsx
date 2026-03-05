@@ -984,10 +984,10 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
                 ]}
                 onPress={() => setGameType('home')}
               >
-                <Ionicons 
-                  name="home-outline" 
-                  size={16} 
-                  color={gameType === 'home' ? '#fff' : Colors[colorScheme].text} 
+                <Ionicons
+                  name="home-outline"
+                  size={16}
+                  color={gameType === 'home' ? '#fff' : Colors[colorScheme].text}
                 />
                 <Text style={[
                   styles.gameTypeText,
@@ -1007,10 +1007,10 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
                 ]}
                 onPress={() => setGameType('away')}
               >
-                <Ionicons 
-                  name="airplane-outline" 
-                  size={16} 
-                  color={gameType === 'away' ? '#fff' : Colors[colorScheme].text} 
+                <Ionicons
+                  name="airplane-outline"
+                  size={16}
+                  color={gameType === 'away' ? '#fff' : Colors[colorScheme].text}
                 />
                 <Text style={[
                   styles.gameTypeText,

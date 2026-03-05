@@ -1,7 +1,7 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -74,7 +74,7 @@ export default function AdminDashboardScreen() {
       android_ripple={{ color: colorScheme === 'dark' ? '#374151' : '#F3F4F6' }}
     >
       <View style={[styles.statIcon, { backgroundColor: color + '20' }]}>
-        <Ionicons name={icon} size={24} color={color} />
+        <MaterialIcons name={icon} size={24} color={color} />
       </View>
       <View style={styles.statContent}>
         <Text style={[styles.statValue, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
@@ -89,8 +89,8 @@ export default function AdminDashboardScreen() {
           </Text>
         )}
       </View>
-      <Ionicons 
-        name="chevron-forward" 
+      <MaterialIcons 
+        name="chevron-right" 
         size={20} 
         color={colorScheme === 'dark' ? '#6B7280' : '#9CA3AF'} 
       />
@@ -130,7 +130,7 @@ export default function AdminDashboardScreen() {
           headerTintColor: colorScheme === 'dark' ? '#ECEDEE' : '#111827',
           headerLeft: () => (
             <Pressable onPress={() => router.back()} style={{ paddingRight: 8 }}>
-              <Ionicons name="chevron-back" size={28} color="#007AFF" />
+              <MaterialIcons name="chevron-left" size={28} color="#007AFF" />
             </Pressable>
           ),
         }}
@@ -142,7 +142,7 @@ export default function AdminDashboardScreen() {
         </View>
       ) : error ? (
         <View style={styles.centerContainer}>
-          <Ionicons name="warning-outline" size={48} color="#EF4444" />
+          <MaterialIcons name="warning-amber" size={48} color="#EF4444" />
           <Text style={[styles.errorText, { color: '#EF4444' }]}>{error}</Text>
           <Pressable 
             style={[styles.retryButton, { backgroundColor: Colors[colorScheme].tint }]} 
@@ -172,7 +172,7 @@ export default function AdminDashboardScreen() {
                 Platform overview and moderation tools
               </Text>
             </View>
-            <Ionicons 
+            <MaterialIcons 
               name="refresh" 
               size={24} 
               color={colorScheme === 'dark' ? '#9CA3AF' : '#6B7280'} 
@@ -245,7 +245,7 @@ export default function AdminDashboardScreen() {
                 }]}
                 onPress={() => void router.push('/admin-users')}
               >
-                <Ionicons name="people" size={28} color="#3B82F6" />
+                <MaterialIcons name="group" size={28} color="#3B82F6" />
                 <Text style={[styles.actionText, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
                   Manage Users
                 </Text>
@@ -258,7 +258,7 @@ export default function AdminDashboardScreen() {
                 }]}
                 onPress={() => void router.push('/admin-teams')}
               >
-                <Ionicons name="shield" size={28} color="#10B981" />
+                <MaterialIcons name="shield" size={28} color="#10B981" />
                 <Text style={[styles.actionText, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
                   Manage Teams
                 </Text>
@@ -271,7 +271,7 @@ export default function AdminDashboardScreen() {
                 }]}
                 onPress={() => void router.push('/admin-ads')}
               >
-                <Ionicons name="megaphone" size={28} color="#F59E0B" />
+                <MaterialIcons name="campaign" size={28} color="#F59E0B" />
                 <Text style={[styles.actionText, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
                   Review Ads
                 </Text>
@@ -284,7 +284,7 @@ export default function AdminDashboardScreen() {
                 }]}
                 onPress={() => void router.push('/admin-reports')}
               >
-                <Ionicons name="alert-circle" size={28} color="#EF4444" />
+                <MaterialIcons name="error" size={28} color="#EF4444" />
                 <Text style={[styles.actionText, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
                   Abuse Reports
                 </Text>
@@ -297,7 +297,7 @@ export default function AdminDashboardScreen() {
                 }]}
                 onPress={() => void router.push('/admin-activity-log')}
               >
-                <Ionicons name="list" size={28} color="#8B5CF6" />
+                <MaterialIcons name="list" size={28} color="#8B5CF6" />
                 <Text style={[styles.actionText, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
                   Activity Log
                 </Text>

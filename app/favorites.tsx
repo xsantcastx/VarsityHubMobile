@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -184,7 +184,7 @@ export default function FavoritesScreen() {
     }
     return (
       <View style={styles.emptyState}>
-        <Ionicons name="bookmark-outline" size={40} color={palette.mutedText} />
+        <MaterialIcons name="bookmark-border" size={40} color={palette.mutedText} />
         <Text style={[styles.emptyTitle, { color: palette.text }]}>No favorites yet</Text>
         <Text style={[styles.emptySubtitle, { color: palette.mutedText }]}>
           Save highlights, posts, or game recaps to revisit them here.
@@ -204,12 +204,12 @@ export default function FavoritesScreen() {
             <Image source={{ uri: item.media_url }} style={styles.thumbnail} contentFit="cover" />
           ) : (
             <View style={[styles.thumbnail, styles.thumbnailPlaceholder]}>
-              <Ionicons name="image-outline" size={28} color={palette.mutedText} />
+              <MaterialIcons name="image" size={28} color={palette.mutedText} />
             </View>
           )}
           {item.media_type === 'video' ? (
             <View style={styles.playBadge}>
-              <Ionicons name="play" size={14} color="#fff" />
+              <MaterialIcons name="play-arrow" size={14} color="#fff" />
             </View>
           ) : null}
         </View>
@@ -224,20 +224,20 @@ export default function FavoritesScreen() {
           ) : null}
           <View style={styles.cardStats}>
             <View style={styles.statRow}>
-              <Ionicons name="arrow-up" size={14} color={palette.mutedText} />
+              <MaterialIcons name="arrow-upward" size={14} color={palette.mutedText} />
               <Text style={[styles.statText, { color: palette.mutedText }]}>
                 {item.upvotes_count != null ? item.upvotes_count : 0}
               </Text>
             </View>
             <View style={styles.statRow}>
-              <Ionicons name="chatbubble-ellipses" size={14} color={palette.mutedText} />
+              <MaterialIcons name="chat-bubble" size={14} color={palette.mutedText} />
               <Text style={[styles.statText, { color: palette.mutedText }]}>
                 {item.comments_count != null ? item.comments_count : 0}
               </Text>
             </View>
           </View>
         </View>
-        <Ionicons name="chevron-forward" size={18} color={palette.mutedText} />
+        <MaterialIcons name="chevron-right" size={18} color={palette.mutedText} />
       </Pressable>
     ),
     [palette.border, palette.mutedText, palette.surface, palette.text, router],
@@ -252,7 +252,7 @@ export default function FavoritesScreen() {
           headerShown: true,
           headerLeft: () => (
             <Pressable onPress={() => router.back()} style={{ paddingRight: 8 }}>
-              <Ionicons name="chevron-back" size={28} color="#007AFF" />
+              <MaterialIcons name="chevron-left" size={28} color="#007AFF" />
             </Pressable>
           ),
         }} />

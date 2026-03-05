@@ -125,6 +125,51 @@ const SCHEDULED_JOBS: ScheduledJob[] = [
     },
   },
   {
+    name: 'event-reminders-12hr-email',
+    cron: '0 * * * *', // Every hour at minute 0
+    description: 'Send 12-hour event reminder emails to RSVP attendees',
+    handler: async () => {
+      try {
+        const { prisma } = await import('../lib/prisma.js');
+        const { sendEventReminderEmail } = await import('../lib/email.js');
+
+        const now = new Date();
+        const windowStart = new Date(now.getTime() + 11 * 60 * 60 * 1000); // 11h from now
+        const windowEnd = new Date(now.getTime() + 13 * 60 * 60 * 1000);   // 13h from now
+
+        const upcomingEvents = await prisma.event.findMany({
+          where: {
+            date: { gte: windowStart, lte: windowEnd },
+            status: 'approved',
+          },
+          select: { id: true, title: true, date: true, location: true, rsvps: { select: { user: { select: { email: true, display_name: true } } } } },
+        });
+
+        let sent = 0;
+        for (const event of upcomingEvents) {
+          const eventDate = new Date(event.date);
+          for (const rsvp of event.rsvps) {
+            if (!rsvp.user?.email) continue;
+            sendEventReminderEmail({
+              to: rsvp.user.email,
+              recipientName: rsvp.user.display_name || 'Athlete',
+              eventTitle: event.title,
+              eventDate: eventDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }),
+              eventTime: eventDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+              eventLocation: event.location || '',
+              eventId: event.id,
+            }).catch((err) => console.warn('[Scheduler] event reminder email failed:', err?.message || err));
+            sent++;
+          }
+        }
+
+        if (sent > 0) console.log(`[Scheduler] Sent ${sent} event reminder emails for ${upcomingEvents.length} events`);
+      } catch (error) {
+        console.error('[Scheduler] Failed to send event reminder emails:', error);
+      }
+    },
+  },
+  {
     name: 'daily-founder-metrics',
     cron: '0 8 * * *', // Every day at 8:00 AM
     description: 'Send daily founder metrics summary via email',

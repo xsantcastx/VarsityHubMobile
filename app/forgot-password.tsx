@@ -2,7 +2,7 @@ import { User } from '@/api/entities';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
@@ -53,8 +53,8 @@ export default function ForgotPasswordScreen() {
       <Stack.Screen options={{ 
         title: 'Forgot Password',
         headerLeft: () => (
-          <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={{ paddingLeft: 8 }}>
-            <Ionicons name="chevron-back" size={24} color={palette.tint} />
+          <Pressable onPress={() => router.back()} style={{ paddingLeft: 8 }}>
+            <MaterialIcons name="chevron-left" size={24} color={palette.tint} />
           </Pressable>
         ),
       }} />

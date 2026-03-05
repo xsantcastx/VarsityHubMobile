@@ -2,7 +2,7 @@ import { Organization } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { captureException } from '@/utils/sentry';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -174,7 +174,7 @@ export default function OrganizationJoinRequestsScreen() {
           }} 
           style={styles.backButton}
         >
-          <Ionicons name="arrow-back" size={24} color={theme.text} />
+          <MaterialIcons name="arrow-back" size={24} color={theme.text} />
         </Pressable>
         <View style={styles.headerTextContainer}>
           <Text style={[styles.headerTitle, { color: theme.text }]}>Team Requests</Text>
@@ -229,7 +229,7 @@ export default function OrganizationJoinRequestsScreen() {
         </View>
       ) : error ? (
         <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle-outline" size={48} color={theme.mutedText} />
+          <MaterialIcons name="error-outline" size={48} color={theme.mutedText} />
           <Text style={[styles.errorText, { color: theme.text }]}>{error}</Text>
           <Pressable onPress={loadRequests} style={[styles.retryButton, { backgroundColor: theme.tint }]}>
             <Text style={styles.retryText}>Retry</Text>
@@ -250,7 +250,7 @@ export default function OrganizationJoinRequestsScreen() {
         >
           {requests.length === 0 ? (
             <View style={styles.emptyContainer}>
-              <Ionicons name="checkmark-circle-outline" size={64} color={theme.mutedText} />
+              <MaterialIcons name="check-circle-outline" size={64} color={theme.mutedText} />
               <Text style={[styles.emptyTitle, { color: theme.text }]}>
                 {filter === 'pending' ? 'No Pending Requests' : 'No Requests Yet'}
               </Text>
@@ -315,7 +315,7 @@ export default function OrganizationJoinRequestsScreen() {
                     {/* Rejection Reason */}
                     {request.status === 'rejected' && request.rejection_reason && (
                       <View style={[styles.rejectionContainer, { backgroundColor: '#fef2f2', borderColor: '#fee2e2' }]}>
-                        <Ionicons name="close-circle" size={16} color="#dc2626" />
+                        <MaterialIcons name="cancel" size={16} color="#dc2626" />
                         <Text style={[styles.rejectionText, { color: '#dc2626' }]}>
                           {request.rejection_reason}
                         </Text>
@@ -339,7 +339,7 @@ export default function OrganizationJoinRequestsScreen() {
                             <ActivityIndicator size="small" color="#dc2626" />
                           ) : (
                             <>
-                              <Ionicons name="close-circle-outline" size={20} color="#dc2626" />
+                              <MaterialIcons name="cancel" size={20} color="#dc2626" />
                               <Text style={[styles.rejectButtonText, { color: '#dc2626' }]}>Reject</Text>
                             </>
                           )}
@@ -353,7 +353,7 @@ export default function OrganizationJoinRequestsScreen() {
                             <ActivityIndicator size="small" color="#fff" />
                           ) : (
                             <>
-                              <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
+                              <MaterialIcons name="check-circle-outline" size={20} color="#fff" />
                               <Text style={styles.approveButtonText}>Approve</Text>
                             </>
                           )}

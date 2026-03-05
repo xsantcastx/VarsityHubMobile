@@ -4,7 +4,7 @@ import { Subscriptions } from '@/api/entities';
 import { PLAN_DEFINITIONS, Plan, formatPlanPrice } from '@/constants/plans';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -115,8 +115,8 @@ export default function BillingScreen() {
         <Stack.Screen options={{
           title: 'Billing',
           headerLeft: () => (
-            <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={{ paddingLeft: 8 }}>
-              <Ionicons name="chevron-back" size={24} color="#3B82F6" />
+            <Pressable onPress={() => router.back()} style={{ paddingLeft: 8 }}>
+              <MaterialIcons name="chevron-left" size={24} color="#3B82F6" />
             </Pressable>
           ),
         }} />
@@ -130,7 +130,7 @@ export default function BillingScreen() {
           <View style={styles.featureList}>
             {['Up to 2 teams', 'Roster management', 'Game scheduling', 'Team feed & posts'].map((feature) => (
               <View style={styles.featureItem} key={feature}>
-                <Ionicons name="checkmark-circle" size={16} color="#16A34A" />
+                <MaterialIcons name="check-circle" size={16} color="#16A34A" />
                 <Text style={[styles.featureText, { color: theme.text }]}>{feature}</Text>
               </View>
             ))}
@@ -146,8 +146,8 @@ export default function BillingScreen() {
       <Stack.Screen options={{
         title: 'Billing',
         headerLeft: () => (
-          <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={{ paddingLeft: 8 }}>
-            <Ionicons name="chevron-back" size={24} color="#3B82F6" />
+          <Pressable onPress={() => router.back()} style={{ paddingLeft: 8 }}>
+            <MaterialIcons name="chevron-left" size={24} color="#3B82F6" />
           </Pressable>
         ),
       }} />
@@ -212,7 +212,7 @@ export default function BillingScreen() {
         <View style={styles.featureList}>
           {planFeatures.map((feature) => (
             <View style={styles.featureItem} key={feature}>
-              <Ionicons name="checkmark-circle" size={16} color="#16A34A" />
+              <MaterialIcons name="check-circle" size={16} color="#16A34A" />
               <Text style={[styles.featureText, { color: theme.text }]}>{feature}</Text>
             </View>
           ))}
@@ -266,12 +266,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
   },
   planBadge: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', color: '#2563EB', marginBottom: 6 },
-  planPrice: { fontSize: 20, fontWeight: '800', color: '#111827', marginBottom: 4 },
-  planDescription: { color: '#374151', marginBottom: 12, lineHeight: 20 },
+  planPrice: { fontSize: 20, fontWeight: '800', marginBottom: 4 },
+  planDescription: { marginBottom: 12, lineHeight: 20 },
   planDescriptionMuted: { color: '#6B7280', fontSize: 13 },
   featureList: { gap: 8, marginBottom: 8 },
   featureItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  featureText: { color: '#111827', fontSize: 14, flex: 1 },
+  featureText: { fontSize: 14, flex: 1 },
   sectionTitle: { fontSize: 16, fontWeight: '700', marginBottom: 8, marginTop: 8 },
   applyRow: { flexDirection: 'row', gap: 8, alignItems: 'center', marginBottom: 12 },
   input: { flex: 1, borderWidth: StyleSheet.hairlineWidth, borderColor: '#d1d5db', borderRadius: 8, paddingHorizontal: 12, height: 44 },
@@ -280,7 +280,7 @@ const styles = StyleSheet.create({
   btnDisabled: { opacity: 0.6 },
   error: { color: '#b91c1c', marginTop: 6 },
   previewBox: { marginTop: 12, padding: 12, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: '#e5e7eb', backgroundColor: '#f9fafb', gap: 6 },
-  previewLine: { color: '#111827' },
+  previewLine: {},
   btnPrimary: { backgroundColor: '#2563EB', paddingVertical: 12, borderRadius: 10, alignItems: 'center', marginTop: 8 },
   btnPrimaryText: { color: 'white', fontWeight: '800' },
   banner: { marginBottom: 12, padding: 12, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: '#e5e7eb', backgroundColor: '#F5F5F5' },

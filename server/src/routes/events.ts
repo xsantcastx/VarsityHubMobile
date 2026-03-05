@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { validateContent } from '../lib/contentFilter.js';
-import { sendEventCanceledEmail, sendEventRsvpConfirmedEmail, sendEventUpdatedEmail } from '../lib/email.js';
+import { sendEventCanceledEmail, sendEventRsvpConfirmedEmail, sendEventSubmissionReceivedEmail, sendEventUpdatedEmail } from '../lib/email.js';
 import { cancelGameReminders, scheduleGameReminders, sendPushNotification } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
@@ -479,6 +479,25 @@ eventsRouter.post('/', requireVerified as any, eventCreationLimiter, async (req:
     },
   });
   
+  // Send submission-received confirmation email to the creator
+  try {
+    const creator = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, display_name: true } });
+    if (creator?.email) {
+      const eventDate = new Date(data.date);
+      sendEventSubmissionReceivedEmail({
+        to: creator.email,
+        coachName: creator.display_name || 'Coach',
+        eventTitle: data.title,
+        eventDate: eventDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }),
+        eventTime: eventDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+        eventLocation: data.location || '',
+        reviewTimelineHours: autoApprove ? 0 : 24,
+      }).catch((err) => console.warn('[events] submission email failed:', err?.message || err));
+    }
+  } catch (emailErr) {
+    console.warn('[events] Failed to send submission email:', emailErr);
+  }
+
   // Get pending count for response (helpful for non-coaches to know their limit status)
   const pendingCount = !autoApprove
     ? await prisma.event.count({

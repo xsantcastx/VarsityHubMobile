@@ -5,7 +5,7 @@
  * Uses accessibility utilities to ensure proper contrast and tap targets
  */
 
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { AccessibleColors, MIN_TAP_TARGET_SIZE, TapTarget } from '../../constants/Accessibility';
 
@@ -14,7 +14,7 @@ interface AccessibleButtonProps {
   onPress: () => void;
   variant?: 'primary' | 'secondary' | 'outline' | 'danger' | 'success';
   size?: 'small' | 'medium' | 'large';
-  icon?: keyof typeof Ionicons.glyphMap;
+  icon?: keyof typeof MaterialIcons.glyphMap;
   disabled?: boolean;
   fullWidth?: boolean;
 }
@@ -130,7 +130,7 @@ export function AccessibleButton({
     >
       <View style={styles.content}>
         {icon && (
-          <Ionicons
+          <MaterialIcons
             name={icon}
             size={sizeStyles.fontSize + 4}
             color={disabled ? '#9CA3AF' : colors.text}

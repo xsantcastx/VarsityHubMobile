@@ -23,6 +23,7 @@ import { Event, Game, Post, Team, User } from '@/api/entities';
 import settings from '@/api/settings';
 import { uploadFile } from '@/api/upload';
 import VideoPlayer from '@/components/VideoPlayer';
+import VideoTrimmer from '@/components/VideoTrimmer';
 import GameVerticalFeedScreen from './GameVerticalFeedScreen';
 import { applyClearVote, applyVoteSelection, buildVoteSummary, parseVoteSummary, type VoteOption, type VoteSummary } from '@/utils/voteSummary';
 
@@ -471,6 +472,8 @@ const GameDetailsScreen = () => {
   const [rsvpBusy, setRsvpBusy] = useState(false);
   const [viewer, setViewer] = useState<{ visible: boolean; url: string | null; kind: 'photo' | 'video' } | null>(null);
   const [storyBusy, setStoryBusy] = useState(false);
+  const [storyPreview, setStoryPreview] = useState<{ uri: string; mimeType: string; fileName: string; type: 'photo' | 'video' } | null>(null);
+  const [storyTrimmedUri, setStoryTrimmedUri] = useState<string | null>(null);
   const [verticalFeedOpen, setVerticalFeedOpen] = useState(false);
   const [storiesViewer, setStoriesViewer] = useState<{ visible: boolean; items: MediaItem[]; index: number } | null>(null);
   const viewerOpenRef = useRef(false);
@@ -1243,10 +1246,18 @@ const GameDetailsScreen = () => {
       if (!result || result.canceled || !result.assets || !result.assets.length) return;
 
       const asset = result.assets[0];
+      const mimeType = asset.mimeType || (asset.type === 'video' ? 'video/mp4' : 'image/jpeg');
+      const fileName = asset.fileName || asset.uri.split('/').pop() || (mimeType.startsWith('video') ? 'story.mp4' : 'story.jpg');
+
+      // For videos, show trim preview before uploading
+      if (asset.type === 'video') {
+        setStoryPreview({ uri: asset.uri, mimeType, fileName, type: 'video' });
+        setStoryTrimmedUri(null);
+        return; // Upload will happen via confirmStoryUpload
+      }
+
       const base = getApiBaseUrl();
       let uri = asset.uri;
-      const mimeType = asset.mimeType || (asset.type === 'video' ? 'video/mp4' : 'image/jpeg');
-      const fileName = asset.fileName || uri.split('/').pop() || (mimeType.startsWith('video') ? 'story.mp4' : 'story.jpg');
       const ensured = await (await import('../../utils/ensureUploadableUri')).ensureUploadableUri(uri, mimeType);
       uri = ensured.uri;
 
@@ -1294,6 +1305,54 @@ const GameDetailsScreen = () => {
       setStoryBusy(false);
     }
   }, [loadGameById, storyBusy, vm?.gameId, location?.latitude, location?.longitude, permissionGranted, requestPermission, needsPreciseAccuracy, openSettings, router]);
+
+  const confirmStoryUpload = useCallback(async () => {
+    if (!storyPreview || !vm?.gameId) return;
+    setStoryBusy(true);
+    try {
+      const base = getApiBaseUrl();
+      const uploadUri = storyTrimmedUri || storyPreview.uri;
+      const ensured = await (await import('../../utils/ensureUploadableUri')).ensureUploadableUri(uploadUri, storyPreview.mimeType);
+      const uploaded = await uploadFile(base, ensured.uri, storyPreview.fileName, storyPreview.mimeType);
+      const mediaUrl = uploaded?.path || uploaded?.url;
+      if (!mediaUrl) throw new Error('Upload failed');
+
+      if (isSampleId(vm.gameId)) {
+        setVm((prev) => {
+          if (!prev) return prev;
+          const newItem: MediaItem = { id: String(Date.now()), url: mediaUrl, kind: storyPreview.type as any };
+          return { ...prev, media: [newItem, ...(prev.media || [])] } as GameVM;
+        });
+      } else {
+        const storyPayload: any = { media_url: mediaUrl };
+        if (location?.latitude && location?.longitude) {
+          storyPayload.location = { lat: location.latitude, lng: location.longitude, source: 'device' };
+        }
+        await Game.addStory(vm.gameId, storyPayload);
+        try {
+          await loadGameById(vm.gameId);
+          Alert.alert('Added', 'Story added to this game.');
+        } catch {
+          Alert.alert('Added', 'Story added to this game. Refresh to see it.');
+        }
+      }
+    } catch (err: any) {
+      const status = err?.status;
+      const message = String(err?.message || err?.data?.error || '');
+      if (status === 401 || /unauthorized/i.test(message)) {
+        Alert.alert('Session expired', 'Please sign in again to upload stories.', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Sign In', onPress: () => void router.push('/sign-in') },
+        ]);
+      } else {
+        Alert.alert('Unable to add story', err?.message || 'Please try again.');
+      }
+    } finally {
+      setStoryBusy(false);
+      setStoryPreview(null);
+      setStoryTrimmedUri(null);
+    }
+  }, [storyPreview, storyTrimmedUri, vm?.gameId, location?.latitude, location?.longitude, loadGameById, router]);
 
   const _refreshVotes = useCallback(async () => {
     // Event-only pages (no gameId) get local vote state
@@ -2458,6 +2517,46 @@ const renderBanner = () => {
             ) : null}
           </View>
         </Pressable>
+      </Modal>
+
+      {/* Story Video Trim Preview */}
+      <Modal
+        visible={!!storyPreview}
+        transparent
+        animationType="slide"
+        onRequestClose={() => { setStoryPreview(null); setStoryTrimmedUri(null); setStoryBusy(false); }}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center' }}>
+          {storyPreview && (
+            <View style={{ padding: 16 }}>
+              <VideoPlayer uri={storyTrimmedUri ?? storyPreview.uri} style={{ width: '100%', aspectRatio: 9 / 16, borderRadius: 12, alignSelf: 'center', maxHeight: 400 }} />
+              <VideoTrimmer
+                uri={storyPreview.uri}
+                onTrimComplete={(u) => setStoryTrimmedUri(u)}
+                onTrimReset={() => setStoryTrimmedUri(null)}
+              />
+              <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 16, marginTop: 12 }}>
+                <Pressable
+                  onPress={() => { setStoryPreview(null); setStoryTrimmedUri(null); setStoryBusy(false); }}
+                  style={{ backgroundColor: '#333', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 }}
+                >
+                  <Text style={{ color: '#fff', fontWeight: '600' }}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                  onPress={confirmStoryUpload}
+                  disabled={storyBusy}
+                  style={{ backgroundColor: '#4A90D9', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8, opacity: storyBusy ? 0.6 : 1 }}
+                >
+                  {storyBusy ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={{ color: '#fff', fontWeight: '600' }}>Upload Story</Text>
+                  )}
+                </Pressable>
+              </View>
+            </View>
+          )}
+        </View>
       </Modal>
 
       <Modal

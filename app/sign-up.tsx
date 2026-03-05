@@ -14,7 +14,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { useGoogleAuth } from '@/hooks/useGoogleAuth';
 import { calculatePasswordStrength, sanitizeEmail, validateEmail, validatePassword } from '@/utils/formUtils';
 import { captureException } from '@/utils/sentry';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as AppleAuthentication from 'expo-apple-authentication';
 
 const { AppleAuthenticationButton, AppleAuthenticationButtonType, AppleAuthenticationButtonStyle } = AppleAuthentication;
@@ -275,7 +275,7 @@ export default function SignUpScreen() {
               disabled={googleLoading}
               accessibilityRole="button"
             >
-              <Ionicons name="logo-google" size={20} color="#4285F4" style={styles.googleIcon} />
+              <MaterialIcons name="g-mobiledata" size={20} color="#4285F4" style={styles.googleIcon} />
               {googleLoading ? (
                 <ActivityIndicator size="small" color="#4285F4" />
               ) : (
@@ -288,7 +288,7 @@ export default function SignUpScreen() {
               accessibilityRole="text"
               accessibilityLabel="Google sign up not available"
             >
-              <Ionicons name="logo-google" size={20} color={Colors[colorScheme].mutedText} style={styles.googleIcon} />
+              <MaterialIcons name="g-mobiledata" size={20} color={Colors[colorScheme].mutedText} style={styles.googleIcon} />
               <View style={{ flex: 1 }}>
                 <Text style={[styles.googleButtonText, { color: Colors[colorScheme].text }]}>Google sign up unavailable</Text>
                 <Text style={[styles.googleButtonSubtext, { color: Colors[colorScheme].mutedText }]}>Add Google OAuth client IDs to enable this option.</Text>
@@ -304,7 +304,7 @@ export default function SignUpScreen() {
 
           {/* Email Sign Up Option */}
           <Button onPress={() => setShowEmailForm(true)} variant="outline">
-            <Ionicons name="mail" size={16} color={Colors[colorScheme].mutedText} style={{ marginRight: 8 }} />
+            <MaterialIcons name="mail" size={16} color={Colors[colorScheme].mutedText} style={{ marginRight: 8 }} />
             <Text style={{ color: Colors[colorScheme].text, fontSize: 16, fontWeight: '600' }}>Sign up with Email</Text>
           </Button>
         </>
@@ -312,7 +312,7 @@ export default function SignUpScreen() {
           <>
           {/* Back Button */}
           <Pressable style={styles.backButton} onPress={() => setShowEmailForm(false)}>
-            <Ionicons name="arrow-back" size={20} color={Colors[colorScheme].mutedText} />
+            <MaterialIcons name="arrow-back" size={20} color={Colors[colorScheme].mutedText} />
             <Text style={[styles.backText, { color: Colors[colorScheme].mutedText }]}>Back to options</Text>
           </Pressable>
 

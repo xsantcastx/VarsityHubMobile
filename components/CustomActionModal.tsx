@@ -1,6 +1,6 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 export interface ActionModalOption {
@@ -57,7 +57,7 @@ export default function CustomActionModal({
                 }}
               >
                 {opt.icon && (
-                  <Ionicons name={opt.icon as any} size={18} color={opt.color || Colors[colorScheme].tint} style={{ marginRight: 6 }} />
+                  <MaterialIcons name={opt.icon as any} size={18} color={opt.color || Colors[colorScheme].tint} style={{ marginRight: 6 }} />
                 )}
                 <Text style={[styles.optionText, opt.isDestructive && styles.optionTextDestructive, opt.color && { color: opt.color }]}>{opt.label}</Text>
               </Pressable>

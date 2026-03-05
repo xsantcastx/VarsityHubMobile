@@ -65,23 +65,23 @@ function isStepComplete(stepId: number, state: OnboardingState, role?: 'fan' | '
   switch (stepId) {
     case 1: // Role selection
       return !!state.role;
-    case 2: // Basic info
-      return !!(state.username && state.dob && (state.zip || state.zip_code));
-    case 3: // Plan selection (coaches only)
+    case 2: // Basic info - must be explicitly visited
+      return !!state.step_2_visited;
+    case 3: // Plan selection (coaches only) - must be explicitly visited
       if (role !== 'coach') return true; // Fans skip this
-      return !!state.plan;
-    case 4: // Organization (coaches only)
+      return !!state.step_3_visited;
+    case 4: // Organization (coaches only) - must be explicitly visited
       if (role !== 'coach') return true; // Fans skip this
-      return !!(state.team_id || state.organization_id);
+      return !!state.step_4_visited;
     case 6: // Authorized users (optional for coaches, but must be visited)
       if (role !== 'coach') return true; // Fans skip this step entirely
-      return !!state.step_6_visited; // Coaches must visit this step before continuing
-    case 7: // Profile
-      return !!state.username; // At minimum, username is required
-    case 8: // Interests
-      return true; // Optional
-    case 9: // Features
-      return true; // Optional
+      return !!state.step_6_visited;
+    case 7: // Profile - must be explicitly visited
+      return !!state.step_7_visited;
+    case 8: // Interests - must be explicitly visited
+      return !!state.step_8_visited;
+    case 9: // Features - must be explicitly visited
+      return !!state.step_9_visited;
     case 10: // Confirmation
       return false; // Final step, not "complete" until onboarding is done
     default:

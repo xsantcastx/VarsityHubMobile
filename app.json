@@ -142,6 +142,13 @@
           "project": "varsity-hub-mobile",
           "uploadSourcemaps": false
         }
+      ],
+      [
+        "@stripe/stripe-react-native",
+        {
+          "merchantIdentifier": "merchant.app.varsityhub",
+          "enableGooglePay": true
+        }
       ]
     ],
     "experiments": {

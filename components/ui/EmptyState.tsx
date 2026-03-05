@@ -36,7 +36,7 @@ export function EmptyState({
 
   return (
     <View style={[styles.container, style]}>
-      <Ionicons 
+      <Ionicons
         name={icon} 
         size={64} 
         color={Colors[colorScheme].mutedText} 

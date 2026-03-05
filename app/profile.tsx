@@ -10,7 +10,7 @@ import { calculateContrastRatio } from '@/utils/accessibility';
 import events from '@/utils/events';
 import { pickerMediaTypesProp } from '@/utils/picker';
 import { getGradientForColor } from '@/utils/theme';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useFocusEffect } from '@react-navigation/native';
 import { Image } from 'expo-image';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -143,7 +143,9 @@ export default function ProfileScreen() {
   const [userThemeColor, setUserThemeColor] = useState<string>('#3B82F6'); // Default color
   const profileRequestInFlight = useRef(false);
   const params = useLocalSearchParams<{ id?: string }>();
-  const viewingUserId = params.id;
+  const rawId = params.id?.trim();
+  const invalidId = !!rawId && !(rawId !== 'undefined' && rawId !== 'null' && /^[a-zA-Z0-9_-]{1,128}$/.test(rawId));
+  const viewingUserId = rawId && !invalidId ? rawId : undefined;
   const [isFollowing, setIsFollowing] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [userTeams, setUserTeams] = useState<Array<{ id: string; name: string; logo_url?: string | null; avatar_url?: string | null; role?: string; position?: string | null; jersey_number?: string | number | null }>>([]);
@@ -370,7 +372,7 @@ export default function ProfileScreen() {
         meRef.current = u ?? null;
         setMe(u ?? null);
       }
-      if (!u?.id) { 
+      if (!u?.id) {
         setError(viewingUserId ? 'User not found.' : 'You need to sign in to view your profile.');
         setLoading(false);
         return;
@@ -385,6 +387,12 @@ export default function ProfileScreen() {
       const isCoachOrOrg = userRole === 'coach' || userRole === 'admin' || userRole === 'organization';
       const themeColor = isCoachOrOrg ? (u?.preferences?.theme_color || '#3B82F6') : '#6B7280'; // Default gray for fans
       setUserThemeColor(themeColor);
+
+      // Private profile: skip loading content for non-followers
+      if (u.profile_private) {
+        setLoading(false);
+        return;
+      }
 
       // Load first page for active tab (only if initial load or tab changed)
       if (isInitialLoad || !options?.silent) {
@@ -712,11 +720,11 @@ export default function ProfileScreen() {
         {/* Back Button - Only when viewing another user's profile */}
         {viewingUserId && viewingUserId !== currentUserId ? (
           <Pressable
-            onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)}
+            onPress={() => router.back()}
             hitSlop={12}
             style={[styles.controlButton, { position: 'absolute', left: 16, top: 12, zIndex: 200, elevation: 200, backgroundColor: colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)' }]}
           >
-            <Ionicons name="chevron-back" size={18} color={colorScheme === 'dark' ? '#FFFFFF' : '#333'} />
+            <MaterialIcons name="chevron-left" size={18} color={colorScheme === 'dark' ? '#FFFFFF' : '#333'} />
           </Pressable>
         ) : null}
 
@@ -734,10 +742,10 @@ export default function ProfileScreen() {
               onPress={handleFollowToggle}
             >
               {isFollowing ? (
-                <Ionicons name="checkmark-circle" size={18} color="#FFB800" />
+                <MaterialIcons name="check-circle" size={18} color="#FFB800" />
               ) : (
                 <>
-                  <Ionicons name="person-add-outline" size={15} color="#FFFFFF" />
+                  <MaterialIcons name="person-add" size={15} color="#FFFFFF" />
                   <Text style={[styles.headerFollowButtonText, { color: '#FFFFFF' }]}>Follow</Text>
                 </>
               )}
@@ -747,7 +755,7 @@ export default function ProfileScreen() {
           {/* Settings Button - Only when viewing own profile */}
           {!viewingUserId || viewingUserId === currentUserId ? (
             <Pressable onPress={() => router.push('/settings')} hitSlop={12} style={[styles.controlButton, { backgroundColor: colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)' }]}>
-              <Ionicons name="settings-outline" size={18} color={colorScheme === 'dark' ? '#FFFFFF' : '#333'} />
+              <MaterialIcons name="settings" size={18} color={colorScheme === 'dark' ? '#FFFFFF' : '#333'} />
             </Pressable>
           ) : null}
         </View>
@@ -767,7 +775,7 @@ export default function ProfileScreen() {
                 <Image source={{ uri: String(me?.avatar_url) }} style={styles.avatarImage} contentFit="cover" />
               ) : (
                 <View style={[styles.avatarPlaceholder, { backgroundColor: colorScheme === 'dark' ? theme.surface || '#374151' : '#E5E7EB' }]}>
-                  <Ionicons name="person" size={48} color={theme.mutedText} />
+                  <MaterialIcons name="person" size={48} color={theme.mutedText} />
                 </View>
               )}
               {isUploadingAvatar && (
@@ -816,7 +824,7 @@ export default function ProfileScreen() {
           {/* Joined Date */}
           {me?.created_at && (
             <View style={styles.metaItem}>
-              <Ionicons name="calendar-outline" size={14} color={colorScheme === 'dark' ? theme.mutedText : '#4B5563'} />
+              <MaterialIcons name="event" size={14} color={colorScheme === 'dark' ? theme.mutedText : '#4B5563'} />
               <Text style={[styles.metaText, { color: colorScheme === 'dark' ? theme.mutedText : '#4B5563' }]}>
                 Joined {new Date(me.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
               </Text>
@@ -853,14 +861,14 @@ export default function ProfileScreen() {
                       <Image source={{ uri: t.logo_url || t.avatar_url || '' }} style={styles.teamChipAvatar} contentFit="cover" />
                     ) : (
                       <View style={[styles.teamChipPlaceholder, { backgroundColor: theme.tint + '30' }]}>
-                        <Ionicons name="people" size={14} color={theme.tint} />
+                        <MaterialIcons name="group" size={14} color={theme.tint} />
                       </View>
                     )}
                     <Text style={[styles.teamChipName, { color: theme.text }]} numberOfLines={1}>{t.name}</Text>
                     {t.role && (
                       <Text style={[styles.teamChipRole, { color: theme.mutedText }]}>{String(t.role).replace(/_/g, ' ')}</Text>
                     )}
-                    <Ionicons name="chevron-forward" size={12} color={theme.mutedText} />
+                    <MaterialIcons name="chevron-right" size={12} color={theme.mutedText} />
                   </Pressable>
                 ))}
               </View>
@@ -869,27 +877,37 @@ export default function ProfileScreen() {
         </View>
       </View>
 
-      {/* Tabs */}
-      <View style={[styles.tabsContainer, { borderBottomColor: theme.border }]}>
-        <Pressable
-          onPress={() => { setActiveTab('posts'); try { globalThis?.localStorage?.setItem('profile.activeTab','posts'); } catch (error) { if (__DEV__) console.warn('[profile] localStorage error:', error); } }}
-          style={[styles.tab, activeTab === 'posts' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
-        >
-          <Text style={[styles.tabText, { color: activeTab === 'posts' ? theme.tint : theme.mutedText }]}>Posts</Text>
-        </Pressable>
-        <Pressable
-          onPress={() => { setActiveTab('replies'); try { globalThis?.localStorage?.setItem('profile.activeTab','replies'); } catch (error) { if (__DEV__) console.warn('[profile] localStorage error:', error); } }}
-          style={[styles.tab, activeTab === 'replies' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
-        >
-          <Text style={[styles.tabText, { color: activeTab === 'replies' ? theme.tint : theme.mutedText }]}>Replies</Text>
-        </Pressable>
-        <Pressable
-          onPress={() => { setActiveTab('upvotes'); try { globalThis?.localStorage?.setItem('profile.activeTab','upvotes'); } catch (error) { if (__DEV__) console.warn('[profile] localStorage error:', error); } }}
-          style={[styles.tab, activeTab === 'upvotes' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
-        >
-          <Text style={[styles.tabText, { color: activeTab === 'upvotes' ? theme.tint : theme.mutedText }]}>Upvotes</Text>
-        </Pressable>
-      </View>
+      {/* Private account message — or tabs for public/own profiles */}
+      {me?.profile_private ? (
+        <View style={{ alignItems: 'center', paddingVertical: 40, paddingHorizontal: 24 }}>
+          <MaterialIcons name="lock-outline" size={48} color={theme.mutedText} />
+          <Text style={{ fontSize: 18, fontWeight: '700', color: theme.text, marginTop: 12 }}>This account is private</Text>
+          <Text style={{ fontSize: 14, color: theme.mutedText, textAlign: 'center', marginTop: 6, lineHeight: 20 }}>
+            Follow this account to see their posts, replies, and activity.
+          </Text>
+        </View>
+      ) : (
+        <View style={[styles.tabsContainer, { borderBottomColor: theme.border }]}>
+          <Pressable
+            onPress={() => { setActiveTab('posts'); try { globalThis?.localStorage?.setItem('profile.activeTab','posts'); } catch (error) { if (__DEV__) console.warn('[profile] localStorage error:', error); } }}
+            style={[styles.tab, activeTab === 'posts' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
+          >
+            <Text style={[styles.tabText, { color: activeTab === 'posts' ? theme.tint : theme.mutedText }]}>Posts</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => { setActiveTab('replies'); try { globalThis?.localStorage?.setItem('profile.activeTab','replies'); } catch (error) { if (__DEV__) console.warn('[profile] localStorage error:', error); } }}
+            style={[styles.tab, activeTab === 'replies' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
+          >
+            <Text style={[styles.tabText, { color: activeTab === 'replies' ? theme.tint : theme.mutedText }]}>Replies</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => { setActiveTab('upvotes'); try { globalThis?.localStorage?.setItem('profile.activeTab','upvotes'); } catch (error) { if (__DEV__) console.warn('[profile] localStorage error:', error); } }}
+            style={[styles.tab, activeTab === 'upvotes' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
+          >
+            <Text style={[styles.tabText, { color: activeTab === 'upvotes' ? theme.tint : theme.mutedText }]}>Upvotes</Text>
+          </Pressable>
+        </View>
+      )}
     </>
   );
 
@@ -954,12 +972,28 @@ export default function ProfileScreen() {
     );
   }
 
+  if (invalidId) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+        <Stack.Screen options={{ title: 'Not Found' }} />
+        <View style={[styles.center, { flex: 1, justifyContent: 'center', padding: 24 }]}>
+          <MaterialIcons name="person-outline" size={48} color={theme.mutedText} style={{ marginBottom: 16 }} />
+          <Text style={[styles.error, { color: theme.text, textAlign: 'center', marginBottom: 8 }]}>User not found</Text>
+          <Text style={{ color: theme.mutedText, textAlign: 'center', marginBottom: 16 }}>This profile doesn't exist or the link is invalid.</Text>
+          <Button onPress={() => router.back()}>
+            <Text style={{ color: '#fff' }}>Go Back</Text>
+          </Button>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   if (error) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
         <Stack.Screen options={{ title: 'Profile' }} />
         <View style={[styles.center, { flex: 1, justifyContent: 'center', padding: 24 }]}>
-          <Ionicons name="alert-circle-outline" size={48} color={theme.mutedText} style={{ marginBottom: 16 }} />
+          <MaterialIcons name="error-outline" size={48} color={theme.mutedText} style={{ marginBottom: 16 }} />
           <Text style={[styles.error, { color: theme.text, textAlign: 'center', marginBottom: 8 }]}>{error}</Text>
           <View style={{ height: 16 }} />
           {error.includes('sign in') ? (
@@ -982,7 +1016,7 @@ export default function ProfileScreen() {
       <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
         <Stack.Screen options={{ title: 'Profile' }} />
         <View style={[styles.center, { flex: 1, justifyContent: 'center', padding: 24 }]}>
-          <Ionicons name="person-outline" size={48} color={theme.mutedText} style={{ marginBottom: 16 }} />
+          <MaterialIcons name="person-outline" size={48} color={theme.mutedText} style={{ marginBottom: 16 }} />
           <Text style={[styles.error, { color: theme.text, textAlign: 'center', marginBottom: 8 }]}>
             Unable to load profile
           </Text>
@@ -1041,7 +1075,7 @@ export default function ProfileScreen() {
                         <Image source={{ uri: item.author.avatar_url }} style={styles.textPostAvatar} />
                       ) : (
                         <View style={[styles.textPostAvatar, styles.textPostAvatarFallback]}>
-                          <Ionicons name="person" size={12} color="#9CA3AF" />
+                          <MaterialIcons name="person" size={12} color="#9CA3AF" />
                         </View>
                       )}
                       <View style={{ flex: 1 }}>
@@ -1052,11 +1086,11 @@ export default function ProfileScreen() {
                     <Text numberOfLines={4} style={styles.textPostContent}>{String(item.caption || item.content || '').trim() || 'Post'}</Text>
                     <View style={styles.textPostCounts}>
                       <View style={styles.gridCountItem}>
-                        <Ionicons name="arrow-up" size={11} color="#9CA3AF" />
+                        <MaterialIcons name="arrow-upward" size={11} color="#9CA3AF" />
                         <Text style={styles.textPostCountText}>{likes}</Text>
                       </View>
                       <View style={styles.gridCountItem}>
-                        <Ionicons name="chatbubble-ellipses" size={11} color="#9CA3AF" />
+                        <MaterialIcons name="chat-bubble" size={11} color="#9CA3AF" />
                         <Text style={styles.textPostCountText}>{comments}</Text>
                       </View>
                     </View>
@@ -1066,16 +1100,16 @@ export default function ProfileScreen() {
                   <>
                     <View style={styles.gridCounts}>
                       <View style={styles.gridCountItem}>
-                        <Ionicons name="arrow-up" size={12} color="#fff" />
+                        <MaterialIcons name="arrow-upward" size={12} color="#fff" />
                         <Text style={styles.gridCountText}>{likes}</Text>
                       </View>
                       <View style={styles.gridCountItem}>
-                        <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
+                        <MaterialIcons name="chat-bubble" size={12} color="#fff" />
                         <Text style={styles.gridCountText}>{comments}</Text>
                       </View>
                     </View>
                     <View style={styles.gridIconBadge}>
-                      <Ionicons name="camera-outline" size={14} color="#fff" />
+                      <MaterialIcons name="camera-alt" size={14} color="#fff" />
                     </View>
                   </>
                 )}
@@ -1130,7 +1164,7 @@ export default function ProfileScreen() {
                         <Image source={{ uri: postItem.author.avatar_url }} style={styles.textPostAvatar} />
                       ) : (
                         <View style={[styles.textPostAvatar, styles.textPostAvatarFallback]}>
-                          <Ionicons name="person" size={12} color="#9CA3AF" />
+                          <MaterialIcons name="person" size={12} color="#9CA3AF" />
                         </View>
                       )}
                       <View style={{ flex: 1 }}>
@@ -1141,11 +1175,11 @@ export default function ProfileScreen() {
                     <Text numberOfLines={4} style={styles.textPostContent}>{String(postItem?.caption || postItem?.content || '').trim() || 'Post'}</Text>
                     <View style={styles.textPostCounts}>
                       <View style={styles.gridCountItem}>
-                        <Ionicons name="arrow-up" size={11} color="#9CA3AF" />
+                        <MaterialIcons name="arrow-upward" size={11} color="#9CA3AF" />
                         <Text style={styles.textPostCountText}>{likes}</Text>
                       </View>
                       <View style={styles.gridCountItem}>
-                        <Ionicons name="chatbubble-ellipses" size={11} color="#9CA3AF" />
+                        <MaterialIcons name="chat-bubble" size={11} color="#9CA3AF" />
                         <Text style={styles.textPostCountText}>{comments}</Text>
                       </View>
                     </View>
@@ -1155,16 +1189,16 @@ export default function ProfileScreen() {
                   <>
                     <View style={styles.gridCounts}>
                       <View style={styles.gridCountItem}>
-                        <Ionicons name="arrow-up" size={12} color="#fff" />
+                        <MaterialIcons name="arrow-upward" size={12} color="#fff" />
                         <Text style={styles.gridCountText}>{likes}</Text>
                       </View>
                       <View style={styles.gridCountItem}>
-                        <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
+                        <MaterialIcons name="chat-bubble" size={12} color="#fff" />
                         <Text style={styles.gridCountText}>{comments}</Text>
                       </View>
                     </View>
                     <View style={styles.gridIconBadge}>
-                      <Ionicons name="camera-outline" size={14} color="#fff" />
+                      <MaterialIcons name="camera-alt" size={14} color="#fff" />
                     </View>
                   </>
                 )}
@@ -1219,7 +1253,7 @@ export default function ProfileScreen() {
                         <Image source={{ uri: postItem.author.avatar_url }} style={styles.textPostAvatar} />
                       ) : (
                         <View style={[styles.textPostAvatar, styles.textPostAvatarFallback]}>
-                          <Ionicons name="person" size={12} color="#9CA3AF" />
+                          <MaterialIcons name="person" size={12} color="#9CA3AF" />
                         </View>
                       )}
                       <View style={{ flex: 1 }}>
@@ -1230,11 +1264,11 @@ export default function ProfileScreen() {
                     <Text numberOfLines={4} style={styles.textPostContent}>{String(postItem?.caption || postItem?.content || '').trim() || 'Post'}</Text>
                     <View style={styles.textPostCounts}>
                       <View style={styles.gridCountItem}>
-                        <Ionicons name="arrow-up" size={11} color="#9CA3AF" />
+                        <MaterialIcons name="arrow-upward" size={11} color="#9CA3AF" />
                         <Text style={styles.textPostCountText}>{likes}</Text>
                       </View>
                       <View style={styles.gridCountItem}>
-                        <Ionicons name="chatbubble-ellipses" size={11} color="#9CA3AF" />
+                        <MaterialIcons name="chat-bubble" size={11} color="#9CA3AF" />
                         <Text style={styles.textPostCountText}>{comments}</Text>
                       </View>
                     </View>
@@ -1244,16 +1278,16 @@ export default function ProfileScreen() {
                   <>
                     <View style={styles.gridCounts}>
                       <View style={styles.gridCountItem}>
-                        <Ionicons name="arrow-up" size={12} color="#fff" />
+                        <MaterialIcons name="arrow-upward" size={12} color="#fff" />
                         <Text style={styles.gridCountText}>{likes}</Text>
                       </View>
                       <View style={styles.gridCountItem}>
-                        <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
+                        <MaterialIcons name="chat-bubble" size={12} color="#fff" />
                         <Text style={styles.gridCountText}>{comments}</Text>
                       </View>
                     </View>
                     <View style={styles.gridIconBadge}>
-                      <Ionicons name="camera-outline" size={14} color="#fff" />
+                      <MaterialIcons name="camera-alt" size={14} color="#fff" />
                     </View>
                   </>
                 )}
@@ -1287,7 +1321,7 @@ export default function ProfileScreen() {
             onPress={() => setAvatarViewerVisible(false)}
             style={{ position: 'absolute', top: insets.top + 12, right: 16, padding: 8, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 20 }}
           >
-            <Ionicons name="close" size={24} color="white" />
+            <MaterialIcons name="close" size={24} color="white" />
           </Pressable>
         </Pressable>
       </Modal>
@@ -1440,20 +1474,22 @@ const styles = StyleSheet.create({
   },
   userInfo: {
     flex: 1,
-    paddingBottom: 0, // Removed padding to close gap
-    minWidth: 0, // Allow flex to work properly
-    marginLeft: 8, // Ensure spacing from avatar
-    paddingRight: 8, // Prevent text from touching screen edge
+    minWidth: 0,
+    marginLeft: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
   },
   userName: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#ffffff', // Default, will be overridden dynamically
-    textShadowColor: 'rgba(0, 0, 0, 0.6)',
+    color: '#ffffff',
+    textShadowColor: 'rgba(0, 0, 0, 0.8)',
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
-    flexShrink: 1, // Allow text to shrink if needed
-    maxWidth: '100%', // Prevent overflow
+    textShadowRadius: 6,
+    flexShrink: 1,
+    maxWidth: '100%',
   },
   editButtonBelowBanner: {
     paddingHorizontal: 16,
@@ -1489,10 +1525,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  // Profile Details Below Banner - Tight spacing to match reference
+  // Profile Details Below Banner — paddingTop clears the avatar overlap (40px + 8px gap)
   profileDetailsContainer: {
     backgroundColor: 'transparent',
-    paddingTop: 8, // Reduced space for overlapping avatar - close the gap
+    paddingTop: 48,
     marginBottom: 0, // No gap before tabs
     paddingBottom: 0, // No padding at bottom
   },
@@ -1512,7 +1548,7 @@ const styles = StyleSheet.create({
   },
   userDetails: {
     paddingHorizontal: 16,
-    paddingTop: 4, // Reduced top padding to close gap
+    paddingTop: 4,
     paddingBottom: 4,
   },
   usernameRow: {
@@ -1520,7 +1556,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'flex-end',
     paddingHorizontal: 16,
-    paddingTop: 0,
     paddingBottom: 0,
     gap: 12,
   },
@@ -1532,9 +1567,11 @@ const styles = StyleSheet.create({
   userBio: {
     fontSize: 15,
     fontWeight: '400',
-    marginBottom: 2, // Reduced margin to close gap
+    marginBottom: 2,
     lineHeight: 20,
-    // Color will be set inline with theme.text
+    textShadowColor: 'rgba(0, 0, 0, 0.15)',
+    textShadowOffset: { width: 0, height: 0.5 },
+    textShadowRadius: 2,
   },
   metaItem: {
     flexDirection: 'row',
@@ -1622,7 +1659,6 @@ const styles = StyleSheet.create({
   userBioCompact: {
     fontSize: 14,
     fontWeight: '400',
-    color: '#374151',
     lineHeight: 20,
   },
   badgesRow: { 
@@ -1685,7 +1721,7 @@ const styles = StyleSheet.create({
   
   // Legacy styles kept for existing components
   statValue: { fontSize: 20, fontWeight: '800', color: '#1f2937' },
-  name: { fontSize: 18, fontWeight: '800', marginBottom: 4, color: '#111827' },
+  name: { fontSize: 18, fontWeight: '800', marginBottom: 4 },
   bio: { fontSize: 15, color: '#4B5563', lineHeight: 20, marginTop: 8 },
   editProfileButton: { 
     flex: 1,
@@ -1723,7 +1759,7 @@ const styles = StyleSheet.create({
   tab: { flex: 1, paddingVertical: 12, alignItems: 'center' }, // Reduced padding
   activeTab: { borderBottomWidth: 2, borderBottomColor: 'black' },
   tabText: { color: '#6B7280', fontWeight: '600', fontSize: 15 },
-  activeTabText: { color: 'black' },
+  activeTabText: {},
   filtersBar: { paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, gap: 12, backgroundColor: 'transparent' },
   segmentedRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   segment: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20 },

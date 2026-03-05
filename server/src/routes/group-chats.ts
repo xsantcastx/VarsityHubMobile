@@ -203,7 +203,7 @@ groupChatsRouter.post('/:chatId/read', requireAuth as any, async (req: AuthedReq
     return res.json({ ok: true });
   } catch (error: any) {
     console.error('Error marking messages as read:', error);
-    return res.status(500).json({ error: error.message || 'Failed to mark as read' });
+    return res.status(500).json({ error: 'Failed to mark as read' });
   }
 });
 

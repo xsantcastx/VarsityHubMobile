@@ -3,7 +3,7 @@ import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
@@ -78,8 +78,8 @@ export default function ResetPasswordScreen() {
         title: 'Reset Password',
         headerShown: true,
         headerLeft: () => (
-          <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/sign-in' as any)} style={{ paddingLeft: 8 }}>
-            <Ionicons name="chevron-back" size={24} color={palette.tint} />
+          <Pressable onPress={() => router.back()} style={{ paddingLeft: 8 }}>
+            <MaterialIcons name="chevron-left" size={24} color={palette.tint} />
           </Pressable>
         ),
       }} />

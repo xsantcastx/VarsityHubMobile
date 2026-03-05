@@ -5,6 +5,7 @@ import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { mentionsSearchLimiter, userLookupLimiter } from '../middleware/rateLimiters.js';
+import { detectMediaType, getVideoPreviewUrl } from '../lib/mediaUtils.js';
 
 export const usersRouter = Router();
 const publicUserSelect = {
@@ -242,18 +243,12 @@ async function isProfileHiddenFromViewer(ownerId: string, viewerId: string | nul
   return !rel; // Hidden if not a follower
 }
 
-const VIDEO_EXTENSIONS = ['.mp4', '.mov', '.webm', '.m4v', '.avi', '.mkv'];
-const detectMediaType = (url?: string | null): 'video' | 'image' => {
-  if (!url) return 'image';
-  const sanitized = url.split('?')[0].split('#')[0].toLowerCase();
-  return VIDEO_EXTENSIONS.some((ext) => sanitized.endsWith(ext)) ? 'video' : 'image';
-};
-
 function mapPostForPayload(post: any) {
   return {
     id: post.id,
     media_url: post.media_url ?? null,
     media_type: detectMediaType(post.media_url),
+    preview_url: getVideoPreviewUrl(post.media_url),
     caption: post.content ?? null,
     upvotes_count: post.upvotes_count ?? 0,
     comments_count: post._count?.comments ?? 0,

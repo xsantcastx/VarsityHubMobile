@@ -40,6 +40,9 @@
       "@/shared/*": [
         "shared/*"
       ],
+      "@/lib/*": [
+        "lib/*"
+      ],
       "react-native-calendars": [
         "types/react-native-calendars.d.ts"
       ]
@@ -62,6 +65,8 @@
     "constants/**/*.tsx",
     "hooks/**/*.ts",
     "hooks/**/*.tsx",
+    "lib/**/*.ts",
+    "lib/**/*.tsx",
     "__tests__/**/*.ts",
     "__tests__/**/*.tsx",
     "jest.setup.ts",

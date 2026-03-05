@@ -1,4 +1,5 @@
 import { Colors } from '@/constants/Colors';
+import { ZipCodeMapPreview } from '@/components/ZipCodeMapPreview';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
@@ -537,8 +538,9 @@ export default function RoleOnboardingScreen() {
               maxLength={10}
               autoFocus
             />
+            <ZipCodeMapPreview zipCode={zipCode} title="Your Area" subtitle="We'll show you local games and ads near ZIP {zip}" showCircle={false} />
             <Pressable
-              style={[styles.saveZipButton, { 
+              style={[styles.saveZipButton, {
                 backgroundColor: zipCode.trim() ? Colors[colorScheme].tint : Colors[colorScheme].border,
                 opacity: saving ? 0.6 : 1,
               }]}

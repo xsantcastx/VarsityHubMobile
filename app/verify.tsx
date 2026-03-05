@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -198,16 +198,16 @@ export default function VerifyScreen() {
 
       {/* Back Button */}
       <Pressable
-        onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)}
+        onPress={() => router.back()}
         style={styles.backButton}
         hitSlop={8}
       >
-        <Ionicons name="arrow-back" size={24} color={Colors[colorScheme].text} />
+        <MaterialIcons name="arrow-back" size={24} color={Colors[colorScheme].text} />
       </Pressable>
 
       {/* Header Icon */}
       <View style={styles.iconContainer}>
-        <Ionicons name="mail-outline" size={64} color={colorScheme === 'dark' ? '#60A5FA' : '#2563EB'} />
+        <MaterialIcons name="mail-outline" size={64} color={colorScheme === 'dark' ? '#60A5FA' : '#2563EB'} />
       </View>
 
       <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Check Your Email</Text>

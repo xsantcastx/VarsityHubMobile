@@ -9,7 +9,7 @@ import { uploadFile } from '@/api/upload';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { ensureUploadableUri } from '@/utils/ensureUploadableUri';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useRef, useState } from 'react';
@@ -251,7 +251,7 @@ export function BannerUpload({
                   { opacity: hintOpacity },
                 ]}
               >
-                <Ionicons name="resize-outline" size={16} color="#111827" />
+                <MaterialIcons name="aspect-ratio" size={16} color="#111827" />
                 <Text style={styles.hintText}>Pinch to zoom</Text>
               </Animated.View>
             )}
@@ -291,7 +291,9 @@ export function BannerUpload({
 
                     if (fitMode === 'fill') {
                       // Pinch to zoom for Fill mode only
-                      const newScale = clamp((currentDistance / initialDistance.current) * initialScale.current, 1, 3);
+                      const rawRatio = currentDistance / initialDistance.current;
+                      const dampenedRatio = 1 + (rawRatio - 1) * 0.4;
+                      const newScale = clamp(dampenedRatio * initialScale.current, 1, 3);
                       setScale(newScale);
                     }
 
@@ -331,14 +333,24 @@ export function BannerUpload({
                 }}
               />
             )}
+            <Pressable
+              style={styles.rotateButton}
+              onPress={() => {
+                const next = (rotation + 90) % 360;
+                setRotation(next);
+                if (value) onChange(value, getFitValue(fitMode), position);
+              }}
+            >
+              <MaterialIcons name="rotate-right" size={22} color="#FFFFFF" />
+            </Pressable>
             <Pressable style={styles.removeButton} onPress={handleRemove}>
-              <Ionicons name="close-circle" size={28} color="#FFFFFF" />
+              <MaterialIcons name="cancel" size={28} color="#FFFFFF" />
             </Pressable>
           </>
         ) : (
           <Pressable style={styles.uploadPrompt} onPress={handlePickImage}>
-            <Ionicons
-              name="cloud-upload-outline"
+            <MaterialIcons
+              name="cloud-upload"
               size={48}
               color={Colors[colorScheme].mutedText}
             />
@@ -366,7 +378,7 @@ export function BannerUpload({
           ]}
           onPress={handlePickImage}
         >
-          <Ionicons name="image-outline" size={20} color="#FFFFFF" />
+          <MaterialIcons name="image" size={20} color="#FFFFFF" />
           <Text style={styles.uploadButtonText}>
             {required ? 'Upload Banner (Required)' : 'Upload Banner'}
           </Text>
@@ -413,6 +425,17 @@ const styles = StyleSheet.create({
   },
   uploadHint: {
     fontSize: 13,
+  },
+  rotateButton: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    borderRadius: 16,
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   removeButton: {
     position: 'absolute',

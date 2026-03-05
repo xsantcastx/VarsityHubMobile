@@ -270,15 +270,9 @@ uploadsRouter.use((err: any, req: Request, res: Response, next: NextFunction) =>
   
   // Cloudinary errors
   if (err.http_code) {
-    return res.status(err.http_code).json({ 
-      error: 'Upload failed', 
-      message: err.message 
-    });
+    return res.status(err.http_code).json({ error: 'Upload failed' });
   }
-  
+
   // Generic error
-  res.status(500).json({ 
-    error: 'Upload failed', 
-    message: err.message || 'Unknown error'
-  });
+  res.status(500).json({ error: 'Upload failed' });
 });

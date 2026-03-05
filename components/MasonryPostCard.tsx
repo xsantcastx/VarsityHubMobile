@@ -1,7 +1,7 @@
 import { Post } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -122,7 +122,7 @@ export default function MasonryPostCard({ post, onPress, onDeleted: _onDeleted, 
           ) : null}
           {isVideo && (
             <View style={styles.playOverlay}>
-              <Ionicons name="play" size={24} color="#fff" />
+              <MaterialIcons name="play-arrow" size={24} color="#fff" />
             </View>
           )}
         </View>
@@ -144,12 +144,12 @@ export default function MasonryPostCard({ post, onPress, onDeleted: _onDeleted, 
           onPress={onUpvote} 
           style={[styles.actionBtn, { backgroundColor: Colors[colorScheme].tint }]}
         >
-          <Ionicons name="arrow-up" size={14} color="#fff" />
+          <MaterialIcons name="arrow-upward" size={14} color="#fff" />
           <Text style={styles.actionText}>{upvotesCount}</Text>
         </Pressable>
         
         <View style={styles.metaRow}>
-          <Ionicons name="chatbubble-ellipses-outline" size={14} color={Colors[colorScheme].mutedText} />
+          <MaterialIcons name="chat-bubble-outline" size={14} color={Colors[colorScheme].mutedText} />
           <Text style={[styles.metaText, { color: Colors[colorScheme].mutedText }]}>
             {post.comments_count || 0}
           </Text>
@@ -158,7 +158,7 @@ export default function MasonryPostCard({ post, onPress, onDeleted: _onDeleted, 
         <View style={{ flex: 1 }} />
         
         <Pressable onPress={onBookmark} style={styles.bookmarkBtn}>
-          <Ionicons 
+          <MaterialIcons 
             name={bookmarked ? 'bookmark' : 'bookmark-outline'} 
             size={16} 
             color={Colors[colorScheme].text} 

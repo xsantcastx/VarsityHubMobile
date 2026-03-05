@@ -1,12 +1,14 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useTeamOptions } from '@/hooks/useTeamOptions';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { Search } from '@/api/entities';
 import {
   ActivityIndicator,
+  findNodeHandle,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -14,6 +16,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  UIManager,
   View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -81,6 +84,26 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
   const [errors, setErrors] = useState<{[key: string]: string}>({});
   const [editorVisible, setEditorVisible] = useState(false);
   const [editingImageUri, setEditingImageUri] = useState<string | null>(null);
+  const scrollRef = useRef<ScrollView>(null);
+
+  // Scroll the focused field into view above the keyboard
+  const scrollToInput = useCallback((event: any) => {
+    const target = event?.nativeEvent?.target;
+    if (!target || !scrollRef.current) return;
+    // Small delay to let keyboard animation start
+    setTimeout(() => {
+      const scrollNode = findNodeHandle(scrollRef.current);
+      if (!scrollNode) return;
+      UIManager.measureLayout(
+        target,
+        scrollNode,
+        () => {},
+        (_x: number, y: number, _w: number, h: number) => {
+          scrollRef.current?.scrollTo({ y: Math.max(0, y - 120), animated: true });
+        },
+      );
+    }, 250);
+  }, []);
 
   const teams: TeamOption[] = useMemo(() => {
     if (!Array.isArray(rawTeams) || rawTeams.length === 0) {
@@ -232,7 +255,8 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
           </Pressable>
         </View>
 
-        <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 40 }} keyboardShouldPersistTaps="handled">
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView ref={scrollRef} style={styles.scrollContainer} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 40 }} keyboardShouldPersistTaps="handled">
           <View style={styles.form}>
             {loadingTeams && (
               <View style={styles.loadingTeamsRow}>
@@ -259,7 +283,7 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
                 <Text style={[{ color: formData.currentTeam ? Colors[colorScheme].text : Colors[colorScheme].mutedText }]}>
                   {formData.currentTeam || 'Select your team'}
                 </Text>
-                <Ionicons name="chevron-down" size={20} color={Colors[colorScheme].mutedText} />
+                <MaterialIcons name="expand-more" size={20} color={Colors[colorScheme].mutedText} />
               </Pressable>
               {errors.currentTeam && <Text style={styles.errorText}>{errors.currentTeam}</Text>}
             </View>
@@ -280,7 +304,7 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
                 <Text style={[{ color: formData.opponent ? Colors[colorScheme].text : Colors[colorScheme].mutedText }]}>
                   {formData.opponent || 'Select opponent team'}
                 </Text>
-                <Ionicons name="chevron-down" size={20} color={Colors[colorScheme].mutedText} />
+                <MaterialIcons name="expand-more" size={20} color={Colors[colorScheme].mutedText} />
               </Pressable>
               {errors.opponent && <Text style={styles.errorText}>{errors.opponent}</Text>}
             </View>
@@ -342,7 +366,7 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
                   <Text style={[styles.dateTimeText, { color: Colors[colorScheme].text }]}>
                     {formatDate(formData.date)}
                   </Text>
-                  <Ionicons name="calendar-outline" size={20} color={Colors[colorScheme].mutedText} />
+                  <MaterialIcons name="event" size={20} color={Colors[colorScheme].mutedText} />
                 </Pressable>
                 {errors.date && <Text style={styles.errorText}>{errors.date}</Text>}
               </View>
@@ -359,7 +383,7 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
                   <Text style={[styles.dateTimeText, { color: Colors[colorScheme].text }]}>
                     {formatTime(formData.time)}
                   </Text>
-                  <Ionicons name="time-outline" size={20} color={Colors[colorScheme].mutedText} />
+                  <MaterialIcons name="access-time" size={20} color={Colors[colorScheme].mutedText} />
                 </Pressable>
               </View>
             </View>
@@ -395,7 +419,7 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
                     formData.autoGeocode && { backgroundColor: Colors[colorScheme].tint, borderColor: Colors[colorScheme].tint }
                   ]}>
                     {formData.autoGeocode && (
-                      <Ionicons name="checkmark" size={16} color="#fff" />
+                      <MaterialIcons name="check" size={16} color="#fff" />
                     )}
                   </View>
                   <View style={{ flex: 1, marginLeft: 12 }}>
@@ -419,7 +443,7 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
                     <View style={{ flex: 1, marginRight: 8 }}>
                       <Text style={[styles.label, { fontSize: 14, color: Colors[colorScheme].text }]}>Latitude</Text>
                       <TextInput
-                        style={[styles.input, { 
+                        style={[styles.input, {
                           backgroundColor: Colors[colorScheme].surface,
                           borderColor: Colors[colorScheme].border,
                           color: Colors[colorScheme].text
@@ -428,6 +452,7 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
                         placeholderTextColor={Colors[colorScheme].mutedText}
                         keyboardType="decimal-pad"
                         value={formData.latitude?.toString() || ''}
+                        onFocus={scrollToInput}
                         onChangeText={(text) => {
                           const num = parseFloat(text);
                           setFormData(prev => ({ ...prev, latitude: isNaN(num) ? null : num }));
@@ -437,7 +462,7 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
                     <View style={{ flex: 1, marginLeft: 8 }}>
                       <Text style={[styles.label, { fontSize: 14, color: Colors[colorScheme].text }]}>Longitude</Text>
                       <TextInput
-                        style={[styles.input, { 
+                        style={[styles.input, {
                           backgroundColor: Colors[colorScheme].surface,
                           borderColor: Colors[colorScheme].border,
                           color: Colors[colorScheme].text
@@ -446,6 +471,7 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
                         placeholderTextColor={Colors[colorScheme].mutedText}
                         keyboardType="decimal-pad"
                         value={formData.longitude?.toString() || ''}
+                        onFocus={scrollToInput}
                         onChangeText={(text) => {
                           const num = parseFloat(text);
                           setFormData(prev => ({ ...prev, longitude: isNaN(num) ? null : num }));
@@ -461,7 +487,7 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
             <View style={styles.formSection}>
               <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Notes</Text>
               <TextInput
-                style={[styles.input, styles.notesInput, { 
+                style={[styles.input, styles.notesInput, {
                   backgroundColor: Colors[colorScheme].surface,
                   borderColor: Colors[colorScheme].border,
                   color: Colors[colorScheme].text
@@ -470,6 +496,7 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
                 placeholderTextColor={Colors[colorScheme].mutedText}
                 value={formData.notes}
                 onChangeText={(text) => setFormData(prev => ({ ...prev, notes: text }))}
+                onFocus={scrollToInput}
                 multiline
                 numberOfLines={3}
                 textAlignVertical="top"
@@ -480,7 +507,7 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
             <View style={styles.formSection}>
               <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Attendance</Text>
               <TextInput
-                style={[styles.input, { 
+                style={[styles.input, {
                   backgroundColor: Colors[colorScheme].surface,
                   borderColor: Colors[colorScheme].border,
                   color: Colors[colorScheme].text
@@ -489,6 +516,7 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
                 placeholderTextColor={Colors[colorScheme].mutedText}
                 keyboardType="number-pad"
                 value={formData.attendance?.toString() || ''}
+                onFocus={scrollToInput}
                 onChangeText={(text) => {
                   const num = parseInt(text, 10);
                   setFormData(prev => ({ ...prev, attendance: text === '' ? null : (isNaN(num) ? null : num) }));
@@ -519,6 +547,7 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
 
           </View>
         </ScrollView>
+        </KeyboardAvoidingView>
 
         {/* Date/Time Pickers */}
         {showDatePicker && (
@@ -581,7 +610,7 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
           
           {/* Search Input */}
           <View style={[styles.searchContainer, { borderBottomColor: Colors[colorScheme].border }]}>
-            <Ionicons name="search" size={20} color={Colors[colorScheme].mutedText} />
+            <MaterialIcons name="search" size={20} color={Colors[colorScheme].mutedText} />
             <TextInput
               style={[styles.searchInput, { color: Colors[colorScheme].text }]}
               placeholder="Search teams..."
@@ -592,7 +621,7 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
             />
             {currentTeamSearchQuery.length > 0 && (
               <Pressable onPress={() => setCurrentTeamSearchQuery('')}>
-                <Ionicons name="close-circle" size={20} color={Colors[colorScheme].mutedText} />
+                <MaterialIcons name="cancel" size={20} color={Colors[colorScheme].mutedText} />
               </Pressable>
             )}
           </View>
@@ -636,7 +665,7 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
                   </Text>
                 </View>
                 {formData.currentTeam === team.name && (
-                  <Ionicons name="checkmark" size={20} color="#007AFF" />
+                  <MaterialIcons name="check" size={20} color="#007AFF" />
                 )}
               </Pressable>
             ))}
@@ -672,7 +701,7 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
 
           {/* Search Input */}
           <View style={[styles.searchContainer, { borderBottomColor: Colors[colorScheme].border }]}>
-            <Ionicons name="search" size={20} color={Colors[colorScheme].mutedText} />
+            <MaterialIcons name="search" size={20} color={Colors[colorScheme].mutedText} />
             <TextInput
               style={[styles.searchInput, { color: Colors[colorScheme].text }]}
               placeholder="Search teams..."
@@ -686,7 +715,7 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
               ? <ActivityIndicator size="small" color={Colors[colorScheme].tint} />
               : opponentSearchQuery.length > 0 && (
                   <Pressable onPress={() => { setOpponentSearchQuery(''); setOpponentSearchResults([]); }}>
-                    <Ionicons name="close-circle" size={20} color={Colors[colorScheme].mutedText} />
+                    <MaterialIcons name="cancel" size={20} color={Colors[colorScheme].mutedText} />
                   </Pressable>
                 )
             }
@@ -727,7 +756,7 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
                   </View>
                 </View>
                 {opponentTeamId === team.id && (
-                  <Ionicons name="checkmark" size={20} color={Colors[colorScheme].tint} />
+                  <MaterialIcons name="check" size={20} color={Colors[colorScheme].tint} />
                 )}
               </Pressable>
             ))}
@@ -757,7 +786,7 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
                 }}
               >
                 <View style={styles.pickerItemContent}>
-                  <Ionicons name="add-circle-outline" size={20} color={Colors[colorScheme].tint} />
+                  <MaterialIcons name="add-circle-outline" size={20} color={Colors[colorScheme].tint} />
                   <Text style={[styles.pickerItemText, { color: Colors[colorScheme].tint, marginLeft: 8 }]}>
                     Add manually: "{opponentSearchQuery}"
                   </Text>

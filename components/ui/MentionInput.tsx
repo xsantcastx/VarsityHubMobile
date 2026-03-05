@@ -1,7 +1,7 @@
 import { User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useEffect, useRef, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -150,7 +150,7 @@ export function MentionInput({
                     <Image source={{ uri: item.avatar_url }} style={styles.avatar} />
                   ) : (
                     <View style={[styles.avatarPlaceholder, { backgroundColor: theme.surface }]}>
-                      <Ionicons name="person" size={16} color={theme.mutedText} />
+                      <MaterialIcons name="person" size={16} color={theme.mutedText} />
                     </View>
                   )}
                 </View>

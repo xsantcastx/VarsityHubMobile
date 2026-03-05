@@ -1,9 +1,9 @@
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
 import { useIsFocused } from '@react-navigation/native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, AppState, type AppStateStatus, FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, AppState, type AppStateStatus, FlatList, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Message as MessageApi, User } from '@/api/entities';
@@ -133,6 +133,15 @@ export default function MessageThreadScreen() {
     return () => { if (scrollTimer) clearTimeout(scrollTimer); };
   }, [msgs.length]);
 
+  // Scroll list to bottom immediately when keyboard appears so there's no gap
+  useEffect(() => {
+    const event = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const sub = Keyboard.addListener(event, () => {
+      flatRef.current?.scrollToEnd({ animated: true });
+    });
+    return () => sub.remove();
+  }, []);
+
   const send = async () => {
     const content = text.trim();
     if (!content) return;
@@ -238,7 +247,7 @@ export default function MessageThreadScreen() {
                 <Image source={{ uri: sender.avatar_url }} style={styles.avatar} />
               ) : (
                 <View style={[styles.avatarPlaceholder, { backgroundColor: Colors[colorScheme].border }]}>
-                  <Ionicons name="person" size={16} color={Colors[colorScheme].mutedText} />
+                  <MaterialIcons name="person" size={16} color={Colors[colorScheme].mutedText} />
                 </View>
               )
             ) : (
@@ -265,7 +274,7 @@ export default function MessageThreadScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors[colorScheme].background }} edges={['bottom']}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={88}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={insets.bottom}>
         <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
           <Stack.Screen
             options={{
@@ -279,8 +288,8 @@ export default function MessageThreadScreen() {
           backgroundColor: Colors[colorScheme].card,
           borderBottomColor: Colors[colorScheme].border,
         }]}>
-          <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={styles.backButton}>
-            <Ionicons name="chevron-back" size={28} color={Colors[colorScheme].text} />
+          <Pressable onPress={() => router.back()} style={styles.backButton}>
+            <MaterialIcons name="chevron-left" size={28} color={Colors[colorScheme].text} />
           </Pressable>
 
           <Pressable
@@ -293,7 +302,7 @@ export default function MessageThreadScreen() {
               <Image source={{ uri: otherParticipant.avatar_url }} style={styles.headerAvatar} />
             ) : (
               <View style={[styles.headerAvatarPlaceholder, { backgroundColor: Colors[colorScheme].border }]}>
-                <Ionicons name="person" size={20} color={Colors[colorScheme].mutedText} />
+                <MaterialIcons name="person" size={20} color={Colors[colorScheme].mutedText} />
               </View>
             )}
             <View style={styles.headerInfo}>
@@ -303,7 +312,7 @@ export default function MessageThreadScreen() {
           </Pressable>
 
           <Pressable onPress={() => setSafetyOpen(true)} style={styles.menuButton}>
-            <Ionicons name="ellipsis-vertical" size={22} color={Colors[colorScheme].text} />
+            <MaterialIcons name="more-vert" size={22} color={Colors[colorScheme].text} />
           </Pressable>
         </View>
 
@@ -315,7 +324,7 @@ export default function MessageThreadScreen() {
           {error && !loading && <Text style={styles.error}>{error}</Text>}
           {!loading && !error && msgs.length === 0 && (
             <View style={styles.emptyState}>
-              <Ionicons name="chatbubble-outline" size={48} color={Colors[colorScheme].mutedText} />
+              <MaterialIcons name="chat-bubble-outline" size={48} color={Colors[colorScheme].mutedText} />
               <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text }]}>Start the conversation</Text>
               <Text style={[styles.emptySubtitle, { color: Colors[colorScheme].mutedText }]}>Send a message below to get started</Text>
             </View>
@@ -353,7 +362,7 @@ export default function MessageThreadScreen() {
             style={[styles.sendBtn, !text.trim() && styles.sendBtnDisabled]}
             disabled={!text.trim()}
           >
-            <Ionicons name="send" size={18} color="white" />
+            <MaterialIcons name="send" size={18} color="white" />
           </Pressable>
         </View>
 
@@ -371,7 +380,7 @@ export default function MessageThreadScreen() {
                   }
                 }}
               >
-                <Ionicons name="flag-outline" size={20} color={Colors[colorScheme].text} />
+                <MaterialIcons name="flag" size={20} color={Colors[colorScheme].text} />
                 <Text style={[styles.sheetText, { color: Colors[colorScheme].text }]}>Report user</Text>
               </Pressable>
               <Pressable
@@ -407,11 +416,11 @@ export default function MessageThreadScreen() {
                   );
                 }}
               >
-                <Ionicons name="person-remove-outline" size={20} color="#EF4444" />
+                <MaterialIcons name="person-remove" size={20} color="#EF4444" />
                 <Text style={[styles.sheetText, { color: '#EF4444' }]}>Block user</Text>
               </Pressable>
               <Pressable style={[styles.sheetRow, { backgroundColor: Colors[colorScheme].surface }]} onPress={() => { setSafetyOpen(false); void void router.push('/dm-restrictions'); }}>
-                <Ionicons name="options-outline" size={20} color={Colors[colorScheme].text} />
+                <MaterialIcons name="tune" size={20} color={Colors[colorScheme].text} />
                 <Text style={[styles.sheetText, { color: Colors[colorScheme].text }]}>Message restrictions</Text>
               </Pressable>
             </Pressable>
@@ -431,7 +440,7 @@ export default function MessageThreadScreen() {
           >
             <Pressable style={[styles.modalContent, { backgroundColor: Colors[colorScheme].card }]} onPress={() => {}}>
               <View style={styles.modalHeader}>
-                <Ionicons name="shield-checkmark" size={48} color="#DC2626" />
+                <MaterialIcons name="verified-user" size={48} color="#DC2626" />
                 <Text style={[styles.modalTitle, { color: Colors[colorScheme].text }]}>
                   Safe Zone Policy
                 </Text>
@@ -468,7 +477,7 @@ export default function MessageThreadScreen() {
                     router.push('/help');
                   }}
                 >
-                  <Ionicons name="shield-checkmark-outline" size={20} color={Colors[colorScheme].tint} />
+                  <MaterialIcons name="verified-user" size={20} color={Colors[colorScheme].tint} />
                   <Text style={[styles.modalVerifyText, { color: Colors[colorScheme].tint }]}>
                     Request Coach Verification
                   </Text>

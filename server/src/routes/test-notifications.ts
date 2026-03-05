@@ -29,7 +29,7 @@ testNotificationsRouter.post('/test/push', requireAuth as any, async (req: Authe
   } catch (error: any) {
     res.status(500).json({ 
       error: 'Failed to send notification', 
-      details: error.message 
+      details: process.env.NODE_ENV === 'production' ? undefined : error.message
     });
   }
 });
@@ -57,7 +57,7 @@ testNotificationsRouter.get('/test/check-token', requireAuth as any, async (req:
       status: token ? '✅ Ready to receive notifications' : '❌ No push token registered',
     });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -93,7 +93,7 @@ testNotificationsRouter.post('/test/simulate/:type', requireAuth as any, async (
       message: `Sent ${type} notification! Check your device.` 
     });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -134,7 +134,7 @@ testNotificationsRouter.post('/test/geofence', requireAuth as any, async (req: A
       posting_window_open: event?.date ? new Date() >= new Date(new Date(event.date).getTime() - 24 * 60 * 60 * 1000) : null,
     });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -225,6 +225,6 @@ testNotificationsRouter.get('/test/upcoming-games', requireAuth as any, async (r
       would_receive_1h_reminder: games1h,
     });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });

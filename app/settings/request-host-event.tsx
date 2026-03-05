@@ -5,7 +5,7 @@ import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useUserProfile } from '@/hooks/useUser';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -131,7 +131,7 @@ export default function RequestHostEventScreen() {
         content: `New event host request submitted: ${title}\nLocation: ${location}\nDate: ${date.toLocaleString()}\nRequested by: ${displayName || 'Unknown'} (${profileEmail || 'unknown@example.com'})`,
         recipient_email: 'admin@varsityhub.com',
       });
-      Alert.alert('Request Submitted!', 'Your request to host an event has been submitted. You will be notified when it is reviewed.', [{ text: 'OK', onPress: () => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any) }]);
+      Alert.alert('Request Submitted!', 'Your request to host an event has been submitted. You will be notified when it is reviewed.', [{ text: 'OK', onPress: () => router.back() }]);
     } catch (e: any) {
       Alert.alert('Error', e?.message || 'Failed to submit request. Please try again.');
     } finally {
@@ -214,7 +214,7 @@ export default function RequestHostEventScreen() {
               ]}
               onPress={() => setShowDatePicker(true)}
             >
-              <Ionicons name="calendar" size={20} color={Colors[colorScheme].mutedText} />
+              <MaterialIcons name="event" size={20} color={Colors[colorScheme].mutedText} />
               <Text style={[styles.dateTimeText, { color: Colors[colorScheme].text }]}>{date.toLocaleDateString()}</Text>
             </Pressable>
             <Pressable
@@ -224,7 +224,7 @@ export default function RequestHostEventScreen() {
               ]}
               onPress={() => setShowTimePicker(true)}
             >
-              <Ionicons name="time" size={20} color={Colors[colorScheme].mutedText} />
+              <MaterialIcons name="access-time" size={20} color={Colors[colorScheme].mutedText} />
               <Text style={[styles.dateTimeText, { color: Colors[colorScheme].text }]}>{date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
             </Pressable>
           </View>
@@ -277,7 +277,7 @@ export default function RequestHostEventScreen() {
                     ]}
                     onPress={() => handleSelectLocation(suggestion)}
                   >
-                    <Ionicons name="location" size={16} color={Colors[colorScheme].tint} style={{ marginRight: 8 }} />
+                    <MaterialIcons name="location-on" size={16} color={Colors[colorScheme].tint} style={{ marginRight: 8 }} />
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.locationSuggestionMain, { color: Colors[colorScheme].text }]}>
                         {suggestion.structured_formatting?.main_text || suggestion.description}
@@ -299,7 +299,7 @@ export default function RequestHostEventScreen() {
           )}
         </View>
         <View style={[styles.infoBox, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}> 
-          <Ionicons name="information-circle" size={20} color={Colors[colorScheme].tint} />
+          <MaterialIcons name="info" size={20} color={Colors[colorScheme].tint} />
           <Text style={[styles.infoText, { color: Colors[colorScheme].mutedText }]}>Requests will be reviewed by coaches or admins before approval.</Text>
         </View>
         <Pressable

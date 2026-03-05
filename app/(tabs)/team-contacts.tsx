@@ -5,6 +5,8 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
+import VideoPlayer from '@/components/VideoPlayer';
+import VideoTrimmer from '@/components/VideoTrimmer';
 import * as MediaLibrary from 'expo-media-library';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -112,6 +114,8 @@ export default function TeamChatScreen() {
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
   const [showImageOptionsMenu, setShowImageOptionsMenu] = useState(false);
   const [isUploadingFile, setIsUploadingFile] = useState(false);
+  const [videoToTrim, setVideoToTrim] = useState<{ uri: string; name: string; size: number } | null>(null);
+  const [videoTrimmedUri, setVideoTrimmedUri] = useState<string | null>(null);
   
   // Toast notification state
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -1000,13 +1004,14 @@ export default function TeamChatScreen() {
           if (result.assets[0].type === 'image') {
             await sendImageMessage(result.assets[0]);
           } else {
-            // Handle video files
-            await sendFileMessage({
+            // Show trim preview for video files
+            setVideoToTrim({
               uri: result.assets[0].uri,
               name: `video_${Date.now()}.mp4`,
               size: result.assets[0].fileSize || 0,
-              mimeType: 'video/mp4',
             });
+            setVideoTrimmedUri(null);
+            return; // Upload happens via confirmVideoSend
           }
         }
       } else {
@@ -1019,6 +1024,25 @@ export default function TeamChatScreen() {
       setIsUploadingFile(false);
     }
   }, [sendImageMessage, sendFileMessage, pickDocument, showToast]);
+
+  const confirmVideoSend = useCallback(async () => {
+    if (!videoToTrim) return;
+    setIsUploadingFile(true);
+    try {
+      await sendFileMessage({
+        uri: videoTrimmedUri ?? videoToTrim.uri,
+        name: videoToTrim.name,
+        size: videoToTrim.size,
+        mimeType: 'video/mp4',
+      });
+    } catch {
+      showToast('Failed to send video', 'error');
+    } finally {
+      setIsUploadingFile(false);
+      setVideoToTrim(null);
+      setVideoTrimmedUri(null);
+    }
+  }, [videoToTrim, videoTrimmedUri, sendFileMessage, showToast]);
 
   const getFileColor = (type: string) => {
     switch (type) {
@@ -1252,7 +1276,7 @@ export default function TeamChatScreen() {
                   onPress={() => playVoiceMessage(item.id, item.voice!.uri)}
                 >
                   <Ionicons 
-                    name={playingAudio === item.id ? "pause" : "play"} 
+                    name={playingAudio === item.id ? "pause" : "play"}
                     size={16} 
                     color={isCurrentUser ? '#fff' : '#fff'} 
                   />
@@ -1470,7 +1494,7 @@ export default function TeamChatScreen() {
         style={styles.messageButton}
         onPress={() => {
           if (item.user?.id) {
-            void router.push(`/message-thread?with=${encodeURIComponent(item.user.id)}`);
+            void router.push(`/(tabs)/message-thread?with=${encodeURIComponent(item.user.id)}` as any);
           }
         }}
         disabled={!item.user?.id}
@@ -1486,7 +1510,7 @@ export default function TeamChatScreen() {
     return (
       <SafeAreaView style={[styles.container, styles.centerContent, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
         <Stack.Screen options={{ title: 'Team Chat', headerShown: true, headerLeft: () => (
-            <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={{ paddingRight: 8 }}>
+            <Pressable onPress={() => router.back()} style={{ paddingRight: 8 }}>
               <Ionicons name="chevron-back" size={28} color={Colors[colorScheme].tint} />
             </Pressable>
           ) }} />
@@ -1500,7 +1524,7 @@ export default function TeamChatScreen() {
     return (
       <SafeAreaView style={[styles.container, styles.centerContent, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
         <Stack.Screen options={{ title: 'Team Chat', headerShown: true, headerLeft: () => (
-            <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={{ paddingRight: 8 }}>
+            <Pressable onPress={() => router.back()} style={{ paddingRight: 8 }}>
               <Ionicons name="chevron-back" size={28} color={Colors[colorScheme].tint} />
             </Pressable>
           ) }} />
@@ -1529,7 +1553,7 @@ export default function TeamChatScreen() {
           headerStyle: { backgroundColor: Colors[colorScheme].background },
           headerTintColor: Colors[colorScheme].text,
           headerLeft: () => (
-            <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={{ paddingRight: 8 }}>
+            <Pressable onPress={() => router.back()} style={{ paddingRight: 8 }}>
               <Ionicons name="chevron-back" size={28} color={Colors[colorScheme].tint} />
             </Pressable>
           ),
@@ -1689,7 +1713,7 @@ export default function TeamChatScreen() {
                   disabled={sending}
                 >
                   <Ionicons 
-                    name={sending ? "hourglass" : "send"} 
+                    name={sending ? "hourglass" : "send"}
                     size={18} 
                     color="#fff"
                   />
@@ -1828,6 +1852,46 @@ export default function TeamChatScreen() {
               </Pressable>
             </View>
           </View>
+        </View>
+      </Modal>
+
+      {/* Video Trim Preview */}
+      <Modal
+        visible={!!videoToTrim}
+        transparent
+        animationType="slide"
+        onRequestClose={() => { setVideoToTrim(null); setVideoTrimmedUri(null); }}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', padding: 16 }}>
+          {videoToTrim && (
+            <>
+              <VideoPlayer uri={videoTrimmedUri ?? videoToTrim.uri} style={{ width: '100%', aspectRatio: 16 / 9, borderRadius: 12, alignSelf: 'center', maxHeight: 300 }} />
+              <VideoTrimmer
+                uri={videoToTrim.uri}
+                onTrimComplete={(u) => setVideoTrimmedUri(u)}
+                onTrimReset={() => setVideoTrimmedUri(null)}
+              />
+              <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 16, marginTop: 12 }}>
+                <Pressable
+                  onPress={() => { setVideoToTrim(null); setVideoTrimmedUri(null); }}
+                  style={{ backgroundColor: '#333', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 }}
+                >
+                  <Text style={{ color: '#fff', fontWeight: '600' }}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                  onPress={confirmVideoSend}
+                  disabled={isUploadingFile}
+                  style={{ backgroundColor: '#4A90D9', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8, opacity: isUploadingFile ? 0.6 : 1 }}
+                >
+                  {isUploadingFile ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={{ color: '#fff', fontWeight: '600' }}>Send Video</Text>
+                  )}
+                </Pressable>
+              </View>
+            </>
+          )}
         </View>
       </Modal>
 

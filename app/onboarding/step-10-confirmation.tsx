@@ -435,7 +435,7 @@ export default function Step10Confirmation() {
                 check.completed ? styles.checklistIconCompleted : styles.checklistIconIncomplete
               ]}>
                 <Ionicons 
-                  name={check.completed ? "checkmark" : "close"} 
+                  name={check.completed ? "checkmark" : "close"}
                   size={16} 
                   color={check.completed ? (colorScheme === 'dark' ? '#10b981' : '#059669') : (colorScheme === 'dark' ? '#ef4444' : '#DC2626')} 
                 />

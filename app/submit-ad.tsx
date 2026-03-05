@@ -3,7 +3,7 @@ import { BannerUpload } from '@/components/BannerUpload';
 import { ReachMapPreview } from '@/components/ReachMapPreview';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -158,7 +158,7 @@ export default function SubmitAdScreen() {
           headerShown: true,
           headerLeft: () => (
             <Pressable onPress={() => router.back()} style={{ padding: 8 }} accessibilityLabel="Go back">
-              <Ionicons name="arrow-back" size={24} color={theme.text} />
+              <MaterialIcons name="arrow-back" size={24} color={theme.text} />
             </Pressable>
           ),
         }} 

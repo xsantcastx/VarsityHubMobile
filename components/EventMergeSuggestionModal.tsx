@@ -8,7 +8,7 @@
 import CustomActionModal from '@/components/CustomActionModal';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { format } from 'date-fns';
 import { useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -164,7 +164,7 @@ export function EventMergeSuggestionModal({
         <ScrollView style={styles.content}>
           {/* Match Score */}
           <View style={styles.scoreContainer}>
-            <Ionicons name="git-merge" size={24} color="#2563EB" />
+            <MaterialIcons name="merge" size={24} color="#2563EB" />
             <Text style={[styles.scoreText, { color: Colors[colorScheme].text }]}>
               {matchScore}% Match
             </Text>
@@ -177,7 +177,7 @@ export function EventMergeSuggestionModal({
             </Text>
             {reasons.map((reason, index) => (
               <View key={index} style={styles.reasonRow}>
-                <Ionicons name="checkmark-circle" size={16} color="#10B981" />
+                <MaterialIcons name="check-circle" size={16} color="#10B981" />
                 <Text style={[styles.reasonText, { color: Colors[colorScheme].text }]}>
                   {reason}
                 </Text>
@@ -194,18 +194,18 @@ export function EventMergeSuggestionModal({
                 {primaryEvent.title || 'Untitled Event'}
               </Text>
               <View style={styles.eventDetail}>
-                <Ionicons name="time-outline" size={14} color="#6B7280" />
+                <MaterialIcons name="access-time" size={14} color="#6B7280" />
                 <Text style={styles.eventDetailText}>{formatEventDate(primaryEvent.date)}</Text>
               </View>
               <View style={styles.eventDetail}>
-                <Ionicons name="location-outline" size={14} color="#6B7280" />
+                <MaterialIcons name="location-on" size={14} color="#6B7280" />
                 <Text style={styles.eventDetailText}>{formatLocation(primaryEvent.location)}</Text>
               </View>
             </View>
 
             {/* Merge Icon */}
             <View style={styles.mergeIconContainer}>
-              <Ionicons name="arrow-down" size={24} color="#6B7280" />
+              <MaterialIcons name="arrow-downward" size={24} color="#6B7280" />
             </View>
 
             {/* Duplicate Event */}
@@ -215,11 +215,11 @@ export function EventMergeSuggestionModal({
                 {duplicateEvent.title || 'Untitled Event'}
               </Text>
               <View style={styles.eventDetail}>
-                <Ionicons name="time-outline" size={14} color="#6B7280" />
+                <MaterialIcons name="access-time" size={14} color="#6B7280" />
                 <Text style={styles.eventDetailText}>{formatEventDate(duplicateEvent.date)}</Text>
               </View>
               <View style={styles.eventDetail}>
-                <Ionicons name="location-outline" size={14} color="#6B7280" />
+                <MaterialIcons name="location-on" size={14} color="#6B7280" />
                 <Text style={styles.eventDetailText}>
                   {formatLocation(duplicateEvent.location)}
                 </Text>

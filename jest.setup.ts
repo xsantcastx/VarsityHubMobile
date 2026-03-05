@@ -54,11 +54,10 @@ jest.mock('expo-router/entry-classic', () => {
   };
 });
 
-jest.mock('@expo/vector-icons', () => {
+jest.mock('@expo/vector-icons/MaterialIcons', () => {
   const React = require('react');
-  return {
-    Ionicons: (props: any) => React.createElement('Icon', props),
-  };
+  const MockIcon = (props: any) => React.createElement('Icon', props);
+  return { __esModule: true, default: MockIcon };
 });
 
 jest.mock('react-native-gesture-handler', () => {

@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -134,16 +134,18 @@ export default function NotificationsScreen() {
         });
       }
     };
+    const theme = Colors[colorScheme];
     return (
-      <Pressable style={[S.row, !item.read_at && S.rowUnread]} onPress={onPress}>
+      <Pressable style={[S.row, { borderBottomColor: theme.border }, !item.read_at && { backgroundColor: colorScheme === 'dark' ? 'rgba(59,130,246,0.08)' : '#F0F5FF' }]} onPress={onPress}>
         <View style={S.avatarWrap}>
+          {/* Always render fallback as base layer */}
+          <View style={[S.avatar, S.avatarFallback, { backgroundColor: theme.border }]}>
+            <MaterialIcons name="person" size={20} color={theme.mutedText} />
+          </View>
+          {/* Overlay actual image on top — if it fails to load, fallback remains visible */}
           {item.actor?.avatar_url ? (
-            <Image source={{ uri: item.actor.avatar_url }} style={S.avatar} />
-          ) : (
-            <View style={[S.avatar, { backgroundColor: '#E5E7EB', alignItems: 'center', justifyContent: 'center' }]}>
-              <Ionicons name="person" size={20} color="#9CA3AF" />
-            </View>
-          )}
+            <Image source={{ uri: item.actor.avatar_url }} style={[S.avatar, S.avatarOverlay]} contentFit="cover" />
+          ) : null}
         </View>
         <View style={{ flex: 1 }}>
           <Text style={[S.title, { color: Colors[colorScheme].text }]}>{title}</Text>
@@ -167,8 +169,8 @@ export default function NotificationsScreen() {
         style={[S.headerGradient, { paddingTop: insets.top + 12 }]}
       >
         <View style={S.headerRow}>
-          <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={S.backButton} accessibilityRole="button" accessibilityLabel="Go back">
-            <Ionicons name="chevron-back" size={24} color={Colors[colorScheme].text} />
+          <Pressable onPress={() => router.back()} style={S.backButton} accessibilityRole="button" accessibilityLabel="Go back">
+            <MaterialIcons name="chevron-left" size={24} color={Colors[colorScheme].text} />
           </Pressable>
           <Text style={[S.topTitle, { color: Colors[colorScheme].text }]}>Notifications</Text>
           <View style={{ width: 40 }} />
@@ -203,7 +205,7 @@ export default function NotificationsScreen() {
           onEndReached={onEndReached}
           ListEmptyComponent={
             <View style={S.emptyContainer}>
-              <Ionicons name="notifications-outline" size={56} color={Colors[colorScheme ?? 'light'].mutedText} />
+              <MaterialIcons name="notifications-none" size={56} color={Colors[colorScheme ?? 'light'].mutedText} />
               <Text style={[S.emptyTitle, { color: Colors[colorScheme ?? 'light'].text }]}>All caught up!</Text>
               <Text style={[S.emptySubtitle, { color: Colors[colorScheme ?? 'light'].mutedText }]}>
                 You'll see notifications for follows, upvotes, and comments here.
@@ -245,10 +247,11 @@ const S = StyleSheet.create({
   },
   topTitle: { fontSize: 20, fontWeight: '800', flex: 1, textAlign: 'center' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#E5E7EB' },
-  rowUnread: { backgroundColor: '#F9FAFB' },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth },
   avatarWrap: { width: 40, height: 40, borderRadius: 20, overflow: 'hidden' },
   avatar: { width: 40, height: 40, borderRadius: 20 },
+  avatarFallback: { alignItems: 'center', justifyContent: 'center' },
+  avatarOverlay: { position: 'absolute', top: 0, left: 0 },
   title: { fontWeight: '700', color: 'transparent' }, // Will be overridden with Colors[colorScheme].text
   subtitle: { color: 'transparent', marginTop: 2 }, // Will be overridden with Colors[colorScheme].mutedText
   markAllBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: '#F3F4F6', borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB' },

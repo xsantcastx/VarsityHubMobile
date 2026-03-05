@@ -77,13 +77,13 @@ export default function OrganizationScreen() {
     try {
       const orgId = params.id?.trim();
 
-      if (!orgId) {
-        if (mounted.current) { setError('No organization ID provided'); setLoading(false); }
+      if (!orgId || orgId === 'undefined' || orgId === 'null') {
+        if (mounted.current) { setError('not_found'); setLoading(false); }
         return;
       }
 
-      if (!/^[a-zA-Z0-9_-]+$/.test(orgId)) {
-        if (mounted.current) { setError('Invalid organization ID format'); setLoading(false); }
+      if (!/^[a-zA-Z0-9_-]{1,128}$/.test(orgId)) {
+        if (mounted.current) { setError('not_found'); setLoading(false); }
         return;
       }
 
@@ -227,6 +227,21 @@ export default function OrganizationScreen() {
     );
   }
 
+  if (error === 'not_found') {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+        <View style={styles.errorContainer}>
+          <Ionicons name="business" size={48} color={theme.mutedText} style={{ marginBottom: 12 }} />
+          <Text style={[styles.errorText, { color: theme.text, fontSize: 18, fontWeight: '600' }]}>Not Found</Text>
+          <Text style={{ color: theme.mutedText, textAlign: 'center', marginTop: 4, marginBottom: 16 }}>This organization doesn't exist or the link is invalid.</Text>
+          <Pressable onPress={() => router.back()} style={[styles.retryButton, { backgroundColor: theme.tint }]}>
+            <Text style={styles.retryText}>Go Back</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   if (error) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
@@ -264,7 +279,7 @@ export default function OrganizationScreen() {
       >
         {/* Back Button */}
         <Pressable
-          onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)' as any))}
+          onPress={() => (router.back())}
           style={[styles.backButton, { borderColor: theme.border }]}
         >
           <Ionicons name="arrow-back" size={22} color={theme.text} />

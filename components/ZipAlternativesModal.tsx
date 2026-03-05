@@ -8,7 +8,7 @@
 import CustomActionModal from '@/components/CustomActionModal';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import {
     ActivityIndicator,
     Pressable,
@@ -64,7 +64,7 @@ export function ZipAlternativesModal({
       <ScrollView style={styles.content}>
         {/* Error message */}
         <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle" size={24} color="#DC2626" />
+          <MaterialIcons name="error" size={24} color="#DC2626" />
           <Text style={[styles.errorText, { color: Colors[colorScheme].text }]}>
             Zip code <Text style={styles.zipHighlight}>{requestedZip}</Text> is fully booked for
             your selected dates.
@@ -73,7 +73,7 @@ export function ZipAlternativesModal({
 
         {/* Coverage info */}
         <View style={styles.infoContainer}>
-          <Ionicons name="information-circle-outline" size={20} color="#2563EB" />
+          <MaterialIcons name="info-outline" size={20} color="#2563EB" />
           <Text style={styles.infoText}>
             We found nearby zip codes within 20 miles that have availability:
           </Text>
@@ -88,7 +88,7 @@ export function ZipAlternativesModal({
 
         {!loading && alternatives.length === 0 && (
           <View style={styles.emptyContainer}>
-            <Ionicons name="sad-outline" size={48} color="#9CA3AF" />
+            <MaterialIcons name="sentiment-dissatisfied" size={48} color="#9CA3AF" />
             <Text style={[styles.emptyText, { color: Colors[colorScheme].text }]}>
               No nearby zip codes with availability found.
             </Text>
@@ -129,7 +129,7 @@ export function ZipAlternativesModal({
                   </View>
                   {alt.distance !== undefined && (
                     <View style={styles.distanceBadge}>
-                      <Ionicons name="location-outline" size={14} color="#6B7280" />
+                      <MaterialIcons name="location-on" size={14} color="#6B7280" />
                       <Text style={styles.distanceText}>{formatDistance(alt.distance)}</Text>
                     </View>
                   )}
@@ -156,7 +156,7 @@ export function ZipAlternativesModal({
                 {/* Select button */}
                 <View style={styles.selectButton}>
                   <Text style={styles.selectButtonText}>Select This Zip</Text>
-                  <Ionicons name="chevron-forward" size={16} color="#2563EB" />
+                  <MaterialIcons name="chevron-right" size={16} color="#2563EB" />
                 </View>
               </Pressable>
             ))}

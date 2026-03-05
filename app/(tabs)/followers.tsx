@@ -2,7 +2,7 @@ import { User } from '@/api/entities';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -78,8 +78,8 @@ export default function FollowersScreen() {
       <Stack.Screen options={{ 
         title: `${username}'s Followers`,
         headerLeft: () => (
-          <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={styles.backButton}>
-            <Ionicons name="chevron-back" size={24} color="#3B82F6" />
+          <Pressable onPress={() => router.back()} style={styles.backButton}>
+            <MaterialIcons name="chevron-left" size={24} color="#3B82F6" />
           </Pressable>
         ),
       }} />
@@ -101,7 +101,7 @@ export default function FollowersScreen() {
           ListFooterComponent={loading ? <ActivityIndicator /> : null}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Ionicons name="people-outline" size={48} color={Colors[colorScheme].mutedText} />
+              <MaterialIcons name="group" size={48} color={Colors[colorScheme].mutedText} />
               <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text }]}>No followers yet</Text>
               <Text style={[styles.emptySubtitle, { color: Colors[colorScheme].mutedText }]}>
                 When people follow this account, they'll appear here.

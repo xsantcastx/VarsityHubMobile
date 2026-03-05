@@ -17,6 +17,10 @@ module.exports = function (api) {
           '@/api': './api',
           '@/utils': './utils',
           '@/config': './config',
+          '@/lib': './lib',
+          '@/shared': './shared',
+          '@/data': './data',
+          '@/features': './app/features',
           '@/ui': './components/ui',
           // Shim problematic nested deps on Windows
           'is-arrayish': './shims/is-arrayish',

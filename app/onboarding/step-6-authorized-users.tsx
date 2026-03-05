@@ -2,7 +2,7 @@ import { Input } from '@/components/ui/input';
 import PrimaryButton from '@/components/ui/PrimaryButton';
 // Segmented replaced by wheel picker for roles
 import { Type } from '@/ui/tokens';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Picker } from '@react-native-picker/picker';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
@@ -314,7 +314,7 @@ export default function Step6AuthorizedUsers() {
         {/* Organization Status */}
         {(ob.team_id || ob.organization_id) && (
           <View style={styles.createdChip}>
-            <Ionicons name="checkmark-circle" size={16} color={colorScheme === 'dark' ? '#4ade80' : '#166534'} />
+            <MaterialIcons name="check-circle" size={16} color={colorScheme === 'dark' ? '#4ade80' : '#166534'} />
             <Text style={styles.createdChipText}>
               {ob.plan === 'rookie' ? 'Team created' : 'Organization created'}
             </Text>
@@ -359,7 +359,7 @@ export default function Step6AuthorizedUsers() {
               accessibilityLabel="Select role"
             >
               <Text style={styles.selectFieldText}>{roleLabels[role] || role}</Text>
-              <Ionicons name="chevron-down" size={18} color={Colors[colorScheme].mutedText} />
+              <MaterialIcons name="expand-more" size={18} color={Colors[colorScheme].mutedText} />
             </Pressable>
             <View style={{ height: 12 }} />
 
@@ -415,7 +415,7 @@ export default function Step6AuthorizedUsers() {
                   onPress={() => setList(arr => arr.filter((_, i) => i !== idx))}
                   style={styles.removeButton}
                 >
-                  <Ionicons name="trash-outline" size={16} color={colorScheme === 'dark' ? '#ef4444' : '#DC2626'} />
+                  <MaterialIcons name="delete-outline" size={16} color={colorScheme === 'dark' ? '#ef4444' : '#DC2626'} />
                 </Pressable>
               </View>
             ))}

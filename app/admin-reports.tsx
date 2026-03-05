@@ -212,7 +212,7 @@ export default function AdminReportsScreen() {
         <View style={styles.reportHeader}>
           <View style={styles.reportHeaderLeft}>
             <Ionicons 
-              name={isSelected ? 'checkbox' : 'square-outline'} 
+              name={isSelected ? 'checkbox' : 'square-outline'}
               size={24} 
               color={isSelected ? '#3B82F6' : (colorScheme === 'dark' ? '#9CA3AF' : '#6B7280')} 
             />
@@ -302,7 +302,7 @@ export default function AdminReportsScreen() {
       >
         {/* Header */}
         <View style={[styles.header, { backgroundColor: Colors[colorScheme].card, borderBottomColor: Colors[colorScheme].border }]}>
-          <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={styles.backButton}>
+          <Pressable onPress={() => router.back()} style={styles.backButton}>
             <Ionicons 
               name="arrow-back" 
               size={24} 
@@ -438,7 +438,7 @@ export default function AdminReportsScreen() {
               {reports.length === 0 ? (
                 <View style={styles.emptyState}>
                   <Ionicons 
-                    name="document-text-outline" 
+                    name="document-text-outline"
                     size={64} 
                     color={Colors[colorScheme].mutedText} 
                   />

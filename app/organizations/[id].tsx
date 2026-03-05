@@ -18,23 +18,27 @@ interface Organization {
   _count?: { teams?: number; memberships?: number };
 }
 
+const VALID_ID = /^[a-zA-Z0-9_-]{1,128}$/;
+
 export default function OrganizationDetailScreen() {
   const params = useLocalSearchParams<{ id: string }>();
   const normalizedId = useMemo(() => {
-    const raw = params.id;
-    return Array.isArray(raw) ? raw[0] : raw;
+    const raw = Array.isArray(params.id) ? params.id[0] : params.id;
+    const trimmed = raw?.trim();
+    if (!trimmed || trimmed === 'undefined' || trimmed === 'null' || !VALID_ID.test(trimmed)) return null;
+    return trimmed;
   }, [params.id]);
   const router = useRouter();
   const [org, setOrg] = useState<Organization | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { apiUrl } = getConfig();
-  const seedOrg = useMemo(() => findSeedOrganization(normalizedId), [normalizedId]);
+  const seedOrg = useMemo(() => normalizedId ? findSeedOrganization(normalizedId) : null, [normalizedId]);
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      if (!normalizedId) return;
+      if (!normalizedId) { setLoading(false); return; }
       setLoading(true);
       setError(null);
       try {
@@ -78,8 +82,13 @@ export default function OrganizationDetailScreen() {
   }
   if (!org) {
     return (
-      <View style={{ padding: 16 }}>
-        <Text>No organization found.</Text>
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        <Text style={{ fontSize: 48, marginBottom: 12 }}>🏫</Text>
+        <Text style={{ fontSize: 18, fontWeight: '600', marginBottom: 8 }}>Not Found</Text>
+        <Text style={{ color: '#6B7280', textAlign: 'center', marginBottom: 20 }}>This organization doesn't exist or the link is invalid.</Text>
+        <Pressable onPress={() => router.back()} style={{ backgroundColor: '#3B82F6', borderRadius: 8, paddingHorizontal: 20, paddingVertical: 10 }}>
+          <Text style={{ color: '#fff', fontWeight: '600' }}>Go Back</Text>
+        </Pressable>
       </View>
     );
   }

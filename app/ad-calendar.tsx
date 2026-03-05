@@ -1,8 +1,9 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import * as WebBrowser from 'expo-web-browser';
-import React, { useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { usePaymentSheet } from '@stripe/stripe-react-native';
+import React, { useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, Animated, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { httpPost } from '@/api/http';
@@ -148,6 +149,9 @@ export default function AdCalendarScreen() {
   const [paymentsStatus, setPaymentsStatus] = useState<{ stripe_configured?: boolean; has_webhook_secret?: boolean } | null>(null);
   const [paymentsStatusLoading, setPaymentsStatusLoading] = useState(true);
   const [paymentsStatusError, setPaymentsStatusError] = useState<string | null>(null);
+  const [showFreeSuccess, setShowFreeSuccess] = useState(false);
+  const freeSuccessOpacity = useRef(new Animated.Value(0)).current;
+  const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
   
   // Load reserved dates for THIS ad only (allow other ads to share dates)
   // AND load date availability to block fully booked dates
@@ -451,26 +455,36 @@ export default function AdCalendarScreen() {
     setSubmitting(true);
     try {
       const dates = Array.from(selected).sort((a, b) => (a < b ? -1 : 1));
-      const data: any = await httpPost('/payments/checkout', { ad_id: String(adId), dates, promo_code: promo || undefined });
+      const data: any = await httpPost('/payments/create-payment-sheet', { ad_id: String(adId), dates, promo_code: promo || undefined });
       if (data?.free) {
-        Alert.alert('Success!', 'Your ad reservation was completed with the promo discount.', [
-          { text: 'View My Ads', onPress: () => router.replace('/(tabs)/my-ads') }
-        ]);
+        // Show success animation, then auto-navigate to My Ads
+        setShowFreeSuccess(true);
+        freeSuccessOpacity.setValue(0);
+        Animated.timing(freeSuccessOpacity, { toValue: 1, duration: 300, useNativeDriver: true }).start(() => {
+          setTimeout(() => {
+            router.replace({ pathname: '/(tabs)/my-ads', params: { payment_success: 'true' } });
+          }, 1200);
+        });
         return;
       }
-      if (data?.url) {
-        try {
-          await WebBrowser.openBrowserAsync(String(data.url));
-          Alert.alert(
-            'Check Payment Status',
-            'If you completed checkout, a confirmation screen should appear shortly. If you canceled the payment, you can reopen checkout from this screen.',
-          );
-        } catch (browserErr) {
-          console.error('Browser error:', browserErr);
-          Alert.alert('Error', 'Could not open payment page. Please try again.');
-        } finally {
-          setSubmitting(false);
+      if (data?.paymentIntent) {
+        const { error: initError } = await initPaymentSheet({
+          paymentIntentClientSecret: data.paymentIntent,
+          customerEphemeralKeySecret: data.ephemeralKey,
+          customerId: data.customer,
+          merchantDisplayName: 'Varsity Hub',
+        });
+        if (initError) {
+          Alert.alert('Error', initError.message);
+          return;
         }
+        const { error } = await presentPaymentSheet();
+        if (error) {
+          if (error.code !== 'Canceled') Alert.alert('Payment Failed', error.message);
+          return;
+        }
+        // Payment succeeded — navigate to My Ads
+        router.replace({ pathname: '/(tabs)/my-ads', params: { payment_success: 'true' } });
         return;
       }
       throw new Error('Unexpected checkout response');
@@ -499,7 +513,7 @@ export default function AdCalendarScreen() {
           backgroundColor: Colors[colorScheme].card,
           borderBottomColor: Colors[colorScheme].border 
         }]}>
-          <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={[styles.iconBtn, { backgroundColor: Colors[colorScheme].surface }]}>
+          <Pressable onPress={() => router.back()} style={[styles.iconBtn, { backgroundColor: Colors[colorScheme].surface }]}>
             <Text style={[styles.iconBtnText, { color: Colors[colorScheme].text }]}>{'<'}</Text>
           </Pressable>
           <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>Schedule Your Ad</Text>
@@ -780,7 +794,10 @@ export default function AdCalendarScreen() {
             </View>
           ) : (
             <View style={[styles.emptyState, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-              <Text style={{ fontSize: 32, marginBottom: 8 }}>📅</Text>
+              <View style={{ width: 40, height: 40, marginBottom: 8, alignItems: 'center', justifyContent: 'center' }}>
+                <MaterialIcons name="event" size={38} color={Colors[colorScheme].tint} />
+                <Text style={{ position: 'absolute', top: 14, fontSize: 13, fontWeight: '800', color: Colors[colorScheme].tint }}>24</Text>
+              </View>
               <Text style={[styles.bold, { color: Colors[colorScheme].text }]}>No dates selected</Text>
               <Text style={[styles.muted, { color: Colors[colorScheme].mutedText, textAlign: 'center' }]}>
                 Tap on dates in the calendar above to build your campaign
@@ -788,14 +805,19 @@ export default function AdCalendarScreen() {
             </View>
           )}
 
-          {sortedDates.length > 0 && (
-            <View style={[styles.rowBetween, { marginTop: 4 }]}>
-              <Text style={[styles.bold, { color: Colors[colorScheme].text }]}>Total Hours Booked:</Text>
-              <Text style={{ color: Colors[colorScheme].text, fontWeight: '700' }}>
-                {sortedDates.length * 24} hrs ({sortedDates.length} day{sortedDates.length !== 1 ? 's' : ''})
-              </Text>
-            </View>
-          )}
+          {sortedDates.length > 0 && (() => {
+            const totalHrs = sortedDates.length * 24;
+            return (
+              <View style={[styles.rowBetween, { marginTop: 4 }]}>
+                <Text style={[styles.bold, { color: Colors[colorScheme].text }]}>Total Hours Booked:</Text>
+                <View style={styles.hoursHighlight}>
+                  <Text style={styles.hoursHighlightText}>
+                    {totalHrs} hrs ({sortedDates.length} day{sortedDates.length !== 1 ? 's' : ''})
+                  </Text>
+                </View>
+              </View>
+            );
+          })()}
 
           <View style={[styles.sep, { backgroundColor: Colors[colorScheme].border }]} />
 
@@ -850,6 +872,17 @@ export default function AdCalendarScreen() {
         </View>
       </ScrollView>
       </View>
+
+      {/* Free promo success overlay */}
+      {showFreeSuccess && (
+        <Animated.View style={[styles.successOverlay, { opacity: freeSuccessOpacity }]} pointerEvents="none">
+          <View style={styles.successBadge}>
+            <Text style={[styles.successCheck, { color: Colors[colorScheme].text }]}>✓</Text>
+            <Text style={[styles.successLabel, { color: Colors[colorScheme].text }]}>Ad Reserved!</Text>
+            <Text style={[styles.successSub, { color: Colors[colorScheme].mutedText }]}>Promo applied — redirecting...</Text>
+          </View>
+        </Animated.View>
+      )}
     </SafeAreaView>
   );
 }
@@ -1001,6 +1034,46 @@ const styles = StyleSheet.create({
   },
   payBtnDisabled: { opacity: 0.5 },
   payBtnText: { color: 'white', fontSize: 16, fontWeight: '700' },
+  hoursHighlight: {
+    backgroundColor: '#FEF9C3',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  hoursHighlightText: {
+    color: '#92400E',
+    fontWeight: '800',
+    fontSize: 15,
+  },
+  successOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    zIndex: 100,
+  },
+  successBadge: {
+    backgroundColor: '#FFD700',
+    borderRadius: 20,
+    paddingVertical: 28,
+    paddingHorizontal: 48,
+    alignItems: 'center',
+    gap: 6,
+  },
+  successCheck: {
+    fontSize: 52,
+    fontWeight: '800',
+  },
+  successLabel: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  successSub: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
 });
 
  

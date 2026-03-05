@@ -11,6 +11,7 @@ import { PromptPresets } from '@/components/RotatingPrompts';
 import { MentionInput } from '@/components/ui/MentionInput';
 
 import VideoPlayer from '@/components/VideoPlayer';
+import VideoTrimmer from '@/components/VideoTrimmer';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useDeviceLocation } from '@/hooks/useDeviceLocation';
@@ -86,6 +87,7 @@ export default function CreatePostScreen() {
   const [precisionBannerDismissed, setPrecisionBannerDismissed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [postSuccess, setPostSuccess] = useState(false);
+  const [trimmedUri, setTrimmedUri] = useState<string | null>(null);
   // Celebration overlay animations
   const celebrationScale = useRef(new Animated.Value(0)).current;
   const celebrationOpacity = useRef(new Animated.Value(0)).current;
@@ -95,6 +97,9 @@ export default function CreatePostScreen() {
   const [draftReady, setDraftReady] = useState(false);
   const draftLoadedRef = useRef(false);
   const draftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Reset trim state when media changes
+  useEffect(() => { setTrimmedUri(null); }, [picked?.uri]);
 
   // Reset form state when returning to this tab (handles stuck postSuccess)
   useFocusEffect(
@@ -557,7 +562,8 @@ export default function CreatePostScreen() {
         const base = getApiBaseUrl();
         const name = picked.type === 'image' ? 'image.jpg' : 'video.mp4';
         const mime = picked.mime || (picked.type === 'image' ? 'image/jpeg' : 'video/mp4');
-        const res = await uploadFile(base, picked.uri, name, mime);
+        const uploadUri = (picked.type === 'video' && trimmedUri) ? trimmedUri : picked.uri;
+        const res = await uploadFile(base, uploadUri, name, mime);
         finalMediaUrl = res?.url || res?.path;
         if (__DEV__) console.warn('[CreatePost] Upload complete:', finalMediaUrl);
       }
@@ -729,7 +735,7 @@ export default function CreatePostScreen() {
       
       {/* Header */}
       <View style={[styles.header, { backgroundColor: Colors[colorScheme].background, borderBottomColor: Colors[colorScheme].border }]}>
-        <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} accessibilityLabel="Close" style={styles.iconBtn}>
+        <Pressable onPress={() => router.back()} accessibilityLabel="Close" style={styles.iconBtn}>
           <Ionicons name="close" size={22} color={Colors[colorScheme].text} />
         </Pressable>
         <View style={styles.headerSpacer} />
@@ -805,7 +811,14 @@ export default function CreatePostScreen() {
               {picked.type === 'image' ? (
                 <RNImage source={{ uri: picked.uri }} style={[styles.previewMedia, { backgroundColor: Colors[colorScheme].surface }]} />
               ) : (
-                <VideoPlayer uri={picked.uri} style={styles.previewMedia} />
+                <>
+                  <VideoPlayer uri={trimmedUri ?? picked.uri} style={styles.previewMedia} />
+                  <VideoTrimmer
+                    uri={picked.uri}
+                    onTrimComplete={(u) => setTrimmedUri(u)}
+                    onTrimReset={() => setTrimmedUri(null)}
+                  />
+                </>
               )}
               <Pressable style={styles.removeButton} onPress={() => setPicked(null)} accessibilityLabel="Remove media">
                 <Ionicons name="close" size={16} color="#FFFFFF" />
@@ -992,7 +1005,7 @@ export default function CreatePostScreen() {
                   >
                     <View style={[styles.eventOptionIcon, { backgroundColor: Colors[colorScheme].surface }]}>
                       <Ionicons 
-                        name={index === 0 ? "star" : "trophy"} 
+                        name={index === 0 ? "star" : "trophy"}
                         size={20} 
                         color={index === 0 ? "#F59E0B" : "#059669"} 
                       />
@@ -1132,7 +1145,7 @@ export default function CreatePostScreen() {
               {/* Destination Info */}
               <View style={[styles.previewDestination, { backgroundColor: Colors[colorScheme].surface }]}>
                 <Ionicons 
-                  name={previewData?.game ? "trophy" : "person"} 
+                  name={previewData?.game ? "trophy" : "person"}
                   size={16} 
                   color={Colors[colorScheme].mutedText} 
                 />

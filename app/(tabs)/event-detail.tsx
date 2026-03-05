@@ -1,5 +1,5 @@
 import { BackHeader } from '@/components/ui/BackHeader';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
@@ -288,14 +288,14 @@ export default function EventDetailScreen() {
                 onPress={openInMaps}
               >
                 <View style={styles.locationIconContainer}>
-                  <Ionicons name="location" size={24} color="#EF4444" />
+                  <MaterialIcons name="location-on" size={24} color="#EF4444" />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.locationLabel, { color: theme.mutedText }]}>Location</Text>
                   <Text style={[styles.locationText, { color: theme.text }]}>{event.location}</Text>
                   <Text style={[styles.locationHint, { color: theme.mutedText }]}>Tap to open in Maps</Text>
                 </View>
-                <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+                <MaterialIcons name="chevron-right" size={20} color="#9CA3AF" />
               </Pressable>
             )}
             
@@ -389,7 +389,6 @@ const styles = StyleSheet.create({
   locationText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#111827',
     marginBottom: 2,
   },
   locationHint: {
@@ -400,7 +399,7 @@ const styles = StyleSheet.create({
   primaryBtnDisabled: { opacity: 0.6 },
   primaryBtnText: { color: 'white', fontWeight: '700' },
   outlineBtn: { borderWidth: StyleSheet.hairlineWidth, borderColor: '#D1D5DB', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10 },
-  outlineBtnText: { color: '#111827', fontWeight: '700' },
+  outlineBtnText: { fontWeight: '700' },
   cancelledBadge: {
     paddingHorizontal: 10,
     paddingVertical: 4,

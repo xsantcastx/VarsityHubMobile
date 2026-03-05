@@ -58,8 +58,19 @@ app.set('trust proxy', true);
 // pino-http ESM interop can require using the default property in some setups
 const pinoMiddleware = (typeof (pinoHttp as any) === 'function' ? (pinoHttp as any) : (pinoHttp as any).default) || pinoHttp;
 app.use(pinoMiddleware({ transport: { target: 'pino-pretty' } }));
-// In dev, disable CSP to allow loading media from API when app runs on a different origin
-app.use(helmet({ contentSecurityPolicy: false }));
+// In dev, disable CSP to allow loading media from API when app runs on a different origin.
+// In prod, enable CSP with sensible defaults for a mobile API backend.
+app.use(helmet({
+  contentSecurityPolicy: process.env.NODE_ENV === 'production' ? {
+    directives: {
+      defaultSrc: ["'self'"],
+      imgSrc: ["'self'", 'data:', 'https://res.cloudinary.com', 'https://*.googleapis.com'],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      connectSrc: ["'self'", 'https://*.stripe.com', 'https://*.sentry.io'],
+    },
+  } : false,
+}));
 
 const isProd = process.env.NODE_ENV === 'production';
 const defaultProdOrigins = [

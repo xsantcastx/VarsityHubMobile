@@ -1,12 +1,12 @@
 import { Colors } from '@/constants/Colors';
 import { spacing, typography } from '@/constants/Theme';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { StyleSheet, Text, View, ViewStyle } from 'react-native';
 import { Card } from './card';
 
 export interface StatCardProps {
-  icon?: keyof typeof Ionicons.glyphMap;
+  icon?: keyof typeof MaterialIcons.glyphMap;
   label: string;
   value: string | number;
   subtitle?: string;
@@ -63,7 +63,7 @@ export function StatCard({
     return Colors[colorScheme].mutedText;
   };
 
-  const getTrendIcon = (): keyof typeof Ionicons.glyphMap => {
+  const getTrendIcon = (): keyof typeof MaterialIcons.glyphMap => {
     if (trend === 'up') return 'trending-up';
     if (trend === 'down') return 'trending-down';
     return 'remove';
@@ -81,7 +81,7 @@ export function StatCard({
         {/* Icon */}
         {icon && (
           <View style={styles.iconContainer}>
-            <Ionicons 
+            <MaterialIcons 
               name={icon} 
               size={24} 
               color={variantColor} 
@@ -129,7 +129,7 @@ export function StatCard({
           {/* Trend */}
           {trend && trendValue && (
             <View style={styles.trendRow}>
-              <Ionicons 
+              <MaterialIcons 
                 name={getTrendIcon()} 
                 size={16} 
                 color={trendColor} 

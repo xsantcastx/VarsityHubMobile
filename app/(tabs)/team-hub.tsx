@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { format } from 'date-fns';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -106,7 +106,7 @@ export default function TeamHubScreen() {
       return;
     }
     if (evt.id) {
-      router.push(`/event-detail?id=${String(evt.id)}`);
+      router.push(`/(tabs)/event-detail?id=${String(evt.id)}` as any);
     }
   };
 
@@ -115,8 +115,8 @@ export default function TeamHubScreen() {
       <Stack.Screen options={{ 
         title: 'Team Hub',
         headerLeft: () => (
-          <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={{ paddingLeft: 8 }}>
-            <Ionicons name="chevron-back" size={24} color={Colors[colorScheme].tint} />
+          <Pressable onPress={() => router.back()} style={{ paddingLeft: 8 }}>
+            <MaterialIcons name="chevron-left" size={24} color={Colors[colorScheme].tint} />
           </Pressable>
         ),
       }} />
@@ -124,7 +124,7 @@ export default function TeamHubScreen() {
 
       {/* Search */}
       <View style={S.searchWrap}>
-        <Ionicons name="search" size={18} color={palette.placeholder} style={{ marginRight: 8 }} />
+        <MaterialIcons name="search" size={18} color={palette.placeholder} style={{ marginRight: 8 }} />
         <TextInput
           value={query}
           onChangeText={setQuery}
@@ -139,7 +139,7 @@ export default function TeamHubScreen() {
       {/* Team Management Card */}
       <View style={S.card}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-          <View style={S.iconTile}><Ionicons name="shield-checkmark" size={24} color={palette.primary} /></View>
+          <View style={S.iconTile}><MaterialIcons name="verified-user" size={24} color={palette.primary} /></View>
           <View style={{ flex: 1 }}>
             <Text style={[Type.h1 as any, { color: palette.text }]}>Team Management</Text>
             <Text style={[Type.sub as any]}>Create new teams and manage existing ones.</Text>
@@ -158,7 +158,7 @@ export default function TeamHubScreen() {
 
       {/* Section header */}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginTop: 12, marginBottom: 8 }}>
-        <Ionicons name="calendar" size={18} color={palette.primary} />
+        <MaterialIcons name="event" size={18} color={palette.primary} />
         <Text style={[Type.h2 as any, { color: palette.text }]}>Next Events</Text>
       </View>
 
@@ -172,7 +172,7 @@ export default function TeamHubScreen() {
             end={{ x: 1, y: 1 }}
           >
             <View style={S.countdownHeader}>
-              <Ionicons name="timer-outline" size={24} color="#fff" />
+              <MaterialIcons name="timer" size={24} color="#fff" />
               <Text style={S.countdownLabel}>Next Game</Text>
             </View>
             <Text style={S.countdownGameTitle} numberOfLines={1}>{nextGame.title || 'Upcoming Game'}</Text>
@@ -227,19 +227,19 @@ export default function TeamHubScreen() {
                 </View>
                 <View style={S.eventInfo}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                    <Ionicons name="location" size={14} color={palette.primary} />
+                    <MaterialIcons name="location-on" size={14} color={palette.primary} />
                     <Text style={S.eventLocation} numberOfLines={1}>{evt.location || 'TBD'}</Text>
                   </View>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                     <View style={S.eventChip}>
-                      <Ionicons name="people" size={14} color={palette.primary} />
+                      <MaterialIcons name="group" size={14} color={palette.primary} />
                       <Text style={S.eventChipText}>
                         {going != null ? `${going} going` : 'RSVP open'}
                       </Text>
                     </View>
                     {typeof evt.capacity === 'number' ? (
                       <View style={S.eventChipMuted}>
-                        <Ionicons name="alert-circle" size={14} color={palette.placeholder} />
+                        <MaterialIcons name="error" size={14} color={palette.placeholder} />
                         <Text style={S.eventChipMutedText}>{evt.capacity} capacity</Text>
                       </View>
                     ) : null}

@@ -2,15 +2,10 @@ import { Router } from 'express';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
 import { requireAuth } from '../middleware/requireAuth.js';
+import { detectMediaType, getVideoPreviewUrl } from '../lib/mediaUtils.js';
+import { getExcludedPrivateAuthorIds } from '../lib/privacyUtils.js';
 
 export const playsRouter = Router();
-
-const detectMediaType = (url?: string | null): 'video' | 'image' => {
-  if (!url) return 'image';
-  const sanitized = url.split('?')[0].split('#')[0].toLowerCase();
-  const extensions = ['.mp4', '.mov', '.webm', '.m4v', '.avi', '.mkv'];
-  return extensions.some((ext) => sanitized.endsWith(ext)) ? 'video' : 'image';
-};
 
 const RANGE_DEFAULT_MS = 7 * 24 * 60 * 60 * 1000;
 const parseRangeToMs = (raw: string | null): number => {
@@ -65,12 +60,16 @@ playsRouter.get('/top', requireAuth as any, async (req: AuthedRequest, res) => {
   const rangeMs = parseRangeToMs(rangeParam);
   const since = new Date(Date.now() - rangeMs);
 
+  // Privacy: exclude posts from private-profile authors the viewer doesn't follow
+  const excludedIds = await getExcludedPrivateAuthorIds(req.user?.id ?? null);
+
   const posts = await prisma.post.findMany({
     where: {
       categories: { some: { category_id: categoryId } },
       created_at: { gte: since },
       media_url: { not: null },
       deleted_at: null,
+      ...(excludedIds.length ? { author_id: { notIn: excludedIds } } : {}),
     },
     include: {
       author: { select: { id: true, display_name: true, avatar_url: true } },
@@ -156,6 +155,7 @@ playsRouter.get('/top', requireAuth as any, async (req: AuthedRequest, res) => {
       id: post.id,
       media_url: post.media_url,
       media_type: detectMediaType(post.media_url),
+      preview_url: getVideoPreviewUrl(post.media_url),
       caption: post.content ?? post.title ?? null,
       created_at: createdAt.toISOString(),
       upvotes_count: post.upvotes_count ?? 0,

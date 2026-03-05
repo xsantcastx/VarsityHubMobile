@@ -2,7 +2,7 @@ import { User } from '@/api/entities';
 import settingsStore, { SETTINGS_KEYS } from '@/api/settings';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -77,8 +77,8 @@ export default function DMRestrictionsScreen() {
       <Stack.Screen options={{
         title: 'DM Restrictions',
         headerLeft: () => (
-          <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={{ paddingLeft: 8 }}>
-            <Ionicons name="chevron-back" size={24} color={Colors[colorScheme].tint} />
+          <Pressable onPress={() => router.back()} style={{ paddingLeft: 8 }}>
+            <MaterialIcons name="chevron-left" size={24} color={Colors[colorScheme].tint} />
           </Pressable>
         ),
       }} />

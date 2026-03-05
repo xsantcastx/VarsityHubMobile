@@ -1,30 +1,43 @@
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { User } from '@/api/entities';
 // @ts-ignore
 import { httpPost } from '@/api/http';
-import PrimaryButton from '@/components/ui/PrimaryButton';
+import { Colors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
+
+type AdDetails = {
+  id: string;
+  business_name: string;
+  status: string;
+  payment_status: string;
+  zip_code?: string;
+  dates: string[];
+};
 
 export default function PaymentSuccessScreen() {
   const router = useRouter();
+  const colorScheme = useColorScheme() ?? 'light';
+  const theme = Colors[colorScheme];
   const params = useLocalSearchParams<{ session_id?: string; type?: string }>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [sessionVerified, setSessionVerified] = useState(false);
+  const [adDetails, setAdDetails] = useState<AdDetails | null>(null);
+  const [amountCents, setAmountCents] = useState(0);
   const [verificationAttempt, setVerificationAttempt] = useState(0);
-  const [lastVerificationAt, setLastVerificationAt] = useState<Date | null>(null);
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  
-  // Check if this is an ad payment (type=ad) or subscription payment
+  const checkOpacity = useRef(new Animated.Value(0)).current;
+  const contentOpacity = useRef(new Animated.Value(0)).current;
+
   const isAdPayment = params.type === 'ad';
   const isSubscription = params.type === 'subscription';
-  const maxVerificationAttempts = 5;
+  const maxAttempts = 5;
 
-  const clearRetryTimeout = () => {
+  const clearRetry = () => {
     if (retryTimeoutRef.current) {
       clearTimeout(retryTimeoutRef.current);
       retryTimeoutRef.current = null;
@@ -32,94 +45,74 @@ export default function PaymentSuccessScreen() {
   };
 
   useEffect(() => {
-    const verifyPayment = async () => {
+    const verify = async () => {
       try {
-        setLastVerificationAt(new Date());
-        
-        // Validate session_id format (Stripe session IDs start with 'cs_' or 'sess_')
-        if (params.session_id) {
-          const sessionId = params.session_id.trim();
-          if (!sessionId || (!sessionId.startsWith('cs_') && !sessionId.startsWith('sess_'))) {
-            setError('Invalid payment session. Please contact support if you completed payment.');
-            setLoading(false);
-            return;
-          }
-        } else {
-          // Missing session_id - show error with recovery options
+        if (!params.session_id) {
           setError('Payment session information is missing. If you completed payment, please contact support.');
           setLoading(false);
           return;
         }
-        
-        if (params.session_id) {
-          // For ad payments, manually finalize the session
-          if (isAdPayment) {
-            try {
-              await httpPost('/payments/finalize-session', { session_id: params.session_id });
-            } catch (finalizeErr) {
-              console.warn('[payment-success] Failed to finalize session:', finalizeErr);
-              // Continue anyway - webhook might have already processed it
+        const sessionId = params.session_id.trim();
+        if (!sessionId.startsWith('cs_') && !sessionId.startsWith('sess_')) {
+          setError('Invalid payment session. Please contact support if you completed payment.');
+          setLoading(false);
+          return;
+        }
+
+        if (isAdPayment) {
+          try {
+            const result = await httpPost('/payments/finalize-session', { session_id: sessionId });
+            if (result?.ad) {
+              setAdDetails(result.ad);
+              setAmountCents(result.amount_cents || 0);
             }
-            
-            setSessionVerified(true);
-            // Auto-redirect immediately — my-ads shows the gold checkmark animation
-            setTimeout(() => {
-              router.replace({ pathname: '/(tabs)/my-ads', params: { payment_success: 'true' } });
-            }, 300);
-          } else {
-            // For subscriptions, verify by checking user's plan and payment flag
-            // Retry up to maxVerificationAttempts times (polling for webhook completion)
-            try {
-              const me = await User.me();
-              const plan = me?.preferences?.plan;
-              const pending = me?.preferences?.payment_pending;
-              
-              if ((plan === 'veteran' || plan === 'legend') && pending === false) {
-                setSessionVerified(true);
-                setLoading(false);
-              } else if (verificationAttempt < maxVerificationAttempts - 1) {
-                // Webhook might still be processing, retry after 2 seconds
-                if (__DEV__) {
-                  // eslint-disable-next-line no-console
-                  if (__DEV__) console.log(
-                    `[payment-success] Retrying verification (attempt ${verificationAttempt + 1}/${maxVerificationAttempts})...`
-                  );
+          } catch (err: any) {
+            console.warn('[payment-success] finalize failed:', err?.message);
+          }
+          // Show confirmation (even if finalize was already done by webhook)
+          setLoading(false);
+          // Animate in
+          Animated.sequence([
+            Animated.timing(checkOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
+            Animated.timing(contentOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
+          ]).start();
+        } else {
+          // Subscription flow — poll for plan upgrade
+          try {
+            const me = await User.me();
+            const plan = me?.preferences?.plan;
+            const pending = me?.preferences?.payment_pending;
+            if ((plan === 'veteran' || plan === 'legend') && pending === false) {
+              setLoading(false);
+              Animated.sequence([
+                Animated.timing(checkOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
+                Animated.timing(contentOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
+              ]).start();
+            } else if (verificationAttempt < maxAttempts - 1) {
+              clearRetry();
+              retryTimeoutRef.current = setTimeout(() => {
+                setVerificationAttempt((a) => a + 1);
+              }, 2000);
+            } else {
+              // Last attempt — try finalize
+              try {
+                await httpPost('/payments/finalize-session', { session_id: sessionId });
+                const meAfter = await User.me();
+                if ((meAfter?.preferences?.plan === 'veteran' || meAfter?.preferences?.plan === 'legend') && meAfter?.preferences?.payment_pending === false) {
+                  setLoading(false);
+                  return;
                 }
-                clearRetryTimeout();
-                retryTimeoutRef.current = setTimeout(() => {
-                  setVerificationAttempt((attempt) => attempt + 1);
-                }, 2000);
-              } else {
-                // Max retries reached - try finalize-session before showing error (webhook may have failed)
-                try {
-                  await httpPost('/payments/finalize-session', { session_id: params.session_id });
-                  const meAfter = await User.me();
-                  if ((meAfter?.preferences?.plan === 'veteran' || meAfter?.preferences?.plan === 'legend') && meAfter?.preferences?.payment_pending === false) {
-                    setSessionVerified(true);
-                    setLoading(false);
-                    return;
-                  }
-                } catch (finalizeErr) {
-                  console.warn('[payment-success] finalize-session before error failed:', finalizeErr);
-                }
-                console.warn('[payment-success] Payment verification timed out after retries');
-                setError('Payment verification timed out. Your payment may still be processing. Please try again or contact support.');
-                setLoading(false);
-              }
-            } catch (error) {
-              // If user fetch fails on last attempt, show error
-              if (verificationAttempt >= maxVerificationAttempts - 1) {
-                console.error('[payment-success] User.me() failed after retries:', error);
-                setError('Unable to verify payment. Please contact support.');
-                setLoading(false);
-              } else {
-                // Retry on error
-                console.warn('[payment-success] User.me() failed, retrying...', error);
-                clearRetryTimeout();
-                retryTimeoutRef.current = setTimeout(() => {
-                  setVerificationAttempt((attempt) => attempt + 1);
-                }, 2000);
-              }
+              } catch { /* ignore */ }
+              setError('Payment verification timed out. Your payment may still be processing.');
+              setLoading(false);
+            }
+          } catch {
+            if (verificationAttempt >= maxAttempts - 1) {
+              setError('Unable to verify payment. Please contact support.');
+              setLoading(false);
+            } else {
+              clearRetry();
+              retryTimeoutRef.current = setTimeout(() => setVerificationAttempt((a) => a + 1), 2000);
             }
           }
         }
@@ -130,289 +123,202 @@ export default function PaymentSuccessScreen() {
       }
     };
 
-    void verifyPayment();
-    return () => {
-      clearRetryTimeout();
-    };
-  }, [params.session_id, isAdPayment, verificationAttempt, router]);
+    void verify();
+    return () => clearRetry();
+  }, [params.session_id, isAdPayment, verificationAttempt]);
 
-  const handleContinue = () => {
-    // Navigate to the appropriate next step based on payment type
-    if (isAdPayment) {
-      router.push({ pathname: '/(tabs)/my-ads', params: { payment_success: 'true' } }); // Redirect to My Ads tab after ad payment
-    } else {
-      router.replace('/(tabs)/feed'); // Redirect to feed after subscription payment
-    }
-  };
-
-  const handleCreateTeam = () => {
-    router.replace('/create-team');
-  };
-
-  const handleRetryVerification = async () => {
-    clearRetryTimeout();
-    setLoading(true);
-    setError(null);
-
+  const formatDate = (iso: string) => {
     try {
-      setLastVerificationAt(new Date());
-      // Call finalize-session first (webhook may have failed), then re-poll once
-      if (params.session_id) {
-        try {
-          await httpPost('/payments/finalize-session', { session_id: params.session_id });
-        } catch (finalizeErr) {
-          console.warn('[payment-success] finalize-session on retry failed:', finalizeErr);
-          // Continue to poll anyway - webhook might have processed
-        }
-      }
-      const me = await User.me();
-      const plan = me?.preferences?.plan;
-      const pending = me?.preferences?.payment_pending;
-      if (isSubscription) {
-        if ((plan === 'veteran' || plan === 'legend') && pending === false) {
-          setSessionVerified(true);
-        } else {
-          setError('Payment verification still pending. Please try again in a moment.');
-        }
-      } else {
-        // Ad payment - finalize-session should have updated; treat as verified if no error
-        setSessionVerified(true);
-      }
-    } catch (error) {
-      console.error('[payment-success] Retry verification failed:', error);
-      setError('Unable to verify payment status. Please contact support if this persists.');
-    } finally {
-      setLoading(false);
-    }
+      return new Date(iso + 'T00:00:00').toLocaleDateString(undefined, {
+        weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
+      });
+    } catch { return iso; }
   };
-
-  const attemptLabel = `${Math.min(verificationAttempt + 1, maxVerificationAttempts)}/${maxVerificationAttempts}`;
-  const lastCheckedLabel = lastVerificationAt ? lastVerificationAt.toLocaleTimeString() : null;
 
   return (
     <>
-      <Stack.Screen options={{ 
-        title: 'Payment Successful',
-        headerShown: true,
-        gestureEnabled: false,
-        headerLeft: () => null
-      }} />
-      <SafeAreaView style={styles.container}>
-        <View style={styles.content}>
-          {loading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#2563EB" />
-              <Text style={styles.loadingText}>Verifying payment...</Text>
-              <Text style={styles.loadingMeta}>
-                Attempt {attemptLabel}
-                {lastCheckedLabel ? ` • Checked at ${lastCheckedLabel}` : ''}
-              </Text>
-            </View>
-          ) : error ? (
-            <View style={styles.errorContainer}>
-              <Ionicons name="warning-outline" size={64} color="#DC2626" />
-              <Text style={styles.errorTitle}>Verification Issue</Text>
-              <Text style={styles.errorText}>{error}</Text>
-              <View style={styles.buttonContainer}>
-                <PrimaryButton 
-                  label="Try Again" 
-                  onPress={handleRetryVerification}
-                />
+      <Stack.Screen options={{ headerShown: false, gestureEnabled: false }} />
+      <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]}>
+        {loading ? (
+          <View style={styles.center}>
+            <ActivityIndicator size="large" color={theme.tint} />
+            <Text style={[styles.loadingText, { color: theme.mutedText }]}>Confirming your payment...</Text>
+          </View>
+        ) : error ? (
+          <View style={styles.center}>
+            <MaterialIcons name="warning-amber" size={56} color="#DC2626" />
+            <Text style={[styles.errorTitle, { color: theme.text }]}>Verification Issue</Text>
+            <Text style={[styles.errorBody, { color: theme.mutedText }]}>{error}</Text>
+            <Pressable
+              style={[styles.primaryBtn, { backgroundColor: theme.tint }]}
+              onPress={() => { setLoading(true); setError(null); setVerificationAttempt(0); }}
+            >
+              <Text style={styles.primaryBtnText}>Try Again</Text>
+            </Pressable>
+            <Pressable style={styles.linkBtn} onPress={() => router.replace('/(tabs)/feed')}>
+              <Text style={[styles.linkBtnText, { color: theme.mutedText }]}>Continue to App</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+            {/* Checkmark */}
+            <Animated.View style={[styles.checkWrap, { opacity: checkOpacity }]}>
+              <View style={styles.checkCircle}>
+                <MaterialIcons name="check" size={48} color="#fff" />
               </View>
-              <View style={styles.buttonContainer}>
-                <Pressable 
-                  onPress={handleContinue}
-                  style={styles.secondaryButton}
-                >
-                  <Text style={styles.secondaryButtonText}>Continue to App</Text>
-                </Pressable>
-              </View>
-            </View>
-          ) : sessionVerified ? (
-            <View style={styles.successContainer}>
-              <Ionicons name="checkmark-circle" size={64} color="#16A34A" />
-              <Text style={styles.successTitle}>Payment Successful!</Text>
-              <Text style={styles.successText}>
-                {isAdPayment 
-                  ? 'Your ad payment has been processed successfully. Your ad reservation is now confirmed and will appear in "My Ads"!'
-                  : 'Your subscription has been activated. You can now create additional teams and access premium features.'}
-              </Text>
-              {isAdPayment && (
-                <View style={styles.infoBox}>
-                  <Text style={styles.infoText}>✅ Ad reservation confirmed</Text>
-                  <Text style={styles.infoText}>📅 Dates are now reserved</Text>
-                  <Text style={styles.infoText}>🚀 Your ad is being prepared</Text>
+              <Text style={[styles.successTitle, { color: theme.text }]}>Payment Confirmed!</Text>
+            </Animated.View>
+
+            <Animated.View style={{ opacity: contentOpacity, width: '100%' }}>
+              {/* Ad details card */}
+              {isAdPayment && adDetails && (
+                <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                  <Text style={[styles.cardLabel, { color: theme.mutedText }]}>BUSINESS</Text>
+                  <Text style={[styles.cardValue, { color: theme.text }]}>{adDetails.business_name}</Text>
+
+                  {adDetails.zip_code && (
+                    <>
+                      <Text style={[styles.cardLabel, { color: theme.mutedText, marginTop: 12 }]}>COVERAGE</Text>
+                      <Text style={[styles.cardValue, { color: theme.text }]}>Zip {adDetails.zip_code}</Text>
+                    </>
+                  )}
+
+                  <Text style={[styles.cardLabel, { color: theme.mutedText, marginTop: 12 }]}>AMOUNT PAID</Text>
+                  <Text style={[styles.cardValue, { color: theme.text }]}>${(amountCents / 100).toFixed(2)}</Text>
+
+                  <Text style={[styles.cardLabel, { color: theme.mutedText, marginTop: 12 }]}>STATUS</Text>
+                  <View style={styles.statusRow}>
+                    <View style={styles.statusBadge}>
+                      <Text style={styles.statusBadgeText}>PAID</Text>
+                    </View>
+                    <View style={[styles.statusBadge, { backgroundColor: '#DCFCE7', borderColor: '#86EFAC' }]}>
+                      <Text style={[styles.statusBadgeText, { color: '#166534' }]}>ACTIVE</Text>
+                    </View>
+                  </View>
+
+                  {adDetails.dates.length > 0 && (
+                    <>
+                      <Text style={[styles.cardLabel, { color: theme.mutedText, marginTop: 12 }]}>
+                        RESERVED DATES ({adDetails.dates.length})
+                      </Text>
+                      <View style={styles.datesWrap}>
+                        {adDetails.dates.sort().map((d) => (
+                          <View key={d} style={[styles.datePill, { borderColor: theme.border }]}>
+                            <MaterialIcons name="event" size={14} color={theme.tint} />
+                            <Text style={[styles.datePillText, { color: theme.text }]}>{formatDate(d)}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    </>
+                  )}
                 </View>
               )}
-              {isSubscription && (
-                <View style={styles.infoBox}>
-                  <Text style={styles.infoText}>✅ Subscription active</Text>
-                  <Text style={styles.infoText}>👥 Per-team billing applied (Veteran)</Text>
-                  <Text style={styles.infoText}>🏆 Unlimited teams on Legend</Text>
+
+              {/* Ad payment with no details returned (webhook already processed) */}
+              {isAdPayment && !adDetails && (
+                <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                  <View style={[styles.infoBox, { backgroundColor: colorScheme === 'dark' ? '#052e16' : '#F0FDF4' }]}>
+                    <Text style={[styles.infoText, { color: colorScheme === 'dark' ? '#86EFAC' : '#166534' }]}>Ad reservation confirmed</Text>
+                    <Text style={[styles.infoText, { color: colorScheme === 'dark' ? '#86EFAC' : '#166534' }]}>Dates are now reserved</Text>
+                    <Text style={[styles.infoText, { color: colorScheme === 'dark' ? '#86EFAC' : '#166534' }]}>Your ad is live</Text>
+                  </View>
                 </View>
               )}
-              <View style={styles.buttonContainer}>
-                <PrimaryButton 
-                  label={isAdPayment ? "View My Ads" : "Continue to App"}
-                  onPress={handleContinue}
-                />
-              </View>
+
+              {/* Subscription confirmed */}
               {isSubscription && (
-                <View style={styles.buttonContainer}>
-                  <Pressable 
-                    onPress={handleCreateTeam}
-                    style={styles.secondaryButton}
+                <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                  <View style={[styles.infoBox, { backgroundColor: colorScheme === 'dark' ? '#052e16' : '#F0FDF4' }]}>
+                    <Text style={[styles.infoText, { color: colorScheme === 'dark' ? '#86EFAC' : '#166534' }]}>Subscription active</Text>
+                    <Text style={[styles.infoText, { color: colorScheme === 'dark' ? '#86EFAC' : '#166534' }]}>Premium features unlocked</Text>
+                  </View>
+                </View>
+              )}
+
+              {/* Action buttons */}
+              <View style={styles.actions}>
+                {isAdPayment && (
+                  <Pressable
+                    style={[styles.primaryBtn, { backgroundColor: theme.tint }]}
+                    onPress={() => router.replace({ pathname: '/(tabs)/my-ads', params: { payment_success: 'true' } })}
                   >
-                    <Text style={styles.secondaryButtonText}>Create a Team Now</Text>
+                    <MaterialIcons name="campaign" size={20} color="#fff" style={{ marginRight: 8 }} />
+                    <Text style={styles.primaryBtnText}>View My Ads</Text>
                   </Pressable>
-                </View>
-              )}
-            </View>
-          ) : (
-            <View style={styles.pendingContainer}>
-              <Ionicons name="time-outline" size={64} color="#F59E0B" />
-              <Text style={styles.pendingTitle}>Payment Processing</Text>
-              <Text style={styles.pendingText}>
-                Your payment is being processed. This may take a few moments.
-              </Text>
-              <Text style={styles.loadingMeta}>
-                Attempt {attemptLabel}
-                {lastCheckedLabel ? ` • Last checked ${lastCheckedLabel}` : ''}
-              </Text>
-              <View style={styles.buttonContainer}>
-                <PrimaryButton 
-                  label="Check Status" 
-                  onPress={handleRetryVerification}
-                />
-              </View>
-              <View style={styles.buttonContainer}>
-                <Pressable 
-                  onPress={handleContinue}
-                  style={styles.secondaryButton}
+                )}
+                {isSubscription && (
+                  <>
+                    <Pressable
+                      style={[styles.primaryBtn, { backgroundColor: theme.tint }]}
+                      onPress={() => router.replace('/create-team')}
+                    >
+                      <Text style={styles.primaryBtnText}>Create a Team</Text>
+                    </Pressable>
+                  </>
+                )}
+                <Pressable
+                  style={[styles.secondaryBtn, { borderColor: theme.border }]}
+                  onPress={() => router.replace('/(tabs)/feed')}
                 >
-                  <Text style={styles.secondaryButtonText}>Continue to App</Text>
+                  <Text style={[styles.secondaryBtnText, { color: theme.text }]}>Back to Feed</Text>
                 </Pressable>
               </View>
-            </View>
-          )}
-        </View>
+            </Animated.View>
+          </ScrollView>
+        )}
       </SafeAreaView>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
+  safe: { flex: 1 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
+  scroll: { padding: 24, alignItems: 'center', paddingBottom: 48 },
+  loadingText: { marginTop: 16, fontSize: 16, textAlign: 'center' },
+  errorTitle: { fontSize: 22, fontWeight: '700', marginTop: 16, marginBottom: 8 },
+  errorBody: { fontSize: 15, textAlign: 'center', lineHeight: 22, marginBottom: 24 },
+  checkWrap: { alignItems: 'center', marginBottom: 24, marginTop: 32 },
+  checkCircle: {
+    width: 80, height: 80, borderRadius: 40,
+    backgroundColor: '#16A34A',
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#16A34A', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3, shadowRadius: 12, elevation: 6,
   },
-  content: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
+  successTitle: { fontSize: 26, fontWeight: '800', marginTop: 16 },
+  card: {
+    width: '100%', borderRadius: 16, padding: 20,
+    borderWidth: StyleSheet.hairlineWidth, marginBottom: 20,
   },
-  loadingContainer: {
-    alignItems: 'center',
+  cardLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 1 },
+  cardValue: { fontSize: 17, fontWeight: '600', marginTop: 2 },
+  statusRow: { flexDirection: 'row', gap: 8, marginTop: 4 },
+  statusBadge: {
+    backgroundColor: '#DBEAFE', borderWidth: 1, borderColor: '#93C5FD',
+    borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4,
   },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#6B7280',
-    textAlign: 'center',
+  statusBadgeText: { fontSize: 12, fontWeight: '700', color: '#1E40AF' },
+  datesWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 6 },
+  datePill: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    borderWidth: 1, borderRadius: 8,
+    paddingHorizontal: 10, paddingVertical: 6,
   },
-  loadingMeta: {
-    marginTop: 8,
-    fontSize: 13,
-    color: '#9CA3AF',
-    textAlign: 'center',
+  datePillText: { fontSize: 13, fontWeight: '500' },
+  infoBox: { borderRadius: 12, padding: 16, gap: 8 },
+  infoText: { fontSize: 15, fontWeight: '600' },
+  actions: { width: '100%', gap: 12, marginTop: 4 },
+  primaryBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    height: 52, borderRadius: 14,
   },
-  successContainer: {
-    alignItems: 'center',
+  primaryBtnText: { color: '#fff', fontSize: 17, fontWeight: '700' },
+  secondaryBtn: {
+    height: 48, borderRadius: 14, borderWidth: 1,
+    alignItems: 'center', justifyContent: 'center',
   },
-  successTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#16A34A',
-    marginTop: 16,
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  successText: {
-    fontSize: 16,
-    color: '#6B7280',
-    textAlign: 'center',
-    marginBottom: 32,
-    lineHeight: 24,
-  },
-  errorContainer: {
-    alignItems: 'center',
-  },
-  errorTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#DC2626',
-    marginTop: 16,
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  errorText: {
-    fontSize: 16,
-    color: '#6B7280',
-    textAlign: 'center',
-    marginBottom: 32,
-    lineHeight: 24,
-  },
-  pendingContainer: {
-    alignItems: 'center',
-  },
-  pendingTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#F59E0B',
-    marginTop: 16,
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  pendingText: {
-    fontSize: 16,
-    color: '#6B7280',
-    textAlign: 'center',
-    marginBottom: 32,
-    lineHeight: 24,
-  },
-  button: {
-    width: '100%',
-    marginBottom: 12,
-  },
-  buttonContainer: {
-    width: '100%',
-    marginBottom: 12,
-  },
-  secondaryButton: {
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 8,
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  secondaryButtonText: {
-    color: '#6B7280',
-  },
-  infoBox: {
-    backgroundColor: '#F0FDF4',
-    borderRadius: 12,
-    padding: 16,
-    marginVertical: 16,
-    gap: 8,
-    width: '100%',
-  },
-  infoText: {
-    fontSize: 15,
-    color: '#166534',
-    fontWeight: '500',
-  },
+  secondaryBtnText: { fontSize: 16, fontWeight: '600' },
+  linkBtn: { marginTop: 12 },
+  linkBtnText: { fontSize: 15 },
 });

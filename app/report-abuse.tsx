@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, useRouter } from 'expo-router';
@@ -143,7 +143,7 @@ export default function ReportAbuseScreen() {
     <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.background }]} edges={['top', 'bottom']}>
       <Stack.Screen options={{ title: 'Report Abuse', headerShown: true, headerBackTitle: 'Back', headerLeft: () => (
             <Pressable onPress={() => router.back()} style={{ paddingRight: 8 }}>
-              <Ionicons name="chevron-back" size={28} color="#007AFF" />
+              <MaterialIcons name="chevron-left" size={28} color="#007AFF" />
             </Pressable>
           ) }} />
       <KeyboardAvoidingView
@@ -228,7 +228,7 @@ export default function ReportAbuseScreen() {
                     style={[styles.removeImageBtn, { backgroundColor: palette.destructive || '#FF3B30' }]}
                     onPress={() => removeImage(index)}
                   >
-                    <Ionicons name="close" size={14} color="#fff" />
+                    <MaterialIcons name="close" size={14} color="#fff" />
                   </Pressable>
                 </View>
               ))}
@@ -242,7 +242,7 @@ export default function ReportAbuseScreen() {
                     <ActivityIndicator size="small" color={palette.tint} />
                   ) : (
                     <>
-                      <Ionicons name="camera-outline" size={24} color={palette.mutedText} />
+                      <MaterialIcons name="camera-alt" size={24} color={palette.mutedText} />
                       <Text style={[styles.addImageText, { color: palette.mutedText }]}>Add</Text>
                     </>
                   )}

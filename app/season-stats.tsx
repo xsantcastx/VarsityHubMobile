@@ -1,6 +1,6 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack } from 'expo-router';
 import { useCallback, useState } from 'react';
@@ -259,7 +259,7 @@ export default function SeasonStatsScreen() {
               
               <View style={styles.homeAwayGrid}>
                 <View style={[styles.homeAwayItem, { backgroundColor: Colors[colorScheme].background }]}>
-                  <Ionicons name="home" size={20} color={Colors[colorScheme].tint} />
+                  <MaterialIcons name="home" size={20} color={Colors[colorScheme].tint} />
                   <Text style={[styles.homeAwayLabel, { color: Colors[colorScheme].text }]}>Home</Text>
                   <Text style={[styles.homeAwayRecord, { color: Colors[colorScheme].text }]}>
                     {teamStats.homeRecord}
@@ -267,7 +267,7 @@ export default function SeasonStatsScreen() {
                 </View>
                 
                 <View style={[styles.homeAwayItem, { backgroundColor: Colors[colorScheme].background }]}>
-                  <Ionicons name="airplane" size={20} color={Colors[colorScheme].tint} />
+                  <MaterialIcons name="flight" size={20} color={Colors[colorScheme].tint} />
                   <Text style={[styles.homeAwayLabel, { color: Colors[colorScheme].text }]}>Away</Text>
                   <Text style={[styles.homeAwayRecord, { color: Colors[colorScheme].text }]}>
                     {teamStats.awayRecord}
@@ -285,7 +285,7 @@ export default function SeasonStatsScreen() {
               <View style={styles.scoringStats}>
                 <View style={styles.scoringStat}>
                   <View style={styles.scoringStatHeader}>
-                    <Ionicons name="trending-up" size={16} color="#10B981" />
+                    <MaterialIcons name="trending-up" size={16} color="#10B981" />
                     <Text style={[styles.scoringStatLabel, { color: Colors[colorScheme].text }]}>
                       Points For
                     </Text>
@@ -300,7 +300,7 @@ export default function SeasonStatsScreen() {
 
                 <View style={styles.scoringStat}>
                   <View style={styles.scoringStatHeader}>
-                    <Ionicons name="trending-down" size={16} color="#EF4444" />
+                    <MaterialIcons name="trending-down" size={16} color="#EF4444" />
                     <Text style={[styles.scoringStatLabel, { color: Colors[colorScheme].text }]}>
                       Points Against
                     </Text>

@@ -699,14 +699,18 @@ organizationsRouter.post('/join-requests', requireAuth as any, async (req: Authe
   // Send email notification to organization owners
   if (organization.memberships.length > 0) {
     const owner = organization.memberships[0];
-    await sendJoinRequestToAdmin({
-      adminEmail: owner.user.email,
-      adminName: owner.user.display_name || 'Admin',
-      requesterName: joinRequest.user.display_name || 'A user',
-      organizationName: organization.name,
-      message: message,
-      requestId: joinRequest.id,
-    });
+    try {
+      await sendJoinRequestToAdmin({
+        adminEmail: owner.user.email,
+        adminName: owner.user.display_name || 'Admin',
+        requesterName: joinRequest.user.display_name || 'A user',
+        organizationName: organization.name,
+        message: message,
+        requestId: joinRequest.id,
+      });
+    } catch (err) {
+      console.error('Failed to send join request email to admin:', err);
+    }
   }
   
   return res.status(201).json(joinRequest);
@@ -840,12 +844,16 @@ organizationsRouter.post('/join-requests/:requestId/approve', requireAuth as any
     select: { display_name: true }
   });
   
-  await sendJoinRequestApproved({
-    userEmail: joinRequest.user.email,
-    userName: joinRequest.user.display_name || 'User',
-    organizationName: joinRequest.organization.name,
-    adminName: adminUser?.display_name || 'Admin',
-  });
+  try {
+    await sendJoinRequestApproved({
+      userEmail: joinRequest.user.email,
+      userName: joinRequest.user.display_name || 'User',
+      organizationName: joinRequest.organization.name,
+      adminName: adminUser?.display_name || 'Admin',
+    });
+  } catch (err) {
+    console.error('Failed to send join request approved email:', err);
+  }
   
   return res.json({ message: 'Join request approved' });
 });
@@ -909,12 +917,16 @@ organizationsRouter.post('/join-requests/:requestId/deny', requireAuth as any, a
   });
   
   // Send denial email to user
-  await sendJoinRequestDenied({
-    userEmail: joinRequest.user.email,
-    userName: joinRequest.user.display_name || 'User',
-    organizationName: joinRequest.organization.name,
-    reason: reason,
-  });
+  try {
+    await sendJoinRequestDenied({
+      userEmail: joinRequest.user.email,
+      userName: joinRequest.user.display_name || 'User',
+      organizationName: joinRequest.organization.name,
+      reason: reason,
+    });
+  } catch (err) {
+    console.error('Failed to send join request denied email:', err);
+  }
   
   return res.json({ message: 'Join request denied' });
 });

@@ -28,6 +28,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Post as PostApi, User } from '@/api/entities';
 import { useShareLink } from '@/hooks/useShareLink';
 import { usePostCache } from '@/context/PostCacheContext';
+import { sanitizeTitle } from '@/lib/sanitizeTitle';
 import { Ionicons } from '@expo/vector-icons';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -375,8 +376,8 @@ export default function PostDetailScreen() {
 
   const postShareContext = useMemo(() => {
     const lines: string[] = [];
-    if (post?.title) {
-      lines.push(`Check out: ${post.title}`);
+    if (sanitizeTitle(post?.title)) {
+      lines.push(`Check out: ${sanitizeTitle(post?.title)}`);
     }
     if (post?.game?.home_team && post?.game?.away_team) {
       lines.push(`${post.game.home_team} vs ${post.game.away_team}`);
@@ -390,7 +391,7 @@ export default function PostDetailScreen() {
   const { share: sharePost } = useShareLink({
     kind: 'post',
     id: currentPostId,
-    title: post?.title || 'VarsityHub Post',
+    title: sanitizeTitle(post?.title) || 'VarsityHub Post',
     caption: post?.caption,
     contextLines: postShareContext,
     onShareSuccess: (postId) => {
@@ -415,7 +416,7 @@ export default function PostDetailScreen() {
         {
           text: 'Via VarsityHub DM',
           onPress: () => {
-            router.push(`/messages?sharePost=${currentPostId}`);
+            router.push(`/(tabs)/messages?sharePost=${currentPostId}` as any);
           }
         },
         {
@@ -697,8 +698,8 @@ export default function PostDetailScreen() {
         {/* Post Content */}
         <View style={[styles.postContent, { backgroundColor: Colors[colorScheme].card }]}>
           {/* Title */}
-          {postData.title && (
-            <Text style={[styles.postTitle, { color: Colors[colorScheme].text }]}>{postData.title}</Text>
+          {sanitizeTitle(postData.title) && (
+            <Text style={[styles.postTitle, { color: Colors[colorScheme].text }]}>{sanitizeTitle(postData.title)}</Text>
           )}
           
           {/* Content */}

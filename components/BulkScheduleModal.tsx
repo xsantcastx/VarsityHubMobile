@@ -572,7 +572,7 @@ export default function BulkScheduleModal({
                               { backgroundColor: game.type === type ? Colors[colorScheme].tint : Colors[colorScheme].background }
                             ]}>
                               <Ionicons 
-                                name={type === 'home' ? 'home' : type === 'away' ? 'airplane' : 'earth'} 
+                                name={type === 'home' ? 'home' : type === 'away' ? 'airplane' : 'earth'}
                                 size={16} 
                                 color={game.type === type ? '#fff' : Colors[colorScheme].text} 
                               />

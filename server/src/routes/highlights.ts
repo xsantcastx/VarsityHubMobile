@@ -1,8 +1,16 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
+import { detectMediaType, getVideoPreviewUrl } from '../lib/mediaUtils.js';
+import { getExcludedPrivateAuthorIds } from '../lib/privacyUtils.js';
 
 export const highlightsRouter = Router();
+
+const withMediaPreview = (post: any) => ({
+  ...post,
+  media_type: detectMediaType(post.media_url),
+  preview_url: getVideoPreviewUrl(post.media_url),
+});
 
 // GET /highlights?zip=90210&country=US&lat=..&lng=..&limit=20
 highlightsRouter.get('/', async (req: AuthedRequest, res) => {
@@ -23,14 +31,19 @@ highlightsRouter.get('/', async (req: AuthedRequest, res) => {
     _count: { select: { comments: true } },
   } as const;
 
+  // Privacy: exclude posts from private-profile authors the viewer doesn't follow
+  const excludedIds = await getExcludedPrivateAuthorIds(req.user?.id ?? null);
+  const privacyWhere = excludedIds.length ? { author_id: { notIn: excludedIds } } : {};
+
   // Top 10 national posts (increased from 3)
   // Only include posts with media (highlights should be visual)
   let nationalTop = await prisma.post.findMany({
-    where: { 
-      country_code: country, 
+    where: {
+      country_code: country,
       created_at: { gte: since },
       media_url: { not: null }, // Only posts with media
       deleted_at: null,
+      ...privacyWhere,
     },
     orderBy: [{ upvotes_count: 'desc' }, { created_at: 'desc' }],
     take: 10,
@@ -41,11 +54,12 @@ highlightsRouter.get('/', async (req: AuthedRequest, res) => {
   // Only include posts with media
   if (nationalTop.length < 10) {
     const fill = await prisma.post.findMany({
-      where: { 
-        created_at: { gte: since }, 
+      where: {
+        created_at: { gte: since },
         id: { notIn: nationalTop.map((p) => p.id) },
         media_url: { not: null }, // Only posts with media
         deleted_at: null,
+        ...privacyWhere,
       },
       orderBy: [{ upvotes_count: 'desc' }, { created_at: 'desc' }],
       take: 10 - nationalTop.length,
@@ -63,13 +77,14 @@ highlightsRouter.get('/', async (req: AuthedRequest, res) => {
       const dLat = RADIUS_KM / kmPerDegLat;
       const dLng = RADIUS_KM / kmPerDegLng;
       local = await prisma.post.findMany({
-        where: { 
-          created_at: { gte: since }, 
-          country_code: country, 
-          lat: { gte: lat - dLat, lte: lat + dLat }, 
+        where: {
+          created_at: { gte: since },
+          country_code: country,
+          lat: { gte: lat - dLat, lte: lat + dLat },
           lng: { gte: lng - dLng, lte: lng + dLng },
           media_url: { not: null }, // Only posts with media
           deleted_at: null,
+          ...privacyWhere,
         },
         orderBy: [{ upvotes_count: 'desc' }, { created_at: 'desc' }],
         take: Math.min(limit, 100),
@@ -79,11 +94,12 @@ highlightsRouter.get('/', async (req: AuthedRequest, res) => {
       // Get more national posts for better variety
       // Only include posts with media
       local = await prisma.post.findMany({
-        where: { 
-          country_code: country, 
+        where: {
+          country_code: country,
           created_at: { gte: since },
           media_url: { not: null }, // Only posts with media
           deleted_at: null,
+          ...privacyWhere,
         },
         orderBy: [{ upvotes_count: 'desc' }, { created_at: 'desc' }],
         take: Math.min(limit, 100),
@@ -91,7 +107,7 @@ highlightsRouter.get('/', async (req: AuthedRequest, res) => {
       });
     }
     res.set('Cache-Control', 'no-store, private');
-    return res.json({ nationalTop, local });
+    return res.json({ nationalTop: nationalTop.map(withMediaPreview), local: local.map(withMediaPreview) });
   }
 
   // v2 ranked mix (enhanced)
@@ -100,12 +116,13 @@ highlightsRouter.get('/', async (req: AuthedRequest, res) => {
   // Larger candidate pool for better variety
   // Only include posts with media (highlights should be visual)
   const pool = await prisma.post.findMany({
-    where: { 
-      country_code: country, 
-      created_at: { gte: since }, 
+    where: {
+      country_code: country,
+      created_at: { gte: since },
       id: { notIn: ids10 },
       media_url: { not: null }, // Only posts with media
       deleted_at: null,
+      ...privacyWhere,
     },
     orderBy: [{ created_at: 'desc' }],
     take: 500, // Increased pool size
@@ -169,5 +186,5 @@ highlightsRouter.get('/', async (req: AuthedRequest, res) => {
     .slice(0, limit);
 
   res.set('Cache-Control', 'no-store, private');
-  return res.json({ nationalTop, ranked });
+  return res.json({ nationalTop: nationalTop.map(withMediaPreview), ranked: ranked.map(withMediaPreview) });
 });

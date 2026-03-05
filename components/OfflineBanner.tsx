@@ -7,7 +7,7 @@
 
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -37,8 +37,8 @@ export function OfflineBanner() {
   return (
     <View style={[styles.banner, { backgroundColor: errorBg }]}>
       <View style={styles.content}>
-        <Ionicons 
-          name="cloud-offline-outline" 
+        <MaterialIcons 
+          name="cloud-off" 
           size={20} 
           color={errorColor} 
         />

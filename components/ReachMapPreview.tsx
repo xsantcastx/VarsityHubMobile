@@ -1,7 +1,7 @@
 import { geocodeLocation } from '@/api/geocoding';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import MapView, { Circle, Marker } from 'react-native-maps';
@@ -9,7 +9,7 @@ import { getMapProvider } from '@/utils/maps';
 
 interface ReachMapPreviewProps {
   zipCode: string;
-  radiusKm?: number; // Default 15km (~10 miles)
+  radiusKm?: number; // Default 45km (~28 miles) matching ad targeting radius
 }
 
 interface GeoLocation {
@@ -25,7 +25,7 @@ interface GeoLocation {
  * Purpose: Build trust and transparency by showing advertisers
  * exactly where their ad will appear.
  */
-export function ReachMapPreview({ zipCode, radiusKm = 15 }: ReachMapPreviewProps) {
+export function ReachMapPreview({ zipCode, radiusKm = 45 }: ReachMapPreviewProps) {
   const colorScheme = useColorScheme() ?? 'light';
   const [location, setLocation] = useState<GeoLocation | null>(null);
   const [loading, setLoading] = useState(false);
@@ -123,7 +123,7 @@ export function ReachMapPreview({ zipCode, radiusKm = 15 }: ReachMapPreviewProps
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerIcon}>
-          <Ionicons name="location" size={20} color="#10B981" />
+          <MaterialIcons name="location-on" size={20} color="#10B981" />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>
@@ -148,7 +148,7 @@ export function ReachMapPreview({ zipCode, radiusKm = 15 }: ReachMapPreviewProps
 
         {error && !loading && (
           <View style={[styles.errorOverlay, { backgroundColor: Colors[colorScheme].background }]}>
-            <Ionicons name="alert-circle" size={48} color={Colors[colorScheme].destructive} />
+            <MaterialIcons name="error" size={48} color={Colors[colorScheme].destructive} />
             <Text style={[styles.errorText, { color: Colors[colorScheme].mutedText }]}>
               {error}
             </Text>
@@ -165,8 +165,8 @@ export function ReachMapPreview({ zipCode, radiusKm = 15 }: ReachMapPreviewProps
             initialRegion={{
               latitude: location.latitude,
               longitude: location.longitude,
-              latitudeDelta: 0.5, // Adjust zoom level to show the full circle
-              longitudeDelta: 0.5,
+              latitudeDelta: 1.8, // Sized to show full 45km radius circle
+              longitudeDelta: 1.8,
             }}
             scrollEnabled={true}
             zoomEnabled={true}
@@ -181,7 +181,7 @@ export function ReachMapPreview({ zipCode, radiusKm = 15 }: ReachMapPreviewProps
               description="Your ad targeting center"
             >
               <View style={[styles.markerContainer, { backgroundColor: Colors[colorScheme].card }]}>
-                <Ionicons name="business" size={24} color={Colors[colorScheme].tint} />
+                <MaterialIcons name="business" size={24} color={Colors[colorScheme].tint} />
               </View>
             </Marker>
 
@@ -198,7 +198,7 @@ export function ReachMapPreview({ zipCode, radiusKm = 15 }: ReachMapPreviewProps
 
         {!location && !loading && !error && (
           <View style={[styles.placeholderOverlay, { backgroundColor: Colors[colorScheme].background }]}>
-            <Ionicons name="map-outline" size={48} color={Colors[colorScheme].mutedText} />
+            <MaterialIcons name="map" size={48} color={Colors[colorScheme].mutedText} />
             <Text style={[styles.placeholderText, { color: Colors[colorScheme].mutedText }]}>
               Enter a ZIP code to preview reach area
             </Text>

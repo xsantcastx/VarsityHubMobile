@@ -1,6 +1,6 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -226,7 +226,7 @@ export default function EditTeamScreen() {
         setOrganizationName(organizationId ? trimmedOrgName : '');
       }
       Alert.alert('Success!', 'Your team has been updated successfully.', [
-        { text: 'OK', onPress: () => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any) }
+        { text: 'OK', onPress: () => router.back() }
       ]);
     } catch (e: any) {
       console.error('Team update error:', e);
@@ -265,9 +265,9 @@ export default function EditTeamScreen() {
         <View style={[styles.header, { paddingTop: 12 + insets.top }]}>
           <Pressable 
             style={styles.backButton} 
-            onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)}
+            onPress={() => router.back()}
           >
-            <Ionicons name="arrow-back" size={24} color={Colors[colorScheme].text} />
+            <MaterialIcons name="arrow-back" size={24} color={Colors[colorScheme].text} />
           </Pressable>
           <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>Edit Team</Text>
           <View style={{ width: 32 }} />
@@ -276,7 +276,7 @@ export default function EditTeamScreen() {
         {/* Intro Card */}
         <View style={[styles.introCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
           <LinearGradient colors={[Colors[colorScheme].tint, Colors[colorScheme].tint + 'CC']} style={styles.introIcon}>
-            <Ionicons name="create" size={28} color="#fff" />
+            <MaterialIcons name="edit" size={28} color="#fff" />
           </LinearGradient>
           <Text style={[styles.introTitle, { color: Colors[colorScheme].text }]}>
             Update Your Team
@@ -295,11 +295,11 @@ export default function EditTeamScreen() {
                 <Image source={{ uri: currentLogoUri }} style={styles.logoImage} />
               ) : (
                 <View style={[styles.logoPlaceholder, { backgroundColor: Colors[colorScheme].surface }]}>
-                  <Ionicons name="camera" size={32} color={Colors[colorScheme].mutedText} />
+                  <MaterialIcons name="camera-alt" size={32} color={Colors[colorScheme].mutedText} />
                 </View>
               )}
               <View style={[styles.logoOverlay, { backgroundColor: Colors[colorScheme].tint }]}>
-                <Ionicons name="camera" size={20} color="#fff" />
+                <MaterialIcons name="camera-alt" size={20} color="#fff" />
               </View>
             </Pressable>
             <View style={styles.logoInfo}>
@@ -415,7 +415,7 @@ export default function EditTeamScreen() {
               <ActivityIndicator color="#fff" />
             ) : (
               <>
-                <Ionicons name="checkmark-circle" size={20} color="#fff" />
+                <MaterialIcons name="check-circle" size={20} color="#fff" />
                 <Text style={styles.submitButtonText}>Update Team</Text>
               </>
             )}

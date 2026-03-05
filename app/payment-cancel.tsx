@@ -1,5 +1,6 @@
-import { Ionicons } from '@expo/vector-icons';
-import { Stack, useRouter } from 'expo-router';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -7,47 +8,74 @@ import PrimaryButton from '@/components/ui/PrimaryButton';
 
 export default function PaymentCancelScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ type?: string }>();
+  const isAd = params.type === 'ad';
+
+  // For ad cancellations, auto-navigate back after a short delay
+  useEffect(() => {
+    if (isAd) {
+      const timer = setTimeout(() => {
+        if (router.canGoBack()) {
+          router.back();
+        } else {
+          router.replace('/(tabs)/my-ads');
+        }
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [isAd, router]);
 
   const handleRetryPayment = () => {
-    // Navigate back to the subscription selection
-    router.replace('/onboarding/step-3-plan');
+    if (isAd) {
+      // Go back to ad calendar with selections preserved
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace('/(tabs)/my-ads');
+      }
+    } else {
+      router.replace('/onboarding/step-3-plan');
+    }
   };
 
   const handleContinue = () => {
-    // Navigate to feed (they can try payment later)
     router.replace('/(tabs)');
   };
 
   return (
     <>
-      <Stack.Screen options={{ 
-        title: 'Payment Cancelled',
-        headerShown: true,
+      <Stack.Screen options={{
+        title: isAd ? 'Checkout Cancelled' : 'Payment Cancelled',
+        headerShown: false,
         gestureEnabled: true
       }} />
       <SafeAreaView style={styles.container}>
         <View style={styles.content}>
           <View style={styles.cancelContainer}>
-            <Ionicons name="close-circle-outline" size={64} color="#DC2626" />
-            <Text style={styles.cancelTitle}>Payment Cancelled</Text>
-            <Text style={styles.cancelText}>
-              Your payment was cancelled. You can try again or continue with limited features.
+            <MaterialIcons name="cancel" size={64} color={isAd ? '#F59E0B' : '#DC2626'} />
+            <Text style={[styles.cancelTitle, isAd && { color: '#92400E' }]}>
+              {isAd ? 'Checkout Cancelled' : 'Payment Cancelled'}
             </Text>
-            
+            <Text style={styles.cancelText}>
+              {isAd
+                ? 'No charge was made. Returning to your schedule...'
+                : 'Your payment was cancelled. You can try again or continue with limited features.'}
+            </Text>
+
             <View style={styles.buttonContainer}>
-              <PrimaryButton 
-                label="Try Payment Again" 
+              <PrimaryButton
+                label={isAd ? 'Back to Schedule' : 'Try Payment Again'}
                 onPress={handleRetryPayment}
               />
             </View>
-            
-            <View style={styles.buttonContainer}>
-              <Pressable style={styles.secondaryButton} onPress={handleContinue}>
-                <Text style={styles.secondaryButtonText}>
-                  Continue with Free Version
-                </Text>
-              </Pressable>
-            </View>
+
+            {!isAd && (
+              <View style={styles.buttonContainer}>
+                <Pressable style={styles.secondaryButton} onPress={handleContinue}>
+                  <Text style={styles.secondaryButtonText}>Continue with Free Version</Text>
+                </Pressable>
+              </View>
+            )}
           </View>
         </View>
       </SafeAreaView>

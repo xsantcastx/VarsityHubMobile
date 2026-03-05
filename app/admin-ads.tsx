@@ -343,7 +343,7 @@ export default function AdminAdsScreen() {
               )}
               <Pressable onPress={() => setBulkMode(!bulkMode)} style={{ padding: 8 }}>
                 <Ionicons 
-                  name={bulkMode ? 'close' : 'checkmark-circle-outline'} 
+                  name={bulkMode ? 'close' : 'checkmark-circle-outline'}
                   size={24} 
                   color={bulkMode ? '#dc2626' : theme.tint} 
                 />

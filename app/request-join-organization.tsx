@@ -1,7 +1,7 @@
 import { Organization, Team } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
@@ -103,7 +103,7 @@ export default function RequestJoinOrganizationScreen() {
         [
           {
             text: 'OK',
-            onPress: () => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any),
+            onPress: () => router.back(),
           },
         ]
       );
@@ -128,8 +128,8 @@ export default function RequestJoinOrganizationScreen() {
 
       {/* Custom Header */}
       <View style={[styles.header, { backgroundColor: theme.background, borderColor: theme.border }]}>
-        <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={theme.text} />
+        <Pressable onPress={() => router.back()} style={styles.backButton}>
+          <MaterialIcons name="arrow-back" size={24} color={theme.text} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: theme.text }]}>Join Organization</Text>
         <View style={{ width: 40 }} />
@@ -145,7 +145,7 @@ export default function RequestJoinOrganizationScreen() {
                 <Image source={{ uri: myTeam.logo_url }} style={styles.teamLogo} contentFit="cover" />
               ) : (
                 <View style={[styles.teamLogoPlaceholder, { backgroundColor: theme.surface }]}>
-                  <Ionicons name="people" size={24} color={theme.mutedText} />
+                  <MaterialIcons name="group" size={24} color={theme.mutedText} />
                 </View>
               )}
               <View style={styles.teamInfoText}>
@@ -168,7 +168,7 @@ export default function RequestJoinOrganizationScreen() {
           </Text>
           
           <View style={[styles.searchContainer, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Ionicons name="search" size={20} color={theme.mutedText} />
+            <MaterialIcons name="search" size={20} color={theme.mutedText} />
             <TextInput
               style={[styles.searchInput, { color: theme.text }]}
               placeholder="e.g., Stamford High School"
@@ -204,7 +204,7 @@ export default function RequestJoinOrganizationScreen() {
                         <Image source={{ uri: org.avatar_url }} style={styles.orgLogo} contentFit="cover" />
                       ) : (
                         <View style={[styles.orgLogoPlaceholder, { backgroundColor: isSelected ? '#fff' : theme.background }]}>
-                          <Ionicons
+                          <MaterialIcons
                             name="business"
                             size={20}
                             color={isSelected ? theme.tint : theme.mutedText}
@@ -231,7 +231,7 @@ export default function RequestJoinOrganizationScreen() {
                       </View>
                     </View>
                     {isSelected && (
-                      <Ionicons name="checkmark-circle" size={24} color="#fff" />
+                      <MaterialIcons name="check-circle" size={24} color="#fff" />
                     )}
                   </Pressable>
                 );
@@ -241,7 +241,7 @@ export default function RequestJoinOrganizationScreen() {
 
           {searchQuery.trim() && !searching && organizations.length === 0 && (
             <View style={styles.noResults}>
-              <Ionicons name="search-outline" size={32} color={theme.mutedText} />
+              <MaterialIcons name="search" size={32} color={theme.mutedText} />
               <Text style={[styles.noResultsText, { color: theme.mutedText }]}>
                 No organizations found
               </Text>
@@ -292,7 +292,7 @@ export default function RequestJoinOrganizationScreen() {
               <ActivityIndicator size="small" color="#fff" />
             ) : (
               <>
-                <Ionicons name="send" size={20} color="#fff" />
+                <MaterialIcons name="send" size={20} color="#fff" />
                 <Text style={styles.submitButtonText}>Send Join Request</Text>
               </>
             )}

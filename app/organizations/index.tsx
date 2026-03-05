@@ -1,7 +1,7 @@
 import { getConfig } from '@/config/env';
 import { httpGet } from '@/api/http';
 import { Colors } from '@/constants/Colors';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
@@ -72,13 +72,13 @@ export default function OrganizationsIndexScreen() {
       {featured && (
         <View style={styles.featuredCard}>
           <View style={styles.featuredBadge}>
-            <Ionicons name="star" size={14} color="#fff" />
+            <MaterialIcons name="star" size={14} color="#fff" />
             <Text style={styles.featuredBadgeText}>Featured</Text>
           </View>
           <Text style={styles.featuredName}>{featured.name}</Text>
           {featured.formatted_address && (
             <View style={styles.featuredLocationRow}>
-              <Ionicons name="location-outline" size={16} color={Colors[colorScheme].mutedText} />
+              <MaterialIcons name="location-on" size={16} color={Colors[colorScheme].mutedText} />
               <Text style={styles.featuredLocation}>{featured.formatted_address}</Text>
             </View>
           )}
@@ -103,7 +103,7 @@ export default function OrganizationsIndexScreen() {
             onPress={() => router.push(`/organizations/${featured.id}`)}
           >
             <Text style={styles.featuredButtonText}>View Page</Text>
-            <Ionicons name="arrow-forward" size={18} color="#fff" />
+            <MaterialIcons name="arrow-forward" size={18} color="#fff" />
           </Pressable>
         </View>
       )}
@@ -133,7 +133,7 @@ export default function OrganizationsIndexScreen() {
                 </Text>
               )}
             </View>
-            <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
+            <MaterialIcons name="chevron-right" size={20} color={Colors[colorScheme].mutedText} />
           </Pressable>
         ))
       )}

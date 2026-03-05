@@ -1,6 +1,6 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -9,7 +9,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Advertisement as AdsApi, User } from '@/api/entities';
 import settings from '@/api/settings';
-import { BackHeader } from '@/components/ui/BackHeader';
 
 type ManagedAd = {
   id: string;
@@ -213,7 +212,7 @@ export default function MyAdsScreen() {
             <Image source={{ uri: item.banner_url }} style={styles.banner} contentFit="cover" />
           ) : (
             <View style={[styles.banner, styles.bannerPlaceholder, { backgroundColor: Colors[colorScheme].surface }]}>
-              <Ionicons name="image-outline" size={40} color={Colors[colorScheme].mutedText} />
+              <MaterialIcons name="image" size={40} color={Colors[colorScheme].mutedText} />
               <Text style={[styles.bannerPlaceholderText, { color: Colors[colorScheme].mutedText }]}>No banner</Text>
             </View>
           )}
@@ -224,17 +223,17 @@ export default function MyAdsScreen() {
           <Text style={[styles.businessName, { color: Colors[colorScheme].text }]}>{item.business_name}</Text>
           
           <View style={styles.metaRow}>
-            <Ionicons name="person-outline" size={14} color={Colors[colorScheme].mutedText} />
+            <MaterialIcons name="person-outline" size={14} color={Colors[colorScheme].mutedText} />
             <Text style={[styles.metaText, { color: Colors[colorScheme].mutedText }]}>{item.contact_name}</Text>
           </View>
           
           <View style={styles.metaRow}>
-            <Ionicons name="mail-outline" size={14} color={Colors[colorScheme].mutedText} />
+            <MaterialIcons name="mail-outline" size={14} color={Colors[colorScheme].mutedText} />
             <Text style={[styles.metaText, { color: Colors[colorScheme].mutedText }]}>{item.contact_email}</Text>
           </View>
           
           <View style={styles.metaRow}>
-            <Ionicons name="location-outline" size={14} color={Colors[colorScheme].mutedText} />
+            <MaterialIcons name="location-on" size={14} color={Colors[colorScheme].mutedText} />
             <Text style={[styles.metaText, { color: Colors[colorScheme].mutedText }]}>Zip {item.zip_code}</Text>
           </View>
 
@@ -327,7 +326,7 @@ export default function MyAdsScreen() {
           {!hasDates && (
             <>
               <View style={styles.datesSectionHeader}>
-                <Ionicons name="calendar-outline" size={16} color={Colors[colorScheme].text} />
+                <MaterialIcons name="event" size={16} color={Colors[colorScheme].text} />
                 <Text style={[styles.datesSectionTitle, { color: Colors[colorScheme].text }]}>Scheduled Dates</Text>
                 <View style={[styles.datesCount, { backgroundColor: Colors[colorScheme].surface }]}>
                   <Text style={[styles.datesCountText, { color: Colors[colorScheme].text }]}>0</Text>
@@ -344,7 +343,7 @@ export default function MyAdsScreen() {
             style={[styles.actionButton, styles.actionButtonPrimary, { backgroundColor: Colors[colorScheme].tint }]} 
             onPress={() => { void router.push({ pathname: '/ad-calendar', params: { adId: item.id, isPaid: String(isPaid) } }); }}
           >
-            <Ionicons name="calendar" size={18} color="#FFFFFF" />
+            <MaterialIcons name="event" size={18} color="#FFFFFF" />
             <Text style={styles.actionButtonTextPrimary}>
               {isPaid && hasDates ? '✓ Paid - Schedule More' : hasDates ? 'Schedule More' : 'Schedule Dates'}
             </Text>
@@ -357,7 +356,7 @@ export default function MyAdsScreen() {
             }]} 
             onPress={() => { void router.push({ pathname: '/edit-ad', params: { id: item.id } }); }}
           >
-            <Ionicons name="create-outline" size={18} color={Colors[colorScheme].text} />
+            <MaterialIcons name="edit" size={18} color={Colors[colorScheme].text} />
             <Text style={[styles.actionButtonTextSecondary, { color: Colors[colorScheme].text }]}>Edit</Text>
           </Pressable>
           
@@ -368,7 +367,7 @@ export default function MyAdsScreen() {
             }]} 
             onPress={() => remove(item.id)}
           >
-            <Ionicons name="trash-outline" size={18} color="#EF4444" />
+            <MaterialIcons name="delete-outline" size={18} color="#EF4444" />
             <Text style={[styles.actionButtonTextSecondary, { color: '#EF4444' }]}>Remove</Text>
           </Pressable>
         </View>
@@ -378,31 +377,22 @@ export default function MyAdsScreen() {
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'left', 'right']}>
-      <Stack.Screen options={{ 
-        title: 'My Ads',
-        headerShown: false // Use custom header
-      }} />
-      <BackHeader 
-        title="My Ads"
-        backgroundColor={Colors[colorScheme].background}
-        textColor={Colors[colorScheme].text}
-        borderColor={Colors[colorScheme].border}
-      />
-      
-      {/* Custom Header */}
+      <Stack.Screen options={{ headerShown: false }} />
+
+      {/* Header */}
       <View style={[styles.header, {
         backgroundColor: Colors[colorScheme].card,
         borderBottomColor: Colors[colorScheme].border
       }]}>
-        <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} hitSlop={8} style={{ padding: 4 }}>
-          <Ionicons name="chevron-back" size={24} color={Colors[colorScheme].text} />
+        <Pressable onPress={() => router.back()} hitSlop={8} style={{ padding: 4 }}>
+          <MaterialIcons name="chevron-left" size={24} color={Colors[colorScheme].text} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: Colors[colorScheme].text, flex: 1 }]}>My Ads</Text>
         <Pressable 
           style={[styles.addButton, { backgroundColor: Colors[colorScheme].tint }]}
           onPress={() => { void router.push('/submit-ad'); }}
         >
-          <Ionicons name="add" size={24} color="#FFFFFF" />
+          <MaterialIcons name="add" size={24} color="#FFFFFF" />
         </Pressable>
       </View>
 
@@ -416,7 +406,7 @@ export default function MyAdsScreen() {
         
         {!loading && ads.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Ionicons name="megaphone-outline" size={80} color={Colors[colorScheme].mutedText} />
+            <MaterialIcons name="campaign" size={80} color={Colors[colorScheme].mutedText} />
             <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text }]}>No Ads Yet</Text>
             <Text style={[styles.emptyText, { color: Colors[colorScheme].mutedText }]}>
               Create your first advertisement to start promoting your business to local teams and families.
@@ -425,7 +415,7 @@ export default function MyAdsScreen() {
               style={[styles.emptyButton, { backgroundColor: Colors[colorScheme].tint }]} 
               onPress={() => { void router.push('/submit-ad'); }}
             >
-              <Ionicons name="add-circle-outline" size={20} color="#FFFFFF" />
+              <MaterialIcons name="add-circle-outline" size={20} color="#FFFFFF" />
               <Text style={styles.emptyButtonText}>Create Your First Ad</Text>
             </Pressable>
           </View>
@@ -449,8 +439,8 @@ export default function MyAdsScreen() {
       {showSuccess && (
         <Animated.View style={[styles.successOverlay, { opacity: successOpacity }]} pointerEvents="none">
           <View style={styles.successBadge}>
-            <Text style={styles.successCheck}>✓</Text>
-            <Text style={styles.successLabel}>Payment Successful</Text>
+            <Text style={[styles.successCheck, { color: Colors[colorScheme].text }]}>✓</Text>
+            <Text style={[styles.successLabel, { color: Colors[colorScheme].text }]}>Payment Successful</Text>
           </View>
         </Animated.View>
       )}
@@ -500,7 +490,6 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'android' ? 14 : 8,
     paddingBottom: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    marginTop: 4,
   },
   headerTitle: {
     fontSize: 28,
@@ -739,12 +728,10 @@ const styles = StyleSheet.create({
   },
   successCheck: {
     fontSize: 52,
-    color: '#000',
     fontWeight: '800',
   },
   successLabel: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#000',
   },
 });

@@ -1,7 +1,7 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useDeviceLocation } from '@/hooks/useDeviceLocation';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
@@ -550,7 +550,7 @@ export default function CommunityDiscoverScreen() {
     <View>
       {showPrecisionBanner ? (
         <View style={[styles.precisionBanner, { backgroundColor: '#FEF9C3', borderColor: '#FACC15' }]}>
-          <Ionicons name="navigate" size={18} color="#B45309" />
+          <MaterialIcons name="near-me" size={18} color="#B45309" />
           <View style={{ flex: 1 }}>
             <Text style={[styles.precisionBannerText, { color: '#92400E' }]}>
               Precise location is off. Nearby recommendations will be less accurate on Android.
@@ -576,7 +576,7 @@ export default function CommunityDiscoverScreen() {
       {/* Search Bar - At the very top */}
       <View style={{flexDirection: 'row', gap: 8, alignItems: 'center'}}>
         <View style={[styles.searchBox, { flex: 1, backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-          <Ionicons name="search" size={20} color={Colors[colorScheme].mutedText} />
+          <MaterialIcons name="search" size={20} color={Colors[colorScheme].mutedText} />
           <TextInput
             placeholder="Search people, teams, organizations, or zip..."
             placeholderTextColor={Colors[colorScheme].mutedText}
@@ -597,7 +597,7 @@ export default function CommunityDiscoverScreen() {
           onPress={() => { void handleToggleViewMode(); }}
           style={[styles.viewToggle, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
         >
-          <Ionicons 
+          <MaterialIcons 
             name={viewMode === 'list' ? 'map' : 'list'} 
             size={24} 
             color={Colors[colorScheme].tint} 
@@ -798,7 +798,7 @@ export default function CommunityDiscoverScreen() {
                   onPress={() => void router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(game.id) } })}
                 >
                   <View style={styles.dateGameTime}>
-                    <Ionicons name="time-outline" size={16} color={Colors[colorScheme].tint} />
+                    <MaterialIcons name="access-time" size={16} color={Colors[colorScheme].tint} />
                     <Text style={[styles.dateGameTimeText, { color: Colors[colorScheme].tint }]}>{time}</Text>
                   </View>
                   <Text style={[styles.dateGameTitle, { color: Colors[colorScheme].text }]} numberOfLines={1}>
@@ -806,7 +806,7 @@ export default function CommunityDiscoverScreen() {
                   </Text>
                   {game.location && (
                     <View style={styles.dateGameLocation}>
-                      <Ionicons name="location-outline" size={14} color={Colors[colorScheme].mutedText} />
+                      <MaterialIcons name="location-on" size={14} color={Colors[colorScheme].mutedText} />
                       <Text style={[styles.dateGameLocationText, { color: Colors[colorScheme].mutedText }]} numberOfLines={1}>
                         {game.location}
                       </Text>
@@ -832,7 +832,7 @@ export default function CommunityDiscoverScreen() {
                 style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30' }]}
                 onPress={() => void router.push('/manage-teams')}
               >
-                <Ionicons name="people" size={24} color={Colors[colorScheme].tint} />
+                <MaterialIcons name="group" size={24} color={Colors[colorScheme].tint} />
                 <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Manage Teams</Text>
                 <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Create and manage your teams</Text>
               </Pressable>
@@ -840,7 +840,7 @@ export default function CommunityDiscoverScreen() {
                 style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: 12 }]}
                 onPress={() => void router.push('/manage-season')}
               >
-                <Ionicons name="calendar" size={24} color={Colors[colorScheme].tint} />
+                <MaterialIcons name="event" size={24} color={Colors[colorScheme].tint} />
                 <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Team Schedule</Text>
                 <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Manage games and season</Text>
               </Pressable>
@@ -848,7 +848,7 @@ export default function CommunityDiscoverScreen() {
                 style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: 12 }]}
                 onPress={() => void router.push('/event-approvals')}
               >
-                <Ionicons name="checkmark-done" size={24} color={Colors[colorScheme].tint} />
+                <MaterialIcons name="done-all" size={24} color={Colors[colorScheme].tint} />
                 <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Approvals</Text>
                 <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Review pending events</Text>
               </Pressable>
@@ -856,7 +856,7 @@ export default function CommunityDiscoverScreen() {
                 style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: 12 }]}
                 onPress={() => void router.push('/organization')}
               >
-                <Ionicons name="business" size={24} color={Colors[colorScheme].tint} />
+                <MaterialIcons name="business" size={24} color={Colors[colorScheme].tint} />
                 <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Manage Org</Text>
                 <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Your organization</Text>
               </Pressable>
@@ -869,7 +869,7 @@ export default function CommunityDiscoverScreen() {
                   style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30' }]}
                   onPress={() => void router.push('/organization')}
                 >
-                  <Ionicons name="business" size={24} color={Colors[colorScheme].tint} />
+                  <MaterialIcons name="business" size={24} color={Colors[colorScheme].tint} />
                   <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Manage Org</Text>
                   <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Your organization</Text>
                 </Pressable>
@@ -879,7 +879,7 @@ export default function CommunityDiscoverScreen() {
                 style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: me?.preferences?.role === 'organizer' ? 12 : 0 }]}
                 onPress={() => void router.push('/create-fan-event')}
               >
-                <Ionicons name="people" size={24} color={Colors[colorScheme].tint} />
+                <MaterialIcons name="group" size={24} color={Colors[colorScheme].tint} />
                 <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Fan Event</Text>
                 <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Watch parties & meetups</Text>
               </Pressable>
@@ -887,7 +887,7 @@ export default function CommunityDiscoverScreen() {
                 style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: 12 }]}
                 onPress={() => void router.push('/create-post')}
               >
-                <Ionicons name="camera" size={24} color={Colors[colorScheme].tint} />
+                <MaterialIcons name="camera-alt" size={24} color={Colors[colorScheme].tint} />
                 <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Share Moment</Text>
                 <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Post photos and videos</Text>
               </Pressable>
@@ -895,7 +895,7 @@ export default function CommunityDiscoverScreen() {
                 style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: 12 }]}
                 onPress={() => void router.push('/favorites')}
               >
-                <Ionicons name="bookmark" size={24} color={Colors[colorScheme].tint} />
+                <MaterialIcons name="bookmark" size={24} color={Colors[colorScheme].tint} />
                 <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Saved Post</Text>
                 <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Saved posts</Text>
               </Pressable>
@@ -906,7 +906,7 @@ export default function CommunityDiscoverScreen() {
 
       {me && me._count?.following ? (
         <View style={[styles.followingCard, { backgroundColor: '#1e3a8a22', borderColor: '#1e3a8a55' }]}>
-          <Ionicons name="people" size={18} color="#2563EB" />
+          <MaterialIcons name="group" size={18} color="#2563EB" />
           <Text style={[styles.followingText, { color: Colors[colorScheme].text }]}>{`Following ${me._count.following} people`}</Text>
           <View style={{ flex: 1 }} />
           <Pressable onPress={() => void router.push(`/following?id=${me.id}&username=${me.display_name || me.username || 'You'}`)} style={styles.followingBtn}>
@@ -915,7 +915,7 @@ export default function CommunityDiscoverScreen() {
         </View>
       ) : (
         <View style={[styles.followingCardMuted, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-          <Ionicons name="people-outline" size={18} color={Colors[colorScheme].mutedText} />
+          <MaterialIcons name="group" size={18} color={Colors[colorScheme].mutedText} />
           <Text style={[styles.followingMutedText, { color: Colors[colorScheme].mutedText }]}>Follow people to see their posts here.</Text>
         </View>
       )}
@@ -1052,12 +1052,9 @@ export default function CommunityDiscoverScreen() {
 
   return (
   <View style={[styles.container, { paddingTop: 12 + insets.top, backgroundColor: Colors[colorScheme].background }]}>
-      <Stack.Screen options={{ title: 'Discover' }} />
-      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingBottom: 4 }}>
-        <Pressable onPress={() => router.back()} style={{ paddingRight: 8 }} accessibilityRole="button" accessibilityLabel="Go back">
-          <Ionicons name="chevron-back" size={28} color="#007AFF" />
-        </Pressable>
-        <Text style={{ fontSize: 20, fontWeight: '800', color: Colors[colorScheme].text, flex: 1 }}>Discover</Text>
+      <Stack.Screen options={{ title: 'Discover', headerShown: false }} />
+      <View style={{ alignItems: 'center', paddingHorizontal: 12, paddingBottom: 4 }}>
+        <Text style={{ fontSize: 20, fontWeight: '800', color: Colors[colorScheme].text, textAlign: 'center' }}>Discover</Text>
       </View>
       
       {viewMode === 'map' ? (
@@ -1067,7 +1064,7 @@ export default function CommunityDiscoverScreen() {
           <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
             <View style={{flexDirection: 'row', gap: 8, alignItems: 'center'}}>
               <View style={[styles.searchBox, { flex: 1, backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }] }>
-                <Ionicons name="search" size={20} color={Colors[colorScheme].mutedText} />
+                <MaterialIcons name="search" size={20} color={Colors[colorScheme].mutedText} />
                 <TextInput
                   placeholder="Search by Zip Code..."
                   placeholderTextColor={Colors[colorScheme].mutedText}
@@ -1092,7 +1089,7 @@ export default function CommunityDiscoverScreen() {
                 }}
                 style={[styles.viewToggle, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
               >
-                <Ionicons 
+                <MaterialIcons 
                   name={'list'} 
                   size={24} 
                   color={Colors[colorScheme].tint} 
@@ -1234,7 +1231,7 @@ const styles = StyleSheet.create({
   },
   zipSuggestionList: { marginTop: 6, marginBottom: 8, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden', shadowColor: '#0f172a', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
   zipSuggestionItem: { paddingHorizontal: 16, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  zipSuggestionZip: { fontWeight: '700', color: '#111827', fontSize: 15 },
+  zipSuggestionZip: { fontWeight: '700', fontSize: 15 },
   zipSuggestionCount: { color: '#6b7280', fontSize: 12 },
   unifiedSearchResults: { marginTop: 6, marginBottom: 12, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden', maxHeight: 360 },
   searchSection: { paddingTop: 8 },
@@ -1257,8 +1254,8 @@ const styles = StyleSheet.create({
   tabsWrap: { flexDirection: 'row', borderRadius: 10, marginTop: 4, marginBottom: 8, padding: 4, gap: 6, height: 40 },
   tab: { flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 8 },
   tabOn: {},
-  tabLabel: { fontWeight: '700', color: '#374151' },
-  tabLabelOn: { color: '#111827' },
+  tabLabel: { fontWeight: '700' },
+  tabLabelOn: {},
   // Post header (avatar + follow button)
   postHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4, marginBottom: 6 },
   postHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -1283,7 +1280,7 @@ const styles = StyleSheet.create({
   teamPillAltText: { fontWeight: '700', color: '#065F46' },
   personTile: { width: 84, marginRight: 10, alignItems: 'center' },
   personAvatar: { width: 64, height: 64, borderRadius: 32 },
-  personName: { marginTop: 6, fontSize: 12, color: '#111827', maxWidth: 84 },
+  personName: { marginTop: 6, fontSize: 12, maxWidth: 84 },
   // Coach Dashboard Styles
   coachDashboard: {
     backgroundColor: '#F8FAFC',
@@ -1296,7 +1293,6 @@ const styles = StyleSheet.create({
   coachTitle: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#111827',
   },
   coachActionCard: {
     width: 140,

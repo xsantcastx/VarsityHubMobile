@@ -99,6 +99,7 @@ export default function SettingsScreen() {
   const [_pendingHostRequests, setPendingHostRequests] = useState<any[]>([]);
   const [_pendingLoading, setPendingLoading] = useState(false);
   const [_pendingError, setPendingError] = useState<string | null>(null);
+  const [deleteWarningVisible, setDeleteWarningVisible] = useState(false);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deletingAccount, setDeletingAccount] = useState(false);
@@ -219,6 +220,11 @@ export default function SettingsScreen() {
               };
 
               const confirmDeleteAccount = () => {
+                setDeleteWarningVisible(true);
+              };
+
+              const proceedToDeleteConfirm = () => {
+                setDeleteWarningVisible(false);
                 if (Platform.OS === 'ios' && Alert.prompt) {
                   Alert.prompt('Delete Account', 'This permanently deletes your account. Type DELETE to confirm.', [
                     { text: 'Cancel', style: 'cancel' },
@@ -523,6 +529,34 @@ export default function SettingsScreen() {
                     </View>
                     </ScrollView>
                     <Modal
+                      visible={deleteWarningVisible}
+                      animationType="slide"
+                      onRequestClose={() => setDeleteWarningVisible(false)}
+                    >
+                      <View style={[styles.deleteWarningPage, { backgroundColor: Colors[colorScheme ?? 'light'].background }]}>
+                        <View style={styles.deleteWarningContent}>
+                          <Text style={[styles.deleteWarningTitle, { color: Colors[colorScheme ?? 'light'].text }]}>Are you sure?</Text>
+                          <Text style={[styles.deleteWarningBody, { color: Colors[colorScheme ?? 'light'].mutedText }]}>
+                            This will permanently delete your account and all your posts and media.
+                          </Text>
+                        </View>
+                        <View style={styles.deleteWarningActions}>
+                          <Pressable
+                            style={[styles.deleteWarningBtn, { backgroundColor: Colors[colorScheme ?? 'light'].border }]}
+                            onPress={() => setDeleteWarningVisible(false)}
+                          >
+                            <Text style={[styles.deleteWarningBtnText, { color: Colors[colorScheme ?? 'light'].text }]}>Cancel</Text>
+                          </Pressable>
+                          <Pressable
+                            style={[styles.deleteWarningBtn, { backgroundColor: '#DC2626' }]}
+                            onPress={proceedToDeleteConfirm}
+                          >
+                            <Text style={[styles.deleteWarningBtnText, { color: '#FFFFFF' }]}>Continue</Text>
+                          </Pressable>
+                        </View>
+                      </View>
+                    </Modal>
+                    <Modal
                       visible={deleteModalVisible}
                       transparent
                       animationType="fade"
@@ -627,6 +661,40 @@ export default function SettingsScreen() {
               themeOptionSubtext: {
                 fontSize: 12,
                 marginLeft: 'auto',
+              },
+              deleteWarningPage: {
+                flex: 1,
+                justifyContent: 'center',
+                alignItems: 'center',
+                padding: 32,
+              },
+              deleteWarningContent: {
+                alignItems: 'center',
+                marginBottom: 40,
+              },
+              deleteWarningTitle: {
+                fontSize: 24,
+                fontWeight: '800',
+                marginBottom: 16,
+                textAlign: 'center',
+              },
+              deleteWarningBody: {
+                fontSize: 16,
+                lineHeight: 24,
+                textAlign: 'center',
+              },
+              deleteWarningActions: {
+                width: '100%',
+                gap: 12,
+              },
+              deleteWarningBtn: {
+                paddingVertical: 16,
+                borderRadius: 12,
+                alignItems: 'center',
+              },
+              deleteWarningBtnText: {
+                fontSize: 17,
+                fontWeight: '700',
               },
               deleteModalBackdrop: {
                 flex: 1,

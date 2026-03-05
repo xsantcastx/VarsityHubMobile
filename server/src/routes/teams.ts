@@ -1143,7 +1143,9 @@ teamsRouter.post('/:id/invite', inviteLimiter, async (req: AuthedRequest, res) =
       inviterName: inviter?.display_name || 'Team Owner',
       inviteToken: invite.id,
     });
-  } catch (_error) {}
+  } catch (err) {
+    console.error('Failed to send team invite email:', err);
+  }
   
   // Find the invited user by email and create notification if they exist
   const invitedUser = await prisma.user.findUnique({

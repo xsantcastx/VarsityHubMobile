@@ -1,7 +1,7 @@
 import { Colors } from '@/constants/Colors';
 import { radius, spacing, typography } from '@/constants/Theme';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { format } from 'date-fns';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -150,7 +150,7 @@ export function GameCard({
 
       {/* Date and Time */}
       <View style={styles.infoRow}>
-        <Ionicons name="calendar-outline" size={16} color={Colors[colorScheme].mutedText} />
+        <MaterialIcons name="event" size={16} color={Colors[colorScheme].mutedText} />
         <Text 
           style={[
             styles.infoText, 
@@ -160,8 +160,8 @@ export function GameCard({
         >
           {gameDate}
         </Text>
-        <Ionicons 
-          name="time-outline" 
+        <MaterialIcons 
+          name="access-time" 
           size={16} 
           color={Colors[colorScheme].mutedText} 
           style={styles.iconSpacing}
@@ -180,7 +180,7 @@ export function GameCard({
       {/* Location (if available) */}
       {game.location && (
         <View style={styles.infoRow}>
-          <Ionicons name="location-outline" size={16} color={Colors[colorScheme].mutedText} />
+          <MaterialIcons name="location-on" size={16} color={Colors[colorScheme].mutedText} />
           <Text 
             style={[
               styles.infoText, 
@@ -220,7 +220,7 @@ export function GameCard({
               }}
               style={[styles.actionButton, { backgroundColor: '#2196F3' }]}
             >
-              <Ionicons name="pencil" size={16} color="white" />
+              <MaterialIcons name="edit" size={16} color="white" />
               <Text style={[styles.actionText, typography.caption]}>Edit</Text>
             </Pressable>
           )}
@@ -232,7 +232,7 @@ export function GameCard({
               }}
               style={[styles.actionButton, { backgroundColor: '#f44336' }]}
             >
-              <Ionicons name="trash" size={16} color="white" />
+              <MaterialIcons name="delete" size={16} color="white" />
               <Text style={[styles.actionText, typography.caption]}>Delete</Text>
             </Pressable>
           )}

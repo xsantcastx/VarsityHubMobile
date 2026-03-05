@@ -2,7 +2,7 @@ import MasonryGrid from '@/components/MasonryGrid';
 import MasonryPostCard from '@/components/MasonryPostCard';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -166,7 +166,7 @@ export default function PublicEventScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
       <Stack.Screen options={{ title: 'Public Event', headerShown: true, headerLeft: () => (
             <Pressable onPress={() => router.back()} style={{ paddingRight: 8 }}>
-              <Ionicons name="chevron-back" size={28} color="#007AFF" />
+              <MaterialIcons name="chevron-left" size={28} color="#007AFF" />
             </Pressable>
           ) }} />
       
@@ -204,7 +204,7 @@ export default function PublicEventScreen() {
                 });
               }}
             >
-              <Ionicons name="add-circle" size={20} color="#FFFFFF" />
+              <MaterialIcons name="add-circle" size={20} color="#FFFFFF" />
               <Text style={styles.createPostButtonText}>
                 {params?.id && /^sample-/i.test(String(params.id)) ? 'Add Sample Post' : 'Create Post'}
               </Text>
