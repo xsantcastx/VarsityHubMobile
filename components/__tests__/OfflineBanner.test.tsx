@@ -19,6 +19,8 @@ const createAuthMock = (overrides: Partial<AuthContextType> = {}): AuthContextTy
   pendingVerificationEmail: null,
   loading: false,
   isAdmin: false,
+  subscriptionTier: 'rookie',
+  hasActiveSubscription: false,
   healthOk: true,
   healthError: null,
   checkAuth: jest.fn(),

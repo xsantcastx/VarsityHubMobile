@@ -93,10 +93,12 @@ export default function SubscriptionPaywallScreen() {
       }
     } catch (error) {
       console.error('Subscription error:', error);
+      const raw = (error as any)?.data?.error || (error as any)?.message || '';
+      const safeMsg = /prod_|price_/i.test(raw) ? 'Unable to process subscription. Please try again or contact support.' : (raw || 'Unable to process subscription. Please try again.');
       setModal({
         visible: true,
         title: 'Error',
-        message: (error as any)?.message || 'Unable to process subscription. Please try again.',
+        message: safeMsg,
         options: [{ label: 'OK', onPress: () => setModal(null), color: '#DC2626' }],
       });
     } finally {

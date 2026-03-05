@@ -781,7 +781,9 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
       });
     } catch (err: any) {
       captureException(err, { context: 'create_payment_sheet_subscription', plan: chosen });
-      return res.status(500).json({ error: err?.message || 'Unable to start subscription' });
+      const raw = err?.message || '';
+      const safeMsg = /prod_|price_/i.test(raw) ? 'Unable to start subscription. Please try again or contact support.' : (raw || 'Unable to start subscription');
+      return res.status(500).json({ error: safeMsg });
     }
   }
 

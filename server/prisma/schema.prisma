@@ -28,6 +28,8 @@ model User {
   password_reset_code        String?
   password_reset_expires     DateTime?
   password_changed_at        DateTime? @default(now())
+  refresh_token              String?
+  refresh_token_expires      DateTime?
   banned                     Boolean   @default(false)
   preferences                Json      @default("{}")
   

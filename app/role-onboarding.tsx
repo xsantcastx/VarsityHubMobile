@@ -148,24 +148,19 @@ export default function RoleOnboardingScreen() {
     setSaving(true);
     try {
       logTelemetry('coach-tier-attempt', { tier });
-      // Map coach tier to subscription tier
-      let subscriptionTier = 'free';
-      if (tier === 'rookie') subscriptionTier = 'free';
-      if (tier === 'veteran') subscriptionTier = 'premium';
-      if (tier === 'legend') subscriptionTier = 'pro';
-      
-      await User.updatePreferences({ 
-        role: 'coach',
-        subscription_tier: subscriptionTier 
-      });
-      
+
+      await User.upgradeToCoach(tier);
+
       setCoachTier(tier);
       setShowCoachTierSelection(false);
-      logTelemetry('coach-tier-success', { subscriptionTier });
+      logTelemetry('coach-tier-success', { tier });
+
+      // Redirect to coach onboarding (plan selection) with fan steps skipped
+      router.replace('/onboarding/step-3-plan');
     } catch (e: any) {
       console.error('Failed to set coach tier', e);
       logTelemetry('coach-tier-error', { message: e?.message });
-      Alert.alert('Error', 'Failed to set coach tier. Please try again.');
+      Alert.alert('Error', e?.data?.error || e?.message || 'Failed to upgrade to coach. Please try again.');
     } finally {
       setSaving(false);
     }

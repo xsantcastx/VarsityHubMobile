@@ -167,36 +167,12 @@ function StoriesViewer({ visible, items, index, onClose, onSeen, onDelete, gameI
     progress.setValue(0);
   }, [current, progress, items]);
 
-  // Auto-advance for photos every 5s (pausable). Also mark seen on enter.
+  // Mark story as seen when it becomes visible (no auto-advance — user swipes manually).
   useEffect(() => {
     const item = items[current];
     if (!item) return;
     onSeen(item.id);
-    if (item.kind === 'photo') {
-      const duration = 5000;
-      let startTime = Date.now();
-      let raf: number;
-      let advanced = false;
-      const tick = () => {
-        if (!paused) {
-          const elapsed = Date.now() - startTime;
-          const ratio = Math.min(1, elapsed / duration);
-          progressFracRef.current = ratio;
-          progress.setValue(ratio);
-          if (ratio >= 1 && !advanced) {
-            advanced = true;
-            goNext();
-            return;
-          }
-        } else {
-          startTime = Date.now() - progressFracRef.current * duration;
-        }
-        raf = requestAnimationFrame(tick);
-      };
-      raf = requestAnimationFrame(tick);
-      return () => cancelAnimationFrame(raf);
-    }
-  }, [current, items, goNext, paused, onSeen, progress]);
+  }, [current, items, onSeen]);
 
   if (!visible) return null;
   const item = items[current];
@@ -285,14 +261,13 @@ function StoriesViewer({ visible, items, index, onClose, onSeen, onDelete, gameI
             {isVideo ? (
               // Videos autoplay when story opens - no controls, just video
               <View style={{ width: w, aspectRatio: 9 / 16, backgroundColor: Colors[colorScheme].surface, alignItems: 'center', justifyContent: 'center' }}>
-                <VideoPlayer 
-                  key={item.id} 
-                  uri={item.url} 
-                  autoPlay={!paused} 
-                  onEnd={goNext} 
-                  nativeControls={false} 
-                  paused={paused} 
-                  style={{ width: '100%', height: '100%' }} 
+                <VideoPlayer
+                  key={item.id}
+                  uri={item.url}
+                  autoPlay={!paused}
+                  nativeControls={false}
+                  paused={paused}
+                  style={{ width: '100%', height: '100%' }}
                 />
               </View>
             ) : (

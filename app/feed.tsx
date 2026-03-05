@@ -17,6 +17,7 @@ import * as Linking from 'expo-linking';
 import * as Location from 'expo-location';
 
 import PostCard from '@/components/PostCard';
+import { PostCardSkeleton } from '@/components/ui/SkeletonCard';
 import GameVerticalFeedScreen from './game-details/GameVerticalFeedScreen';
 
 type GameItem = { id: string; title?: string; date?: string; location?: string; cover_image_url?: string; banner_url?: string | null; event_id?: string | null; home_score?: number | null; away_score?: number | null; winner?: string | null };
@@ -742,7 +743,7 @@ export default function FeedScreen() {
               accessibilityRole="button" 
               accessibilityLabel="Open messages"
             >
-              <MaterialIcons name="forum" size={24} color={Colors[colorScheme].text} />
+              <MaterialIcons name="chat-bubble-outline" size={24} color={Colors[colorScheme].text} />
             </Pressable>
           </View>
         </View>
@@ -750,17 +751,28 @@ export default function FeedScreen() {
 
       <View style={styles.contentContainer}>
 
-      {error && (
-        <View style={{ marginBottom: 8, paddingHorizontal: 16 }}>
-          <Text style={[styles.error, { color: Colors[colorScheme].text }]}>{error}</Text>
+      {error && !loading && (
+        <View style={{ marginVertical: 24, paddingHorizontal: 24, alignItems: 'center' }}>
+          <MaterialIcons name="cloud-off" size={48} color={Colors[colorScheme].mutedText} style={{ marginBottom: 12 }} />
+          <Text style={{ color: Colors[colorScheme].text, fontSize: 16, fontWeight: '600', textAlign: 'center', marginBottom: 6 }}>{error}</Text>
           <Pressable
-            onPress={() => void router.push('/sign-in')}
-            style={{ paddingVertical: 8 }}
-            accessibilityLabel="Sign in to load personalized feed"
+            onPress={() => void load()}
+            style={{ marginTop: 12, paddingVertical: 10, paddingHorizontal: 24, borderRadius: 8, backgroundColor: Colors[colorScheme].tint }}
+            accessibilityLabel="Retry loading feed"
             accessibilityRole="button"
           >
-            <Text style={{ color: Colors[colorScheme].tint, fontWeight: '600' }}>Sign in to load personalized feed</Text>
+            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>Retry</Text>
           </Pressable>
+          {(error.includes('sign in') || error.includes('Sign in')) && (
+            <Pressable
+              onPress={() => void router.push('/sign-in')}
+              style={{ marginTop: 10, paddingVertical: 8 }}
+              accessibilityLabel="Sign in"
+              accessibilityRole="button"
+            >
+              <Text style={{ color: Colors[colorScheme].tint, fontWeight: '600' }}>Sign In</Text>
+            </Pressable>
+          )}
         </View>
       )}
       {/* Maps Button - Navigate to nearby games/teams/events */}
@@ -800,8 +812,10 @@ export default function FeedScreen() {
       <Text style={[styles.helper, { color: Colors[colorScheme].mutedText }]}>Showing upcoming and recent games in your area.</Text>
 
       {loading && (
-        <View style={styles.center}>
-          <ActivityIndicator />
+        <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
+          <PostCardSkeleton />
+          <PostCardSkeleton />
+          <PostCardSkeleton />
         </View>
       )}
       {!loading && upcomingEvents.length === 0 && pastEvents.length === 0 && !error && (

@@ -11,7 +11,7 @@ import { Team as TeamApi, User } from '@/api/entities';
 import QuickAddGameModal, { QuickGameData } from '@/components/QuickAddGameModal';
 // @ts-ignore
 import { Game as GameApi } from '@/api/entities';
-import { EmptyState, LoadingState, SectionHeader, TeamCard } from '@/components/ui';
+import { EmptyState, SectionHeader, TeamCard, TeamCardSkeleton } from '@/components/ui';
 
 type Team = { 
   id: string; 
@@ -301,10 +301,10 @@ export default function ManageTeamsSimpleScreen() {
 
         {/* Loading State */}
         {loading && (
-          <LoadingState 
-            message="Loading teams..." 
-            fullScreen={true}
-          />
+          <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
+            <TeamCardSkeleton />
+            <TeamCardSkeleton />
+          </View>
         )}
 
         {/* Error State */}

@@ -41,7 +41,7 @@ describe('nextIncompleteStep', () => {
     expect(result).toBe(3); // STEP_4_ORGANIZATION.index
   });
 
-  it('should return step 6 for coach if steps 2-4 are complete', () => {
+  it('should return step 6 for coach if steps 2-5 are complete', () => {
     const state: OnboardingState = {
       role: 'coach',
       username: 'testuser',
@@ -51,7 +51,7 @@ describe('nextIncompleteStep', () => {
       team_id: 'team-123',
     };
     const result = nextIncompleteStep(state, 'coach');
-    expect(result).toBe(4); // STEP_6_AUTHORIZED_USERS.index (note: step 5 doesn't exist)
+    expect(result).toBe(5); // STEP_6_AUTHORIZED_USERS.index
   });
 
   it('should NOT skip to step 7 if step 6 has not been visited', () => {
@@ -65,8 +65,8 @@ describe('nextIncompleteStep', () => {
     };
     const result = nextIncompleteStep(state, 'coach');
     // Should be step 6, not step 7
-    expect(result).toBe(4); // STEP_6_AUTHORIZED_USERS.index
-    expect(result).not.toBe(5); // STEP_7_PROFILE.index
+    expect(result).toBe(5); // STEP_6_AUTHORIZED_USERS.index
+    expect(result).not.toBe(6); // STEP_7_PROFILE.index
   });
 
   it('should skip coach steps for fans and go to confirmation', () => {
@@ -81,7 +81,7 @@ describe('nextIncompleteStep', () => {
       zip: '12345',
     };
     const result = nextIncompleteStep(state, 'fan');
-    expect(result).toBe(8); // STEP_10_CONFIRMATION.index (step 7 is already satisfied by username)
+    expect(result).toBe(9); // STEP_10_CONFIRMATION.index (step 7 is already satisfied by username)
   });
 
   it('should enforce step order for coaches - never jump ahead', () => {

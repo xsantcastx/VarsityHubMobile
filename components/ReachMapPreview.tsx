@@ -189,8 +189,8 @@ export function ReachMapPreview({ zipCode, radiusKm = 45 }: ReachMapPreviewProps
             <Circle
               center={location}
               radius={radiusMeters}
-              strokeColor="rgba(16, 185, 129, 0.8)"
-              fillColor="rgba(16, 185, 129, 0.2)"
+              strokeColor="rgba(59, 130, 246, 0.6)"
+              fillColor="rgba(59, 130, 246, 0.15)"
               strokeWidth={2}
             />
           </MapView>
@@ -216,9 +216,9 @@ export function ReachMapPreview({ zipCode, radiusKm = 45 }: ReachMapPreviewProps
             </Text>
           </View>
           <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: 'rgba(16, 185, 129, 0.4)' }]} />
+            <View style={[styles.legendDot, { backgroundColor: 'rgba(59, 130, 246, 0.4)' }]} />
             <Text style={[styles.legendText, { color: Colors[colorScheme].mutedText }]}>
-              Ad reach area (~{radiusMiles} miles)
+              Ad reach area (~28 miles)
             </Text>
           </View>
         </View>

@@ -13,6 +13,7 @@ export const User = {
   patchMe: (data: any) => httpPatch('/me', data),
   updatePreferences: (patch: any) => httpPatch('/me/preferences', patch),
   completeOnboarding: (data: any) => httpPost('/me/complete-onboarding', data),
+  upgradeToCoach: (plan: 'rookie' | 'veteran' | 'legend') => httpPost('/auth/upgrade-to-coach', { plan }),
   requestVerification: () => auth.requestEmailVerification(),
   verifyEmail: (code: string) => auth.verifyEmail(code),
   usernameAvailable: (username: string) => httpGet('/users/username-available?username=' + encodeURIComponent(username)),

@@ -48,6 +48,8 @@ export interface AuthContextType {
   healthOk: boolean;
   healthError: string | null;
   isAdmin: boolean;
+  subscriptionTier: string;
+  hasActiveSubscription: boolean;
   checkAuth: (options?: { email?: string; pendingVerification?: boolean }) => Promise<void>;
   signOut: () => Promise<void>;
   registerPushToken: () => Promise<boolean>;
@@ -78,6 +80,8 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
   const [healthError, setHealthError] = useState<string | null>(null);
   const [initializing, setInitializing] = useState(true);
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState<boolean>(false);
+  const [subscriptionTier, setSubscriptionTier] = useState<string>('rookie');
+  const [hasActiveSubscription, setHasActiveSubscription] = useState<boolean>(false);
 
   const ONBOARDING_COMPLETE_KEY = '@onboarding_completed_once';
   const ONBOARDING_COMPLETE_USER_KEY = '@onboarding_completed_user_id';
@@ -183,6 +187,19 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     }
   }, []);
 
+  // Fetch subscription status (lightweight, no Stripe calls)
+  const fetchSubscription = useCallback(async () => {
+    try {
+      const data = await httpGet('/me/subscription');
+      if (data && typeof data === 'object') {
+        setSubscriptionTier(data.tier || 'rookie');
+        setHasActiveSubscription(!!data.hasActiveSubscription);
+      }
+    } catch {
+      // Non-critical — keep defaults
+    }
+  }, []);
+
   // Check authentication
   const checkAuth = useCallback(
     async (options?: { email?: string; pendingVerification?: boolean }) => {
@@ -235,6 +252,9 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         // NOW set user — routing effect will fire with correct hasCompletedOnboarding
         setUser(me);
         setPendingVerificationEmail(null);
+
+        // Fetch subscription status (non-blocking)
+        fetchSubscription().catch(() => {});
 
         // Push notifications are requested during onboarding step 9 (with pre-prompt),
         // not immediately after login.
@@ -363,10 +383,11 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     const subscription = AppState.addEventListener('change', (nextState) => {
       if (nextState === 'active' && !initializing) {
         checkAuth().catch(() => {});
+        fetchSubscription().catch(() => {});
       }
     });
     return () => subscription.remove();
-  }, [checkAuth, initializing]);
+  }, [checkAuth, fetchSubscription, initializing]);
 
   // Safety timeout - force initialization complete after 5 seconds
   useEffect(() => {
@@ -519,6 +540,8 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     healthOk,
     healthError,
     isAdmin,
+    subscriptionTier,
+    hasActiveSubscription,
     checkAuth,
     signOut,
     registerPushToken,
@@ -531,6 +554,8 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     healthOk,
     healthError,
     isAdmin,
+    subscriptionTier,
+    hasActiveSubscription,
     checkAuth,
     signOut,
     registerPushToken,

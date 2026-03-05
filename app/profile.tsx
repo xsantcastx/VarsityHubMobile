@@ -2,6 +2,7 @@ import { Organization, Team, User } from '@/api/entities';
 import uploadFile from '@/api/upload';
 import { Sport } from '@/components/JerseyBadge';
 import { Button } from '@/components/ui/button';
+import { PostCardSkeleton, ProfileHeaderSkeleton } from '@/components/ui/SkeletonCard';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
@@ -760,9 +761,8 @@ export default function ProfileScreen() {
           ) : null}
         </View>
         
-        {/* Profile Content - Avatar on Bottom-Left of Banner */}
+        {/* Profile Content - Avatar centered at banner bottom edge */}
         <View style={styles.profileContent}>
-          {/* Large Avatar - Overlapping Banner */}
           <Pressable
             onPress={me?.avatar_url
               ? () => setAvatarViewerVisible(true)
@@ -785,27 +785,25 @@ export default function ProfileScreen() {
               )}
             </View>
           </Pressable>
-
-          {/* User Info - Next to Avatar ON BANNER */}
-          <View style={styles.userInfo}>
-            <View style={styles.nameRow}>
-              <Text style={[styles.userName, { color: '#FFFFFF' }]}>{displayUsername}</Text>
-              {roleLabel && (
-                <View style={[styles.roleBadge, 
-                  roleRaw === 'coach' && styles.coachBadge,
-                  roleRaw === 'player' && styles.playerBadge,
-                  roleRaw === 'fan' && styles.fanBadge
-                ]}>
-                  <Text style={styles.roleText}>{roleRaw === 'coach' ? 'COACH' : roleRaw.toUpperCase()}</Text>
-                </View>
-              )}
-            </View>
-          </View>
         </View>
       </View>
 
       {/* Content Below Banner */}
       <View style={styles.profileDetailsContainer}>
+        {/* Username + Role Badge - below avatar */}
+        <View style={styles.profileNameRow}>
+          <Text style={[styles.profileName, { color: theme.text }]}>{displayUsername}</Text>
+          {roleLabel && (
+            <View style={[styles.roleBadge,
+              roleRaw === 'coach' && styles.coachBadge,
+              roleRaw === 'player' && styles.playerBadge,
+              roleRaw === 'fan' && styles.fanBadge
+            ]}>
+              <Text style={styles.roleText}>{roleRaw === 'coach' ? 'COACH' : roleRaw.toUpperCase()}</Text>
+            </View>
+          )}
+        </View>
+
         {/* Edit Profile Button Row - Only shown when viewing own profile */}
         {!viewingUserId || viewingUserId === currentUserId ? (
           <View style={styles.usernameRow}>
@@ -954,11 +952,13 @@ export default function ProfileScreen() {
     return item?.post || item?.target?.post || item?.target || item;
   }, []);
 
-  const SkeletonList = ({ count = 8 }: { count?: number }) => (
-    <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
-      {Array.from({ length: count }).map((_, i) => (
-        <View key={i} style={{ height: 100, backgroundColor: theme.surface || '#F3F4F6', borderRadius: 12, marginBottom: 12 }} />
-      ))}
+  const SkeletonList = () => (
+    <View>
+      <ProfileHeaderSkeleton />
+      <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
+        <PostCardSkeleton />
+        <PostCardSkeleton />
+      </View>
     </View>
   );
 
@@ -967,7 +967,7 @@ export default function ProfileScreen() {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
         <Stack.Screen options={{ title: 'Profile' }} />
-        <SkeletonList count={8} />
+        <SkeletonList />
       </SafeAreaView>
     );
   }
@@ -1412,21 +1412,16 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 12,
-    zIndex: 100, // Ensure profile content is above banner but below avatar
-    elevation: 100, // For Android
+    alignItems: 'center',
+    zIndex: 100,
+    elevation: 100,
   },
   avatarSection: {
-    marginBottom: -40, // Overlap into content area to close gap
-    zIndex: 99999, // Highest z-index to ensure avatar is always on top
-    elevation: 99999, // Highest elevation for Android
+    marginBottom: -50, // Half of 100px avatar hangs below banner
+    zIndex: 99999,
+    elevation: 99999,
     position: 'relative',
-    marginRight: 0, // Ensure no right margin pushes text
-    flexShrink: 0, // Prevent avatar from shrinking
+    flexShrink: 0,
   },
   avatarContainer: {
     position: 'relative',
@@ -1484,10 +1479,6 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#ffffff',
-    textShadowColor: 'rgba(0, 0, 0, 0.8)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 6,
     flexShrink: 1,
     maxWidth: '100%',
   },
@@ -1525,12 +1516,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  // Profile Details Below Banner — paddingTop clears the avatar overlap (40px + 8px gap)
+  // Profile Details Below Banner — paddingTop clears the avatar overlap (50px + 8px gap)
   profileDetailsContainer: {
     backgroundColor: 'transparent',
-    paddingTop: 48,
-    marginBottom: 0, // No gap before tabs
-    paddingBottom: 0, // No padding at bottom
+    paddingTop: 58,
+    marginBottom: 0,
+    paddingBottom: 0,
+  },
+  profileNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    marginBottom: 8,
+  },
+  profileName: {
+    fontSize: 22,
+    fontWeight: '700',
   },
   editButton: {
     paddingHorizontal: 20,

@@ -1,9 +1,10 @@
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
-import { clearAuthToken, getAuthToken, httpGet, httpPost, httpPostLongTimeout, setAuthToken } from './http';
+import { clearAuthToken, getApiBaseUrl, getAuthToken, httpGet, httpPost, httpPostLongTimeout, setAuthToken } from './http';
 
-// Storage key for authentication token (not a secret, just the key name)
+// Storage keys for authentication tokens (not secrets, just key names)
 const TOKEN_KEY = 'auth_token_key';
+const REFRESH_TOKEN_KEY = 'refresh_token_key';
 
 async function saveToken(token: string | null) {
   setAuthToken(token);
@@ -15,6 +16,30 @@ async function saveToken(token: string | null) {
     }
   } catch (error) {
     console.error('[auth] Failed to save token to secure storage:', error);
+  }
+}
+
+async function saveRefreshToken(token: string | null) {
+  try {
+    if (Platform.OS === 'web') {
+      if (token) window.localStorage.setItem(REFRESH_TOKEN_KEY, token);
+      else window.localStorage.removeItem(REFRESH_TOKEN_KEY);
+    } else {
+      if (token) await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, token);
+      else await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
+    }
+  } catch (error) {
+    console.error('[auth] Failed to save refresh token to secure storage:', error);
+  }
+}
+
+async function loadRefreshToken(): Promise<string | null> {
+  try {
+    if (Platform.OS === 'web') return window.localStorage.getItem(REFRESH_TOKEN_KEY);
+    return await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
+  } catch (error) {
+    console.error('[auth] Failed to load refresh token from secure storage:', error);
+    return null;
   }
 }
 
@@ -36,22 +61,26 @@ export const auth = {
   async register(email: string, password: string, display_name?: string) {
     const res = await httpPostLongTimeout('/auth/register', { email, password, display_name });
     if ((res as any)?.access_token) await saveToken((res as any).access_token);
+    if ((res as any)?.refresh_token) await saveRefreshToken((res as any).refresh_token);
     return res;
   },
   async login(email: string, password: string) {
     const res = await httpPost('/auth/login', { email, password });
     if (res?.access_token) await saveToken(res.access_token);
+    if (res?.refresh_token) await saveRefreshToken(res.refresh_token);
     return res;
   },
   async loginWithGoogle(idToken: string) {
     const res = await httpPost('/auth/google', { id_token: idToken });
     if (res?.access_token) await saveToken(res.access_token);
+    if (res?.refresh_token) await saveRefreshToken(res.refresh_token);
     return res;
   },
   async loginWithApple(identityToken: string) {
     // Apple auth can be slow on real devices; allow longer timeout
     const res = await httpPostLongTimeout('/auth/apple', { identity_token: identityToken });
     if (res?.access_token) await saveToken(res.access_token);
+    if (res?.refresh_token) await saveRefreshToken(res.refresh_token);
     return res;
   },
   async me() {
@@ -78,10 +107,15 @@ export const auth = {
   async logout() {
     clearAuthToken();
     try {
-      if (Platform.OS === 'web') window.localStorage.removeItem(TOKEN_KEY);
-      else await SecureStore.deleteItemAsync(TOKEN_KEY);
+      if (Platform.OS === 'web') {
+        window.localStorage.removeItem(TOKEN_KEY);
+        window.localStorage.removeItem(REFRESH_TOKEN_KEY);
+      } else {
+        await SecureStore.deleteItemAsync(TOKEN_KEY);
+        await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
+      }
     } catch (error) {
-      console.warn('[auth] Failed to clear token from secure storage:', error);
+      console.warn('[auth] Failed to clear tokens from secure storage:', error);
     }
   },
   async requestEmailVerification() {
@@ -105,10 +139,32 @@ export const auth = {
       new_password: newPassword,
     });
   },
-  async refreshToken() {
-    // Current auth flow uses long-lived JWTs without a refresh endpoint.
-    // Rehydrate and return the stored token for callers expecting refresh semantics.
-    return loadToken();
+  async refreshToken(): Promise<string | null> {
+    const stored = await loadRefreshToken();
+    if (!stored) return null;
+
+    try {
+      const base = getApiBaseUrl();
+      const res = await fetch(`${base}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken: stored }),
+      });
+
+      if (!res.ok) {
+        await auth.logout();
+        return null;
+      }
+
+      const { access_token, refresh_token } = await res.json();
+      await saveToken(access_token);
+      await saveRefreshToken(refresh_token);
+      return access_token;
+    } catch (error) {
+      console.error('[auth] Token refresh failed:', error);
+      await auth.logout();
+      return null;
+    }
   },
   getToken: loadToken,
 };

@@ -29,7 +29,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { captureRef } from 'react-native-view-shot';
 
-import { Game, Highlights, Post, User } from '@/api/entities';
+import { Game, Highlights, Post, Report, User } from '@/api/entities';
 import { httpGet } from '@/api/http';
 import events from '@/utils/events';
 import { AppLinks } from '@/utils/links';
@@ -139,6 +139,7 @@ const FeedCard = memo(
     onDoubleTap,
     onDeletePost,
     onEditPost,
+    onMoreOptions,
     registerVideo,
     insets,
     colorScheme,
@@ -154,6 +155,7 @@ const FeedCard = memo(
     onDoubleTap: () => void;
     onDeletePost?: () => void;
     onEditPost?: (caption: string) => void;
+    onMoreOptions: () => void;
     registerVideo: (id: string, player: any | null) => void;
     insets: { top: number; bottom: number };
     colorScheme: 'light' | 'dark';
@@ -389,6 +391,11 @@ const FeedCard = memo(
           <Pressable onPress={onToggleBookmark} style={styles.railBtn}>
             <Ionicons name={post.has_bookmarked ? 'bookmark' : 'bookmark-outline'} size={34} color="#fff" />
             <Text style={styles.railLabel}>{post.bookmarks_count}</Text>
+          </Pressable>
+
+          <Pressable onPress={onMoreOptions} style={styles.railBtn}>
+            <Ionicons name="ellipsis-horizontal-circle-outline" size={34} color="#fff" />
+            <Text style={styles.railLabel}>More</Text>
           </Pressable>
 
           {isAuthor && (
@@ -877,6 +884,51 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
    Share.share({ message: shareLink.shareMessage, url: shareLink.webUrl }).catch(() => {});
   }, []);
 
+  const handleMoreOptions = useCallback((post: FeedPost) => {
+    Alert.alert('Options', undefined, [
+      {
+        text: 'Report Post',
+        onPress: () => {
+          Alert.alert('Report Post', 'Select a reason:', [
+            { text: 'Spam', onPress: () => submitReport(post, 'spam') },
+            { text: 'Harassment', onPress: () => submitReport(post, 'harassment') },
+            { text: 'Hate Speech', onPress: () => submitReport(post, 'hate_speech') },
+            { text: 'Violence', onPress: () => submitReport(post, 'violence') },
+            { text: 'False Information', onPress: () => submitReport(post, 'false_information') },
+            { text: 'Cancel', style: 'cancel' },
+          ]);
+        },
+      },
+      {
+        text: 'Copy Link',
+        onPress: async () => {
+          try {
+            const shareLink = AppLinks.post(post.id, post.caption ?? undefined);
+            const Clipboard = await import('expo-clipboard');
+            await Clipboard.setStringAsync(shareLink.webUrl);
+            Alert.alert('Copied', 'Link copied to clipboard.');
+          } catch {
+            Alert.alert('Error', 'Failed to copy link.');
+          }
+        },
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  }, []);
+
+  const submitReport = useCallback(async (post: FeedPost, reason: string) => {
+    try {
+      await Report.create({ target_type: 'post', target_id: String(post.id), reason });
+      Alert.alert('Report Submitted', 'Thank you for helping keep our community safe.');
+    } catch (error: any) {
+      if (error?.status === 409) {
+        Alert.alert('Already Reported', 'You have already reported this post.');
+      } else {
+        Alert.alert('Error', error?.message || 'Failed to submit report. Please try again.');
+      }
+    }
+  }, []);
+
   const handleDeletePost = useCallback(
     (post: FeedPost) => {
       // Remove the post from the current posts array
@@ -997,13 +1049,14 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
         onDoubleTap={() => handleDoubleTap(item)}
         onDeletePost={() => handleDeletePost(item)}
         onEditPost={(newCaption: string) => handleEditPost(item, newCaption)}
+        onMoreOptions={() => handleMoreOptions(item)}
         registerVideo={registerVideo}
         insets={{ top: insets.top, bottom: insets.bottom }}
         colorScheme={colorScheme}
         meInfo={meInfo}
       />
     ),
-    [activeIndex, handleDoubleTap, handleDeletePost, handleEditPost, handleShare, handleToggleBookmark, handleToggleFollow, handleToggleUpvote, insets.bottom, insets.top, openComments, registerVideo, colorScheme, meInfo],
+    [activeIndex, handleDoubleTap, handleDeletePost, handleEditPost, handleMoreOptions, handleShare, handleToggleBookmark, handleToggleFollow, handleToggleUpvote, insets.bottom, insets.top, openComments, registerVideo, colorScheme, meInfo],
   );
 
   const keyExtractor = useCallback((item: FeedPost) => item.id, []);

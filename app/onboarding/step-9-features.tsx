@@ -169,7 +169,7 @@ export default function Step9Features() {
       
       // For coaches, go to confirmation page
       console.log('[Step9] Coach flow: navigating to step-10-confirmation');
-      setProgress(8); // step-10 is index 8 in stepRoutes array
+      setProgress(9); // step-10 is index 9 in stepRoutes array
       router.replace('/onboarding/step-10-confirmation');
     } catch (e: any) {
       Alert.alert('Failed to save settings', e?.message || 'Please try again');

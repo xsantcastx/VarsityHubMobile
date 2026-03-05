@@ -110,7 +110,9 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
           ]
         );
       } else {
-        Alert.alert('Error', e?.message || 'Subscription failed');
+        const raw = e?.data?.error || e?.message || '';
+        const safeMsg = /prod_|price_/i.test(raw) ? 'Subscription failed. Please try again or contact support.' : (raw || 'Subscription failed');
+        Alert.alert('Error', safeMsg);
       }
     } finally {
       setLoading(false);

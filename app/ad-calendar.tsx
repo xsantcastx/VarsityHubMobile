@@ -490,7 +490,8 @@ export default function AdCalendarScreen() {
       throw new Error('Unexpected checkout response');
     } catch (err) {
       if (__DEV__) console.error('Failed to start checkout:', err);
-      const msg = (err as any)?.message || 'An error occurred starting checkout.';
+      const raw = (err as any)?.data?.error || (err as any)?.message || '';
+      const msg = /prod_|price_/i.test(raw) ? 'An error occurred starting checkout. Please try again or contact support.' : (raw || 'An error occurred starting checkout.');
       Alert.alert('Error', msg);
     } finally {
       setSubmitting(false);
@@ -807,15 +808,26 @@ export default function AdCalendarScreen() {
 
           {sortedDates.length > 0 && (() => {
             const totalHrs = sortedDates.length * 24;
+            const firstSelectedIsToday = sortedDates[0] <= todayISO();
             return (
-              <View style={[styles.rowBetween, { marginTop: 4 }]}>
-                <Text style={[styles.bold, { color: Colors[colorScheme].text }]}>Total Hours Booked:</Text>
-                <View style={styles.hoursHighlight}>
-                  <Text style={styles.hoursHighlightText}>
-                    {totalHrs} hrs ({sortedDates.length} day{sortedDates.length !== 1 ? 's' : ''})
-                  </Text>
+              <>
+                <View style={[styles.rowBetween, { marginTop: 4 }]}>
+                  <Text style={[styles.bold, { color: Colors[colorScheme].text }]}>Total Hours Booked:</Text>
+                  <View style={styles.hoursHighlight}>
+                    <Text style={styles.hoursHighlightText}>
+                      {totalHrs} hrs ({sortedDates.length} day{sortedDates.length !== 1 ? 's' : ''})
+                    </Text>
+                  </View>
                 </View>
-              </View>
+                {firstSelectedIsToday && (
+                  <View style={styles.fullPriceNotice}>
+                    <MaterialIcons name="info-outline" size={16} color="#92400E" />
+                    <Text style={styles.fullPriceNoticeText}>
+                      Note: Full price is charged regardless of when your ad goes live during a booked day.
+                    </Text>
+                  </View>
+                )}
+              </>
             );
           })()}
 
@@ -1046,6 +1058,24 @@ const styles = StyleSheet.create({
     color: '#92400E',
     fontWeight: '800',
     fontSize: 15,
+  },
+  fullPriceNotice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginTop: 8,
+    padding: 10,
+    borderRadius: 8,
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  fullPriceNoticeText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#92400E',
+    fontWeight: '500',
   },
   successOverlay: {
     ...StyleSheet.absoluteFillObject,

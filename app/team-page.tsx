@@ -571,9 +571,8 @@ export default function TeamScreen() {
           </View>
         )}
         
-        {/* Profile Content - Avatar on Bottom-Left of Banner */}
+        {/* Profile Content - Avatar centered at banner bottom edge */}
         <View style={styles.profileContent}>
-          {/* Large Avatar - Overlapping Banner */}
           <View style={styles.avatarSection}>
             <View style={styles.avatarContainer}>
               {team?.logo_url ? (
@@ -585,22 +584,25 @@ export default function TeamScreen() {
               )}
             </View>
           </View>
+        </View>
+      </View>
 
-          {/* Team Info - Next to Avatar ON BANNER */}
-          <View style={styles.userInfo}>
+      {/* Content Below Banner */}
+      <View style={styles.profileDetailsContainer}>
+        {/* Team Name + Badge - to the right of avatar overlap */}
+        <View style={styles.teamHeaderRow}>
+          <View style={styles.teamHeaderSpacer} />
+          <View style={styles.teamHeaderInfo}>
             <View style={styles.nameRow}>
-              <Text style={[styles.userName, { color: '#FFFFFF' }]}>{teamName}</Text>
+              <Text style={[styles.userName, { color: theme.text }]}>{teamName}</Text>
               <View style={[styles.roleBadge, styles.teamBadge]}>
                 <Text style={styles.roleText}>TEAM</Text>
               </View>
             </View>
           </View>
         </View>
-      </View>
 
-      {/* Content Below Banner */}
-      <View style={styles.profileDetailsContainer}>
-        {/* Username and Action Buttons Row */}
+        {/* Handle and Action Buttons Row */}
         <View style={styles.usernameRow}>
           <Text style={[styles.userHandle, { color: theme.text }]}>{teamHandle}</Text>
           <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -1189,22 +1191,16 @@ const styles = StyleSheet.create({
   profileContent: {
     position: 'absolute',
     bottom: 0,
-    left: 0,
+    left: 16,
     right: 0,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 12,
     zIndex: 100,
     elevation: 100,
   },
   avatarSection: {
-    marginBottom: -40,
+    marginBottom: -50, // Half of 100px avatar hangs below banner
     zIndex: 99999,
     elevation: 99999,
     position: 'relative',
-    marginRight: 0,
     flexShrink: 0,
   },
   avatarContainer: {
@@ -1256,10 +1252,6 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#ffffff',
-    textShadowColor: 'rgba(0, 0, 0, 0.8)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 6,
     flexShrink: 1,
     maxWidth: '100%',
   },
@@ -1320,9 +1312,22 @@ const styles = StyleSheet.create({
   },
   profileDetailsContainer: {
     backgroundColor: 'transparent',
-    paddingTop: 48, // Clear the avatar overlap (40px + 8px gap)
+    paddingTop: 0, // teamHeaderRow handles avatar clearance
     marginBottom: 0,
     paddingBottom: 0,
+  },
+  teamHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 58, // 50px avatar overlap + 8px clearance
+    paddingRight: 16,
+  },
+  teamHeaderSpacer: {
+    width: 124, // avatar (100) + border (8) + gap (16)
+  },
+  teamHeaderInfo: {
+    flex: 1,
+    minWidth: 0,
   },
   userDetails: {
     paddingHorizontal: 16,

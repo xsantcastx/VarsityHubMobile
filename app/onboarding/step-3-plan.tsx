@@ -363,12 +363,14 @@ export default function Step3Plan() {
           // Show email verification modal instead of just showing an alert
           setShowVerifyModal(true);
           return; // Don't navigate to next step when showing verification modal
-        } else if (err && err.data && err.data.error) {
-          Alert.alert('Payment error', String(err.data.error));
-        } else if (err && err.message) {
-          Alert.alert('Payment error', String(err.message));
         } else {
-          Alert.alert('Payment', 'Unable to start checkout. You can continue and set up billing later.');
+          // Sanitize error messages: never expose Stripe product/price IDs to users
+          const rawMsg = (err?.data?.error || err?.message || '') as string;
+          const containsSensitiveIds = /prod_|price_/i.test(rawMsg);
+          const safeMessage = containsSensitiveIds
+            ? 'Unable to start checkout. Please try again later or contact support.'
+            : (rawMsg || 'Unable to start checkout. You can continue and set up billing later.');
+          Alert.alert('Payment error', safeMessage);
         }
         
         // On payment failure, default to rookie plan so they can continue

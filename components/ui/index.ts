@@ -30,6 +30,8 @@ export type { EmptyStateProps } from './EmptyState';
 export { LoadingState } from './LoadingState';
 export type { LoadingStateProps } from './LoadingState';
 
+export { SkeletonCard, PostCardSkeleton, ProfileHeaderSkeleton, TeamCardSkeleton } from './SkeletonCard';
+
 // Domain Components
 export { GameCard } from './GameCard';
 export type { Game, GameCardProps } from './GameCard';

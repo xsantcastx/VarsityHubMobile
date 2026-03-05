@@ -41,11 +41,11 @@ function SectionCard({ title, initiallyOpen = false, children }: { title: string
   );
 }
 
-function NavRow({ title, subtitle, onPress, destructive }: { title: string; subtitle?: string; onPress: () => void; destructive?: boolean }) {
+function NavRow({ title, subtitle, onPress, destructive, isLast }: { title: string; subtitle?: string; onPress: () => void; destructive?: boolean; isLast?: boolean }) {
   const cs = useColorScheme();
   const palette = Colors[cs ?? 'light'];
   return (
-    <Pressable onPress={onPress} style={styles.rowBetween}>
+    <Pressable onPress={onPress} style={[styles.rowBetween, !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.border }]}>
       <View style={{ flex: 1 }}>
         <Text style={[styles.rowTitle, { color: destructive ? palette.destructive : palette.text }]}>{title}</Text>
         {subtitle && <Text style={[styles.mutedSmall, { color: palette.mutedText }]}>{subtitle}</Text>}
@@ -55,11 +55,11 @@ function NavRow({ title, subtitle, onPress, destructive }: { title: string; subt
   );
 }
 
-function SwitchRow({ title, subtitle, value, onValueChange }: { title: string; subtitle?: string; value: boolean; onValueChange: (v: boolean) => void }) {
+function SwitchRow({ title, subtitle, value, onValueChange, isLast }: { title: string; subtitle?: string; value: boolean; onValueChange: (v: boolean) => void; isLast?: boolean }) {
   const cs = useColorScheme();
   const palette = Colors[cs ?? 'light'];
   return (
-    <View style={styles.rowBetween}>
+    <View style={[styles.rowBetween, !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.border }]}>
       <View style={{ flex: 1 }}>
         <Text style={[styles.rowTitle, { color: palette.text }]}>{title}</Text>
         {subtitle && <Text style={[styles.mutedSmall, { color: palette.mutedText }]}>{subtitle}</Text>}
@@ -340,7 +340,7 @@ export default function SettingsScreen() {
                     <SectionCard title="Account" initiallyOpen>
                       <NavRow title="Edit Username" onPress={() => void router.push('/settings/edit-username')} />
                       <NavRow title="Reset Password" onPress={() => void router.push('/settings/reset-password')} />
-                      <NavRow title="RSVP History" onPress={() => void router.push('/settings/rsvp-history')} />
+                      <NavRow title="RSVP History" isLast onPress={() => void router.push('/settings/rsvp-history')} />
                     </SectionCard>
 
                     {/* Notifications */}
@@ -371,6 +371,7 @@ export default function SettingsScreen() {
                         subtitle="When someone sends you a DM"
                         value={!!prefs.notifications.messages_notifications}
                         onValueChange={(v) => patchPrefs({ notifications: { messages_notifications: v } } as any)}
+                        isLast
                       />
                     </SectionCard>
 
@@ -382,7 +383,7 @@ export default function SettingsScreen() {
                         value={!!prefs.profile_private}
                         onValueChange={(v) => patchPrefs({ profile_private: v })}
                       />
-                      <View style={styles.rowBetween}>
+                      <View style={[styles.rowBetween, { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors[colorScheme ?? 'light'].border }]}>
                         <View style={{ flex: 1 }}>
                           <Text style={[styles.rowTitle, { color: Colors[colorScheme ?? 'light'].text }]}>Comment Permissions</Text>
                           <Text style={[styles.mutedSmall, { color: Colors[colorScheme ?? 'light'].mutedText }]}>
@@ -437,6 +438,7 @@ export default function SettingsScreen() {
                         subtitle="Disclose your parent status to coaches."
                         value={!!prefs.is_parent}
                         onValueChange={(v) => patchPrefs({ is_parent: v })}
+                        isLast
                       />
                     </SectionCard>
 
@@ -444,13 +446,13 @@ export default function SettingsScreen() {
                     <SectionCard title="My Content">
                       <NavRow title="View Favorites" subtitle="Posts you've saved" onPress={() => void router.push('/settings/favorites')} />
                       <NavRow title="Reserve Ad Space" subtitle="Promote your program, fundraiser, or business" onPress={() => void router.navigate('/submit-ad')} />
-                      <NavRow title="My Ads" subtitle="Manage your advertisements" onPress={() => void router.navigate('/my-ads')} />
+                      <NavRow title="My Ads" subtitle="Manage your advertisements" isLast onPress={() => void router.navigate('/my-ads')} />
                     </SectionCard>
 
                     {/* Billing (coaches only) */}
                     {role === 'coach' && (
                       <SectionCard title="Billing">
-                        <NavRow title="Manage Subscription" subtitle={Platform.OS === 'ios' ? 'Plan: Free' : (plan ? String(plan) : 'No subscription')} onPress={() => void router.push('/settings/manage-subscription')} />
+                        <NavRow title="Manage Subscription" isLast subtitle={Platform.OS === 'ios' ? 'Plan: Free' : (plan ? String(plan) : 'No subscription')} onPress={() => void router.push('/settings/manage-subscription')} />
                       </SectionCard>
                     )}
 
@@ -459,13 +461,13 @@ export default function SettingsScreen() {
                       <NavRow title="View Core Values" onPress={() => void router.push('/settings/core-values')} />
                       <NavRow title="Privacy Policy" onPress={() => void router.push('/settings/privacy-policy')} />
                       <NavRow title="Terms of Service" onPress={() => void router.push('/settings/terms-of-service')} />
-                      <NavRow title="Report Abuse" onPress={() => void router.navigate('/report-abuse')} />
+                      <NavRow title="Report Abuse" isLast onPress={() => void router.navigate('/report-abuse')} />
                     </SectionCard>
 
                     {/* Support & Feedback */}
                     <SectionCard title="Support & Feedback">
                       <NavRow title="Contact Varsity Hub Team" onPress={() => void router.push('/settings/contact')} />
-                      <NavRow title="Leave Feedback" onPress={() => void router.push('/settings/feedback')} />
+                      <NavRow title="Leave Feedback" isLast onPress={() => void router.push('/settings/feedback')} />
                     </SectionCard>
 
                     {/* Admin Panel - Only visible to admins */}
@@ -496,10 +498,11 @@ export default function SettingsScreen() {
                           subtitle="Review and moderate advertisements" 
                           onPress={() => void router.navigate('/admin-ads')} 
                         />
-                        <NavRow 
-                          title="View Messages" 
-                          subtitle="Content moderation" 
-                          onPress={() => void router.navigate('/admin-messages')} 
+                        <NavRow
+                          title="View Messages"
+                          subtitle="Content moderation"
+                          isLast
+                          onPress={() => void router.navigate('/admin-messages')}
                         />
                       </SectionCard>
                     )}
@@ -513,10 +516,17 @@ export default function SettingsScreen() {
                         ]);
                       }} />
                       <NavRow title="Delete Account" destructive onPress={confirmDeleteAccount} />
-                      <NavRow title="Upgrade to Coach Account" onPress={() => {
-                        Alert.alert('Upgrade to Coach Account', 'You\'ll be taken through the coach setup flow.', [
+                      <NavRow title="Upgrade to Coach Account" isLast onPress={() => {
+                        Alert.alert('Upgrade to Coach Account', 'Your account will be upgraded to a coach account. You\'ll complete the coach setup steps next.', [
                           { text: 'Cancel', style: 'cancel' },
-                          { text: 'Continue', onPress: () => { void router.push('/onboarding/step-1-role'); } }
+                          { text: 'Continue', onPress: async () => {
+                            try {
+                              await User.upgradeToCoach('rookie');
+                              router.push('/onboarding/step-3-plan');
+                            } catch (e: any) {
+                              Alert.alert('Error', e?.data?.error || e?.message || 'Failed to upgrade. Please try again.');
+                            }
+                          } }
                         ]);
                       }} />
                     </SectionCard>
@@ -613,11 +623,11 @@ export default function SettingsScreen() {
               container: { flex: 1 },
               title: { fontSize: 24, fontWeight: '700', marginBottom: 8, paddingHorizontal: 16 },
               error: { marginHorizontal: 16, marginBottom: 8 },
-              card: { marginHorizontal: 16, marginBottom: 12, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth },
+              card: { marginHorizontal: 16, marginBottom: 6, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth },
               cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 12 },
-              cardBody: { padding: 12, gap: 12 },
+              cardBody: { paddingHorizontal: 12, paddingBottom: 4 },
               cardTitle: { fontWeight: '800', fontSize: 16 },
-              rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10 },
+              rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8 },
               rowTitle: { fontWeight: '600' },
               mutedSmall: { fontSize: 12 },
               chev: { fontSize: 20, transform: [{ rotate: '0deg' }] },

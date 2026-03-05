@@ -13,11 +13,12 @@ export const ONBOARDING_STEPS = {
   STEP_2_BASIC: { id: 2, route: '/onboarding/step-2-basic', index: 1 },
   STEP_3_PLAN: { id: 3, route: '/onboarding/step-3-plan', index: 2 },
   STEP_4_ORGANIZATION: { id: 4, route: '/onboarding/step-4-organization', index: 3 },
-  STEP_6_AUTHORIZED_USERS: { id: 6, route: '/onboarding/step-6-authorized-users', index: 4 },
-  STEP_7_PROFILE: { id: 7, route: '/onboarding/step-7-profile', index: 5 },
-  STEP_8_INTERESTS: { id: 8, route: '/onboarding/step-8-interests', index: 6 },
-  STEP_9_FEATURES: { id: 9, route: '/onboarding/step-9-features', index: 7 },
-  STEP_10_CONFIRMATION: { id: 10, route: '/onboarding/step-10-confirmation', index: 8 },
+  STEP_5_TEAM: { id: 5, route: '/onboarding/step-5-team', index: 4 },
+  STEP_6_AUTHORIZED_USERS: { id: 6, route: '/onboarding/step-6-authorized-users', index: 5 },
+  STEP_7_PROFILE: { id: 7, route: '/onboarding/step-7-profile', index: 6 },
+  STEP_8_INTERESTS: { id: 8, route: '/onboarding/step-8-interests', index: 7 },
+  STEP_9_FEATURES: { id: 9, route: '/onboarding/step-9-features', index: 8 },
+  STEP_10_CONFIRMATION: { id: 10, route: '/onboarding/step-10-confirmation', index: 9 },
 } as const;
 
 export const STEP_ROUTES = [
@@ -25,6 +26,7 @@ export const STEP_ROUTES = [
   ONBOARDING_STEPS.STEP_2_BASIC.route,
   ONBOARDING_STEPS.STEP_3_PLAN.route,
   ONBOARDING_STEPS.STEP_4_ORGANIZATION.route,
+  ONBOARDING_STEPS.STEP_5_TEAM.route,
   ONBOARDING_STEPS.STEP_6_AUTHORIZED_USERS.route,
   ONBOARDING_STEPS.STEP_7_PROFILE.route,
   ONBOARDING_STEPS.STEP_8_INTERESTS.route,
@@ -73,6 +75,9 @@ function isStepComplete(stepId: number, state: OnboardingState, role?: 'fan' | '
     case 4: // Organization (coaches only) - must be explicitly visited
       if (role !== 'coach') return true; // Fans skip this
       return !!state.step_4_visited;
+    case 5: // Team creation (coaches only) - need a team before authorized users
+      if (role !== 'coach') return true; // Fans skip this
+      return !!state.team_id;
     case 6: // Authorized users (optional for coaches, but must be visited)
       if (role !== 'coach') return true; // Fans skip this step entirely
       return !!state.step_6_visited;
@@ -120,7 +125,12 @@ export function nextIncompleteStep(
     if (!isStepComplete(4, state, role)) {
       return ONBOARDING_STEPS.STEP_4_ORGANIZATION.index;
     }
-    
+
+    // Step 5: Team creation (coaches only) - must create team before authorized users
+    if (!isStepComplete(5, state, role)) {
+      return ONBOARDING_STEPS.STEP_5_TEAM.index;
+    }
+
     // Step 6: Authorized users (optional, but MUST be visited/skipped before step 7)
     // Check if step 6 has been visited
     if (!isStepComplete(6, state, role)) {

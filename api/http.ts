@@ -6,6 +6,9 @@ export function setAuthToken(token: string | null) { tokenCache = token || null;
 export function clearAuthToken() { tokenCache = null; }
 export function getAuthToken(): string | null { return tokenCache; }
 
+// Refresh lock: prevents concurrent refresh attempts when multiple 401s fire simultaneously
+let refreshPromise: Promise<string | null> | null = null;
+
 export function getApiBaseUrl(): string {
   // Support environment-based configuration for testing/staging/preview builds
   const PRODUCTION_URL = 'https://api-production-8ac3.up.railway.app';
@@ -105,14 +108,41 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
       err.data = data;
       err.isRailwayErrorPage = isRailwayErrorPage; // Flag for retry logic
       
-      // Clear token on unauthorized responses and let AuthProvider handle session loss.
+      // On 401, attempt a token refresh before giving up.
       // Do not clear on 403 (forbidden) because role-based endpoints can return 403 for valid sessions.
-      if (err.status === 401) {
-        try { 
-          clearAuthToken();
-        } catch (error) {
+      if (err.status === 401 && token) {
+        // Lazy-import to avoid circular dependency (auth.ts imports from http.ts)
+        const { auth } = await import('./auth');
+
+        // Coalesce concurrent refresh attempts behind a single promise
+        if (!refreshPromise) {
+          refreshPromise = auth.refreshToken().finally(() => { refreshPromise = null; });
         }
-        // Don't router.push here; AuthProvider will redirect if user is truly unauthenticated.
+        const newToken = await refreshPromise;
+
+        if (newToken) {
+          // Retry the original request with the fresh token
+          headers['Authorization'] = `Bearer ${newToken}`;
+          const retryRes = await fetch(base + path, { ...options, headers, signal: undefined });
+          if (retryRes.ok) {
+            const retryText = await retryRes.text();
+            const retryCt = (retryRes.headers && retryRes.headers.get && retryRes.headers.get('content-type')) || '';
+            if (retryCt.includes('application/json')) {
+              try { return retryText ? JSON.parse(retryText) : null; } catch { return null; }
+            }
+            return retryText;
+          }
+          // Retry also failed — fall through to throw
+          if (retryRes.status === 401) {
+            clearAuthToken();
+            const retryErr: any = new Error('Session expired');
+            retryErr.status = 401;
+            throw retryErr;
+          }
+        }
+
+        // Refresh failed or no refresh token — clear and throw
+        clearAuthToken();
       }
       throw err;
     }

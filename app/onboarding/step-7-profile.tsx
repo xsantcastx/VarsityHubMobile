@@ -142,7 +142,7 @@ export default function Step7Profile() {
         preferences: { sports_interests: interests } 
       });
       
-      setProgress(6); // step-8 is index 6 in stepRoutes array
+      setProgress(7); // step-8 is index 7 in stepRoutes array
       if (returnToConfirmation) {
         router.replace('/onboarding/step-10-confirmation');
       } else {

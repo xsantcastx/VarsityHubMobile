@@ -239,8 +239,8 @@ export default function Step1Role() {
       
       // If we came from confirmation, go back there
       if (returnToConfirmation) {
-        dispatch({ type: 'SET_STEP', stepIndex: 8, reason: 'RETURN_TO_CONFIRMATION' });
-        setProgress(8);
+        dispatch({ type: 'SET_STEP', stepIndex: 9, reason: 'RETURN_TO_CONFIRMATION' });
+        setProgress(9);
         router.replace('/onboarding/step-10-confirmation');
       } else {
         // Use reducer to calculate next step deterministically
@@ -305,7 +305,7 @@ export default function Step1Role() {
       <RoleCard
         title="Fan"
         description="Follow teams and players"
-        icon="heart"
+        icon="person"
         selected={role === 'fan'}
         onPress={() => setRole('fan')}
         onContinue={onContinue}
@@ -325,7 +325,7 @@ export default function Step1Role() {
       <RoleCard
         title="Coach / Organizer"
         description="Manage teams and organize games"
-        icon="trophy"
+        icon="sports"
         selected={role === 'coach'}
         onPress={() => setRole('coach')}
         onContinue={onContinue}

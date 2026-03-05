@@ -494,6 +494,12 @@ import { validateContent } from '../lib/contentFilter.js';
 import { stripHtml } from '../lib/sanitizeHtml.js';
 
 postsRouter.post('/', requireVerified as any, requireOnboarded as any, postCreationLimiter, async (req: AuthedRequest, res) => {
+  // Reject sample/seed game IDs early with a clear error before any DB work
+  const rawGameId = req.body?.game_id;
+  if (rawGameId && /^sample-/i.test(String(rawGameId))) {
+    return res.status(400).json({ error: 'This is a sample game. Create a real game first to post here.' });
+  }
+
   // req.user is guaranteed by requireVerified middleware
   const parsed = createPostSchema.safeParse(req.body);
   if (!parsed.success) {

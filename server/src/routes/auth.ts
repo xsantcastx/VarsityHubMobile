@@ -7,7 +7,7 @@ import { sendPasswordChangedEmail, sendPasswordResetEmail, sendVerificationEmail
 import { validateContent } from '../lib/contentFilter.js';
 import { ConflictError } from '../lib/errors/ConflictError.js';
 import { ValidationError } from '../lib/errors/ValidationError.js';
-import { signJwt } from '../lib/jwt.js';
+import { signJwt, generateRefreshToken, REFRESH_TOKEN_EXPIRY_DAYS } from '../lib/jwt.js';
 import { prisma } from '../lib/prisma.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
@@ -133,6 +133,17 @@ function checkAuthRateLimit(identifier: string): boolean {
   return true;
 }
 
+/** Create a refresh token pair and store in DB. Returns { refresh_token, refresh_token_expires }. */
+async function issueRefreshToken(userId: string) {
+  const refresh_token = generateRefreshToken();
+  const refresh_token_expires = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
+  await prisma.user.update({
+    where: { id: userId },
+    data: { refresh_token, refresh_token_expires },
+  });
+  return { refresh_token, refresh_token_expires };
+}
+
 // simple in-memory rate limiting for verification send: 1/30s, 5/hour per user
 const verifyRate: Map<string, { last: number; count: number; hourStart: number }> = new Map();
 const GOOGLE_ALLOWED_AUDIENCES = (process.env.GOOGLE_OAUTH_CLIENT_IDS || process.env.GOOGLE_OAUTH_AUDIENCE || '')
@@ -177,6 +188,25 @@ function isUnder13(dob: string | null | undefined): boolean {
   if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--;
   return age < 13;
 }
+
+// ---- Token Refresh (no auth middleware — refresh tokens are self-authenticating) ----
+authRouter.post('/refresh', asyncHandler(async (req, res) => {
+  const { refreshToken } = req.body;
+  if (!refreshToken || typeof refreshToken !== 'string') {
+    return res.status(400).json({ error: 'refreshToken required' });
+  }
+
+  const user = await prisma.user.findFirst({
+    where: { refresh_token: refreshToken, refresh_token_expires: { gt: new Date() } },
+  });
+  if (!user) return res.status(401).json({ error: 'Invalid or expired refresh token' });
+
+  // Rotate: issue new token pair
+  const { refresh_token: newRefreshToken } = await issueRefreshToken(user.id);
+  const access_token = signJwt({ id: user.id });
+
+  return res.json({ access_token, refresh_token: newRefreshToken });
+}));
 
 const registerSchema = z.object({
   email: z.string().trim().email(),
@@ -252,6 +282,7 @@ authRouter.post('/register', asyncHandler(async (req, res) => {
   });
   debugLog(`[verify-code] [register] Verification code stored for user ${user.id} (expires ${exp.toISOString()})`);
   const access_token = signJwt({ id: user.id });
+  const { refresh_token } = await issueRefreshToken(user.id);
   try {
     debugLog(`[verify-code] [register] Sending verification email to ${email}`);
     const emailSend = sendVerificationEmail(email, code, display_name || sanitizedEmail.split('@')[0]);
@@ -276,7 +307,7 @@ authRouter.post('/register', asyncHandler(async (req, res) => {
   } catch (e) {
     console.error('[register] sendWelcomeEmail failed:', e);
   }
-  const payload: any = { access_token, user: sanitizeUser(user) };
+  const payload: any = { access_token, refresh_token, user: sanitizeUser(user) };
   if (process.env.NODE_ENV !== 'production') payload.dev_verification_code = code;
   debugLog('[register] Completed in', Date.now() - start, 'ms');
   res.status(201).json(payload);
@@ -301,9 +332,10 @@ authRouter.post('/login', asyncHandler(async (req, res) => {
   const ok = await bcrypt.compare(password, user.password_hash);
   if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
   const access_token = signJwt({ id: user.id });
+  const { refresh_token } = await issueRefreshToken(user.id);
   const sanitized = sanitizeUser(user);
   const needsOnboarding = sanitized?.preferences?.onboarding_completed === false;
-  const body: any = { access_token, user: sanitized, needs_onboarding: needsOnboarding };
+  const body: any = { access_token, refresh_token, user: sanitized, needs_onboarding: needsOnboarding };
   if (!user.email_verified) body.needs_verification = true;
   return res.json(body);
 }));
@@ -402,10 +434,12 @@ authRouter.post('/google', async (req, res) => {
 
     const sanitized = sanitizeUser(user);
     const access_token = signJwt({ id: sanitized.id });
+    const { refresh_token } = await issueRefreshToken(sanitized.id);
     const needsOnboarding = sanitized?.preferences?.onboarding_completed === false;
 
     return res.json({
       access_token,
+      refresh_token,
       user: sanitized,
       needs_onboarding: needsOnboarding,
       created,
@@ -570,10 +604,12 @@ authRouter.post('/apple', async (req, res) => {
 
     const sanitized = sanitizeUser(user);
     const access_token = signJwt({ id: sanitized.id });
+    const { refresh_token } = await issueRefreshToken(sanitized.id);
     const needsOnboarding = sanitized?.preferences?.onboarding_completed === false;
 
     return res.json({
       access_token,
+      refresh_token,
       user: sanitized,
       needs_onboarding: needsOnboarding,
       created,
@@ -759,6 +795,26 @@ authRouter.get('/me', requireAuth as any, async (req: AuthedRequest, res) => {
   if (is_admin) prefs.onboarding_completed = true;
   const { password_hash, ...rest } = user as any;
   return res.json({ ...rest, ...(is_admin ? { role: 'admin' } : {}), preferences: prefs, is_admin });
+});
+
+// Lightweight subscription status (no Stripe calls)
+authRouter.get('/me/subscription', requireAuth as any, async (req: AuthedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+  const user = await prisma.user.findUnique({
+    where: { id: req.user.id },
+    select: { subscription_tier: true, subscription_status: true, subscription_expires_at: true, preferences: true },
+  });
+  if (!user) return res.status(404).json({ error: 'Not found' });
+
+  const prefs = (user.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
+  // Prefer onboarding-facing tier from preferences, fall back to DB column
+  const tierMap: Record<string, string> = { free: 'rookie', premium: 'veteran', pro: 'legend' };
+  const tier = prefs.plan || tierMap[user.subscription_tier] || 'rookie';
+  const status = user.subscription_status || null;
+  const expiresAt = user.subscription_expires_at ? user.subscription_expires_at.toISOString() : null;
+  const hasActiveSubscription = (tier === 'veteran' || tier === 'legend') && status === 'active';
+
+  return res.json({ tier, status, expiresAt, hasActiveSubscription });
 });
 
 const updateMeSchema = z.object({
@@ -1014,6 +1070,36 @@ authRouter.patch('/me/preferences', requireAuth as any, async (req: AuthedReques
   const merged = mergePreferences(mergePreferences(defaults, current?.preferences || {}), incoming);
   const updated = await prisma.user.update({ where: { id: req.user.id }, data: { preferences: merged } });
   return res.json({ preferences: updated.preferences });
+});
+
+// Upgrade fan account to coach — bypasses the role-change block on PATCH /me/preferences
+authRouter.post('/upgrade-to-coach', requireAuth as any, async (req: AuthedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+  const schema = z.object({
+    plan: z.enum(['rookie', 'veteran', 'legend']),
+  });
+  const parsed = schema.safeParse(req.body || {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues.map(i => ({ path: i.path, message: i.message })) });
+  }
+
+  const current = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true } });
+  const currentPrefs = (current?.preferences as any) || {};
+
+  if (currentPrefs.role === 'coach') {
+    return res.status(400).json({ error: 'Account is already a coach account.' });
+  }
+
+  const merged = {
+    ...currentPrefs,
+    role: 'coach',
+    plan: parsed.data.plan,
+    onboarding_completed: false,
+  };
+
+  const updated = await prisma.user.update({ where: { id: req.user.id }, data: { preferences: merged } });
+  return res.json({ user: { id: req.user.id, preferences: updated.preferences } });
 });
 
 // Complete onboarding endpoint

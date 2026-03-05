@@ -584,7 +584,11 @@ export default function CreatePostScreen() {
       if (__DEV__) console.warn('[CreatePost] selectedGameId:', selectedGameId, '| isSample:', isSelectedSample);
 
       if (selectedGameId) {
-        // Send game_id so server can detect sample events and handle them properly
+        if (isSelectedSample) {
+          setError('This is a sample game. Create a real game first to post here.');
+          setSubmitting(false);
+          return;
+        }
         payload.game_id = selectedGameId;
       }
       

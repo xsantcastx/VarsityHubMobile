@@ -62,8 +62,8 @@ export default function Step10Confirmation() {
 
   useEffect(() => {
     // Only set progress if not already at step 10
-    if (progress !== 8) {
-      setProgress(8);
+    if (progress !== 9) {
+      setProgress(9);
     }
   }, [setProgress, progress]);
 

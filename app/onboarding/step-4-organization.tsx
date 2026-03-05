@@ -89,11 +89,11 @@ export default function Step4Organization() {
           // Only skip in E2E tests
           if (e2e) {
             setOB((prev) => ({ ...prev, step_4_visited: true }));
-            setProgress(4); // step-6 is index 4
+            setProgress(4); // step-5 is index 4
             if (returnToConfirmation) {
               router.replace('/onboarding/step-10-confirmation');
             } else {
-              router.replace('/onboarding/step-6-authorized-users');
+              router.replace('/onboarding/step-5-team');
             }
             return;
           }
@@ -117,11 +117,11 @@ export default function Step4Organization() {
             // Only skip in E2E tests
             if (e2e) {
               setOB((prev) => ({ ...prev, step_4_visited: true }));
-              setProgress(4); // step-6 is index 4
+              setProgress(4); // step-5 is index 4
               if (returnToConfirmation) {
                 router.replace('/onboarding/step-10-confirmation');
               } else {
-                router.replace('/onboarding/step-6-authorized-users');
+                router.replace('/onboarding/step-5-team');
               }
               return;
           }
@@ -334,11 +334,11 @@ export default function Step4Organization() {
               }));
               
               if (returnToConfirmation) {
-                setProgress(7);
+                setProgress(9);
                 router.replace('/onboarding/step-10-confirmation');
               } else {
-                setProgress(4); // step-6 is index 4 (NOT step 7)
-                router.replace('/onboarding/step-6-authorized-users');
+                setProgress(4); // step-5 is index 4 (NOT step 7)
+                router.replace('/onboarding/step-5-team');
               }
             }
           }
@@ -363,11 +363,11 @@ export default function Step4Organization() {
       if (alreadyExists || ob.join_request_pending) {
         setOB((prev) => ({ ...prev, step_4_visited: true }));
         if (returnToConfirmation) {
-          setProgress(7);
+          setProgress(9);
           router.replace('/onboarding/step-10-confirmation');
         } else {
-          setProgress(4); // step-6 is index 4 (NOT step 7 which is index 5)
-          router.push('/onboarding/step-6-authorized-users');
+          setProgress(4); // step-5 is index 4
+          router.push('/onboarding/step-5-team');
         }
         return;
       }
@@ -414,11 +414,11 @@ export default function Step4Organization() {
             
             // Navigate to next step
             if (returnToConfirmation) {
-              setProgress(7);
+              setProgress(9);
               router.replace('/onboarding/step-10-confirmation');
             } else {
-              setProgress(4); // step-6 is index 4 in stepRoutes array
-              router.replace('/onboarding/step-6-authorized-users');
+              setProgress(4); // step-5 is index 4
+              router.replace('/onboarding/step-5-team');
             }
           })();
         }}]
@@ -791,35 +791,22 @@ export default function Step4Organization() {
         {!showSearch && (
           ob.plan === 'rookie' ? (
             <LinearGradient
-              // Metallic bronze (dark bronze edges -> warm center)
               colors={colorScheme === 'dark'
-                ? ['#3D2211','#7B4A25','#3D2211']
-                : ['#8B5A2B','#D4943A','#8B5A2B']}
-              locations={[0,0.52,1]}
+                ? ['#8B4513','#CD7F32','#8B4513']
+                : ['#CD7F32','#8B4513']}
+              locations={colorScheme === 'dark' ? [0, 0.5, 1] : [0, 1]}
               start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
               style={styles.planReminderRookie}
             >
-              {/* Top reflective highlight */}
-              <View style={styles.metalHighlight} pointerEvents="none" />
-              {/* Edge darkening & subtle bottom shadow */}
-              <LinearGradient
-                colors={colorScheme === 'dark'
-                  ? ['rgba(0,0,0,0.35)','transparent','rgba(0,0,0,0.28)']
-                  : ['rgba(0,0,0,0.12)','transparent','rgba(0,0,0,0.10)']}
-                locations={[0,0.5,1]}
-                start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }}
-                style={styles.metalEdgeShadow}
-                pointerEvents="none"
-              />
               <View style={styles.planReminderRookieInner}>
                 <View style={styles.planReminderHeaderRow}>
-                  <View style={styles.planBadge}><MaterialIcons name="auto-awesome" size={16} color="#FFFFFF" /></View>
+                  <View style={styles.planBadge}><MaterialIcons name="workspace-premium" size={18} color="#FFFFFF" /></View>
                   <Text style={[styles.planReminderTitle, styles.rookieTitle]}>Rookie Plan Benefits</Text>
                 </View>
                 <View style={styles.benefitsList}>
-                  <View style={styles.benefitRow}><MaterialIcons name="auto-awesome" size={16} color="#FFFFFF" /><Text style={[styles.benefitItem, styles.rookieBenefitItem]}>First two teams free</Text></View>
-                  <View style={styles.benefitRow}><MaterialIcons name="group" size={16} color="#FFFFFF" /><Text style={[styles.benefitItem, styles.rookieBenefitItem]}>Invite athletes</Text></View>
-                  <View style={styles.benefitRow}><MaterialIcons name="verified-user" size={16} color="#FFFFFF" /><Text style={[styles.benefitItem, styles.rookieBenefitItem]}>One administrator per team</Text></View>
+                  <View style={styles.benefitRow}><MaterialIcons name="check-circle" size={16} color="#FFFFFF" /><Text style={[styles.benefitItem, styles.rookieBenefitItem]}>First two teams free</Text></View>
+                  <View style={styles.benefitRow}><MaterialIcons name="check-circle" size={16} color="#FFFFFF" /><Text style={[styles.benefitItem, styles.rookieBenefitItem]}>Invite athletes</Text></View>
+                  <View style={styles.benefitRow}><MaterialIcons name="check-circle" size={16} color="#FFFFFF" /><Text style={[styles.benefitItem, styles.rookieBenefitItem]}>One administrator per team</Text></View>
                 </View>
               </View>
             </LinearGradient>
@@ -1205,22 +1192,8 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     elevation: 6,
   },
   planReminderRookieInner: {
-    padding: 20,
-  },
-  metalHighlight: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: '42%',
-    backgroundColor: 'rgba(255,255,255,0.18)'
-  },
-  metalEdgeShadow: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    paddingHorizontal: 24,
+    paddingVertical: 22,
   },
   rookieTitle: {
     color: '#FFFFFF'
@@ -1237,15 +1210,10 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.08)' : '#FFFFFF',
+    backgroundColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 10,
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 3,
   },
   planReminderTitle: {
     fontSize: 16,

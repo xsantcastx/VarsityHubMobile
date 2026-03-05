@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import jwt, { type Secret, type SignOptions } from 'jsonwebtoken';
 
 const JWT_SECRET: Secret = process.env.JWT_SECRET as Secret;
@@ -11,7 +12,8 @@ if (!jwtSecretString || jwtSecretString === 'dev-secret-change-me' || jwtSecretS
   console.warn('WARNING: Using weak JWT_SECRET. Generate a secure secret with: openssl rand -base64 32');
 }
 
-const DEFAULT_ACCESS_TOKEN_EXPIRY = '7d';
+const DEFAULT_ACCESS_TOKEN_EXPIRY = '15m';
+export const REFRESH_TOKEN_EXPIRY_DAYS = 7;
 
 export function signJwt(payload: Record<string, unknown>, expiresIn: string = DEFAULT_ACCESS_TOKEN_EXPIRY): string {
   // @ts-expect-error - expiresIn accepts string but SignOptions type is strict
@@ -25,6 +27,11 @@ export function verifyJwt<T = Record<string, unknown>>(token: string): T | null 
   } catch (_error) {
     return null;
   }
+}
+
+/** Generate a cryptographically random opaque refresh token (64-char hex string). */
+export function generateRefreshToken(): string {
+  return crypto.randomBytes(32).toString('hex');
 }
 
 export { DEFAULT_ACCESS_TOKEN_EXPIRY };

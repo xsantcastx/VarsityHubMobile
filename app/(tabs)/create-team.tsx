@@ -4,7 +4,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
+import { usePaymentSheet } from '@stripe/stripe-react-native';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Platform, Pressable, ScrollView as RNScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -12,6 +12,8 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Subscriptions, Team, User } from '@/api/entities';
 import { uploadFile } from '@/api/upload';
 import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
+// @ts-ignore
+import { httpPost } from '@/api/http';
 import { getApiBaseUrl } from '@/api/http';
 
 type TeamLimitSummary = {
@@ -55,6 +57,7 @@ export default function CreateTeamScreen() {
   const [limitsLoading, setLimitsLoading] = useState(true);
   const [teamLimits, setTeamLimits] = useState<TeamLimitSummary | null>(null);
   const [limitsError, setLimitsError] = useState<string | null>(null);
+  const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
   const limitReached = !!teamLimits && teamLimits.can_create_more === false;
   const planBadgeText = formatPlanBadge(teamLimits?.subscription_tier);
   const planDisplayName = formatPlanDisplay(teamLimits?.subscription_tier);
@@ -284,32 +287,53 @@ export default function CreateTeamScreen() {
                 text: 'Upgrade & Continue',
                 onPress: async () => {
                   try {
-                    // Start Veteran checkout with correct team quantity
-                    // @ts-ignore
-                    const { Subscriptions, User } = await import('@/api/entities');
-                    const res: any = await Subscriptions.createCheckout('veteran', newTeamCount);
-                    if (res?.url) {
-                      await WebBrowser.openBrowserAsync(String(res.url));
-                    }
-                    // After returning, check if plan updated
-                    try {
-                      const me: any = await User.me();
-                      const updatedPlan = me?.preferences?.plan ?? 'rookie';
-                      if (updatedPlan === 'veteran') {
-                        await proceedWithTeamCreation(me);
+                    // Use in-app PaymentSheet instead of leaving the app
+                    const res: any = await httpPost('/payments/create-payment-sheet', { plan: 'veteran', team_count: newTeamCount });
+                    if (res?.paymentIntent) {
+                      const { error: initError } = await initPaymentSheet({
+                        paymentIntentClientSecret: res.paymentIntent,
+                        customerEphemeralKeySecret: res.ephemeralKey,
+                        customerId: res.customer,
+                        merchantDisplayName: 'Varsity Hub',
+                      });
+                      if (initError) {
+                        Alert.alert('Error', initError.message);
+                        setSubmitting(false);
                         return;
                       }
-                    } catch {
-                      // ignore retry errors; user will see follow-up alert below
+                      const { error } = await presentPaymentSheet();
+                      if (error) {
+                        if (error.code !== 'Canceled') Alert.alert('Payment Failed', error.message);
+                        setSubmitting(false);
+                        return;
+                      }
+                      // Payment succeeded — check if plan updated
+                      try {
+                        const me: any = await User.me();
+                        const updatedPlan = me?.preferences?.plan ?? 'rookie';
+                        if (updatedPlan === 'veteran') {
+                          await proceedWithTeamCreation(me);
+                          return;
+                        }
+                      } catch {
+                        // ignore retry errors
+                      }
+                      Alert.alert(
+                        'Payment Processing',
+                        'Your payment was submitted. Please try creating your team again in a moment.'
+                      );
+                      setSubmitting(false);
+                    } else {
+                      Alert.alert('Error', 'Unable to start checkout. Please try again.');
+                      setSubmitting(false);
                     }
-                    Alert.alert(
-                      'Complete Payment',
-                      'We could not confirm your upgrade yet. If you completed payment, please try creating your team again. Otherwise, finish checkout and retry.'
-                    );
-                    setSubmitting(false);
                   } catch (err: any) {
                     console.error('Upgrade to Veteran failed:', err);
-                    Alert.alert('Error', err?.message || 'Failed to start upgrade checkout. Please try again.');
+                    const rawMsg = (err?.data?.error || err?.message || '') as string;
+                    const safeMsg = /prod_|price_/i.test(rawMsg)
+                      ? 'Failed to start upgrade. Please try again or contact support.'
+                      : (rawMsg || 'Failed to start upgrade checkout. Please try again.');
+                    Alert.alert('Error', safeMsg);
                     setSubmitting(false);
                   }
                 }

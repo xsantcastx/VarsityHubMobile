@@ -247,8 +247,8 @@ export default function Step2Basic() {
       
       // Navigate back to confirmation if we came from there, otherwise use reducer to calculate next step
       if (returnToConfirmation) {
-        dispatch({ type: 'SET_STEP', stepIndex: 8, reason: 'RETURN_TO_CONFIRMATION' });
-        setProgress(8);
+        dispatch({ type: 'SET_STEP', stepIndex: 9, reason: 'RETURN_TO_CONFIRMATION' });
+        setProgress(9);
         router.replace('/onboarding/step-10-confirmation');
       } else {
         // Preserve role in updated data to prevent it from being lost

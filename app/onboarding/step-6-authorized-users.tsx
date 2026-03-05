@@ -26,6 +26,13 @@ export default function Step6AuthorizedUsers() {
   const params = useLocalSearchParams<{ returnToConfirmation?: string }>();
   const returnToConfirmation = params.returnToConfirmation === 'true';
   const { state: ob, setState: setOB, progress, setProgress } = useOnboarding();
+
+  // Guard: team must exist before assigning authorized users
+  useEffect(() => {
+    if (ob.role === 'coach' && !ob.team_id && !ob.organization_id) {
+      router.replace('/onboarding/step-5-team');
+    }
+  }, [ob.role, ob.team_id, ob.organization_id, router]);
   const colorScheme = useColorScheme() ?? 'light';
   const [email, setEmail] = useState('');
   const [assignTeam, setAssignTeam] = useState('');
@@ -210,7 +217,7 @@ export default function Step6AuthorizedUsers() {
     
     if (returnToConfirmation) {
       if (__DEV__) console.warn('[STEP-6] Returning to confirmation');
-      setProgress(7);
+      setProgress(9);
       router.replace('/onboarding/step-10-confirmation');
     } else {
       // CRITICAL: Validate coach has completed steps 2-4 before allowing step 7
@@ -242,8 +249,8 @@ export default function Step6AuthorizedUsers() {
       }
       
       // All validations passed - advance to Step 7
-      if (__DEV__) console.warn('[STEP-6] ✅ All validations passed, advancing to Step 7 (progress: 5)');
-      setProgress(5); // Advance to Step 7 (index 5 in stepRoutes)
+      if (__DEV__) console.warn('[STEP-6] ✅ All validations passed, advancing to Step 7 (progress: 6)');
+      setProgress(6); // Advance to Step 7 (index 6 in stepRoutes)
       // Use replace to prevent back navigation issues
       router.replace('/onboarding/step-7-profile');
     }
@@ -254,7 +261,7 @@ export default function Step6AuthorizedUsers() {
       // Mark step 6 as visited even when skipping (CRITICAL for navigation)
       setOB((prev) => ({ ...prev, authorized: [], step_6_visited: true }));
       if (returnToConfirmation) {
-        setProgress(7);
+        setProgress(9);
         router.replace('/onboarding/step-10-confirmation');
       } else {
         // CRITICAL: Validate coach has completed steps 2-4 before allowing step 7
@@ -262,7 +269,7 @@ export default function Step6AuthorizedUsers() {
           const hasStep2 = !!(ob.username && ob.dob && (ob.zip || ob.zip_code));
           const hasStep3 = !!ob.plan;
           const hasStep4 = !!(ob.team_id || ob.organization_id);
-          
+
           if (!hasStep2) {
             setProgress(1);
             router.replace('/onboarding/step-2-basic');
@@ -279,8 +286,8 @@ export default function Step6AuthorizedUsers() {
             return;
           }
         }
-        
-        setProgress(5); // Advance to Step 7
+
+        setProgress(6); // Advance to Step 7
         router.replace('/onboarding/step-7-profile');
       }
     }
