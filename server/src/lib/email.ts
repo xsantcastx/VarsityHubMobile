@@ -858,6 +858,7 @@ export async function sendTeamInviteEmail(params: {
   teamHeroUrl?: string;
   teamLogoUrl?: string;
   primaryColor?: string;
+  inviteToken?: string;
 }): Promise<boolean> {
   if (!TEMPLATE_IDS.TEAM_INVITE) {
     console.warn('[email] SendGrid team invite template not configured');
@@ -957,6 +958,7 @@ export async function sendOrganizationInviteEmail(params: {
   inviterName?: string;
   orgLogoUrl?: string;
   primaryColor?: string;
+  inviteToken?: string;
 }): Promise<boolean> {
   const prettyRole = params.role?.replace(/_/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase()) || 'member';
 
@@ -1847,4 +1849,12 @@ This is an automated daily report from VarsityHub.
     console.error('❌ Failed to send founder metrics email:', error);
     return false;
   }
+}
+
+export async function sendWelcomeEmail(to: string, name?: string): Promise<boolean> {
+  return genericTemplateEmail(to, 'Welcome to VarsityHub!', [
+    `Hi ${name || 'there'},`,
+    'Welcome to VarsityHub — the ultimate sports team management platform!',
+    'Start by completing your profile and connecting with your team.',
+  ]);
 }
