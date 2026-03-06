@@ -592,7 +592,7 @@ export default function CreatePostScreen() {
         payload.game_id = selectedGameId;
       }
       
-      if (__DEV__) console.warn('[CreatePost] Final payload:', JSON.stringify(payload, null, 2));
+      if (__DEV__) console.warn('[CreatePost] Final payload keys:', Object.keys(payload).join(', '));
       
       // Require event link for highlight posts to ensure they surface on the event page
       // But allow sample events to bypass this requirement

@@ -1,5 +1,6 @@
 
 import { Event, Message } from '@/api/entities';
+import { getConfig } from '@/config/env';
 import { autocompleteLocations, PlaceSuggestion } from '@/api/geocoding';
 import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 import { Colors } from '@/constants/Colors';
@@ -129,7 +130,7 @@ export default function RequestHostEventScreen() {
       // Send notification to coach/admin (placeholder email)
       await Message.send({
         content: `New event host request submitted: ${title}\nLocation: ${location}\nDate: ${date.toLocaleString()}\nRequested by: ${displayName || 'Unknown'} (${profileEmail || 'unknown@example.com'})`,
-        recipient_email: 'admin@varsityhub.com',
+        recipient_email: getConfig().adminEmails[0] || 'admin@varsityhub.com',
       });
       Alert.alert('Request Submitted!', 'Your request to host an event has been submitted. You will be notified when it is reviewed.', [{ text: 'OK', onPress: () => router.back() }]);
     } catch (e: any) {

@@ -210,7 +210,7 @@ export default function Step6AuthorizedUsers() {
 
   const onContinue = () => {
     if (__DEV__) console.warn('[STEP-6] Continue clicked, current progress:', progress);
-    if (__DEV__) console.warn('[STEP-6] Current state:', JSON.stringify(ob, null, 2));
+    if (__DEV__) console.warn('[STEP-6] Current state: [redacted - keys:', Object.keys(ob).join(', '), ']');
 
     // Save authorized users to state AND mark step 6 as visited (CRITICAL for navigation)
     setOB((prev) => ({ ...prev, authorized: list, step_6_visited: true }));

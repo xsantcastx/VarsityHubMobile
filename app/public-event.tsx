@@ -40,7 +40,7 @@ export default function PublicEventScreen() {
             if (__DEV__) console.warn('[public-event] feedForGame error:', err?.message);
             return null;
           });
-          if (__DEV__) console.warn('[public-event] feedForGame response:', JSON.stringify(gamePosts, null, 2));
+          if (__DEV__) console.warn('[public-event] feedForGame response: items=', Array.isArray(gamePosts?.items) ? gamePosts.items.length : 'n/a');
           if (gamePosts && Array.isArray(gamePosts.items)) {
             eventPosts = gamePosts.items;
             serverPostsLoaded = true;

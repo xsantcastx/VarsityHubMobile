@@ -259,7 +259,7 @@ export default function SettingsScreen() {
                     if (!mounted) return;
                     setEmail(me?.email || null);
                     // Check if user is admin (email-based)
-                    const adminEmails = (appConfig.adminEmails.length ? appConfig.adminEmails : ['emilmancero@gmail.com'])
+                    const adminEmails = (appConfig.adminEmails.length ? appConfig.adminEmails : ['admin@varsityhub.app'])
                       .map((e) => e.toLowerCase());
                     setIsAdmin(adminEmails.includes((me?.email || '').toLowerCase()));
                     const serverPrefs = (me && me.preferences) || {};

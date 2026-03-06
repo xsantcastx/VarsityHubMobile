@@ -169,7 +169,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       });
       
       const token = tokenData.data;
-      console.log('[PushNotifications] Got push token:', token.substring(0, 30) + '...');
+      if (__DEV__) console.log('[PushNotifications] Got push token:', token.substring(0, 30) + '...');
 
       // 4. Save token to backend
       await User.updatePreferences({ 
@@ -177,7 +177,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         notifications_enabled: true
       });
       
-      console.log('[PushNotifications] ✅ Push token saved to backend');
+      if (__DEV__) console.log('[PushNotifications] Push token saved to backend');
       lastPushRegistrationRef.current = userId;
       return true;
     } catch (error: any) {
@@ -335,7 +335,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       return;
     }
 
-    console.log('[AuthProvider] Navigation ready, starting auth check');
+    if (__DEV__) console.log('[AuthProvider] Navigation ready, starting auth check');
     let mounted = true;
 
     (async () => {
@@ -356,7 +356,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       }
 
       // 3. Check auth status
-      console.log('[AuthProvider] Checking authentication...');
+      if (__DEV__) console.log('[AuthProvider] Checking authentication...');
       try {
         await checkAuthRef.current();
         console.log('[AuthProvider] Auth check successful');
@@ -526,7 +526,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     // Unauthenticated routing
     if (!user && !pendingVerificationEmail && !isPublic) {
       if (lastRedirectRef.current !== '/sign-in') {
-        console.log('[AuthProvider] Redirecting to sign-in (unauthenticated)');
+        if (__DEV__) console.log('[AuthProvider] Redirecting to sign-in (unauthenticated)');
         lastRedirectRef.current = '/sign-in';
         router.replace('/sign-in');
       }
