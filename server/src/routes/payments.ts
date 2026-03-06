@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import expressPkg, { Router } from 'express';
 import Stripe from 'stripe';
 import { Prisma } from '@prisma/client';
@@ -328,6 +329,10 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
     throw membershipError(400, 'Select at least one billable team (3 total) to use Veteran plan');
   }
 
+  if (!hasExplicitPriceId && process.env.NODE_ENV === 'production') {
+    throw membershipError(500, `Stripe price ID not configured for ${chosen} plan. Set STRIPE_PRICE_${chosen.toUpperCase()} env var.`);
+  }
+
   const lineItems = hasExplicitPriceId
     ? [{ price: normalizedPriceId, quantity: chosen === 'veteran' ? billableQuantity : 1 }]
     : [{
@@ -340,7 +345,7 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
             name: 'Membership - ' + chosen,
             description: chosen === 'veteran'
               ? `Veteran plan - $1.50/month per additional team (${billableQuantity} billable of ${teamCount} total, 2 free)`
-              : 'Legend plan - $20.00/year unlimited (fallback price)',
+              : 'Legend plan - $20.00/year unlimited (dev fallback price)',
           },
         },
       }];
@@ -494,7 +499,7 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paym
   if (total === 0 || isFullyComped) {
     // Record redemption and create reservations
     if (appliedCode) {
-      await redeemPromo({ code: appliedCode, subtotalCents: subtotal, userId: req.user!.id, service: 'booking', orderId: `FREE-${Date.now()}` });
+      await redeemPromo({ code: appliedCode, subtotalCents: subtotal, userId: req.user!.id, service: 'booking', orderId: `FREE-${crypto.randomUUID()}` });
     }
     try {
       await prisma.$transaction([
@@ -634,10 +639,12 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paym
   // sessionConfig.automatic_tax = { enabled: true };
   // This would calculate and add tax automatically for Price IDs
 
-  const session = await stripe.checkout.sessions.create(sessionConfig);
+  const session = await stripe.checkout.sessions.create(sessionConfig, {
+    idempotencyKey: `ad_${req.user!.id}_${ad_id}_${Math.floor(Date.now() / 120000)}`,
+  });
 
   // Log transaction
-  const currentUser = await prisma.user.findUnique({ 
+  const currentUser = await prisma.user.findUnique({
     where: { id: req.user!.id },
     select: { email: true }
   });
@@ -719,6 +726,10 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
     const normalizedPriceId = typeof priceIdRaw === 'string' ? priceIdRaw.trim() : '';
     const hasExplicitPriceId = /^price_/i.test(normalizedPriceId) && !['price_xxx', 'price_yyy', 'your_price_id'].some((h) => normalizedPriceId.toLowerCase().includes(h));
 
+    if (!hasExplicitPriceId && process.env.NODE_ENV === 'production') {
+      return res.status(500).json({ error: `Stripe price ID not configured for ${chosen} plan. Set STRIPE_PRICE_${chosen.toUpperCase()} env var.` });
+    }
+
     const items = hasExplicitPriceId
       ? [{ price: normalizedPriceId, quantity: chosen === 'veteran' ? billableQuantity : 1 }]
       : [{
@@ -731,7 +742,7 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
               name: 'Membership - ' + chosen,
               description: chosen === 'veteran'
                 ? `Veteran plan - $1.50/month per additional team (${billableQuantity} billable of ${team_count} total, 2 free)`
-                : 'Legend plan - $20.00/year unlimited',
+                : 'Legend plan - $20.00/year unlimited (dev fallback price)',
             },
           },
         }];
@@ -839,7 +850,7 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
   if (total === 0 || isFullyComped) {
     // Free via promo — same logic as /checkout free path
     if (appliedCode) {
-      await redeemPromo({ code: appliedCode, subtotalCents: subtotal, userId, service: 'booking', orderId: `FREE-${Date.now()}` });
+      await redeemPromo({ code: appliedCode, subtotalCents: subtotal, userId, service: 'booking', orderId: `FREE-${crypto.randomUUID()}` });
     }
     try {
       await prisma.$transaction([
@@ -872,6 +883,8 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
         weekday_blocks: String(pricingResult.weekdayBlocks),
         weekend_blocks: String(pricingResult.weekendBlocks),
       },
+    }, {
+      idempotencyKey: `ad_pi_${userId}_${ad_id}_${Math.floor(Date.now() / 120000)}`,
     });
 
     // Log transaction
@@ -965,6 +978,17 @@ paymentsRouter.post('/webhook', async (req, res) => {
   
   if (event.type === 'invoice.payment_failed') {
     const invoice = event.data.object as Stripe.Invoice;
+    // Mark user's subscription as past_due so the app can prompt for payment update
+    if (invoice.customer && invoice.subscription) {
+      const failedUser = await prisma.user.findFirst({ where: { stripe_customer_id: String(invoice.customer) } });
+      if (failedUser) {
+        await prisma.user.update({
+          where: { id: failedUser.id },
+          data: { subscription_status: 'past_due' },
+        });
+        console.warn('[webhook] invoice.payment_failed — marked user as past_due', { userId: failedUser.id, invoiceId: invoice.id });
+      }
+    }
     if (invoice.customer_email) {
       await sendBillingNoticeEmail({
         to: invoice.customer_email,
@@ -1294,7 +1318,7 @@ paymentsRouter.get('/subscription/summary', requireVerified as any, async (req: 
         if (sub.current_period_end) current_period_end = new Date(sub.current_period_end * 1000).toISOString();
         const item = sub.items.data[0];
         quantity = item?.quantity ?? null;
-        if (typeof quantity === 'number') monthly_cost = Number((quantity * 2.5).toFixed(2));
+        if (typeof quantity === 'number') monthly_cost = Number((quantity * 1.5).toFixed(2));
       } catch (err) {
         console.warn('[payments] Failed to retrieve summary subscription:', (err as any)?.message || err);
       }

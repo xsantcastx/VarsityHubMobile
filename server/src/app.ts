@@ -148,8 +148,8 @@ const noStore = (_req: Request, res: Response, next: NextFunction) => {
 };
 
 // Stripe webhook must be registered before body parsing so we can verify signatures
-// Special raw body parser for Stripe webhooks (payments + legacy billing path)
-const rawBodyPaths = ['/payments/webhook', '/billing/webhooks/stripe'];
+// Special raw body parser for Stripe webhooks
+const rawBodyPaths = ['/payments/webhook'];
 rawBodyPaths.forEach((path) => {
   app.use(path, express.raw({ type: 'application/json' }));
 });
