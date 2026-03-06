@@ -221,6 +221,7 @@ app.get('/me', noStore, (req, res, next) => (authRouter as any).handle({ ...req,
 app.patch('/me/preferences', noStore, (req, res, next) => (authRouter as any).handle({ ...req, url: '/me/preferences' }, res, next));
 app.patch('/me', noStore, (req, res, next) => (authRouter as any).handle({ ...req, url: '/me' }, res, next));
 app.post('/me/complete-onboarding', noStore, (req, res, next) => (authRouter as any).handle({ ...req, url: '/me/complete-onboarding' }, res, next));
+app.get('/me/subscription', noStore, (req, res, next) => (authRouter as any).handle({ ...req, url: '/me/subscription' }, res, next));
 app.use('/games', apiLimiter, gamesRouter);
 app.use('/posts', apiLimiter, postsRouter);
 app.use('/notifications', noStore, apiLimiter, notificationsRouter);
