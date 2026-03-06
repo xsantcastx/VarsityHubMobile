@@ -63,7 +63,7 @@ adsRouter.post('/', requireVerified as any, adCreationLimiter, async (req: Authe
       banner_fit_mode: banner_fit_mode ? String(banner_fit_mode) : null,
       target_url: target_url ? String(target_url) : null,
       target_zip_code: String(target_zip_code),
-      radius: typeof radius === 'number' ? Math.min(Math.max(radius, 1), 100) : 15,
+      radius: 9, // Fixed 9km radius for all ads
       description: description ? String(description) : null,
       status: 'draft',
       payment_status: 'unpaid',
@@ -185,7 +185,7 @@ adsRouter.get('/for-feed', async (req, res) => {
     const adCoords = getZipCoordinates(ad.target_zip_code);
     if (!adCoords) return false;
     const dist = haversineDistance(userCoords!.lat, userCoords!.lon, adCoords.lat, adCoords.lon);
-    return dist <= Math.min(ad.radius || 15, 100); // Cap radius to 100 miles
+    return dist <= 5.59; // Fixed 9km radius (5.59 miles)
   });
 
   const result = filtered.slice(0, limit);
@@ -473,8 +473,8 @@ adsRouter.get('/alternative-zips', async (req: AuthedRequest, res) => {
       adCoords.lon
     );
     
-    // Only consider zips within 50 miles
-    if (distance <= 50) {
+    // Only consider zips within 9km (5.59 miles)
+    if (distance <= 5.59) {
       zipDistances.set(ad.target_zip_code, distance);
     }
   }
