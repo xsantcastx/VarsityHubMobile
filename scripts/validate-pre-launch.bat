@@ -97,14 +97,14 @@ if exist ".env" (
 
 echo.
 echo [6/10] Checking legal documents...
-if exist "PRIVACY_POLICY.md" (
+if exist "docs\release\PRIVACY_POLICY.md" (
     echo ✅ Privacy Policy exists
 ) else (
     echo ❌ ERROR: Privacy Policy missing
     set /a ERRORS+=1
 )
 
-if exist "TERMS_OF_SERVICE.md" (
+if exist "docs\release\TERMS_OF_SERVICE.md" (
     echo ✅ Terms of Service exists
 ) else (
     echo ❌ ERROR: Terms of Service missing

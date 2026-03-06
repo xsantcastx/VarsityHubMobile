@@ -92,14 +92,14 @@ fi
 
 echo ""
 echo "[6/10] Checking legal documents..."
-if [ -f "PRIVACY_POLICY.md" ]; then
+if [ -f "docs/release/PRIVACY_POLICY.md" ]; then
     echo "✅ Privacy Policy exists"
 else
     echo "❌ ERROR: Privacy Policy missing"
     ((ERRORS++))
 fi
 
-if [ -f "TERMS_OF_SERVICE.md" ]; then
+if [ -f "docs/release/TERMS_OF_SERVICE.md" ]; then
     echo "✅ Terms of Service exists"
 else
     echo "❌ ERROR: Terms of Service missing"
