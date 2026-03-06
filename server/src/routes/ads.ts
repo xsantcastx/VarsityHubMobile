@@ -63,7 +63,7 @@ adsRouter.post('/', requireVerified as any, adCreationLimiter, async (req: Authe
       banner_fit_mode: banner_fit_mode ? String(banner_fit_mode) : null,
       target_url: target_url ? String(target_url) : null,
       target_zip_code: String(target_zip_code),
-      radius: typeof radius === 'number' ? radius : 15,
+      radius: typeof radius === 'number' ? Math.min(Math.max(radius, 1), 100) : 15,
       description: description ? String(description) : null,
       status: 'draft',
       payment_status: 'unpaid',
@@ -138,6 +138,11 @@ adsRouter.get('/for-feed', async (req, res) => {
 
   debugLog('[ads] for-feed query:', { dateParam, dateISO, zip, lat, lng, limit, start, next });
 
+  // Validate zip format if provided
+  if (zip && !/^\d{5}$/.test(zip)) {
+    return res.status(400).json({ error: 'Invalid zip code format' });
+  }
+
   // Resolve user coordinates from zip or lat/lng
   let userCoords: { lat: number; lon: number } | null = null;
   if (zip) {
@@ -150,11 +155,12 @@ adsRouter.get('/for-feed', async (req, res) => {
 
   const whereAd: any = {
     payment_status: 'paid',
+    target_zip_code: { not: null }, // Only show ads with a target zip code
   };
 
-  // If no user location, only show untargeted (national) ads
+  // If no user location, return empty — no untargeted/national ads
   if (!userCoords) {
-    whereAd.target_zip_code = null;
+    return res.json({ date: dateISO, ads: [] });
   }
 
   debugLog('[ads] for-feed where clause for ads:', whereAd);
@@ -173,17 +179,14 @@ adsRouter.get('/for-feed', async (req, res) => {
     },
   });
 
-  // Filter by distance when user location is available
-  let filtered = ads;
-  if (userCoords) {
-    filtered = ads.filter(ad => {
-      if (!ad.target_zip_code) return true; // Untargeted ads always shown
-      const adCoords = getZipCoordinates(ad.target_zip_code);
-      if (!adCoords) return false;
-      const dist = haversineDistance(userCoords!.lat, userCoords!.lon, adCoords.lat, adCoords.lon);
-      return dist <= (ad.radius || 15);
-    });
-  }
+  // Filter by distance — only show ads whose target zip is within their radius
+  const filtered = ads.filter(ad => {
+    if (!ad.target_zip_code) return false; // No zip = not shown
+    const adCoords = getZipCoordinates(ad.target_zip_code);
+    if (!adCoords) return false;
+    const dist = haversineDistance(userCoords!.lat, userCoords!.lon, adCoords.lat, adCoords.lon);
+    return dist <= Math.min(ad.radius || 15, 100); // Cap radius to 100 miles
+  });
 
   const result = filtered.slice(0, limit);
 
