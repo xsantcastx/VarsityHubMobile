@@ -166,7 +166,7 @@
       "EXPO_PUBLIC_WEB_BASE_URL": "https://varsityhub.app",
       "APP_STORE_PRIVACY_POLICY_URL": "https://varsityhub.app/privacy-policy",
       "EXPO_PUBLIC_SENTRY_DSN": "",
-      "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "",
+      "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_live_51RtgdGGJt8CsPE1E5nDpO8bfow30VYpeqZwJfp6y1SP49NbwaruTcMM0i04SxujUTjACB3fwJwFSTgItU41I1A4S00HFBL7D3p",
       "EXPO_PUBLIC_ADMIN_EMAILS": "emancero@varsityhub.app",
       "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "814866365020-d7dk3k9gf49jodhnbraps8p7l9jrfs10.apps.googleusercontent.com",
       "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "814866365020-ia09lnm6he2prvaivrp8sblh7oeh9ic0.apps.googleusercontent.com",

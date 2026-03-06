@@ -91,7 +91,7 @@ export default function SubmitAdScreen() {
           banner_fit_mode: bannerFitMode,
           target_url: targetUrl.trim() || undefined,
           target_zip_code: zip.trim(),
-          radius: 45,
+          radius: 15,
           description: desc.trim() || undefined,
         });
         serverId = String(created?.id || '');

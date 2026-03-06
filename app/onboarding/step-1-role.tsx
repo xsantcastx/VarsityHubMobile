@@ -305,7 +305,7 @@ export default function Step1Role() {
       <RoleCard
         title="Fan"
         description="Follow teams and players"
-        icon="person"
+        icon="person-outline"
         selected={role === 'fan'}
         onPress={() => setRole('fan')}
         onContinue={onContinue}

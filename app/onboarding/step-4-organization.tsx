@@ -402,16 +402,6 @@ export default function Step4Organization() {
         'Organization Created!',
         `"${orgName.trim()}" has been created successfully.`,
         [{ text: 'Continue', onPress: () => {
-          // If onboarding indicates payment is pending, persist that to server preferences
-          void (async () => {
-            try {
-              if (ob.payment_pending) {
-                await (await import('@/api/entities')).User.updatePreferences({ payment_pending: true });
-              }
-            } catch (e) {
-              console.warn('Failed to persist payment_pending flag:', (e as any)?.message || e);
-            }
-            
             // Navigate to next step
             if (returnToConfirmation) {
               setProgress(9);
@@ -420,7 +410,6 @@ export default function Step4Organization() {
               setProgress(4); // step-5 is index 4
               router.replace('/onboarding/step-5-team');
             }
-          })();
         }}]
       );
     } catch (e: any) { 

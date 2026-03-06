@@ -609,6 +609,9 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paym
     success_url: success,
     cancel_url: cancel,
     line_items: lineItems as any,
+    payment_intent_data: {
+      statement_descriptor: 'VARSITYHUB',
+    },
     // Useful metadata for webhook
     metadata: {
       ad_id: String(ad_id),
@@ -857,6 +860,7 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
       currency: 'usd',
       customer: customerId,
       automatic_payment_methods: { enabled: true },
+      statement_descriptor: 'VARSITYHUB',
       metadata: {
         ad_id: String(ad_id),
         dates: JSON.stringify(isoDates),

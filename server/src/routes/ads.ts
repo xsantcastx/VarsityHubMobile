@@ -63,7 +63,7 @@ adsRouter.post('/', requireVerified as any, adCreationLimiter, async (req: Authe
       banner_fit_mode: banner_fit_mode ? String(banner_fit_mode) : null,
       target_url: target_url ? String(target_url) : null,
       target_zip_code: String(target_zip_code),
-      radius: typeof radius === 'number' ? radius : 45,
+      radius: typeof radius === 'number' ? radius : 15,
       description: description ? String(description) : null,
       status: 'draft',
       payment_status: 'unpaid',
@@ -181,7 +181,7 @@ adsRouter.get('/for-feed', async (req, res) => {
       const adCoords = getZipCoordinates(ad.target_zip_code);
       if (!adCoords) return false;
       const dist = haversineDistance(userCoords!.lat, userCoords!.lon, adCoords.lat, adCoords.lon);
-      return dist <= (ad.radius || 45);
+      return dist <= (ad.radius || 15);
     });
   }
 

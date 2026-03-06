@@ -19,6 +19,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { ThemeProvider } from '@/hooks/useCustomColorScheme';
 import { handleInitialDeepLink, setupDeepLinkListener } from '@/utils/deepLinks';
 import { initSentry } from '@/utils/sentry';
+import { getConfig } from '@/config/env';
 import { StripeProvider } from '@stripe/stripe-react-native';
 
 // Conditionally import notifications only if not in Expo Go
@@ -55,6 +56,13 @@ export default function RootLayout() {
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
   const navState = useRootNavigationState();
+
+  React.useEffect(() => {
+    if (__DEV__) {
+      const key = getConfig().stripePublishableKey;
+      devLog('[Stripe] publishableKey:', key ? `${key.substring(0, 12)}...${key.slice(-4)}` : '(empty)');
+    }
+  }, []);
 
   React.useEffect(() => {
     if (!__DEV__) return;
@@ -192,7 +200,7 @@ export default function RootLayout() {
       <ErrorBoundary>
         <GestureHandlerRootView style={{ flex: 1 }}>
           <StripeProvider
-            publishableKey={process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || ''}
+            publishableKey={getConfig().stripePublishableKey}
             merchantIdentifier="merchant.app.varsityhub"
           >
           <ThemeProvider>

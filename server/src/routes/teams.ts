@@ -207,25 +207,35 @@ teamsRouter.get('/', async (req, res) => {
 
 // Follow a team
 teamsRouter.post('/:id/follow', requireAuth as any, followLimiter, async (req: AuthedRequest, res) => {
-  const userId = req.user!.id;
-  const teamId = String(req.params.id);
-  const team = await prisma.team.findUnique({ where: { id: teamId } });
-  if (!team) return res.status(404).json({ error: 'Team not found' });
   try {
-    await prisma.teamFollow.create({ data: { user_id: userId, team_id: teamId } });
-    return res.status(201).json({ is_following: true });
+    const userId = req.user!.id;
+    const teamId = String(req.params.id);
+    const team = await prisma.team.findUnique({ where: { id: teamId } });
+    if (!team) return res.status(404).json({ error: 'Team not found' });
+    try {
+      await prisma.teamFollow.create({ data: { user_id: userId, team_id: teamId } });
+      return res.status(201).json({ is_following: true });
+    } catch (e: any) {
+      if (e?.code === 'P2002') return res.status(201).json({ is_following: true }); // Already following
+      throw e;
+    }
   } catch (e: any) {
-    if (e?.code === 'P2002') return res.status(201).json({ is_following: true }); // Already following
-    throw e;
+    console.error('[teams] follow error:', e?.message || e);
+    return res.status(500).json({ error: 'Failed to follow team' });
   }
 });
 
 // Unfollow a team
 teamsRouter.delete('/:id/follow', requireAuth as any, async (req: AuthedRequest, res) => {
-  const userId = req.user!.id;
-  const teamId = String(req.params.id);
-  await prisma.teamFollow.deleteMany({ where: { user_id: userId, team_id: teamId } });
-  return res.json({ is_following: false });
+  try {
+    const userId = req.user!.id;
+    const teamId = String(req.params.id);
+    await prisma.teamFollow.deleteMany({ where: { user_id: userId, team_id: teamId } });
+    return res.json({ is_following: false });
+  } catch (e: any) {
+    console.error('[teams] unfollow error:', e?.message || e);
+    return res.status(500).json({ error: 'Failed to unfollow team' });
+  }
 });
 
 // Team details with counts
@@ -383,6 +393,7 @@ const createSchema = z.object({
   organization_id: z.string().min(1, 'Organization is required'),
   season_start: z.string().optional(),
   season_end: z.string().optional(),
+  onboarding: z.boolean().optional(),
 });
 teamsRouter.post('/', requireVerified as any, requirePlan('rookie') as any, async (req: AuthedRequest, res) => {
   // req.user is guaranteed by requireVerified middleware
@@ -413,7 +424,11 @@ teamsRouter.post('/', requireVerified as any, requirePlan('rookie') as any, asyn
     },
   });
 
-  if (!hasCoachRole && !hasOrgRole) {
+  // During onboarding, allow team creation if preferences.role is 'coach' and onboarding is not yet complete
+  const prefs0 = (me.preferences && typeof me.preferences === 'object') ? (me.preferences as any) : {};
+  const isOnboardingCoach = parsed.data.onboarding === true && prefs0.role === 'coach' && prefs0.onboarding_completed === false;
+
+  if (!hasCoachRole && !hasOrgRole && !isOnboardingCoach) {
     return res.status(403).json({
       error: 'COACH_ROLE_REQUIRED',
       message: 'Only coach accounts can create teams.',
@@ -663,6 +678,7 @@ const createTeamSchema = z.object({
     role: z.string().optional(),
     assign_team: z.string().optional(),
   })).optional(),
+  onboarding: z.boolean().optional(),
 });
 
 teamsRouter.post('/create', requireVerified as any, requirePlan('rookie') as any, teamCreationLimiter, async (req: AuthedRequest, res) => {
@@ -696,7 +712,11 @@ teamsRouter.post('/create', requireVerified as any, requirePlan('rookie') as any
     },
   });
 
-  if (!hasCoachRole && !hasOrgRole) {
+  // During onboarding, allow team creation if preferences.role is 'coach' and onboarding is not yet complete
+  const prefsCheck = (me.preferences && typeof me.preferences === 'object') ? (me.preferences as any) : {};
+  const isOnboardingCoach = data.onboarding === true && prefsCheck.role === 'coach' && prefsCheck.onboarding_completed === false;
+
+  if (!hasCoachRole && !hasOrgRole && !isOnboardingCoach) {
     return res.status(403).json({
       error: 'COACH_ROLE_REQUIRED',
       message: 'Only coach accounts can create teams.',

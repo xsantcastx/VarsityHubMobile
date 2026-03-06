@@ -76,13 +76,13 @@ function PlanCard({
   const getIconName = (): any => {
     switch (option.icon) {
       case 'people':
-        return 'people';
+        return 'military-tech';
       case 'trophy':
-        return 'trophy';
+        return 'workspace-premium';
       case 'medal':
-        return 'medal';
+        return 'emoji-events';
       default:
-        return 'people';
+        return 'military-tech';
     }
   };
   

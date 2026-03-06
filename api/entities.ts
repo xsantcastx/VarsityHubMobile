@@ -401,6 +401,7 @@ export const Team = {
     organization_name?: string;
     logo_url?: string | null;
     authorized_users?: Array<{ email?: string; user_id?: string; role?: string; assign_team?: string }>;
+    onboarding?: boolean;
   }) => {
     const payload: Record<string, any> = {};
     Object.entries(data).forEach(([key, value]) => {

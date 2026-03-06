@@ -747,7 +747,7 @@ export default function CreatePostScreen() {
           <Pressable
             onPress={onSubmit}
             disabled={!canPost || submitting || postSuccess}
-            style={[styles.headerPostBtn, (!canPost || submitting || postSuccess) && { opacity: 0.45 }]}
+            style={[styles.headerPostBtn, submitting && { backgroundColor: '#1B3A6B', opacity: 1 }, (!canPost || postSuccess) && !submitting && { opacity: 0.45 }]}
             accessibilityLabel={buttonLabel}
           >
             {submitting ? (
@@ -1444,9 +1444,9 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     elevation: 3 
   },
-  primaryTile: { 
-    backgroundColor: '#2563EB', 
-    borderColor: '#2563EB' 
+  primaryTile: {
+    backgroundColor: '#1B3A6B',
+    borderColor: '#1B3A6B'
   },
   tileLabel: { 
     fontSize: 12, 

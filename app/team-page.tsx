@@ -7,7 +7,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import GameVerticalFeedScreen, { FeedPost } from './game-details/GameVerticalFeedScreen';
 
@@ -623,8 +623,8 @@ export default function TeamScreen() {
                 ]} 
                 onPress={async () => {
                   console.log('[Follow] button pressed — team?.id:', team?.id, '| isFollowing:', isFollowing);
-                  if (!team?.id) {
-                    console.warn('[Follow] blocked: team or team.id is missing');
+                  if (!team?.id || team.id.startsWith('temp-')) {
+                    console.warn('[Follow] blocked: team or team.id is missing/temporary');
                     return;
                   }
                   try {
@@ -642,7 +642,9 @@ export default function TeamScreen() {
                       setTeam((prev) => prev ? { ...prev, followers_count: ((prev as any).followers_count ?? 0) + 1 } : null);
                     }
                   } catch (err: any) {
-                    console.error('[Follow] Team follow/unfollow failed — status:', err?.status, '| message:', err?.message, '| data:', JSON.stringify(err?.data));
+                    const serverMsg = err?.data?.error || err?.data?.message || err?.message || 'Unknown error';
+                    console.error('[Follow] Team follow/unfollow failed — status:', err?.status, '| server:', serverMsg, '| data:', JSON.stringify(err?.data));
+                    Alert.alert('Follow Failed', `${serverMsg} (status: ${err?.status || 'unknown'})`);
                   }
                 }}
               >

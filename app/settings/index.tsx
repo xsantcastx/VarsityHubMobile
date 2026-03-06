@@ -59,7 +59,7 @@ function SwitchRow({ title, subtitle, value, onValueChange, isLast }: { title: s
   const cs = useColorScheme();
   const palette = Colors[cs ?? 'light'];
   return (
-    <View style={[styles.rowBetween, !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.border }]}>
+    <View style={[styles.rowBetween, !isLast && { borderBottomWidth: 1, borderBottomColor: '#E5E7EB' }]}>
       <View style={{ flex: 1 }}>
         <Text style={[styles.rowTitle, { color: palette.text }]}>{title}</Text>
         {subtitle && <Text style={[styles.mutedSmall, { color: palette.mutedText }]}>{subtitle}</Text>}
@@ -627,7 +627,7 @@ export default function SettingsScreen() {
               cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 12 },
               cardBody: { paddingHorizontal: 12, paddingBottom: 4 },
               cardTitle: { fontWeight: '800', fontSize: 16 },
-              rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8 },
+              rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12 },
               rowTitle: { fontWeight: '600' },
               mutedSmall: { fontSize: 12 },
               chev: { fontSize: 20, transform: [{ rotate: '0deg' }] },

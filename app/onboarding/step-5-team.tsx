@@ -18,6 +18,7 @@ export default function Step5Team() {
   const colorScheme = useColorScheme() ?? 'light';
   const [teamName, setTeamName] = useState(ob.team_name || '');
   const [sport, setSport] = useState(ob.sport || '');
+  const [customSport, setCustomSport] = useState('');
   const [saving, setSaving] = useState(false);
 
   // If team already exists, skip ahead
@@ -39,7 +40,8 @@ export default function Step5Team() {
     }
   }, [ob.role, router]);
 
-  const canSubmit = teamName.trim().length >= 2 && sport.length > 0 && !saving;
+  const effectiveSport = sport === 'Other' ? customSport.trim() : sport;
+  const canSubmit = teamName.trim().length >= 2 && effectiveSport.length > 0 && !saving;
 
   const onContinue = async () => {
     if (!canSubmit) return;
@@ -47,15 +49,16 @@ export default function Step5Team() {
     try {
       const created: any = await Team.create({
         name: teamName.trim(),
-        sport,
+        sport: effectiveSport,
         organization_id: ob.organization_id || undefined,
+        onboarding: true,
       });
 
       setOB((prev) => ({
         ...prev,
         team_id: created?.id,
         team_name: created?.name || teamName.trim(),
-        sport,
+        sport: effectiveSport,
       }));
 
       setProgress(5);
@@ -103,12 +106,24 @@ export default function Step5Team() {
                 { borderColor: sport === s ? Colors[colorScheme].tint : Colors[colorScheme].border,
                   backgroundColor: sport === s ? (colorScheme === 'dark' ? '#1E3A5F' : '#EFF6FF') : 'transparent' },
               ]}
-              onPress={() => setSport(s)}
+              onPress={() => { setSport(s); if (s !== 'Other') setCustomSport(''); }}
             >
               <Text style={[styles.sportChipText, { color: sport === s ? Colors[colorScheme].tint : Colors[colorScheme].text }]}>{s}</Text>
             </Pressable>
           ))}
         </View>
+
+        {sport === 'Other' && (
+          <TextInput
+            style={[styles.input, { color: Colors[colorScheme].text, borderColor: Colors[colorScheme].border, backgroundColor: colorScheme === 'dark' ? '#111827' : '#fff', marginTop: 12 }]}
+            value={customSport}
+            onChangeText={setCustomSport}
+            placeholder="Enter your sport"
+            placeholderTextColor={Colors[colorScheme].mutedText}
+            maxLength={60}
+            autoFocus
+          />
+        )}
 
         <Pressable
           style={[styles.continueButton, { backgroundColor: canSubmit ? Colors[colorScheme].tint : Colors[colorScheme].border }]}

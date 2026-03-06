@@ -9,7 +9,7 @@ import { getMapProvider } from '@/utils/maps';
 
 interface ReachMapPreviewProps {
   zipCode: string;
-  radiusKm?: number; // Default 45km (~28 miles) matching ad targeting radius
+  radiusKm?: number; // Default 15km (~9 miles) matching ad targeting radius
 }
 
 interface GeoLocation {
@@ -25,7 +25,7 @@ interface GeoLocation {
  * Purpose: Build trust and transparency by showing advertisers
  * exactly where their ad will appear.
  */
-export function ReachMapPreview({ zipCode, radiusKm = 45 }: ReachMapPreviewProps) {
+export function ReachMapPreview({ zipCode, radiusKm = 15 }: ReachMapPreviewProps) {
   const colorScheme = useColorScheme() ?? 'light';
   const [location, setLocation] = useState<GeoLocation | null>(null);
   const [loading, setLoading] = useState(false);
@@ -165,7 +165,7 @@ export function ReachMapPreview({ zipCode, radiusKm = 45 }: ReachMapPreviewProps
             initialRegion={{
               latitude: location.latitude,
               longitude: location.longitude,
-              latitudeDelta: 1.8, // Sized to show full 45km radius circle
+              latitudeDelta: 0.6, // Sized to show full 15km radius circle
               longitudeDelta: 1.8,
             }}
             scrollEnabled={true}
@@ -218,7 +218,7 @@ export function ReachMapPreview({ zipCode, radiusKm = 45 }: ReachMapPreviewProps
           <View style={styles.legendItem}>
             <View style={[styles.legendDot, { backgroundColor: 'rgba(59, 130, 246, 0.4)' }]} />
             <Text style={[styles.legendText, { color: Colors[colorScheme].mutedText }]}>
-              Ad reach area (~28 miles)
+              Ad reach area (~9 miles)
             </Text>
           </View>
         </View>
