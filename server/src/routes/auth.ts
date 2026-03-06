@@ -786,14 +786,10 @@ authRouter.get('/me', requireAuth as any, async (req: AuthedRequest, res) => {
     notifications: { game_event_reminders: false, team_updates: false, comments_upvotes: false, follows_notifications: true, messages_notifications: true },
     is_parent: false,
     zip_code: null,
-    // Only set onboarding_completed=true for admin accounts
-    ...(is_admin ? { onboarding_completed: true } : {}),
   };
   // Defaults fill in missing keys; user preferences override defaults
   const userPrefs = (user as any).preferences || {};
   const prefs = mergePreferences(defaults, userPrefs);
-  // Admin accounts always bypass onboarding regardless of DB state
-  if (is_admin) prefs.onboarding_completed = true;
   const { password_hash, ...rest } = user as any;
   return res.json({ ...rest, ...(is_admin ? { role: 'admin' } : {}), preferences: prefs, is_admin });
 });
@@ -1053,8 +1049,6 @@ authRouter.patch('/me/preferences', requireAuth as any, async (req: AuthedReques
     notifications: { game_event_reminders: false, team_updates: false, comments_upvotes: false, follows_notifications: true, messages_notifications: true },
     is_parent: false,
     zip_code: null,
-    // Only set onboarding_completed=true for admin accounts (same as GET /me)
-    ...(is_admin ? { onboarding_completed: true } : {}),
     plan: null, // Plans only for coaches - don't default to 'rookie'
     role: 'fan',
     sports_interests: [],
