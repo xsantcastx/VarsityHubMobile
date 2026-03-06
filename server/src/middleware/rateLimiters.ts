@@ -131,6 +131,17 @@ export const passwordResetLimiter = createLimiter({
 });
 
 /**
+ * Token refresh attempts
+ * 30 per 15 minutes per IP to prevent brute-force
+ */
+export const refreshTokenLimiter = createLimiter({
+  name: 'refresh-token',
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: isDev ? 100000 : 30,
+  keyGenerator: (req) => `ip:${req.ip}`,
+});
+
+/**
  * Email/SMS verification requests
  * 5 per hour per user, 1 per 30 seconds minimum
  */

@@ -139,7 +139,7 @@ testNotificationsRouter.post('/test/geofence', requireAuth as any, async (req: A
 });
 
 // Test: Calculate distance between two points
-testNotificationsRouter.post('/test/distance', (req, res) => {
+testNotificationsRouter.post('/test/distance', requireAuth as any, (req, res) => {
   const { lat1, lng1, lat2, lng2 } = req.body;
 
   if (typeof lat1 !== 'number' || typeof lng1 !== 'number' || 

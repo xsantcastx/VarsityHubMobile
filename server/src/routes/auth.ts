@@ -12,6 +12,7 @@ import { prisma } from '../lib/prisma.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
+import { refreshTokenLimiter } from '../middleware/rateLimiters.js';
 
 export const authRouter = Router();
 // Simple in-memory rate limiting for auth endpoints
@@ -190,7 +191,7 @@ function isUnder13(dob: string | null | undefined): boolean {
 }
 
 // ---- Token Refresh (no auth middleware — refresh tokens are self-authenticating) ----
-authRouter.post('/refresh', asyncHandler(async (req, res) => {
+authRouter.post('/refresh', refreshTokenLimiter, asyncHandler(async (req, res) => {
   const { refreshToken } = req.body;
   if (!refreshToken || typeof refreshToken !== 'string') {
     return res.status(400).json({ error: 'refreshToken required' });
