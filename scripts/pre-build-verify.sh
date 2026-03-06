@@ -142,7 +142,7 @@ check_step "Android build.gradle exists" "test -f android/app/build.gradle"
 check_step "Android manifest exists" "test -f android/app/src/main/AndroidManifest.xml"
 
 # Check for critical Android config
-if grep -q "namespace.*com.varsithub.varsityhub" android/app/build.gradle; then
+if grep -q "namespace.*com.varsityhub.varsityhub" android/app/build.gradle; then
     echo -e "${GREEN}✅ Android namespace configured${NC}"
 else
     echo -e "${RED}❌ Android namespace not found${NC}"
@@ -166,7 +166,7 @@ check_step "iOS Podfile exists" "test -f ios/Podfile"
 check_step "iOS project exists" "test -d ios/VarsityHub.xcodeproj"
 
 # Check bundle identifier
-if grep -q "com.varsithub.varsityhub" ios/VarsityHub.xcodeproj/project.pbxproj 2>/dev/null || grep -q "com.varsithub.varsityhub" app.json; then
+if grep -q "com.varsithub.varsityhub-ios" ios/VarsityHub.xcodeproj/project.pbxproj 2>/dev/null || grep -q "com.varsithub.varsityhub-ios" app.json; then
     echo -e "${GREEN}✅ iOS bundle identifier configured${NC}"
 else
     echo -e "${YELLOW}⚠️  iOS bundle identifier check${NC}"

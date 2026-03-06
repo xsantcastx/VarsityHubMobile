@@ -166,7 +166,7 @@ echo ""
 
 # Android build config
 echo -e "${BLUE}Step 6: Android build configuration...${NC}"
-if grep -q "namespace.*com.varsithub.varsityhub" android/app/build.gradle; then
+if grep -q "namespace.*com.varsityhub.varsityhub" android/app/build.gradle; then
     echo -e "${GREEN}✅ Android namespace configured${NC}"
 else
     echo -e "${RED}❌ Android namespace missing${NC}"
@@ -827,15 +827,19 @@ IOS_BUNDLE_ID=$(node -e "console.log(JSON.parse(require('fs').readFileSync('app.
 ANDROID_PACKAGE=$(node -e "console.log(JSON.parse(require('fs').readFileSync('app.json', 'utf8')).expo.android.package || '')" 2>/dev/null)
 
 if [ -n "$IOS_BUNDLE_ID" ] && [ -n "$ANDROID_PACKAGE" ]; then
-    if [ "$IOS_BUNDLE_ID" = "$ANDROID_PACKAGE" ]; then
-        echo -e "${GREEN}✅ Bundle IDs match: $IOS_BUNDLE_ID${NC}"
+    # iOS 'com.varsithub.varsityhub-ios' and Android 'com.varsityhub.varsityhub' are intentionally
+    # different — the iOS ID is registered with Apple (legacy spelling). Validate each individually.
+    if [ "$IOS_BUNDLE_ID" = "com.varsithub.varsityhub-ios" ]; then
+        echo -e "${GREEN}✅ iOS bundle ID correct: $IOS_BUNDLE_ID${NC}"
     else
-        mark_warning_or_error "iOS and Android bundle IDs differ (iOS: $IOS_BUNDLE_ID, Android: $ANDROID_PACKAGE)"
+        echo -e "${RED}❌ iOS bundle ID unexpected: $IOS_BUNDLE_ID (expected com.varsithub.varsityhub-ios)${NC}"
+        ERRORS=$((ERRORS + 1))
     fi
-
-    # Check for potential typos (varsithub vs varsityhub)
-    if [[ "$IOS_BUNDLE_ID" =~ varsithub ]] && [[ ! "$IOS_BUNDLE_ID" =~ varsityhub ]]; then
-        mark_warning_or_error "Bundle ID contains 'varsithub' - did you mean 'varsityhub'? ($IOS_BUNDLE_ID)"
+    if [ "$ANDROID_PACKAGE" = "com.varsityhub.varsityhub" ]; then
+        echo -e "${GREEN}✅ Android package correct: $ANDROID_PACKAGE${NC}"
+    else
+        echo -e "${RED}❌ Android package unexpected: $ANDROID_PACKAGE (expected com.varsityhub.varsityhub)${NC}"
+        ERRORS=$((ERRORS + 1))
     fi
 else
     if [ -z "$IOS_BUNDLE_ID" ]; then
