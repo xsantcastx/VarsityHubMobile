@@ -42,5 +42,6 @@
     "src/cron/**/*",
     "src/lib/queue.ts",
     "src/routes/tournaments.ts"
-  ]
+  ],
+  "extends": "expo/tsconfig.base"
 }

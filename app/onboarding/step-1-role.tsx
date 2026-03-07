@@ -3,6 +3,7 @@ import { useOnboarding } from '@/context/OnboardingContext';
 import { STEP_ROUTES, nextIncompleteStep } from '@/context/onboardingReducer';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
+import { Ionicons } from '@expo/vector-icons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useFocusEffect } from '@react-navigation/native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -69,10 +70,10 @@ function RoleCard({
         ]}
       >
       <View style={styles.cardHeader}>
-        <MaterialIcons 
-          name={icon as any} 
-          size={36} 
-          color={colors.iconColor} 
+        <Ionicons
+          name={icon as any}
+          size={36}
+          color={colors.iconColor}
         />
         <View style={styles.cardTitleContainer}>
           <Text style={[styles.cardTitle, { color: colors.titleColor }]}>{title}</Text>
@@ -305,7 +306,7 @@ export default function Step1Role() {
       <RoleCard
         title="Fan"
         description="Follow teams and players"
-        icon="person-outline"
+        icon="heart"
         selected={role === 'fan'}
         onPress={() => setRole('fan')}
         onContinue={onContinue}
@@ -325,7 +326,7 @@ export default function Step1Role() {
       <RoleCard
         title="Coach / Organizer"
         description="Manage teams and organize games"
-        icon="sports"
+        icon="trophy"
         selected={role === 'coach'}
         onPress={() => setRole('coach')}
         onContinue={onContinue}

@@ -505,9 +505,11 @@ export default function LeagueScreen() {
 
         <View style={[styles.card, styles.infoCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
           <Text style={[styles.infoTitle, { color: theme.text }]}>About</Text>
-          <Text style={[styles.infoBody, { color: league?.bio ? theme.text : theme.mutedText }]}>
-            {league?.bio || 'This league has not added a description yet.'}
-          </Text>
+          {league?.bio ? (
+            <Text style={[styles.infoBody, { color: theme.text }]}>
+              {league.bio}
+            </Text>
+          ) : null}
           <View style={[styles.infoRow, { borderColor: theme.border }]}>
             <Ionicons name="person-outline" size={16} color={theme.mutedText} />
             <Text style={[styles.infoRowText, { color: theme.mutedText }]}>

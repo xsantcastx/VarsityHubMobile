@@ -243,7 +243,7 @@ export default function SignInScreen() {
               }
             ]}>
               <Image
-                source={{ uri: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765655742/6C37232F-74BC-4486-95A1-7EE208A63D06_aj2j8k.png' }}
+                source={require('@/assets/images/logo.png')}
                 style={styles.logo}
                 contentFit="contain"
               />

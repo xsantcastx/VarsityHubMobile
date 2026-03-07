@@ -657,10 +657,48 @@ ${APP_BASE_URL}
 </html>
 `.trim();
 
-  // ALWAYS use the fallback email with code in subject and body
-  // This ensures the verification code is ALWAYS visible to the user
-  // regardless of whether SendGrid templates are configured correctly
-  console.log('[email] Sending verification email with code in subject and body');
+  const service = await getEmailService();
+
+  // ── Template path (same as sendPasswordResetEmail, sendTeamInviteEmail, etc.) ─
+  if (TEMPLATE_IDS.VERIFICATION && service && service.isConfigured()) {
+    console.log(`[email] sendVerificationEmail: using template ${TEMPLATE_IDS.VERIFICATION} → ${email}`);
+    try {
+      const result = await service.send({
+        to: email,
+        subject: `${token} is your VarsityHub verification code`,
+        templateId: TEMPLATE_IDS.VERIFICATION,
+        templateData: {
+          ...getCommonTemplateData(),
+          verification_code: token,
+          code: token,           // cover both variable names templates may use
+          user_name: displayName,
+          display_name: displayName,
+          expires_in: '30 minutes',
+        },
+      });
+
+      if (result.success) {
+        console.log('[email] sendVerificationEmail: template send succeeded');
+        return true;
+      }
+
+      console.warn('[email] sendVerificationEmail: template send failed, falling back to plain email', {
+        error: result.error,
+        errorCode: result.errorCode,
+      });
+      // fall through to plain-email fallback below
+    } catch (err: any) {
+      console.warn('[email] sendVerificationEmail: template send threw, falling back to plain email', {
+        message: err?.message,
+      });
+      // fall through to plain-email fallback below
+    }
+  } else {
+    console.log(`[email] sendVerificationEmail: no template configured (SENDGRID_VERIFICATION_TEMPLATE_ID unset), using plain email → ${email}`);
+  }
+
+  // ── Plain-email fallback ─────────────────────────────────────────────────────
+  console.log(`[email] sendVerificationEmail: sending plain email → ${email}`);
   return sendEmail({
     to: email,
     subject: `${token} is your VarsityHub verification code`,

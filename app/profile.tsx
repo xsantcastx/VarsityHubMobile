@@ -279,6 +279,7 @@ export default function ProfileScreen() {
         return;
       }
 
+      if (!pickerResult.assets || pickerResult.assets.length === 0) return;
       const { uri, fileName, _mimeType } = pickerResult.assets[0] as any;
       const manipulated = await ImageManipulator.manipulateAsync(uri, [{ resize: { width: 800 } }], { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG });
       const name = (fileName && String(fileName).includes('.')) ? String(fileName) : `avatar_${Date.now()}.jpg`;
@@ -319,6 +320,7 @@ export default function ProfileScreen() {
         return;
       }
 
+      if (!pickerResult.assets || pickerResult.assets.length === 0) return;
       const { uri, fileName, _mimeType } = pickerResult.assets[0] as any;
       const manipulated = await ImageManipulator.manipulateAsync(uri, [{ resize: { width: 1200 } }], { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG });
       const name = (fileName && String(fileName).includes('.')) ? String(fileName) : `background_${Date.now()}.jpg`;
@@ -1409,15 +1411,12 @@ const styles = StyleSheet.create({
   },
   profileContent: {
     position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
+    bottom: -40,
+    left: 16,
     zIndex: 100,
     elevation: 100,
   },
   avatarSection: {
-    marginBottom: -50, // Half of 100px avatar hangs below banner
     zIndex: 99999,
     elevation: 99999,
     position: 'relative',
@@ -1516,17 +1515,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  // Profile Details Below Banner — paddingTop clears the avatar overlap (50px + 8px gap)
+  // Profile Details Below Banner — paddingTop clears the overlapping avatar
   profileDetailsContainer: {
     backgroundColor: 'transparent',
-    paddingTop: 58,
+    paddingTop: 52,
     marginBottom: 0,
     paddingBottom: 0,
   },
   profileNameRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     gap: 8,
     paddingHorizontal: 16,
     marginBottom: 8,

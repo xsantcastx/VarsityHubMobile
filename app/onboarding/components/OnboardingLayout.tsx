@@ -59,7 +59,8 @@ export default function OnboardingLayout({
         2: '/onboarding/step-1-role',
         3: '/onboarding/step-2-basic',
         4: '/onboarding/step-3-plan',
-        6: '/onboarding/step-4-organization',
+        5: '/onboarding/step-4-organization',
+        6: '/onboarding/step-5-team',
         7: '/onboarding/step-6-authorized-users',
         8: '/onboarding/step-7-profile',
         9: '/onboarding/step-8-interests',
@@ -74,7 +75,7 @@ export default function OnboardingLayout({
     } else if (previousStepRoute[step]) {
       router.replace(previousStepRoute[step] as any);
     } else {
-      router.replace('/onboarding/step-1-role');
+      router.back();
     }
   };
 

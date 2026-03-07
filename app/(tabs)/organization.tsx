@@ -424,9 +424,11 @@ export default function OrganizationScreen() {
         {/* About */}
         <View style={[styles.card, styles.sectionCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
           <Text style={[styles.sectionTitle, { color: theme.text }]}>About</Text>
-          <Text style={[styles.bioText, { color: orgBio ? theme.text : theme.mutedText }]}>
-            {orgBio || 'No description provided.'}
-          </Text>
+          {orgBio ? (
+            <Text style={[styles.bioText, { color: theme.text }]}>
+              {orgBio}
+            </Text>
+          ) : null}
           {contactText && (
             <View style={[styles.contactRow, { borderColor: theme.border }]}>
               <Ionicons name="mail-outline" size={16} color={theme.mutedText} />

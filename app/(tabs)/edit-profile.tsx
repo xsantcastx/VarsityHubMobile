@@ -47,7 +47,6 @@ export default function EditProfileScreen() {
   
   // Profile fields - username is edited separately via /settings/edit-username
   const [_displayName, setDisplayName] = useState('');
-  const [fullName, setFullName] = useState('');
   const [bio, setBio] = useState('');
   const [location, setLocation] = useState('');
   const [zipCode, setZipCode] = useState('');
@@ -146,7 +145,6 @@ export default function EditProfileScreen() {
       setHeaderImageOffsetTouched(false);
       
       // Fields from preferences
-      setFullName(prefs?.full_name || me?.full_name || '');
       setLocation(prefs?.location || me?.location || '');
       setZipCode(prefs?.zip_code || me?.zip_code || '');
       
@@ -450,7 +448,6 @@ export default function EditProfileScreen() {
 
       // Store additional fields in preferences object
       const preferences: any = {};
-      if (fullName.trim()) preferences.full_name = fullName.trim();
       if (location.trim()) preferences.location = location.trim();
       if (zipCode.trim()) preferences.zip_code = zipCode.trim();
       if (dateOfBirth) preferences.date_of_birth = formatDateForAPI(dateOfBirth);
@@ -729,21 +726,6 @@ export default function EditProfileScreen() {
                 <Text style={[styles.hint, { color: Colors[colorScheme].mutedText, marginTop: 4, fontSize: 12 }]}>
                   Tap to edit your username
                 </Text>
-              </View>
-
-              <View style={styles.fieldGroup}>
-                <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Full Name</Text>
-                <Input 
-                  value={fullName} 
-                  onChangeText={setFullName} 
-                  placeholder="Your complete name" 
-                  placeholderTextColor={Colors[colorScheme].mutedText}
-                  style={[styles.input, { 
-                    borderColor: Colors[colorScheme].border,
-                    backgroundColor: Colors[colorScheme].surface,
-                    color: Colors[colorScheme].text,
-                  }]} 
-                />
               </View>
 
               <View style={styles.fieldGroup}>

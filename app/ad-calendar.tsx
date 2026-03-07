@@ -668,10 +668,10 @@ export default function AdCalendarScreen() {
               <Text style={{ fontSize: 24 }}>👥</Text>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.noticeTitle, { color: colorScheme === 'dark' ? '#93C5FD' : '#1E40AF', fontSize: 16, marginBottom: 6 }]}>
-                  Ad Space Shared with 2 Companies
+                  Ad Space Shared with 1 Company
                 </Text>
                 <Text style={[styles.noticeText, { color: colorScheme === 'dark' ? '#BFDBFE' : '#1E40AF', lineHeight: 20 }]}>
-                  Your ad will rotate with up to <Text style={{ fontWeight: '800', fontSize: 15 }}>2 other companies</Text> on selected dates.
+                  Your ad will rotate with up to <Text style={{ fontWeight: '800', fontSize: 15 }}>1 other company</Text> on selected dates.
                 </Text>
               </View>
             </View>

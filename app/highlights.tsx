@@ -1134,7 +1134,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     position: 'relative',
-    backgroundColor: '#000', // Black background for images to show properly with contain mode
+    backgroundColor: 'transparent',
     justifyContent: 'center',
     alignItems: 'center',
   },

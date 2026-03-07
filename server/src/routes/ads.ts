@@ -317,7 +317,7 @@ adsRouter.get('/availability', async (req, res) => {
     return res.status(400).json({ error: 'zip, from, and to are required' });
   }
 
-  const MAX_ADS_PER_DATE = 3; // Maximum ad slots per date
+  const MAX_ADS_PER_DATE = 2; // Maximum ad slots per date
 
   // Parse date range
   const fromDate = new Date(from + 'T00:00:00.000Z');

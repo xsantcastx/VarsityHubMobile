@@ -9,6 +9,7 @@ import { Advertisement, Event, Game, Highlights, Notification as NotificationApi
 import { BannerAd } from '@/components/BannerAd';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { Ionicons } from '@expo/vector-icons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { format } from 'date-fns';
 import { Image } from 'expo-image';
@@ -1036,12 +1037,12 @@ export default function FeedScreen() {
             </Text>
             {followedPosts.length > 0 ? (
               <View style={{ gap: 12, marginTop: 8 }}>
-                {followedPosts.map((post: any) => (
+                {followedPosts.map((post: any, idx: number) => (
                   <PostCard
                     key={String(post.id)}
                     post={post}
                     showAuthorHeader
-                    onPress={() => void router.push(`/post-detail?id=${encodeURIComponent(String(post.id))}`)}
+                    onPress={() => void router.push(`/post-detail?id=${encodeURIComponent(String(post.id))}&postIds=${followedPosts.map((p: any) => String(p.id)).join(',')}&index=${idx}`)}
                     onDeleted={(postId) => setFollowedPosts((prev) => prev.filter((p) => String(p.id) !== postId))}
                     onUpdated={(updated) => setFollowedPosts((prev) => prev.map((p) => (String(p.id) === String(updated.id) ? { ...p, ...updated } : p)))}
                   />
@@ -1094,7 +1095,7 @@ export default function FeedScreen() {
                     <Pressable
                       key={String(post.id)}
                       style={styles.singleEventCard}
-                      onPress={() => void router.push(`/post-detail?id=${encodeURIComponent(String(post.id))}`)}
+                      onPress={() => void router.push(`/post-detail?id=${encodeURIComponent(String(post.id))}&postIds=${followedTeamsPosts.map((p: any) => String(p.id)).join(',')}&index=${index}`)}
                       accessibilityRole="button"
                       accessibilityLabel={`View post from ${teamName}`}
                     >
@@ -1142,7 +1143,7 @@ export default function FeedScreen() {
               </View>
             ) : (
               <View style={[styles.socialFeedEmpty, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
-                <MaterialIcons name="dry-cleaning" size={48} color={Colors[colorScheme].mutedText} />
+                <Ionicons name="american-football-outline" size={48} color={Colors[colorScheme].mutedText} />
                 <Text style={[styles.socialFeedEmptyTitle, { color: Colors[colorScheme].text }]}>
                   {followedTeamsFeedMeta?.followed_teams_count === 0
                     ? 'Follow teams to see their posts here'

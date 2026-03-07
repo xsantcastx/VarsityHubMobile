@@ -886,44 +886,30 @@ teamsRouter.post('/create', requireVerified as any, requirePlan('rookie') as any
         });
       }
 
-      // SECURITY: Check if user is org owner/manager before allowing team creation
+      // Team creation only requires COACH role — org approval is enforced at event posting, not here.
+      // If the coach isn't an org member yet, add them as a 'coach' member so the link exists.
       const orgMembership = await prisma.organizationMembership.findUnique({
         where: { organization_id_user_id: { organization_id: organizationId, user_id: me.id } }
       });
 
-      let canCreateTeamDirectly = orgMembership && ['owner', 'manager'].includes(orgMembership.role);
-
-      // FEATURE: If organization has NO owners, first coach to create a team automatically claims it
-      if (!canCreateTeamDirectly) {
+      if (!orgMembership) {
+        // Auto-claim as owner if no owners exist, otherwise join as coach
         const existingOwners = await prisma.organizationMembership.findMany({
           where: { organization_id: organizationId, role: 'owner' },
           select: { id: true }
         });
 
-        if (existingOwners.length === 0) {
-          // Organization is unclaimed - make this user the owner
+        const role = existingOwners.length === 0 ? 'owner' : 'coach';
+        if (role === 'owner') {
           console.log(`[Teams] Organization "${orgExists.name}" has no owner. User ${me.id} is claiming it.`);
-
-          await prisma.organizationMembership.create({
-            data: {
-              organization_id: organizationId,
-              user_id: me.id,
-              role: 'owner'
-            }
-          });
-
-          // User is now the owner, allow team creation
-          canCreateTeamDirectly = true;
         }
-      }
 
-      if (!canCreateTeamDirectly) {
-        // User is NOT an org owner/manager and org is already claimed - team requires approval
-        return res.status(403).json({
-          error: 'ORGANIZATION_PERMISSION_REQUIRED',
-          message: `You don't have permission to create teams under "${orgExists.name}". Please contact the organization owner to be added as a manager, or create your own organization.`,
-          code: 'ORGANIZATION_PERMISSION_REQUIRED',
-          organization_name: orgExists.name
+        await prisma.organizationMembership.create({
+          data: {
+            organization_id: organizationId,
+            user_id: me.id,
+            role,
+          }
         });
       }
     } catch (orgError: any) {

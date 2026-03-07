@@ -446,7 +446,7 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paym
 
   // Slot availability check — reject before Stripe if any date is already full.
   // Up to MAX_AD_SLOTS different ads may run per date per zip.
-  const MAX_AD_SLOTS = 3;
+  const MAX_AD_SLOTS = 2;
   if (ad.target_zip_code) {
     const paidAdsInZip = await prisma.ad.findMany({
       where: { target_zip_code: ad.target_zip_code, payment_status: 'paid', NOT: { id: String(ad_id) } },
@@ -614,9 +614,6 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paym
     success_url: success,
     cancel_url: cancel,
     line_items: lineItems as any,
-    payment_intent_data: {
-      statement_descriptor: 'VARSITYHUB',
-    },
     // Useful metadata for webhook
     metadata: {
       ad_id: String(ad_id),
@@ -809,7 +806,7 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
   if (!ad) return res.status(404).json({ error: 'Ad not found' });
 
   // Slot availability check
-  const MAX_AD_SLOTS = 3;
+  const MAX_AD_SLOTS = 2;
   if (ad.target_zip_code) {
     const paidAdsInZip = await prisma.ad.findMany({
       where: { target_zip_code: ad.target_zip_code, payment_status: 'paid', NOT: { id: String(ad_id) } },
@@ -871,7 +868,6 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
       currency: 'usd',
       customer: customerId,
       automatic_payment_methods: { enabled: true },
-      statement_descriptor: 'VARSITYHUB',
       metadata: {
         ad_id: String(ad_id),
         dates: JSON.stringify(isoDates),
@@ -1047,7 +1043,7 @@ paymentsRouter.post('/webhook', async (req, res) => {
       if (piDates.length > 0) {
         try {
           await prisma.$transaction(async (tx) => {
-            const MAX_AD_SLOTS = 3;
+            const MAX_AD_SLOTS = 2;
             const adRecord = await tx.ad.findUnique({ where: { id: adId }, select: { target_zip_code: true } });
             if (adRecord?.target_zip_code) {
               const paidAdsInZip = await tx.ad.findMany({
@@ -1566,7 +1562,7 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
         // Re-check slot availability under serializable isolation.
         // This is the second line of defence after the pre-checkout check —
         // it catches the race where two sessions were created before either paid.
-        const MAX_AD_SLOTS = 3;
+        const MAX_AD_SLOTS = 2;
         const adRecord = await tx.ad.findUnique({ where: { id: ad_id }, select: { target_zip_code: true } });
         if (adRecord?.target_zip_code) {
           const paidAdsInZip = await tx.ad.findMany({
