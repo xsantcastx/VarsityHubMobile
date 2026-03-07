@@ -29,7 +29,7 @@
     "id": "veteran",
     "name": "Veteran",
     "icon": "trophy",
-    "price": "$1.50",
+    "price": "$1.00",
     "period": "/ month per additional team",
     "priceId": "price_1SVco4GJt8CsPE1EBNNlHYPB",
     "max_teams": null,

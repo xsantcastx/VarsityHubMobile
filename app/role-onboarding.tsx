@@ -235,7 +235,7 @@ export default function RoleOnboardingScreen() {
     {
       icon: 'trophy',
       title: 'Unlimited Teams',
-      description: Platform.OS === 'ios' ? 'Add as many teams as you need' : 'Add as many teams as you need - $1.50/month each',
+      description: Platform.OS === 'ios' ? 'Add as many teams as you need' : 'Add as many teams as you need - $1.00/month each',
       route: '/manage-teams',
       gradient: ['#f59e0b', '#d97706'],
     },
@@ -420,9 +420,9 @@ export default function RoleOnboardingScreen() {
             </View>
             <View style={styles.accountTypeInfo}>
               <Text style={[styles.accountTypeName, { color: Colors[colorScheme].text }]}>Veteran Coach</Text>
-              <Text style={[styles.accountTypePrice, { color: '#f59e0b' }]}>$1.50/month per team (after first 2)</Text>
+              <Text style={[styles.accountTypePrice, { color: '#f59e0b' }]}>$1.00/month per team (after first 2)</Text>
               <Text style={[styles.accountTypeDescription, { color: Colors[colorScheme].mutedText }]}>
-                For coaches managing multiple teams. First 2 free, then $1.50/month each
+                For coaches managing multiple teams. First 2 free, then $1.00/month each
               </Text>
             </View>
           </Pressable>
@@ -490,7 +490,7 @@ export default function RoleOnboardingScreen() {
     } else if (coachTier === 'veteran') {
       actions = veteranActions;
       welcomeTitle = 'Welcome, Veteran Coach! 🏆';
-      welcomeSubtitle = Platform.OS === 'ios' ? 'Unlimited teams' : 'Unlimited teams at $1.50/month each (first 2 free)';
+      welcomeSubtitle = Platform.OS === 'ios' ? 'Unlimited teams' : 'Unlimited teams at $1.00/month each (first 2 free)';
     } else if (coachTier === 'legend') {
       actions = legendActions;
       welcomeTitle = 'Welcome, Legend Coach! ⚡';

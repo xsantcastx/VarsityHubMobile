@@ -807,7 +807,7 @@ export default function Step4Organization() {
               <View style={styles.benefitsList}>
                 {(ob.plan === 'veteran') && (
                   <>
-                    <View style={styles.benefitRow}><MaterialIcons name="payments" size={14} color="#C0C0C0" /><Text style={styles.benefitItem}>$1.50/month per team</Text></View>
+                    <View style={styles.benefitRow}><MaterialIcons name="payments" size={14} color="#C0C0C0" /><Text style={styles.benefitItem}>$1.00/month per team</Text></View>
                     <View style={styles.benefitRow}><MaterialIcons name="group" size={14} color="#C0C0C0" /><Text style={styles.benefitItem}>Up to 12 authorized users</Text></View>
                     <View style={styles.benefitRow}><MaterialIcons name="settings" size={14} color="#C0C0C0" /><Text style={styles.benefitItem}>Advanced features</Text></View>
                   </>

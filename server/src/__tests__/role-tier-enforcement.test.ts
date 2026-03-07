@@ -8,7 +8,7 @@
  *  Plan definitions (shared/plan-definitions.json)
  *
  *  Rookie   – max 2 teams, 1 authorized user/team, no extracurricular
- *  Veteran  – unlimited teams ($1.50/mo per team beyond 2), 5 auth users/team, no extracurricular
+ *  Veteran  – unlimited teams ($1.00/mo per team beyond 2), 5 auth users/team, no extracurricular
  *  Legend   – unlimited teams ($20/yr), unlimited auth users, extracurricular clubs
  * ──────────────────────────────────────────────────────────────────────
  *
@@ -351,11 +351,11 @@ describe('Veteran Coach plan limits', () => {
     expect(maxTeams).toBeNull(); // null = unlimited
   });
 
-  it('Veteran is charged $1.50/mo per additional team (plan pricing check)', async () => {
+  it('Veteran is charged $1.00/mo per additional team (plan pricing check)', async () => {
     // Verify plan definition pricing
     const planDefs = (await import('../lib/planLimits.js')).getAllPlanDefinitions();
     const veteran = (planDefs as any).veteran;
-    expect(veteran.price).toBe('$1.50');
+    expect(veteran.price).toBe('$1.00');
     expect(veteran.period).toContain('per additional team');
   });
 
@@ -598,10 +598,10 @@ describe('Plan definitions integrity', () => {
     expect(legend.supports_extracurricular).toBe(true);
   });
 
-  it('Veteran pricing: $1.50 per additional team per month', async () => {
+  it('Veteran pricing: $1.00 per additional team per month', async () => {
     const { getAllPlanDefinitions } = await import('../lib/planLimits.js');
     const veteran = (getAllPlanDefinitions() as any).veteran;
-    expect(veteran.price).toBe('$1.50');
+    expect(veteran.price).toBe('$1.00');
     expect(veteran.period).toContain('per additional team');
   });
 

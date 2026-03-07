@@ -372,7 +372,7 @@ async function main() {
       planName: 'Veteran Plan',
       expiresDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
       daysRemaining: 7,
-      renewalPrice: '$1.50/month',
+      renewalPrice: '$1.00/month',
       renewLink: 'https://varsityhub.app/settings/manage-subscription',
     })
   );
