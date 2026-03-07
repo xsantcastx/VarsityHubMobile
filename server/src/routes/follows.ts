@@ -20,7 +20,7 @@ followsRouter.get('/teams', requireAuth as any, async (req: AuthedRequest, res) 
   }
 
   const follows = await prisma.teamFollow.findMany({ where: { user_id: userId }, include: { team: true }, orderBy: { created_at: 'desc' } });
-  const list = follows.map((f) => ({ id: f.team_id, name: (f as any).team?.name || '', description: (f as any).team?.description || '' }));
+  const list = follows.map((f) => ({ id: f.team_id, name: (f as any).team?.name || '', description: (f as any).team?.description || '', venue_address: (f as any).team?.venue_address || null }));
   return res.json(list);
 });
 

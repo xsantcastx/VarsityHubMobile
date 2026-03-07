@@ -88,8 +88,18 @@ const TEMPLATE_IDS = {
   PAYMENT_FAILED: process.env.SENDGRID_PAYMENT_FAILED_TEMPLATE_ID || '',
   SUBSCRIPTION_EXPIRING: process.env.SENDGRID_SUBSCRIPTION_EXPIRING_TEMPLATE_ID || '',
 
+  // Internal Reports
+  DAILY_TRANSACTION_REPORT: process.env.SENDGRID_DAILY_TRANSACTION_REPORT_TEMPLATE_ID || '',
+  FOUNDER_METRICS: process.env.SENDGRID_FOUNDER_METRICS_TEMPLATE_ID || '',
+
   // Notifications & Engagement
   AD_GOES_LIVE: process.env.SENDGRID_AD_GOES_LIVE_TEMPLATE_ID || '',
+
+  // Ad Moderation
+  AD_PAYMENT_CONFIRMED: process.env.SENDGRID_AD_PAYMENT_CONFIRMED_TEMPLATE_ID || '',
+  AD_PENDING_REVIEW: process.env.SENDGRID_AD_PENDING_REVIEW_TEMPLATE_ID || '',
+  AD_APPROVED: process.env.SENDGRID_AD_APPROVED_TEMPLATE_ID || '',
+  AD_REJECTED: process.env.SENDGRID_AD_REJECTED_TEMPLATE_ID || '',
 };
 
 type TemplateKey = keyof typeof TEMPLATE_IDS;
@@ -239,6 +249,95 @@ export async function sendAdGoesLiveEmail(params: any): Promise<boolean> {
       analytics_dashboard_url: params?.analyticsDashboardUrl || '',
     },
     `Ad goes live email sent to ${params?.to}`
+  );
+}
+
+export async function sendAdPaymentConfirmedEmail(params: {
+  to: string;
+  businessName?: string;
+  zipCode?: string;
+  amount?: string;
+  hoursLabel?: string;
+  dates?: string[];
+  adId?: string;
+}): Promise<boolean> {
+  return sendTemplateEmail(
+    TEMPLATE_IDS.AD_PAYMENT_CONFIRMED,
+    params.to,
+    'Ad Reservation Confirmed — VarsityHub',
+    {
+      ...getCommonTemplateData(),
+      business_name: params.businessName || '',
+      zip_code: params.zipCode || '',
+      amount: params.amount || '',
+      hours_label: params.hoursLabel || '',
+      dates: params.dates || [],
+      dates_count: params.dates?.length || 0,
+      ad_id: params.adId || '',
+      app_url: APP_BASE_URL,
+    },
+    `Ad payment confirmed email sent to ${params.to}`
+  );
+}
+
+export async function sendAdPendingReviewEmail(params: {
+  to: string;
+  businessName?: string;
+  contactName?: string;
+  contactEmail?: string;
+  zipCode?: string;
+  bannerUrl?: string;
+  adId?: string;
+}): Promise<boolean> {
+  return sendTemplateEmail(
+    TEMPLATE_IDS.AD_PENDING_REVIEW,
+    params.to,
+    `Ad Pending Review — ${params.businessName || 'Unknown Business'}`,
+    {
+      ...getCommonTemplateData(),
+      business_name: params.businessName || 'N/A',
+      contact_name: params.contactName || 'N/A',
+      contact_email: params.contactEmail || 'N/A',
+      zip_code: params.zipCode || 'N/A',
+      banner_url: params.bannerUrl || '',
+      ad_id: params.adId || '',
+    },
+    `Ad pending review email sent to ${params.to}`
+  );
+}
+
+export async function sendAdApprovedEmail(params: {
+  to: string;
+  businessName?: string;
+}): Promise<boolean> {
+  return sendTemplateEmail(
+    TEMPLATE_IDS.AD_APPROVED,
+    params.to,
+    'Your Ad Has Been Approved — VarsityHub',
+    {
+      ...getCommonTemplateData(),
+      business_name: params.businessName || 'your business',
+      app_url: APP_BASE_URL,
+    },
+    `Ad approved email sent to ${params.to}`
+  );
+}
+
+export async function sendAdRejectedEmail(params: {
+  to: string;
+  businessName?: string;
+}): Promise<boolean> {
+  return sendTemplateEmail(
+    TEMPLATE_IDS.AD_REJECTED,
+    params.to,
+    'Your Ad Needs Changes — VarsityHub',
+    {
+      ...getCommonTemplateData(),
+      business_name: params.businessName || 'your business',
+      support_email: CUSTOMER_SERVICE_EMAIL,
+      app_url: APP_BASE_URL,
+    },
+    `Ad rejected email sent to ${params.to}`
   );
 }
 
@@ -584,8 +683,8 @@ export async function sendTeamInviteEmail(params: {
         role: prettyRole,
         inviter_name: params.inviterName || 'VarsityHub Coach',
         invite_url: params.inviteToken ? `${APP_BASE_URL}/invites?token=${params.inviteToken}` : `${APP_BASE_URL}/invites`,
-        hero_image: params.teamHeroUrl || `${APP_BASE_URL}/default-team-hero.jpg`,
-        logo_image: params.teamLogoUrl || `${APP_BASE_URL}/default-team-logo.jpg`,
+        team_hero_url: params.teamHeroUrl || `${APP_BASE_URL}/default-team-hero.jpg`,
+        team_logo_url: params.teamLogoUrl || '',
         primary_color: params.primaryColor || '#2563EB',
       },
     });
@@ -670,7 +769,7 @@ export async function sendOrganizationInviteEmail(params: {
       role: prettyRole,
       inviter_name: params.inviterName || 'VarsityHub Admin',
       invite_url: params.inviteToken ? `${APP_BASE_URL}/invites?token=${params.inviteToken}` : `${APP_BASE_URL}/invites`,
-      logo_image: params.orgLogoUrl || `${APP_BASE_URL}/default-org-logo.jpg`,
+      org_logo_url: params.orgLogoUrl || '',
       primary_color: params.primaryColor || '#2563EB',
     },
     `Organization invite sent to ${params.to} for ${params.organizationName}`
@@ -730,7 +829,7 @@ export async function sendJoinRequestToAdmin(params: {
       message: params.message || '',
       approve_url: `${APP_BASE_URL}/organizations/join-requests/${params.requestId}/approve`,
       deny_url: `${APP_BASE_URL}/organizations/join-requests/${params.requestId}/deny`,
-      logo_image: params.orgLogoUrl || `${APP_BASE_URL}/default-org-logo.jpg`,
+      org_logo_url: params.orgLogoUrl || '',
     },
     `Join request notification sent to ${params.adminEmail}`
   );
@@ -746,31 +845,20 @@ export async function sendJoinRequestApproved(params: {
   adminName: string;
   orgLogoUrl?: string;
 }): Promise<boolean> {
-  if (!SENDGRID_API_KEY || !TEMPLATE_IDS.JOIN_REQUEST_APPROVED) {
-    console.warn('[email] SendGrid join request approved template not configured');
-    return false;
-  }
-
-  try {
-    await sgMail.send({
-      to: params.userEmail,
-      from: EMAIL_FROM,
-      templateId: TEMPLATE_IDS.JOIN_REQUEST_APPROVED,
-      dynamicTemplateData: {
-        ...getCommonTemplateData(),
-        user_name: params.userName,
-        org_name: params.organizationName,
-        admin_name: params.adminName,
-        org_url: `${APP_BASE_URL}/organizations`,
-        logo_image: params.orgLogoUrl || `${APP_BASE_URL}/default-org-logo.jpg`,
-      },
-    });
-    debugLog(`✅ Join request approved notification sent to ${params.userEmail}`);
-    return true;
-  } catch (error) {
-    console.error('❌ Failed to send join request approved notification:', error);
-    return false;
-  }
+  return sendTemplateEmail(
+    TEMPLATE_IDS.JOIN_REQUEST_APPROVED,
+    params.userEmail,
+    `Your request to join ${params.organizationName} was approved`,
+    {
+      ...getCommonTemplateData(),
+      user_name: params.userName,
+      org_name: params.organizationName,
+      admin_name: params.adminName,
+      dashboard_url: `${APP_BASE_URL}/organizations`,
+      org_logo_url: params.orgLogoUrl || '',
+    },
+    `Join request approved notification sent to ${params.userEmail}`
+  );
 }
 
 /**
@@ -783,30 +871,19 @@ export async function sendJoinRequestDenied(params: {
   reason?: string;
   orgLogoUrl?: string;
 }): Promise<boolean> {
-  if (!SENDGRID_API_KEY || !TEMPLATE_IDS.JOIN_REQUEST_DENIED) {
-    console.warn('[email] SendGrid join request denied template not configured');
-    return false;
-  }
-
-  try {
-    await sgMail.send({
-      to: params.userEmail,
-      from: EMAIL_FROM,
-      templateId: TEMPLATE_IDS.JOIN_REQUEST_DENIED,
-      dynamicTemplateData: {
-        ...getCommonTemplateData(),
-        user_name: params.userName,
-        org_name: params.organizationName,
-        reason: params.reason || '',
-        logo_image: params.orgLogoUrl || `${APP_BASE_URL}/default-org-logo.jpg`,
-      },
-    });
-    debugLog(`✅ Join request denied notification sent to ${params.userEmail}`);
-    return true;
-  } catch (error) {
-    console.error('❌ Failed to send join request denied notification:', error);
-    return false;
-  }
+  return sendTemplateEmail(
+    TEMPLATE_IDS.JOIN_REQUEST_DENIED,
+    params.userEmail,
+    `Your request to join ${params.organizationName} was not approved`,
+    {
+      ...getCommonTemplateData(),
+      user_name: params.userName,
+      org_name: params.organizationName,
+      reason: params.reason || '',
+      org_logo_url: params.orgLogoUrl || '',
+    },
+    `Join request denied notification sent to ${params.userEmail}`
+  );
 }
 
 /**
@@ -818,29 +895,18 @@ export async function sendOrganizationApprovalEmail(params: {
   dashboardLink?: string;
   orgLogoUrl?: string;
 }): Promise<boolean> {
-  if (!SENDGRID_API_KEY || !TEMPLATE_IDS.ORG_APPROVAL) {
-    console.warn('[email] SendGrid org approval template not configured');
-    return false;
-  }
-
-  try {
-    await sgMail.send({
-      to: params.to,
-      from: EMAIL_FROM,
-      templateId: TEMPLATE_IDS.ORG_APPROVAL,
-      dynamicTemplateData: {
-        ...getCommonTemplateData(),
-        org_name: params.organizationName,
-        dashboard_url: params.dashboardLink || `${APP_BASE_URL}/team-hub`,
-        logo_image: params.orgLogoUrl || `${APP_BASE_URL}/default-org-logo.jpg`,
-      },
-    });
-    debugLog(`✅ Organization approval email sent to ${params.to}`);
-    return true;
-  } catch (error) {
-    console.error('❌ Failed to send organization approval email:', error);
-    return false;
-  }
+  return sendTemplateEmail(
+    TEMPLATE_IDS.ORG_APPROVAL,
+    params.to,
+    `Your organization ${params.organizationName} has been approved`,
+    {
+      ...getCommonTemplateData(),
+      org_name: params.organizationName,
+      dashboard_url: params.dashboardLink || `${APP_BASE_URL}/team-hub`,
+      org_logo_url: params.orgLogoUrl || '',
+    },
+    `Organization approval email sent to ${params.to}`
+  );
 }
 
 /**
@@ -852,29 +918,18 @@ export async function sendOrganizationDenialEmail(params: {
   reason?: string;
   orgLogoUrl?: string;
 }): Promise<boolean> {
-  if (!SENDGRID_API_KEY || !TEMPLATE_IDS.ORG_DENIAL) {
-    console.warn('[email] SendGrid org denial template not configured');
-    return false;
-  }
-
-  try {
-    await sgMail.send({
-      to: params.to,
-      from: EMAIL_FROM,
-      templateId: TEMPLATE_IDS.ORG_DENIAL,
-      dynamicTemplateData: {
-        ...getCommonTemplateData(),
-        org_name: params.organizationName,
-        reason: params.reason || '',
-        logo_image: params.orgLogoUrl || `${APP_BASE_URL}/default-org-logo.jpg`,
-      },
-    });
-    debugLog(`✅ Organization denial email sent to ${params.to}`);
-    return true;
-  } catch (error) {
-    console.error('❌ Failed to send organization denial email:', error);
-    return false;
-  }
+  return sendTemplateEmail(
+    TEMPLATE_IDS.ORG_DENIAL,
+    params.to,
+    `Your organization ${params.organizationName} was not approved`,
+    {
+      ...getCommonTemplateData(),
+      org_name: params.organizationName,
+      reason: params.reason || '',
+      org_logo_url: params.orgLogoUrl || '',
+    },
+    `Organization denial email sent to ${params.to}`
+  );
 }
 
 
@@ -888,30 +943,19 @@ export async function sendContentModerationEmail(params: {
   reason?: string;
   nextSteps?: string;
 }): Promise<boolean> {
-  if (!SENDGRID_API_KEY || !TEMPLATE_IDS.CONTENT_MODERATION) {
-    console.warn('[email] SendGrid content moderation template not configured');
-    return false;
-  }
-
-  try {
-    await sgMail.send({
-      to: params.to,
-      from: EMAIL_FROM,
-      templateId: TEMPLATE_IDS.CONTENT_MODERATION,
-      dynamicTemplateData: {
-        ...getCommonTemplateData(),
-        action: params.action,
-        post_id: params.postId || '',
-        reason: params.reason || '',
-        next_steps: params.nextSteps || "If you believe this is a mistake, reply to this email and we'll review it.",
-      },
-    });
-    debugLog(`✅ Content moderation email sent to ${params.to} (action: ${params.action})`);
-    return true;
-  } catch (error) {
-    console.error('❌ Failed to send content moderation email:', error);
-    return false;
-  }
+  return sendTemplateEmail(
+    TEMPLATE_IDS.CONTENT_MODERATION,
+    params.to,
+    `Content ${params.action} — VarsityHub`,
+    {
+      ...getCommonTemplateData(),
+      action: params.action,
+      post_id: params.postId || '',
+      reason: params.reason || '',
+      next_steps: params.nextSteps || "If you believe this is a mistake, reply to this email and we'll review it.",
+    },
+    `Content moderation email sent to ${params.to} (action: ${params.action})`
+  );
 }
 
 /**
@@ -927,33 +971,22 @@ export async function sendBillingNoticeEmail(params: {
   orgName?: string;
   perks?: string[];
 }): Promise<boolean> {
-  if (!SENDGRID_API_KEY || !TEMPLATE_IDS.BILLING_NOTICE) {
-    console.warn('[email] SendGrid billing notice template not configured');
-    return false;
-  }
-
-  try {
-    await sgMail.send({
-      to: params.to,
-      from: EMAIL_FROM,
-      templateId: TEMPLATE_IDS.BILLING_NOTICE,
-      dynamicTemplateData: {
-        ...getCommonTemplateData(),
-        notice_type: params.type,
-        plan_name: params.planName || 'VarsityHub Subscription',
-        amount: params.amount || '',
-        manage_url: params.manageLink || `${APP_BASE_URL}/settings/manage-subscription`,
-        team_name: params.teamName || '',
-        org_name: params.orgName || '',
-        perks: params.perks || [],
-      },
-    });
-    debugLog(`✅ Billing notice sent to ${params.to} (type: ${params.type})`);
-    return true;
-  } catch (error) {
-    console.error('❌ Failed to send billing notice:', error);
-    return false;
-  }
+  return sendTemplateEmail(
+    TEMPLATE_IDS.BILLING_NOTICE,
+    params.to,
+    'Billing Update — VarsityHub',
+    {
+      ...getCommonTemplateData(),
+      billing_type: params.type,
+      plan_name: params.planName || 'VarsityHub Subscription',
+      amount: params.amount || '',
+      manage_subscription_url: params.manageLink || `${APP_BASE_URL}/settings/manage-subscription`,
+      team_name: params.teamName || '',
+      org_name: params.orgName || '',
+      perks: params.perks || [],
+    },
+    `Billing notice sent to ${params.to} (type: ${params.type})`
+  );
 }
 
 /**
@@ -1195,166 +1228,40 @@ export async function sendEndOfDayTransactionReport(params: {
   const { report } = params;
   const { summary, breakdownByType, breakdownByStatus } = report;
 
-  // Format transaction type for display
-  const formatType = (type: string) => {
-    return type.replace(/_/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase());
-  };
+  const formatType = (type: string) =>
+    type.replace(/_/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase());
 
-  // Build HTML report
-  const html = `
-<!DOCTYPE html>
-<html>
-<head>
-  <style>
-    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-    .container { max-width: 800px; margin: 0 auto; padding: 20px; }
-    h1 { color: #2563EB; border-bottom: 2px solid #2563EB; padding-bottom: 10px; }
-    h2 { color: #1F2937; margin-top: 30px; }
-    .summary-box { background: #F3F4F6; padding: 20px; border-radius: 8px; margin: 20px 0; }
-    .summary-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #E5E7EB; }
-    .summary-row:last-child { border-bottom: none; font-weight: bold; font-size: 1.1em; }
-    .label { color: #6B7280; }
-    .value { font-weight: 600; color: #111827; }
-    .value.revenue { color: #059669; }
-    .table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-    .table th { background: #2563EB; color: white; padding: 12px; text-align: left; }
-    .table td { padding: 10px; border-bottom: 1px solid #E5E7EB; }
-    .table tr:hover { background: #F9FAFB; }
-    .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #E5E7EB; color: #6B7280; font-size: 0.9em; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <h1>📊 End-of-Day Transaction Report</h1>
-    <p><strong>Date:</strong> ${report.date}</p>
-
-    <div class="summary-box">
-      <h2>Summary</h2>
-      <div class="summary-row">
-        <span class="label">Total Transactions:</span>
-        <span class="value">${summary.totalTransactions}</span>
-      </div>
-      <div class="summary-row">
-        <span class="label">Completed:</span>
-        <span class="value">${summary.completedTransactions}</span>
-      </div>
-      <div class="summary-row">
-        <span class="label">Gross Revenue:</span>
-        <span class="value revenue">${formatCurrency(summary.totalRevenueCents)}</span>
-      </div>
-      <div class="summary-row">
-        <span class="label">Stripe Fees:</span>
-        <span class="value">${formatCurrency(summary.totalFeesCents)}</span>
-      </div>
-      <div class="summary-row">
-        <span class="label">Discounts:</span>
-        <span class="value">${formatCurrency(summary.totalDiscountsCents)}</span>
-      </div>
-      <div class="summary-row">
-        <span class="label">Net Revenue:</span>
-        <span class="value revenue">${formatCurrency(summary.netRevenueCents)}</span>
-      </div>
-    </div>
-
-    ${breakdownByType.length > 0 ? `
-    <h2>Breakdown by Transaction Type</h2>
-    <table class="table">
-      <thead>
-        <tr>
-          <th>Type</th>
-          <th>Count</th>
-          <th>Revenue</th>
-          <th>Fees</th>
-          <th>Discounts</th>
-          <th>Net</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${breakdownByType.map((b) => `
-        <tr>
-          <td>${formatType(b.type)}</td>
-          <td>${b.count}</td>
-          <td>${formatCurrency(b.revenueCents)}</td>
-          <td>${formatCurrency(b.feesCents)}</td>
-          <td>${formatCurrency(b.discountsCents)}</td>
-          <td><strong>${formatCurrency(b.netCents)}</strong></td>
-        </tr>
-        `).join('')}
-      </tbody>
-    </table>
-    ` : ''}
-
-    ${breakdownByStatus.length > 0 ? `
-    <h2>Breakdown by Status</h2>
-    <table class="table">
-      <thead>
-        <tr>
-          <th>Status</th>
-          <th>Count</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${breakdownByStatus.map((s) => `
-        <tr>
-          <td>${s.status}</td>
-          <td>${s.count}</td>
-        </tr>
-        `).join('')}
-      </tbody>
-    </table>
-    ` : ''}
-
-    <div class="footer">
-      <p>This is an automated daily report from VarsityHub.</p>
-      <p>Generated at ${new Date().toLocaleString()}</p>
-    </div>
-  </div>
-</body>
-</html>
-  `;
-
-  // Build plain text version
-  const text = `
-END-OF-DAY TRANSACTION REPORT
-Date: ${report.date}
-
-SUMMARY
-Total Transactions: ${summary.totalTransactions}
-Completed: ${summary.completedTransactions}
-Gross Revenue: ${formatCurrency(summary.totalRevenueCents)}
-Stripe Fees: ${formatCurrency(summary.totalFeesCents)}
-Discounts: ${formatCurrency(summary.totalDiscountsCents)}
-Net Revenue: ${formatCurrency(summary.netRevenueCents)}
-
-${breakdownByType.length > 0 ? `
-BREAKDOWN BY TYPE
-${breakdownByType.map((b) => `${formatType(b.type)}: ${b.count} transactions, ${formatCurrency(b.revenueCents)} revenue, ${formatCurrency(b.netCents)} net`).join('\n')}
-` : ''}
-
-${breakdownByStatus.length > 0 ? `
-BREAKDOWN BY STATUS
-${breakdownByStatus.map((s) => `${s.status}: ${s.count}`).join('\n')}
-` : ''}
-
-Generated at ${new Date().toLocaleString()}
-This is an automated daily report from VarsityHub.
-  `;
-
-  const subject = `📊 Daily Transaction Report - ${report.date}`;
-
-  try {
-    await sendEmail({
-      to: params.to,
-      subject,
-      html,
-      text,
-    });
-    debugLog(`✅ End-of-day transaction report sent to ${params.to} for ${report.date}`);
-    return true;
-  } catch (error) {
-    console.error('❌ Failed to send end-of-day transaction report:', error);
-    return false;
-  }
+  return sendTemplateEmail(
+    TEMPLATE_IDS.DAILY_TRANSACTION_REPORT,
+    params.to,
+    `📊 Daily Transaction Report - ${report.date}`,
+    {
+      ...getCommonTemplateData(),
+      report_date: report.date,
+      total_transactions: summary.totalTransactions,
+      completed_transactions: summary.completedTransactions,
+      gross_revenue: formatCurrency(summary.totalRevenueCents),
+      stripe_fees: formatCurrency(summary.totalFeesCents),
+      discounts: formatCurrency(summary.totalDiscountsCents),
+      net_revenue: formatCurrency(summary.netRevenueCents),
+      has_type_breakdown: breakdownByType.length > 0,
+      breakdown_by_type: breakdownByType.map((b) => ({
+        type: formatType(b.type),
+        count: b.count,
+        revenue: formatCurrency(b.revenueCents),
+        fees: formatCurrency(b.feesCents),
+        discounts: formatCurrency(b.discountsCents),
+        net: formatCurrency(b.netCents),
+      })),
+      has_status_breakdown: breakdownByStatus.length > 0,
+      breakdown_by_status: breakdownByStatus.map((s) => ({
+        status: s.status,
+        count: s.count,
+      })),
+      generated_at: new Date().toLocaleString(),
+    },
+    `End-of-day transaction report sent to ${params.to} for ${report.date}`
+  );
 }
 
 export async function sendFounderMetricsEmail(params: {
@@ -1364,119 +1271,31 @@ export async function sendFounderMetricsEmail(params: {
   const { report } = params;
   const { summary, daily, dateRange } = report;
 
-  const formatRow = (rows: Array<{ date: string; count: number }>) =>
-    rows.map((row) => `<tr><td>${row.date}</td><td>${row.count}</td></tr>`).join('');
-
-  const html = `
-<!DOCTYPE html>
-<html>
-<head>
-  <style>
-    body { font-family: Arial, sans-serif; line-height: 1.6; color: #111827; }
-    .container { max-width: 720px; margin: 0 auto; padding: 20px; }
-    h1 { color: #0F172A; border-bottom: 2px solid #0F172A; padding-bottom: 10px; }
-    .summary { background: #F8FAFC; padding: 16px; border-radius: 8px; }
-    .summary p { margin: 6px 0; }
-    .table { width: 100%; border-collapse: collapse; margin-top: 12px; }
-    .table th { text-align: left; background: #0F172A; color: #fff; padding: 8px; }
-    .table td { padding: 8px; border-bottom: 1px solid #E2E8F0; }
-    .section { margin-top: 24px; }
-    .footer { margin-top: 28px; color: #64748B; font-size: 0.9em; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <h1>Daily Founder Metrics</h1>
-    <p><strong>Range:</strong> ${dateRange.start} to ${dateRange.end}</p>
-
-    <div class="summary">
-      <p><strong>Total users:</strong> ${summary.totalUsers}</p>
-      <p><strong>Total reports:</strong> ${summary.totalReports}</p>
-      <p><strong>Total messages:</strong> ${summary.totalMessages}</p>
-      <p><strong>New users today:</strong> ${summary.newUsersToday}</p>
-      <p><strong>Reports today:</strong> ${summary.reportsToday}</p>
-      <p><strong>Messages today:</strong> ${summary.messagesToday}</p>
-      <p><strong>New users (last ${summary.days} days):</strong> ${summary.newUsersLastDays}</p>
-      <p><strong>Reports (last ${summary.days} days):</strong> ${summary.reportsLastDays}</p>
-      <p><strong>Messages (last ${summary.days} days):</strong> ${summary.messagesLastDays}</p>
-    </div>
-
-    <div class="section">
-      <h2>Daily New Users</h2>
-      <table class="table">
-        <thead><tr><th>Date</th><th>Count</th></tr></thead>
-        <tbody>${formatRow(daily.users)}</tbody>
-      </table>
-    </div>
-
-    <div class="section">
-      <h2>Daily Reports</h2>
-      <table class="table">
-        <thead><tr><th>Date</th><th>Count</th></tr></thead>
-        <tbody>${formatRow(daily.reports)}</tbody>
-      </table>
-    </div>
-
-    <div class="section">
-      <h2>Daily Messages</h2>
-      <table class="table">
-        <thead><tr><th>Date</th><th>Count</th></tr></thead>
-        <tbody>${formatRow(daily.messages)}</tbody>
-      </table>
-    </div>
-
-    <div class="footer">
-      <p>This is an automated daily report from VarsityHub.</p>
-      <p>Generated at ${new Date().toLocaleString()}</p>
-    </div>
-  </div>
-</body>
-</html>
-  `;
-
-  const text = `
-DAILY FOUNDER METRICS
-Range: ${dateRange.start} to ${dateRange.end}
-
-SUMMARY
-Total users: ${summary.totalUsers}
-Total reports: ${summary.totalReports}
-Total messages: ${summary.totalMessages}
-New users today: ${summary.newUsersToday}
-Reports today: ${summary.reportsToday}
-Messages today: ${summary.messagesToday}
-New users (last ${summary.days} days): ${summary.newUsersLastDays}
-Reports (last ${summary.days} days): ${summary.reportsLastDays}
-Messages (last ${summary.days} days): ${summary.messagesLastDays}
-
-DAILY NEW USERS
-${daily.users.map((row) => `${row.date}: ${row.count}`).join('\n')}
-
-DAILY REPORTS
-${daily.reports.map((row) => `${row.date}: ${row.count}`).join('\n')}
-
-DAILY MESSAGES
-${daily.messages.map((row) => `${row.date}: ${row.count}`).join('\n')}
-
-Generated at ${new Date().toLocaleString()}
-This is an automated daily report from VarsityHub.
-  `;
-
-  const subject = `📈 Daily Founder Metrics - ${dateRange.end}`;
-
-  try {
-    await sendEmail({
-      to: params.to,
-      subject,
-      html,
-      text,
-    });
-    debugLog(`✅ Founder metrics email sent to ${params.to} (${dateRange.end})`);
-    return true;
-  } catch (error) {
-    console.error('❌ Failed to send founder metrics email:', error);
-    return false;
-  }
+  return sendTemplateEmail(
+    TEMPLATE_IDS.FOUNDER_METRICS,
+    params.to,
+    `📈 Daily Founder Metrics - ${dateRange.end}`,
+    {
+      ...getCommonTemplateData(),
+      date_range_start: dateRange.start,
+      date_range_end: dateRange.end,
+      total_users: summary.totalUsers,
+      total_reports: summary.totalReports,
+      total_messages: summary.totalMessages,
+      new_users_today: summary.newUsersToday,
+      reports_today: summary.reportsToday,
+      messages_today: summary.messagesToday,
+      lookback_days: summary.days,
+      new_users_last_days: summary.newUsersLastDays,
+      reports_last_days: summary.reportsLastDays,
+      messages_last_days: summary.messagesLastDays,
+      daily_users: daily.users,
+      daily_reports: daily.reports,
+      daily_messages: daily.messages,
+      generated_at: new Date().toLocaleString(),
+    },
+    `Founder metrics email sent to ${params.to} (${dateRange.end})`
+  );
 }
 
 export async function sendWelcomeEmail(_to: string, _name?: string): Promise<boolean> {

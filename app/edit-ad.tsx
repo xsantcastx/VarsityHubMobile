@@ -31,9 +31,10 @@ export default function EditAdScreen() {
   const [bannerUrl, setBannerUrl] = useState<string | null>(null);
   const [targetUrl, setTargetUrl] = useState('');
   const [desc, setDesc] = useState('');
-  const [status, setStatus] = useState<'draft'|'pending'|'active'|'archived'>('draft');
+  const [status, setStatus] = useState<'draft'|'pending'|'active'|'rejected'|'archived'>('draft');
   const [payment, setPayment] = useState<'unpaid'|'paid'|'refunded'>('unpaid');
   const [uploading, setUploading] = useState(false);
+  const [bookedDates, setBookedDates] = useState<string[]>([]);
 
   const canSave = useMemo(() => {
     return !!id && business.trim().length > 0 && contactEmail.trim().length > 0;
@@ -54,6 +55,12 @@ export default function EditAdScreen() {
         setDesc(ad?.description || '');
         setStatus((ad?.status || 'draft') as any);
         setPayment((ad?.payment_status || 'unpaid') as any);
+        if (ad?.payment_status === 'paid') {
+          try {
+            const res: any = await AdsApi.reservationsForAd(String(id));
+            setBookedDates(Array.isArray(res?.dates) ? [...res.dates].sort() : []);
+          } catch { setBookedDates([]); }
+        }
       } catch {
         // Fallback to local draft
         const local = await settings.getJson<any[]>(settings.SETTINGS_KEYS.LOCAL_ADS, []);
@@ -128,7 +135,7 @@ export default function EditAdScreen() {
         await settings.setJson(settings.SETTINGS_KEYS.LOCAL_ADS, list);
       }
       Alert.alert('Saved', 'Your ad was updated.');
-      router.replace('/(tabs)/my-ads');
+      if (router.canGoBack()) router.back(); else router.replace('/(tabs)/my-ads');
     } finally {
       setSaving(false);
     }
@@ -287,12 +294,27 @@ export default function EditAdScreen() {
               )}
             </Pressable>
 
-            <Pressable 
-              onPress={() => void router.push({ pathname: '/ad-calendar', params: { adId: String(id || '') } })} 
-              style={[styles.ctaSecondary, { backgroundColor: theme.surface, borderColor: theme.border }]}
-            >
-              <Text style={[styles.ctaSecondaryText, { color: theme.text }]}>📅 Schedule Campaign Dates</Text>
-            </Pressable>
+            {payment === 'paid' && bookedDates.length > 0 ? (
+              <View style={[styles.bookedDatesCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                <Text style={[styles.bookedDatesTitle, { color: theme.text }]}>📅 Scheduled Campaign Dates</Text>
+                <View style={styles.bookedDatesWrap}>
+                  {bookedDates.map((d) => (
+                    <View key={d} style={[styles.bookedDateChip, { borderColor: theme.border }]}>
+                      <Text style={[styles.bookedDateText, { color: theme.text }]}>
+                        {new Date(d + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            ) : (
+              <Pressable
+                onPress={() => void router.push({ pathname: '/ad-calendar', params: { adId: String(id || '') } })}
+                style={[styles.ctaSecondary, { backgroundColor: theme.surface, borderColor: theme.border }]}
+              >
+                <Text style={[styles.ctaSecondaryText, { color: theme.text }]}>📅 Schedule Campaign Dates</Text>
+              </Pressable>
+            )}
           </ScrollView>
         </KeyboardAvoidingView>
       )}
@@ -471,5 +493,34 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     fontSize: 17,
     letterSpacing: 0.3,
+  },
+  bookedDatesCard: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 14,
+    marginBottom: 12,
+  },
+  bookedDatesTitle: {
+    fontWeight: '800',
+    fontSize: 16,
+    marginBottom: 10,
+  },
+  bookedDatesWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  bookedDateChip: {
+    backgroundColor: '#F0F9FF',
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+    borderRadius: 6,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+  },
+  bookedDateText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#0C4A6E',
   },
 });

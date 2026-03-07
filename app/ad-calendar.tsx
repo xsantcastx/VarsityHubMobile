@@ -456,13 +456,17 @@ export default function AdCalendarScreen() {
     try {
       const dates = Array.from(selected).sort((a, b) => (a < b ? -1 : 1));
       const data: any = await httpPost('/payments/create-payment-sheet', { ad_id: String(adId), dates, promo_code: promo || undefined });
+      // Calculate exact hours remaining for receipt
+      const lastEnd = new Date(dates[dates.length - 1] + 'T23:59:59');
+      const hrsRemaining = Math.max(0, Math.round((lastEnd.getTime() - Date.now()) / 3600000));
+
       if (data?.free) {
-        // Show success animation, then auto-navigate to My Ads
+        // Show success animation, then navigate to confirmation receipt
         setShowFreeSuccess(true);
         freeSuccessOpacity.setValue(0);
         Animated.timing(freeSuccessOpacity, { toValue: 1, duration: 300, useNativeDriver: true }).start(() => {
           setTimeout(() => {
-            router.replace({ pathname: '/(tabs)/my-ads', params: { payment_success: 'true' } });
+            router.replace({ pathname: '/ad-confirmation', params: { ad_id: String(adId), selectedDates: dates.join(', '), totalAmount: '$0.00 (promo)', hoursRemaining: String(hrsRemaining) } });
           }, 1200);
         });
         return;
@@ -473,6 +477,9 @@ export default function AdCalendarScreen() {
           customerEphemeralKeySecret: data.ephemeralKey,
           customerId: data.customer,
           merchantDisplayName: 'Varsity Hub',
+          applePay: Platform.OS === 'ios' ? { merchantCountryCode: 'US' } : undefined,
+          googlePay: Platform.OS === 'android' ? { merchantCountryCode: 'US', testEnv: __DEV__ } : undefined,
+          paymentMethodOrder: ['apple_pay', 'google_pay', 'card'],
         });
         if (initError) {
           Alert.alert('Error', initError.message);
@@ -483,8 +490,8 @@ export default function AdCalendarScreen() {
           if (error.code !== 'Canceled') Alert.alert('Payment Failed', error.message);
           return;
         }
-        // Payment succeeded — navigate to My Ads
-        router.replace({ pathname: '/(tabs)/my-ads', params: { payment_success: 'true' } });
+        // Payment succeeded — navigate to confirmation receipt
+        router.replace({ pathname: '/ad-confirmation', params: { ad_id: String(adId), selectedDates: dates.join(', '), hoursRemaining: String(hrsRemaining) } });
         return;
       }
       throw new Error('Unexpected checkout response');
@@ -807,7 +814,8 @@ export default function AdCalendarScreen() {
           )}
 
           {sortedDates.length > 0 && (() => {
-            const totalHrs = sortedDates.length * 24;
+            const lastEnd = new Date(sortedDates[sortedDates.length - 1] + 'T23:59:59');
+            const totalHrs = Math.max(0, Math.round((lastEnd.getTime() - Date.now()) / 3600000));
             const firstSelectedIsToday = sortedDates[0] <= todayISO();
             return (
               <>

@@ -310,7 +310,7 @@ export default function FeedScreen() {
           if (__DEV__) console.warn('Highlights preview load failed', err);
           return null;
         }),
-        Advertisement.forFeed(todayISO, userZip, 5, deviceLat, deviceLng).catch(() => null),
+        Advertisement.forFeed(todayISO, userZip, 2, deviceLat, deviceLng).catch(() => null),
       ]);
       setFollowedPosts(Array.isArray(followedPage?.items) ? followedPage.items : []);
       setFollowedFeedMeta(followedPage?.followed_feed_meta);
@@ -556,42 +556,36 @@ export default function FeedScreen() {
     return { upcomingEvents: upcoming, pastEvents: past };
   }, [filtered]);
 
-  // Ad rotation timer logic - based on slide requirements:
-  // 1 ad: Show ad for 2 minutes, then promo card for 15 seconds, cycle repeats
-  // 2+ ads: Show each ad for 1:30 (90 seconds), then promo card for 10 seconds, cycle repeats
+  // Ad rotation timer logic (max 2 advertisers):
+  // 1 ad: Show ad for 5 minutes, then placeholder for 15 seconds, repeat
+  // 2 ads: Alternate at 2.5 minutes each, no placeholder, repeat
   useEffect(() => {
-    const activeAdsCount = sponsoredAds?.length || 0;
-    
+    const activeAdsCount = Math.min(sponsoredAds?.length || 0, 2);
+
     if (activeAdsCount === 0) {
       // No ads, always show promo card
       setIsShowingPromoCard(true);
       return;
     }
-    
+
     // Reset cycle start time when ads change
     adCycleStartTimeRef.current = Date.now();
     setCurrentAdIndex(0);
     setIsShowingPromoCard(false);
-    
-    // Calculate timing based on number of ads
-    const AD_DURATION_MS = activeAdsCount === 1 
-      ? 2 * 60 * 1000  // 2 minutes for 1 ad
-      : 90 * 1000;      // 1:30 (90 seconds) for 2+ ads
-    const PROMO_DURATION_MS = activeAdsCount === 1
-      ? 15 * 1000       // 15 seconds promo for 1 ad
-      : 10 * 1000;      // 10 seconds promo for 2+ ads
-    const CYCLE_DURATION_MS = (AD_DURATION_MS * activeAdsCount) + PROMO_DURATION_MS;
-    const totalAdTime = AD_DURATION_MS * activeAdsCount;
-    
+
+    const TOTAL_AD_TIME_MS = 5 * 60 * 1000; // 5 minutes total for ads
+    const AD_DURATION_MS = activeAdsCount === 1 ? TOTAL_AD_TIME_MS : 2.5 * 60 * 1000; // 5 min or 2.5 min each
+    const PROMO_DURATION_MS = activeAdsCount === 1 ? 15 * 1000 : 0; // 15s placeholder only for single ad
+    const CYCLE_DURATION_MS = TOTAL_AD_TIME_MS + PROMO_DURATION_MS;
+
     // Update every second to keep rotation smooth
     const interval = setInterval(() => {
       const now = Date.now();
       const elapsed = now - adCycleStartTimeRef.current;
       const cyclePosition = elapsed % CYCLE_DURATION_MS;
-      
-      // Check if we're in promo card phase
-      if (cyclePosition >= totalAdTime) {
-        // Show promo card
+
+      // Check if we're in promo card phase (only applies when 1 ad)
+      if (PROMO_DURATION_MS > 0 && cyclePosition >= TOTAL_AD_TIME_MS) {
         setIsShowingPromoCard(true);
       } else {
         // Show ad - calculate which ad to show
@@ -601,7 +595,7 @@ export default function FeedScreen() {
         setCurrentAdIndex((prev) => prev !== newIndex ? newIndex : prev);
       }
     }, 1000);
-    
+
     return () => clearInterval(interval);
   }, [sponsoredAds?.length]);
 

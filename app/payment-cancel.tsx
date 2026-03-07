@@ -15,11 +15,8 @@ export default function PaymentCancelScreen() {
   useEffect(() => {
     if (isAd) {
       const timer = setTimeout(() => {
-        if (router.canGoBack()) {
-          if (router.canGoBack()) router.back();
-        } else {
-          router.replace('/(tabs)/my-ads');
-        }
+        if (router.canGoBack()) router.back();
+        else router.replace('/(tabs)/my-ads');
       }, 1500);
       return () => clearTimeout(timer);
     }
@@ -28,18 +25,15 @@ export default function PaymentCancelScreen() {
   const handleRetryPayment = () => {
     if (isAd) {
       // Go back to ad calendar with selections preserved
-      if (router.canGoBack()) {
-        if (router.canGoBack()) router.back();
-      } else {
-        router.replace('/(tabs)/my-ads');
-      }
+      if (router.canGoBack()) router.back();
+      else router.replace('/(tabs)/my-ads');
     } else {
       router.replace('/onboarding/step-3-plan');
     }
   };
 
   const handleContinue = () => {
-    router.replace('/(tabs)');
+    if (router.canGoBack()) router.back(); else router.replace('/(tabs)');
   };
 
   return (

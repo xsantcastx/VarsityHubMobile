@@ -12,11 +12,12 @@ import { BackHeader } from '@/components/ui/BackHeader';
 export default function AdConfirmationScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
-  const params = useLocalSearchParams<{ 
+  const params = useLocalSearchParams<{
     ad_id?: string;
-    businessName?: string; 
+    businessName?: string;
     selectedDates?: string;
     totalAmount?: string;
+    hoursRemaining?: string;
   }>();
   
   const [adDetails, setAdDetails] = useState<any>(null);
@@ -59,6 +60,7 @@ export default function AdConfirmationScreen() {
   const businessName = adDetails?.business_name || params.businessName || 'Your Business';
   const selectedDates = params.selectedDates || 'your selected dates';
   const totalAmount = params.totalAmount || '$0.00';
+  const hoursRemaining = params.hoursRemaining ? parseInt(params.hoursRemaining, 10) : null;
   const bannerUrl = adDetails?.banner_url;
 
   return (
@@ -158,6 +160,23 @@ export default function AdConfirmationScreen() {
             </View>
           </View>
 
+          {hoursRemaining !== null && (
+            <>
+              <View style={[styles.divider, { backgroundColor: Colors[colorScheme].border }]} />
+              <View style={styles.detailRow}>
+                <MaterialIcons name="schedule" size={24} color="#10B981" />
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={[styles.detailLabel, { color: Colors[colorScheme].mutedText }]}>
+                    Campaign Duration
+                  </Text>
+                  <Text style={[styles.detailValue, { color: Colors[colorScheme].text }]}>
+                    {hoursRemaining} hrs remaining
+                  </Text>
+                </View>
+              </View>
+            </>
+          )}
+
           <View style={[styles.divider, { backgroundColor: Colors[colorScheme].border }]} />
 
           <View style={styles.detailRow}>
@@ -188,7 +207,7 @@ export default function AdConfirmationScreen() {
         <View style={styles.actions}>
           <Pressable
             style={[styles.primaryButton, { backgroundColor: '#10B981' }]}
-            onPress={() => void router.replace('/(tabs)/my-ads')}
+            onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/(tabs)/my-ads'); }}
           >
             <MaterialIcons name="work" size={20} color="#ffffff" />
             <Text style={styles.primaryButtonText}>View My Ads</Text>
@@ -196,7 +215,7 @@ export default function AdConfirmationScreen() {
 
           <Pressable
             style={[styles.secondaryButton, { borderColor: Colors[colorScheme].border, backgroundColor: Colors[colorScheme].card }]}
-            onPress={() => void router.replace('/(tabs)')}
+            onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/(tabs)'); }}
           >
             <MaterialIcons name="home" size={20} color={Colors[colorScheme].text} />
             <Text style={[styles.secondaryButtonText, { color: Colors[colorScheme].text }]}>

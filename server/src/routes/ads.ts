@@ -3,12 +3,13 @@ import { getZipCoordinates, haversineDistance } from '../lib/geoUtils.js';
 import { geocodeLocation } from '../lib/geocoding.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
-import { getIsAdmin } from '../middleware/requireAdmin.js';
+import { getIsAdmin, requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { debugLog } from '../lib/debugLog.js';
 import { calculateAdPriceDollars } from '../utils/adPricing.js';
 import { adCreationLimiter } from '../middleware/rateLimiters.js';
+import { sendAdApprovedEmail, sendAdPendingReviewEmail, sendAdRejectedEmail } from '../lib/email.js';
 
 /**
  * Get coordinates for a ZIP code with fallback to Google Geocoding API
@@ -155,6 +156,7 @@ adsRouter.get('/for-feed', async (req, res) => {
 
   const whereAd: any = {
     payment_status: 'paid',
+    status: 'active',
     target_zip_code: { not: null }, // Only show ads with a target zip code
   };
 
@@ -231,7 +233,28 @@ adsRouter.put('/:id([a-z0-9-]{20,40})', requireAuth as any, async (req: AuthedRe
   for (const k of allowed) {
     if (k in safeBody) (data as any)[k] = (safeBody as any)[k];
   }
+
+  // If banner_url changed, set status to pending for admin review
+  const bannerChanged = 'banner_url' in data && data.banner_url !== ad.banner_url;
+  if (bannerChanged && data.banner_url) {
+    data.status = 'pending';
+  }
+
   const updated = await prisma.ad.update({ where: { id }, data });
+
+  // Notify admin when banner needs review
+  if (bannerChanged && data.banner_url) {
+    void sendAdPendingReviewEmail({
+      to: 'emancero@varsityhub.app',
+      businessName: updated.business_name || undefined,
+      contactName: updated.contact_name || undefined,
+      contactEmail: updated.contact_email || undefined,
+      zipCode: updated.target_zip_code || undefined,
+      bannerUrl: updated.banner_url,
+      adId: updated.id,
+    }).catch((err) => console.warn('[ads] Failed to send review email:', (err as any)?.message || err));
+  }
+
   return res.json(updated);
 });
 
@@ -273,6 +296,35 @@ adsRouter.delete('/:id([a-z0-9-]{20,40})', requireVerified as any, async (req: A
     console.error('[ads] DELETE /:id - Error deleting ad', { id, error });
     return res.status(500).json({ error: 'Failed to delete ad' });
   }
+});
+
+// Admin: Approve or reject an ad after banner review
+adsRouter.post('/:id([a-z0-9-]{20,40})/review', requireAuth as any, requireAdmin as any, async (req: AuthedRequest, res) => {
+  const id = String(req.params.id);
+  const action = String(req.body?.action || '');
+  if (action !== 'approve' && action !== 'reject') {
+    return res.status(400).json({ error: 'action must be "approve" or "reject"' });
+  }
+  const ad = await prisma.ad.findUnique({ where: { id } });
+  if (!ad) return res.status(404).json({ error: 'Ad not found' });
+
+  const newStatus = action === 'approve' ? 'active' : 'rejected';
+  const updated = await prisma.ad.update({ where: { id }, data: { status: newStatus } });
+
+  // Notify the ad owner
+  const ownerEmail = ad.contact_email || (ad.user_id
+    ? (await prisma.user.findUnique({ where: { id: ad.user_id }, select: { email: true } }))?.email
+    : null);
+
+  if (ownerEmail) {
+    const emailFn = action === 'approve' ? sendAdApprovedEmail : sendAdRejectedEmail;
+    void emailFn({
+      to: ownerEmail,
+      businessName: ad.business_name || undefined,
+    }).catch((err) => console.warn('[ads] Failed to send review result email:', (err as any)?.message || err));
+  }
+
+  return res.json(updated);
 });
 
 // List reserved dates. Supports optional range and/or specific ad_id.

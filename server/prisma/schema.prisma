@@ -454,7 +454,7 @@ model Ad {
   target_zip_code String?
   radius          Int      @default(45) // non-null with default
   description     String?
-  status          String   @default("draft") // draft | active | archived | pending
+  status          String   @default("draft") // draft | pending | active | rejected | archived
   payment_status  String   @default("unpaid") // unpaid | paid | refunded
   created_at      DateTime @default(now())
 

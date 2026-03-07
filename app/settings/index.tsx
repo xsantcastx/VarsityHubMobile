@@ -515,20 +515,24 @@ export default function SettingsScreen() {
                           { text: 'Log Out', style: 'destructive', onPress: () => { void performSignOut(); } },
                         ]);
                       }} />
-                      <NavRow title="Delete Account" destructive onPress={confirmDeleteAccount} />
-                      <NavRow title="Upgrade to Coach Account" isLast onPress={() => {
+                      <NavRow title="Delete Account" destructive isLast={role === 'coach'} onPress={confirmDeleteAccount} />
+                      {role !== 'coach' && <NavRow title="Upgrade to Coach Account" isLast onPress={() => {
                         Alert.alert('Upgrade to Coach Account', 'Your account will be upgraded to a coach account. You\'ll complete the coach setup steps next.', [
                           { text: 'Cancel', style: 'cancel' },
                           { text: 'Continue', onPress: async () => {
                             try {
                               await User.upgradeToCoach('rookie');
+                              // Update onboarding context so step-3 knows user is a coach
+                              if (setOB) {
+                                setOB((prev) => ({ ...prev, role: 'coach', plan: undefined, step_3_visited: false, step_4_visited: false }));
+                              }
                               router.push('/onboarding/step-3-plan');
                             } catch (e: any) {
                               Alert.alert('Error', e?.data?.error || e?.message || 'Failed to upgrade. Please try again.');
                             }
                           } }
                         ]);
-                      }} />
+                      }} />}
                     </SectionCard>
 
                     {/* Copyright Footer */}

@@ -365,6 +365,14 @@ export default function ProfileScreen() {
         u = await User.getPublic(viewingUserId);
         if (u) {
           setIsFollowing(u.is_following || false);
+          // Normalize flat count fields from public endpoint into _count structure
+          if (u.followers_count !== undefined || u.following_count !== undefined || u.posts_count !== undefined) {
+            u._count = {
+              posts: u.posts_count ?? 0,
+              followers: u.followers_count ?? 0,
+              following: u.following_count ?? 0,
+            };
+          }
         }
       } else {
         // Viewing own profile
@@ -1518,10 +1526,10 @@ const styles = StyleSheet.create({
   // Profile Details Below Banner — paddingTop clears the overlapping avatar
   profileDetailsContainer: {
     backgroundColor: 'transparent',
-    paddingTop: 52,
+    paddingTop: 44,
     marginBottom: 0,
     paddingBottom: 0,
-    gap: 4,
+    gap: 2,
   },
   profileNameRow: {
     flexDirection: 'row',
@@ -1529,7 +1537,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     gap: 8,
     paddingHorizontal: 16,
-    marginBottom: 8,
+    marginBottom: 4,
   },
   profileName: {
     fontSize: 22,

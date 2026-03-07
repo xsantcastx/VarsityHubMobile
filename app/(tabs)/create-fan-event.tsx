@@ -20,7 +20,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 // @ts-ignore
-import { Game, User } from '@/api/entities';
+import { Game, Team as TeamAPI, User } from '@/api/entities';
 import { autocompleteLocations, PlaceSuggestion } from '@/api/geocoding';
 import { httpGet } from '@/api/http';
 
@@ -95,6 +95,9 @@ export default function CreateFanEventScreen() {
   const [selectedTeam, setSelectedTeam] = useState('');
   const [selectedTeamId, setSelectedTeamId] = useState('');
   const [opponent, setOpponent] = useState('');
+  const [opponentSuggestions, setOpponentSuggestions] = useState<Array<{ id: string; name: string }>>([]);
+  const [opponentSearching, setOpponentSearching] = useState(false);
+  const opponentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [gameType, setGameType] = useState<'home' | 'away'>('home');
   const [showTeamPicker, setShowTeamPicker] = useState(false);
 
@@ -104,6 +107,7 @@ export default function CreateFanEventScreen() {
       id: String(team.id),
       name: team.name || 'Unknown Team',
       logo: (team.logo_url || team.avatar_url || undefined) as string | undefined,
+      venue_address: (team.venue_address || null) as string | null,
     }));
   }, [rawTeams]);
 
@@ -162,6 +166,51 @@ export default function CreateFanEventScreen() {
         clearTimeout(locationTimerRef.current);
       }
     };
+  }, []);
+
+  // Pre-fill venue when Home Game is selected and a team with a saved venue is chosen
+  useEffect(() => {
+    if (!selectedTeamId || eventType !== 'game') return;
+    const team = teams.find((t) => t.id === selectedTeamId);
+    if (gameType === 'home' && team?.venue_address) {
+      if (!locationTouched) {
+        setLocation(team.venue_address);
+        setSelectedPlace(null);
+      }
+    } else if (gameType === 'away') {
+      if (!locationTouched) {
+        setLocation('');
+        setSelectedPlace(null);
+      }
+    }
+  }, [gameType, selectedTeamId, teams, eventType]);
+
+  // Opponent team search
+  const handleOpponentChange = useCallback((text: string) => {
+    setOpponent(text);
+    setErrors(prev => ({ ...prev, opponent: '' }));
+    if (opponentTimerRef.current) clearTimeout(opponentTimerRef.current);
+    if (text.trim().length < 2) {
+      setOpponentSuggestions([]);
+      setOpponentSearching(false);
+      return;
+    }
+    setOpponentSearching(true);
+    opponentTimerRef.current = setTimeout(async () => {
+      try {
+        const results = await TeamAPI.list(text.trim(), false, { limit: 6 });
+        const list = Array.isArray(results) ? results : (Array.isArray(results?.items) ? results.items : []);
+        setOpponentSuggestions(list.map((t: any) => ({ id: String(t.id), name: String(t.name || '') })));
+      } catch {
+        setOpponentSuggestions([]);
+      } finally {
+        setOpponentSearching(false);
+      }
+    }, 300);
+  }, []);
+
+  useEffect(() => {
+    return () => { if (opponentTimerRef.current) clearTimeout(opponentTimerRef.current); };
   }, []);
 
   const validateForm = (): boolean => {
@@ -418,7 +467,7 @@ export default function CreateFanEventScreen() {
           </View>
         )}
 
-        {/* Opponent — simple text input (coach game events only) */}
+        {/* Opponent — autocomplete from database with manual fallback */}
         {isGameEvent && (
           <View style={styles.section}>
             <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Opponent *</Text>
@@ -431,12 +480,33 @@ export default function CreateFanEventScreen() {
                   color: Colors[colorScheme].text,
                 },
               ]}
-              placeholder="Enter opponent team name"
+              placeholder="Search for a team or type a name"
               placeholderTextColor={Colors[colorScheme].mutedText}
               value={opponent}
-              onChangeText={setOpponent}
+              onChangeText={handleOpponentChange}
               autoCapitalize="words"
             />
+            {opponentSearching && (
+              <ActivityIndicator size="small" style={{ position: 'absolute', right: 28, top: 44 }} color={Colors[colorScheme].mutedText} />
+            )}
+            {opponentSuggestions.length > 0 && (
+              <View style={[styles.suggestionsBox, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
+                {opponentSuggestions.map((t) => (
+                  <Pressable
+                    key={t.id}
+                    style={[styles.suggestionItem, { borderBottomColor: Colors[colorScheme].border }]}
+                    onPress={() => {
+                      setOpponent(t.name);
+                      setOpponentSuggestions([]);
+                      setErrors(prev => ({ ...prev, opponent: '' }));
+                    }}
+                  >
+                    <MaterialIcons name="group" size={16} color={Colors[colorScheme].mutedText} />
+                    <Text style={[styles.suggestionText, { color: Colors[colorScheme].text }]}>{t.name}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
             {errors.opponent && <Text style={styles.errorText}>{errors.opponent}</Text>}
           </View>
         )}
@@ -454,7 +524,7 @@ export default function CreateFanEventScreen() {
                     borderColor: gameType === 'home' ? Colors[colorScheme].tint : Colors[colorScheme].border,
                   }
                 ]}
-                onPress={() => setGameType('home')}
+                onPress={() => { setGameType('home'); setLocationTouched(false); }}
               >
                 <MaterialIcons name="home" size={20} color={gameType === 'home' ? '#fff' : Colors[colorScheme].text} />
                 <Text style={[
@@ -473,7 +543,7 @@ export default function CreateFanEventScreen() {
                     borderColor: gameType === 'away' ? Colors[colorScheme].tint : Colors[colorScheme].border,
                   }
                 ]}
-                onPress={() => setGameType('away')}
+                onPress={() => { setGameType('away'); setLocationTouched(false); }}
               >
                 <MaterialIcons name="flight" size={20} color={gameType === 'away' ? '#fff' : Colors[colorScheme].text} />
                 <Text style={[
@@ -696,6 +766,7 @@ export default function CreateFanEventScreen() {
                     setSelectedTeam(team.name);
                     setSelectedTeamId(team.id);
                     setShowTeamPicker(false);
+                    setLocationTouched(false);
                   }}
                 >
                   <View style={styles.pickerItemContent}>
@@ -958,5 +1029,23 @@ const styles = StyleSheet.create({
   inputHelperText: {
     fontSize: 12,
     marginTop: 4,
+  },
+  suggestionsBox: {
+    borderWidth: 1,
+    borderRadius: 8,
+    marginTop: 4,
+    overflow: 'hidden',
+  },
+  suggestionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  suggestionText: {
+    fontSize: 15,
+    fontWeight: '500',
   },
 });

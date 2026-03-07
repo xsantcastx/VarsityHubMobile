@@ -110,6 +110,9 @@ export default function SubscriptionPaywallScreen() {
           customerEphemeralKeySecret: data.ephemeralKey,
           customerId: data.customer,
           merchantDisplayName: 'Varsity Hub',
+          applePay: Platform.OS === 'ios' ? { merchantCountryCode: 'US' } : undefined,
+          googlePay: Platform.OS === 'android' ? { merchantCountryCode: 'US', testEnv: __DEV__ } : undefined,
+          paymentMethodOrder: ['apple_pay', 'google_pay', 'card'],
         });
         if (initError) {
           Alert.alert('Error', initError.message);

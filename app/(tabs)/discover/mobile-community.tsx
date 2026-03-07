@@ -324,6 +324,20 @@ export default function CommunityDiscoverScreen() {
     try { await load({ silent: true }); } finally { setRefreshing(false); }
   }, [load]);
 
+  const handleManageOrg = useCallback(async () => {
+    try {
+      const orgs = await Organization.mine();
+      const list = Array.isArray(orgs) ? orgs : [];
+      if (list.length > 0) {
+        router.push({ pathname: '/organization', params: { id: list[0].id } } as any);
+      } else {
+        Alert.alert('No Organization', 'You are not linked to any organization yet.');
+      }
+    } catch {
+      Alert.alert('Error', 'Could not load your organization.');
+    }
+  }, [router]);
+
   const handleQuickGameSave = useCallback(async (data: QuickGameData) => {
     if (isCreatingGame) return; // Prevent duplicate submissions
     setIsCreatingGame(true);
@@ -853,11 +867,11 @@ export default function CommunityDiscoverScreen() {
                 <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Review pending events</Text>
               </Pressable>
               <Pressable
-                style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: 12 }]}
-                onPress={() => void router.push('/organization')}
+                style={[styles.coachActionCard, { backgroundColor: '#1E3A5F15', borderColor: '#1E3A5F30', marginLeft: 12 }]}
+                onPress={() => void handleManageOrg()}
               >
-                <MaterialIcons name="business" size={24} color={Colors[colorScheme].tint} />
-                <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Manage Org</Text>
+                <MaterialIcons name="business" size={24} color="#1E3A5F" />
+                <Text style={[styles.coachActionTitle, { color: '#1E3A5F' }]}>Manage Org</Text>
                 <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Your organization</Text>
               </Pressable>
             </>
@@ -866,11 +880,11 @@ export default function CommunityDiscoverScreen() {
               {/* Organizer-only card (shown before fan actions for organizer role) */}
               {me?.preferences?.role === 'organizer' && (
                 <Pressable
-                  style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30' }]}
-                  onPress={() => void router.push('/organization')}
+                  style={[styles.coachActionCard, { backgroundColor: '#1E3A5F15', borderColor: '#1E3A5F30' }]}
+                  onPress={() => void handleManageOrg()}
                 >
-                  <MaterialIcons name="business" size={24} color={Colors[colorScheme].tint} />
-                  <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Manage Org</Text>
+                  <MaterialIcons name="business" size={24} color="#1E3A5F" />
+                  <Text style={[styles.coachActionTitle, { color: '#1E3A5F' }]}>Manage Org</Text>
                   <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Your organization</Text>
                 </Pressable>
               )}

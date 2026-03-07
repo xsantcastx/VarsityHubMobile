@@ -3,7 +3,7 @@ import expressPkg, { Router } from 'express';
 import Stripe from 'stripe';
 import { Prisma } from '@prisma/client';
 import { debugLog } from '../lib/debugLog.js';
-import { sendBillingNoticeEmail, sendEmail } from '../lib/email.js';
+import { sendAdPaymentConfirmedEmail, sendBillingNoticeEmail } from '../lib/email.js';
 import { getAllPlanDefinitions, getMaxTeamsForPlan } from '../lib/planLimits.js';
 import { prisma } from '../lib/prisma.js';
 import { previewPromo, redeemPromo } from '../lib/promos.js';
@@ -91,121 +91,15 @@ async function sendAdPaymentEmail({
     } catch { return d; }
   });
 
-  const datesHtml = formattedDates.map((d) =>
-    `<div style="display:inline-block;background:#F0F9FF;border:1px solid #BAE6FD;border-radius:6px;padding:4px 10px;margin:3px 4px 3px 0;font-size:13px;color:#0C4A6E;">📅 ${d}</div>`
-  ).join('');
-
-  const html = `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#F3F4F6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F3F4F6;padding:24px 0;">
-    <tr><td align="center">
-      <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#FFFFFF;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.1);">
-        <!-- Header -->
-        <tr>
-          <td style="background:linear-gradient(135deg,#0EA5E9,#2563EB);padding:32px 24px;text-align:center;">
-            <div style="font-size:28px;font-weight:800;color:#FFFFFF;letter-spacing:-0.5px;">VarsityHub</div>
-            <div style="font-size:14px;color:rgba(255,255,255,0.85);margin-top:4px;">Ad Reservation Confirmed</div>
-          </td>
-        </tr>
-        <!-- Success Badge -->
-        <tr>
-          <td style="padding:28px 24px 0;text-align:center;">
-            <div style="display:inline-block;background:#DCFCE7;border:1px solid #86EFAC;border-radius:50%;width:56px;height:56px;line-height:56px;font-size:28px;text-align:center;">✅</div>
-            <div style="font-size:22px;font-weight:700;color:#111827;margin-top:12px;">Payment Confirmed!</div>
-            <div style="font-size:14px;color:#6B7280;margin-top:4px;">Your ad reservation has been processed successfully.</div>
-          </td>
-        </tr>
-        <!-- Details Card -->
-        <tr>
-          <td style="padding:24px;">
-            <table width="100%" cellpadding="0" cellspacing="0" style="background:#F9FAFB;border:1px solid #E5E7EB;border-radius:10px;overflow:hidden;">
-              ${businessName ? `
-              <tr>
-                <td style="padding:16px 16px 0;">
-                  <div style="font-size:11px;font-weight:700;color:#6B7280;letter-spacing:1px;text-transform:uppercase;">Business</div>
-                  <div style="font-size:16px;font-weight:600;color:#111827;margin-top:2px;">${businessName}</div>
-                </td>
-              </tr>` : ''}
-              ${zipCode ? `
-              <tr>
-                <td style="padding:12px 16px 0;">
-                  <div style="font-size:11px;font-weight:700;color:#6B7280;letter-spacing:1px;text-transform:uppercase;">Coverage Area</div>
-                  <div style="font-size:16px;font-weight:600;color:#111827;margin-top:2px;">ZIP ${zipCode}</div>
-                </td>
-              </tr>` : ''}
-              ${amount ? `
-              <tr>
-                <td style="padding:12px 16px 0;">
-                  <div style="font-size:11px;font-weight:700;color:#6B7280;letter-spacing:1px;text-transform:uppercase;">Amount Paid</div>
-                  <div style="font-size:20px;font-weight:700;color:#16A34A;margin-top:2px;">${amount}</div>
-                </td>
-              </tr>` : ''}
-              <tr>
-                <td style="padding:12px 16px 0;">
-                  <div style="font-size:11px;font-weight:700;color:#6B7280;letter-spacing:1px;text-transform:uppercase;">Status</div>
-                  <div style="margin-top:4px;">
-                    <span style="display:inline-block;background:#DBEAFE;border:1px solid #93C5FD;border-radius:6px;padding:3px 8px;font-size:11px;font-weight:700;color:#1E40AF;">PAID</span>
-                    <span style="display:inline-block;background:#DCFCE7;border:1px solid #86EFAC;border-radius:6px;padding:3px 8px;font-size:11px;font-weight:700;color:#166534;margin-left:4px;">ACTIVE</span>
-                  </div>
-                </td>
-              </tr>
-              ${hoursLabel ? `
-              <tr>
-                <td style="padding:12px 16px 0;">
-                  <div style="font-size:11px;font-weight:700;color:#6B7280;letter-spacing:1px;text-transform:uppercase;">Total Hours Booked</div>
-                  <div style="font-size:16px;font-weight:600;color:#111827;margin-top:2px;">${hoursLabel}</div>
-                </td>
-              </tr>` : ''}
-              ${formattedDates.length ? `
-              <tr>
-                <td style="padding:12px 16px 16px;">
-                  <div style="font-size:11px;font-weight:700;color:#6B7280;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">Reserved Dates (${formattedDates.length})</div>
-                  ${datesHtml}
-                </td>
-              </tr>` : '<tr><td style="padding:0 0 16px;"></td></tr>'}
-            </table>
-          </td>
-        </tr>
-        <!-- CTA -->
-        <tr>
-          <td style="padding:0 24px 24px;text-align:center;">
-            <a href="https://varsityhub.app" style="display:inline-block;background:#2563EB;color:#FFFFFF;font-size:16px;font-weight:700;text-decoration:none;padding:12px 32px;border-radius:10px;">Open VarsityHub</a>
-          </td>
-        </tr>
-        <!-- Footer -->
-        <tr>
-          <td style="background:#F9FAFB;border-top:1px solid #E5E7EB;padding:20px 24px;text-align:center;">
-            <div style="font-size:12px;color:#9CA3AF;">
-              VarsityHub &bull; <a href="https://limeprod.com/VarsityHubPrivacy" style="color:#6B7280;text-decoration:underline;">Privacy Policy</a> &bull; <a href="mailto:support@varsityhub.app" style="color:#6B7280;text-decoration:underline;">Support</a>
-            </div>
-            <div style="font-size:11px;color:#D1D5DB;margin-top:8px;">Ad ID: ${adId}</div>
-          </td>
-        </tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`;
-
-  const textFallback = [
-    'Payment Confirmed — Ad Reservation',
-    businessName ? `Business: ${businessName}` : null,
-    zipCode ? `Coverage: ZIP ${zipCode}` : null,
-    amount ? `Amount Paid: ${amount}` : null,
-    hoursLabel ? `Hours Booked: ${hoursLabel}` : null,
-    formattedDates.length ? `Dates: ${formattedDates.join(', ')}` : null,
-    `Ad ID: ${adId}`,
-  ].filter(Boolean).join('\n');
-
   try {
-    await sendEmail({
+    await sendAdPaymentConfirmedEmail({
       to: email,
-      subject: 'Ad Reservation Confirmed — VarsityHub',
-      text: textFallback,
-      html,
+      businessName: businessName || undefined,
+      zipCode: zipCode || undefined,
+      amount: amount || undefined,
+      hoursLabel: hoursLabel || undefined,
+      dates: formattedDates,
+      adId,
     });
   } catch (err) {
     console.warn('[payments] Unable to send ad payment email:', (err as any)?.message || err);
@@ -503,7 +397,7 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paym
     }
     try {
       await prisma.$transaction([
-        prisma.ad.update({ where: { id: String(ad_id) }, data: { payment_status: 'paid' } }),
+        prisma.ad.update({ where: { id: String(ad_id) }, data: { payment_status: 'paid', status: 'active' } }),
         prisma.adReservation.createMany({ data: isoDates.map((s) => ({ ad_id: String(ad_id), date: new Date(s + 'T00:00:00.000Z') })), skipDuplicates: true }),
       ]);
     } catch (e) {
@@ -851,7 +745,7 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
     }
     try {
       await prisma.$transaction([
-        prisma.ad.update({ where: { id: String(ad_id) }, data: { payment_status: 'paid' } }),
+        prisma.ad.update({ where: { id: String(ad_id) }, data: { payment_status: 'paid', status: 'active' } }),
         prisma.adReservation.createMany({ data: isoDates.map((s) => ({ ad_id: String(ad_id), date: new Date(s + 'T00:00:00.000Z') })), skipDuplicates: true }),
       ]);
     } catch (e) {

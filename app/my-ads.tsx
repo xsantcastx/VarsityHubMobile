@@ -128,7 +128,7 @@ export default function MyAdsScreen() {
   const remove = async (id: string) => {
     Alert.alert(
       'Delete Ad', 
-      'This will permanently delete the ad and all its scheduled dates. This action cannot be undone.', 
+      'This will permanently remove your ad. Your payment is non-refundable. This action cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
         { 

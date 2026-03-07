@@ -75,7 +75,7 @@ import {
   sendReportResolutionEmail,
   sendAdGoesLiveEmail,
   sendAdReservationEmail,
-  sendEmail,
+  sendAdPaymentConfirmedEmail,
 } from '../src/lib/email.js';
 
 // ── Config ──────────────────────────────────────────────────────────
@@ -384,25 +384,17 @@ const tests: TestCase[] = [
     }),
   },
   {
-    name: 'Ad Payment Confirmation (inline HTML)',
+    name: 'Ad Payment Confirmation (dynamic template)',
     category: 'Ads',
-    method: 'inline_html',
-    fn: () => sendEmail({
+    method: 'template',
+    fn: () => sendAdPaymentConfirmedEmail({
       to: TO,
-      subject: '[TEST] Ad Reservation Confirmed — VarsityHub',
-      text: 'Test: Ad payment confirmation with business Joe\'s Pizza, dates 2026-03-15, 2026-03-16',
-      html: `<html><body style="font-family:sans-serif;background:#f3f4f6;padding:20px;">
-        <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:12px;padding:24px;">
-          <h2 style="color:#2563EB;">VarsityHub — Ad Payment Test</h2>
-          <p>This is a <strong>test</strong> of the new inline HTML ad payment email.</p>
-          <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:16px;margin:16px 0;">
-            <p style="margin:0;color:#166534;font-weight:600;">✅ Payment Confirmed</p>
-            <p style="margin:4px 0 0;color:#166534;">Business: Joe's Pizza</p>
-            <p style="margin:4px 0 0;color:#166534;">Amount: $5.36</p>
-            <p style="margin:4px 0 0;color:#166534;">Dates: Mar 15, Mar 16</p>
-          </div>
-        </div>
-      </body></html>`,
+      businessName: 'Joe\'s Pizza',
+      zipCode: '90210',
+      amount: '$5.36',
+      hoursLabel: '48 hrs (2 days)',
+      dates: ['Sat, Mar 15, 2026', 'Sun, Mar 16, 2026'],
+      adId: 'test-ad-123',
     }),
   },
 ];
