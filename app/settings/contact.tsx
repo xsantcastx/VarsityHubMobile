@@ -33,7 +33,7 @@ export default function ContactScreen() {
       await Support.contact({ name: name || 'Unknown', email: emailField || 'unknown@example.com', subject: subject.trim(), message: message.trim() });
       Alert.alert('Sent', 'Thanks for reaching out.');
       if (router.canGoBack()) {
-        router.back();
+        if (router.canGoBack()) router.back();
       } else {
         router.replace('/(tabs)' as any);
       }

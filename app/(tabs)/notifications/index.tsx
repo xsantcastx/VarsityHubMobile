@@ -169,7 +169,7 @@ export default function NotificationsScreen() {
         style={[S.headerGradient, { paddingTop: insets.top + 12 }]}
       >
         <View style={S.headerRow}>
-          <Pressable onPress={() => router.back()} style={S.backButton} accessibilityRole="button" accessibilityLabel="Go back">
+          <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={S.backButton} accessibilityRole="button" accessibilityLabel="Go back">
             <MaterialIcons name="chevron-left" size={24} color={Colors[colorScheme].text} />
           </Pressable>
           <Text style={[S.topTitle, { color: Colors[colorScheme].text }]}>Notifications</Text>

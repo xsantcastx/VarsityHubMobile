@@ -193,7 +193,7 @@ export default function TeamViewerScreen() {
     return (
       <SafeAreaView style={[styles.container, styles.centered, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
         <Stack.Screen options={{ title: 'Loading Team...', headerShown: true, headerLeft: () => (
-            <Pressable onPress={() => router.back()} style={{ paddingRight: 8 }}>
+            <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={{ paddingRight: 8 }}>
               <MaterialIcons name="chevron-left" size={28} color="#007AFF" />
             </Pressable>
           ) }} />
@@ -209,7 +209,7 @@ export default function TeamViewerScreen() {
     return (
       <SafeAreaView style={[styles.container, styles.centered, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
         <Stack.Screen options={{ title: 'Team Not Found', headerShown: true, headerLeft: () => (
-            <Pressable onPress={() => router.back()} style={{ paddingRight: 8 }}>
+            <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={{ paddingRight: 8 }}>
               <MaterialIcons name="chevron-left" size={28} color="#007AFF" />
             </Pressable>
           ) }} />
@@ -239,7 +239,7 @@ export default function TeamViewerScreen() {
           headerStyle: { backgroundColor: Colors[colorScheme].background },
           headerTintColor: Colors[colorScheme].text,
           headerLeft: () => (
-            <Pressable onPress={() => router.back()} style={{ paddingRight: 8 }}>
+            <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={{ paddingRight: 8 }}>
               <MaterialIcons name="chevron-left" size={28} color="#007AFF" />
             </Pressable>
           ),

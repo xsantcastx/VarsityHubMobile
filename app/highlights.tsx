@@ -661,7 +661,7 @@ export default function HighlightsScreen() {
       <View style={[styles.header, { paddingTop: insets.top, backgroundColor: Colors[colorScheme].card, borderBottomColor: Colors[colorScheme].border }]}>
         {/* Back button and title */}
         <View style={styles.headerRow}>
-          <Pressable style={styles.headerSpacer} onPress={() => router.back()} hitSlop={8}>
+          <Pressable style={styles.headerSpacer} onPress={() => { if (router.canGoBack()) router.back(); }} hitSlop={8}>
             <Ionicons name="chevron-back" size={24} color={Colors[colorScheme].text} />
           </Pressable>
           <Text style={[styles.headerTitleText, { color: Colors[colorScheme].text }]} numberOfLines={1}>

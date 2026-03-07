@@ -167,7 +167,7 @@ export default function OrganizationJoinRequestsScreen() {
         <Pressable 
           onPress={() => {
             if (router.canGoBack()) {
-              router.back();
+              if (router.canGoBack()) router.back();
             } else {
               router.push('/' as any);
             }

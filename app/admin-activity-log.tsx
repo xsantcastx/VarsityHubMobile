@@ -159,7 +159,7 @@ export default function AdminActivityLogScreen() {
           headerStyle: { backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white' },
           headerTintColor: colorScheme === 'dark' ? '#ECEDEE' : '#111827',
           headerLeft: () => (
-            <Pressable onPress={() => router.back()} style={{ paddingRight: 8 }}>
+            <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={{ paddingRight: 8 }}>
               <MaterialIcons name="chevron-left" size={28} color="#007AFF" />
             </Pressable>
           ),

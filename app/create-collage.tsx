@@ -112,7 +112,7 @@ export default function CreateCollageScreen() {
       await Post.createCollage({ caption: '', preview_url: remoteUrl, collage });
       Alert.alert('Published', 'Your collage has been posted.');
       if (router.canGoBack()) {
-        router.back();
+        if (router.canGoBack()) router.back();
       } else {
         router.replace('/(tabs)' as any);
       }
@@ -126,7 +126,7 @@ export default function CreateCollageScreen() {
   return (
     <ScrollView contentContainerStyle={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
       <Stack.Screen options={{ title: 'Create Collage', headerShown: true, headerLeft: () => (
-            <Pressable onPress={() => router.back()} style={{ paddingRight: 8 }}>
+            <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={{ paddingRight: 8 }}>
               <MaterialIcons name="chevron-left" size={28} color="#007AFF" />
             </Pressable>
           ) }} />

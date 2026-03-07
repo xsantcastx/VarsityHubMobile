@@ -1,7 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, Modal, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { ActivityIndicator, Alert, Modal, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
 // @ts-ignore
 import { User } from '@/api/entities';
 import { PLAN_DEFINITIONS, Plan } from '@/constants/plans';
@@ -354,7 +354,7 @@ const styles = StyleSheet.create({
   price: { fontWeight: '700', marginBottom: 4, fontSize: 18 },
   period: { fontSize: 14, fontWeight: '400' },
   benefitsList: { marginTop: 8, gap: 4 },
-  benefitItem: {},
+  benefitItem: { fontWeight: '700' },
   selectedText: {
     textShadowColor: 'rgba(0, 0, 0, 0.3)',
     textShadowOffset: { width: 0, height: 1 },

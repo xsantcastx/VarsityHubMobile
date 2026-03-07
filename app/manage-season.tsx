@@ -1091,7 +1091,7 @@ export default function ManageSeasonScreen() {
       {/* SIMPLIFIED HEADER - Team Name with Back Button */}
       <View style={[styles.headerCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border, padding: 20 }]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Pressable onPress={() => router.back()} style={{ padding: 8 }}>
+          <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={{ padding: 8 }}>
             <Ionicons name="arrow-back" size={24} color={Colors[colorScheme].text} />
           </Pressable>
           <Pressable onPress={() => setTeamSelectorOpen(true)} style={{ flex: 1 }}>
@@ -1123,38 +1123,7 @@ export default function ManageSeasonScreen() {
         </Pressable>
       </View>
 
-      {/* Tab controls */}
-      <View style={[
-        styles.tabContainer,
-        { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border, borderWidth: StyleSheet.hairlineWidth }
-      ]}>
-        {(['schedule', 'standings', 'playoffs'] as const).map((tabKey) => {
-          const isActive = selectedTab === tabKey;
-          const label =
-            tabKey === 'schedule' ? 'Schedule' : tabKey === 'standings' ? 'Standings' : 'Playoffs';
-          return (
-            <Pressable
-              key={tabKey}
-              style={[
-                styles.tab,
-                {
-                  backgroundColor: isActive ? Colors[colorScheme].tint : 'transparent',
-                },
-              ]}
-              onPress={() => setSelectedTab(tabKey)}
-            >
-              <Text
-                style={[
-                  styles.tabText,
-                  { color: isActive ? '#fff' : Colors[colorScheme].text },
-                ]}
-              >
-                {label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
+      {/* Tab controls removed — only Schedule content is shown */}
 
       {/* Main Content - No Tabs, Just Schedule */}
       <ScrollView 

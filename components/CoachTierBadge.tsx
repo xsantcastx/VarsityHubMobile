@@ -243,6 +243,7 @@ const styles = StyleSheet.create({
     color: '#374151',
     flex: 1,
     lineHeight: 20,
+    fontWeight: '700',
   },
   limitation: {
     fontSize: 12,

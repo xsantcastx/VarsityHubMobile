@@ -244,24 +244,26 @@ organizationsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res
   if (!filterResult.valid) {
     return res.status(400).json({ error: filterResult.error, code: filterResult.code });
   }
-  const organization = await prisma.organization.create({ 
-    data: {
-      ...data,
-      season_start: data.season_start ? new Date(data.season_start) : null,
-      season_end: data.season_end ? new Date(data.season_end) : null,
-      updated_at: new Date(),
-    }
+  // Transaction: create org + owner membership atomically
+  const organization = await prisma.$transaction(async (tx) => {
+    const org = await tx.organization.create({
+      data: {
+        ...data,
+        season_start: data.season_start ? new Date(data.season_start) : null,
+        season_end: data.season_end ? new Date(data.season_end) : null,
+        updated_at: new Date(),
+      }
+    });
+    await tx.organizationMembership.create({
+      data: {
+        organization_id: org.id,
+        user_id: req.user!.id,
+        role: 'owner'
+      }
+    });
+    return org;
   });
-  
-  // Add creator as owner
-  await prisma.organizationMembership.create({ 
-    data: { 
-      organization_id: organization.id, 
-      user_id: req.user!.id, 
-      role: 'owner' 
-    } 
-  });
-  
+
   return res.status(201).json(organization);
 });
 
@@ -307,30 +309,31 @@ organizationsRouter.post('/create', requireAuth as any, async (req: AuthedReques
     return res.status(400).json({ error: filterResult.error, code: filterResult.code });
   }
   
-  // Create organization
-  const organization = await prisma.organization.create({ 
-    data: {
-      name: data.name,
-      description: data.description,
-      sport: data.sport,
-      org_type: data.org_type,
-      location: data.location,
-      zip_code: data.zip_code,
-      season_start: data.season_start ? new Date(data.season_start) : null,
-      season_end: data.season_end ? new Date(data.season_end) : null,
-      updated_at: new Date(),
-    }
+  // Transaction: create org + owner membership atomically
+  const organization = await prisma.$transaction(async (tx) => {
+    const org = await tx.organization.create({
+      data: {
+        name: data.name,
+        description: data.description,
+        sport: data.sport,
+        org_type: data.org_type,
+        location: data.location,
+        zip_code: data.zip_code,
+        season_start: data.season_start ? new Date(data.season_start) : null,
+        season_end: data.season_end ? new Date(data.season_end) : null,
+        updated_at: new Date(),
+      }
+    });
+    await tx.organizationMembership.create({
+      data: {
+        organization_id: org.id,
+        user_id: req.user!.id,
+        role: 'owner'
+      }
+    });
+    return org;
   });
-  
-  // Add creator as owner
-  await prisma.organizationMembership.create({ 
-    data: { 
-      organization_id: organization.id, 
-      user_id: req.user!.id, 
-      role: 'owner' 
-    } 
-  });
-  
+
   // Send invites to authorized users
   if (data.authorized_users && data.authorized_users.length > 0) {
     const invites = data.authorized_users

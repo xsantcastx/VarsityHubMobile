@@ -58,7 +58,7 @@ export default function EditUsernameScreen() {
       ]);
       Alert.alert('Success', 'Username updated successfully');
       if (router.canGoBack()) {
-        router.back();
+        if (router.canGoBack()) router.back();
       } else {
         router.replace('/(tabs)' as any);
       }

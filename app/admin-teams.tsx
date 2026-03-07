@@ -114,7 +114,7 @@ export default function AdminTeamsScreen() {
           title: 'Admin · All Teams',
           headerShown: true,
           headerLeft: () => (
-            <Pressable onPress={() => router.back()} style={{ paddingRight: 8 }}>
+            <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={{ paddingRight: 8 }}>
               <Ionicons name="chevron-back" size={28} color="#007AFF" />
             </Pressable>
           ),

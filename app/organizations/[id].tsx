@@ -86,7 +86,7 @@ export default function OrganizationDetailScreen() {
         <Text style={{ fontSize: 48, marginBottom: 12 }}>🏫</Text>
         <Text style={{ fontSize: 18, fontWeight: '600', marginBottom: 8 }}>Not Found</Text>
         <Text style={{ color: '#6B7280', textAlign: 'center', marginBottom: 20 }}>This organization doesn't exist or the link is invalid.</Text>
-        <Pressable onPress={() => router.back()} style={{ backgroundColor: '#3B82F6', borderRadius: 8, paddingHorizontal: 20, paddingVertical: 10 }}>
+        <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={{ backgroundColor: '#3B82F6', borderRadius: 8, paddingHorizontal: 20, paddingVertical: 10 }}>
           <Text style={{ color: '#fff', fontWeight: '600' }}>Go Back</Text>
         </Pressable>
       </View>

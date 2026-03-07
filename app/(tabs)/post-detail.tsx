@@ -998,7 +998,7 @@ export default function PostDetailScreen() {
             // not a stacked screen within the highlights tab.
             router.navigate('/(tabs)/highlights' as any);
           } else if (router.canGoBack()) {
-            router.back();
+            if (router.canGoBack()) router.back();
           } else {
             router.replace('/(tabs)' as any);
           }

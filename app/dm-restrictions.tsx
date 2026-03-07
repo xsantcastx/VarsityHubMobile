@@ -56,7 +56,7 @@ export default function DMRestrictionsScreen() {
     }
     setSaving(false);
     if (router.canGoBack()) {
-      router.back();
+      if (router.canGoBack()) router.back();
     } else {
       router.replace('/(tabs)' as any);
     }
@@ -77,7 +77,7 @@ export default function DMRestrictionsScreen() {
       <Stack.Screen options={{
         title: 'DM Restrictions',
         headerLeft: () => (
-          <Pressable onPress={() => router.back()} style={{ paddingLeft: 8 }}>
+          <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={{ paddingLeft: 8 }}>
             <MaterialIcons name="chevron-left" size={24} color={Colors[colorScheme].tint} />
           </Pressable>
         ),

@@ -5,11 +5,11 @@ import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import { usePaymentSheet } from '@stripe/stripe-react-native';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Platform, Pressable, ScrollView as RNScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
-import { Subscriptions, Team, User } from '@/api/entities';
+import { Organization, Subscriptions, Team, User } from '@/api/entities';
 import { uploadFile } from '@/api/upload';
 import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 // @ts-ignore
@@ -52,6 +52,10 @@ export default function CreateTeamScreen() {
   const [seasonYear, setSeasonYear] = useState(''); // Year editable by user
   const [teamColor, setTeamColor] = useState(''); // Team primary color
   const [organizationName, setOrganizationName] = useState(''); // School/organization name
+  const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
+  const [orgSearchResults, setOrgSearchResults] = useState<Array<{ id: string; name: string; description?: string }>>([]);
+  const [orgSearching, setOrgSearching] = useState(false);
+  const orgSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [logoUri, setLogoUri] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [limitsLoading, setLimitsLoading] = useState(true);
@@ -85,7 +89,39 @@ export default function CreateTeamScreen() {
     { name: 'Black', value: '#0F172A' },
     { name: 'Gold', value: '#F59E0B' },
   ];
-  
+
+  // Organization search as user types
+  const handleOrgSearch = useCallback((text: string) => {
+    setOrganizationName(text);
+    setSelectedOrgId(null);
+    if (orgSearchTimer.current) clearTimeout(orgSearchTimer.current);
+    if (text.trim().length < 2) {
+      setOrgSearchResults([]);
+      return;
+    }
+    orgSearchTimer.current = setTimeout(async () => {
+      setOrgSearching(true);
+      try {
+        const results: any = await Organization.list(text.trim(), 8);
+        setOrgSearchResults(Array.isArray(results) ? results : []);
+      } catch {
+        setOrgSearchResults([]);
+      } finally {
+        setOrgSearching(false);
+      }
+    }, 350);
+  }, []);
+
+  const handleSelectOrg = useCallback((org: { id: string; name: string }) => {
+    setOrganizationName(org.name);
+    setSelectedOrgId(org.id);
+    setOrgSearchResults([]);
+  }, []);
+
+  useEffect(() => {
+    return () => { if (orgSearchTimer.current) clearTimeout(orgSearchTimer.current); };
+  }, []);
+
   // Auto-suggest year based on season selection
   const getSuggestedYear = (seasonName: string) => {
     const now = new Date();
@@ -408,7 +444,8 @@ export default function CreateTeamScreen() {
         extracurricular_category: clubType === 'extracurricular' ? (extracurricularCategory.trim() || undefined) : undefined,
         season: season || undefined,
         primary_color: teamColor || undefined,
-        organization_name: organizationName.trim() || undefined,
+        organization_id: selectedOrgId || undefined,
+        organization_name: !selectedOrgId ? (organizationName.trim() || undefined) : undefined,
         logo_url: logoUrl || undefined, // Use uploaded URL
       };
       
@@ -437,7 +474,7 @@ export default function CreateTeamScreen() {
         <View style={[styles.header, { paddingTop: 12 + insets.top }]}>
           <Pressable 
             style={styles.backButton} 
-            onPress={() => router.back()}
+            onPress={() => { if (router.canGoBack()) router.back(); }}
           >
             <MaterialIcons name="arrow-back" size={24} color={Colors[colorScheme].text} />
           </Pressable>
@@ -804,19 +841,50 @@ export default function CreateTeamScreen() {
           <View style={styles.fieldGroup}>
             <Text style={[styles.fieldLabel, { color: Colors[colorScheme].text }]}>School / Organization</Text>
             <Text style={[styles.fieldHint, { color: Colors[colorScheme].mutedText, marginBottom: 8 }]}>
-              Enter your school or organization name (optional)
+              Search for an existing organization or type a new name
             </Text>
-            <TextInput
-              value={organizationName}
-              onChangeText={setOrganizationName}
-              placeholder="e.g., Lincoln High School"
-              placeholderTextColor={Colors[colorScheme].mutedText}
-              style={[styles.textInput, { 
-                backgroundColor: Colors[colorScheme].surface, 
-                borderColor: Colors[colorScheme].border,
-                color: Colors[colorScheme].text 
-              }]}
-            />
+            <View>
+              <TextInput
+                value={organizationName}
+                onChangeText={handleOrgSearch}
+                placeholder="e.g., Lincoln High School"
+                placeholderTextColor={Colors[colorScheme].mutedText}
+                style={[styles.textInput, {
+                  backgroundColor: Colors[colorScheme].surface,
+                  borderColor: selectedOrgId ? Colors[colorScheme].tint : Colors[colorScheme].border,
+                  color: Colors[colorScheme].text
+                }]}
+              />
+              {selectedOrgId && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 6 }}>
+                  <MaterialIcons name="check-circle" size={16} color={Colors[colorScheme].tint} />
+                  <Text style={{ color: Colors[colorScheme].tint, fontSize: 13, fontWeight: '600' }}>Linked to existing organization</Text>
+                  <Pressable onPress={() => { setSelectedOrgId(null); setOrganizationName(''); setOrgSearchResults([]); }} hitSlop={8}>
+                    <MaterialIcons name="close" size={16} color={Colors[colorScheme].mutedText} />
+                  </Pressable>
+                </View>
+              )}
+              {orgSearchResults.length > 0 && !selectedOrgId && (
+                <View style={[styles.orgDropdown, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
+                  {orgSearchResults.map((org) => (
+                    <Pressable
+                      key={org.id}
+                      onPress={() => handleSelectOrg(org)}
+                      style={[styles.orgDropdownItem, { borderBottomColor: Colors[colorScheme].border }]}
+                    >
+                      <MaterialIcons name="business" size={18} color={Colors[colorScheme].mutedText} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: Colors[colorScheme].text, fontWeight: '600', fontSize: 14 }}>{org.name}</Text>
+                        {org.description ? <Text style={{ color: Colors[colorScheme].mutedText, fontSize: 12 }} numberOfLines={1}>{org.description}</Text> : null}
+                      </View>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+              {orgSearching && (
+                <ActivityIndicator size="small" color={Colors[colorScheme].tint} style={{ position: 'absolute', right: 12, top: 14 }} />
+              )}
+            </View>
           </View>
 
           {/* Description */}
@@ -1216,6 +1284,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     marginTop: 8,
+  },
+  orgDropdown: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 8,
+    marginTop: 4,
+    maxHeight: 200,
+    overflow: 'hidden',
+  },
+  orgDropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
 });
 

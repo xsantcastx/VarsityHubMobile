@@ -519,7 +519,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
     if (onClose) {
       onClose();
     } else if (router.canGoBack()) {
-      router.back();
+      if (router.canGoBack()) router.back();
     } else {
       router.replace('/(tabs)' as any);
     }

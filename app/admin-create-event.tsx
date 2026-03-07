@@ -67,7 +67,7 @@ export default function CreateEventScreen() {
       await httpPost('/events', eventData);
 
       Alert.alert('Event Created!', 'Your event has been published successfully!', [
-        { text: 'OK', onPress: () => router.back() },
+        { text: 'OK', onPress: () => { if (router.canGoBack()) router.back(); } },
       ]);
     } catch (e: any) {
       Alert.alert('Error', e.message || 'Failed to create event.');

@@ -146,7 +146,7 @@ export default function SubmitAdScreen() {
           title: 'Submit Ad', 
           headerShown: true,
           headerLeft: () => (
-            <Pressable onPress={() => router.back()} style={{ padding: 8 }} accessibilityLabel="Go back">
+            <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={{ padding: 8 }} accessibilityLabel="Go back">
               <MaterialIcons name="arrow-back" size={24} color={theme.text} />
             </Pressable>
           ),

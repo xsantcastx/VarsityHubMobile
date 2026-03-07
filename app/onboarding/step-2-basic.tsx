@@ -199,7 +199,7 @@ export default function Step2Basic() {
       router.replace('/onboarding/step-10-confirmation');
     } else {
       setProgress(0);
-      router.back();
+      if (router.canGoBack()) router.back();
     }
   };
 

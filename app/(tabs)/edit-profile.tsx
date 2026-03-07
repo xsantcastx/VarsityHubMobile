@@ -498,7 +498,7 @@ export default function EditProfileScreen() {
       } else {
         // Fans go back to previous screen
         if (router.canGoBack()) {
-          router.back();
+          if (router.canGoBack()) router.back();
         } else {
           router.replace('/(tabs)' as any);
         }
@@ -525,7 +525,7 @@ export default function EditProfileScreen() {
           headerStyle: { backgroundColor: Colors[colorScheme].background },
           headerTintColor: Colors[colorScheme].text,
           headerLeft: () => (
-            <Pressable onPress={() => router.back()} style={{ paddingLeft: 8 }}>
+            <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={{ paddingLeft: 8 }}>
               <MaterialIcons name="chevron-left" size={24} color={Colors[colorScheme].tint} />
             </Pressable>
           ),

@@ -447,23 +447,32 @@ export default function LeagueScreen() {
         }
         showsVerticalScrollIndicator={false}
       >
-        <Pressable onPress={() => router.back()} style={[styles.backButton, { borderColor: theme.border }]}>
+        <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={[styles.backButton, { borderColor: theme.border }]}>
           <Ionicons name="arrow-back" size={22} color={theme.text} />
         </Pressable>
 
-        {/* Admin: View Join Requests Button */}
+        {/* Admin actions */}
         {isAdmin && league?.id && (
-          <Pressable
-            onPress={() => void router.push({
-                pathname: '/organization-join-requests',
-                params: { organization_id: league.id, organization_name: league.name },
-              })
-            }
-            style={[styles.adminButton, { backgroundColor: theme.tint }]}
-          >
-            <Ionicons name="people" size={20} color="#fff" />
-            <Text style={styles.adminButtonText}>Team Requests</Text>
-          </Pressable>
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+            <Pressable
+              onPress={() => void router.push(`/create-organization?id=${league.id}` as any)}
+              style={[styles.adminButton, { backgroundColor: theme.tint }]}
+            >
+              <Ionicons name="pencil" size={20} color="#fff" />
+              <Text style={styles.adminButtonText}>Edit Page</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => void router.push({
+                  pathname: '/organization-join-requests',
+                  params: { organization_id: league.id, organization_name: league.name },
+                })
+              }
+              style={[styles.adminButton, { backgroundColor: theme.tint }]}
+            >
+              <Ionicons name="people" size={20} color="#fff" />
+              <Text style={styles.adminButtonText}>Team Requests</Text>
+            </Pressable>
+          </View>
         )}
 
         <View style={[styles.card, styles.coverCard, { backgroundColor: theme.card, borderColor: theme.border }]}>

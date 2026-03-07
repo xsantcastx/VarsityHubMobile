@@ -119,7 +119,7 @@ export default function Step10Confirmation() {
       },
       {
         label: 'Authorized Users',
-        completed: Array.isArray(ob.authorized) && ob.authorized.length > 0,
+        completed: !!ob.step_6_visited || (Array.isArray(ob.authorized) && ob.authorized.length > 0),
         required: false,
         route: '/onboarding/step-6-authorized-users',
         description: 'Manage authorized users (optional, coaches only)'
@@ -316,7 +316,7 @@ export default function Step10Confirmation() {
         authorized_users: finalIsCoach ? latestOb.authorized_users : undefined,
 
         avatar_url: latestOb.avatar_url,
-        bio: latestOb.bio,
+        bio: latestOb.bio || undefined,
         sports_interests: latestOb.sports_interests,
 
         primary_intents: latestOb.primary_intents,

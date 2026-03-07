@@ -38,7 +38,7 @@ export default function CreateScreen() {
 
   const safeBack = () => {
     if (router.canGoBack()) {
-      router.back();
+      if (router.canGoBack()) router.back();
     } else {
       router.push('/(tabs)' as any);
     }

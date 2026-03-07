@@ -65,11 +65,12 @@ export default function LocationPicker({
   }
 
   return (
-    <View>
+    <View style={{ zIndex: 1 }}>
       <GooglePlacesAutocomplete
         ref={autocompleteRef}
         placeholder={placeholder}
         fetchDetails
+        disableScroll
         query={{
           key: apiKey,
           language: 'en',
@@ -114,6 +115,7 @@ export default function LocationPicker({
             borderColor: theme.border,
             borderRadius: 12,
             marginTop: 4,
+            maxHeight: 200,
           },
           row: {
             backgroundColor: theme.surface,

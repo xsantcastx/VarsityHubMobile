@@ -234,7 +234,7 @@ export default function OrganizationScreen() {
           <Ionicons name="business" size={48} color={theme.mutedText} style={{ marginBottom: 12 }} />
           <Text style={[styles.errorText, { color: theme.text, fontSize: 18, fontWeight: '600' }]}>Not Found</Text>
           <Text style={{ color: theme.mutedText, textAlign: 'center', marginTop: 4, marginBottom: 16 }}>This organization doesn't exist or the link is invalid.</Text>
-          <Pressable onPress={() => router.back()} style={[styles.retryButton, { backgroundColor: theme.tint }]}>
+          <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={[styles.retryButton, { backgroundColor: theme.tint }]}>
             <Text style={styles.retryText}>Go Back</Text>
           </Pressable>
         </View>
@@ -279,7 +279,7 @@ export default function OrganizationScreen() {
       >
         {/* Back Button */}
         <Pressable
-          onPress={() => (router.back())}
+          onPress={() => { if (router.canGoBack()) router.back(); }}
           style={[styles.backButton, { borderColor: theme.border }]}
         >
           <Ionicons name="arrow-back" size={22} color={theme.text} />

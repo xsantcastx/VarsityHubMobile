@@ -131,7 +131,7 @@ export default function VerifyScreen() {
       <KeyboardAwareScreen contentContainerStyle={styles.content}>
         {/* Back Button */}
         <Pressable 
-          onPress={() => router.back()}
+          onPress={() => { if (router.canGoBack()) router.back(); }}
           style={styles.backButton}
           hitSlop={8}
         >

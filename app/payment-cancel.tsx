@@ -16,7 +16,7 @@ export default function PaymentCancelScreen() {
     if (isAd) {
       const timer = setTimeout(() => {
         if (router.canGoBack()) {
-          router.back();
+          if (router.canGoBack()) router.back();
         } else {
           router.replace('/(tabs)/my-ads');
         }
@@ -29,7 +29,7 @@ export default function PaymentCancelScreen() {
     if (isAd) {
       // Go back to ad calendar with selections preserved
       if (router.canGoBack()) {
-        router.back();
+        if (router.canGoBack()) router.back();
       } else {
         router.replace('/(tabs)/my-ads');
       }

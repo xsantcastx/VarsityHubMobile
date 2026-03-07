@@ -723,7 +723,7 @@ export default function ProfileScreen() {
         {/* Back Button - Only when viewing another user's profile */}
         {viewingUserId && viewingUserId !== currentUserId ? (
           <Pressable
-            onPress={() => router.back()}
+            onPress={() => { if (router.canGoBack()) router.back(); }}
             hitSlop={12}
             style={[styles.controlButton, { position: 'absolute', left: 16, top: 12, zIndex: 200, elevation: 200, backgroundColor: colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)' }]}
           >
@@ -982,7 +982,7 @@ export default function ProfileScreen() {
           <MaterialIcons name="person-outline" size={48} color={theme.mutedText} style={{ marginBottom: 16 }} />
           <Text style={[styles.error, { color: theme.text, textAlign: 'center', marginBottom: 8 }]}>User not found</Text>
           <Text style={{ color: theme.mutedText, textAlign: 'center', marginBottom: 16 }}>This profile doesn't exist or the link is invalid.</Text>
-          <Button onPress={() => router.back()}>
+          <Button onPress={() => { if (router.canGoBack()) router.back(); }}>
             <Text style={{ color: '#fff' }}>Go Back</Text>
           </Button>
         </View>

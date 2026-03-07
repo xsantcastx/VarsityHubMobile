@@ -40,7 +40,7 @@ export default function GameHighlightsScreen() {
       <Stack.Screen options={{ 
         title: 'Highlights',
         headerLeft: () => (
-          <Pressable onPress={() => router.back()} style={{ paddingLeft: 8 }}>
+          <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={{ paddingLeft: 8 }}>
             <MaterialIcons name="chevron-left" size={24} color={theme.tint} />
           </Pressable>
         ),

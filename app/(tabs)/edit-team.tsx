@@ -62,7 +62,7 @@ export default function EditTeamScreen() {
       console.error('Failed to load team:', error);
       Alert.alert('Error', 'Failed to load team data. Please try again.');
       if (router.canGoBack()) {
-        router.back();
+        if (router.canGoBack()) router.back();
       } else {
         router.replace('/(tabs)' as any);
       }
@@ -226,7 +226,7 @@ export default function EditTeamScreen() {
         setOrganizationName(organizationId ? trimmedOrgName : '');
       }
       Alert.alert('Success!', 'Your team has been updated successfully.', [
-        { text: 'OK', onPress: () => router.back() }
+        { text: 'OK', onPress: () => { if (router.canGoBack()) router.back(); } }
       ]);
     } catch (e: any) {
       console.error('Team update error:', e);
@@ -265,7 +265,7 @@ export default function EditTeamScreen() {
         <View style={[styles.header, { paddingTop: 12 + insets.top }]}>
           <Pressable 
             style={styles.backButton} 
-            onPress={() => router.back()}
+            onPress={() => { if (router.canGoBack()) router.back(); }}
           >
             <MaterialIcons name="arrow-back" size={24} color={Colors[colorScheme].text} />
           </Pressable>

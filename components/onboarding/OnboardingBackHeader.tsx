@@ -20,7 +20,7 @@ export function OnboardingBackHeader({ title, subtitle, onBack, rightSlot }: Pro
       return;
     }
     if (router.canGoBack()) {
-      router.back();
+      if (router.canGoBack()) router.back();
     } else {
       router.replace('/onboarding/step-1-role');
     }

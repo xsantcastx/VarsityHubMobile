@@ -245,7 +245,7 @@ export default function CreateFanEventScreen() {
         isCoach
           ? 'Your event has been submitted for review.'
           : 'Your event idea has been submitted! A coach or admin will review it and you\'ll be notified.',
-        [{ text: 'OK', onPress: () => router.back() }]
+        [{ text: 'OK', onPress: () => { if (router.canGoBack()) router.back(); } }]
       );
     } catch (e: any) {
       const errorCode = e?.code || e?.data?.code;

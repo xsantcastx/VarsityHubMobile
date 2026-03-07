@@ -8,7 +8,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useColorScheme, View } from 'react-native';
 // @ts-ignore
-import { Organization, Team } from '@/api/entities';
+import { Organization, Team, User } from '@/api/entities';
 import { PlaceSuggestion } from '@/api/geocoding';
 import LocationPicker from '@/components/LocationPicker';
 import { httpPost } from '@/api/http';
@@ -28,7 +28,7 @@ export default function Step4Organization() {
   // Form state
   const [orgName, setOrgName] = useState('');
   const [location, setLocation] = useState('');
-  const [orgType, setOrgType] = useState<'school' | 'club' | 'league' | 'tournament' | 'university' | 'college' | 'professional' | null>(null);
+  const [orgType, setOrgType] = useState<'school' | 'club' | 'league' | 'university' | 'college' | 'professional' | null>(null);
   const [saving, setSaving] = useState(false);
   const [alreadyExists, setAlreadyExists] = useState(false);
   const [existingTeam, setExistingTeam] = useState<any>(null);
@@ -57,7 +57,7 @@ export default function Step4Organization() {
   useEffect(() => {
     void (async () => {
       try {
-        const me: any = await (await import('@/api/entities')).User.me();
+        const me: any = await User.me();
         setEmailVerified(me?.email_verified ?? null);
       } catch {
         // ignore
@@ -140,8 +140,6 @@ export default function Step4Organization() {
     if ((ob.affiliation as string) === 'school') setOrgType('school');
     else if ((ob.affiliation as string) === 'club') setOrgType('club');
     else if ((ob.affiliation as string) === 'league') setOrgType('league');
-    else if ((ob.affiliation as string) === 'tournament') setOrgType('tournament');
-    
     // Check if team or organization already exists in onboarding state
     if (!alreadyExists && (ob.team_id || ob.organization_id)) {
       setAlreadyExists(true);
@@ -193,7 +191,6 @@ export default function Step4Organization() {
       school: 'School',
       club: 'Club',
       league: 'League',
-      tournament: 'Tournament',
       university: 'University',
       college: 'College',
       pro: 'Professional',
@@ -388,15 +385,28 @@ export default function Step4Organization() {
       if (ob.plan) payload.plan = ob.plan;
 
       const org = await Organization.createOrganization(payload);
+      const orgId = org?.id;
+      if (!orgId) {
+        throw new Error('Organization created but no ID returned. Please try again.');
+      }
+
       setOB((prev) => ({
         ...prev,
-        organization_id: org?.id,
+        organization_id: orgId,
         organization_name: orgName.trim(),
         organization_place_id: selectedPlace?.place_id ?? null,
         organization_location: locationLabel || null,
         step_4_visited: true,
       }));
-      
+
+      // Persist organization_id to backend user preferences immediately
+      // so it survives app crashes between step 4 and step 10
+      try {
+        await User.updatePreferences({ organization_id: orgId, organization_name: orgName.trim() });
+      } catch (err) {
+        console.warn('Failed to persist organization_id to backend:', err);
+      }
+
       // Show success toast
       Alert.alert(
         'Organization Created!',
@@ -747,7 +757,7 @@ export default function Step4Organization() {
           <View style={styles.typeModalOverlay} accessibilityViewIsModal>
             <View style={styles.typeModalCard}>
               <Text style={styles.typeModalTitle}>Organization Type</Text>
-              {['school','club','league','tournament','university','college','professional'].map(t => (
+              {['school','club','league','university','college','professional'].map(t => (
                 <Pressable
                   key={t}
                   onPress={() => { Keyboard.dismiss(); setOrgType(t as any); }}

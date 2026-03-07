@@ -147,7 +147,7 @@ export default function GameMapScreen() {
           headerStyle: { backgroundColor: Colors[colorScheme].background },
           headerTintColor: Colors[colorScheme].text,
           headerLeft: () => (
-            <Pressable onPress={() => router.back()} style={styles.headerButton}>
+            <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={styles.headerButton}>
               <MaterialIcons name="arrow-back" size={24} color={Colors[colorScheme].text} />
             </Pressable>
           ),

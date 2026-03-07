@@ -40,7 +40,7 @@ export default function ZipCodeScreen() {
         console.warn('[zip-code] Failed to refresh user profile after save:', error);
       });
       if (router.canGoBack()) {
-        router.back();
+        if (router.canGoBack()) router.back();
       } else {
         router.replace('/(tabs)' as any);
       }

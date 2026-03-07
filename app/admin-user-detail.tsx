@@ -64,7 +64,7 @@ export default function AdminUserDetailScreen() {
       <Stack.Screen options={{ 
         title: 'Admin · User Detail',
         headerLeft: () => (
-          <Pressable onPress={() => router.back()} style={{ paddingLeft: 8 }}>
+          <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={{ paddingLeft: 8 }}>
             <MaterialIcons name="chevron-left" size={24} color="#3B82F6" />
           </Pressable>
         ),

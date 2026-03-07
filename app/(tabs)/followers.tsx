@@ -78,7 +78,7 @@ export default function FollowersScreen() {
       <Stack.Screen options={{ 
         title: `${username}'s Followers`,
         headerLeft: () => (
-          <Pressable onPress={() => router.back()} style={styles.backButton}>
+          <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={styles.backButton}>
             <MaterialIcons name="chevron-left" size={24} color="#3B82F6" />
           </Pressable>
         ),

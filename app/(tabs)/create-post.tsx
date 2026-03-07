@@ -739,7 +739,7 @@ export default function CreatePostScreen() {
       
       {/* Header */}
       <View style={[styles.header, { backgroundColor: Colors[colorScheme].background, borderBottomColor: Colors[colorScheme].border }]}>
-        <Pressable onPress={() => router.back()} accessibilityLabel="Close" style={styles.iconBtn}>
+        <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} accessibilityLabel="Close" style={styles.iconBtn}>
           <Ionicons name="close" size={22} color={Colors[colorScheme].text} />
         </Pressable>
         <View style={styles.headerSpacer} />

@@ -132,7 +132,7 @@ export default function RequestHostEventScreen() {
         content: `New event host request submitted: ${title}\nLocation: ${location}\nDate: ${date.toLocaleString()}\nRequested by: ${displayName || 'Unknown'} (${profileEmail || 'unknown@example.com'})`,
         recipient_email: getConfig().adminEmails[0] || 'admin@varsityhub.com',
       });
-      Alert.alert('Request Submitted!', 'Your request to host an event has been submitted. You will be notified when it is reviewed.', [{ text: 'OK', onPress: () => router.back() }]);
+      Alert.alert('Request Submitted!', 'Your request to host an event has been submitted. You will be notified when it is reviewed.', [{ text: 'OK', onPress: () => { if (router.canGoBack()) router.back(); } }]);
     } catch (e: any) {
       Alert.alert('Error', e?.message || 'Failed to submit request. Please try again.');
     } finally {

@@ -28,7 +28,7 @@ export function BackHeader({
   const handleBack = () => {
     if (onBack) {
       onBack();
-    } else {
+    } else if (router.canGoBack()) {
       router.back();
     }
   };

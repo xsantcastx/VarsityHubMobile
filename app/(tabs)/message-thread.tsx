@@ -288,7 +288,7 @@ export default function MessageThreadScreen() {
           backgroundColor: Colors[colorScheme].card,
           borderBottomColor: Colors[colorScheme].border,
         }]}>
-          <Pressable onPress={() => router.back()} style={styles.backButton}>
+          <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={styles.backButton}>
             <MaterialIcons name="chevron-left" size={28} color={Colors[colorScheme].text} />
           </Pressable>
 
@@ -403,7 +403,7 @@ export default function MessageThreadScreen() {
                             await User.block(otherParticipant.id);
                             Alert.alert('User Blocked', 'This user can no longer send you messages.');
                             if (router.canGoBack()) {
-                              router.back();
+                              if (router.canGoBack()) router.back();
                             } else {
                               router.replace('/(tabs)' as any);
                             }

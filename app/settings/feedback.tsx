@@ -35,7 +35,7 @@ export default function FeedbackScreen() {
       await Support.feedback({ user_id: 'me', category, message: message.trim(), screenshot_url: screenshotUrl.trim() || undefined });
       Alert.alert('Thanks!', 'Your feedback was sent.');
       if (router.canGoBack()) {
-        router.back();
+        if (router.canGoBack()) router.back();
       } else {
         router.replace('/(tabs)' as any);
       }

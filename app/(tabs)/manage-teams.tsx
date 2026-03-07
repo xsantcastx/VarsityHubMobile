@@ -214,7 +214,7 @@ export default function ManageTeamsSimpleScreen() {
       <View style={[styles.header, { backgroundColor: Colors[colorScheme].background }]}>
         <Pressable 
           style={styles.backButton} 
-          onPress={() => router.back()}
+          onPress={() => { if (router.canGoBack()) router.back(); }}
         >
           <MaterialIcons name="arrow-back" size={28} color={Colors[colorScheme].text} />
         </Pressable>

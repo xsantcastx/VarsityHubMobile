@@ -75,7 +75,7 @@ export default function OnboardingLayout({
     } else if (previousStepRoute[step]) {
       router.replace(previousStepRoute[step] as any);
     } else {
-      router.back();
+      if (router.canGoBack()) router.back();
     }
   };
 
