@@ -1,18 +1,12 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { usePaymentSheet } from '@stripe/stripe-react-native';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View, useColorScheme } from 'react-native';
+import { Alert, Modal, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
 // @ts-ignore
-import { httpPost } from '@/api/http';
-// @ts-ignore
-import { Payments, User } from '@/api/entities';
+import { User } from '@/api/entities';
 import { PLAN_DEFINITIONS, Plan } from '@/constants/plans';
 import { useOnboarding } from '@/context/OnboardingContext';
-import { useVHubIAP } from '@/hooks/useIAP';
 import OnboardingLayout from './components/OnboardingLayout';
-
-const isIOS = Platform.OS === 'ios';
 
 // Map centralized plan definitions to UI format
 type PlanOption = {
@@ -149,26 +143,7 @@ export default function Step3Plan() {
   const [teamCount, setTeamCount] = useState<number>(2); // First 2 teams free
   const [showTeamCountModal, setShowTeamCountModal] = useState(false);
   
-  // Email verification states
-  const [showVerifyModal, setShowVerifyModal] = useState(false);
-  const [verificationCode, setVerificationCode] = useState('');
-  const [verifying, setVerifying] = useState(false);
-  const [resending, setResending] = useState(false);
-  const [verificationError, setVerificationError] = useState<string | null>(null);
-  const [verificationInfo, setVerificationInfo] = useState<string | null>(null);
-  const [paymentsStatus, setPaymentsStatus] = useState<{ stripe_configured?: boolean; has_webhook_secret?: boolean } | null>(null);
-  const [paymentsStatusLoading, setPaymentsStatusLoading] = useState(true);
-  const [paymentsStatusError, setPaymentsStatusError] = useState<string | null>(null);
-  const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
-  const { connected: iapConnected, purchase: iapPurchase, purchasing: iapPurchasing } = useVHubIAP();
   const displayedPlanOptions = PLAN_OPTIONS;
-  const paymentsTemporarilyDisabled = paymentsStatus?.stripe_configured === false;
-  const showPaymentsWarning =
-    (!paymentsStatusLoading && paymentsTemporarilyDisabled) ||
-    (!!paymentsStatusError && !paymentsTemporarilyDisabled);
-  const paymentsWarningMessage = paymentsTemporarilyDisabled
-    ? 'Coach plan checkout is temporarily unavailable while payments are being configured. You can continue with the Rookie plan or try again later.'
-    : paymentsStatusError;
 
   // Fans should never see this coach-only plan selection screen
   useEffect(() => {
@@ -177,26 +152,6 @@ export default function Step3Plan() {
     }
   }, [ob.role, router]);
 
-
-  useEffect(() => {
-    let mounted = true;
-    void (async () => {
-      try {
-        const status = await Payments.configStatus();
-        if (!mounted) return;
-        setPaymentsStatus(status);
-        setPaymentsStatusError(null);
-      } catch {
-        if (!mounted) return;
-        setPaymentsStatusError('Unable to confirm payment readiness right now.');
-      } finally {
-        if (mounted) setPaymentsStatusLoading(false);
-      }
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, []);
 
   const navigateNext = () => {
     setOB((prev) => ({ ...prev, step_3_visited: true }));
@@ -207,56 +162,9 @@ export default function Step3Plan() {
     }
   };
 
-  const onVerifyEmail = () => {
-    void (async () => {
-      if (!verificationCode.trim()) return;
-      setVerifying(true);
-      setVerificationError(null);
-      setVerificationInfo(null);
-      
-      try {
-        await User.verifyEmail(verificationCode.trim());
-        setVerificationInfo('Email verified!');
-        setShowVerifyModal(false);
-        // Now retry the subscription
-        setTimeout(() => {
-          void onContinue();
-        }, 500);
-      } catch (e: any) {
-        setVerificationError(e?.message || 'Verification failed');
-      } finally {
-        setVerifying(false);
-      }
-    })();
-  };
-
-  const onResendCode = () => {
-    void (async () => {
-      setResending(true);
-      setVerificationError(null);
-      setVerificationInfo(null);
-      
-      try {
-        const res: any = await User.requestVerification();
-        setVerificationInfo(res?.dev_verification_code ? `Code sent (dev: ${res.dev_verification_code})` : 'Code sent');
-      } catch (e: any) {
-        setVerificationError(e?.message || 'Resend failed');
-      } finally {
-        setResending(false);
-      }
-    })();
-  };
-
   const onContinue = async () => {
     if (!plan) return;
-    if (plan !== 'rookie' && paymentsTemporarilyDisabled) {
-      Alert.alert(
-        'Payments unavailable',
-        'Coach plans cannot be purchased until payments are configured. Please try again later or continue with the Rookie plan.'
-      );
-      return;
-    }
-    
+
     // If Veteran plan and haven't confirmed team count yet, show modal
     if (plan === 'veteran' && !showTeamCountModal) {
       setShowTeamCountModal(true);
@@ -265,150 +173,28 @@ export default function Step3Plan() {
     
     setSaving(true);
     try {
-      // Prevent duplicate subscriptions: check current user's saved plan first
-      try {
-        const me: any = await User.me();
-        const currentPlan = me?.preferences?.plan ?? 'rookie'; // Default to rookie if no plan
-        
-        // If already subscribed to the same plan, save to OB state and continue
-        if (currentPlan === plan) {
-          setOB((prev) => ({ ...prev, plan, payment_pending: false }));
-          setProgress(3);
-          navigateNext();
-          return;
-        }
+      // Save selected plan and team count — payment is deferred until admin approval
+      const isPaid = plan !== 'rookie';
+      const pending = isPaid; // payment_pending=true for veteran/legend until admin approves
+      setOB((prev) => ({
+        ...prev,
+        plan,
+        payment_pending: pending,
+        ...(plan === 'veteran' ? { team_count_total: teamCount } : {}),
+      }));
 
-        // Only block if they have a PAID plan different from what they're selecting
-        // Allow upgrades from rookie to veteran/legend, and between veteran/legend
-        if (currentPlan !== 'rookie' && currentPlan !== plan && plan !== 'rookie') {
-          Alert.alert('Plan change', `You currently have the ${currentPlan} plan. To change plans, please manage your subscription in Settings or contact support.`);
-          setOB((prev) => ({ ...prev, plan: currentPlan as any, payment_pending: false }));
-          setProgress(3);
-          navigateNext();
-          return;
-        }
+      try {
+        await User.updatePreferences({
+          plan,
+          payment_pending: pending,
+          ...(plan === 'veteran' ? { team_count_total: teamCount } : {}),
+        });
       } catch (err) {
-        // If we fail to fetch current user, continue to attempt subscription — we'll handle server errors during checkout.
-        console.warn('Failed to check existing plan before checkout', err);
-      }
-      
-      // For rookie plan, save immediately since no payment is required
-      if (plan === 'rookie') {
-        const pending = false;
-        setOB((prev) => ({ ...prev, plan, payment_pending: pending }));
-        try {
-          await User.updatePreferences({ plan, payment_pending: pending });
-        } catch (err) {
-          console.warn('Failed to persist rookie plan to backend:', err);
-        }
-        setProgress(3);
-        navigateNext();
-        return;
+        console.warn('Failed to persist plan selection to backend:', err);
       }
 
-      // For paid plans, DON'T save the plan until after successful payment
-      // Only save to local onboarding context for UI purposes
-      setOB((prev) => ({ ...prev, plan, payment_pending: true }));
-
-      try {
-        // Persist selected team count into onboarding state for downstream screens
-        if (plan === 'veteran') {
-          setOB((prev) => ({ ...prev, team_count_total: teamCount }));
-        }
-
-        // iOS: Use Apple IAP
-        if (isIOS) {
-          if (!iapConnected) {
-            Alert.alert('Store Unavailable', 'Unable to connect to the App Store. Please try again later.');
-            return;
-          }
-          const success = await iapPurchase(plan as 'veteran' | 'legend');
-          if (success) {
-            setProgress(3);
-            navigateNext();
-          }
-          return;
-        }
-
-        // Android: Use Stripe
-        const res: any = await httpPost('/payments/create-payment-sheet', { plan, team_count: plan === 'veteran' ? teamCount : undefined });
-        if (res?.free) {
-          // If marked as free, save the plan now
-          try {
-            await User.updatePreferences({ plan, payment_pending: false });
-          } catch (err) {
-            console.warn('Failed to persist free plan to backend:', err);
-          }
-          setProgress(3);
-          navigateNext();
-          return;
-        }
-        if (res?.paymentIntent) {
-          const { error: initError } = await initPaymentSheet({
-            paymentIntentClientSecret: res.paymentIntent,
-            customerEphemeralKeySecret: res.ephemeralKey,
-            customerId: res.customer,
-            merchantDisplayName: 'Varsity Hub',
-          });
-          if (initError) {
-            Alert.alert('Error', initError.message);
-            return;
-          }
-          const { error } = await presentPaymentSheet();
-          if (error) {
-            if (error.code !== 'Canceled') Alert.alert('Payment Failed', error.message);
-            return;
-          }
-          // Payment succeeded
-          setProgress(3);
-          navigateNext();
-          return;
-        }
-        console.warn('Unexpected subscribe response', res);
-        Alert.alert('Payment', 'Unable to start checkout. You can continue and set up billing later.');
-        setProgress(3);
-        navigateNext();
-      } catch (err: any) {
-        console.warn('Failed to start subscription checkout for plan:', err);
-        
-        // Check for email verification required error in multiple ways
-        const isEmailVerificationError = 
-          (err && err.status === 403) || // HTTP 403 status
-          (err && err.message && err.message.toLowerCase().includes('verification')) || // Error message contains verification
-          (err && err.data && err.data.error && err.data.error.toLowerCase().includes('verification')) || // Server error response
-          (err && String(err).toLowerCase().includes('verification')); // Fallback check
-          
-          
-        if (isEmailVerificationError) {
-          // Show email verification modal instead of just showing an alert
-          setShowVerifyModal(true);
-          return; // Don't navigate to next step when showing verification modal
-        } else {
-          // Sanitize error messages: never expose Stripe product/price IDs to users
-          const rawMsg = (err?.data?.error || err?.message || '') as string;
-          const containsSensitiveIds = /prod_|price_/i.test(rawMsg);
-          const safeMessage = containsSensitiveIds
-            ? 'Unable to start checkout. Please try again later or contact support.'
-            : (rawMsg || 'Unable to start checkout. You can continue and set up billing later.');
-          Alert.alert('Payment error', safeMessage);
-        }
-        
-        // On payment failure, default to rookie plan so they can continue
-        const fallbackPlan = 'rookie';
-        setOB((prev) => ({ ...prev, plan: fallbackPlan, payment_pending: false, payment_required: false }));
-        setPlan(fallbackPlan);
-        
-        // Save rookie plan to backend so onboarding can complete
-        try {
-          await User.updatePreferences({ plan: fallbackPlan, payment_pending: false });
-        } catch (updateErr) {
-          console.warn('Failed to save fallback rookie plan:', updateErr);
-        }
-        
-        // Allow navigation to continue with rookie plan
-        setProgress(3);
-        navigateNext();
-      }
+      setProgress(3);
+      navigateNext();
     } finally {
       setSaving(false);
     }
@@ -427,25 +213,6 @@ export default function Step3Plan() {
     >
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.content}>
-        {showPaymentsWarning && paymentsWarningMessage ? (
-          <View
-            style={[
-              styles.paymentBanner,
-              paymentsTemporarilyDisabled ? styles.paymentBannerError : styles.paymentBannerInfo,
-            ]}
-          >
-            <Text
-              style={[
-                styles.paymentBannerText,
-                paymentsTemporarilyDisabled
-                  ? { color: '#92400E' }
-                  : { color: colorScheme === 'dark' ? '#E0F2FE' : '#1F2937' },
-              ]}
-            >
-              {paymentsWarningMessage}
-            </Text>
-          </View>
-        ) : null}
         {displayedPlanOptions.map((option) => (
           <PlanCard
             key={option.id}
@@ -453,101 +220,10 @@ export default function Step3Plan() {
             selected={plan === option.id}
             onPress={() => handleSelectPlan(option.id as Plan)}
             onContinue={plan === option.id ? onContinue : undefined}
-            disabled={option.id !== 'rookie' && paymentsTemporarilyDisabled}
-            disabledReason={
-              option.id !== 'rookie' && paymentsTemporarilyDisabled ? 'Checkout unavailable' : undefined
-            }
             saving={saving}
           />
         ))}
       </View>
-
-      {/* Email Verification Modal */}
-      <Modal
-        visible={showVerifyModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowVerifyModal(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalContent, { backgroundColor: isDark ? '#1F2937' : 'white' }]}>
-              <Text style={[styles.modalTitle, { color: isDark ? '#F9FAFB' : '#111827' }]}>Verify Your Email</Text>
-              <Text style={[styles.modalSubtitle, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>
-                Please verify your email before purchasing a plan. Enter the 6-digit code we sent to your email.
-              </Text>
-              
-              {verificationError ? (
-                <Text style={styles.errorText}>{verificationError}</Text>
-              ) : null}
-              
-              {verificationInfo ? (
-                <Text style={styles.infoText}>{verificationInfo}</Text>
-              ) : null}
-              
-              <TextInput
-                style={[
-                  styles.codeInput,
-                  { 
-                    borderColor: isDark ? '#374151' : '#E5E7EB',
-                    backgroundColor: isDark ? '#111827' : 'white',
-                    color: isDark ? '#F9FAFB' : '#111827'
-                  }
-                ]}
-                placeholder="Enter 6-digit code"
-                placeholderTextColor={isDark ? '#6B7280' : '#9CA3AF'}
-                value={verificationCode}
-              onChangeText={setVerificationCode}
-              keyboardType="number-pad"
-              maxLength={6}
-            />
-            
-            <View style={styles.modalButtons}>
-              <Pressable
-                style={[styles.modalButton, styles.verifyButton, { backgroundColor: isDark ? '#2563EB' : '#111827' }]}
-                onPress={onVerifyEmail}
-                disabled={verifying || verificationCode.trim().length < 4}
-              >
-                {verifying ? (
-                  <ActivityIndicator size="small" color="white" />
-                ) : (
-                  <Text style={styles.verifyButtonText}>Verify & Continue</Text>
-                )}
-              </Pressable>
-              
-              <Pressable
-                style={[
-                  styles.modalButton, 
-                  styles.resendButton,
-                  { 
-                    backgroundColor: isDark ? '#374151' : '#F3F4F6',
-                    borderColor: isDark ? '#4B5563' : '#E5E7EB'
-                  }
-                ]}
-                onPress={onResendCode}
-                disabled={resending}
-              >
-                {resending ? (
-                  <ActivityIndicator size="small" color={isDark ? '#F9FAFB' : '#111827'} />
-                ) : (
-                  <Text style={[styles.resendButtonText, { color: isDark ? '#F9FAFB' : '#111827' }]}>Resend Code</Text>
-                )}
-              </Pressable>
-              
-              <Pressable
-                style={[styles.modalButton, styles.cancelButton]}
-                onPress={() => {
-                  setShowVerifyModal(false);
-                  setVerificationCode('');
-                  setVerificationError(null);
-                  setVerificationInfo(null);
-                }}
-              >
-                <Text style={[styles.cancelButtonText, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Cancel</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
 
       {/* Team Count Modal for Veteran Plan */}
       <Modal
@@ -640,25 +316,6 @@ export default function Step3Plan() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: 16, paddingBottom: 28 },
-  paymentBanner: {
-    padding: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    marginBottom: 12,
-  },
-  paymentBannerError: {
-    backgroundColor: '#FEF3C7',
-    borderColor: '#F59E0B',
-  },
-  paymentBannerInfo: {
-    backgroundColor: '#DBEAFE',
-    borderColor: '#3B82F6',
-  },
-  paymentBannerText: {
-    fontSize: 13,
-    color: '#1F2937',
-    lineHeight: 18,
-  },
   cardWrapper: {
     flexDirection: 'row',
     marginBottom: 12,
@@ -763,24 +420,6 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     lineHeight: 20,
   },
-  codeInput: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  errorText: {
-    color: '#B91C1C',
-    textAlign: 'center',
-    marginBottom: 12,
-  },
-  infoText: {
-    color: '#065F46',
-    textAlign: 'center',
-    marginBottom: 12,
-  },
   modalButtons: {
     gap: 12,
   },
@@ -794,12 +433,6 @@ const styles = StyleSheet.create({
   verifyButtonText: {
     color: 'white',
     fontWeight: '700',
-  },
-  resendButton: {
-    borderWidth: 1,
-  },
-  resendButtonText: {
-    fontWeight: '600',
   },
   cancelButton: {
     backgroundColor: 'transparent',
