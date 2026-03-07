@@ -89,15 +89,7 @@ const TEMPLATE_IDS = {
   SUBSCRIPTION_EXPIRING: process.env.SENDGRID_SUBSCRIPTION_EXPIRING_TEMPLATE_ID || '',
 
   // Notifications & Engagement
-  WELCOME: process.env.SENDGRID_WELCOME_TEMPLATE_ID || '',
   AD_GOES_LIVE: process.env.SENDGRID_AD_GOES_LIVE_TEMPLATE_ID || '',
-  AD_RESERVATION: process.env.SENDGRID_AD_RESERVATION_TEMPLATE_ID || '',
-  ATHLETE_FOLLOWER: process.env.SENDGRID_ATHLETE_FOLLOWER_TEMPLATE_ID || '',
-  DORMANT_USER_DIGEST: process.env.SENDGRID_DORMANT_USER_DIGEST_TEMPLATE_ID || '',
-  PAYMENT_REQUIRED: process.env.SENDGRID_PAYMENT_REQUIRED_TEMPLATE_ID || '',
-  POST_HIGHLIGHT: process.env.SENDGRID_POST_HIGHLIGHT_TEMPLATE_ID || '',
-  PROFILE_COMPLETION_NUDGE: process.env.SENDGRID_PROFILE_COMPLETION_NUDGE_TEMPLATE_ID || '',
-  SEASON_WRAP_UP: process.env.SENDGRID_SEASON_WRAP_UP_TEMPLATE_ID || '',
 };
 
 type TemplateKey = keyof typeof TEMPLATE_IDS;
@@ -250,49 +242,19 @@ export async function sendAdGoesLiveEmail(params: any): Promise<boolean> {
   );
 }
 
-export async function sendAdReservationEmail(params: any): Promise<boolean> {
-  return sendTemplateEmail(
-    TEMPLATE_IDS.AD_RESERVATION,
-    params?.to,
-    'We received your ad reservation',
-    {
-      ...getCommonTemplateData(),
-      advertiser_name: params?.advertiserName || '',
-      business_name: params?.businessName || '',
-      checkout_link: params?.checkoutLink || '',
-    },
-    `Ad reservation email sent to ${params?.to}`
-  );
+export async function sendAdReservationEmail(_params: any): Promise<boolean> {
+  console.warn('[email] sendAdReservationEmail: not configured');
+  return false;
 }
 
-export async function sendAthleteFollowerNotificationEmail(params: any): Promise<boolean> {
-  return sendTemplateEmail(
-    TEMPLATE_IDS.ATHLETE_FOLLOWER,
-    params?.to,
-    'New follower alert',
-    {
-      ...getCommonTemplateData(),
-      follower_name: params?.followerName || 'Someone',
-      athlete_name: params?.athleteName || 'you',
-      follower_profile_url: params?.followerProfileUrl || '',
-    },
-    `Athlete follower notification sent to ${params?.to}`
-  );
+export async function sendAthleteFollowerNotificationEmail(_params: any): Promise<boolean> {
+  console.warn('[email] sendAthleteFollowerNotificationEmail: not configured');
+  return false;
 }
 
-export async function sendDormantUserDigestEmail(params: any): Promise<boolean> {
-  return sendTemplateEmail(
-    TEMPLATE_IDS.DORMANT_USER_DIGEST,
-    params?.to,
-    'We miss you on VarsityHub',
-    {
-      ...getCommonTemplateData(),
-      user_name: params?.userName || 'there',
-      days_absent: params?.daysAbsent || 0,
-      open_app_link: params?.openAppLink || APP_BASE_URL,
-    },
-    `Dormant user digest sent to ${params?.to}`
-  );
+export async function sendDormantUserDigestEmail(_params: any): Promise<boolean> {
+  console.warn('[email] sendDormantUserDigestEmail: not configured');
+  return false;
 }
 
 export async function sendEventApprovedEmail(params: any): Promise<boolean> {
@@ -422,46 +384,19 @@ export async function sendEventUpdatedEmail(params: any): Promise<boolean> {
   );
 }
 
-export async function sendPaymentRequiredEmail(params: any): Promise<boolean> {
-  return sendTemplateEmail(
-    TEMPLATE_IDS.PAYMENT_REQUIRED,
-    params?.to,
-    'Payment reminder',
-    {
-      ...getCommonTemplateData(),
-      business_name: params?.businessName || '',
-      total_cost: params?.totalCost || '',
-      checkout_link: params?.checkoutLink || '',
-    },
-    `Payment required email sent to ${params?.to}`
-  );
+export async function sendPaymentRequiredEmail(_params: any): Promise<boolean> {
+  console.warn('[email] sendPaymentRequiredEmail: not configured');
+  return false;
 }
 
-export async function sendPostHighlightEmail(params: any): Promise<boolean> {
-  return sendTemplateEmail(
-    TEMPLATE_IDS.POST_HIGHLIGHT,
-    params?.to,
-    'Your post was highlighted',
-    {
-      ...getCommonTemplateData(),
-      post_title: params?.postTitle || '',
-    },
-    `Post highlight email sent to ${params?.to}`
-  );
+export async function sendPostHighlightEmail(_params: any): Promise<boolean> {
+  console.warn('[email] sendPostHighlightEmail: not configured');
+  return false;
 }
 
-export async function sendProfileCompletionNudgeEmail(params: any): Promise<boolean> {
-  return sendTemplateEmail(
-    TEMPLATE_IDS.PROFILE_COMPLETION_NUDGE,
-    params?.to,
-    'Complete your profile',
-    {
-      ...getCommonTemplateData(),
-      user_name: params?.userName || 'there',
-      profile_edit_url: params?.profileEditUrl || APP_BASE_URL,
-    },
-    `Profile completion nudge sent to ${params?.to}`
-  );
+export async function sendProfileCompletionNudgeEmail(_params: any): Promise<boolean> {
+  console.warn('[email] sendProfileCompletionNudgeEmail: not configured');
+  return false;
 }
 
 export async function sendReportResolutionEmail(params: any): Promise<boolean> {
@@ -505,17 +440,9 @@ export async function sendRosterThresholdAlertEmail(params: any): Promise<boolea
   );
 }
 
-export async function sendSeasonWrapUpEmail(params: any): Promise<boolean> {
-  return sendTemplateEmail(
-    TEMPLATE_IDS.SEASON_WRAP_UP,
-    params?.to,
-    'Season wrap-up',
-    {
-      ...getCommonTemplateData(),
-      team_name: params?.teamName || '',
-    },
-    `Season wrap-up email sent to ${params?.to}`
-  );
+export async function sendSeasonWrapUpEmail(_params: any): Promise<boolean> {
+  console.warn('[email] sendSeasonWrapUpEmail: not configured');
+  return false;
 }
 
 export async function sendStaffInvitationConfirmationEmail(params: any): Promise<boolean> {
@@ -1551,15 +1478,7 @@ This is an automated daily report from VarsityHub.
   }
 }
 
-export async function sendWelcomeEmail(to: string, name?: string): Promise<boolean> {
-  return sendTemplateEmail(
-    TEMPLATE_IDS.WELCOME,
-    to,
-    'Welcome to VarsityHub!',
-    {
-      ...getCommonTemplateData(),
-      user_name: name || 'there',
-    },
-    `Welcome email sent to ${to}`
-  );
+export async function sendWelcomeEmail(_to: string, _name?: string): Promise<boolean> {
+  console.warn('[email] sendWelcomeEmail: not configured');
+  return false;
 }
