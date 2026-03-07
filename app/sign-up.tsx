@@ -125,8 +125,8 @@ export default function SignUpScreen() {
         errorMessage = 'Your account may have been created but there was an issue signing you in. Please try signing in directly.';
         promptSignIn = true;
       } else if (e?.message?.includes('Email already registered') || e?.status === 409 || e?.data?.errorCode === 'EMAIL_ALREADY_REGISTERED') {
-        errorMessage = 'This email is already registered. Please sign in instead.';
-        promptSignIn = true;
+        router.replace('/sign-in');
+        return;
       } else if (e?.message?.includes('Request timeout')) {
         errorMessage = 'Registration is taking longer than expected. Our servers might be busy. Please try again in a few minutes.';
       } else if (e?.message?.includes('Network request failed')) {
