@@ -12,30 +12,33 @@ describe('nextIncompleteStep', () => {
     expect(result).toBe(0); // STEP_1_ROLE.index
   });
 
-  it('should return step 2 if role is selected but basic info is missing', () => {
+  it('should return step 2 if role is selected but basic info not visited', () => {
     const state: OnboardingState = { role: 'coach' };
     const result = nextIncompleteStep(state, 'coach');
     expect(result).toBe(1); // STEP_2_BASIC.index
   });
 
-  it('should return step 3 for coach if step 2 is complete but plan is missing', () => {
+  it('should return step 3 for coach if step 2 visited but step 3 not visited', () => {
     const state: OnboardingState = {
       role: 'coach',
       username: 'testuser',
       dob: '2000-01-01',
       zip: '12345',
+      step_2_visited: true,
     };
     const result = nextIncompleteStep(state, 'coach');
     expect(result).toBe(2); // STEP_3_PLAN.index
   });
 
-  it('should return step 4 for coach if step 3 is complete but organization is missing', () => {
+  it('should return step 4 for coach if step 3 visited but step 4 not visited', () => {
     const state: OnboardingState = {
       role: 'coach',
       username: 'testuser',
       dob: '2000-01-01',
       zip: '12345',
       plan: 'rookie',
+      step_2_visited: true,
+      step_3_visited: true,
     };
     const result = nextIncompleteStep(state, 'coach');
     expect(result).toBe(3); // STEP_4_ORGANIZATION.index
@@ -49,6 +52,9 @@ describe('nextIncompleteStep', () => {
       zip: '12345',
       plan: 'rookie',
       team_id: 'team-123',
+      step_2_visited: true,
+      step_3_visited: true,
+      step_4_visited: true,
     };
     const result = nextIncompleteStep(state, 'coach');
     expect(result).toBe(5); // STEP_6_AUTHORIZED_USERS.index
@@ -62,6 +68,9 @@ describe('nextIncompleteStep', () => {
       zip: '12345',
       plan: 'rookie',
       team_id: 'team-123',
+      step_2_visited: true,
+      step_3_visited: true,
+      step_4_visited: true,
     };
     const result = nextIncompleteStep(state, 'coach');
     // Should be step 6, not step 7
@@ -69,27 +78,24 @@ describe('nextIncompleteStep', () => {
     expect(result).not.toBe(6); // STEP_7_PROFILE.index
   });
 
-  it('should skip coach steps for fans and go to confirmation', () => {
-    // Fans with completed step 2 (username, dob, zip) skip steps 3-6.
-    // Step 7 is "complete" because username is set.
-    // Steps 8 and 9 are optional (always return true).
-    // So the next incomplete step is step 10 (confirmation).
+  it('should skip coach steps for fans and go to profile then confirmation', () => {
     const state: OnboardingState = {
       role: 'fan',
       username: 'testuser',
       dob: '2000-01-01',
       zip: '12345',
+      step_2_visited: true,
     };
     const result = nextIncompleteStep(state, 'fan');
-    expect(result).toBe(9); // STEP_10_CONFIRMATION.index (step 7 is already satisfied by username)
+    // Fans skip steps 3-6, so next incomplete is step 7 (profile)
+    expect(result).toBe(6); // STEP_7_PROFILE.index
   });
 
   it('should enforce step order for coaches - never jump ahead', () => {
-    // Even if progress says step 7, should return to first incomplete step
     const incompleteState: OnboardingState = {
       role: 'coach',
       username: 'testuser',
-      // Missing dob and zip - should return to step 2
+      // step_2_visited not set - should return to step 2
     };
     const result = nextIncompleteStep(incompleteState, 'coach');
     expect(result).toBe(1); // STEP_2_BASIC.index
@@ -175,31 +181,30 @@ describe('onboardingReducer', () => {
 describe('Step order integration', () => {
   it('should maintain correct step order for coach onboarding', () => {
     const steps: number[] = [];
-    // Start with no role - step 1 will be the first incomplete step
     let state: OnboardingState = {};
 
-    // Simulate completing each step
-    steps.push(nextIncompleteStep(state, 'coach')); // Should be step 2 (role already set)
+    // Step 1: No role yet
+    steps.push(nextIncompleteStep(state, 'coach'));
     state = { ...state, role: 'coach' };
 
     // Step 2: Role selected, need basic info
-    steps.push(nextIncompleteStep(state, 'coach')); // Should be step 2 (index 1)
-    state = { ...state, username: 'test', dob: '2000-01-01', zip: '12345' };
+    steps.push(nextIncompleteStep(state, 'coach'));
+    state = { ...state, username: 'test', dob: '2000-01-01', zip: '12345', step_2_visited: true };
 
     // Step 3: Basic info complete, need plan
-    steps.push(nextIncompleteStep(state, 'coach')); // Should be step 3 (index 2)
-    state = { ...state, plan: 'rookie' };
+    steps.push(nextIncompleteStep(state, 'coach'));
+    state = { ...state, plan: 'rookie', step_3_visited: true };
 
     // Step 4: Plan selected, need organization
-    steps.push(nextIncompleteStep(state, 'coach')); // Should be step 4 (index 3)
-    state = { ...state, team_id: 'team-123' };
+    steps.push(nextIncompleteStep(state, 'coach'));
+    state = { ...state, step_4_visited: true, team_id: 'team-123' };
 
-    // Step 6: Organization created, need to visit step 6
-    steps.push(nextIncompleteStep(state, 'coach')); // Should be step 6 (index 4)
+    // Step 6: Team created, need to visit authorized users
+    steps.push(nextIncompleteStep(state, 'coach'));
 
-    // Verify steps are in order and no steps are skipped
-    expect(steps).toEqual([1, 1, 2, 3, 4]); // step 2, 2, 3, 4, 6
-    // Verify step 7 (index 5) is NOT in the sequence
-    expect(steps).not.toContain(5); // STEP_7_PROFILE.index
+    // Verify steps are in order
+    expect(steps).toEqual([0, 1, 2, 3, 5]); // no_role->role, role->basic, basic->plan, plan->org, org->auth_users
+    // Verify step 7 (index 6) is NOT in the sequence yet
+    expect(steps).not.toContain(6);
   });
 });
