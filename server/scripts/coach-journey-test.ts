@@ -270,9 +270,9 @@ async function phase1() {
 
   // ── Step 3: Plan Selection ─────────────────────────────────────────────────
   console.log('\n  ┌─ Step 3: Plan Selection');
-  await api('GET', '/payments/config-status', {
+  await api('GET', '/payments/config', {
     token: coach.token,
-    step: 'Step 3 — GET /payments/config-status (check Stripe)',
+    step: 'Step 3 — GET /payments/config (check Stripe)',
   });
   await apiExpect('PATCH', '/auth/me/preferences', {
     body: { plan: 'rookie' },
@@ -312,6 +312,7 @@ async function phase1() {
     body: {
       name: teamName,
       description: 'End-to-end test team',
+      organization_id: coach.orgId,
       season_start: '2026-03-01',
       season_end: '2026-08-31',
     },
