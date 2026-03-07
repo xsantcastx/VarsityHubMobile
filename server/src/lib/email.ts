@@ -22,7 +22,10 @@ const APP_BASE_URL = (process.env.APP_BASE_URL || 'https://varsityhub.app').repl
 const CUSTOMER_SERVICE_EMAIL = process.env.CUSTOMER_SERVICE_EMAIL || 'support@varsityhub.app';
 
 // Common template data (social links, privacy policy, etc.) added to all emails
+const LOGO_URL = process.env.EMAIL_LOGO_URL || `${APP_BASE_URL}/logo.png`;
+
 const getCommonTemplateData = () => ({
+  logo_url: LOGO_URL,
   privacy_policy_url: 'https://limeprod.com/VarsityHubPrivacy',
   community_guidelines_url: 'https://limeprod.com/VarsityHubPrivacy',
   instagram_url: 'https://www.instagram.com/varsityhub_?igsh=cGQ1ZDM2NzVxNm13',
@@ -493,6 +496,7 @@ export async function sendVerificationEmail(email: string, token: string, userNa
     `${token} is your VarsityHub verification code`,
     {
       ...getCommonTemplateData(),
+      token: token,
       verification_code: token,
       code: token,
       user_name: displayName,
