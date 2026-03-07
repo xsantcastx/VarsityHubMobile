@@ -682,23 +682,21 @@ ${APP_BASE_URL}
         return true;
       }
 
-      console.warn('[email] sendVerificationEmail: template send failed, falling back to plain email', {
+      console.error('[email] sendVerificationEmail: template send failed', {
         error: result.error,
         errorCode: result.errorCode,
       });
-      // fall through to plain-email fallback below
+      return false;
     } catch (err: any) {
-      console.warn('[email] sendVerificationEmail: template send threw, falling back to plain email', {
+      console.error('[email] sendVerificationEmail: template send threw', {
         message: err?.message,
       });
-      // fall through to plain-email fallback below
+      return false;
     }
-  } else {
-    console.log(`[email] sendVerificationEmail: no template configured (SENDGRID_VERIFICATION_TEMPLATE_ID unset), using plain email → ${email}`);
   }
 
-  // ── Plain-email fallback ─────────────────────────────────────────────────────
-  console.log(`[email] sendVerificationEmail: sending plain email → ${email}`);
+  // No template configured — send plain email
+  console.log(`[email] sendVerificationEmail: no template configured, using plain email → ${email}`);
   return sendEmail({
     to: email,
     subject: `${token} is your VarsityHub verification code`,
@@ -812,25 +810,11 @@ ${APP_BASE_URL}
       return true;
     } else {
       console.error('❌ Failed to send password reset email via template:', result.error);
-      // Fallback to plain text email
-      console.log('[email] Attempting fallback plain text email...');
-      return sendEmail({
-        to: email,
-        subject: `${code} is your VarsityHub password reset code`,
-        text: plainTextContent,
-        html: htmlContent,
-      });
+      return false;
     }
   } catch (error: any) {
     console.error('❌ Failed to send password reset email:', error);
-    // Fallback to plain text email
-    console.log('[email] Attempting fallback plain text email...');
-    return sendEmail({
-      to: email,
-      subject: `${code} is your VarsityHub password reset code`,
-      text: plainTextContent,
-      html: htmlContent,
-    });
+    return false;
   }
 }
 
