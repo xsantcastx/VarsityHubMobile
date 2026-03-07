@@ -7,13 +7,13 @@ import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 export default function DebugScreen() {
-  if (!__DEV__) return <Redirect href="/(tabs)" />;
-
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const [eventId, setEventId] = useState('');
   const [gameId, setGameId] = useState('');
   const [adId, setAdId] = useState('test');
+
+  if (!__DEV__) return <Redirect href="/(tabs)" />;
 
   return (
     <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>

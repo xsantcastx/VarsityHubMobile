@@ -1,18 +1,9 @@
 import { Redirect } from 'expo-router';
-
-// Only accessible in development builds
-if (!__DEV__) {
-  // eslint-disable-next-line react/display-name
-  module.exports = { default: () => <Redirect href="/(tabs)" /> };
-}
-
 import { getEnvValue } from '@/config/env';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { getApiBaseUrl } from '../api/http';
 
 export default function EnvDebugScreen() {
-  if (!__DEV__) return <Redirect href="/(tabs)" />;
-
   const envVars = {
     EXPO_PUBLIC_API_URL: getEnvValue('EXPO_PUBLIC_API_URL'),
     EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID: getEnvValue('EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID'),
@@ -22,6 +13,8 @@ export default function EnvDebugScreen() {
   };
 
   const apiBaseUrl = getApiBaseUrl();
+
+  if (!__DEV__) return <Redirect href="/(tabs)" />;
 
   return (
     <ScrollView style={styles.container}>
