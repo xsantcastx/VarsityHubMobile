@@ -38,6 +38,8 @@ export default function ManageTeamsSimpleScreen() {
   const [error, setError] = useState<string | null>(null);
   const [teams, setTeams] = useState<Team[]>([]);
   const [showQuickAddModal, setShowQuickAddModal] = useState(false);
+  const [paymentStatus, setPaymentStatus] = useState<'none' | 'pending_approval' | 'ready_to_pay'>('none');
+  const [userPlan, setUserPlan] = useState<string | null>(null);
 
   const loadTeams = useCallback(async () => {
     try {
@@ -66,15 +68,29 @@ export default function ManageTeamsSimpleScreen() {
     void loadTeams().finally(() => setLoading(false)).catch(() => {});
   }, [loadTeams]);
 
-  // Guard: redirect non-coach users away
+  // Guard: redirect non-coach users away + check payment status
   useEffect(() => {
     void (async () => {
       try {
         const me: any = await User.me();
-        const role = me?.preferences?.role;
+        const prefs = me?.preferences || {};
+        const role = prefs.role;
         if (role !== 'coach') {
           Alert.alert('Restricted', 'Only coach accounts can access Manage Teams.');
           router.replace('/(tabs)');
+          return;
+        }
+        // Check deferred payment status for paid plans
+        const plan = prefs.plan;
+        setUserPlan(plan);
+        if (prefs.payment_pending === true && (plan === 'veteran' || plan === 'legend')) {
+          if (prefs.payment_approved === true) {
+            setPaymentStatus('ready_to_pay');
+          } else {
+            setPaymentStatus('pending_approval');
+          }
+        } else {
+          setPaymentStatus('none');
         }
       } catch {
         // silently ignore
@@ -85,6 +101,18 @@ export default function ManageTeamsSimpleScreen() {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadTeams();
+    // Re-check payment status on refresh
+    try {
+      const me: any = await User.me();
+      const prefs = me?.preferences || {};
+      const plan = prefs.plan;
+      setUserPlan(plan);
+      if (prefs.payment_pending === true && (plan === 'veteran' || plan === 'legend')) {
+        setPaymentStatus(prefs.payment_approved === true ? 'ready_to_pay' : 'pending_approval');
+      } else {
+        setPaymentStatus('none');
+      }
+    } catch { /* ignore */ }
     setRefreshing(false);
   }, [loadTeams]);
 
@@ -221,6 +249,36 @@ export default function ManageTeamsSimpleScreen() {
         <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>My Teams</Text>
         <View style={{ width: 40 }} />
       </View>
+
+      {/* Payment Status Banner */}
+      {paymentStatus === 'pending_approval' && (
+        <View style={styles.paymentBanner}>
+          <MaterialIcons name="hourglass-top" size={24} color="#92400E" />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.paymentBannerTitle}>
+              {userPlan ? `${userPlan.charAt(0).toUpperCase() + userPlan.slice(1)} Plan Selected` : 'Plan Selected'}
+            </Text>
+            <Text style={styles.paymentBannerText}>
+              Payment will be processed after your league admin approves your account.
+            </Text>
+          </View>
+        </View>
+      )}
+      {paymentStatus === 'ready_to_pay' && (
+        <Pressable
+          style={styles.paymentBannerAction}
+          onPress={() => void router.push('/subscription-paywall')}
+        >
+          <MaterialIcons name="check-circle" size={24} color="#065F46" />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.paymentBannerActionTitle}>You're Approved!</Text>
+            <Text style={styles.paymentBannerActionText}>
+              Complete your {userPlan} plan payment to unlock all features.
+            </Text>
+          </View>
+          <MaterialIcons name="arrow-forward" size={20} color="#065F46" />
+        </Pressable>
+      )}
 
       {/* Quick Action Buttons - Inline */}
       <View style={styles.quickActionsContainer}>
@@ -652,5 +710,51 @@ const styles = StyleSheet.create({
   emptySubtitle: {
     fontSize: 16,
     textAlign: 'center',
+  },
+  paymentBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginHorizontal: 20,
+    marginBottom: 16,
+    padding: 16,
+    backgroundColor: '#FEF3C7',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FCD34D',
+  },
+  paymentBannerTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#92400E',
+    marginBottom: 2,
+  },
+  paymentBannerText: {
+    fontSize: 13,
+    color: '#92400E',
+    lineHeight: 18,
+  },
+  paymentBannerAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginHorizontal: 20,
+    marginBottom: 16,
+    padding: 16,
+    backgroundColor: '#D1FAE5',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#6EE7B7',
+  },
+  paymentBannerActionTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#065F46',
+    marginBottom: 2,
+  },
+  paymentBannerActionText: {
+    fontSize: 13,
+    color: '#065F46',
+    lineHeight: 18,
   },
 });

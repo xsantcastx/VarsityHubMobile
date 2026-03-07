@@ -236,52 +236,9 @@ export default function Step10Confirmation() {
         throw new Error('Role is required. Please go back to step 1 and select your role (Fan or Coach).');
       }
 
-      // CRITICAL: For paid plans, verify payment completed before allowing onboarding completion
-      if (finalIsCoach && latestOb.plan !== 'rookie') {
-        try {
-          const me: any = await User.me();
-          const prefs = me?.preferences || {};
-
-          if (prefs.payment_pending === true) {
-            Alert.alert(
-              'Payment Required',
-              'Please complete your payment before finishing setup. You can complete payment in Settings → Manage Subscription, or return to Step 3 to select the free Rookie plan.',
-              [
-                { text: 'Go to Settings', onPress: () => router.push('/settings/manage-subscription') },
-                { text: 'Select Free Plan', onPress: () => router.push('/onboarding/step-3-plan?returnToConfirmation=true') },
-                { text: 'Cancel', style: 'cancel' },
-              ]
-            );
-            setCompleting(false);
-            return;
-          }
-
-          if (!prefs.subscription_id && prefs.payment_pending !== false) {
-            Alert.alert(
-              'Payment Processing',
-              'Your payment is still processing. Please wait a moment and try again, or check your subscription status in Settings.',
-              [
-                { text: 'Check Status', onPress: () => router.push('/settings/manage-subscription') },
-                { text: 'Retry', onPress: () => { setCompleting(false); setTimeout(() => void onComplete(), 500); } },
-                { text: 'Cancel', style: 'cancel' },
-              ]
-            );
-            setCompleting(false);
-            return;
-          }
-        } catch (err) {
-          console.warn('Failed to check payment status:', err);
-          Alert.alert(
-            'Payment Status Unavailable',
-            'Unable to verify payment status. If you have completed payment, you can proceed. Otherwise, please check your subscription in Settings.',
-            [
-              { text: 'Check Settings', onPress: () => router.push('/settings/manage-subscription') },
-              { text: 'Proceed Anyway', style: 'default' },
-              { text: 'Cancel', style: 'cancel' },
-            ]
-          );
-        }
-      }
+      // Payment is deferred until after admin approval — allow onboarding
+      // to complete with payment_pending=true. The billing screen will
+      // prompt for payment once the org admin approves the coach.
 
       const allowedAffiliations = new Set([
         'none', 'university', 'high_school', 'club', 'youth', 'school', 'independent',

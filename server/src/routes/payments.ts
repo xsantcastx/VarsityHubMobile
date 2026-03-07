@@ -1858,13 +1858,18 @@ paymentsRouter.post('/apple/verify-receipt', expressPkg.json(), requireVerified 
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } });
     const currentPrefs = (user?.preferences && typeof user.preferences === 'object') ? user.preferences as any : {};
 
+    // Clear payment_pending and payment_approved flags after successful payment
+    const { payment_pending, payment_approved, ...restPrefs } = currentPrefs;
+
     await prisma.user.update({
       where: { id: userId },
       data: {
         subscription_tier: plan === 'legend' ? 'pro' : 'premium',
+        subscription_status: 'active',
         preferences: {
-          ...currentPrefs,
+          ...restPrefs,
           plan,
+          payment_pending: false,
           apple_product_id: productId,
           apple_original_transaction_id: matchingReceipt.original_transaction_id,
           apple_expires_date: new Date(expiresMs).toISOString(),

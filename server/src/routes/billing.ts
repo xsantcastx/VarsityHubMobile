@@ -108,7 +108,8 @@ billingRouter.post('/webhooks/stripe', async (req: AuthedRequest, res) => {
       const plan = session.metadata?.plan;
       if (userId && plan) {
         const user = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } });
-        const existingPrefs = user?.preferences || {};
+        const existingPrefs = (user?.preferences || {}) as Record<string, any>;
+        const { payment_approved, ...restPrefs } = existingPrefs;
         await prisma.user.update({
           where: { id: userId },
           data: {
@@ -116,7 +117,7 @@ billingRouter.post('/webhooks/stripe', async (req: AuthedRequest, res) => {
             subscription_status: 'active',
             stripe_customer_id: session.customer?.toString(),
             preferences: {
-              ...(existingPrefs as object),
+              ...restPrefs,
               plan,
               payment_pending: false
             }

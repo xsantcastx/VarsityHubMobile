@@ -821,7 +821,15 @@ organizationsRouter.post('/join-requests/:requestId/approve', requireAuth as any
     return res.status(400).json({ error: 'This request has already been reviewed' });
   }
   
-  // Update join request and create membership
+  // Update join request, create membership, and flag coach for payment
+  const coachUser = await prisma.user.findUnique({
+    where: { id: joinRequest.user_id },
+    select: { preferences: true }
+  });
+  const coachPrefs = (coachUser?.preferences as Record<string, any>) || {};
+  const hasPendingPayment = coachPrefs.payment_pending === true &&
+    (coachPrefs.plan === 'veteran' || coachPrefs.plan === 'legend');
+
   await prisma.$transaction([
     prisma.organizationJoinRequest.update({
       where: { id: requestId },
@@ -838,7 +846,19 @@ organizationsRouter.post('/join-requests/:requestId/approve', requireAuth as any
         role: 'member',
         status: 'active'
       }
-    })
+    }),
+    // If the coach has a pending paid plan, mark them as approved to pay
+    ...(hasPendingPayment ? [
+      prisma.user.update({
+        where: { id: joinRequest.user_id },
+        data: {
+          preferences: {
+            ...coachPrefs,
+            payment_approved: true
+          }
+        }
+      })
+    ] : [])
   ]);
   
   // Send approval email to user
