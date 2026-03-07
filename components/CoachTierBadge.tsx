@@ -180,6 +180,7 @@ function getTierBenefits(tier: CoachTier) {
         description: 'Perfect for getting started',
         features: [
           'First two teams free',
+          'Ex: Mens and Womens soccer',
           'Basic scheduling',
           'Roster management',
           'Event creation',
