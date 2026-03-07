@@ -2,13 +2,16 @@ import { Subscriptions, User } from '@/api/entities';
 // @ts-ignore
 import { httpPost } from '@/api/http';
 import { Button } from '@/components/ui/button';
+import { useVHubIAP } from '@/hooks/useIAP';
 import { useFocusEffect } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { usePaymentSheet } from '@stripe/stripe-react-native';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Platform, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
+import { Alert, Linking, Platform, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/Colors';
+
+const isIOS = Platform.OS === 'ios';
 
 export default function ManageSubscription() {
   const colorScheme = useColorScheme();
@@ -56,13 +59,27 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
   );
 
   const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
+  const { connected: iapConnected, purchase: iapPurchase, purchasing: iapPurchasing } = useVHubIAP();
 
   const onSubscribe = async (targetPlan: 'veteran' | 'legend') => {
-    if (Platform.OS === 'ios') {
-      Alert.alert(
-        'Not available on iOS',
-        'Paid coach plan upgrades are currently unavailable in the iOS app.',
-      );
+    // iOS: Use Apple IAP
+    if (isIOS) {
+      if (!iapConnected) {
+        Alert.alert('Store Unavailable', 'Unable to connect to the App Store. Please try again later.');
+        return;
+      }
+      setLoading(true);
+      try {
+        const success = await iapPurchase(targetPlan);
+        if (success) {
+          Alert.alert('Success', 'Your subscription is now active!');
+          await refreshPlan();
+        }
+      } catch (err: any) {
+        Alert.alert('Purchase Failed', err?.message || 'Unable to complete purchase.');
+      } finally {
+        setLoading(false);
+      }
       return;
     }
     setLoading(true);
@@ -151,16 +168,18 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
           <Text style={[styles.rowValue, { color: Colors[colorScheme ?? 'light'].text }]}>{plan || 'rookie'}</Text>
 
           {plan && plan !== 'rookie' ? (
-            // Paid plans (veteran/legend) - show cancel option
+            // Paid plans (veteran/legend) - show cancel/manage option
             <View style={{ marginTop: 12 }}>
-              <Button onPress={onCancel} disabled={loading} variant="outline">
-                <Text>Cancel subscription</Text>
-              </Button>
+              {isIOS ? (
+                <Button onPress={() => Linking.openURL('https://apps.apple.com/account/subscriptions')} variant="outline">
+                  <Text>Manage in App Store</Text>
+                </Button>
+              ) : (
+                <Button onPress={onCancel} disabled={loading} variant="outline">
+                  <Text>Cancel subscription</Text>
+                </Button>
+              )}
             </View>
-          ) : Platform.OS === 'ios' ? (
-            <Text style={[styles.description, { color: Colors[colorScheme ?? 'light'].mutedText }]}>
-              Paid coach plan upgrades are currently unavailable in the iOS app.
-            </Text>
           ) : (
             // Free plan (rookie) or no plan - show upgrade options
             <>

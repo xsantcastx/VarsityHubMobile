@@ -1521,6 +1521,7 @@ const styles = StyleSheet.create({
     paddingTop: 52,
     marginBottom: 0,
     paddingBottom: 0,
+    gap: 4,
   },
   profileNameRow: {
     flexDirection: 'row',
@@ -1550,8 +1551,8 @@ const styles = StyleSheet.create({
   },
   userDetails: {
     paddingHorizontal: 16,
-    paddingTop: 4,
-    paddingBottom: 4,
+    paddingTop: 0,
+    paddingBottom: 2,
   },
   usernameRow: {
     flexDirection: 'row',

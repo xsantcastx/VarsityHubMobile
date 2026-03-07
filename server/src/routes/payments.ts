@@ -1788,6 +1788,117 @@ paymentsRouter.get('/success', async (req, res) => {
 </html>`);
 });
 
+// ── Apple IAP Receipt Verification ──────────────────────────────────
+const APPLE_SHARED_SECRET = process.env.APPLE_IAP_SHARED_SECRET || '';
+const APPLE_VERIFY_URL_PRODUCTION = 'https://buy.itunes.apple.com/verifyReceipt';
+const APPLE_VERIFY_URL_SANDBOX = 'https://sandbox.itunes.apple.com/verifyReceipt';
+
+const APPLE_PRODUCT_TO_PLAN: Record<string, string> = {
+  veteran_vhub: 'veteran',
+  Legend_vhub: 'legend',
+};
+
+async function verifyAppleReceipt(receiptData: string, useSandbox = false): Promise<any> {
+  const url = useSandbox ? APPLE_VERIFY_URL_SANDBOX : APPLE_VERIFY_URL_PRODUCTION;
+  const body = JSON.stringify({
+    'receipt-data': receiptData,
+    password: APPLE_SHARED_SECRET,
+    'exclude-old-transactions': true,
+  });
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body,
+  });
+  return resp.json();
+}
+
+paymentsRouter.post('/apple/verify-receipt', expressPkg.json(), requireVerified as any, async (req: AuthedRequest, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'AUTH_REQUIRED' });
+
+    const { receipt, productId } = req.body;
+    if (!receipt || !productId) {
+      return res.status(400).json({ error: 'Missing receipt or productId' });
+    }
+
+    const plan = APPLE_PRODUCT_TO_PLAN[productId];
+    if (!plan) {
+      return res.status(400).json({ error: `Unknown product: ${productId}` });
+    }
+
+    // Verify with Apple — try production first, fall back to sandbox if status 21007
+    let result = await verifyAppleReceipt(receipt, false);
+    if (result.status === 21007) {
+      // Receipt is from sandbox environment
+      result = await verifyAppleReceipt(receipt, true);
+    }
+
+    if (result.status !== 0) {
+      console.error('[apple-iap] Verification failed, status:', result.status);
+      return res.status(400).json({ error: 'Receipt verification failed', appleStatus: result.status });
+    }
+
+    // Find the latest receipt info for this product
+    const latestReceipts = result.latest_receipt_info || [];
+    const matchingReceipt = latestReceipts.find((r: any) => r.product_id === productId);
+
+    if (!matchingReceipt) {
+      return res.status(400).json({ error: 'No matching subscription found in receipt' });
+    }
+
+    // Check if subscription is still active
+    const expiresMs = parseInt(matchingReceipt.expires_date_ms, 10);
+    if (expiresMs < Date.now()) {
+      return res.status(400).json({ error: 'Subscription has expired' });
+    }
+
+    // Update user's plan in database
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } });
+    const currentPrefs = (user?.preferences && typeof user.preferences === 'object') ? user.preferences as any : {};
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        subscription_tier: plan === 'legend' ? 'pro' : 'premium',
+        preferences: {
+          ...currentPrefs,
+          plan,
+          apple_product_id: productId,
+          apple_original_transaction_id: matchingReceipt.original_transaction_id,
+          apple_expires_date: new Date(expiresMs).toISOString(),
+        } as any,
+      },
+    });
+
+    // Log the transaction
+    try {
+      await logTransaction({
+        transactionType: 'SUBSCRIPTION_PURCHASE',
+        status: 'COMPLETED',
+        userId,
+        orderId: matchingReceipt.original_transaction_id,
+        metadata: { source: 'apple_iap', productId, plan },
+      });
+    } catch (logErr) {
+      console.warn('[apple-iap] Failed to log transaction:', logErr);
+    }
+
+    debugLog('apple-iap', `User ${userId} subscribed to ${plan} via Apple IAP`);
+
+    return res.json({
+      ok: true,
+      plan,
+      expires: new Date(expiresMs).toISOString(),
+    });
+  } catch (err: any) {
+    console.error('[apple-iap] verify-receipt error:', err);
+    captureException(err, { tags: { context: 'apple-iap-verify' } });
+    return res.status(500).json({ error: 'Receipt verification failed' });
+  }
+});
+
 paymentsRouter.get('/cancel', (_req, res) => {
   const appScheme = process.env.APP_SCHEME || 'varsityhubmobile';
   const appReturnPath = process.env.APP_RETURN_PATH || '';

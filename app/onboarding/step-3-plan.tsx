@@ -9,7 +9,10 @@ import { httpPost } from '@/api/http';
 import { Payments, User } from '@/api/entities';
 import { PLAN_DEFINITIONS, Plan } from '@/constants/plans';
 import { useOnboarding } from '@/context/OnboardingContext';
+import { useVHubIAP } from '@/hooks/useIAP';
 import OnboardingLayout from './components/OnboardingLayout';
+
+const isIOS = Platform.OS === 'ios';
 
 // Map centralized plan definitions to UI format
 type PlanOption = {
@@ -157,6 +160,7 @@ export default function Step3Plan() {
   const [paymentsStatusLoading, setPaymentsStatusLoading] = useState(true);
   const [paymentsStatusError, setPaymentsStatusError] = useState<string | null>(null);
   const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
+  const { connected: iapConnected, purchase: iapPurchase, purchasing: iapPurchasing } = useVHubIAP();
   const displayedPlanOptions = PLAN_OPTIONS;
   const paymentsTemporarilyDisabled = paymentsStatus?.stripe_configured === false;
   const showPaymentsWarning =
@@ -311,6 +315,22 @@ export default function Step3Plan() {
         if (plan === 'veteran') {
           setOB((prev) => ({ ...prev, team_count_total: teamCount }));
         }
+
+        // iOS: Use Apple IAP
+        if (isIOS) {
+          if (!iapConnected) {
+            Alert.alert('Store Unavailable', 'Unable to connect to the App Store. Please try again later.');
+            return;
+          }
+          const success = await iapPurchase(plan as 'veteran' | 'legend');
+          if (success) {
+            setProgress(3);
+            navigateNext();
+          }
+          return;
+        }
+
+        // Android: Use Stripe
         const res: any = await httpPost('/payments/create-payment-sheet', { plan, team_count: plan === 'veteran' ? teamCount : undefined });
         if (res?.free) {
           // If marked as free, save the plan now

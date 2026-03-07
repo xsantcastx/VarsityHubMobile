@@ -1,8 +1,8 @@
 /**
  * Coach Subscription Paywall
- * 
- * Displays tier options (Rookie/Veteran/Legend) with benefits
- * Allows coaches to select and upgrade their subscription
+ *
+ * iOS: Uses Apple IAP (react-native-iap) for veteran_vhub / Legend_vhub
+ * Android: Uses Stripe Payment Sheets
  */
 
 import { httpPost } from '@/api/http';
@@ -10,6 +10,7 @@ import { CoachTier, CoachTierBadge, CoachTierBenefits } from '@/components/Coach
 import CustomActionModal from '@/components/CustomActionModal';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useVHubIAP } from '@/hooks/useIAP';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import { usePaymentSheet } from '@stripe/stripe-react-native';
@@ -27,17 +28,17 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+const isIOS = Platform.OS === 'ios';
+
 export default function SubscriptionPaywallScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
-  const isIOS = Platform.OS === 'ios';
-  const [selectedTier, setSelectedTier] = useState<CoachTier>(isIOS ? 'rookie' : 'veteran');
+  const [selectedTier, setSelectedTier] = useState<CoachTier>('veteran');
   const [loading, setLoading] = useState(false);
   const [promoCode, setPromoCode] = useState('');
-  const availableTiers: CoachTier[] = isIOS
-    ? ['rookie']
-    : ['rookie', 'veteran', 'legend'];
+  const availableTiers: CoachTier[] = ['rookie', 'veteran', 'legend'];
   const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
+  const { connected: iapConnected, purchasing: iapPurchasing, purchase: iapPurchase, getProduct, error: iapError } = useVHubIAP();
   const [modal, setModal] = useState<{
     visible: boolean;
     title: string;
@@ -45,23 +46,57 @@ export default function SubscriptionPaywallScreen() {
     options: Array<{ label: string; onPress: () => void; color?: string }>;
   } | null>(null);
 
+  // Get Apple IAP price string for display
+  const getIAPPrice = (tier: 'veteran' | 'legend'): string | null => {
+    if (!isIOS) return null;
+    const product = getProduct(tier);
+    return product?.displayPrice || null;
+  };
+
   const handleSubscribe = async () => {
-    if (isIOS) {
-      // On iOS, just navigate back — no paid plans exist
+    if (selectedTier === 'rookie') {
       if (router.canGoBack()) router.back();
       else router.replace('/(tabs)' as any);
       return;
     }
-    if (selectedTier === 'rookie') {
-      setModal({
-        visible: true,
-        title: 'Already on Rookie Plan',
-        message: 'You are currently on the free Rookie plan. Select Veteran or Legend to upgrade.',
-        options: [{ label: 'OK', onPress: () => setModal(null), color: '#2563EB' }],
-      });
+
+    // iOS: Use Apple IAP
+    if (isIOS) {
+      if (!iapConnected) {
+        setModal({
+          visible: true,
+          title: 'Store Unavailable',
+          message: 'Unable to connect to the App Store. Please try again later.',
+          options: [{ label: 'OK', onPress: () => setModal(null), color: '#2563EB' }],
+        });
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const success = await iapPurchase(selectedTier as 'veteran' | 'legend');
+        if (success) {
+          Alert.alert('Success', 'Your subscription is now active!', [
+            { text: 'OK', onPress: () => {
+              if (router.canGoBack()) router.back();
+              else router.replace('/(tabs)' as any);
+            }},
+          ]);
+        }
+      } catch (err: any) {
+        setModal({
+          visible: true,
+          title: 'Purchase Failed',
+          message: err?.message || 'Unable to complete purchase. Please try again.',
+          options: [{ label: 'OK', onPress: () => setModal(null), color: '#DC2626' }],
+        });
+      } finally {
+        setLoading(false);
+      }
       return;
     }
 
+    // Android: Use Stripe
     setLoading(true);
     try {
       const data: any = await httpPost('/payments/create-payment-sheet', {
@@ -85,7 +120,6 @@ export default function SubscriptionPaywallScreen() {
           if (error.code !== 'Canceled') Alert.alert('Payment Failed', error.message);
           return;
         }
-        // Payment succeeded
         if (router.canGoBack()) router.back();
         else router.replace('/(tabs)' as any);
       } else {
@@ -106,51 +140,8 @@ export default function SubscriptionPaywallScreen() {
     }
   };
 
-  // ── iOS: Simple free-plan-only screen ──────────────────────────────
-  if (isIOS) {
-    return (
-      <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
-        <Stack.Screen options={{
-          title: 'Your Plan',
-          headerLeft: () => (
-            <Pressable onPress={() => router.back()} style={{ paddingLeft: 8 }}>
-              <MaterialIcons name="chevron-left" size={24} color="#3B82F6" />
-            </Pressable>
-          ),
-        }} />
+  const isProcessing = loading || iapPurchasing;
 
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          <View style={styles.header}>
-            <Text style={[styles.title, { color: Colors[colorScheme].text }]}>
-              Rookie Plan
-            </Text>
-            <Text style={[styles.subtitle, { color: '#6B7280' }]}>
-              Everything you need to manage your program
-            </Text>
-          </View>
-
-          <View style={styles.benefitsSection}>
-            <CoachTierBenefits tier="rookie" compact={false} />
-          </View>
-
-          <View style={styles.ctaSection}>
-            <Pressable
-              style={[styles.ctaButton, { backgroundColor: getTierColor('rookie') }]}
-              onPress={() => router.back()}
-            >
-              <MaterialIcons name="check-circle" size={20} color="#FFFFFF" />
-              <Text style={styles.ctaButtonText}>You're All Set</Text>
-            </Pressable>
-            <Text style={[styles.ctaSubtext, { color: '#6B7280' }]}>
-              Free • No credit card required
-            </Text>
-          </View>
-        </ScrollView>
-      </SafeAreaView>
-    );
-  }
-
-  // ── Android / Web: Full paywall with all tiers ─────────────────────
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
       <Stack.Screen options={{
@@ -173,6 +164,13 @@ export default function SubscriptionPaywallScreen() {
           </Text>
         </View>
 
+        {/* IAP Error Banner */}
+        {isIOS && iapError ? (
+          <View style={styles.errorBanner}>
+            <Text style={styles.errorBannerText}>{iapError}</Text>
+          </View>
+        ) : null}
+
         {/* Tier Selection Pills */}
         <View style={styles.tierSelector}>
           {availableTiers.map((tier) => (
@@ -191,6 +189,11 @@ export default function SubscriptionPaywallScreen() {
                   <Text style={styles.popularText}>BEST VALUE</Text>
                 </View>
               )}
+              {isIOS && tier !== 'rookie' && getIAPPrice(tier as 'veteran' | 'legend') ? (
+                <Text style={styles.iapPriceText}>
+                  {getIAPPrice(tier as 'veteran' | 'legend')}
+                </Text>
+              ) : null}
             </Pressable>
           ))}
         </View>
@@ -246,8 +249,8 @@ export default function SubscriptionPaywallScreen() {
           </View>
         </View>
 
-        {/* Promo Code Section */}
-        {selectedTier !== 'rookie' && (
+        {/* Promo Code Section — Android only (Apple doesn't allow promo codes through IAP) */}
+        {!isIOS && selectedTier !== 'rookie' && (
           <View style={styles.promoSection}>
             <Text style={[styles.promoLabel, { color: Colors[colorScheme].text }]}>
               Have a promo code?
@@ -268,7 +271,7 @@ export default function SubscriptionPaywallScreen() {
                 onChangeText={setPromoCode}
                 autoCapitalize="characters"
                 autoCorrect={false}
-                editable={!loading}
+                editable={!isProcessing}
               />
             </View>
             <Text style={styles.promoHint}>
@@ -283,17 +286,17 @@ export default function SubscriptionPaywallScreen() {
             style={[
               styles.ctaButton,
               { backgroundColor: getTierColor(selectedTier) },
-              loading && styles.ctaButtonDisabled,
+              isProcessing && styles.ctaButtonDisabled,
             ]}
             onPress={handleSubscribe}
-            disabled={loading}
+            disabled={isProcessing}
           >
-            {loading ? (
+            {isProcessing ? (
               <ActivityIndicator color="#FFFFFF" />
             ) : (
               <>
                 <Text style={styles.ctaButtonText}>
-                  {selectedTier === 'rookie' ? 'Current Plan' : `Upgrade to ${capitalize(selectedTier)}`}
+                  {selectedTier === 'rookie' ? 'Continue with Free Plan' : `Upgrade to ${capitalize(selectedTier)}`}
                 </Text>
                 {selectedTier !== 'rookie' && (
                   <MaterialIcons name="arrow-forward" size={20} color="#FFFFFF" />
@@ -307,6 +310,12 @@ export default function SubscriptionPaywallScreen() {
             {selectedTier === 'veteran' && 'Billed monthly per team • Cancel anytime'}
             {selectedTier === 'rookie' && 'Free • No credit card required'}
           </Text>
+
+          {isIOS && selectedTier !== 'rookie' && (
+            <Text style={[styles.ctaSubtext, { color: '#9CA3AF', fontSize: 11, marginTop: 4 }]}>
+              Payment will be charged to your Apple ID account. Subscription automatically renews unless canceled at least 24 hours before the end of the current period. Manage subscriptions in Settings.
+            </Text>
+          )}
         </View>
       </ScrollView>
 
@@ -385,6 +394,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
   },
+  errorBanner: {
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+  },
+  errorBannerText: {
+    color: '#DC2626',
+    fontSize: 13,
+    textAlign: 'center',
+  },
   tierSelector: {
     flexDirection: 'row',
     gap: 12,
@@ -416,6 +438,12 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  iapPriceText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#6B7280',
+    marginTop: 4,
   },
   benefitsSection: {
     marginBottom: 24,
