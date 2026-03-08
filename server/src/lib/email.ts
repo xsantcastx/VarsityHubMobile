@@ -105,13 +105,50 @@ const TEMPLATE_IDS = {
 
 type TemplateKey = keyof typeof TEMPLATE_IDS;
 const REQUIRED_TEMPLATE_KEYS: TemplateKey[] = [
+  // Auth & security
   'VERIFICATION',
   'PASSWORD_RESET',
+  'PASSWORD_CHANGED',
+  'ACCOUNT_RECOVERY',
+  'LOGIN_NEW_DEVICE',
+  // Trust & safety
+  'ACCOUNT_WARNING',
+  'CONTENT_REMOVED',
+  'ACCOUNT_SUSPENSION_7_DAYS',
+  'ACCOUNT_SUSPENSION_45_DAYS',
+  'ACCOUNT_PERMANENT_BAN',
+  'REPORT_RESOLVED',
+  'REPORT_DISMISSED',
+  'CONTENT_MODERATION',
+  'ABUSE_REPORT',
+  // Teams & orgs
   'TEAM_INVITE',
   'ORG_INVITE',
   'JOIN_REQUEST_ADMIN',
   'JOIN_REQUEST_APPROVED',
   'JOIN_REQUEST_DENIED',
+  'ORG_APPROVAL',
+  'ORG_DENIAL',
+  'STAFF_MEMBER_JOINED',
+  'ROSTER_THRESHOLD',
+  // Events
+  'EVENT_SUBMISSION_RECEIVED',
+  'EVENT_APPROVED',
+  'EVENT_DENIED',
+  'EVENT_REMINDER',
+  'EVENT_UPDATED',
+  'EVENT_CANCELED',
+  'EVENT_RSVP_CONFIRMED',
+  // Billing
+  'BILLING_NOTICE',
+  'PAYMENT_FAILED',
+  'SUBSCRIPTION_EXPIRING',
+  // Ads
+  'AD_GOES_LIVE',
+  'AD_PAYMENT_CONFIRMED',
+  'AD_PENDING_REVIEW',
+  'AD_APPROVED',
+  'AD_REJECTED',
 ];
 
 export function isSendGridConfigured(): boolean {
@@ -143,7 +180,8 @@ export async function initEmailService() {
   // Also check for missing templates (legacy check)
   const missing = getMissingEmailTemplates();
   if (missing.length) {
-    console.warn(`[email] SendGrid template IDs missing: ${missing.join(', ')}`);
+    console.error(`[email] ⛔ ${missing.length} SendGrid template IDs missing: ${missing.join(', ')}`);
+    console.error('[email] Emails using these templates will silently fail. Set them in Railway environment variables.');
   }
 
   return result;
