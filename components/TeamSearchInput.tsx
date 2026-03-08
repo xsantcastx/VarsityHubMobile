@@ -129,7 +129,7 @@ export default function TeamSearchInput({
 
   const handleViewTeamPage = () => {
     if (selectedTeam && selectedTeam.id !== 'manual') {
-      router.push(`/team-profile?id=${selectedTeam.id}`);
+      router.push(`/(tabs)/team-profile?id=${selectedTeam.id}`);
     }
   };
 

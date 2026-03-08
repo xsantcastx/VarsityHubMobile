@@ -345,7 +345,7 @@ export default function OrganizationScreen() {
           {isOrgAdmin ? (
             <Pressable
               style={[styles.actionBtn, { flex: 1, backgroundColor: theme.card, borderColor: theme.border, borderWidth: StyleSheet.hairlineWidth }]}
-              onPress={() => router.push(`/create-organization?id=${organization?.id}` as any)}
+              onPress={() => Alert.alert('Coming Soon', 'Organization editing will be available in a future update.')}
             >
               <Ionicons name="pencil-outline" size={16} color={theme.text} />
               <Text style={[styles.actionBtnText, { color: theme.text }]}>Edit Profile</Text>
