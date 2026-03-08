@@ -15,9 +15,9 @@ type Intent = 'find_local_games' | 'view_moments' | 'post_reviews' | 'support_cr
 const OPTIONS: { key: Intent; label: string; icon: keyof typeof Ionicons.glyphMap; color: string; route?: string }[] = [
   { key: 'find_local_games', label: 'Find Local Games', icon: 'map', color: '#3b82f6', route: '/(tabs)/discover' },
   { key: 'view_moments', label: 'View Moments', icon: 'play-circle', color: '#8b5cf6', route: '/highlights' },
-  { key: 'post_reviews', label: 'Post Reviews and Highlights', icon: 'create', color: '#f59e0b', route: '/create-post' },
+  { key: 'post_reviews', label: 'Post Reviews and Highlights', icon: 'create', color: '#f59e0b', route: '/(tabs)/create-post' },
   { key: 'support_creators', label: 'Support Local Creators', icon: 'heart', color: '#ec4899', route: '/(tabs)/discover' },
-  { key: 'claim_team', label: 'Claim My Team', icon: 'trophy', color: '#10b981', route: '/create-team' },
+  { key: 'claim_team', label: 'Claim My Team', icon: 'trophy', color: '#10b981', route: '/(tabs)/create-team' },
   { key: 'follow', label: 'Follow Teams/Players', icon: 'people', color: '#06b6d4', route: '/(tabs)/discover' },
 ];
 

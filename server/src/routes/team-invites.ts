@@ -37,10 +37,16 @@ teamInvitesRouter.post('/', requireAuth as any, inviteLimiter, async (req: Authe
     });
   }
 
-  // PLAN LIMITS: Enforce authorized user caps (per-team limits)
-  const user = await prisma.user.findUnique({ where: { id: req.user.id } });
-  const prefs = (user?.preferences || {}) as any;
-  const plan = prefs.plan || 'rookie';
+  // PLAN LIMITS: Enforce authorized user caps based on TEAM OWNER's plan (Rule B).
+  // Authorized users are covered by the coach's plan — never charged individually.
+  const ownerMembership = await prisma.teamMembership.findFirst({
+    where: { team_id: teamId, role: 'owner', status: 'active' },
+    select: { user_id: true },
+  });
+  const ownerId = ownerMembership?.user_id || req.user.id;
+  const owner = await prisma.user.findUnique({ where: { id: ownerId } });
+  const ownerPrefs = (owner?.preferences || {}) as any;
+  const plan = ownerPrefs.pending_plan || ownerPrefs.plan || 'rookie';
   const limit = getAuthorizedUsersPerTeam(plan);
 
   const existingInvite = await prisma.teamInvite.findUnique({

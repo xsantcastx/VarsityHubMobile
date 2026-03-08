@@ -41,6 +41,7 @@ return u?.id;
 }
 
 messagesRouter.get('/', requireAuth as any, async (req: AuthedRequest, res) => {
+try {
 if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 const orderBy = parseSort((req.query as any).sort);
 const limit = Math.min(parseInt(String((req.query as any).limit ?? '50'), 10) || 50, 200);
@@ -105,6 +106,10 @@ take: limit,
 include: { sender: { select: baseUserSelect }, recipient: { select: baseUserSelect } },
 });
 return res.json(messages);
+} catch (err) {
+console.error('[messages] GET / error:', err);
+return res.status(500).json({ error: 'Internal server error' });
+}
 });
 
 const sendSchema = z.object({
@@ -138,10 +143,36 @@ if (!u) return res.status(404).json({ error: 'Recipient not found' });
 toId = u.id;
 }
 
+// If we have conversation_id but no recipient, resolve recipient from conversation
+if (!toId && conversation_id) {
+  // DM conversation IDs follow pattern dm:<id1>__<id2> (sorted)
+  const dmMatch = conversation_id.match(/^dm:(.+)__(.+)$/);
+  if (dmMatch) {
+    const [, id1, id2] = dmMatch;
+    toId = id1 === meId ? id2 : id1;
+  } else {
+    // Fallback: look up the other participant from existing messages
+    const existing = await prisma.message.findFirst({
+      where: { conversation_id },
+      select: { sender_id: true, recipient_id: true },
+    });
+    if (existing) {
+      toId = existing.sender_id === meId ? existing.recipient_id : existing.sender_id;
+    }
+  }
+  if (!toId) {
+    return res.status(400).json({ error: 'Could not determine recipient from conversation' });
+  }
+}
+
 let convId = conversation_id;
 if (!convId && toId) {
 const pair = [meId, toId].sort();
 convId = `dm:${pair[0]}__${pair[1]}`;
+}
+
+if (!toId) {
+  return res.status(400).json({ error: 'Could not determine recipient' });
 }
 
 // Prevent messaging if either user has blocked the other

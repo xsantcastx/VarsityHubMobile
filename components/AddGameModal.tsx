@@ -330,12 +330,14 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
                         setFormData(prev => ({
                           ...prev,
                           type,
-                          ...(homeVenue && !prev.location ? {
+                          ...(homeVenue ? {
                             location: homeVenue,
-                            ...(teamRaw?.venue_lat != null && { latitude: teamRaw.venue_lat }),
-                            ...(teamRaw?.venue_lng != null && { longitude: teamRaw.venue_lng }),
+                            ...(teamRaw?.venue_lat != null ? { latitude: teamRaw.venue_lat } : {}),
+                            ...(teamRaw?.venue_lng != null ? { longitude: teamRaw.venue_lng } : {}),
                           } : {}),
                         }));
+                      } else if (type === 'away') {
+                        setFormData(prev => ({ ...prev, type, location: '', latitude: null, longitude: null }));
                       } else {
                         setFormData(prev => ({ ...prev, type }));
                       }
@@ -641,10 +643,10 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
                   setFormData(prev => ({
                     ...prev,
                     currentTeam: team.name,
-                    ...(homeVenue && !prev.location ? {
+                    ...(homeVenue ? {
                       location: homeVenue,
-                      ...(teamRaw?.venue_lat != null && { latitude: teamRaw.venue_lat }),
-                      ...(teamRaw?.venue_lng != null && { longitude: teamRaw.venue_lng }),
+                      ...(teamRaw?.venue_lat != null ? { latitude: teamRaw.venue_lat } : {}),
+                      ...(teamRaw?.venue_lng != null ? { longitude: teamRaw.venue_lng } : {}),
                     } : {}),
                   }));
                   if (errors.currentTeam) {

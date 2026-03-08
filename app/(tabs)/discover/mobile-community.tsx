@@ -329,7 +329,7 @@ export default function CommunityDiscoverScreen() {
       const orgs = await Organization.mine();
       const list = Array.isArray(orgs) ? orgs : [];
       if (list.length > 0) {
-        router.push({ pathname: '/organization', params: { id: list[0].id } } as any);
+        router.push({ pathname: '/(tabs)/organization', params: { id: list[0].id } } as any);
       } else {
         Alert.alert('No Organization', 'You are not linked to any organization yet.');
       }
@@ -891,7 +891,7 @@ export default function CommunityDiscoverScreen() {
               {/* Fan actions */}
               <Pressable
                 style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: me?.preferences?.role === 'organizer' ? 12 : 0 }]}
-                onPress={() => void router.push('/create-fan-event')}
+                onPress={() => void router.push('/(tabs)/create-fan-event')}
               >
                 <MaterialIcons name="group" size={24} color={Colors[colorScheme].tint} />
                 <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Fan Event</Text>
@@ -899,7 +899,7 @@ export default function CommunityDiscoverScreen() {
               </Pressable>
               <Pressable 
                 style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: 12 }]}
-                onPress={() => void router.push('/create-post')}
+                onPress={() => void router.push('/(tabs)/create-post')}
               >
                 <MaterialIcons name="camera-alt" size={24} color={Colors[colorScheme].tint} />
                 <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Share Moment</Text>
@@ -1011,7 +1011,7 @@ export default function CommunityDiscoverScreen() {
                 </View>
                 <PostCard
                   post={p}
-                  onPress={() => void router.push(`/post-detail?id=${p.id}`)}
+                  onPress={() => void router.push(`/(tabs)/post-detail?id=${p.id}`)}
                   showAuthorHeader={false}
                   onDeleted={(postId) => {
                     // Remove deleted post from both arrays

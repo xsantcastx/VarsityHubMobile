@@ -408,32 +408,36 @@ teamsRouter.post('/', requireVerified as any, requirePlan('rookie') as any, asyn
   const me = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, preferences: true } });
   if (!me) return res.status(401).json({ error: 'Unauthorized' });
 
-  // SECURITY: Enforce coach role via DB membership (not client-editable preferences)
-  const hasCoachRole = await prisma.teamMembership.findFirst({
-    where: {
-      user_id: userId,
-      role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
-      status: 'active',
-    },
-  });
-  const hasOrgRole = await prisma.organizationMembership.findFirst({
-    where: {
-      user_id: userId,
-      role: { in: ['owner', 'manager', 'administrator'] },
-      status: 'active',
-    },
-  });
-
-  // During onboarding, allow team creation if preferences.role is 'coach' and onboarding is not yet complete
+  // SECURITY: Enforce coach role — allow if user has any coach-related DB membership,
+  // OR if their profile role is 'coach' (covers new coaches who completed onboarding
+  // but haven't created their first team yet).
   const prefs0 = (me.preferences && typeof me.preferences === 'object') ? (me.preferences as any) : {};
-  const isOnboardingCoach = parsed.data.onboarding === true && prefs0.role === 'coach' && prefs0.onboarding_completed === false;
+  const isCoachByPrefs = prefs0.role === 'coach';
 
-  if (!hasCoachRole && !hasOrgRole && !isOnboardingCoach) {
-    return res.status(403).json({
-      error: 'COACH_ROLE_REQUIRED',
-      message: 'Only coach accounts can create teams.',
-      code: 'COACH_ROLE_REQUIRED'
+  if (!isCoachByPrefs) {
+    // Only check DB memberships if preferences don't confirm coach role
+    const hasCoachRole = await prisma.teamMembership.findFirst({
+      where: {
+        user_id: userId,
+        role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
+        status: 'active',
+      },
     });
+    const hasOrgRole = await prisma.organizationMembership.findFirst({
+      where: {
+        user_id: userId,
+        role: { in: ['owner', 'manager', 'administrator'] },
+        status: 'active',
+      },
+    });
+
+    if (!hasCoachRole && !hasOrgRole) {
+      return res.status(403).json({
+        error: 'COACH_ROLE_REQUIRED',
+        message: 'Only coach accounts can create teams.',
+        code: 'COACH_ROLE_REQUIRED'
+      });
+    }
   }
 
   // Check team ownership limit
@@ -517,8 +521,8 @@ teamsRouter.put('/:id', requireVerified as any, async (req: AuthedRequest, res) 
     where: { team_id_user_id: { team_id: teamId, user_id: req.user.id } }
   });
   const isAdmin = await getIsAdmin(req as any);
-  if (!isAdmin && (!membership || membership.role !== 'owner')) {
-    return res.status(403).json({ error: 'Only team owners can update team information' });
+  if (!isAdmin && (!membership || !['owner', 'manager', 'coach'].includes(membership.role))) {
+    return res.status(403).json({ error: 'Only team owners, managers, or coaches can update team information' });
   }
   
   const updateData: any = {};
@@ -696,32 +700,36 @@ teamsRouter.post('/create', requireVerified as any, requirePlan('rookie') as any
   const me = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, preferences: true } });
   if (!me) return res.status(401).json({ error: 'Unauthorized' });
 
-  // SECURITY: Enforce coach role via DB membership (not client-editable preferences)
-  const hasCoachRole = await prisma.teamMembership.findFirst({
-    where: {
-      user_id: userId,
-      role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
-      status: 'active',
-    },
-  });
-  const hasOrgRole = await prisma.organizationMembership.findFirst({
-    where: {
-      user_id: userId,
-      role: { in: ['owner', 'manager', 'administrator'] },
-      status: 'active',
-    },
-  });
-
-  // During onboarding, allow team creation if preferences.role is 'coach' and onboarding is not yet complete
+  // SECURITY: Enforce coach role — allow if user has any coach-related DB membership,
+  // OR if their profile role is 'coach' (covers new coaches who completed onboarding
+  // but haven't created their first team yet).
   const prefsCheck = (me.preferences && typeof me.preferences === 'object') ? (me.preferences as any) : {};
-  const isOnboardingCoach = data.onboarding === true && prefsCheck.role === 'coach' && prefsCheck.onboarding_completed === false;
+  const isCoachByPrefs = prefsCheck.role === 'coach';
 
-  if (!hasCoachRole && !hasOrgRole && !isOnboardingCoach) {
-    return res.status(403).json({
-      error: 'COACH_ROLE_REQUIRED',
-      message: 'Only coach accounts can create teams.',
-      code: 'COACH_ROLE_REQUIRED'
+  if (!isCoachByPrefs) {
+    // Only check DB memberships if preferences don't confirm coach role
+    const hasCoachRole = await prisma.teamMembership.findFirst({
+      where: {
+        user_id: userId,
+        role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
+        status: 'active',
+      },
     });
+    const hasOrgRole = await prisma.organizationMembership.findFirst({
+      where: {
+        user_id: userId,
+        role: { in: ['owner', 'manager', 'administrator'] },
+        status: 'active',
+      },
+    });
+
+    if (!hasCoachRole && !hasOrgRole) {
+      return res.status(403).json({
+        error: 'COACH_ROLE_REQUIRED',
+        message: 'Only coach accounts can create teams.',
+        code: 'COACH_ROLE_REQUIRED'
+      });
+    }
   }
 
   // Check team limit for free tier (Rookie plan)
@@ -1093,15 +1101,22 @@ teamsRouter.post('/:id/invite', inviteLimiter, async (req: AuthedRequest, res) =
     });
   }
   
-  // PLAN LIMITS: Enforce authorized user caps (per-team limits)
-  // CRITICAL: Use transaction to prevent race condition bypassing user limits
+  // PLAN LIMITS: Enforce authorized user caps based on TEAM OWNER's plan (Rule B).
+  // Authorized users are covered by the coach's plan — never charged individually.
+  // CRITICAL: Use transaction to prevent race condition bypassing user limits.
   let invite;
   try {
-    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
-    const prefs = (user?.preferences || {}) as any;
-    const plan = prefs.plan || 'rookie';
+    // Look up the team OWNER's plan (not the inviting user's plan)
+    const ownerMembership = await prisma.teamMembership.findFirst({
+      where: { team_id: id, role: 'owner', status: 'active' },
+      select: { user_id: true },
+    });
+    const ownerId = ownerMembership?.user_id || req.user.id;
+    const owner = await prisma.user.findUnique({ where: { id: ownerId } });
+    const ownerPrefs = (owner?.preferences || {}) as any;
+    const plan = ownerPrefs.pending_plan || ownerPrefs.plan || 'rookie';
 
-    // Get per-team limit from plan definitions
+    // Get per-team limit from the owner's plan definitions
     const limit = getAuthorizedUsersPerTeam(plan);
 
     // Create invite within transaction to prevent race conditions

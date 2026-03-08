@@ -151,7 +151,7 @@ export default function TeamHubScreen() {
           <Text style={[Type.sub as any, { textAlign: 'center', marginBottom: 12 }]}>Create a team to get started.</Text>
           <PrimaryButton
             label="Create New Team"
-            onPress={() => void router.push('/create-team')}
+            onPress={() => void router.push('/(tabs)/create-team')}
           />
         </View>
       </View>

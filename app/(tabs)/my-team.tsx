@@ -1,28 +1,944 @@
+import CustomActionModal from '@/components/CustomActionModal';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { Stack, useRouter } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Stack, useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Image,
+  Modal,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+// @ts-ignore JS exports
+import { Team as TeamApi } from '@/api/entities';
+
+type ManagedTeam = {
+  id: string;
+  name: string;
+  sport?: string;
+  avatar_url?: string;
+};
+
+type MemberUser = {
+  id: string;
+  email: string;
+  display_name: string;
+  avatar_url?: string;
+  username?: string;
+  is_parent?: boolean;
+};
+
+type TeamMember = {
+  id: string;
+  role: string;
+  status: string;
+  position?: string;
+  jersey_number?: string;
+  user: MemberUser;
+};
+
+const ROLE_OPTIONS = ['owner', 'manager', 'coach', 'assistant_coach', 'player', 'parent', 'member'] as const;
+type Role = (typeof ROLE_OPTIONS)[number];
+
+const ROLE_LABELS: Record<string, string> = {
+  owner: 'Owner',
+  manager: 'Manager',
+  coach: 'Coach',
+  assistant_coach: 'Asst. Coach',
+  player: 'Player',
+  parent: 'Parent',
+  member: 'Member',
+};
+
+function getRoleBadgeColor(role: string): { bg: string; text: string } {
+  switch (role) {
+    case 'owner':
+      return { bg: '#7C3AED', text: '#FFFFFF' };
+    case 'manager':
+      return { bg: '#D97706', text: '#FFFFFF' };
+    case 'coach':
+    case 'assistant_coach':
+      return { bg: '#2563EB', text: '#FFFFFF' };
+    case 'player':
+      return { bg: '#16A34A', text: '#FFFFFF' };
+    case 'parent':
+      return { bg: '#9333EA', text: '#FFFFFF' };
+    default:
+      return { bg: '#6B7280', text: '#FFFFFF' };
+  }
+}
 
 export default function MyTeamScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
 
+  const [teams, setTeams] = useState<ManagedTeam[]>([]);
+  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
+  const [members, setMembers] = useState<TeamMember[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Member action modal
+  const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
+  const [showActionModal, setShowActionModal] = useState(false);
+
+  // Edit role modal
+  const [showRoleModal, setShowRoleModal] = useState(false);
+
+  // Edit position modal
+  const [showPositionModal, setShowPositionModal] = useState(false);
+  const [positionInput, setPositionInput] = useState('');
+
+  // Remove confirm modal
+  const [showRemoveModal, setShowRemoveModal] = useState(false);
+
+  // Invite modal
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState<Role>('player');
+  const [inviting, setInviting] = useState(false);
+
+  // Team selector
+  const [showTeamPicker, setShowTeamPicker] = useState(false);
+
+  const loadTeams = useCallback(async () => {
+    try {
+      setError(null);
+      const list: any[] = await TeamApi.managed();
+      const formatted: ManagedTeam[] = list.map((t: any) => ({
+        id: String(t.id),
+        name: String(t.name || 'Team'),
+        sport: t.sport || undefined,
+        avatar_url: t.avatar_url || undefined,
+      }));
+      setTeams(formatted);
+      // Auto-select first team if none selected or current selection is gone
+      if (formatted.length > 0) {
+        setSelectedTeamId((prev) => {
+          if (prev && formatted.some((t) => t.id === prev)) return prev;
+          return formatted[0].id;
+        });
+      } else {
+        setSelectedTeamId(null);
+        setMembers([]);
+      }
+    } catch (e: any) {
+      console.error('Failed to load teams:', e);
+      setError('Unable to load teams.');
+      setTeams([]);
+    }
+  }, []);
+
+  const loadMembers = useCallback(async (teamId: string) => {
+    try {
+      const list: any[] = await TeamApi.members(teamId);
+      setMembers(
+        list.map((m: any) => ({
+          id: String(m.id),
+          role: m.role || 'member',
+          status: m.status || 'active',
+          position: m.position || m.custom_position || undefined,
+          jersey_number: m.jersey_number || undefined,
+          user: {
+            id: String(m.user?.id || ''),
+            email: m.user?.email || '',
+            display_name: m.user?.display_name || m.user?.email || 'Unknown',
+            avatar_url: m.user?.avatar_url || undefined,
+            username: m.user?.username || undefined,
+            is_parent: m.user?.is_parent || false,
+          },
+        })),
+      );
+    } catch (e: any) {
+      console.error('Failed to load members:', e);
+      setMembers([]);
+    }
+  }, []);
+
+  const loadAll = useCallback(async () => {
+    await loadTeams();
+  }, [loadTeams]);
+
+  // When selectedTeamId changes, load members
+  const loadMembersForSelected = useCallback(async () => {
+    if (!selectedTeamId) return;
+    await loadMembers(selectedTeamId);
+  }, [selectedTeamId, loadMembers]);
+
+  useFocusEffect(
+    useCallback(() => {
+      setLoading(true);
+      loadAll().finally(() => setLoading(false));
+    }, [loadAll]),
+  );
+
+  // Reload members whenever team changes
+  useFocusEffect(
+    useCallback(() => {
+      if (selectedTeamId) {
+        loadMembersForSelected();
+      }
+    }, [selectedTeamId, loadMembersForSelected]),
+  );
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadAll();
+    if (selectedTeamId) await loadMembers(selectedTeamId);
+    setRefreshing(false);
+  }, [loadAll, loadMembers, selectedTeamId]);
+
+  const handleUpdateRole = useCallback(
+    async (role: Role) => {
+      if (!selectedMember) return;
+      try {
+        await TeamApi.updateMember(selectedMember.id, { role });
+        if (selectedTeamId) await loadMembers(selectedTeamId);
+        setShowRoleModal(false);
+        setSelectedMember(null);
+      } catch (e: any) {
+        Alert.alert('Error', e?.message || 'Failed to update role.');
+      }
+    },
+    [selectedMember, selectedTeamId, loadMembers],
+  );
+
+  const handleUpdatePosition = useCallback(async () => {
+    if (!selectedMember) return;
+    try {
+      await TeamApi.updateMember(selectedMember.id, { custom_position: positionInput.trim() });
+      if (selectedTeamId) await loadMembers(selectedTeamId);
+      setShowPositionModal(false);
+      setSelectedMember(null);
+      setPositionInput('');
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Failed to update position.');
+    }
+  }, [selectedMember, selectedTeamId, positionInput, loadMembers]);
+
+  const handleRemoveMember = useCallback(async () => {
+    if (!selectedMember) return;
+    try {
+      await TeamApi.removeMember(selectedMember.id, 'Removed by team manager');
+      if (selectedTeamId) await loadMembers(selectedTeamId);
+      setShowRemoveModal(false);
+      setSelectedMember(null);
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Failed to remove member.');
+    }
+  }, [selectedMember, selectedTeamId, loadMembers]);
+
+  const handleInvite = useCallback(async () => {
+    if (!selectedTeamId || !inviteEmail.trim()) return;
+    setInviting(true);
+    try {
+      await TeamApi.invite(selectedTeamId, inviteEmail.trim(), inviteRole);
+      Alert.alert('Invited', `Invitation sent to ${inviteEmail.trim()}`);
+      setShowInviteModal(false);
+      setInviteEmail('');
+      setInviteRole('player');
+      await loadMembers(selectedTeamId);
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Failed to send invitation.');
+    } finally {
+      setInviting(false);
+    }
+  }, [selectedTeamId, inviteEmail, inviteRole, loadMembers]);
+
+  const selectedTeam = teams.find((t) => t.id === selectedTeamId);
+
+  const renderMember = ({ item }: { item: TeamMember }) => {
+    const badge = getRoleBadgeColor(item.role);
+    return (
+      <Pressable
+        onLongPress={() => {
+          setSelectedMember(item);
+          setShowActionModal(true);
+        }}
+        style={[
+          styles.memberCard,
+          {
+            backgroundColor: Colors[colorScheme].surface,
+            borderColor: Colors[colorScheme].border,
+          },
+        ]}
+      >
+        {item.user.avatar_url ? (
+          <Image source={{ uri: item.user.avatar_url }} style={styles.avatar} />
+        ) : (
+          <View style={[styles.avatar, styles.avatarPlaceholder, { backgroundColor: Colors[colorScheme].border }]}>
+            <MaterialIcons name="person" size={22} color={Colors[colorScheme].mutedText} />
+          </View>
+        )}
+
+        <View style={styles.memberInfo}>
+          <View style={styles.memberNameRow}>
+            <Text style={[styles.memberName, { color: Colors[colorScheme].text }]} numberOfLines={1}>
+              {item.user.display_name}
+            </Text>
+            {item.jersey_number ? (
+              <Text style={[styles.jerseyNumber, { color: Colors[colorScheme].mutedText }]}>#{item.jersey_number}</Text>
+            ) : null}
+          </View>
+          <View style={styles.memberMeta}>
+            <View style={[styles.roleBadge, { backgroundColor: badge.bg }]}>
+              <Text style={[styles.roleBadgeText, { color: badge.text }]}>{ROLE_LABELS[item.role] || item.role}</Text>
+            </View>
+            {item.position ? (
+              <Text style={[styles.positionText, { color: Colors[colorScheme].mutedText }]}>{item.position}</Text>
+            ) : null}
+          </View>
+        </View>
+
+        <MaterialIcons name="more-vert" size={20} color={Colors[colorScheme].mutedText} />
+      </Pressable>
+    );
+  };
+
+  const renderHeader = () => (
+    <View>
+      {/* Team Selector */}
+      {teams.length > 1 && (
+        <Pressable
+          onPress={() => setShowTeamPicker(true)}
+          style={[
+            styles.teamSelector,
+            {
+              backgroundColor: Colors[colorScheme].surface,
+              borderColor: Colors[colorScheme].border,
+            },
+          ]}
+        >
+          <MaterialIcons name="groups" size={20} color={Colors[colorScheme].tint} />
+          <Text style={[styles.teamSelectorText, { color: Colors[colorScheme].text }]} numberOfLines={1}>
+            {selectedTeam?.name || 'Select Team'}
+          </Text>
+          <MaterialIcons name="arrow-drop-down" size={24} color={Colors[colorScheme].mutedText} />
+        </Pressable>
+      )}
+
+      {teams.length === 1 && (
+        <View style={styles.singleTeamHeader}>
+          <MaterialIcons name="groups" size={20} color={Colors[colorScheme].tint} />
+          <Text style={[styles.singleTeamName, { color: Colors[colorScheme].text }]}>{selectedTeam?.name}</Text>
+        </View>
+      )}
+
+      {/* Roster count + invite */}
+      <View style={styles.sectionHeaderRow}>
+        <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>
+          Roster ({members.length})
+        </Text>
+        <Pressable
+          onPress={() => setShowInviteModal(true)}
+          style={[styles.inviteButton, { backgroundColor: Colors[colorScheme].tint }]}
+        >
+          <MaterialIcons name="person-add" size={16} color="#FFFFFF" />
+          <Text style={styles.inviteButtonText}>Invite</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+
+  const renderEmpty = () => {
+    if (loading) return null;
+    if (teams.length === 0) {
+      return (
+        <View style={styles.emptyContainer}>
+          <MaterialIcons name="group-off" size={48} color={Colors[colorScheme].mutedText} />
+          <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text }]}>No Teams</Text>
+          <Text style={[styles.emptySubtitle, { color: Colors[colorScheme].mutedText }]}>
+            You don't manage any teams yet.
+          </Text>
+        </View>
+      );
+    }
+    return (
+      <View style={styles.emptyContainer}>
+        <MaterialIcons name="people-outline" size={48} color={Colors[colorScheme].mutedText} />
+        <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text }]}>No Members</Text>
+        <Text style={[styles.emptySubtitle, { color: Colors[colorScheme].mutedText }]}>
+          Invite people to join your team roster.
+        </Text>
+      </View>
+    );
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
-      <Stack.Screen options={{ title: 'My Team', headerShown: true, headerLeft: () => (
+      <Stack.Screen
+        options={{
+          title: 'My Team',
+          headerShown: true,
+          headerLeft: () => (
             <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={{ paddingRight: 8 }}>
-              <MaterialIcons name="chevron-left" size={28} color="#007AFF" />
+              <MaterialIcons name="chevron-left" size={28} color={Colors[colorScheme].tint} />
             </Pressable>
-          ) }} />
-      <Text style={[styles.title, { color: Colors[colorScheme].text }]}>My Team</Text>
-      <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>Manage your team roster and staff from the VarsityHub web dashboard.</Text>
+          ),
+        }}
+      />
+
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
+        </View>
+      ) : error ? (
+        <View style={styles.emptyContainer}>
+          <MaterialIcons name="error-outline" size={48} color={Colors[colorScheme].destructive} />
+          <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text }]}>Error</Text>
+          <Text style={[styles.emptySubtitle, { color: Colors[colorScheme].mutedText }]}>{error}</Text>
+          <Pressable onPress={onRefresh} style={[styles.retryButton, { borderColor: Colors[colorScheme].tint }]}>
+            <Text style={{ color: Colors[colorScheme].tint, fontWeight: '600' }}>Retry</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <FlatList
+          data={teams.length > 0 ? members : []}
+          keyExtractor={(item) => item.id}
+          renderItem={renderMember}
+          ListHeaderComponent={teams.length > 0 ? renderHeader : undefined}
+          ListEmptyComponent={renderEmpty}
+          contentContainerStyle={styles.listContent}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors[colorScheme].tint} />}
+          ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
+        />
+      )}
+
+      {/* Member Action Modal */}
+      <CustomActionModal
+        visible={showActionModal}
+        title={selectedMember?.user.display_name || ''}
+        message={`${ROLE_LABELS[selectedMember?.role || ''] || selectedMember?.role || ''}${selectedMember?.position ? ' \u2022 ' + selectedMember.position : ''}`}
+        onClose={() => {
+          setShowActionModal(false);
+          setSelectedMember(null);
+        }}
+        options={[
+          {
+            label: 'Edit Role',
+            icon: 'badge',
+            onPress: () => setShowRoleModal(true),
+          },
+          {
+            label: 'Edit Position',
+            icon: 'edit',
+            onPress: () => {
+              setPositionInput(selectedMember?.position || '');
+              setShowPositionModal(true);
+            },
+          },
+          {
+            label: 'Remove Member',
+            icon: 'person-remove',
+            isDestructive: true,
+            onPress: () => setShowRemoveModal(true),
+          },
+        ]}
+      />
+
+      {/* Edit Role Modal */}
+      <Modal visible={showRoleModal} transparent animationType="fade" onRequestClose={() => setShowRoleModal(false)}>
+        <View style={styles.overlay}>
+          <View style={[styles.modalCard, { backgroundColor: Colors[colorScheme].background }]}>
+            <Text style={[styles.modalTitle, { color: Colors[colorScheme].text }]}>Select Role</Text>
+            <Text style={[styles.modalMessage, { color: Colors[colorScheme].mutedText }]}>
+              {selectedMember?.user.display_name}
+            </Text>
+            {ROLE_OPTIONS.map((role) => {
+              const badge = getRoleBadgeColor(role);
+              const isActive = selectedMember?.role === role;
+              return (
+                <Pressable
+                  key={role}
+                  onPress={() => handleUpdateRole(role)}
+                  style={[
+                    styles.roleOption,
+                    {
+                      backgroundColor: isActive ? badge.bg + '20' : Colors[colorScheme].surface,
+                      borderColor: isActive ? badge.bg : Colors[colorScheme].border,
+                    },
+                  ]}
+                >
+                  <View style={[styles.roleOptionDot, { backgroundColor: badge.bg }]} />
+                  <Text style={[styles.roleOptionText, { color: Colors[colorScheme].text }]}>
+                    {ROLE_LABELS[role]}
+                  </Text>
+                  {isActive && <MaterialIcons name="check" size={18} color={badge.bg} />}
+                </Pressable>
+              );
+            })}
+            <Pressable onPress={() => setShowRoleModal(false)} style={styles.cancelButton}>
+              <Text style={[styles.cancelText, { color: Colors[colorScheme].mutedText }]}>Cancel</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Edit Position Modal */}
+      <Modal visible={showPositionModal} transparent animationType="fade" onRequestClose={() => setShowPositionModal(false)}>
+        <View style={styles.overlay}>
+          <View style={[styles.modalCard, { backgroundColor: Colors[colorScheme].background }]}>
+            <Text style={[styles.modalTitle, { color: Colors[colorScheme].text }]}>Edit Position</Text>
+            <Text style={[styles.modalMessage, { color: Colors[colorScheme].mutedText }]}>
+              {selectedMember?.user.display_name}
+            </Text>
+            <TextInput
+              value={positionInput}
+              onChangeText={setPositionInput}
+              placeholder="e.g. Point Guard, Midfielder"
+              placeholderTextColor={Colors[colorScheme].mutedText}
+              style={[
+                styles.textInput,
+                {
+                  color: Colors[colorScheme].text,
+                  backgroundColor: Colors[colorScheme].surface,
+                  borderColor: Colors[colorScheme].border,
+                },
+              ]}
+              autoFocus
+            />
+            <View style={styles.modalActions}>
+              <Pressable
+                onPress={() => {
+                  setShowPositionModal(false);
+                  setPositionInput('');
+                }}
+                style={[styles.modalActionBtn, { borderColor: Colors[colorScheme].border }]}
+              >
+                <Text style={{ color: Colors[colorScheme].mutedText, fontWeight: '600' }}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={handleUpdatePosition}
+                style={[styles.modalActionBtn, { backgroundColor: Colors[colorScheme].tint }]}
+              >
+                <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>Save</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Remove Confirmation Modal */}
+      <CustomActionModal
+        visible={showRemoveModal}
+        title="Remove Member?"
+        message={`Are you sure you want to remove ${selectedMember?.user.display_name} from the team?`}
+        onClose={() => {
+          setShowRemoveModal(false);
+          setSelectedMember(null);
+        }}
+        options={[
+          {
+            label: 'Remove',
+            icon: 'person-remove',
+            isDestructive: true,
+            onPress: handleRemoveMember,
+          },
+          {
+            label: 'Cancel',
+            icon: 'close',
+            onPress: () => {},
+          },
+        ]}
+      />
+
+      {/* Invite Member Modal */}
+      <Modal visible={showInviteModal} transparent animationType="fade" onRequestClose={() => setShowInviteModal(false)}>
+        <View style={styles.overlay}>
+          <View style={[styles.modalCard, { backgroundColor: Colors[colorScheme].background }]}>
+            <Text style={[styles.modalTitle, { color: Colors[colorScheme].text }]}>Invite Member</Text>
+            <Text style={[styles.modalMessage, { color: Colors[colorScheme].mutedText }]}>
+              Send an invitation to join {selectedTeam?.name || 'your team'}.
+            </Text>
+
+            <Text style={[styles.inputLabel, { color: Colors[colorScheme].text }]}>Email</Text>
+            <TextInput
+              value={inviteEmail}
+              onChangeText={setInviteEmail}
+              placeholder="player@example.com"
+              placeholderTextColor={Colors[colorScheme].mutedText}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={[
+                styles.textInput,
+                {
+                  color: Colors[colorScheme].text,
+                  backgroundColor: Colors[colorScheme].surface,
+                  borderColor: Colors[colorScheme].border,
+                },
+              ]}
+              autoFocus
+            />
+
+            <Text style={[styles.inputLabel, { color: Colors[colorScheme].text, marginTop: 12 }]}>Role</Text>
+            <View style={styles.roleGrid}>
+              {(['player', 'coach', 'assistant_coach', 'parent', 'manager', 'member'] as Role[]).map((role) => {
+                const badge = getRoleBadgeColor(role);
+                const isActive = inviteRole === role;
+                return (
+                  <Pressable
+                    key={role}
+                    onPress={() => setInviteRole(role)}
+                    style={[
+                      styles.roleChip,
+                      {
+                        backgroundColor: isActive ? badge.bg : Colors[colorScheme].surface,
+                        borderColor: isActive ? badge.bg : Colors[colorScheme].border,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.roleChipText,
+                        { color: isActive ? '#FFFFFF' : Colors[colorScheme].text },
+                      ]}
+                    >
+                      {ROLE_LABELS[role]}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <View style={styles.modalActions}>
+              <Pressable
+                onPress={() => {
+                  setShowInviteModal(false);
+                  setInviteEmail('');
+                  setInviteRole('player');
+                }}
+                style={[styles.modalActionBtn, { borderColor: Colors[colorScheme].border }]}
+              >
+                <Text style={{ color: Colors[colorScheme].mutedText, fontWeight: '600' }}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={handleInvite}
+                disabled={inviting || !inviteEmail.trim()}
+                style={[
+                  styles.modalActionBtn,
+                  {
+                    backgroundColor: !inviteEmail.trim() ? Colors[colorScheme].border : Colors[colorScheme].tint,
+                  },
+                ]}
+              >
+                {inviting ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>Send Invite</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Team Picker Modal */}
+      <Modal visible={showTeamPicker} transparent animationType="fade" onRequestClose={() => setShowTeamPicker(false)}>
+        <View style={styles.overlay}>
+          <View style={[styles.modalCard, { backgroundColor: Colors[colorScheme].background }]}>
+            <Text style={[styles.modalTitle, { color: Colors[colorScheme].text }]}>Select Team</Text>
+            {teams.map((team) => {
+              const isActive = team.id === selectedTeamId;
+              return (
+                <Pressable
+                  key={team.id}
+                  onPress={() => {
+                    setSelectedTeamId(team.id);
+                    setShowTeamPicker(false);
+                  }}
+                  style={[
+                    styles.roleOption,
+                    {
+                      backgroundColor: isActive ? Colors[colorScheme].tint + '15' : Colors[colorScheme].surface,
+                      borderColor: isActive ? Colors[colorScheme].tint : Colors[colorScheme].border,
+                    },
+                  ]}
+                >
+                  <MaterialIcons
+                    name="groups"
+                    size={18}
+                    color={isActive ? Colors[colorScheme].tint : Colors[colorScheme].mutedText}
+                  />
+                  <Text
+                    style={[
+                      styles.roleOptionText,
+                      { color: isActive ? Colors[colorScheme].tint : Colors[colorScheme].text },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {team.name}
+                  </Text>
+                  {isActive && <MaterialIcons name="check" size={18} color={Colors[colorScheme].tint} />}
+                </Pressable>
+              );
+            })}
+            <Pressable onPress={() => setShowTeamPicker(false)} style={styles.cancelButton}>
+              <Text style={[styles.cancelText, { color: Colors[colorScheme].mutedText }]}>Cancel</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16 },
-  title: { fontSize: 24, fontWeight: '700', marginBottom: 8 },
-  subtitle: {},
+  container: {
+    flex: 1,
+  },
+  listContent: {
+    padding: 16,
+    paddingBottom: 100,
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // Team selector
+  teamSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 16,
+    gap: 8,
+  },
+  teamSelectorText: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  singleTeamHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
+  },
+  singleTeamName: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+
+  // Section header
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  inviteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  inviteButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+
+  // Member card
+  memberCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 12,
+    gap: 12,
+  },
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+  },
+  avatarPlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  memberInfo: {
+    flex: 1,
+  },
+  memberNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  memberName: {
+    fontSize: 15,
+    fontWeight: '600',
+    flexShrink: 1,
+  },
+  jerseyNumber: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  memberMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  roleBadge: {
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  roleBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  positionText: {
+    fontSize: 13,
+  },
+
+  // Empty state
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    gap: 8,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginTop: 8,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  retryButton: {
+    marginTop: 16,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+  },
+
+  // Modal shared
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  modalCard: {
+    width: '100%',
+    borderRadius: 20,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  modalMessage: {
+    fontSize: 14,
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 18,
+  },
+  modalActionBtn: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+
+  // Role selection
+  roleOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    marginBottom: 6,
+  },
+  roleOptionDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  roleOptionText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  cancelButton: {
+    alignItems: 'center',
+    paddingVertical: 12,
+    marginTop: 4,
+  },
+  cancelText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+
+  // Inputs
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 6,
+  },
+  textInput: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+  },
+  roleGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  roleChip: {
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  roleChipText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
 });

@@ -23,6 +23,7 @@ const CUSTOMER_SERVICE_EMAIL = process.env.CUSTOMER_SERVICE_EMAIL || 'support@va
 
 // Common template data (social links, privacy policy, etc.) added to all emails
 const getCommonTemplateData = () => ({
+  logo_url: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765655742/6C37232F-74BC-4486-95A1-7EE208A63D06_aj2j8k.png',
   privacy_policy_url: 'https://limeprod.com/VarsityHubPrivacy',
   community_guidelines_url: 'https://limeprod.com/VarsityHubPrivacy',
   instagram_url: 'https://www.instagram.com/varsityhub_?igsh=cGQ1ZDM2NzVxNm13',
@@ -258,6 +259,8 @@ export async function sendAdPaymentConfirmedEmail(params: {
   zipCode?: string;
   amount?: string;
   hoursLabel?: string;
+  totalHoursBooked?: number;
+  hoursRemaining?: number;
   dates?: string[];
   adId?: string;
 }): Promise<boolean> {
@@ -271,6 +274,8 @@ export async function sendAdPaymentConfirmedEmail(params: {
       zip_code: params.zipCode || '',
       amount: params.amount || '',
       hours_label: params.hoursLabel || '',
+      total_hours_booked: params.totalHoursBooked ?? 0,
+      hours_remaining: params.hoursRemaining ?? 0,
       dates: params.dates || [],
       dates_count: params.dates?.length || 0,
       ad_id: params.adId || '',

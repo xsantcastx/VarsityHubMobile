@@ -49,7 +49,7 @@ export default function GamePhotosScreen() {
         numColumns={3}
         renderItem={({ item }) => (
           <Pressable
-            onPress={() => void router.push(`/post-detail?id=${encodeURIComponent(String(item.id))}`)}
+            onPress={() => void router.push(`/(tabs)/post-detail?id=${encodeURIComponent(String(item.id))}`)}
             accessibilityRole="button"
             accessibilityLabel="View photo"
           >

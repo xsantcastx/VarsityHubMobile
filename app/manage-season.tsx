@@ -140,7 +140,7 @@ export default function ManageSeasonScreen() {
           title: 'No Managed Teams',
           message: 'You don\'t manage any teams yet. Create one to continue.',
           options: [
-            { label: 'Create Team', onPress: () => router.push('/create-team') },
+            { label: 'Create Team', onPress: () => router.push('/(tabs)/create-team') },
             { label: 'Close', onPress: () => {} },
           ],
         });
@@ -159,7 +159,8 @@ export default function ManageSeasonScreen() {
         setGames([]);
         return;
       }
-      const backendGames = await GameAPI.list('-date');
+      const response = await GameAPI.list('-date', { showPending: true, limit: 100 });
+      const backendGames = response?.games ?? (Array.isArray(response) ? response : []);
       const targetTeamId = String(currentTeam.id);
       const relevantGames: any[] = Array.isArray(backendGames)
         ? backendGames.filter((game: any) => {
@@ -227,16 +228,25 @@ export default function ManageSeasonScreen() {
     }
   }, [currentTeam?.id, loadGames]);
 
-  // Mock data - Initialize games with existing mock data
-  const seasonStats: SeasonStats = {
-    wins: 8,
-    losses: 3,
-    ties: 1,
-    gamesPlayed: 12,
-    totalGames: 16,
-    pointsFor: 245,
-    pointsAgainst: 189,
-  };
+  // Compute season stats from real game data
+  const seasonStats: SeasonStats = (() => {
+    const teamId = currentTeam?.id;
+    if (!teamId) return { wins: 0, losses: 0, ties: 0, gamesPlayed: 0, totalGames: 0, pointsFor: 0, pointsAgainst: 0 };
+    const completed = games.filter(g => g.status === 'completed' || (g as any).winner);
+    let wins = 0, losses = 0, ties = 0, pointsFor = 0, pointsAgainst = 0;
+    for (const g of completed) {
+      const raw = g as any;
+      const isHome = String(raw.home_team_id) === teamId;
+      const hs = typeof raw.home_score === 'number' ? raw.home_score : 0;
+      const as_ = typeof raw.away_score === 'number' ? raw.away_score : 0;
+      pointsFor += isHome ? hs : as_;
+      pointsAgainst += isHome ? as_ : hs;
+      if (raw.winner === 'tie') { ties++; }
+      else if ((raw.winner === 'home' && isHome) || (raw.winner === 'away' && !isHome)) { wins++; }
+      else if (raw.winner) { losses++; }
+    }
+    return { wins, losses, ties, gamesPlayed: completed.length, totalGames: games.length, pointsFor, pointsAgainst };
+  })();
 
   // Mock standings data
   const standingsData: StandingsTeam[] = [
@@ -447,16 +457,26 @@ export default function ManageSeasonScreen() {
         { label: 'Cancel', onPress: () => {}, color: undefined },
         ...statusOptions.map(option => ({
           label: option.label,
-          onPress: () => {
-            setGames(prev => prev.map(g =>
-              g.id === game.id ? { ...g, status: option.value } : g
-            ));
-            setActionModal({
-              visible: true,
-              title: 'Success',
-              message: `Game status changed to ${option.label.toLowerCase()}!`,
-              options: [{ label: 'OK', onPress: () => {}, color: undefined }],
-            });
+          onPress: async () => {
+            try {
+              await GameAPI.update(game.id, { status: option.value });
+              setGames(prev => prev.map(g =>
+                g.id === game.id ? { ...g, status: option.value } : g
+              ));
+              setActionModal({
+                visible: true,
+                title: 'Success',
+                message: `Game status changed to ${option.label.toLowerCase()}!`,
+                options: [{ label: 'OK', onPress: () => {}, color: undefined }],
+              });
+            } catch (err: any) {
+              setActionModal({
+                visible: true,
+                title: 'Error',
+                message: err?.message || 'Failed to update game status',
+                options: [{ label: 'OK', onPress: () => {}, color: undefined }],
+              });
+            }
           }
         }))
       ],
@@ -470,6 +490,76 @@ export default function ManageSeasonScreen() {
     });
   };
 
+  const handleEnterScore = (game: GameCardGame) => {
+    const localGame = games.find(g => g.id === game.id);
+    setPromptModal({
+      visible: true,
+      title: 'Home Team Score',
+      message: `Enter score for ${localGame?.homeTeam || 'Home Team'}`,
+      defaultValue: String(localGame?.score?.team ?? ''),
+      onSubmit: (homeScoreStr) => {
+        const homeScore = parseInt(homeScoreStr.trim(), 10);
+        if (isNaN(homeScore)) {
+          setActionModal({
+            visible: true,
+            title: 'Invalid Score',
+            message: 'Please enter a valid number for the home team score.',
+            options: [{ label: 'OK', onPress: () => {}, color: undefined }],
+          });
+          return;
+        }
+        setTimeout(() => {
+          setPromptModal({
+            visible: true,
+            title: 'Away Team Score',
+            message: `Enter score for ${localGame?.awayTeam || 'Away Team'}`,
+            defaultValue: String(localGame?.score?.opponent ?? ''),
+            onSubmit: async (awayScoreStr) => {
+              const awayScore = parseInt(awayScoreStr.trim(), 10);
+              if (isNaN(awayScore)) {
+                setActionModal({
+                  visible: true,
+                  title: 'Invalid Score',
+                  message: 'Please enter a valid number for the away team score.',
+                  options: [{ label: 'OK', onPress: () => {}, color: undefined }],
+                });
+                return;
+              }
+              try {
+                const winner = homeScore > awayScore ? 'home' : awayScore > homeScore ? 'away' : 'tie';
+                await GameAPI.setResult(game.id, {
+                  home_score: homeScore,
+                  away_score: awayScore,
+                  winner,
+                });
+                setGames(prevGames =>
+                  prevGames.map(g =>
+                    g.id === game.id
+                      ? { ...g, score: { team: homeScore, opponent: awayScore }, status: 'completed' as GameStatus }
+                      : g
+                  )
+                );
+                setActionModal({
+                  visible: true,
+                  title: 'Score Saved',
+                  message: `Final score: ${homeScore} - ${awayScore}`,
+                  options: [{ label: 'OK', onPress: () => {}, color: undefined }],
+                });
+              } catch (error: any) {
+                setActionModal({
+                  visible: true,
+                  title: 'Error',
+                  message: error?.message || 'Failed to save score. Please try again.',
+                  options: [{ label: 'OK', onPress: () => {}, color: undefined }],
+                });
+              }
+            },
+          });
+        }, 200);
+      },
+    });
+  };
+
   const handleGameLongPress = (game: GameCardGame) => {
     const _localGame = games.find(g => g.id === game.id);
     setActionModal({
@@ -480,6 +570,7 @@ export default function ManageSeasonScreen() {
         { label: 'Cancel', onPress: () => {}, color: undefined },
         { label: 'Edit', onPress: () => handleEditGame(game) },
         { label: 'Change Status', onPress: () => handleChangeGameStatus(game) },
+        { label: 'Enter Score', onPress: () => handleEnterScore(game) },
         { label: 'Delete', isDestructive: true, onPress: () => handleDeleteGame(game) },
       ],
     });
@@ -662,6 +753,16 @@ export default function ManageSeasonScreen() {
       }
       if (gameData.destination) {
         gamePayload.destination = gameData.destination;
+      }
+
+      // Add game venue location
+      const venue = gameData.type === 'home' ? gameData.homeVenue : gameData.awayVenue;
+      const venueLat = gameData.type === 'home' ? gameData.homeVenueLat : gameData.awayVenueLat;
+      const venueLng = gameData.type === 'home' ? gameData.homeVenueLng : gameData.awayVenueLng;
+      if (venue) {
+        gamePayload.location = venue;
+        if (venueLat) gamePayload.latitude = venueLat;
+        if (venueLng) gamePayload.longitude = venueLng;
       }
 
       // Include banner URL if provided by the QuickAdd modal
@@ -1037,7 +1138,7 @@ export default function ManageSeasonScreen() {
                 { label: 'Cancel', onPress: () => setTeamSelectorOpen(false), color: undefined },
                 {
                   label: 'Create Team',
-                  onPress: () => { void router.push('/create-team'); },
+                  onPress: () => { void router.push('/(tabs)/create-team'); },
                   color: Colors[colorScheme].tint,
                 },
               ]

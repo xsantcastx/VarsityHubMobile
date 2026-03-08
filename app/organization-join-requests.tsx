@@ -169,7 +169,7 @@ export default function OrganizationJoinRequestsScreen() {
             if (router.canGoBack()) {
               if (router.canGoBack()) router.back();
             } else {
-              router.push('/' as any);
+              router.replace('/(tabs)' as any);
             }
           }} 
           style={styles.backButton}

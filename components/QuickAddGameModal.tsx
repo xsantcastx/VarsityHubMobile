@@ -463,6 +463,13 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
       if (!eventTitle.trim()) {
         newErrors.currentTeam = 'Event title is required';
       }
+      // Location is mandatory for all non-competitive events
+      if (eventType === 'watch_party' && !watchLocation.trim()) {
+        newErrors.watchLocation = 'Watch location is required';
+      }
+      if (eventType === 'team_trip' && !destination.trim()) {
+        newErrors.destination = 'Destination is required';
+      }
     }
     
     if (selectedDate < new Date(new Date().setHours(0, 0, 0, 0))) {
@@ -1187,7 +1194,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
 
           {eventType === 'watch_party' && (
             <View style={styles.formSection}>
-              <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Watch Location (Optional)</Text>
+              <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Watch Location *</Text>
               <LocationPicker
                 value={watchLocation}
                 onLocationSelect={(location) => {
@@ -1198,6 +1205,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
                 }}
                 placeholder="e.g., Sports Bar, Team House"
               />
+              {errors.watchLocation && <Text style={styles.errorText}>{errors.watchLocation}</Text>}
               <Text style={[styles.helperText, { color: Colors[colorScheme].mutedText }]}>
                 Where fans will gather to watch the game
               </Text>
@@ -1206,11 +1214,11 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
 
           {eventType === 'team_trip' && (
             <View style={styles.formSection}>
-              <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Destination (Optional)</Text>
+              <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Destination *</Text>
               <TextInput
-                style={[styles.input, { 
+                style={[styles.input, {
                   backgroundColor: Colors[colorScheme].surface,
-                  borderColor: Colors[colorScheme].border,
+                  borderColor: errors.destination ? '#EF4444' : Colors[colorScheme].border,
                   color: Colors[colorScheme].text,
                 }]}
                 placeholder="e.g., State Tournament, Orlando FL"
@@ -1219,6 +1227,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
                 onChangeText={setDestination}
                 maxLength={200}
               />
+              {errors.destination && <Text style={styles.errorText}>{errors.destination}</Text>}
             </View>
           )}
 

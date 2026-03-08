@@ -51,12 +51,10 @@ export function BannerUpload({
   const [uploading, setUploading] = useState(false);
   const [position, setPosition] = useState<BannerPosition>({ x: 50, y: 50 });
   const [scale, setScale] = useState(1);
-  const [rotation, setRotation] = useState(0);
   const containerSize = useRef<{ width: number; height: number }>({ width: 0, height: 0 });
   const panStart = useRef<BannerPosition>({ x: 50, y: 50 });
   const initialDistance = useRef(0);
   const initialScale = useRef(1);
-  const initialRotation = useRef(0);
   const [showHint, setShowHint] = useState(false);
   const hintOpacity = useRef(new Animated.Value(0)).current;
 
@@ -110,9 +108,8 @@ export function BannerUpload({
           return;
         }
 
-        // Reset scale and rotation when new image is selected
+        // Reset scale when new image is selected
         setScale(1);
-        setRotation(0);
         setPosition({ x: 50, y: 50 });
 
         const rawName = asset.fileName || asset.uri.split('/').pop() || `banner_${Date.now()}.jpg`;
@@ -199,13 +196,6 @@ export function BannerUpload({
     return Math.sqrt(dx * dx + dy * dy);
   };
 
-  // Calculate angle between two touches for rotation
-  const getAngle = (touch1: any, touch2: any): number => {
-    if (!touch1 || !touch2) return 0;
-    const dx = touch2.locationX - touch1.locationX;
-    const dy = touch2.locationY - touch1.locationY;
-    return Math.atan2(dy, dx) * (180 / Math.PI);
-  };
 
   return (
     <View style={styles.container}>
@@ -232,7 +222,7 @@ export function BannerUpload({
               style={[
                 styles.previewImage,
                 fitMode === 'fill' && {
-                  transform: [{ scale }, { rotate: `${rotation}deg` }],
+                  transform: [{ scale }],
                 },
               ]}
               contentFit={getContentFit()}
@@ -252,7 +242,7 @@ export function BannerUpload({
                 ]}
               >
                 <MaterialIcons name="aspect-ratio" size={16} color="#111827" />
-                <Text style={styles.hintText}>Pinch to zoom</Text>
+                <Text style={styles.hintText}>Pinch to crop</Text>
               </Animated.View>
             )}
             {/* Gesture overlay for Fill mode */}
@@ -265,11 +255,9 @@ export function BannerUpload({
                   onScrollLock?.(true);
                   panStart.current = { ...position };
                   initialScale.current = scale;
-                  initialRotation.current = rotation;
                   const touches = Array.from(e.nativeEvent.touches);
                   if (touches.length >= 2) {
                     initialDistance.current = getDistance(touches[0], touches[1]);
-                    initialRotation.current = getAngle(touches[0], touches[1]);
                   }
                 }}
                 onResponderMove={(e) => {
@@ -278,7 +266,6 @@ export function BannerUpload({
 
                   if (touches.length >= 2) {
                     const currentDistance = getDistance(touches[0], touches[1]);
-                    const currentAngle = getAngle(touches[0], touches[1]);
 
                     // Lazily initialize on the first 2-finger move frame
                     // (onResponderGrant fires on touch-start with only 1 finger,
@@ -286,21 +273,13 @@ export function BannerUpload({
                     if (initialDistance.current === 0) {
                       initialDistance.current = currentDistance;
                       initialScale.current = scale;
-                      initialRotation.current = currentAngle;
                     }
 
-                    if (fitMode === 'fill') {
-                      // Pinch to zoom for Fill mode only
-                      const rawRatio = currentDistance / initialDistance.current;
-                      const dampenedRatio = 1 + (rawRatio - 1) * 0.4;
-                      const newScale = clamp(dampenedRatio * initialScale.current, 1, 3);
-                      setScale(newScale);
-                    }
-
-                    // Rotation for Fill mode
-                    const angleDiff = currentAngle - initialRotation.current;
-                    const nextRotation = initialRotation.current + angleDiff;
-                    setRotation(nextRotation);
+                    // Pinch to scale only — no rotation
+                    const rawRatio = currentDistance / initialDistance.current;
+                    const dampenedRatio = 1 + (rawRatio - 1) * 0.4;
+                    const newScale = clamp(dampenedRatio * initialScale.current, 1, 3);
+                    setScale(newScale);
                   } else if (touches.length === 1) {
                     // Reset pinch state when back to single finger
                     if (initialDistance.current !== 0) {
@@ -333,16 +312,6 @@ export function BannerUpload({
                 }}
               />
             )}
-            <Pressable
-              style={styles.rotateButton}
-              onPress={() => {
-                const next = (rotation + 90) % 360;
-                setRotation(next);
-                if (value) onChange(value, getFitValue(fitMode), position);
-              }}
-            >
-              <MaterialIcons name="rotate-right" size={22} color="#FFFFFF" />
-            </Pressable>
             <Pressable style={styles.removeButton} onPress={handleRemove}>
               <MaterialIcons name="cancel" size={28} color="#FFFFFF" />
             </Pressable>
@@ -425,17 +394,6 @@ const styles = StyleSheet.create({
   },
   uploadHint: {
     fontSize: 13,
-  },
-  rotateButton: {
-    position: 'absolute',
-    top: 8,
-    left: 8,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    borderRadius: 16,
-    width: 32,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   removeButton: {
     position: 'absolute',

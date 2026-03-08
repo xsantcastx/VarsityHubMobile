@@ -20,6 +20,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
+import * as VideoThumbnails from 'expo-video-thumbnails';
 
 // Media validation constants
 const ALLOWED_IMAGE_TYPES = [
@@ -88,6 +89,7 @@ export default function CreatePostScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [postSuccess, setPostSuccess] = useState(false);
   const [trimmedUri, setTrimmedUri] = useState<string | null>(null);
+  const [videoThumbnailUri, setVideoThumbnailUri] = useState<string | null>(null);
   // Celebration overlay animations
   const celebrationScale = useRef(new Animated.Value(0)).current;
   const celebrationOpacity = useRef(new Animated.Value(0)).current;
@@ -99,7 +101,7 @@ export default function CreatePostScreen() {
   const draftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Reset trim state when media changes
-  useEffect(() => { setTrimmedUri(null); }, [picked?.uri]);
+  useEffect(() => { setTrimmedUri(null); setVideoThumbnailUri(null); }, [picked?.uri]);
 
   // Reset form state when returning to this tab (handles stuck postSuccess)
   useFocusEffect(
@@ -409,6 +411,12 @@ export default function CreatePostScreen() {
           }
         }
         setPicked({ uri, type: media, mime: mimeType });
+        // Generate thumbnail for video preview immediately
+        if (media === 'video') {
+          VideoThumbnails.getThumbnailAsync(uri, { time: 0, quality: 0.7 })
+            .then((thumb) => setVideoThumbnailUri(thumb.uri))
+            .catch((e) => { if (__DEV__) console.warn('[CreatePost] Video thumbnail failed:', e); });
+        }
       }
     } catch (error: any) {
       console.error('[CreatePost] Image picker error:', error);
@@ -494,6 +502,11 @@ export default function CreatePostScreen() {
           }
         }
         setPicked({ uri, type: media, mime: mimeType });
+        if (media === 'video') {
+          VideoThumbnails.getThumbnailAsync(uri, { time: 0, quality: 0.7 })
+            .then((thumb) => setVideoThumbnailUri(thumb.uri))
+            .catch((e) => { if (__DEV__) console.warn('[CreatePost] Video thumbnail failed:', e); });
+        }
       }
     } catch (error: any) {
       console.error('[CreatePost] Camera error:', error);
@@ -556,6 +569,7 @@ export default function CreatePostScreen() {
       if (__DEV__) console.warn('[CreatePost] Auth OK');
 
       let finalMediaUrl = '';
+      let finalThumbnailUrl = '';
       if (picked?.uri) {
         if (__DEV__) console.warn('[CreatePost] Uploading media...');
         const { getApiBaseUrl } = await import('@/api/http');
@@ -566,6 +580,15 @@ export default function CreatePostScreen() {
         const res = await uploadFile(base, uploadUri, name, mime);
         finalMediaUrl = res?.url || res?.path;
         if (__DEV__) console.warn('[CreatePost] Upload complete:', finalMediaUrl);
+        // Upload video thumbnail if available
+        if (picked.type === 'video' && videoThumbnailUri) {
+          try {
+            const thumbRes = await uploadFile(base, videoThumbnailUri, 'thumbnail.jpg', 'image/jpeg');
+            finalThumbnailUrl = thumbRes?.url || thumbRes?.path || '';
+          } catch (e) {
+            if (__DEV__) console.warn('[CreatePost] Thumbnail upload failed:', e);
+          }
+        }
       }
       const trimmedContent = content.trim();
       
@@ -573,6 +596,7 @@ export default function CreatePostScreen() {
       const payload: Record<string, any> = {
         content: trimmedContent,
         media_url: finalMediaUrl || undefined,
+        preview_url: finalThumbnailUrl || undefined,
         type: postType,
         location: locationPayload,
       };
@@ -620,8 +644,7 @@ export default function CreatePostScreen() {
             caption: trimmedContent,
             media_url: finalMediaUrl || null,
             media_type: isVideo ? 'video' : (picked?.type === 'image' ? 'image' : null),
-            // Use a placeholder thumbnail for videos since we don't generate real thumbnails yet
-            preview_url: isVideo ? 'https://storage.googleapis.com/static.varsityhub.app/videos/sample-highlight-1-thumb.jpg' : null,
+            preview_url: isVideo ? (finalThumbnailUrl || null) : null,
             created_at: new Date().toISOString(),
             upvotes_count: 0,
             comments_count: 0,

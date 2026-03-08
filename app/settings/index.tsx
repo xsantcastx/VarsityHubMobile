@@ -631,7 +631,7 @@ export default function SettingsScreen() {
               cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 12 },
               cardBody: { paddingHorizontal: 12, paddingBottom: 4 },
               cardTitle: { fontWeight: '800', fontSize: 16 },
-              rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12 },
+              rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8 },
               rowTitle: { fontWeight: '600' },
               mutedSmall: { fontSize: 12 },
               chev: { fontSize: 20, transform: [{ rotate: '0deg' }] },

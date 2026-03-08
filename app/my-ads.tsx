@@ -2,7 +2,7 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Animated, FlatList, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -112,6 +112,13 @@ export default function MyAdsScreen() {
       void load();
     }
   }, [userLoaded, load]);
+
+  // Auto-refresh when screen regains focus (e.g. after payment)
+  useFocusEffect(
+    useCallback(() => {
+      if (userLoaded) void load();
+    }, [userLoaded, load])
+  );
 
   useEffect(() => {
     if (payment_success === 'true') {

@@ -77,12 +77,13 @@ export default function PaymentSuccessScreen() {
             Animated.timing(contentOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
           ]).start();
         } else {
-          // Subscription flow — poll for plan upgrade
+          // Subscription flow — poll for plan upgrade (Rule A: plan set = payment done)
           try {
             const me = await User.me();
             const plan = me?.preferences?.plan;
             const pending = me?.preferences?.payment_pending;
-            if ((plan === 'veteran' || plan === 'legend') && pending === false) {
+            const pendingPlan = me?.preferences?.pending_plan;
+            if ((plan === 'veteran' || plan === 'legend') && pending === false && !pendingPlan) {
               setLoading(false);
               Animated.sequence([
                 Animated.timing(checkOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
@@ -98,7 +99,7 @@ export default function PaymentSuccessScreen() {
               try {
                 await httpPost('/payments/finalize-session', { session_id: sessionId });
                 const meAfter = await User.me();
-                if ((meAfter?.preferences?.plan === 'veteran' || meAfter?.preferences?.plan === 'legend') && meAfter?.preferences?.payment_pending === false) {
+                if ((meAfter?.preferences?.plan === 'veteran' || meAfter?.preferences?.plan === 'legend') && meAfter?.preferences?.payment_pending === false && !meAfter?.preferences?.pending_plan) {
                   setLoading(false);
                   return;
                 }
@@ -250,7 +251,7 @@ export default function PaymentSuccessScreen() {
                   <>
                     <Pressable
                       style={[styles.primaryBtn, { backgroundColor: theme.tint }]}
-                      onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/create-team'); }}
+                      onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/(tabs)/create-team'); }}
                     >
                       <Text style={styles.primaryBtnText}>Create a Team</Text>
                     </Pressable>

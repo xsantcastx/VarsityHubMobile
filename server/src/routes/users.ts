@@ -17,52 +17,72 @@ const publicUserSelect = {
 
 // List users (admin only)
 usersRouter.get('/', requireAdmin as any, async (req, res) => {
-  const q = String((req.query as any).q || '').trim().toLowerCase();
-  const banned = String((req.query as any).banned || '') === '1';
-  const limit = Math.min(parseInt(String((req.query as any).limit || '100'), 10) || 100, 500);
-  const where: any = {};
-  if (q) where.OR = [
-    { email: { contains: q, mode: 'insensitive' } },
-    { username: { contains: q, mode: 'insensitive' } }, // Search by username only
-  ];
-  if (banned) where.banned = true;
-  const rows = await prisma.user.findMany({
-    where,
-    take: limit,
-    orderBy: { created_at: 'desc' },
-    select: { id: true, email: true, username: true, email_verified: true, banned: true, created_at: true },
-  });
-  return res.json(rows);
+  try {
+    const q = String((req.query as any).q || '').trim().toLowerCase();
+    const banned = String((req.query as any).banned || '') === '1';
+    const limit = Math.min(parseInt(String((req.query as any).limit || '100'), 10) || 100, 500);
+    const where: any = {};
+    if (q) where.OR = [
+      { email: { contains: q, mode: 'insensitive' } },
+      { username: { contains: q, mode: 'insensitive' } }, // Search by username only
+    ];
+    if (banned) where.banned = true;
+    const rows = await prisma.user.findMany({
+      where,
+      take: limit,
+      orderBy: { created_at: 'desc' },
+      select: { id: true, email: true, username: true, email_verified: true, banned: true, created_at: true },
+    });
+    return res.json(rows);
+  } catch (err) {
+    console.error('[users] GET / error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Ban/unban (admin only)
 usersRouter.post('/:id/ban', requireAdmin as any, async (req, res) => {
-  const id = String(req.params.id);
-  const u = await prisma.user.update({ where: { id }, data: { banned: true } });
-  return res.json({ ok: true, id: u.id, banned: true });
+  try {
+    const id = String(req.params.id);
+    const u = await prisma.user.update({ where: { id }, data: { banned: true } });
+    return res.json({ ok: true, id: u.id, banned: true });
+  } catch (err) {
+    console.error('[users] POST /:id/ban error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 usersRouter.post('/:id/unban', requireAdmin as any, async (req, res) => {
-  const id = String(req.params.id);
-  const u = await prisma.user.update({ where: { id }, data: { banned: false } });
-  return res.json({ ok: true, id: u.id, banned: false });
+  try {
+    const id = String(req.params.id);
+    const u = await prisma.user.update({ where: { id }, data: { banned: false } });
+    return res.json({ ok: true, id: u.id, banned: false });
+  } catch (err) {
+    console.error('[users] POST /:id/unban error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Full user detail with ads and their reservation dates (admin only)
 usersRouter.get('/:id/full', requireAdmin as any, async (req, res) => {
-  const id = String(req.params.id);
-  const user = await prisma.user.findUnique({ where: { id }, select: { id: true, email: true, username: true, email_verified: true, banned: true, created_at: true } });
-  if (!user) return res.status(404).json({ error: 'Not found' });
-  const ads = await prisma.ad.findMany({ where: { user_id: id }, orderBy: { created_at: 'desc' }, take: 100 });
-  const adIds = ads.map(a => a.id);
-  const reservations = adIds.length ? await prisma.adReservation.findMany({ where: { ad_id: { in: adIds } }, orderBy: { date: 'asc' }, take: 1000 }) : [];
-  const datesByAd: Record<string, string[]> = {};
-  for (const r of reservations) {
-    const key = r.ad_id;
-    if (!datesByAd[key]) datesByAd[key] = [];
-    datesByAd[key].push(r.date.toISOString().slice(0,10));
+  try {
+    const id = String(req.params.id);
+    const user = await prisma.user.findUnique({ where: { id }, select: { id: true, email: true, username: true, email_verified: true, banned: true, created_at: true } });
+    if (!user) return res.status(404).json({ error: 'Not found' });
+    const ads = await prisma.ad.findMany({ where: { user_id: id }, orderBy: { created_at: 'desc' }, take: 100 });
+    const adIds = ads.map(a => a.id);
+    const reservations = adIds.length ? await prisma.adReservation.findMany({ where: { ad_id: { in: adIds } }, orderBy: { date: 'asc' }, take: 1000 }) : [];
+    const datesByAd: Record<string, string[]> = {};
+    for (const r of reservations) {
+      const key = r.ad_id;
+      if (!datesByAd[key]) datesByAd[key] = [];
+      datesByAd[key].push(r.date.toISOString().slice(0,10));
+    }
+    return res.json({ user, ads, datesByAd });
+  } catch (err) {
+    console.error('[users] GET /:id/full error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
   }
-  return res.json({ user, ads, datesByAd });
 });
 
 // GET /users/me/export - GDPR/CCPA data portability: export all user data as JSON

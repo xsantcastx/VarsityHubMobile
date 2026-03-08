@@ -193,7 +193,7 @@ export default function RoleOnboardingScreen() {
       icon: 'chatbubble',
       title: 'Connect & Share',
       description: 'Post reviews, engage with other fans',
-      route: '/create-post',
+      route: '/(tabs)/create-post',
       gradient: ['#10b981', '#059669'],
     },
   ];

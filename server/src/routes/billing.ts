@@ -21,15 +21,30 @@ if (!frontendUrl && process.env.NODE_ENV === 'production') {
 
 billingRouter.post('/checkout/create-session', requireAuth as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  const { plan, team_count } = req.body || {};
+  const { plan: bodyPlan, team_count } = req.body || {};
+
+  // Rule A: Verify admin has approved this coach before allowing checkout.
+  // Read pending_plan from profile if plan not in request body.
+  const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+  const prefs = (user?.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
+  const plan = bodyPlan || prefs.pending_plan;
+
   if (!plan || !['veteran','legend'].includes(String(plan))) {
     return res.status(400).json({ error: 'Invalid plan' });
   }
+
+  // Block checkout if admin hasn't approved yet — only for coaches with pending join requests
+  if (prefs.payment_pending === true && prefs.payment_approved !== true && prefs.join_request_pending === true) {
+    return res.status(403).json({
+      error: 'APPROVAL_REQUIRED',
+      message: 'Your league admin must approve your account before you can subscribe.'
+    });
+  }
+
   if (!stripe) {
     return res.status(503).json({ error: 'BillingUnavailable', message: 'Stripe not configured on server.' });
   }
   try {
-    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
     const email = user?.email;
     const veteranPrice = process.env.STRIPE_PRICE_VETERAN;
     const legendPrice = process.env.STRIPE_PRICE_LEGEND;
@@ -40,7 +55,8 @@ billingRouter.post('/checkout/create-session', requireAuth as any, async (req: A
     let priceId = plan === 'veteran' ? veteranPrice : legendPrice;
     let quantity = 1;
     if (plan === 'veteran') {
-      const totalTeams = Number(team_count) || 0;
+      // Use team_count from request body, or fall back to stored team_count_total from onboarding
+      const totalTeams = Number(team_count) || Number(prefs.team_count_total) || 0;
       quantity = Math.max(0, totalTeams - 2) || 1; // Always at least 1 item so session starts
     }
 
@@ -109,7 +125,9 @@ billingRouter.post('/webhooks/stripe', async (req: AuthedRequest, res) => {
       if (userId && plan) {
         const user = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } });
         const existingPrefs = (user?.preferences || {}) as Record<string, any>;
-        const { payment_approved, ...restPrefs } = existingPrefs;
+        // Rule A: On successful payment, promote pending_plan → plan,
+        // clear payment flags, and activate subscription tier.
+        const { payment_approved, pending_plan, join_request_pending, ...restPrefs } = existingPrefs;
         await prisma.user.update({
           where: { id: userId },
           data: {
@@ -119,6 +137,7 @@ billingRouter.post('/webhooks/stripe', async (req: AuthedRequest, res) => {
             preferences: {
               ...restPrefs,
               plan,
+              pending_plan: null,
               payment_pending: false
             }
           }

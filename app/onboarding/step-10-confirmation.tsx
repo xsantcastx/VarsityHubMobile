@@ -98,7 +98,7 @@ export default function Step10Confirmation() {
       },
       {
         label: 'Plan Selected',
-        completed: !!ob.plan,
+        completed: !!(ob.pending_plan || ob.plan),
         required: isCoach, // Only required for coaches
         route: '/onboarding/step-3-plan',
         description: 'Choose your subscription plan (coaches only)'
@@ -260,6 +260,7 @@ export default function Step10Confirmation() {
         zip_code: latestOb.zip_code,
 
         plan: finalIsCoach ? latestOb.plan : undefined,
+        pending_plan: finalIsCoach ? latestOb.pending_plan : undefined,
         payment_pending: finalIsCoach ? latestOb.payment_pending : undefined,
 
         team_id: finalIsCoach ? latestOb.team_id : undefined,
@@ -438,16 +439,20 @@ export default function Step10Confirmation() {
               {ob.role === 'fan' ? 'Fan' : 'Coach/Organizer'}
             </Text>
           </View>
-          {ob.role === 'coach' && (
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryLabel}>Plan:</Text>
-              <Text style={styles.summaryValue}>
-                {ob.plan === 'rookie' ? 'Rookie (Free)' : 
-                 ob.plan === 'veteran' ? 'Veteran ($1.00/month per team)' : 
-                 ob.plan === 'legend' ? 'Legend ($20/year unlimited)' : 'Not selected'}
-              </Text>
-            </View>
-          )}
+          {ob.role === 'coach' && (() => {
+            const displayPlan = ob.pending_plan || ob.plan;
+            const isPending = !!ob.pending_plan;
+            return (
+              <View style={styles.summaryItem}>
+                <Text style={styles.summaryLabel}>Plan:</Text>
+                <Text style={styles.summaryValue}>
+                  {displayPlan === 'rookie' ? 'Rookie (Free)' :
+                   displayPlan === 'veteran' ? `Veteran ($1.00/month per team)${isPending ? ' - pending approval' : ''}` :
+                   displayPlan === 'legend' ? `Legend ($20/year unlimited)${isPending ? ' - pending approval' : ''}` : 'Not selected'}
+                </Text>
+              </View>
+            );
+          })()}
           {ob.role === 'fan' && (
             <View style={styles.summaryItem}>
               <Text style={styles.summaryLabel}>Subscription:</Text>

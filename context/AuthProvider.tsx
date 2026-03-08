@@ -171,14 +171,21 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       const token = tokenData.data;
       if (__DEV__) console.log('[PushNotifications] Got push token:', token.substring(0, 30) + '...');
 
-      // 4. Save token to backend
-      await User.updatePreferences({ 
-        push_token: token,
-        notifications_enabled: true
-      });
-      
-      if (__DEV__) console.log('[PushNotifications] Push token saved to backend');
-      lastPushRegistrationRef.current = userId;
+      // 4. Save token to backend (with retry on failure)
+      const saveToken = async (attempt = 1): Promise<void> => {
+        try {
+          await User.updatePreferences({ push_token: token, notifications_enabled: true });
+          if (__DEV__) console.log('[PushNotifications] Push token saved to backend');
+          lastPushRegistrationRef.current = userId;
+        } catch (err) {
+          if (attempt < 3) {
+            await new Promise(r => setTimeout(r, attempt * 3000));
+            return saveToken(attempt + 1);
+          }
+          throw err;
+        }
+      };
+      await saveToken();
       return true;
     } catch (error: any) {
       console.error('[PushNotifications] Failed to setup:', error?.message || error);

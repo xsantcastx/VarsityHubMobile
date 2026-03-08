@@ -711,7 +711,7 @@ export default function PostDetailScreen() {
           {postData.game && (
             <Pressable 
               style={[styles.gameInfo, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
-              onPress={() => { if (postData.game?.id) { void void router.push(`/game-detail?id=${postData.game.id}`);
+              onPress={() => { if (postData.game?.id) { void router.push(`/game-detail?id=${postData.game.id}`);
                 }
               }}
             >
@@ -737,7 +737,7 @@ export default function PostDetailScreen() {
             <Pressable 
               style={[styles.teamInfo, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
               onPress={() => { const teamId = postData.team_id || postData.team?.id;
-                if (teamId) { void void router.push(`/team-profile?id=${teamId}`);
+                if (teamId) { void router.push(`/team-profile?id=${teamId}`);
                 }
               }}
             >
@@ -760,7 +760,7 @@ export default function PostDetailScreen() {
           <View style={styles.authorSection}>
             <Pressable 
               style={styles.authorInfo}
-              onPress={() => { if (postData.author_id) { void void router.push(`/user-profile?id=${postData.author_id}`);
+              onPress={() => { if (postData.author_id) { void router.push(`/user-profile?id=${postData.author_id}`);
                 }
               }}
               disabled={!postData.author_id}
@@ -925,7 +925,7 @@ export default function PostDetailScreen() {
                   <View style={styles.commentHeader}>
                     <Pressable 
                       style={styles.commentAuthor}
-                      onPress={() => { if (c.author_id) { void void router.push(`/user-profile?id=${c.author_id}`);
+                      onPress={() => { if (c.author_id) { void router.push(`/user-profile?id=${c.author_id}`);
                         }
                       }}
                       disabled={!c.author_id}

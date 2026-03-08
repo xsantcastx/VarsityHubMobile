@@ -85,7 +85,9 @@ export default function Step6AuthorizedUsers() {
 
   // Get plan limits from plan-definitions.json (single source of truth, stays in sync with backend)
   const planInfo = useMemo(() => {
-    const plan = getPlanDefinition(ob.plan);
+    // Rule A: Use pending_plan for display during onboarding (plan not set until payment)
+    const effectivePlan = ob.pending_plan || ob.plan;
+    const plan = getPlanDefinition(effectivePlan);
     const totalTeams = typeof ob.team_count_total === 'number' && ob.team_count_total > 0 ? ob.team_count_total : 0;
 
     // Rookie: team invite, limit = max_authorized_users_per_team (1)
@@ -93,15 +95,15 @@ export default function Step6AuthorizedUsers() {
     let maxUsers: number;
     let description: string;
 
-    if (ob.plan === 'rookie') {
+    if (effectivePlan === 'rookie') {
       maxUsers = plan.max_authorized_users_per_team ?? 1;
       description = `Add ${maxUsers} authorized user${maxUsers === 1 ? '' : 's'} (Coach, Manager, Assistant, Equipment, or Health & Wellness) to help manage your team`;
-    } else if (ob.plan === 'veteran') {
+    } else if (effectivePlan === 'veteran') {
       const perTeam = plan.max_authorized_users_per_team ?? 5;
-      const orgLimit = getMaxAuthorizedUsers(ob.plan, totalTeams);
+      const orgLimit = getMaxAuthorizedUsers(effectivePlan, totalTeams);
       maxUsers = totalTeams > 0 ? (orgLimit ?? totalTeams * perTeam) : perTeam;
       description = `Add up to ${maxUsers} authorized users (${perTeam} per team) to manage your organization`;
-    } else if (ob.plan === 'legend') {
+    } else if (effectivePlan === 'legend') {
       maxUsers = Infinity;
       description = 'Add unlimited authorized users to manage your organization';
     } else {
@@ -178,8 +180,9 @@ export default function Step6AuthorizedUsers() {
           );
           return;
         }
-        const currentPlan = getPlanDefinition(ob.plan);
-        const nextPlan = ob.plan === 'rookie' ? getPlanDefinition('veteran') : getPlanDefinition('legend');
+        const ep = ob.pending_plan || ob.plan;
+        const currentPlan = getPlanDefinition(ep);
+        const nextPlan = ep === 'rookie' ? getPlanDefinition('veteran') : getPlanDefinition('legend');
         const nextLimit = nextPlan.max_authorized_users_per_team == null
           ? 'unlimited'
           : `up to ${nextPlan.max_authorized_users_per_team} per team`;

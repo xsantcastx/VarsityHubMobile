@@ -224,7 +224,7 @@ export default function PublicEventScreen() {
                 <MasonryPostCard
                   post={post}
                   onPress={() => {
-                    router.push({ pathname: '/post-detail', params: { id: post.id } });
+                    router.push({ pathname: '/(tabs)/post-detail', params: { id: post.id } } as any);
                   }}
                   onDeleted={(postId) => {
                     setPosts(prev => prev.filter(p => p.id !== postId));

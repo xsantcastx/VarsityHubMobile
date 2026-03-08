@@ -12,6 +12,7 @@ import { calculateSalesTax } from '../lib/taxCalculator.js';
 import { calculateStripeFee, getTransactionBySession, logTransaction, updateTransactionStatus } from '../lib/transactionLogger.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
+import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { paymentLimiter } from '../middleware/rateLimiters.js';
 import { calculateAdPriceCents } from '../utils/adPricing.js';
@@ -75,11 +76,13 @@ async function sendAdPaymentEmail({
 
   // Calculate hours from now to midnight of last booked date
   let hoursLabel = '';
+  let hoursRemaining = 0;
+  const totalHoursBooked = dates.length * 24;
   if (dates.length) {
     const sorted = [...dates].sort();
     const lastEnd = new Date(sorted[sorted.length - 1] + 'T23:59:59Z');
-    const hrs = Math.max(0, Math.round((lastEnd.getTime() - Date.now()) / 3600000));
-    hoursLabel = `${hrs} hrs (${dates.length} day${dates.length !== 1 ? 's' : ''})`;
+    hoursRemaining = Math.max(0, Math.round((lastEnd.getTime() - Date.now()) / 3600000));
+    hoursLabel = `${hoursRemaining} hrs (${dates.length} day${dates.length !== 1 ? 's' : ''})`;
   }
 
   // Format dates for display
@@ -98,6 +101,8 @@ async function sendAdPaymentEmail({
       zipCode: zipCode || undefined,
       amount: amount || undefined,
       hoursLabel: hoursLabel || undefined,
+      totalHoursBooked: totalHoursBooked,
+      hoursRemaining: hoursRemaining,
       dates: formattedDates,
       adId,
     });
@@ -591,23 +596,37 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
 
   // ── SUBSCRIPTION FLOW ──
   if (typeof plan === 'string' && plan.trim()) {
-    const raw = plan.trim().toLowerCase();
-    if (raw !== 'veteran' && raw !== 'legend') return res.status(400).json({ error: 'Invalid plan for subscription' });
-    const chosen = raw as MembershipPlan;
+    const prefs = (user?.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
 
-    // Validate team count for Veteran plan
+    // Rule A: Fall back to pending_plan if plan param matches it, or use pending_plan directly
+    const raw = plan.trim().toLowerCase();
+    const resolvedPlan = (raw === 'veteran' || raw === 'legend') ? raw : (prefs.pending_plan || '').toLowerCase();
+    if (resolvedPlan !== 'veteran' && resolvedPlan !== 'legend') return res.status(400).json({ error: 'Invalid plan for subscription' });
+    const chosen = resolvedPlan as MembershipPlan;
+
+    // Rule A: Block checkout if admin hasn't approved yet — BUT only for coaches
+    // who actually have a pending join request. Independent coaches (who created their
+    // own org or have no join_request_pending) should be able to pay immediately.
+    if (prefs.payment_pending === true && prefs.payment_approved !== true && prefs.join_request_pending === true) {
+      return res.status(403).json({
+        error: 'APPROVAL_REQUIRED',
+        message: 'Your league admin must approve your account before you can subscribe.'
+      });
+    }
+
+    // Validate team count for Veteran plan (fall back to stored value)
+    const effectiveTeamCount = typeof team_count === 'number' ? team_count : Number(prefs.team_count_total) || 0;
     if (chosen === 'veteran') {
-      if (typeof team_count !== 'number' || team_count < 3) {
+      if (effectiveTeamCount < 3) {
         return res.status(400).json({ error: 'Veteran plan requires at least 3 total teams (first 2 are free)' });
       }
     }
 
-    // Check if user already has this plan
-    const prefs = (user?.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
+    // Check if user already has this plan (check active plan, not pending_plan)
     const currentPlan = prefs.plan || 'rookie';
     if (currentPlan === chosen) return res.status(400).json({ error: 'You already have this subscription plan' });
 
-    const billableQuantity = chosen === 'veteran' && typeof team_count === 'number' ? Math.max(0, team_count - 2) : 1;
+    const billableQuantity = chosen === 'veteran' ? Math.max(0, effectiveTeamCount - 2) : 1;
     if (chosen === 'veteran' && billableQuantity === 0) {
       return res.status(400).json({ error: 'Select at least one billable team (3 total) to use Veteran plan' });
     }
@@ -632,7 +651,7 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
             product_data: {
               name: 'Membership - ' + chosen,
               description: chosen === 'veteran'
-                ? `Veteran plan - $1.00/month per additional team (${billableQuantity} billable of ${team_count} total, 2 free)`
+                ? `Veteran plan - $1.00/month per additional team (${billableQuantity} billable of ${effectiveTeamCount} total, 2 free)`
                 : 'Legend plan - $20.00/year unlimited (dev fallback price)',
             },
           },
@@ -650,7 +669,7 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
           plan: chosen,
           user_id: userId,
           promo_code: promo_code || '',
-          team_count_total: chosen === 'veteran' && team_count ? String(team_count) : '',
+          team_count_total: chosen === 'veteran' && effectiveTeamCount ? String(effectiveTeamCount) : '',
           team_count_billable: chosen === 'veteran' ? String(billableQuantity) : '',
         },
       });
@@ -761,7 +780,7 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
       amount: total,
       currency: 'usd',
       customer: customerId,
-      automatic_payment_methods: { enabled: true },
+      automatic_payment_methods: { enabled: true, allow_redirects: 'never' },
       metadata: {
         ad_id: String(ad_id),
         dates: JSON.stringify(isoDates),
@@ -802,6 +821,7 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
       ephemeralKey: ephemeralKey.secret,
       customer: customerId,
       publishableKey,
+      amount_cents: total,
     });
   } catch (err: any) {
     captureException(err, { context: 'create_payment_sheet_ad', ad_id });
@@ -909,6 +929,14 @@ paymentsRouter.post('/webhook', async (req, res) => {
           where: { id: canceledUser.id },
           data: { preferences: prefs, subscription_tier: 'free', subscription_status: 'canceled' },
         });
+        // Log cancellation transaction
+        await logTransaction({
+          transactionType: 'SUBSCRIPTION_CANCEL',
+          status: 'COMPLETED',
+          stripeSubscriptionId: subscription.id,
+          userId: canceledUser.id,
+          metadata: { reason: 'subscription_deleted', previous_plan: prefs.plan },
+        }).catch(err => console.warn('[transaction-log] cancel log failed:', err));
       }
     }
   }
@@ -924,6 +952,28 @@ paymentsRouter.post('/webhook', async (req, res) => {
         planName: subscription.items.data[0]?.price?.nickname || 'VarsityHub Subscription',
       }).catch(err => console.warn('[billing-email] subscription_renewed failed:', err));
     }
+  }
+
+  // Handle expired checkout sessions — mark PENDING transactions as FAILED
+  if (event.type === 'checkout.session.expired') {
+    const session = event.data.object as Stripe.Checkout.Session;
+    await updateTransactionStatus(session.id, 'FAILED', {
+      metadata: { reason: 'checkout_expired' },
+    }).catch(err => console.warn('[transaction-log] expired session update failed:', err));
+  }
+
+  // Handle failed payment intents
+  if (event.type === 'payment_intent.payment_failed') {
+    const pi = event.data.object as Stripe.PaymentIntent;
+    const meta = pi.metadata || {};
+    await logTransaction({
+      transactionType: meta.ad_id ? 'AD_PURCHASE' : 'SUBSCRIPTION_PURCHASE',
+      status: 'FAILED',
+      stripePaymentIntentId: pi.id,
+      userId: meta.user_id || undefined,
+      totalCents: pi.amount,
+      metadata: { reason: pi.last_payment_error?.message || 'payment_failed', ...meta },
+    }).catch(err => console.warn('[transaction-log] failed payment log failed:', err));
   }
 
   // Handle PaymentSheet ad payments (PaymentIntent-based, no Checkout Session)
@@ -988,6 +1038,9 @@ paymentsRouter.post('/webhook', async (req, res) => {
         } catch (e: any) {
           if (e?.slotFull) {
             console.error('[payments] SLOT_FULL on payment_intent.succeeded — manual refund required', { ad_id: adId, dates: e.dates, pi_id: pi.id });
+            await updateTransactionStatus(pi.id, 'REFUNDED', {
+              metadata: { reason: 'slot_full', overbooked_dates: e.dates },
+            }).catch(err => console.warn('[transaction-log] PI slot-full status update failed:', err));
           } else {
             console.error('[payments] Error processing ad PI succeeded', { ad_id: adId, pi_id: pi.id, error: e });
             captureException(e as Error, { context: 'payment_intent_succeeded_ad', adId, piId: pi.id });
@@ -1045,6 +1098,15 @@ paymentsRouter.post('/subscription/cancel', expressPkg.json(), requireVerified a
       console.warn('Failed to cancel Stripe subscription:', (err as any)?.message || err);
       return res.status(500).json({ error: 'Failed to cancel subscription with Stripe' });
     }
+
+    // Log the cancellation request
+    await logTransaction({
+      transactionType: 'SUBSCRIPTION_CANCEL',
+      status: 'COMPLETED',
+      stripeSubscriptionId: subscriptionId,
+      userId,
+      metadata: { action: 'cancel_at_period_end', plan: prefs.plan },
+    }).catch(err => console.warn('[transaction-log] cancel request log failed:', err));
 
     return res.json({ ok: true });
   } catch (err) {
@@ -1253,10 +1315,12 @@ paymentsRouter.post('/debug/reset-to-rookie', requireVerified as any, requireAdm
     // Reset subscription-related preferences
     const nextPrefs: any = { ...prefs };
     nextPrefs.plan = 'rookie';
+    delete nextPrefs.pending_plan;
     delete nextPrefs.subscription_id;
     delete nextPrefs.subscription_period_end;
     delete nextPrefs.stripe_customer_id;
     delete nextPrefs.payment_pending;
+    delete nextPrefs.payment_approved;
 
     await prisma.user.update({ where: { id: userId }, data: { preferences: nextPrefs } });
 
@@ -1319,10 +1383,12 @@ paymentsRouter.post('/admin/reset-unpaid-subscriptions', requireVerified as any,
       const currentPrefs = (user.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
       const nextPrefs: any = { ...currentPrefs };
       nextPrefs.plan = 'rookie';
+      delete nextPrefs.pending_plan;
       delete nextPrefs.subscription_id;
       delete nextPrefs.subscription_period_end;
       delete nextPrefs.stripe_customer_id;
       delete nextPrefs.payment_pending;
+      delete nextPrefs.payment_approved;
 
       resetUsers.push({
         email: user.email,
@@ -1526,6 +1592,10 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
           full_dates: e.dates,
           session_id: session.id,
         });
+        // Mark transaction as needing refund
+        await updateTransactionStatus(session.id, 'REFUNDED', {
+          metadata: { reason: 'slot_full', overbooked_dates: e.dates },
+        }).catch(err => console.warn('[transaction-log] slot-full status update failed:', err));
         return;
       }
       console.error('[payments] Error processing ad reservation payment', {
@@ -1570,7 +1640,9 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
       try {
         const current = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } });
         const existingPrefs = (current?.preferences && typeof current.preferences === 'object') ? (current.preferences as any) : {};
-        const prefs: any = { ...existingPrefs, plan };
+        // Rule A: Clear pending_plan and payment flags on successful payment
+        const { pending_plan: _pp, payment_approved: _pa, join_request_pending: _jrp, ...cleanPrefs } = existingPrefs;
+        const prefs: any = { ...cleanPrefs, plan, pending_plan: null, payment_pending: false };
         if (session.subscription) {
           try {
             const sub = await stripe.subscriptions.retrieve(String(session.subscription));
@@ -1707,7 +1779,9 @@ async function verifyAppleReceipt(receiptData: string, useSandbox = false): Prom
   return resp.json();
 }
 
-paymentsRouter.post('/apple/verify-receipt', expressPkg.json(), requireVerified as any, async (req: AuthedRequest, res) => {
+// Apple IAP receipt validation — uses requireAuth (not requireVerified) because Apple
+// already charged the user; blocking on email verification would leave them in a broken state.
+paymentsRouter.post('/apple/verify-receipt', expressPkg.json(), requireAuth as any, async (req: AuthedRequest, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'AUTH_REQUIRED' });
@@ -1752,8 +1826,8 @@ paymentsRouter.post('/apple/verify-receipt', expressPkg.json(), requireVerified 
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } });
     const currentPrefs = (user?.preferences && typeof user.preferences === 'object') ? user.preferences as any : {};
 
-    // Clear payment_pending and payment_approved flags after successful payment
-    const { payment_pending, payment_approved, ...restPrefs } = currentPrefs;
+    // Rule A: Clear pending_plan, payment_pending, payment_approved after successful payment
+    const { payment_pending, payment_approved, pending_plan, join_request_pending, ...restPrefs } = currentPrefs;
 
     await prisma.user.update({
       where: { id: userId },
@@ -1763,6 +1837,7 @@ paymentsRouter.post('/apple/verify-receipt', expressPkg.json(), requireVerified 
         preferences: {
           ...restPrefs,
           plan,
+          pending_plan: null,
           payment_pending: false,
           apple_product_id: productId,
           apple_original_transaction_id: matchingReceipt.original_transaction_id,

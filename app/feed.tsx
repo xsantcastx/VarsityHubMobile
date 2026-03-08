@@ -1036,7 +1036,7 @@ export default function FeedScreen() {
                     key={String(post.id)}
                     post={post}
                     showAuthorHeader
-                    onPress={() => void router.push(`/post-detail?id=${encodeURIComponent(String(post.id))}&postIds=${followedPosts.map((p: any) => String(p.id)).join(',')}&index=${idx}`)}
+                    onPress={() => void router.push(`/(tabs)/post-detail?id=${encodeURIComponent(String(post.id))}&postIds=${followedPosts.map((p: any) => String(p.id)).join(',')}&index=${idx}`)}
                     onDeleted={(postId) => setFollowedPosts((prev) => prev.filter((p) => String(p.id) !== postId))}
                     onUpdated={(updated) => setFollowedPosts((prev) => prev.map((p) => (String(p.id) === String(updated.id) ? { ...p, ...updated } : p)))}
                   />
@@ -1089,7 +1089,7 @@ export default function FeedScreen() {
                     <Pressable
                       key={String(post.id)}
                       style={styles.singleEventCard}
-                      onPress={() => void router.push(`/post-detail?id=${encodeURIComponent(String(post.id))}&postIds=${followedTeamsPosts.map((p: any) => String(p.id)).join(',')}&index=${index}`)}
+                      onPress={() => void router.push(`/(tabs)/post-detail?id=${encodeURIComponent(String(post.id))}&postIds=${followedTeamsPosts.map((p: any) => String(p.id)).join(',')}&index=${index}`)}
                       accessibilityRole="button"
                       accessibilityLabel={`View post from ${teamName}`}
                     >

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Dimensions,
   Platform,
   Pressable,
@@ -18,7 +19,13 @@ import { Image } from 'expo-image';
 import { useVideoPlayer } from 'expo-video';
 import { useEventListener } from 'expo';
 import * as FileSystem from 'expo-file-system/legacy';
-import { trim } from 'react-native-video-trim';
+
+let trim: ((uri: string, options: { startTime: number; endTime: number }) => Promise<{ success: boolean; outputPath?: string }>) | null = null;
+try {
+  trim = require('react-native-video-trim').trim;
+} catch {
+  // Native module not available (e.g. running in Expo Go)
+}
 
 interface VideoTrimmerProps {
   uri: string;
@@ -84,27 +91,34 @@ export default function VideoTrimmer({ uri, onTrimComplete, onTrimReset }: Video
   });
 
   useEventListener(player, 'statusChange', ({ status }) => {
-    if (status === 'readyToPlay' && player.duration > 0 && thumbnails.length === 0) {
-      const dur = player.duration;
-      setDuration(dur);
-      durationRef.current = dur;
-      rightX.value = trackWidth;
-      setEndLabel(formatTime(dur));
+    if (status === 'readyToPlay' && player.duration > 0) {
+      // Always update duration ref when available
+      if (durationRef.current <= 0) {
+        const dur = player.duration;
+        setDuration(dur);
+        durationRef.current = dur;
+        rightX.value = trackWidth;
+        setEndLabel(formatTime(dur));
+      }
 
-      const times = Array.from({ length: THUMB_COUNT }, (_, i) =>
-        THUMB_COUNT > 1 ? (i / (THUMB_COUNT - 1)) * dur : 0
-      );
+      // Generate thumbnails only once
+      if (thumbnails.length === 0) {
+        const dur = durationRef.current > 0 ? durationRef.current : player.duration;
+        const times = Array.from({ length: THUMB_COUNT }, (_, i) =>
+          THUMB_COUNT > 1 ? (i / (THUMB_COUNT - 1)) * dur : 0
+        );
 
-      player
-        .generateThumbnailsAsync(times, { maxHeight: FILMSTRIP_HEIGHT })
-        .then((thumbs) => {
-          setThumbnails(thumbs);
-          setLoading(false);
-        })
-        .catch((e) => {
-          if (__DEV__) console.warn('[VideoTrimmer] Thumbnail generation failed:', e);
-          setLoading(false);
-        });
+        player
+          .generateThumbnailsAsync(times, { maxHeight: FILMSTRIP_HEIGHT })
+          .then((thumbs) => {
+            setThumbnails(thumbs);
+            setLoading(false);
+          })
+          .catch((e) => {
+            if (__DEV__) console.warn('[VideoTrimmer] Thumbnail generation failed:', e);
+            setLoading(false);
+          });
+      }
     }
   });
 
@@ -187,11 +201,23 @@ export default function VideoTrimmer({ uri, onTrimComplete, onTrimReset }: Video
   }, [leftX, rightX, trackWidth, onTrimReset]);
 
   const handleTrim = useCallback(async () => {
-    if (!processableUri || duration <= 0) return;
+    // Use state duration, falling back to ref (set from player) if state hasn't updated yet
+    const dur = duration > 0 ? duration : durationRef.current;
+
+    if (!processableUri || dur <= 0) {
+      Alert.alert('Not Ready', 'Video is still loading. Please wait a moment and try again.');
+      return;
+    }
+
+    if (!trim) {
+      Alert.alert('Development Build Required', 'Video trimming requires a custom development build. It is not supported in Expo Go.');
+      return;
+    }
+
     setTrimming(true);
 
-    const startSec = (leftX.value / trackWidth) * duration;
-    const endSec = (rightX.value / trackWidth) * duration;
+    const startSec = (leftX.value / trackWidth) * dur;
+    const endSec = (rightX.value / trackWidth) * dur;
     // react-native-video-trim expects milliseconds
     const startMs = Math.round(startSec * 1000);
     const endMs = Math.round(endSec * 1000);
@@ -205,9 +231,11 @@ export default function VideoTrimmer({ uri, onTrimComplete, onTrimReset }: Video
       if (result.success && result.outputPath) {
         onTrimComplete(result.outputPath);
       } else {
+        Alert.alert('Trim Failed', 'Could not trim the video. Please try again.');
         if (__DEV__) console.warn('[VideoTrimmer] Trim failed:', result);
       }
-    } catch (e) {
+    } catch (e: any) {
+      Alert.alert('Trim Failed', e?.message || 'An error occurred while trimming the video.');
       if (__DEV__) console.warn('[VideoTrimmer] Trim error:', e);
     } finally {
       setTrimming(false);

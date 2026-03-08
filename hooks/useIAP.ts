@@ -45,12 +45,14 @@ export function useVHubIAP() {
           receipt = (purchase as any).transactionReceipt;
         }
 
-        if (receipt) {
-          await httpPost('/payments/apple/verify-receipt', {
-            receipt,
-            productId: purchase.productId,
-          });
+        if (!receipt) {
+          throw new Error('No receipt available for validation');
         }
+
+        await httpPost('/payments/apple/verify-receipt', {
+          receipt,
+          productId: purchase.productId,
+        });
 
         // Acknowledge the transaction with Apple
         await finishTransaction({ purchase, isConsumable: false });

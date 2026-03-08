@@ -2,7 +2,7 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -68,6 +68,13 @@ export default function ManageTeamsSimpleScreen() {
     void loadTeams().finally(() => setLoading(false)).catch(() => {});
   }, [loadTeams]);
 
+  // Auto-refresh when screen regains focus (e.g. after creating a team)
+  useFocusEffect(
+    useCallback(() => {
+      void loadTeams().catch(() => {});
+    }, [loadTeams])
+  );
+
   // Guard: redirect non-coach users away + check payment status
   useEffect(() => {
     void (async () => {
@@ -80,11 +87,12 @@ export default function ManageTeamsSimpleScreen() {
           router.replace('/(tabs)');
           return;
         }
-        // Check deferred payment status for paid plans
-        const plan = prefs.plan;
+        // Check deferred payment status for paid plans (Rule A: use pending_plan)
+        const plan = prefs.pending_plan || prefs.plan;
         setUserPlan(plan);
-        if (prefs.payment_pending === true && (plan === 'veteran' || plan === 'legend')) {
-          if (prefs.payment_approved === true) {
+        if (prefs.payment_pending === true && (prefs.pending_plan === 'veteran' || prefs.pending_plan === 'legend')) {
+          // Independent coaches (no join request) can pay immediately
+          if (prefs.payment_approved === true || prefs.join_request_pending !== true) {
             setPaymentStatus('ready_to_pay');
           } else {
             setPaymentStatus('pending_approval');
@@ -105,10 +113,10 @@ export default function ManageTeamsSimpleScreen() {
     try {
       const me: any = await User.me();
       const prefs = me?.preferences || {};
-      const plan = prefs.plan;
+      const plan = prefs.pending_plan || prefs.plan;
       setUserPlan(plan);
-      if (prefs.payment_pending === true && (plan === 'veteran' || plan === 'legend')) {
-        setPaymentStatus(prefs.payment_approved === true ? 'ready_to_pay' : 'pending_approval');
+      if (prefs.payment_pending === true && (prefs.pending_plan === 'veteran' || prefs.pending_plan === 'legend')) {
+        setPaymentStatus((prefs.payment_approved === true || prefs.join_request_pending !== true) ? 'ready_to_pay' : 'pending_approval');
       } else {
         setPaymentStatus('none');
       }
@@ -203,6 +211,16 @@ export default function ManageTeamsSimpleScreen() {
         gamePayload.destination = data.destination;
       }
 
+      // Add game venue location
+      const venue = data.type === 'home' ? data.homeVenue : data.awayVenue;
+      const venueLat = data.type === 'home' ? data.homeVenueLat : data.awayVenueLat;
+      const venueLng = data.type === 'home' ? data.homeVenueLng : data.awayVenueLng;
+      if (venue) {
+        gamePayload.location = venue;
+        if (venueLat) gamePayload.latitude = venueLat;
+        if (venueLng) gamePayload.longitude = venueLng;
+      }
+
       if (data.banner_url) {
         gamePayload.banner_url = data.banner_url;
         gamePayload.cover_image_url = data.banner_url;
@@ -284,7 +302,7 @@ export default function ManageTeamsSimpleScreen() {
       <View style={styles.quickActionsContainer}>
         <Pressable 
           style={[styles.inlineActionButton, { backgroundColor: Colors[colorScheme].tint }]}
-          onPress={() => void router.push('/create-team')}
+          onPress={() => void router.push('/(tabs)/create-team')}
         >
           <MaterialIcons name="add-circle-outline" size={24} color="#fff" />
           <Text style={styles.inlineActionText}>Create Team</Text>
@@ -293,7 +311,7 @@ export default function ManageTeamsSimpleScreen() {
         <Pressable 
           style={[styles.inlineActionButton, { backgroundColor: '#10B981' }]}
           onPress={() => { // Navigate to first team's add event, or show team selection if multiple teams
-            if (activeTeams.length > 0) { void void router.push(`/manage-season?teamId=${activeTeams[0].id}`);
+            if (activeTeams.length > 0) { void router.push(`/manage-season?teamId=${activeTeams[0].id}`);
             }
           }}
         >
@@ -313,13 +331,13 @@ export default function ManageTeamsSimpleScreen() {
         {organization && (
           <Pressable 
             style={styles.leagueCard}
-            onPress={() => { void void router.push({
-                pathname: '/league',
-                params: { 
+            onPress={() => { void router.push({
+                pathname: '/(tabs)/organization',
+                params: {
                   id: organization.id,
-                  name: organization.name 
+                  name: organization.name
                 }
-              });
+              } as any);
             }}
           >
             <LinearGradient
@@ -417,7 +435,7 @@ export default function ManageTeamsSimpleScreen() {
         <View style={styles.actionsSection}>
           <Pressable
             style={[styles.bigActionButton, { backgroundColor: Colors[colorScheme].tint }]}
-            onPress={() => void router.push('/create-team')}
+            onPress={() => void router.push('/(tabs)/create-team')}
           >
             <MaterialIcons name="add-circle" size={32} color="#FFF" />
             <Text style={styles.bigActionButtonText}>CREATE TEAM</Text>
@@ -441,6 +459,7 @@ export default function ManageTeamsSimpleScreen() {
         onClose={() => setShowQuickAddModal(false)}
         onSave={handleQuickAddGame}
         currentTeamName={activeTeams[0]?.name} // Default to first team
+        currentTeamId={activeTeams[0]?.id}
         userRole="coach"
       />
     </SafeAreaView>

@@ -532,7 +532,7 @@ export default function HighlightsScreen() {
     // Previously passed all filtered IDs + index, but re-computing the filtered
     // list at tap-time could yield a different sort order (e.g. after an upvote),
     // causing the index to point to the wrong post.
-    router.push(`/post-detail?id=${item.id}&from=highlights`);
+    router.push(`/(tabs)/post-detail?id=${item.id}&from=highlights`);
   }, [router]);
 
   const handleAuthorPress = useCallback((authorId: string) => {
@@ -857,7 +857,7 @@ export default function HighlightsScreen() {
                   <Pressable
                     key={org.id}
                     style={[styles.searchResultItem, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
-                    onPress={() => { void router.push(`/league?id=${org.id}`); }}
+                    onPress={() => { void router.push(`/(tabs)/organization?id=${org.id}` as any); }}
                   >
                     <Text style={[styles.searchResultTitle, { color: Colors[colorScheme].text }]}>{org.name}</Text>
                     <Text style={[styles.searchResultSubtitle, { color: Colors[colorScheme].tabIconDefault }]}>

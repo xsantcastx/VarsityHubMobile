@@ -926,7 +926,7 @@ export default function ProfileScreen() {
         color: colorScheme === 'dark' ? theme.mutedText : '#4B5563' // Darker grey for better contrast in light mode
       }]}>Share your first moment with the community!</Text>
       <Pressable 
-        onPress={() => void router.push('/create-post')} 
+        onPress={() => void router.push('/(tabs)/create-post')} 
         style={({ pressed }) => [
           styles.createPostButton, 
           { 
@@ -1419,7 +1419,7 @@ const styles = StyleSheet.create({
   },
   profileContent: {
     position: 'absolute',
-    bottom: -40,
+    bottom: -50,
     left: 16,
     zIndex: 100,
     elevation: 100,
@@ -1526,7 +1526,7 @@ const styles = StyleSheet.create({
   // Profile Details Below Banner — paddingTop clears the overlapping avatar
   profileDetailsContainer: {
     backgroundColor: 'transparent',
-    paddingTop: 44,
+    paddingTop: 54,
     marginBottom: 0,
     paddingBottom: 0,
     gap: 2,

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { validateContent } from '../lib/contentFilter.js';
-import { sendEventCanceledEmail, sendEventRsvpConfirmedEmail, sendEventSubmissionReceivedEmail, sendEventUpdatedEmail } from '../lib/email.js';
+import { sendEventApprovedEmail, sendEventCanceledEmail, sendEventRsvpConfirmedEmail, sendEventSubmissionReceivedEmail, sendEventUpdatedEmail } from '../lib/email.js';
 import { cancelGameReminders, scheduleGameReminders, sendPushNotification } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
@@ -90,6 +90,7 @@ const serializeEvent = (event: any, opts: { includeGame?: boolean; rsvpCount?: n
 };
 
 eventsRouter.get('/', async (req, res) => {
+  try {
   const status = String(req.query.status || '').trim();
   const includeCancelled = String(req.query.include_cancelled || '').toLowerCase() === 'true';
   const approvalStatus = String(req.query.approval_status || '').trim();
@@ -157,23 +158,32 @@ eventsRouter.get('/', async (req, res) => {
   }
 
   res.json(events.map((event) => serializeEvent(event, { includeGame: true, includeCreator: true })));
+  } catch (err) {
+    console.error('[events] GET / error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // List current user's RSVPs with event basics
 eventsRouter.get('/my-rsvps', requireAuth as any, async (req: AuthedRequest, res) => {
-  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  const rows = await prisma.eventRsvp.findMany({
-    where: { user_id: req.user.id },
-    orderBy: { created_at: 'desc' },
-    include: { event: { include: { game: { select: { id: true, title: true, cover_image_url: true, date: true, location: true } } } } },
-    take: 100,
-  });
-  const list = rows.map((r) => ({
-    id: r.id,
-    created_at: r.created_at instanceof Date ? r.created_at.toISOString() : r.created_at,
-    event: r.event ? serializeEvent(r.event, { includeGame: true }) : null,
-  }));
-  return res.json(list);
+  try {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    const rows = await prisma.eventRsvp.findMany({
+      where: { user_id: req.user.id },
+      orderBy: { created_at: 'desc' },
+      include: { event: { include: { game: { select: { id: true, title: true, cover_image_url: true, date: true, location: true } } } } },
+      take: 100,
+    });
+    const list = rows.map((r) => ({
+      id: r.id,
+      created_at: r.created_at instanceof Date ? r.created_at.toISOString() : r.created_at,
+      event: r.event ? serializeEvent(r.event, { includeGame: true }) : null,
+    }));
+    return res.json(list);
+  } catch (err) {
+    console.error('[events] GET /my-rsvps error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // List current user's created events (for fans to track their submissions)
@@ -582,11 +592,30 @@ eventsRouter.put('/:id/approve', requireVerified as any, async (req: AuthedReque
         event_id_param: eventId,
       }
     ).catch(err => console.warn('[events] Failed to send approval notification:', err));
+
+    // Send approval email via dynamic template
+    try {
+      const creator = await prisma.user.findUnique({ where: { id: updated.creator_id }, select: { email: true, display_name: true } });
+      if (creator?.email) {
+        const eventDate = updated.date ? new Date(updated.date) : new Date();
+        sendEventApprovedEmail({
+          to: creator.email,
+          recipientName: creator.display_name || 'Fan',
+          eventTitle: updated.title,
+          eventDate: eventDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }),
+          eventTime: eventDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+          eventLocation: updated.location || '',
+          eventId: eventId,
+        }).catch(err => console.warn('[events] Failed to send approval email:', err));
+      }
+    } catch (emailErr) {
+      console.warn('[events] Failed to send approval email:', emailErr);
+    }
   }
-  
-  return res.json({ 
+
+  return res.json({
     ...serializeEvent(updated),
-    message: 'Event approved successfully!' 
+    message: 'Event approved successfully!'
   });
 });
 

@@ -43,8 +43,13 @@ export async function getUserPlan(userId: string): Promise<AnyTier> {
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { subscription_tier: true, preferences: true } });
   if (!user) return 'free';
   const prefs = (user.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
+
+  // Rule A: If payment_pending is true, the coach selected a paid plan but hasn't
+  // paid yet (awaiting admin approval or checkout). Treat as free until payment completes.
+  if (prefs.payment_pending === true) return 'free';
+
   const prefPlan = prefs.plan as string | undefined; // rookie | veteran | legend
-  
+
   const plan = prefPlan || user.subscription_tier;
 
   return toCanonical(plan);

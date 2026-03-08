@@ -2,11 +2,10 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { validateContent } from '../lib/contentFilter.js';
 import { sendJoinRequestApproved, sendJoinRequestDenied, sendJoinRequestToAdmin, sendOrganizationInviteEmail } from '../lib/email.js';
-import { sendOrganizationApprovalEmail } from '../lib/notifications.js';
+import { sendOrganizationApprovalEmail, sendPushNotification } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
-import { requirePlan } from '../middleware/subscription.js';
 import { debugLog } from '../lib/debugLog.js';
 import { inviteLimiter } from '../middleware/rateLimiters.js';
 import { getAuthorizedUsersOrgLimit } from '../lib/planLimits.js';
@@ -41,59 +40,67 @@ function isOrganizationAdmin(role: string | null | undefined): boolean {
 
 // List organizations (public, with optional search)
 organizationsRouter.get('/', async (req, res) => {
-  const q = String((req.query as any).q || '').trim();
-  const limit = Math.min(parseInt(String((req.query as any).limit || '20'), 10) || 20, 50);
+  try {
+    const q = String((req.query as any).q || '').trim();
+    const limit = Math.min(parseInt(String((req.query as any).limit || '20'), 10) || 20, 50);
 
-  // Use startsWith (LIKE 'q%') so the @@index([name]) is used; leading-wildcard ILIKE
-  // would cause a full table scan. Description search is omitted for the same reason.
-  const where: any = q ? { name: { startsWith: q, mode: 'insensitive' } } : {};
+    const where: any = q ? { name: { startsWith: q, mode: 'insensitive' } } : {};
 
-  const organizations = await prisma.organization.findMany({
-    where,
-    take: limit,
-    orderBy: { created_at: 'desc' },
-    select: { 
-      id: true, 
-      name: true, 
-      description: true, 
-      sport: true,
-      created_at: true,
-      _count: {
-        select: {
-          memberships: true,
-          teams: true
+    const organizations = await prisma.organization.findMany({
+      where,
+      take: limit,
+      orderBy: { created_at: 'desc' },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        sport: true,
+        created_at: true,
+        _count: {
+          select: {
+            memberships: true,
+            teams: true
+          }
         }
-      }
-    },
-  });
-  
-  return res.json(organizations);
+      },
+    });
+
+    return res.json(organizations);
+  } catch (err) {
+    console.error('[organizations] GET / error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // List organizations where current user has admin access
 organizationsRouter.get('/mine', requireAuth as any, async (req: AuthedRequest, res) => {
-  const orgs = await prisma.organization.findMany({
-    where: {
-      memberships: {
-        some: {
-          user_id: req.user!.id,
-          role: { in: ['owner', 'manager', 'administrator'] },
-          status: 'active',
+  try {
+    const orgs = await prisma.organization.findMany({
+      where: {
+        memberships: {
+          some: {
+            user_id: req.user!.id,
+            role: { in: ['owner', 'manager', 'administrator'] },
+            status: 'active',
+          }
         }
+      },
+      take: 50,
+      orderBy: { created_at: 'desc' },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        sport: true,
+        org_type: true,
+        created_at: true,
       }
-    },
-    take: 50,
-    orderBy: { created_at: 'desc' },
-    select: {
-      id: true,
-      name: true,
-      description: true,
-      sport: true,
-      org_type: true,
-      created_at: true,
-    }
-  });
-  return res.json(orgs);
+    });
+    return res.json(orgs);
+  } catch (err) {
+    console.error('[organizations] GET /mine error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Follow an organization
@@ -379,7 +386,9 @@ const inviteUserSchema = z.object({
 });
 
 // Invite user to organization
-organizationsRouter.post('/:id/invite', requireAuth as any, requirePlan('veteran') as any, inviteLimiter, async (req: AuthedRequest, res) => {
+// Rule B: No plan gate on the inviting user — authorized users are covered by the org owner's plan.
+// The plan-based user limit is enforced inside the handler using the org owner's tier.
+organizationsRouter.post('/:id/invite', requireAuth as any, inviteLimiter, async (req: AuthedRequest, res) => {
   const id = String(req.params.id);
   const parsed = inviteUserSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
@@ -394,18 +403,24 @@ organizationsRouter.post('/:id/invite', requireAuth as any, requirePlan('veteran
   if (!membership || !isOrganizationAdmin(membership.role)) {
     return res.status(403).json({ error: 'Insufficient permissions' });
   }
-  // PLAN LIMITS: Enforce authorized user caps for organization-level invites
+  // PLAN LIMITS: Enforce authorized user caps based on ORG OWNER's plan (Rule B).
+  // Authorized users are covered by the coach's plan — never charged individually.
   try {
-    const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
-    const prefs = (user?.preferences || {}) as any;
-    const plan = prefs.plan || 'rookie';
-    
-    // Get team count for org-level limit calculation
-    const teamCountTotal = prefs.team_count_total || await prisma.teamMembership.count({ 
-      where: { user_id: req.user!.id, role: 'owner' } 
+    const ownerMembership = await prisma.organizationMembership.findFirst({
+      where: { organization_id: id, role: 'owner', status: 'active' },
+      select: { user_id: true },
     });
-    
-    // Get organization-level limit from plan definitions
+    const ownerId = ownerMembership?.user_id || req.user!.id;
+    const owner = await prisma.user.findUnique({ where: { id: ownerId } });
+    const ownerPrefs = (owner?.preferences || {}) as any;
+    const plan = ownerPrefs.plan || 'rookie';
+
+    // Get team count for org-level limit calculation (from org owner's profile)
+    const teamCountTotal = ownerPrefs.team_count_total || await prisma.teamMembership.count({
+      where: { user_id: ownerId, role: 'owner' }
+    });
+
+    // Get organization-level limit from the owner's plan definitions
     const limit = getAuthorizedUsersOrgLimit(plan, teamCountTotal);
     
     if (limit !== null) {
@@ -827,8 +842,9 @@ organizationsRouter.post('/join-requests/:requestId/approve', requireAuth as any
     select: { preferences: true }
   });
   const coachPrefs = (coachUser?.preferences as Record<string, any>) || {};
+  // Rule A: Check pending_plan (the plan selected during onboarding but not yet paid)
   const hasPendingPayment = coachPrefs.payment_pending === true &&
-    (coachPrefs.plan === 'veteran' || coachPrefs.plan === 'legend');
+    (coachPrefs.pending_plan === 'veteran' || coachPrefs.pending_plan === 'legend');
 
   await prisma.$transaction([
     prisma.organizationJoinRequest.update({
@@ -877,7 +893,23 @@ organizationsRouter.post('/join-requests/:requestId/approve', requireAuth as any
   } catch (err) {
     console.error('Failed to send join request approved email:', err);
   }
-  
+
+  // Push notification so coach knows they can now proceed to payment
+  try {
+    const hasPaymentPending = coachPrefs?.payment_pending === true;
+    const pushBody = hasPaymentPending
+      ? `Your request to join ${joinRequest.organization.name} was approved! You can now complete your subscription.`
+      : `Your request to join ${joinRequest.organization.name} was approved!`;
+    await sendPushNotification(
+      joinRequest.user_id,
+      'Join Request Approved',
+      pushBody,
+      { type: 'join_request_approved', organization_id: joinRequest.organization_id, payment_pending: hasPaymentPending }
+    );
+  } catch (err) {
+    console.error('Failed to send join request approved push notification:', err);
+  }
+
   return res.json({ message: 'Join request approved' });
 });
 

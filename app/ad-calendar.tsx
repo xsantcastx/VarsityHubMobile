@@ -479,6 +479,7 @@ export default function AdCalendarScreen() {
           merchantDisplayName: 'Varsity Hub',
           applePay: Platform.OS === 'ios' ? { merchantCountryCode: 'US' } : undefined,
           googlePay: Platform.OS === 'android' ? { merchantCountryCode: 'US', testEnv: __DEV__ } : undefined,
+          allowsDelayedPaymentMethods: false,
           paymentMethodOrder: ['apple_pay', 'google_pay', 'card'],
         });
         if (initError) {
@@ -491,7 +492,8 @@ export default function AdCalendarScreen() {
           return;
         }
         // Payment succeeded — navigate to confirmation receipt
-        router.replace({ pathname: '/ad-confirmation', params: { ad_id: String(adId), selectedDates: dates.join(', '), hoursRemaining: String(hrsRemaining) } });
+        const paidAmount = data.amount_cents ? `$${(data.amount_cents / 100).toFixed(2)}` : undefined;
+        router.replace({ pathname: '/ad-confirmation', params: { ad_id: String(adId), selectedDates: dates.join(', '), hoursRemaining: String(hrsRemaining), ...(paidAmount ? { totalAmount: paidAmount } : {}) } });
         return;
       }
       throw new Error('Unexpected checkout response');

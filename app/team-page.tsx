@@ -607,7 +607,7 @@ export default function TeamScreen() {
           <Text style={[styles.userHandle, { color: theme.text }]}>{teamHandle}</Text>
           <View style={{ flexDirection: 'row', gap: 8 }}>
             {isTeamAdmin && (
-              <Pressable style={[styles.editButtonBelowBanner, { backgroundColor: theme.surface || theme.background, borderColor: theme.border }]} onPress={() => void router.push(`/create-team?id=${team?.id}` as any)}>
+              <Pressable style={[styles.editButtonBelowBanner, { backgroundColor: theme.surface || theme.background, borderColor: theme.border }]} onPress={() => void router.push(`/(tabs)/create-team?id=${team?.id}` as any)}>
                 <Text style={[styles.editButtonBelowBannerText, { color: theme.text }]}>Edit profile</Text>
               </Pressable>
             )}

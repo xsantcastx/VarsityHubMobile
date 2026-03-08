@@ -294,7 +294,7 @@ export default function MessageThreadScreen() {
 
           <Pressable
             style={styles.headerProfile}
-            onPress={() => { if (otherParticipant?.id) { void void router.push(`/user-profile?id=${encodeURIComponent(otherParticipant.id)}`);
+            onPress={() => { if (otherParticipant?.id) { void router.push(`/user-profile?id=${encodeURIComponent(otherParticipant.id)}`);
               }
             }}
           >
@@ -374,7 +374,7 @@ export default function MessageThreadScreen() {
               <Pressable
                 style={[styles.sheetRow, { backgroundColor: Colors[colorScheme].surface }]}
                 onPress={() => { setSafetyOpen(false);
-                  if (otherParticipant?.id) { void void router.push(`/report-abuse?userId=${otherParticipant.id}&userName=${encodeURIComponent(otherParticipant.username ? `@${otherParticipant.username}` : otherParticipant.display_name || otherParticipant.email || 'User')}`);
+                  if (otherParticipant?.id) { void router.push(`/report-abuse?userId=${otherParticipant.id}&userName=${encodeURIComponent(otherParticipant.username ? `@${otherParticipant.username}` : otherParticipant.display_name || otherParticipant.email || 'User')}`);
                   } else {
                     router.push('/report-abuse');
                   }
@@ -419,7 +419,7 @@ export default function MessageThreadScreen() {
                 <MaterialIcons name="person-remove" size={20} color="#EF4444" />
                 <Text style={[styles.sheetText, { color: '#EF4444' }]}>Block user</Text>
               </Pressable>
-              <Pressable style={[styles.sheetRow, { backgroundColor: Colors[colorScheme].surface }]} onPress={() => { setSafetyOpen(false); void void router.push('/dm-restrictions'); }}>
+              <Pressable style={[styles.sheetRow, { backgroundColor: Colors[colorScheme].surface }]} onPress={() => { setSafetyOpen(false); void router.push('/dm-restrictions'); }}>
                 <MaterialIcons name="tune" size={20} color={Colors[colorScheme].text} />
                 <Text style={[styles.sheetText, { color: Colors[colorScheme].text }]}>Message restrictions</Text>
               </Pressable>

@@ -30,6 +30,7 @@ export type OnboardingState = {
   zip?: string;
   zip_code?: string | null;
   plan?: Plan;
+  pending_plan?: Plan;
   payment_pending?: boolean;
   // Total number of teams the user intends to manage (selected during plan purchase)
   team_count_total?: number;

@@ -2316,7 +2316,7 @@ const renderBanner = () => {
                              <Pressable
                                key={post.id || index}
                                style={[styles.masonryItem, { height: itemHeight }]}
-                               onPress={() => { void router.push(`/post-detail?id=${post.id}`); }}
+                               onPress={() => { void router.push(`/(tabs)/post-detail?id=${post.id}`); }}
                              >
                                {thumb ? (
                                  <View style={styles.gridImageContainer}>
@@ -2384,7 +2384,7 @@ const renderBanner = () => {
                              <Pressable
                                key={post.id || index}
                                style={[styles.masonryItem, { height: itemHeight }]}
-                               onPress={() => { void router.push(`/post-detail?id=${post.id}`); }}
+                               onPress={() => { void router.push(`/(tabs)/post-detail?id=${post.id}`); }}
                              >
                                {thumb ? (
                                  <View style={styles.gridImageContainer}>

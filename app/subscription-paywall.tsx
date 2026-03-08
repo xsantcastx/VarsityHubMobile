@@ -6,6 +6,8 @@
  */
 
 import { httpPost } from '@/api/http';
+// @ts-ignore
+import { User } from '@/api/entities';
 import { CoachTier, CoachTierBadge, CoachTierBenefits } from '@/components/CoachTierBadge';
 import CustomActionModal from '@/components/CustomActionModal';
 import { Colors } from '@/constants/Colors';
@@ -14,7 +16,7 @@ import { useVHubIAP } from '@/hooks/useIAP';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import { usePaymentSheet } from '@stripe/stripe-react-native';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -37,6 +39,19 @@ export default function SubscriptionPaywallScreen() {
   const [loading, setLoading] = useState(false);
   const [promoCode, setPromoCode] = useState('');
   const availableTiers: CoachTier[] = ['rookie', 'veteran', 'legend'];
+
+  // Rule A: Pre-select the coach's pending_plan if they were sent here after admin approval
+  useEffect(() => {
+    void (async () => {
+      try {
+        const me: any = await User.me();
+        const pp = me?.preferences?.pending_plan;
+        if (pp === 'veteran' || pp === 'legend') {
+          setSelectedTier(pp);
+        }
+      } catch { /* ignore */ }
+    })();
+  }, []);
   const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
   const { connected: iapConnected, purchasing: iapPurchasing, purchase: iapPurchase, getProduct, error: iapError } = useVHubIAP();
   const [modal, setModal] = useState<{
@@ -122,6 +137,21 @@ export default function SubscriptionPaywallScreen() {
         if (error) {
           if (error.code !== 'Canceled') Alert.alert('Payment Failed', error.message);
           return;
+        }
+        // Poll for plan activation (webhook may take a moment)
+        let planActivated = false;
+        for (let i = 0; i < 5; i++) {
+          await new Promise(r => setTimeout(r, 2000));
+          try {
+            const me: any = await User.me();
+            if (me?.preferences?.plan && !me?.preferences?.payment_pending) {
+              planActivated = true;
+              break;
+            }
+          } catch { /* ignore */ }
+        }
+        if (!planActivated) {
+          Alert.alert('Payment Received', 'Your subscription is being processed. It may take a moment to activate.');
         }
         if (router.canGoBack()) router.back();
         else router.replace('/(tabs)' as any);

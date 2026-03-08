@@ -139,8 +139,8 @@ export default function Step3Plan() {
   const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
   
-  // Team count for Veteran plan
-  const [teamCount, setTeamCount] = useState<number>(2); // First 2 teams free
+  // Team count for Veteran plan (minimum 3 — first 2 free + at least 1 paid)
+  const [teamCount, setTeamCount] = useState<number>(3);
   const [showTeamCountModal, setShowTeamCountModal] = useState(false);
   
   const displayedPlanOptions = PLAN_OPTIONS;
@@ -173,24 +173,43 @@ export default function Step3Plan() {
     
     setSaving(true);
     try {
-      // Save selected plan and team count — payment is deferred until admin approval
+      // Rule A: For paid plans, store as pending_plan (NOT plan). The plan field
+      // is only set after Stripe payment succeeds post-admin-approval.
       const isPaid = plan !== 'rookie';
-      const pending = isPaid; // payment_pending=true for veteran/legend until admin approves
-      setOB((prev) => ({
-        ...prev,
-        plan,
-        payment_pending: pending,
-        ...(plan === 'veteran' ? { team_count_total: teamCount } : {}),
-      }));
-
-      try {
-        await User.updatePreferences({
-          plan,
-          payment_pending: pending,
+      if (isPaid) {
+        setOB((prev) => ({
+          ...prev,
+          pending_plan: plan,
+          plan: undefined,
+          payment_pending: true,
           ...(plan === 'veteran' ? { team_count_total: teamCount } : {}),
-        });
-      } catch (err) {
-        console.warn('Failed to persist plan selection to backend:', err);
+        }));
+        try {
+          await User.updatePreferences({
+            pending_plan: plan,
+            payment_pending: true,
+            ...(plan === 'veteran' ? { team_count_total: teamCount } : {}),
+          });
+        } catch (err) {
+          console.warn('Failed to persist plan selection to backend:', err);
+        }
+      } else {
+        // Rookie (free) — set plan directly, no payment needed
+        setOB((prev) => ({
+          ...prev,
+          plan: 'rookie',
+          pending_plan: undefined,
+          payment_pending: false,
+        }));
+        try {
+          await User.updatePreferences({
+            plan: 'rookie',
+            pending_plan: null,
+            payment_pending: false,
+          });
+        } catch (err) {
+          console.warn('Failed to persist plan selection to backend:', err);
+        }
       }
 
       setProgress(3);
@@ -202,7 +221,8 @@ export default function Step3Plan() {
 
   const handleSelectPlan = (selectedPlan: Plan) => {
     setPlan(selectedPlan);
-    setOB((prev) => ({ ...prev, plan: selectedPlan }));
+    // Don't set ob.plan for paid plans — Rule A: paid plans use pending_plan only
+    // ob.plan is only set for rookie (free) in onContinue after user confirms
   };
 
   return (
@@ -245,7 +265,7 @@ export default function Step3Plan() {
                   styles.teamCountButton,
                   { backgroundColor: isDark ? '#374151' : '#F3F4F6', borderColor: isDark ? '#4B5563' : '#E5E7EB' }
                 ]}
-                onPress={() => setTeamCount(Math.max(2, teamCount - 1))}
+                onPress={() => setTeamCount(Math.max(3, teamCount - 1))}
               >
                 <Text style={[styles.teamCountButtonText, { color: isDark ? '#F9FAFB' : '#111827' }]}>−</Text>
               </Pressable>
@@ -292,7 +312,7 @@ export default function Step3Plan() {
                   void onContinue();
                 }}
               >
-                <Text style={styles.verifyButtonText}>Continue to Checkout</Text>
+                <Text style={styles.verifyButtonText}>Continue</Text>
               </Pressable>
               
               <Pressable

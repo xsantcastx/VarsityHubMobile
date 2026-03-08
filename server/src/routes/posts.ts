@@ -73,6 +73,7 @@ const trendingScore = (upvotes: number, createdAt: Date): number => {
 };
 
 postsRouter.get('/', async (req: AuthedRequest, res) => {
+  try {
   const sort = typeof req.query.sort === 'string' ? req.query.sort.trim() : '';
   const limit = Math.min(parseInt(String(req.query.limit ?? '10'), 10) || 10, 50);
   const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : null;
@@ -410,6 +411,10 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
   if (followedFeedMeta) response.followed_feed_meta = followedFeedMeta;
   if (followedTeamsFeedMeta) response.followed_teams_feed_meta = followedTeamsFeedMeta;
   return res.json(response);
+  } catch (err) {
+    console.error('[posts] GET / error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 postsRouter.get('/trending', async (req: AuthedRequest, res, next) => {

@@ -806,12 +806,15 @@ authRouter.get('/me/subscription', requireAuth as any, async (req: AuthedRequest
   const prefs = (user.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
   // Prefer onboarding-facing tier from preferences, fall back to DB column
   const tierMap: Record<string, string> = { free: 'rookie', premium: 'veteran', pro: 'legend' };
-  const tier = prefs.plan || tierMap[user.subscription_tier] || 'rookie';
+  // Rule A: If payment_pending, treat as rookie regardless of stored plan
+  const tier = prefs.payment_pending === true ? 'rookie' : (prefs.plan || tierMap[user.subscription_tier] || 'rookie');
   const status = user.subscription_status || null;
   const expiresAt = user.subscription_expires_at ? user.subscription_expires_at.toISOString() : null;
   const hasActiveSubscription = (tier === 'veteran' || tier === 'legend') && status === 'active';
+  const pendingPlan = prefs.pending_plan || null;
+  const paymentApproved = prefs.payment_approved === true;
 
-  return res.json({ tier, status, expiresAt, hasActiveSubscription });
+  return res.json({ tier, status, expiresAt, hasActiveSubscription, pendingPlan, paymentApproved });
 });
 
 const updateMeSchema = z.object({
@@ -953,20 +956,23 @@ authRouter.patch('/me', requireAuth as any, async (req: AuthedRequest, res) => {
   return res.json(sanitizeUser(user));
 });
 
+// Fields that must never be deleted by a null merge — they are identity/billing critical.
+const PROTECTED_PREF_KEYS = new Set(['role', 'plan', 'onboarding_completed']);
+
 // Utility to deep-merge preferences, preserving nested notification keys
 function mergePreferences(base: any, incoming: any) {
   if (!base && !incoming) return {};
   if (!base) return incoming;
   if (!incoming) return base;
-  
+
   const out = { ...base };
-  
+
   // Deep merge for nested objects
   for (const key in incoming) {
     if (incoming[key] === null || incoming[key] === undefined) {
-      // Explicit null/undefined means remove (for optional fields)
-      // But preserve existing if not explicitly set to null
-      if (incoming[key] === null && key in incoming) {
+      // Explicit null means remove (for optional fields like pending_plan)
+      // But NEVER delete protected identity fields
+      if (incoming[key] === null && key in incoming && !PROTECTED_PREF_KEYS.has(key)) {
         delete out[key];
       }
     } else if (typeof incoming[key] === 'object' && !Array.isArray(incoming[key]) && incoming[key] !== null && incoming[key].constructor === Object) {
@@ -977,7 +983,7 @@ function mergePreferences(base: any, incoming: any) {
       out[key] = incoming[key];
     }
   }
-  
+
   return out;
 }
 
@@ -997,7 +1003,10 @@ authRouter.patch('/me/preferences', requireAuth as any, async (req: AuthedReques
     onboarding_completed: z.boolean().optional(),
     
     // New onboarding fields
-    // plan is set only by Stripe webhook / finalize-session — never by the client
+    // Rule A: Client can set plan to 'rookie' only; paid plans go through pending_plan.
+    plan: z.enum(['rookie']).optional(),
+    pending_plan: z.enum(['veteran', 'legend']).optional().nullable(),
+    payment_pending: z.boolean().optional(),
 
     // Rookie is not a role
     role: z.enum(['fan', 'coach']).optional(),
@@ -1045,12 +1054,11 @@ authRouter.patch('/me/preferences', requireAuth as any, async (req: AuthedReques
   // Check if user is admin (same logic as GET /me endpoint)
   const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
   const is_admin = current?.email ? adminEmails.includes(current.email.toLowerCase()) : false;
+  // Defaults for missing fields only — NEVER include identity fields (role, plan)
+  // that could overwrite user-chosen values if current preferences are unexpectedly empty.
   const defaults = {
     notifications: { game_event_reminders: false, team_updates: false, comments_upvotes: false, follows_notifications: true, messages_notifications: true },
     is_parent: false,
-    zip_code: null,
-    plan: null, // Plans only for coaches - don't default to 'rookie'
-    role: 'fan',
     sports_interests: [],
     personalization_goals: [],
     primary_intents: [],
@@ -1058,11 +1066,17 @@ authRouter.patch('/me/preferences', requireAuth as any, async (req: AuthedReques
     notifications_enabled: true,
     messaging_policy_accepted: false,
   };
-  // CRITICAL: Correct merge order - defaults are base, user prefs override defaults, incoming overrides both
-  // 1. Start with defaults (fill in missing fields)
-  // 2. Apply current user preferences on top (preserve user's actual values)
-  // 3. Apply incoming changes on top (apply this update)
+  // Merge order: defaults → current user preferences → incoming changes
   const merged = mergePreferences(mergePreferences(defaults, current?.preferences || {}), incoming);
+
+  // SAFETY: Never let role or plan disappear — preserve from DB if the merge lost them
+  if (!merged.role && currentPrefs.role) {
+    merged.role = currentPrefs.role;
+  }
+  if (!merged.plan && currentPrefs.plan) {
+    merged.plan = currentPrefs.plan;
+  }
+
   const updated = await prisma.user.update({ where: { id: req.user.id }, data: { preferences: merged } });
   return res.json({ preferences: updated.preferences });
 });
@@ -1109,7 +1123,10 @@ const completeOnboardingSchema = z.object({
   zip: z.string().optional(),
   zip_code: z.string().optional(),
   
-  // plan is set only by Stripe webhook / finalize-session — never by the client
+  // Rule A: Client sends pending_plan for paid plans, plan only for rookie (free).
+  // The real plan field is set by Stripe webhook after payment succeeds.
+  plan: z.enum(['rookie']).optional(),
+  pending_plan: z.enum(['veteran', 'legend']).optional().nullable(),
   payment_pending: z.union([z.boolean(), z.string()]).optional(),
   team_count_total: z.number().int().min(0).optional(),
   
@@ -1204,7 +1221,10 @@ authRouter.post('/me/complete-onboarding', requireAuth as any, async (req: Authe
   const preferencesUpdate: any = {
     onboarding_completed: true,
     role: finalRole, // Always set role explicitly - never leave undefined
-    // plan is set only by Stripe webhook / finalize-session
+    // Rule A: plan is 'rookie' for free, or set by Stripe webhook for paid plans.
+    // pending_plan holds the coach's selected paid plan until payment completes.
+    plan: data.plan, // only 'rookie' allowed from client
+    pending_plan: data.pending_plan,
     affiliation: data.affiliation,
     dob: data.dob,
     zip_code: data.zip_code || data.zip,
