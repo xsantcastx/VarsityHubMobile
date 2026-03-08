@@ -211,10 +211,9 @@ eventsRouter.get('/my-events', requireAuth as any, async (req: AuthedRequest, re
 });
 
 // Get pending events for approval (admins & coaches only) - MUST be before /:id to avoid "pending" matching as id
-eventsRouter.get('/pending', authMiddleware as any, async (req: AuthedRequest, res) => {
-  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  
-  const userId = req.user.id;
+eventsRouter.get('/pending', requireAuth as any, async (req: AuthedRequest, res) => {
+
+  const userId = req.user!.id;
   const isAdmin = await getIsAdmin(req as any);
 
   // Only coaches, org admins, and platform admins can view pending events (DB-verified roles)

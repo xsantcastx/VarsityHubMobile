@@ -51,7 +51,7 @@ const createReportSchema = z.object({
  * Reports content for moderation review. Users can only report
  * the same content once per 24 hours to prevent spam.
  */
-reportsRouter.post('/', reportLimiter, requireAuth as any, async (req: AuthedRequest, res) => {
+reportsRouter.post('/', requireAuth as any, reportLimiter, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
   const parsed = createReportSchema.safeParse(req.body);

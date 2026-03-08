@@ -8,12 +8,13 @@ import { calculateDistance, isWithinGeofence, verifyEventPostingPermission } fro
 import { notifyNewFollower, notifyNewMessage, notifyPostInteraction, sendPushNotification } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
+import { requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 
 export const testNotificationsRouter = Router();
 
 // Test: Send a basic push notification to yourself
-testNotificationsRouter.post('/test/push', requireAuth as any, async (req: AuthedRequest, res) => {
+testNotificationsRouter.post('/test/push', requireAdmin as any, async (req: AuthedRequest, res) => {
   try {
     await sendPushNotification(
       req.user!.id,
@@ -35,7 +36,7 @@ testNotificationsRouter.post('/test/push', requireAuth as any, async (req: Authe
 });
 
 // Test: Check if user has a valid push token
-testNotificationsRouter.get('/test/check-token', requireAuth as any, async (req: AuthedRequest, res) => {
+testNotificationsRouter.get('/test/check-token', requireAdmin as any, async (req: AuthedRequest, res) => {
   try {
     const user = await prisma.user.findUnique({
       where: { id: req.user!.id },
@@ -62,7 +63,7 @@ testNotificationsRouter.get('/test/check-token', requireAuth as any, async (req:
 });
 
 // Test: Simulate different notification types
-testNotificationsRouter.post('/test/simulate/:type', requireAuth as any, async (req: AuthedRequest, res) => {
+testNotificationsRouter.post('/test/simulate/:type', requireAdmin as any, async (req: AuthedRequest, res) => {
   const { type } = req.params;
   const userId = req.user!.id;
 
@@ -98,7 +99,7 @@ testNotificationsRouter.post('/test/simulate/:type', requireAuth as any, async (
 });
 
 // Test: Check geofencing for an event
-testNotificationsRouter.post('/test/geofence', requireAuth as any, async (req: AuthedRequest, res) => {
+testNotificationsRouter.post('/test/geofence', requireAdmin as any, async (req: AuthedRequest, res) => {
   const { event_id, lat, lng } = req.body;
 
   if (!event_id || typeof lat !== 'number' || typeof lng !== 'number') {
@@ -139,7 +140,7 @@ testNotificationsRouter.post('/test/geofence', requireAuth as any, async (req: A
 });
 
 // Test: Calculate distance between two points
-testNotificationsRouter.post('/test/distance', requireAuth as any, (req, res) => {
+testNotificationsRouter.post('/test/distance', requireAdmin as any, (req, res) => {
   const { lat1, lng1, lat2, lng2 } = req.body;
 
   if (typeof lat1 !== 'number' || typeof lng1 !== 'number' || 
@@ -168,7 +169,7 @@ testNotificationsRouter.post('/test/distance', requireAuth as any, (req, res) =>
 });
 
 // Test: Get all upcoming games that would trigger notifications
-testNotificationsRouter.get('/test/upcoming-games', requireAuth as any, async (req: AuthedRequest, res) => {
+testNotificationsRouter.get('/test/upcoming-games', requireAdmin as any, async (req: AuthedRequest, res) => {
   try {
     const now = new Date();
     const twelveHoursFromNow = new Date(now.getTime() + 12 * 60 * 60 * 1000);

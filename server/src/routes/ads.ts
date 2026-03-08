@@ -74,7 +74,7 @@ adsRouter.post('/', requireVerified as any, adCreationLimiter, async (req: Authe
 });
 
 // List Ads. If mine=1, returns ads for the authenticated user. If contact_email is provided, returns by email.
-adsRouter.get('/', async (req: AuthedRequest, res) => {
+adsRouter.get('/', requireAuth as any, async (req: AuthedRequest, res) => {
   const mine = String(req.query.mine || '') === '1';
   const contactEmail = req.query.contact_email ? String(req.query.contact_email) : undefined;
   const all = String(req.query.all || '') === '1';
@@ -328,7 +328,7 @@ adsRouter.post('/:id([a-z0-9-]{20,40})/review', requireAuth as any, requireAdmin
 });
 
 // List reserved dates. Supports optional range and/or specific ad_id.
-adsRouter.get('/reservations', async (req, res) => {
+adsRouter.get('/reservations', requireAuth as any, async (req: AuthedRequest, res) => {
   const from = req.query.from ? new Date(String(req.query.from)) : undefined;
   const to = req.query.to ? new Date(String(req.query.to)) : undefined;
   const adId = req.query.ad_id ? String(req.query.ad_id) : undefined;

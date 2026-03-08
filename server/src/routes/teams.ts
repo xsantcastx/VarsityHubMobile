@@ -89,15 +89,14 @@ teamsRouter.get('/managed', requireAuth as any, async (req: AuthedRequest, res) 
 });
 
 // Check team creation limits for current user
-teamsRouter.get('/limits', authMiddleware as any, async (req: AuthedRequest, res) => {
-  if (!req.user) return res.status(401).json({ error: 'Authentication required' });
+teamsRouter.get('/limits', requireAuth as any, async (req: AuthedRequest, res) => {
   
-  const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+  const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
   if (!user) return res.status(401).json({ error: 'User not found' });
-  
+
   const ownedTeamsCount = await prisma.teamMembership.count({
     where: {
-      user_id: req.user.id,
+      user_id: req.user!.id,
       role: 'owner',
       status: 'active'
     }
