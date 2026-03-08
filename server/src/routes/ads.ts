@@ -250,7 +250,7 @@ adsRouter.put('/:id([a-z0-9-]{20,40})', requireAuth as any, async (req: AuthedRe
       contactName: updated.contact_name || undefined,
       contactEmail: updated.contact_email || undefined,
       zipCode: updated.target_zip_code || undefined,
-      bannerUrl: updated.banner_url,
+      bannerUrl: updated.banner_url ?? undefined,
       adId: updated.id,
     }).catch((err) => console.warn('[ads] Failed to send review email:', (err as any)?.message || err));
   }

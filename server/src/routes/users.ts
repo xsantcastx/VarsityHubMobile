@@ -546,7 +546,7 @@ usersRouter.get('/lookup', requireAuth as any, userLookupLimiter, async (req: Au
   if (username) {
     const u = await prisma.user.findFirst({
       where: { username: { equals: username, mode: 'insensitive' } },
-      select: { id: true, email: true, display_name: true, username: true, avatar_url: true }
+      select: { id: true, display_name: true, username: true, avatar_url: true }
     });
     if (!u) return res.status(404).json({ error: 'Not found' });
     return res.json(u);

@@ -295,7 +295,6 @@ teamsRouter.get('/:id/members', async (req, res) => {
       user: {
         select: {
           id: true,
-          email: true,
           display_name: true,
           avatar_url: true,
           username: true,
@@ -315,7 +314,6 @@ teamsRouter.get('/:id/members', async (req, res) => {
       jersey_number: (m as any).jersey_number || null,
       user: {
         id: m.user_id,
-        email: user?.email || null,
         display_name: user?.display_name || null,
         avatar_url: user?.avatar_url || null,
         username: user?.username || null,

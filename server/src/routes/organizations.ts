@@ -186,10 +186,10 @@ organizationsRouter.get('/:id/members', async (req, res) => {
     take: 500,
     include: {
       user: {
-        select: { 
-          id: true, 
-          display_name: true, 
-          username: true, 
+        select: {
+          id: true,
+          display_name: true,
+          username: true,
           avatar_url: true,
           preferences: true
         }
@@ -197,14 +197,17 @@ organizationsRouter.get('/:id/members', async (req, res) => {
     },
     orderBy: { created_at: 'desc' }
   });
-  
+
   const list = members.map((m) => {
     const user = (m as any).user;
     const prefs = (user?.preferences || {}) as any;
     return {
       ...m,
       user: {
-        ...user,
+        id: user?.id,
+        display_name: user?.display_name,
+        username: user?.username,
+        avatar_url: user?.avatar_url,
         is_parent: prefs?.is_parent === true,
       }
     };

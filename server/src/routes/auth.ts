@@ -790,7 +790,7 @@ authRouter.get('/me', requireAuth as any, async (req: AuthedRequest, res) => {
   // Defaults fill in missing keys; user preferences override defaults
   const userPrefs = (user as any).preferences || {};
   const prefs = mergePreferences(defaults, userPrefs);
-  const { password_hash, ...rest } = user as any;
+  const { password_hash, refresh_token, stripe_customer_id, ...rest } = user as any;
   return res.json({ ...rest, ...(is_admin ? { role: 'admin' } : {}), preferences: prefs, is_admin });
 });
 

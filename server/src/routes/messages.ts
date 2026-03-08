@@ -21,7 +21,7 @@ function ageFromDob(dob: string | null | undefined): number | null {
   return a;
 }
 
-const baseUserSelect = { id: true, email: true, display_name: true, avatar_url: true };
+const baseUserSelect = { id: true, display_name: true, avatar_url: true, username: true };
 
 function parseSort(q: unknown) {
 const s = String(q ?? '').trim();
@@ -157,7 +157,7 @@ if (!toId && conversation_id) {
       select: { sender_id: true, recipient_id: true },
     });
     if (existing) {
-      toId = existing.sender_id === meId ? existing.recipient_id : existing.sender_id;
+      toId = (existing.sender_id === meId ? existing.recipient_id : existing.sender_id) ?? undefined;
     }
   }
   if (!toId) {
