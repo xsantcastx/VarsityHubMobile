@@ -944,13 +944,38 @@ paymentsRouter.post('/webhook', async (req, res) => {
   if (event.type === 'customer.subscription.updated') {
     const subscription = event.data.object as Stripe.Subscription;
     const customer = await stripe.customers.retrieve(subscription.customer as string).catch(() => null);
-    if (customer && !customer.deleted && customer.email && subscription.status === 'active') {
-      await sendBillingNoticeEmail({
-        to: customer.email,
-        type: 'subscription_renewed',
-        amount: `$${((subscription.items.data[0]?.price?.unit_amount || 0) / 100).toFixed(2)}`,
-        planName: subscription.items.data[0]?.price?.nickname || 'VarsityHub Subscription',
-      }).catch(err => console.warn('[billing-email] subscription_renewed failed:', err));
+    if (customer && !customer.deleted && customer.email) {
+      // Sync subscription state to database
+      const subUser = await prisma.user.findFirst({ where: { stripe_customer_id: subscription.customer as string } });
+      if (subUser) {
+        const priceId = subscription.items.data[0]?.price?.id;
+        // Map Stripe price ID back to plan tier
+        let newTier: string = subUser.subscription_tier || 'free';
+        if (priceId === process.env.STRIPE_PRICE_VETERAN) newTier = 'veteran';
+        else if (priceId === process.env.STRIPE_PRICE_LEGEND) newTier = 'legend';
+
+        const statusMap: Record<string, string> = {
+          active: 'active', past_due: 'past_due', unpaid: 'unpaid',
+          canceled: 'canceled', incomplete: 'incomplete', incomplete_expired: 'canceled',
+          trialing: 'active', paused: 'paused',
+        };
+        const newStatus = statusMap[subscription.status] || subscription.status;
+
+        await prisma.user.update({
+          where: { id: subUser.id },
+          data: { subscription_tier: newTier, subscription_status: newStatus },
+        });
+        console.log(`[webhook] subscription.updated: user ${subUser.id} -> tier=${newTier} status=${newStatus}`);
+      }
+
+      if (subscription.status === 'active') {
+        await sendBillingNoticeEmail({
+          to: customer.email,
+          type: 'subscription_renewed',
+          amount: `$${((subscription.items.data[0]?.price?.unit_amount || 0) / 100).toFixed(2)}`,
+          planName: subscription.items.data[0]?.price?.nickname || 'VarsityHub Subscription',
+        }).catch(err => console.warn('[billing-email] subscription_renewed failed:', err));
+      }
     }
   }
 
@@ -974,6 +999,19 @@ paymentsRouter.post('/webhook', async (req, res) => {
       totalCents: pi.amount,
       metadata: { reason: pi.last_payment_error?.message || 'payment_failed', ...meta },
     }).catch(err => console.warn('[transaction-log] failed payment log failed:', err));
+
+    // Notify user of failed payment
+    if (meta.user_id) {
+      const failedUser = await prisma.user.findUnique({ where: { id: meta.user_id } });
+      if (failedUser?.email) {
+        await sendBillingNoticeEmail({
+          to: failedUser.email,
+          type: 'payment_failed',
+          amount: `$${(pi.amount / 100).toFixed(2)}`,
+          planName: meta.ad_id ? 'Ad Purchase' : 'VarsityHub Subscription',
+        }).catch(err => console.warn('[billing-email] payment_intent.failed notification failed:', err));
+      }
+    }
   }
 
   // Handle PaymentSheet ad payments (PaymentIntent-based, no Checkout Session)
