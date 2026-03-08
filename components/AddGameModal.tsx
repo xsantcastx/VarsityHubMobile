@@ -337,7 +337,8 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
                           } : {}),
                         }));
                       } else if (type === 'away') {
-                        setFormData(prev => ({ ...prev, type, location: '', latitude: null, longitude: null }));
+                        // Keep location editable but don't clear — user can type venue
+                        setFormData(prev => ({ ...prev, type }));
                       } else {
                         setFormData(prev => ({ ...prev, type }));
                       }

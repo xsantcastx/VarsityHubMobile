@@ -358,7 +358,7 @@ export const Organization = {
   declineInvite: (inviteId: string) => httpPost(`/organizations/invites/${encodeURIComponent(inviteId)}/decline`, {}),
   // Organization join requests (coach/admin workflows)
   requestToJoin: (organizationId: string, message?: string, role?: string) =>
-    httpPost(`/organizations/${encodeURIComponent(organizationId)}/join-requests`, { message, role }),
+    httpPost(`/organizations/join-requests`, { organization_id: organizationId, message, role }),
   getJoinRequests: (organizationId: string, status?: 'pending' | 'approved' | 'rejected') => {
     const params: string[] = [];
     if (status) params.push('status=' + encodeURIComponent(status));
@@ -366,7 +366,7 @@ export const Organization = {
     return httpGet(`/organizations/${encodeURIComponent(organizationId)}/join-requests` + qs);
   },
   approveJoinRequest: (requestId: string) => httpPost(`/organizations/join-requests/${encodeURIComponent(requestId)}/approve`, {}),
-  rejectJoinRequest: (requestId: string, reason?: string) => httpPost(`/organizations/join-requests/${encodeURIComponent(requestId)}/reject`, { reason }),
+  rejectJoinRequest: (requestId: string, reason?: string) => httpPost(`/organizations/join-requests/${encodeURIComponent(requestId)}/deny`, { reason }),
 };
 
 export const Team = {
@@ -440,6 +440,7 @@ export const Team = {
   myInvites: () => httpGet('/teams/invites/me'),
   acceptInvite: (inviteId: string) => httpPost(`/teams/invites/${encodeURIComponent(inviteId)}/accept`, {}),
   declineInvite: (inviteId: string) => httpPost(`/teams/invites/${encodeURIComponent(inviteId)}/decline`, {}),
+  transferOwnership: (teamId: string, newOwnerId: string) => httpPost(`/teams/${encodeURIComponent(teamId)}/transfer-ownership`, { new_owner_id: newOwnerId }),
   updateMember: (
     membershipId: string,
     data: { role?: string; custom_position?: string | null }
@@ -557,6 +558,7 @@ export const Advertisement = {
   listAll: () => httpGet('/ads?all=1'),
   get: (id: string) => httpGet('/ads/' + encodeURIComponent(id)),
   update: (id: string, data: any) => httpPut('/ads/' + encodeURIComponent(id), data),
+  review: (id: string, action: 'approve' | 'reject') => httpPost('/ads/' + encodeURIComponent(id) + '/review', { action }),
   delete: (id: string) => httpDelete('/ads/' + encodeURIComponent(id)),
   forFeed: (dateISO?: string, zip?: string, limit: number = 1, lat?: number, lng?: number) => {
     const q: string[] = [];

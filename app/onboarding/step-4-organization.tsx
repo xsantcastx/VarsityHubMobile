@@ -435,7 +435,7 @@ export default function Step4Organization() {
           'Authentication Required',
           'Please verify your email address or log in again to continue.',
           [
-            { text: 'Verify Email', onPress: () => router.push('/verify-email') },
+            { text: 'Verify Email', onPress: () => router.push('/(tabs)/verify-email') },
             { text: 'Cancel', style: 'cancel' }
           ]
         );

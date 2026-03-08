@@ -454,9 +454,12 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
       if (!opponent.trim()) {
         newErrors.opponent = 'Opponent name is required';
       }
-      // Away games require venue location
+      // All games require a venue location
       if (gameType === 'away' && !awayVenue.trim()) {
         newErrors.awayVenue = 'Away venue location is required';
+      }
+      if (gameType === 'home' && !homeVenue.trim()) {
+        newErrors.homeVenue = 'Home venue location is required';
       }
     } else {
       // Non-competitive events need event title

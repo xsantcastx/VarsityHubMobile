@@ -208,7 +208,7 @@ gamesRouter.post('/', requireAuth as any, gameCreationLimiter, async (req: Authe
     away_team_id: z.string().trim().optional(), // Team ID if opponent exists in system
     away_team_name: z.string().trim().optional(), // Manual opponent name if not in system
     date: z.string().datetime().optional(),
-    location: z.string().trim().optional(),
+    location: z.string().trim().min(1, 'Location is required'),
     description: z.string().trim().optional(),
     cover_image_url: z.string().url().optional(),
     banner_url: z.string().url().optional(),

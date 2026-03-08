@@ -1,3 +1,53 @@
+/**
+ * VideoTrimmer — Native Video Trimming Component
+ *
+ * REQUIRES: react-native-video-trim (native module)
+ * This component will NOT work in Expo Go. It requires a custom dev build via EAS.
+ *
+ * ─── Setup Steps ───────────────────────────────────────────────────────
+ *
+ * 1. Install the native module (already in package.json):
+ *      npx expo install react-native-video-trim
+ *
+ * 2. Create a custom dev build with EAS:
+ *      npx eas-cli build --profile development --platform ios
+ *      npx eas-cli build --profile development --platform android
+ *
+ *    Or for production App Store / Play Store submission:
+ *      npx eas-cli build --profile production --platform ios
+ *      npx eas-cli build --profile production --platform android
+ *
+ * 3. For local development with the custom build:
+ *      npx expo start --dev-client
+ *
+ * ─── How It Works ──────────────────────────────────────────────────────
+ *
+ * - The `trim` function is lazily loaded via try/catch require().
+ * - If the native module is missing (Expo Go), trim is null and the
+ *   component shows an alert directing the user to use a dev build.
+ * - When available, it calls react-native-video-trim's trim() with
+ *   startTime/endTime in seconds, returning the trimmed file path.
+ *
+ * ─── EAS Build Profiles (eas.json) ────────────────────────────────────
+ *
+ * Ensure your eas.json has these profiles:
+ *
+ *   "development": {
+ *     "developmentClient": true,
+ *     "distribution": "internal"
+ *   },
+ *   "production": {
+ *     "autoIncrement": true
+ *   }
+ *
+ * ─── Post-Launch Note ──────────────────────────────────────────────────
+ *
+ * Video trim is fully wired up in the UI. Once the app is submitted
+ * via EAS Build (not Expo Go), trimming will work automatically with
+ * no code changes needed.
+ * ────────────────────────────────────────────────────────────────────────
+ */
+
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,

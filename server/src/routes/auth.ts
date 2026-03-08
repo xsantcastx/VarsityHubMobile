@@ -1285,7 +1285,7 @@ authRouter.post('/me/complete-onboarding', requireAuth as any, async (req: Authe
 });
 
 // Request a new email verification code (authenticated)
-authRouter.post('/verify/request', async (req: AuthedRequest, res) => {
+authRouter.post('/verify/request', requireAuth as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const user = await prisma.user.findUnique({ where: { id: req.user.id } });
   if (!user) return res.status(404).json({ error: 'Not found' });
@@ -1321,12 +1321,12 @@ authRouter.post('/verify/request', async (req: AuthedRequest, res) => {
 });
 
 // Alias: /auth/verify/send
-authRouter.post('/verify/send', async (req: AuthedRequest, res) => {
+authRouter.post('/verify/send', requireAuth as any, async (req: AuthedRequest, res) => {
   (authRouter as any).handle({ ...req, url: '/verify/request' }, res);
 });
 
 // Verify code (authenticated)
-authRouter.post('/verify/confirm', async (req: AuthedRequest, res) => {
+authRouter.post('/verify/confirm', requireAuth as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const schema = z.object({ code: z.string().min(4).max(8) });
   const parsed = schema.safeParse(req.body);

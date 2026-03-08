@@ -114,7 +114,7 @@ export default function CreateCollageScreen() {
       if (router.canGoBack()) {
         if (router.canGoBack()) router.back();
       } else {
-        router.replace('/(tabs)' as any);
+        router.push('/(tabs)' as any);
       }
     } catch (e: any) {
       Alert.alert('Publish failed', e?.message || 'Try again later.');

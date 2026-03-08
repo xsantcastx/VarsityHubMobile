@@ -131,7 +131,7 @@ export default function GameMapScreen() {
   const handleEventPress = (eventId: string, eventType?: 'game' | 'event' | 'post') => {
     if (eventType === 'event') {
       // Navigate to event detail page for events (using query param format)
-      router.push(`/event-detail?id=${String(eventId)}`);
+      router.push(`/(tabs)/event-detail?id=${String(eventId)}`);
     } else {
       // Navigate to game detail page for games (or posts)
       router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(eventId) } });

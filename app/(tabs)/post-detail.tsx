@@ -111,11 +111,12 @@ export default function PostDetailScreen() {
 
   const pinchGesture = Gesture.Pinch()
     .onUpdate((e) => {
-      imageScale.value = Math.max(0.5, Math.min(5, savedScale.value * e.scale));
+      // Reduced sensitivity: max 2.5x zoom, no sub-1x shrink
+      imageScale.value = Math.max(1, Math.min(2.5, savedScale.value * e.scale));
     })
     .onEnd(() => {
       savedScale.value = imageScale.value;
-      if (imageScale.value < 1) {
+      if (imageScale.value < 1.05) {
         imageScale.value = withSpring(1);
         savedScale.value = 1;
       }
@@ -711,7 +712,7 @@ export default function PostDetailScreen() {
           {postData.game && (
             <Pressable 
               style={[styles.gameInfo, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
-              onPress={() => { if (postData.game?.id) { void router.push(`/game-detail?id=${postData.game.id}`);
+              onPress={() => { if (postData.game?.id) { void router.push(`/(tabs)/game-detail?id=${postData.game.id}`);
                 }
               }}
             >
@@ -737,7 +738,7 @@ export default function PostDetailScreen() {
             <Pressable 
               style={[styles.teamInfo, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
               onPress={() => { const teamId = postData.team_id || postData.team?.id;
-                if (teamId) { void router.push(`/team-profile?id=${teamId}`);
+                if (teamId) { void router.push(`/(tabs)/team-profile?id=${teamId}`);
                 }
               }}
             >
@@ -760,7 +761,7 @@ export default function PostDetailScreen() {
           <View style={styles.authorSection}>
             <Pressable 
               style={styles.authorInfo}
-              onPress={() => { if (postData.author_id) { void router.push(`/user-profile?id=${postData.author_id}`);
+              onPress={() => { if (postData.author_id) { void router.push(`/(tabs)/user-profile?id=${postData.author_id}`);
                 }
               }}
               disabled={!postData.author_id}
@@ -925,7 +926,7 @@ export default function PostDetailScreen() {
                   <View style={styles.commentHeader}>
                     <Pressable 
                       style={styles.commentAuthor}
-                      onPress={() => { if (c.author_id) { void router.push(`/user-profile?id=${c.author_id}`);
+                      onPress={() => { if (c.author_id) { void router.push(`/(tabs)/user-profile?id=${c.author_id}`);
                         }
                       }}
                       disabled={!c.author_id}
@@ -992,15 +993,12 @@ export default function PostDetailScreen() {
       {/* Custom Header */}
       <View style={[styles.header, { backgroundColor: Colors[colorScheme].surface, borderBottomColor: Colors[colorScheme].border }]}>
         <Pressable style={styles.backButton} onPress={() => {
-          if (params.from === 'highlights') {
-            // Explicit navigation back to highlights tab — router.back() unreliably
-            // returns to the feed tab because post-detail is a sibling tab screen,
-            // not a stacked screen within the highlights tab.
+          if (router.canGoBack()) {
+            router.back();
+          } else if (params.from === 'highlights') {
             router.navigate('/(tabs)/highlights' as any);
-          } else if (router.canGoBack()) {
-            if (router.canGoBack()) router.back();
           } else {
-            router.replace('/(tabs)' as any);
+            router.push('/(tabs)' as any);
           }
         }}>
           <Ionicons name="arrow-back" size={24} color={Colors[colorScheme].text} />
@@ -1128,19 +1126,12 @@ export default function PostDetailScreen() {
                 <Animated.View style={[styles.fullscreenImageWrapper, imageAnimatedStyle]}>
                   <ExpoImage
                     source={{ uri: post.media_url }}
-                    style={[styles.fullscreenImage, { transform: [{ rotate: `${imageRotation}deg` }] }]}
+                    style={styles.fullscreenImage}
                     contentFit="contain"
                   />
                 </Animated.View>
               </GestureDetector>
-              {/* Rotate button */}
-              <Pressable
-                style={styles.fullscreenRotateButton}
-                onPress={() => setImageRotation((r) => (r + 90) % 360)}
-                hitSlop={8}
-              >
-                <Ionicons name="refresh" size={26} color="#fff" />
-              </Pressable>
+              {/* Rotate button removed — caused images to flip upside down */}
             </>
           )}
 
@@ -1148,6 +1139,8 @@ export default function PostDetailScreen() {
             <VideoPlayer
               uri={post.media_url}
               style={styles.fullscreenVideo}
+              autoPlay
+              nativeControls
             />
           )}
         </View>

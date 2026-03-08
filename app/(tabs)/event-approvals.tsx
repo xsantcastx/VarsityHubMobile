@@ -2,7 +2,7 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -11,6 +11,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -86,9 +87,14 @@ export default function EventApprovalsScreen() {
   const [orgRequests, setOrgRequests] = useState<OrgJoinRequest[]>([]);
   const [orgRequestsLoading, setOrgRequestsLoading] = useState(true);
 
+  const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   // ── Loaders ──────────────────────────────────────────────────────────────
+
+  const loadEventsFailedRef = useRef(false);
+  const loadInvitesFailedRef = useRef(false);
+  const loadOrgFailedRef = useRef(false);
 
   const loadEvents = async () => {
     try {
@@ -97,9 +103,11 @@ export default function EventApprovalsScreen() {
         ? data.filter((e: any) => e?.approval_status === 'pending')
         : [];
       setEvents(pending);
+      loadEventsFailedRef.current = false;
     } catch (e: any) {
       console.warn('[Approvals] Events load failed:', e?.message);
       setEvents([]);
+      loadEventsFailedRef.current = true;
     } finally {
       setEventsLoading(false);
     }
@@ -112,9 +120,11 @@ export default function EventApprovalsScreen() {
         ? data.filter((inv: any) => inv?.status === 'pending')
         : [];
       setTeamInvites(pending);
+      loadInvitesFailedRef.current = false;
     } catch (e: any) {
       console.warn('[Approvals] Team invites load failed:', e?.message);
       setTeamInvites([]);
+      loadInvitesFailedRef.current = true;
     } finally {
       setInvitesLoading(false);
     }
@@ -127,16 +137,22 @@ export default function EventApprovalsScreen() {
         ? data.filter((r: any) => r?.status === 'pending')
         : [];
       setOrgRequests(pending);
+      loadOrgFailedRef.current = false;
     } catch (e: any) {
       console.warn('[Approvals] Org join requests load failed:', e?.message);
       setOrgRequests([]);
+      loadOrgFailedRef.current = true;
     } finally {
       setOrgRequestsLoading(false);
     }
   };
 
   const loadAll = useCallback(async () => {
+    setError(null);
     await Promise.allSettled([loadEvents(), loadTeamInvites(), loadOrgRequests()]);
+    if (loadEventsFailedRef.current && loadInvitesFailedRef.current && loadOrgFailedRef.current) {
+      setError('Failed to load approvals. Pull down to refresh.');
+    }
   }, []);
 
   useEffect(() => { void loadAll(); }, []);
@@ -401,11 +417,19 @@ export default function EventApprovalsScreen() {
             </Pressable>
           ) }} />
 
-      {isLoading && !refreshing ? (
+      {error && !isLoading && (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <Text style={{ color: '#ff4444', fontSize: 16, textAlign: 'center', marginBottom: 16 }}>{error}</Text>
+          <TouchableOpacity onPress={() => { setError(null); setEventsLoading(true); setInvitesLoading(true); setOrgRequestsLoading(true); void loadAll(); }} style={{ backgroundColor: '#1e3a5f', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 }}>
+            <Text style={{ color: '#fff', fontWeight: '600' }}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+      {!error && isLoading && !refreshing ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={C.tint} />
         </View>
-      ) : (
+      ) : !error && (
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           refreshControl={

@@ -5,7 +5,7 @@ import { requireAuth } from '../middleware/requireAuth.js';
 
 export const promosRouter = Router();
 
-promosRouter.post('/preview', async (req: AuthedRequest, res) => {
+promosRouter.post('/preview', requireAuth as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'unauthorized' });
   const { code, subtotal_cents, service } = (req.body as any) || {};
   const result = await previewPromo({

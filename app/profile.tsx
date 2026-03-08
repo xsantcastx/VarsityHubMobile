@@ -747,18 +747,15 @@ export default function ProfileScreen() {
               style={[
                 styles.headerFollowButton,
                 isFollowing
-                  ? { backgroundColor: 'transparent', borderColor: '#FFB800', borderWidth: 1.5 }
-                  : { backgroundColor: 'transparent', borderColor: '#FFFFFF', borderWidth: 1.5 }
+                  ? { backgroundColor: '#FFD600', borderWidth: 0, width: 36, height: 36, borderRadius: 18 }
+                  : { backgroundColor: '#FFD600', borderWidth: 0, width: 36, height: 36, borderRadius: 18 }
               ]}
               onPress={handleFollowToggle}
             >
               {isFollowing ? (
-                <MaterialIcons name="check-circle" size={18} color="#FFB800" />
+                <MaterialIcons name="check" size={18} color="#000" />
               ) : (
-                <>
-                  <MaterialIcons name="person-add" size={15} color="#FFFFFF" />
-                  <Text style={[styles.headerFollowButtonText, { color: '#FFFFFF' }]}>Follow</Text>
-                </>
+                <MaterialIcons name="person-add" size={16} color="#000" />
               )}
             </Pressable>
           ) : null}
@@ -817,7 +814,7 @@ export default function ProfileScreen() {
         {/* Edit Profile Button Row - Only shown when viewing own profile */}
         {!viewingUserId || viewingUserId === currentUserId ? (
           <View style={styles.usernameRow}>
-            <Pressable style={[styles.editButtonBelowBanner, { backgroundColor: theme.surface || theme.background, borderColor: theme.border }]} onPress={() => void router.push('/edit-profile')}>
+            <Pressable style={[styles.editButtonBelowBanner, { backgroundColor: theme.surface || theme.background, borderColor: theme.border }]} onPress={() => void router.push('/(tabs)/edit-profile')}>
               <Text style={[styles.editButtonBelowBannerText, { color: theme.text }]}>Edit profile</Text>
             </Pressable>
           </View>
@@ -1425,6 +1422,7 @@ const styles = StyleSheet.create({
     elevation: 100,
   },
   avatarSection: {
+    marginBottom: -50, // Half of 100px avatar hangs below banner — closes the gap
     zIndex: 99999,
     elevation: 99999,
     position: 'relative',
@@ -1504,16 +1502,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   followButtonBelowBanner: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    minWidth: 100,
+    backgroundColor: '#FFD600',
   },
   followButtonBelowBannerText: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#000',
   },
   followingIndicator: {
     width: 28,
@@ -1526,7 +1525,7 @@ const styles = StyleSheet.create({
   // Profile Details Below Banner — paddingTop clears the overlapping avatar
   profileDetailsContainer: {
     backgroundColor: 'transparent',
-    paddingTop: 54,
+    paddingTop: 8,
     marginBottom: 0,
     paddingBottom: 0,
     gap: 2,

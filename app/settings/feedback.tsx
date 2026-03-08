@@ -37,7 +37,7 @@ export default function FeedbackScreen() {
       if (router.canGoBack()) {
         if (router.canGoBack()) router.back();
       } else {
-        router.replace('/(tabs)' as any);
+        router.push('/(tabs)' as any);
       }
     } catch (e: any) { Alert.alert('Failed', e?.message || 'Try again later'); } finally { setSending(false); }
   };

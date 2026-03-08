@@ -584,7 +584,7 @@ organizationsRouter.get('/search/nearby', async (req, res) => {
 });
 
 // Check for duplicate organizations using normalized name comparison
-organizationsRouter.post('/check-duplicate', async (req, res) => {
+organizationsRouter.post('/check-duplicate', requireAuth as any, async (req, res) => {
   const { name, zip_code } = req.body;
 
   if (!name) {

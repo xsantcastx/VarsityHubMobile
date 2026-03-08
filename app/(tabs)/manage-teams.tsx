@@ -84,7 +84,7 @@ export default function ManageTeamsSimpleScreen() {
         const role = prefs.role;
         if (role !== 'coach') {
           Alert.alert('Restricted', 'Only coach accounts can access Manage Teams.');
-          router.replace('/(tabs)');
+          router.push('/(tabs)');
           return;
         }
         // Check deferred payment status for paid plans (Rule A: use pending_plan)
@@ -341,7 +341,7 @@ export default function ManageTeamsSimpleScreen() {
             }}
           >
             <LinearGradient
-              colors={['#8B5CF6', '#6366F1']}
+              colors={['#111827', '#1F2937']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.leagueGradient}
@@ -414,7 +414,7 @@ export default function ManageTeamsSimpleScreen() {
                   member_count: team.members,
                   role: team.my_role as any,
                 }}
-                onPress={() => void router.push(`/team-profile?id=${team.id}`)}
+                onPress={() => void router.push(`/(tabs)/team-profile?id=${team.id}`)}
                 showRole={true}
                 style={{ marginBottom: 12 }}
               />

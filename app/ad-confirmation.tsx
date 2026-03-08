@@ -207,7 +207,7 @@ export default function AdConfirmationScreen() {
         <View style={styles.actions}>
           <Pressable
             style={[styles.primaryButton, { backgroundColor: '#10B981' }]}
-            onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/(tabs)/my-ads'); }}
+            onPress={() => { if (router.canGoBack()) router.back(); else router.push('/(tabs)/my-ads'); }}
           >
             <MaterialIcons name="work" size={20} color="#ffffff" />
             <Text style={styles.primaryButtonText}>View My Ads</Text>
@@ -215,7 +215,7 @@ export default function AdConfirmationScreen() {
 
           <Pressable
             style={[styles.secondaryButton, { borderColor: Colors[colorScheme].border, backgroundColor: Colors[colorScheme].card }]}
-            onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/(tabs)'); }}
+            onPress={() => { if (router.canGoBack()) router.back(); else router.push('/(tabs)'); }}
           >
             <MaterialIcons name="home" size={20} color={Colors[colorScheme].text} />
             <Text style={[styles.secondaryButtonText, { color: Colors[colorScheme].text }]}>

@@ -60,7 +60,7 @@ export default function EditUsernameScreen() {
       if (router.canGoBack()) {
         if (router.canGoBack()) router.back();
       } else {
-        router.replace('/(tabs)' as any);
+        router.push('/(tabs)' as any);
       }
     } catch (e: any) {
       let errorMessage = 'Could not save username';

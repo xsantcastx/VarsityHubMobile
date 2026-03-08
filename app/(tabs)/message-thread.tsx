@@ -294,7 +294,7 @@ export default function MessageThreadScreen() {
 
           <Pressable
             style={styles.headerProfile}
-            onPress={() => { if (otherParticipant?.id) { void router.push(`/user-profile?id=${encodeURIComponent(otherParticipant.id)}`);
+            onPress={() => { if (otherParticipant?.id) { void router.push(`/(tabs)/user-profile?id=${encodeURIComponent(otherParticipant.id)}`);
               }
             }}
           >
@@ -405,7 +405,7 @@ export default function MessageThreadScreen() {
                             if (router.canGoBack()) {
                               if (router.canGoBack()) router.back();
                             } else {
-                              router.replace('/(tabs)' as any);
+                              router.push('/(tabs)' as any);
                             }
                           } catch (error: any) {
                             Alert.alert('Error', error.message || 'Failed to block user');

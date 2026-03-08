@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -15,12 +15,14 @@ export default function FollowingScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const { id, username } = useLocalSearchParams<{ id: string; username?: string }>();
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [users, setUsers] = useState<any[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [search, setSearch] = useState('');
 
   const loadFollowing = useCallback(async (cursor?: string) => {
     if (!id) return;
+    if (!cursor) setError(null);
     setLoading(true);
     try {
       const { items, nextCursor: newCursor } = await User.following(id, cursor);
@@ -28,6 +30,7 @@ export default function FollowingScreen() {
       setNextCursor(newCursor);
     } catch (error) {
       console.error('Failed to load following', error);
+      if (!cursor) setError('Failed to load following. Pull down to refresh.');
     } finally {
       setLoading(false);
     }
@@ -59,7 +62,7 @@ export default function FollowingScreen() {
     <View style={styles.userRow}>
       <Pressable 
         style={styles.userInfo}
-        onPress={() => void router.push(`/user-profile?id=${item.id}`)}
+        onPress={() => void router.push(`/(tabs)/user-profile?id=${item.id}`)}
       >
         <Avatar uri={item.avatar_url} />
         <Text style={styles.userName}>{item.display_name}</Text>
@@ -89,9 +92,17 @@ export default function FollowingScreen() {
         onChangeText={setSearch}
         style={styles.searchInput}
       />
-      {loading && users.length === 0 ? (
+      {error && !loading && (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <Text style={{ color: '#ff4444', fontSize: 16, textAlign: 'center', marginBottom: 16 }}>{error}</Text>
+          <TouchableOpacity onPress={() => { setError(null); void loadFollowing(); }} style={{ backgroundColor: '#1e3a5f', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 }}>
+            <Text style={{ color: '#fff', fontWeight: '600' }}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+      {!error && loading && users.length === 0 ? (
         <ActivityIndicator style={{ marginTop: 20 }} />
-      ) : (
+      ) : !error && (
         <FlatList
           data={filteredUsers}
           renderItem={renderUser}

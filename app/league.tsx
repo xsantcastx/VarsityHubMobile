@@ -365,7 +365,7 @@ export default function LeagueScreen() {
 
   const handleEventPress = (event: LeagueEvent) => {
     router.push({
-      pathname: '/event-detail',
+      pathname: '/(tabs)/event-detail',
       params: { id: event.id }
     });
   };

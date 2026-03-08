@@ -363,7 +363,7 @@ export default function CreatePostScreen() {
         quality: media === 'image' ? 0.85 : undefined,
         exif: false,
         videoMaxDuration: 30,
-        videoExportPreset: ImagePicker.VideoExportPreset.H264_960x540, // Force transcode
+        videoExportPreset: ImagePicker.VideoExportPreset.MediumQuality,
       } as any);
       if (!r.canceled && r.assets && r.assets[0]) {
         const a = r.assets[0];
@@ -845,6 +845,9 @@ export default function CreatePostScreen() {
                     onTrimComplete={(u) => setTrimmedUri(u)}
                     onTrimReset={() => setTrimmedUri(null)}
                   />
+                  <Text style={[styles.cropHint, { color: Colors[colorScheme].mutedText }]}>
+                    Video cropping coming soon.
+                  </Text>
                 </>
               )}
               <Pressable style={styles.removeButton} onPress={() => setPicked(null)} accessibilityLabel="Remove media">
@@ -951,9 +954,8 @@ export default function CreatePostScreen() {
 
         {/* Footer */}
         <View style={styles.footerSection}>
-          <Pressable onPress={() => {}}>
-            <Text style={[styles.footerLink, { color: Colors[colorScheme].tint }]}>Respect all the players on the field.</Text>
-          </Pressable>
+          {/* TODO: Link to community guidelines page when available */}
+          <Text style={[styles.footerLink, { color: Colors[colorScheme].tint }]}>Respect all the players on the field.</Text>
           {showPrecisionWarning ? (
             <View style={[styles.warningBanner, { 
               backgroundColor: colorScheme === 'dark' ? Colors[colorScheme].surface : '#FEF9C3', 
@@ -1523,6 +1525,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center'
   },
   
+  cropHint: {
+    fontSize: 12,
+    fontStyle: 'italic',
+    textAlign: 'center',
+    marginTop: 6,
+    marginBottom: 2,
+  },
   // Game/Event Section
   gameSection: {
     marginBottom: 24,

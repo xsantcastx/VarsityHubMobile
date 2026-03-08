@@ -1459,7 +1459,7 @@ export default function TeamChatScreen() {
       style={[styles.memberCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
       onPress={() => {
         if (item.user?.id) {
-          void router.push(`/user-profile?id=${encodeURIComponent(item.user.id)}`);
+          void router.push(`/(tabs)/user-profile?id=${encodeURIComponent(item.user.id)}`);
         }
       }}
       disabled={!item.user?.id}

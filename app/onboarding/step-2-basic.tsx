@@ -302,7 +302,7 @@ export default function Step2Basic() {
       aboveTitle={<SportBallRow />}
       onBack={onBack}
       emailVerified={emailVerified === null ? undefined : emailVerified}
-      onVerifyEmail={() => void router.push('/verify-email')}
+      onVerifyEmail={() => void router.push('/(tabs)/verify-email')}
     >
       <Stack.Screen options={{ headerShown: false }} />
       

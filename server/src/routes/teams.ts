@@ -644,7 +644,7 @@ teamsRouter.delete('/:id', requireVerified as any, async (req: AuthedRequest, re
 
 // Dev helper: update just the logo_url of a team (useful for testing uploads quickly)
 if (process.env.NODE_ENV !== 'production') {
-  teamsRouter.post('/:id/dev-set-logo', async (req, res) => {
+  teamsRouter.post('/:id/dev-set-logo', requireAuth as any, async (req, res) => {
     const id = String(req.params.id);
     const { logo_url } = req.body || {};
     try {
@@ -1069,7 +1069,7 @@ teamsRouter.post('/create', requireVerified as any, requirePlan('rookie') as any
 
 // Invite user by email to a team
 const inviteSchema = z.object({ email: z.string().email(), role: z.string().optional() });
-teamsRouter.post('/:id/invite', inviteLimiter, async (req: AuthedRequest, res) => {
+teamsRouter.post('/:id/invite', requireAuth as any, inviteLimiter, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const id = String(req.params.id);
   const parsed = inviteSchema.safeParse(req.body);
@@ -1215,7 +1215,7 @@ teamsRouter.post('/:id/invite', inviteLimiter, async (req: AuthedRequest, res) =
 });
 
 // List invites for the authed user's email
-teamsRouter.get('/invites/me', async (req: AuthedRequest, res) => {
+teamsRouter.get('/invites/me', requireAuth as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const user = await prisma.user.findUnique({ where: { id: req.user.id } });
   if (!user?.email) return res.status(400).json({ error: 'User email not found' });
@@ -1225,7 +1225,7 @@ teamsRouter.get('/invites/me', async (req: AuthedRequest, res) => {
 });
 
 // Accept invite
-teamsRouter.post('/invites/:inviteId/accept', async (req: AuthedRequest, res) => {
+teamsRouter.post('/invites/:inviteId/accept', requireAuth as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const inviteId = String(req.params.inviteId);
   const invite = await prisma.teamInvite.findUnique({ where: { id: inviteId } });
@@ -1307,7 +1307,7 @@ teamsRouter.post('/invites/:inviteId/accept', async (req: AuthedRequest, res) =>
 });
 
 // Decline invite
-teamsRouter.post('/invites/:inviteId/decline', async (req: AuthedRequest, res) => {
+teamsRouter.post('/invites/:inviteId/decline', requireAuth as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const inviteId = String(req.params.inviteId);
   const invite = await prisma.teamInvite.findUnique({ where: { id: inviteId } });
@@ -1316,4 +1316,44 @@ teamsRouter.post('/invites/:inviteId/decline', async (req: AuthedRequest, res) =
   if (!user?.email || user.email.toLowerCase() !== invite.email.toLowerCase()) return res.status(403).json({ error: 'Invite not for this user' });
   await prisma.teamInvite.update({ where: { id: invite.id }, data: { status: 'declined' } });
   return res.json({ ok: true });
+});
+
+// Transfer team ownership
+teamsRouter.post('/:id/transfer-ownership', requireAuth as any, async (req: AuthedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+  const teamId = String(req.params.id);
+  const { new_owner_id } = req.body || {};
+  if (!new_owner_id || typeof new_owner_id !== 'string') {
+    return res.status(400).json({ error: 'new_owner_id is required' });
+  }
+
+  // Verify current user is the owner
+  const currentMembership = await prisma.teamMembership.findUnique({
+    where: { team_id_user_id: { team_id: teamId, user_id: req.user.id } }
+  });
+  if (!currentMembership || currentMembership.role !== 'owner') {
+    return res.status(403).json({ error: 'Only the team owner can transfer ownership' });
+  }
+
+  // Verify new owner is a member of the team
+  const newOwnerMembership = await prisma.teamMembership.findUnique({
+    where: { team_id_user_id: { team_id: teamId, user_id: new_owner_id } }
+  });
+  if (!newOwnerMembership) {
+    return res.status(400).json({ error: 'New owner must be an existing team member' });
+  }
+
+  // Transfer: demote current owner to manager, promote new owner
+  await prisma.$transaction([
+    prisma.teamMembership.update({
+      where: { team_id_user_id: { team_id: teamId, user_id: req.user.id } },
+      data: { role: 'manager' }
+    }),
+    prisma.teamMembership.update({
+      where: { team_id_user_id: { team_id: teamId, user_id: new_owner_id } },
+      data: { role: 'owner' }
+    })
+  ]);
+
+  return res.json({ ok: true, message: 'Ownership transferred successfully' });
 });

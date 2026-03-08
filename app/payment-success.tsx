@@ -156,7 +156,7 @@ export default function PaymentSuccessScreen() {
             >
               <Text style={styles.primaryBtnText}>Try Again</Text>
             </Pressable>
-            <Pressable style={styles.linkBtn} onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/(tabs)/feed'); }}>
+            <Pressable style={styles.linkBtn} onPress={() => { if (router.canGoBack()) router.back(); else router.push('/(tabs)/feed'); }}>
               <Text style={[styles.linkBtnText, { color: theme.mutedText }]}>Continue to App</Text>
             </Pressable>
           </View>
@@ -241,7 +241,7 @@ export default function PaymentSuccessScreen() {
                 {isAdPayment && (
                   <Pressable
                     style={[styles.primaryBtn, { backgroundColor: theme.tint }]}
-                    onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/(tabs)/my-ads'); }}
+                    onPress={() => { if (router.canGoBack()) router.back(); else router.push('/(tabs)/my-ads'); }}
                   >
                     <MaterialIcons name="campaign" size={20} color="#fff" style={{ marginRight: 8 }} />
                     <Text style={styles.primaryBtnText}>View My Ads</Text>
@@ -251,7 +251,7 @@ export default function PaymentSuccessScreen() {
                   <>
                     <Pressable
                       style={[styles.primaryBtn, { backgroundColor: theme.tint }]}
-                      onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/(tabs)/create-team'); }}
+                      onPress={() => { if (router.canGoBack()) router.back(); else router.push('/(tabs)/create-team'); }}
                     >
                       <Text style={styles.primaryBtnText}>Create a Team</Text>
                     </Pressable>
@@ -259,7 +259,7 @@ export default function PaymentSuccessScreen() {
                 )}
                 <Pressable
                   style={[styles.secondaryBtn, { borderColor: theme.border }]}
-                  onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/(tabs)/feed'); }}
+                  onPress={() => { if (router.canGoBack()) router.back(); else router.push('/(tabs)/feed'); }}
                 >
                   <Text style={[styles.secondaryBtnText, { color: theme.text }]}>Back to Feed</Text>
                 </Pressable>

@@ -1836,13 +1836,13 @@ const renderBanner = () => {
         onLeftPress={() => {
           // Navigate to home team profile if team object exists
           if (homeTeamObj?.id) {
-            void router.push(`/team-profile?id=${homeTeamObj.id}`);
+            void router.push(`/(tabs)/team-profile?id=${homeTeamObj.id}`);
           }
         }}
         onRightPress={() => {
           // Navigate to away team profile if team object exists
           if (awayTeamObj?.id) {
-            void router.push(`/team-profile?id=${awayTeamObj.id}`);
+            void router.push(`/(tabs)/team-profile?id=${awayTeamObj.id}`);
           }
         }}
         leftColor={(homeTeamObj as any)?.color}

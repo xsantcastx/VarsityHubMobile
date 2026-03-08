@@ -16,7 +16,7 @@ export default function PaymentCancelScreen() {
     if (isAd) {
       const timer = setTimeout(() => {
         if (router.canGoBack()) router.back();
-        else router.replace('/(tabs)/my-ads');
+        else router.push('/(tabs)/my-ads');
       }, 1500);
       return () => clearTimeout(timer);
     }
@@ -26,14 +26,14 @@ export default function PaymentCancelScreen() {
     if (isAd) {
       // Go back to ad calendar with selections preserved
       if (router.canGoBack()) router.back();
-      else router.replace('/(tabs)/my-ads');
+      else router.push('/(tabs)/my-ads');
     } else {
       router.replace('/onboarding/step-3-plan');
     }
   };
 
   const handleContinue = () => {
-    if (router.canGoBack()) router.back(); else router.replace('/(tabs)');
+    if (router.canGoBack()) router.back(); else router.push('/(tabs)');
   };
 
   return (

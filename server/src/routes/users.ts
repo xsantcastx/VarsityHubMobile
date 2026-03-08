@@ -535,14 +535,25 @@ usersRouter.get('/username-available', async (req: AuthedRequest, res) => {
   return res.json({ available: !exists, valid: true });
 });
 
-// Lookup user by email (for onboarding authorized users flow)
-// CRITICAL: Requires authentication and rate limiting to prevent email enumeration
+// Lookup user by email or username (for onboarding authorized users flow)
+// CRITICAL: Requires authentication and rate limiting to prevent enumeration
 usersRouter.get('/lookup', requireAuth as any, userLookupLimiter, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
   const email = String((req.query as any).email || '').trim().toLowerCase();
+  const username = String((req.query as any).username || '').trim().toLowerCase();
+
+  if (username) {
+    const u = await prisma.user.findFirst({
+      where: { username: { equals: username, mode: 'insensitive' } },
+      select: { id: true, email: true, display_name: true, username: true, avatar_url: true }
+    });
+    if (!u) return res.status(404).json({ error: 'Not found' });
+    return res.json(u);
+  }
+
   if (!email || !email.includes('@')) {
-    return res.status(400).json({ error: 'Invalid email' });
+    return res.status(400).json({ error: 'Invalid email or username required' });
   }
 
   const u = await prisma.user.findUnique({

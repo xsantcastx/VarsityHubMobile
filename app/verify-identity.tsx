@@ -74,7 +74,7 @@ export default function VerifyScreen() {
           if (needsOnboarding) {
             router.replace('/onboarding/step-1-role');
           } else {
-            router.replace('/(tabs)' as any);
+            router.push('/(tabs)' as any);
           }
         }, 3000);
 
@@ -112,7 +112,7 @@ export default function VerifyScreen() {
       if (needsOnboarding) {
         router.replace('/onboarding/step-1-role');
       } else {
-        router.replace('/(tabs)' as any);
+        router.push('/(tabs)' as any);
       }
     } catch {
       router.replace('/onboarding/step-1-role');

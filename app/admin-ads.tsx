@@ -63,7 +63,7 @@ export default function AdminAdsScreen() {
     try {
       for (const adId of Array.from(selectedAds)) {
         try {
-          await AdsApi.update(adId, { status: 'approved' });
+          await AdsApi.review(adId, 'approve');
         } catch (e) {
           console.error('Failed to approve ad:', adId, e);
         }
@@ -95,7 +95,7 @@ export default function AdminAdsScreen() {
             try {
               for (const adId of Array.from(selectedAds)) {
                 try {
-                  await AdsApi.update(adId, { status: 'rejected' });
+                  await AdsApi.review(adId, 'reject');
                 } catch (e) {
                   console.error('Failed to reject ad:', adId, e);
                 }
@@ -246,11 +246,11 @@ export default function AdminAdsScreen() {
             <View style={{ flexDirection: 'row', gap: 8 }}>
               {item.status === 'pending' && (
                 <>
-                  <Pressable 
-                    style={[styles.btn, { backgroundColor: '#22c55e', flex: 1 }]} 
+                  <Pressable
+                    style={[styles.btn, { backgroundColor: '#22c55e', flex: 1 }]}
                     onPress={async () => {
                       try {
-                        await AdsApi.update(item.id, { status: 'approved' });
+                        await AdsApi.review(item.id, 'approve');
                         Alert.alert('Success', 'Ad approved');
                         await load();
                       } catch (e: any) {
@@ -261,11 +261,11 @@ export default function AdminAdsScreen() {
                     <Ionicons name="checkmark-circle" size={16} color="#fff" />
                     <Text style={styles.btnText}>Approve</Text>
                   </Pressable>
-                  <Pressable 
-                    style={[styles.btn, { backgroundColor: '#dc2626', flex: 1 }]} 
+                  <Pressable
+                    style={[styles.btn, { backgroundColor: '#dc2626', flex: 1 }]}
                     onPress={async () => {
                       try {
-                        await AdsApi.update(item.id, { status: 'rejected' });
+                        await AdsApi.review(item.id, 'reject');
                         Alert.alert('Success', 'Ad rejected');
                         await load();
                       } catch (e: any) {

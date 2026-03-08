@@ -494,13 +494,13 @@ export default function EditProfileScreen() {
       // Redirect based on role
       if (userRole === 'coach' || userRole === 'admin') {
         // Coaches and admins go to team profile
-        router.replace('/team-profile');
+        router.replace('/(tabs)/team-profile');
       } else {
         // Fans go back to previous screen
         if (router.canGoBack()) {
           if (router.canGoBack()) router.back();
         } else {
-          router.replace('/(tabs)' as any);
+          router.push('/(tabs)' as any);
         }
       }
     } catch (e: any) {

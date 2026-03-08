@@ -5,10 +5,11 @@ import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Organization, Team } from '@/api/entities';
+import { useAuth } from '@/context/AuthProvider';
 import { uploadFile } from '@/api/upload';
 import { getApiBaseUrl } from '@/api/http';
 
@@ -28,6 +29,14 @@ export default function EditTeamScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [team, setTeam] = useState<any>(null);
+  const { user: currentUser } = useAuth();
+
+  // Transfer ownership state
+  const [isOwner, setIsOwner] = useState(false);
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [members, setMembers] = useState<any[]>([]);
+  const [memberSearch, setMemberSearch] = useState('');
+  const [transferring, setTransferring] = useState(false);
 
   const sports = ['Basketball', 'Football', 'Soccer', 'Baseball', 'Tennis', 'Volleyball', 'Swimming', 'Track & Field', 'Other'];
   const seasons = ['Spring 2025', 'Summer 2025', 'Fall 2025', 'Winter 2025/26'];
@@ -44,6 +53,17 @@ export default function EditTeamScreen() {
       setSeason(teamData.season || '');
       setExistingLogoUrl(teamData.logo_url || teamData.avatar_url || null);
       
+      // Check if current user is the team owner and load members
+      try {
+        const membersList = await Team.members(params.id);
+        const arr = Array.isArray(membersList) ? membersList : (membersList?.members || []);
+        setMembers(arr);
+        const myMembership = arr.find((m: any) => m.user_id === currentUser?.id || m.user?.id === currentUser?.id);
+        setIsOwner(myMembership?.role === 'owner');
+      } catch (err) {
+        console.error('[EditTeam] Failed to load members:', err);
+      }
+
       const orgFromResponse = (teamData as any).organization;
       if (orgFromResponse?.name) {
         setOrganizationName(orgFromResponse.name);
@@ -64,7 +84,7 @@ export default function EditTeamScreen() {
       if (router.canGoBack()) {
         if (router.canGoBack()) router.back();
       } else {
-        router.replace('/(tabs)' as any);
+        router.push('/(tabs)' as any);
       }
     } finally {
       setLoading(false);
@@ -404,6 +424,23 @@ export default function EditTeamScreen() {
           </View>
         </View>
 
+        {/* Transfer Ownership — Owner Only */}
+        {isOwner && (
+          <View style={styles.formSection}>
+            <Text style={[styles.sectionTitle, { color: '#DC2626' }]}>Danger Zone</Text>
+            <Pressable
+              style={[styles.transferButton, { borderColor: '#DC2626' }]}
+              onPress={() => setShowTransferModal(true)}
+            >
+              <MaterialIcons name="swap-horiz" size={20} color="#DC2626" />
+              <Text style={styles.transferButtonText}>Transfer Ownership</Text>
+            </Pressable>
+            <Text style={[styles.fieldHint, { color: Colors[colorScheme].mutedText }]}>
+              Transfer team ownership to another team member. You will become a manager.
+            </Text>
+          </View>
+        )}
+
         {/* Submit Button */}
         <View style={styles.submitSection}>
           <Pressable 
@@ -422,6 +459,112 @@ export default function EditTeamScreen() {
           </Pressable>
         </View>
       </ScrollView>
+
+      {/* Transfer Ownership Modal */}
+      <Modal visible={showTransferModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: Colors[colorScheme].background }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: Colors[colorScheme].text }]}>Transfer Ownership</Text>
+              <Pressable onPress={() => { setShowTransferModal(false); setMemberSearch(''); }} hitSlop={12}>
+                <MaterialIcons name="close" size={24} color={Colors[colorScheme].text} />
+              </Pressable>
+            </View>
+
+            <Text style={[styles.modalSubtitle, { color: Colors[colorScheme].mutedText }]}>
+              Select a team member to become the new owner. You will be demoted to manager.
+            </Text>
+
+            <TextInput
+              style={[styles.textInput, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border, color: Colors[colorScheme].text, marginBottom: 12 }]}
+              value={memberSearch}
+              onChangeText={setMemberSearch}
+              placeholder="Search by name or email..."
+              placeholderTextColor={Colors[colorScheme].mutedText}
+              autoCapitalize="none"
+            />
+
+            <FlatList
+              data={members.filter((m: any) => {
+                // Exclude current owner
+                const uid = m.user_id || m.user?.id;
+                if (uid === currentUser?.id) return false;
+                // Filter by search
+                if (!memberSearch.trim()) return true;
+                const q = memberSearch.toLowerCase();
+                const name = (m.user?.display_name || m.display_name || '').toLowerCase();
+                const email = (m.user?.email || m.email || '').toLowerCase();
+                return name.includes(q) || email.includes(q);
+              })}
+              keyExtractor={(m: any) => m.id || m.user_id || m.user?.id}
+              style={{ maxHeight: 300 }}
+              ListEmptyComponent={
+                <Text style={[styles.emptyText, { color: Colors[colorScheme].mutedText }]}>
+                  No team members found.
+                </Text>
+              }
+              renderItem={({ item: m }) => {
+                const uid = m.user_id || m.user?.id;
+                const displayName = m.user?.display_name || m.display_name || 'Unknown';
+                const email = m.user?.email || m.email || '';
+                const role = m.role || 'member';
+
+                return (
+                  <Pressable
+                    style={[styles.memberRow, { borderColor: Colors[colorScheme].border }]}
+                    onPress={() => {
+                      Alert.alert(
+                        'Confirm Transfer',
+                        `Are you sure you want to transfer ownership to ${displayName}?\n\nThis cannot be undone. You will become a manager.`,
+                        [
+                          { text: 'Cancel', style: 'cancel' },
+                          {
+                            text: 'Transfer',
+                            style: 'destructive',
+                            onPress: async () => {
+                              setTransferring(true);
+                              try {
+                                await Team.transferOwnership(params.id!, uid);
+                                setShowTransferModal(false);
+                                setMemberSearch('');
+                                setIsOwner(false);
+                                Alert.alert('Ownership Transferred', `${displayName} is now the team owner.`, [
+                                  { text: 'OK', onPress: () => { if (router.canGoBack()) router.back(); } }
+                                ]);
+                              } catch (e: any) {
+                                const msg = e?.data?.error || e?.message || 'Failed to transfer ownership';
+                                Alert.alert('Error', msg);
+                              } finally {
+                                setTransferring(false);
+                              }
+                            }
+                          }
+                        ]
+                      );
+                    }}
+                    disabled={transferring}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.memberName, { color: Colors[colorScheme].text }]}>{displayName}</Text>
+                      {email ? <Text style={[styles.memberEmail, { color: Colors[colorScheme].mutedText }]}>{email}</Text> : null}
+                    </View>
+                    <View style={[styles.rolePill, { backgroundColor: Colors[colorScheme].surface }]}>
+                      <Text style={[styles.roleLabel, { color: Colors[colorScheme].mutedText }]}>{role}</Text>
+                    </View>
+                  </Pressable>
+                );
+              }}
+            />
+
+            {transferring && (
+              <View style={styles.transferringOverlay}>
+                <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
+                <Text style={[{ color: Colors[colorScheme].text, marginTop: 8 }]}>Transferring...</Text>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -615,5 +758,83 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 6,
     fontStyle: 'italic',
+  },
+  transferButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1.5,
+  },
+  transferButtonText: {
+    color: '#DC2626',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    paddingBottom: 40,
+    maxHeight: '70%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  memberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  memberName: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  memberEmail: {
+    fontSize: 13,
+    marginTop: 2,
+  },
+  rolePill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  roleLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'capitalize',
+  },
+  emptyText: {
+    textAlign: 'center',
+    paddingVertical: 24,
+    fontSize: 14,
+  },
+  transferringOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 20,
   },
 });

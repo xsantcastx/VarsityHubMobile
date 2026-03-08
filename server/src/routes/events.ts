@@ -390,7 +390,7 @@ const createEventSchema = z.object({
   }, {
     message: 'Event date must be in the future'
   }),
-  location: z.string().trim().optional(),
+  location: z.string().trim().min(1, 'Location is required'),
   latitude: z.number().optional(),
   longitude: z.number().optional(),
   description: z.string().trim().max(5000).optional(),

@@ -8,7 +8,8 @@ export function safeGoBack(router: ReturnType<typeof useRouter>) {
   if (router.canGoBack()) {
     router.back();
   } else {
-    router.replace('/(tabs)' as any);
+    // Use push so we don't destroy the back stack
+    router.push('/(tabs)' as any);
   }
 }
 

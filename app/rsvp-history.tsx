@@ -2,8 +2,8 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Event as EventApi } from '@/api/entities';
@@ -19,21 +19,20 @@ export default function RsvpHistoryScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
-  useEffect(() => {
-    let mounted = true;
-    void (async () => {
-      setLoading(true); setError(null);
-      try {
-        const list: any[] = await EventApi.myRsvps();
-        if (!mounted) return;
-        setItems(Array.isArray(list) ? list : []);
-      } catch (error) {
-        console.error('[rsvp-history] Failed to load RSVPs:', error);
-        if (!mounted) return; setError('Failed to load RSVP history');
-      } finally { if (mounted) setLoading(false); }
-    })();
-    return () => { mounted = false; };
+  const loadRsvps = useCallback(async () => {
+    setLoading(true); setError(null);
+    try {
+      const list: any[] = await EventApi.myRsvps();
+      setItems(Array.isArray(list) ? list : []);
+    } catch (error) {
+      console.error('[rsvp-history] Failed to load RSVPs:', error);
+      setError('Failed to load RSVP history. Pull down to refresh.');
+    } finally { setLoading(false); }
   }, []);
+
+  useEffect(() => {
+    void loadRsvps();
+  }, [loadRsvps]);
 
   // Filter items by search query and date
   const filteredItems = useMemo(() => {
@@ -77,7 +76,7 @@ export default function RsvpHistoryScreen() {
   }, [filteredItems]);
 
   const renderItem = ({ item }: { item: Item }) => (
-    <Pressable style={[styles.card, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]} onPress={() => item.event?.id && router.push(`/event-detail?id=${item.event.id}`)}>
+    <Pressable style={[styles.card, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]} onPress={() => item.event?.id && router.push(`/(tabs)/event-detail?id=${item.event.id}`)}>
       <Text style={[styles.title, { color: Colors[colorScheme].text }]}>{item.event?.title || 'Event'}</Text>
       <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>{item.event?.location || 'TBD'}</Text>
       <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>{item.event?.date ? new Date(String(item.event.date)).toLocaleString() : ''}</Text>
@@ -126,7 +125,14 @@ export default function RsvpHistoryScreen() {
 
       <Text style={[styles.header, { color: Colors[colorScheme].text }]}>Upcoming</Text>
       {loading && <View style={{ paddingVertical: 10 }}><ActivityIndicator /></View>}
-      {error && !loading && <Text style={styles.error}>{error}</Text>}
+      {error && !loading && (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <Text style={{ color: '#ff4444', fontSize: 16, textAlign: 'center', marginBottom: 16 }}>{error}</Text>
+          <TouchableOpacity onPress={() => { setError(null); void loadRsvps(); }} style={{ backgroundColor: '#1e3a5f', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 }}>
+            <Text style={{ color: '#fff', fontWeight: '600' }}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      )}
       {!loading && upcoming.length === 0 && <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>No upcoming RSVPs.</Text>}
       {!loading && upcoming.length > 0 && (
         <FlatList data={upcoming} keyExtractor={(i) => i.id} renderItem={renderItem} ItemSeparatorComponent={() => <View style={{ height: 8 }} />} />

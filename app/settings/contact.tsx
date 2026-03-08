@@ -35,7 +35,7 @@ export default function ContactScreen() {
       if (router.canGoBack()) {
         if (router.canGoBack()) router.back();
       } else {
-        router.replace('/(tabs)' as any);
+        router.push('/(tabs)' as any);
       }
     } catch (e: any) {
       console.error('[contact] Failed to send contact message:', e);

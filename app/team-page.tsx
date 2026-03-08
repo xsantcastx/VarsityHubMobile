@@ -612,15 +612,14 @@ export default function TeamScreen() {
               </Pressable>
             )}
             {!isTeamAdmin && (
-              <Pressable 
+              <Pressable
                 style={[
                   styles.followButtonBelowBanner,
                   {
-                    backgroundColor: isFollowing ? theme.tint : 'transparent',
-                    borderColor: theme.tint,
-                    borderWidth: 1,
+                    backgroundColor: isFollowing ? '#FFD600' : '#FFD600',
+                    borderWidth: 0,
                   }
-                ]} 
+                ]}
                 onPress={async () => {
                   console.log('[Follow] button pressed — team?.id:', team?.id, '| isFollowing:', isFollowing);
                   if (!team?.id || team.id.startsWith('temp-')) {
@@ -649,11 +648,9 @@ export default function TeamScreen() {
                 }}
               >
                 {isFollowing ? (
-                  <View style={styles.followingIndicator}>
-                    <Ionicons name="checkmark-circle" size={20} color="#fff" />
-                  </View>
+                  <Ionicons name="checkmark" size={18} color="#000" />
                 ) : (
-                  <Text style={[styles.followButtonBelowBannerText, { color: theme.tint }]}>Follow</Text>
+                  <Ionicons name="person-add" size={16} color="#000" />
                 )}
               </Pressable>
             )}
@@ -744,25 +741,25 @@ export default function TeamScreen() {
 
           {/* Organization Link Button - ALWAYS VISIBLE */}
           <Pressable
-            style={[styles.orgButton, { borderColor: theme.border, backgroundColor: theme.card }]}
+            style={[styles.orgButton, { borderColor: '#1e3a5f', backgroundColor: '#1e3a5f' }]}
             onPress={() => {
               const orgId = team?.organization_id;
               if (orgId) {
-                router.push({ pathname: '/(tabs)/organization', params: { id: orgId } } as any);
+                router.push({ pathname: '/league', params: { id: orgId } } as any);
               }
             }}
             disabled={!team?.organization_id}
           >
             <Ionicons
-              name="business-outline"
+              name="trophy-outline"
               size={16}
-              color={team?.organization_id ? theme.tint : theme.mutedText} 
+              color={team?.organization_id ? '#fff' : theme.mutedText}
             />
             <Text style={[
-              styles.orgButtonText, 
-              { color: team?.organization_id ? theme.tint : theme.mutedText }
+              styles.orgButtonText,
+              { color: team?.organization_id ? '#fff' : theme.mutedText }
             ]}>
-              {team?.organization_id ? 'View Organization' : 'No Organization'}
+              {team?.organization_id ? 'My League' : 'No Organization'}
             </Text>
             {team?.organization_id && (
               <Ionicons name="chevron-forward" size={14} color={theme.mutedText} />
@@ -1293,16 +1290,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   followButtonBelowBanner: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    minWidth: 100,
+    backgroundColor: '#FFD600',
   },
   followButtonBelowBannerText: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#000',
   },
   followingIndicator: {
     width: 28,

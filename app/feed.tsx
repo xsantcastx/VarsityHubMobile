@@ -675,7 +675,7 @@ export default function FeedScreen() {
     if (!me || emailVerified) return null;
     return (
       <Pressable
-        onPress={() => void router.push('/verify-email')}
+        onPress={() => void router.push('/(tabs)/verify-email')}
         style={{
           padding: 10,
           borderRadius: 10,
@@ -1380,7 +1380,7 @@ export default function FeedScreen() {
                             setNotificationsMenuOpen(false);
                             // Always navigate to the actor's profile if available
                             if (item.actor?.id) {
-                              router.push(`/user-profile?id=${encodeURIComponent(item.actor.id)}`);
+                              router.push(`/(tabs)/user-profile?id=${encodeURIComponent(item.actor.id)}`);
                             } else if (item.type === 'TEAM_INVITE') {
                               router.push('/team-invites');
                             }

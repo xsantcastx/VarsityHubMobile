@@ -71,7 +71,7 @@ export default function SubscriptionPaywallScreen() {
   const handleSubscribe = async () => {
     if (selectedTier === 'rookie') {
       if (router.canGoBack()) router.back();
-      else router.replace('/(tabs)' as any);
+      else router.push('/(tabs)' as any);
       return;
     }
 
@@ -94,7 +94,7 @@ export default function SubscriptionPaywallScreen() {
           Alert.alert('Success', 'Your subscription is now active!', [
             { text: 'OK', onPress: () => {
               if (router.canGoBack()) router.back();
-              else router.replace('/(tabs)' as any);
+              else router.push('/(tabs)' as any);
             }},
           ]);
         }
@@ -154,7 +154,7 @@ export default function SubscriptionPaywallScreen() {
           Alert.alert('Payment Received', 'Your subscription is being processed. It may take a moment to activate.');
         }
         if (router.canGoBack()) router.back();
-        else router.replace('/(tabs)' as any);
+        else router.push('/(tabs)' as any);
       } else {
         throw new Error('No payment sheet data received');
       }

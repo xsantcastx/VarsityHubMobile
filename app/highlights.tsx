@@ -537,7 +537,7 @@ export default function HighlightsScreen() {
 
   const handleAuthorPress = useCallback((authorId: string) => {
     // Navigate to user profile
-    router.push(`/user-profile?id=${authorId}`);
+    router.push(`/(tabs)/user-profile?id=${authorId}`);
   }, [router]);
 
   const handleEventPress = useCallback((event: any) => {
@@ -800,7 +800,7 @@ export default function HighlightsScreen() {
                   <Pressable
                     key={team.id}
                     style={[styles.searchResultItem, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
-                    onPress={() => { void router.push(`/team-profile?id=${team.id}`); }}
+                    onPress={() => { void router.push(`/(tabs)/team-profile?id=${team.id}`); }}
                   >
                     <Text style={[styles.searchResultTitle, { color: Colors[colorScheme].text }]}>{team.name}</Text>
                     <Text style={[styles.searchResultSubtitle, { color: Colors[colorScheme].tabIconDefault }]}>
@@ -838,7 +838,7 @@ export default function HighlightsScreen() {
                   <Pressable
                     key={user.id}
                     style={[styles.searchResultItem, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
-                    onPress={() => { void router.push(`/user-profile?id=${user.id}`); }}
+                    onPress={() => { void router.push(`/(tabs)/user-profile?id=${user.id}`); }}
                   >
                     <Text style={[styles.searchResultTitle, { color: Colors[colorScheme].text }]}>{user.display_name}</Text>
                     <Text style={[styles.searchResultSubtitle, { color: Colors[colorScheme].tabIconDefault }]}>

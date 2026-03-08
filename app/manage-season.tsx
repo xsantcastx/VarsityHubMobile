@@ -4,7 +4,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Game as GameAPI, Team as TeamAPI } from '@/api/entities';
@@ -113,7 +113,7 @@ export default function ManageSeasonScreen() {
         const { User } = await import('@/api/entities');
         const me: any = await User.me();
         if (me?.preferences?.role !== 'coach') {
-          router.replace('/(tabs)');
+          router.push('/(tabs)');
         }
       } catch {}
     })().catch(() => {});
@@ -792,7 +792,7 @@ export default function ManageSeasonScreen() {
         opponent: gameData.opponent, // Keep for backward compatibility
         date: gameData.date,
         time: gameData.time,
-        location: gameData.type === 'home' ? 'Home Stadium' : 'Away Venue',
+        location: gameData.homeVenue || gameData.awayVenue || (gameData.type === 'home' ? 'Home Stadium' : 'Away Venue'),
         type: gameData.type,
         status: 'upcoming',
         // TEMP FIX: Prioritize the banner_url we sent over the null response from backend
@@ -1111,13 +1111,13 @@ export default function ManageSeasonScreen() {
         <View style={{ marginVertical: 12 }}>
           <Text style={{ fontSize: 16, marginBottom: 6 }}>Input:</Text>
           <View style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 8 }}>
-            <Text
+            <TextInput
               style={{ fontSize: 16 }}
-              selectable={false}
-              onPress={() => {}}
-            >
-              {promptValue}
-            </Text>
+              value={promptValue}
+              onChangeText={setPromptValue}
+              placeholder="Enter value..."
+              autoFocus
+            />
           </View>
         </View>
       </CustomActionModal>

@@ -218,9 +218,9 @@ export default function AdminDashboardScreen() {
               subtitle="User-generated content"
               icon="document-text"
               color="#8B5CF6"
-              onPress={() => {}}
+              onPress={() => void router.push('/admin-reports')}
             />
-            
+
             <StatCard
               title="Messages"
               value={stats?.totalMessages || 0}

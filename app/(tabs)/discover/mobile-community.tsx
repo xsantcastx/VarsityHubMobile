@@ -648,7 +648,7 @@ export default function CommunityDiscoverScreen() {
                 <Pressable
                   key={u.id}
                   style={[styles.searchResultRow, { borderBottomColor: Colors[colorScheme].border }]}
-                  onPress={() => { setQuery(''); setUnifiedSearchResults(null); void router.push(`/user-profile?id=${u.id}`); }}
+                  onPress={() => { setQuery(''); setUnifiedSearchResults(null); void router.push(`/(tabs)/user-profile?id=${u.id}`); }}
                 >
                   <View style={styles.searchResultLeft}>
                     {u.avatar_url ? (
@@ -680,7 +680,7 @@ export default function CommunityDiscoverScreen() {
                 <Pressable
                   key={t.id}
                   style={[styles.searchResultRow, { borderBottomColor: Colors[colorScheme].border }]}
-                  onPress={() => { setQuery(''); setUnifiedSearchResults(null); void router.push(`/team-profile?id=${t.id}`); }}
+                  onPress={() => { setQuery(''); setUnifiedSearchResults(null); void router.push(`/(tabs)/team-profile?id=${t.id}`); }}
                 >
                   <View style={styles.searchResultLeft}>
                     {t.logo_url || t.avatar_url ? (
@@ -710,7 +710,7 @@ export default function CommunityDiscoverScreen() {
                 <Pressable
                   key={o.id}
                   style={[styles.searchResultRow, { borderBottomColor: Colors[colorScheme].border }]}
-                  onPress={() => { setQuery(''); setUnifiedSearchResults(null); void router.push(`/organization?id=${o.id}`); }}
+                  onPress={() => { setQuery(''); setUnifiedSearchResults(null); void router.push(`/(tabs)/organization?id=${o.id}`); }}
                 >
                   <View style={styles.searchResultLeft}>
                     <LinearGradient colors={['#1e293b', '#0f172a']} style={[styles.searchResultAvatar, { borderRadius: 8 }]} />
@@ -844,7 +844,7 @@ export default function CommunityDiscoverScreen() {
             <>
               <Pressable 
                 style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30' }]}
-                onPress={() => void router.push('/manage-teams')}
+                onPress={() => void router.push('/(tabs)/manage-teams')}
               >
                 <MaterialIcons name="group" size={24} color={Colors[colorScheme].tint} />
                 <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Manage Teams</Text>
@@ -860,7 +860,7 @@ export default function CommunityDiscoverScreen() {
               </Pressable>
               <Pressable
                 style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: 12 }]}
-                onPress={() => void router.push('/event-approvals')}
+                onPress={() => void router.push('/(tabs)/event-approvals')}
               >
                 <MaterialIcons name="done-all" size={24} color={Colors[colorScheme].tint} />
                 <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Approvals</Text>
@@ -923,7 +923,7 @@ export default function CommunityDiscoverScreen() {
           <MaterialIcons name="group" size={18} color="#2563EB" />
           <Text style={[styles.followingText, { color: Colors[colorScheme].text }]}>{`Following ${me._count.following} people`}</Text>
           <View style={{ flex: 1 }} />
-          <Pressable onPress={() => void router.push(`/following?id=${me.id}&username=${me.display_name || me.username || 'You'}`)} style={styles.followingBtn}>
+          <Pressable onPress={() => void router.push(`/(tabs)/following?id=${me.id}&username=${me.display_name || me.username || 'You'}`)} style={styles.followingBtn}>
             <Text style={styles.followingBtnText}>Manage</Text>
           </Pressable>
         </View>
@@ -964,7 +964,7 @@ export default function CommunityDiscoverScreen() {
                     onPress={() => {
                       if (!authorId) return;
                       // Navigate to the specific user's profile, not own profile
-                      void router.push(`/user-profile?id=${authorId}`);
+                      void router.push(`/(tabs)/user-profile?id=${authorId}`);
                     }}
                   >
                     <View style={styles.postAvatarWrap}>
@@ -1039,7 +1039,7 @@ export default function CommunityDiscoverScreen() {
           <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>Nearby people</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }} contentContainerStyle={{ paddingRight: 8 }}>
             {nearbyPeople.map((u) => (
-              <Pressable key={String(u.id)} style={styles.personTile} onPress={() => void router.push(`/user-profile?id=${u.id}`)}>
+              <Pressable key={String(u.id)} style={styles.personTile} onPress={() => void router.push(`/(tabs)/user-profile?id=${u.id}`)}>
                 <View style={styles.personAvatar}>
                   {u.avatar_url ? (
                     <Image source={{ uri: String(u.avatar_url) }} style={styles.personAvatar} contentFit="cover" />

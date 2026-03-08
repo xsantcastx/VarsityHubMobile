@@ -299,7 +299,7 @@ export default function Step1Role() {
       showBackButton={true}
       onBackPress={handleBack}
       emailVerified={emailVerified === null ? undefined : emailVerified}
-      onVerifyEmail={() => void router.push('/verify-email')}
+      onVerifyEmail={() => void router.push('/(tabs)/verify-email')}
     >
       <Stack.Screen options={{ title: 'Step 1/10', headerShown: false }} />
       
