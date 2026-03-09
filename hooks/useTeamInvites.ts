@@ -22,7 +22,7 @@ export function useTeamInvites<T = any>(autoLoad: boolean = true): UseTeamInvite
       setInvites(Array.isArray(list) ? (list as T[]) : []);
       setError(null);
     } catch (err: any) {
-      console.error('[useTeamInvites] failed', err);
+      if (__DEV__) console.error('[useTeamInvites] failed', err);
       setError(err?.message || 'Unable to load invites');
       setInvites([]);
     } finally {

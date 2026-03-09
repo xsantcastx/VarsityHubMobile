@@ -29,7 +29,7 @@ export function initSentry() {
   }
 
   if (__DEV__) {
-    console.log('[sentry] Skipping initialization in development mode');
+    if (__DEV__) console.log('[sentry] Skipping initialization in development mode');
     return;
   }
 
@@ -66,7 +66,7 @@ export function initSentry() {
   } catch (error) {
     // Silently fail in development - Sentry initialization errors are non-critical
     if (__DEV__) {
-      console.log('[sentry] Init failed (dev mode, ignoring):', error);
+      if (__DEV__) console.log('[sentry] Init failed (dev mode, ignoring):', error);
     }
   }
 }
@@ -76,12 +76,12 @@ export function captureException(error: Error | unknown, context?: Record<string
     if (__DEV__) {
       console.debug('[sentry] captureException skipped in dev:', error);
     } else {
-      console.warn('[sentry] captureException skipped; Sentry not ready');
+      if (__DEV__) console.warn('[sentry] captureException skipped; Sentry not ready');
     }
     return;
   }
 
-  console.error('[sentry] Capturing exception:', error);
+  if (__DEV__) console.error('[sentry] Capturing exception:', error);
   if (context) {
     Sentry.setContext('custom', context);
   }
@@ -91,7 +91,7 @@ export function captureException(error: Error | unknown, context?: Record<string
 export function captureBreadcrumb(message: string, category: string, data?: Record<string, any>) {
   if (!sentryReady) {
     if (!__DEV__) {
-      console.warn('[sentry] captureBreadcrumb skipped; Sentry not ready');
+      if (__DEV__) console.warn('[sentry] captureBreadcrumb skipped; Sentry not ready');
     }
     return;
   }

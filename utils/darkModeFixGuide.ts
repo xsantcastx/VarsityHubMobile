@@ -45,4 +45,4 @@ Quick fix template:
 4. Test both light and dark modes
 `;
 
-console.log('Dark mode fix guide loaded');
+if (__DEV__) console.log('Dark mode fix guide loaded');

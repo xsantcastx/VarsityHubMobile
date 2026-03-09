@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -30,7 +30,7 @@ export default function FollowersScreen() {
       setUsers(prev => (cursor ? [...prev, ...items] : items));
       setNextCursor(newCursor);
     } catch (error) {
-      console.error('Failed to load followers', error);
+      if (__DEV__) console.error('Failed to load followers', error);
       if (!cursor) setError('Failed to load followers. Pull down to refresh.');
     } finally {
       setLoading(false);
@@ -41,7 +41,11 @@ export default function FollowersScreen() {
     void loadFollowers();
   }, [id, loadFollowers]);
 
+  const [followLoading, setFollowLoading] = useState<string | null>(null);
+
   const handleFollow = async (userId: string, isFollowing: boolean) => {
+    if (followLoading) return;
+    setFollowLoading(userId);
     try {
       if (isFollowing) {
         await User.unfollow(userId);
@@ -50,7 +54,10 @@ export default function FollowersScreen() {
       }
       setUsers(users.map(u => u.id === userId ? { ...u, is_following: !isFollowing } : u));
     } catch (error) {
-      console.error('Follow/unfollow failed', error);
+      if (__DEV__) console.error('Follow/unfollow failed', error);
+      Alert.alert('Error', isFollowing ? 'Failed to unfollow. Please try again.' : 'Failed to follow. Please try again.');
+    } finally {
+      setFollowLoading(null);
     }
   };
 
@@ -71,8 +78,9 @@ export default function FollowersScreen() {
       <Button
         variant={item.is_following ? 'outline' : 'default'}
         onPress={() => handleFollow(item.id, item.is_following)}
+        disabled={followLoading === item.id}
       >
-        {item.is_following ? 'Following' : 'Follow'}
+        {followLoading === item.id ? 'Loading...' : item.is_following ? 'Following' : 'Follow'}
       </Button>
     </View>
   );

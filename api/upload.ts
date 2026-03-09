@@ -164,9 +164,9 @@ export async function uploadFile(baseUrl: string | null | undefined, uri: string
   }
   headers.Authorization = `Bearer ${token}`;
 
-  const retries = Math.max(0, options?.retries ?? 8); // 8 retries for Redis pool exhaustion recovery
-  const backoffMs = Math.max(50, options?.backoffMs ?? 2000); // 2 second backoff with exponential scaling
-  const timeoutMs = options?.timeoutMs ?? 180000; // 3 minute default timeout for uploads
+  const retries = Math.max(0, options?.retries ?? 2); // 2 retries max — fail fast for uploads
+  const backoffMs = Math.max(50, options?.backoffMs ?? 500); // 500ms backoff
+  const timeoutMs = options?.timeoutMs ?? 120000; // 2 minute timeout for uploads
   let attempt = 0;
   let lastErr: any = null;
   let refreshAttempted = false;
@@ -176,7 +176,7 @@ export async function uploadFile(baseUrl: string | null | undefined, uri: string
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
-      console.log('[upload] Uploading to:', target, '| attempt', attempt + 1, '/', retries + 1, '| file:', filename, '| mime:', finalMimeType);
+      if (__DEV__) console.log('[upload] Uploading to:', target, '| attempt', attempt + 1, '/', retries + 1, '| file:', filename, '| mime:', finalMimeType);
       const res = await fetch(target, {
         method: 'POST',
         headers,
@@ -185,7 +185,7 @@ export async function uploadFile(baseUrl: string | null | undefined, uri: string
       });
       clearTimeout(timeoutId);
       const text = await res.text();
-      console.log('[upload] Response status:', res.status, 'Response text:', text?.substring(0, 200));
+      if (__DEV__) console.log('[upload] Response status:', res.status, 'Response text:', text?.substring(0, 200));
       if (!text) {
         throw new Error(`Empty response from server (HTTP ${res.status})`);
       }
@@ -193,7 +193,7 @@ export async function uploadFile(baseUrl: string | null | undefined, uri: string
       try {
         data = JSON.parse(text);
       } catch (parseError) {
-        console.error('[upload] JSON parse error. Response text:', text);
+        if (__DEV__) console.error('[upload] JSON parse error. Response text:', text);
         throw new Error(`Server returned non-JSON response (HTTP ${res.status}): ${text.substring(0, 100)}...`);
       }
       if (!res.ok) {
@@ -217,7 +217,7 @@ export async function uploadFile(baseUrl: string | null | undefined, uri: string
       }
       const shouldRetry = attempt < retries && (isNetwork || isTimeout);
       const totalAttemptsForLog = shouldRetry || isNetwork || isTimeout ? retries + 1 : attempt + 1;
-      console.error('[upload] attempt failed:', attempt + 1, '/', totalAttemptsForLog, '|', isAbort ? 'timeout' : (err?.message || err));
+      if (__DEV__) console.error('[upload] attempt failed:', attempt + 1, '/', totalAttemptsForLog, '|', isAbort ? 'timeout' : (err?.message || err));
       if (!shouldRetry) break;
       const wait = backoffMs * Math.pow(2, attempt);
       await new Promise((r) => setTimeout(r, wait));

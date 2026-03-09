@@ -84,7 +84,7 @@ export default function LocationPicker({
             longitude: details?.geometry?.location?.lng,
           });
         }}
-        onFail={(err: any) => console.warn('[LocationPicker] Places error:', err)}
+        onFail={(err: any) => { if (__DEV__) console.warn('[LocationPicker] Places error:', err); }}
         textInputProps={{
           placeholderTextColor: theme.mutedText,
           onChangeText: (text: string) => {

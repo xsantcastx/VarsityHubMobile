@@ -35,7 +35,7 @@ export default function GamePhotosScreen() {
       if (Array.isArray(page)) { setItems((arr) => arr.concat(page)); setCursor(page.length ? String(page[page.length - 1].id) : null); }
       else { setItems((arr) => arr.concat(page?.items || [])); setCursor(page?.nextCursor || null); }
     } catch (e) {
-      console.warn('[game-photos] Failed to load more:', e);
+      if (__DEV__) console.warn('[game-photos] Failed to load more:', e);
     }
   };
 

@@ -62,7 +62,7 @@ export function useVHubIAP() {
         purchaseResolveRef.current?.(true);
         purchaseResolveRef.current = null;
       } catch (err: any) {
-        console.error('[useVHubIAP] receipt validation error:', err);
+        if (__DEV__) console.error('[useVHubIAP] receipt validation error:', err);
         try {
           await finishTransaction({ purchase, isConsumable: false });
         } catch {}
@@ -82,7 +82,7 @@ export function useVHubIAP() {
         purchaseResolveRef.current = null;
         return;
       }
-      console.warn('[useVHubIAP] purchase error:', err);
+      if (__DEV__) console.warn('[useVHubIAP] purchase error:', err);
       setPurchasing(false);
       setError(msg || 'Purchase failed');
       purchaseResolveRef.current?.(false);
@@ -94,7 +94,7 @@ export function useVHubIAP() {
   useEffect(() => {
     if (!isIOS || !connected) return;
     fetchProducts({ skus: ALL_SKUS, type: 'subs' }).catch((err) => {
-      console.warn('[useVHubIAP] fetchProducts error:', err);
+      if (__DEV__) console.warn('[useVHubIAP] fetchProducts error:', err);
     });
   }, [isIOS, connected, fetchProducts]);
 
@@ -119,7 +119,7 @@ export function useVHubIAP() {
             resolve(false);
             return;
           }
-          console.error('[useVHubIAP] requestPurchase error:', err);
+          if (__DEV__) console.error('[useVHubIAP] requestPurchase error:', err);
           setPurchasing(false);
           setError(msg || 'Purchase request failed');
           resolve(false);

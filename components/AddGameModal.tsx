@@ -584,7 +584,7 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
           setFormData(prev => ({ ...prev, banner_url: url }));
         }
       } catch (e) {
-        console.warn('Upload edited image failed', e);
+        if (__DEV__) console.warn('Upload edited image failed', e);
       }
     }} />
 

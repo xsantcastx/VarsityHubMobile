@@ -220,7 +220,7 @@ export default function LeagueScreen() {
         try {
           organizationData = await Organization.get(params.id);
         } catch (err) {
-          console.error('[League] Error fetching organization by ID:', err);
+          if (__DEV__) console.error('[League] Error fetching organization by ID:', err);
         }
       }
       
@@ -239,12 +239,12 @@ export default function LeagueScreen() {
               try {
                 organizationData = await Organization.get(organizationData.id);
               } catch (err) {
-                console.error('[League] Error fetching organization from search result:', err);
+                if (__DEV__) console.error('[League] Error fetching organization from search result:', err);
               }
             }
           }
         } catch (err) {
-          console.error('[League] Error searching organizations:', err);
+          if (__DEV__) console.error('[League] Error searching organizations:', err);
         }
       }
       
@@ -283,7 +283,7 @@ export default function LeagueScreen() {
           const fallbackTeams = filterTeamsByOrganization(allTeamsData, orgId, orgName);
           setTeams(fallbackTeams);
         } catch (teamErr) {
-          console.error('[League] Error loading fallback teams:', teamErr);
+          if (__DEV__) console.error('[League] Error loading fallback teams:', teamErr);
           setTeams([]);
         }
       } else {
@@ -330,11 +330,11 @@ export default function LeagueScreen() {
           setEvents([]);
         }
       } catch (eventErr) {
-        console.error('[League] Error loading events:', eventErr);
+        if (__DEV__) console.error('[League] Error loading events:', eventErr);
         setEvents([]);
       }
     } catch (err) {
-      console.error('[League] Error loading league:', err);
+      if (__DEV__) console.error('[League] Error loading league:', err);
       setError('Failed to load league information');
       setIsAdmin(resolveOrgAdmin(null));
     } finally {
@@ -455,7 +455,7 @@ export default function LeagueScreen() {
         {isAdmin && league?.id && (
           <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
             <Pressable
-              onPress={() => Alert.alert('Coming Soon', 'Organization editing will be available in a future update.')}
+              onPress={() => router.push({ pathname: '/(tabs)/edit-organization', params: { id: league.id } })}
               style={[styles.adminButton, { backgroundColor: theme.tint }]}
             >
               <Ionicons name="pencil" size={20} color="#fff" />

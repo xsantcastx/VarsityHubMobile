@@ -69,7 +69,7 @@ export function ReachMapPreview({ zipCode, radiusKm = 15 }: ReachMapPreviewProps
         setLoading(false);
       } catch (err: any) {
         if (!mounted || requestId !== requestIdRef.current) return;
-        console.error('Geocoding error:', err);
+        if (__DEV__) console.error('Geocoding error:', err);
 
         if (err?.status === 401 || err?.status === 403) {
           setLocation(null);

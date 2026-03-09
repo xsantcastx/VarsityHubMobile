@@ -258,11 +258,11 @@ export default function PostDetailScreen() {
     try {
       const [p, c] = await Promise.all([
         PostApi.get(targetId).catch((err: any) => {
-          console.error('[post-detail] Failed to get post:', err?.message || err);
+          if (__DEV__) console.error('[post-detail] Failed to get post:', err?.message || err);
           throw err;
         }), 
         PostApi.comments(targetId).catch((err: any) => {
-          console.warn('[post-detail] Failed to get comments:', err?.message || err);
+          if (__DEV__) console.warn('[post-detail] Failed to get comments:', err?.message || err);
           return [];
         })
       ]);
@@ -306,7 +306,7 @@ export default function PostDetailScreen() {
     } catch (e: any) {
       const errorMsg = e?.message || 'Failed to load post';
       setError(errorMsg);
-      console.error('Error loading post and comments:', e);
+      if (__DEV__) console.error('Error loading post and comments:', e);
     } finally {
       setLoading(false);
     }
@@ -362,7 +362,7 @@ export default function PostDetailScreen() {
       // Revert optimistic update on failure
       setPost(prevPost);
       if (currentPostId && prevPost) setPostsById((prev) => ({ ...prev, [currentPostId]: prevPost }));
-      console.error('Error toggling upvote:', error);
+      if (__DEV__) console.error('Error toggling upvote:', error);
     } finally {
       setVoting(false);
     }
@@ -382,7 +382,7 @@ export default function PostDetailScreen() {
       setReplyingToComment(null);
     } catch (error) {
       const err = error as any;
-      console.error('Error adding comment:', err?.message || error);
+      if (__DEV__) console.error('Error adding comment:', err?.message || error);
       Alert.alert('Error', err?.message || 'Failed to post comment. Please try again.');
     } finally {
       setCommenting(false);
@@ -410,7 +410,7 @@ export default function PostDetailScreen() {
     caption: post?.caption,
     contextLines: postShareContext,
     onShareSuccess: (postId) => {
-      PostApi.share(postId).catch((err) => __DEV__ && console.warn('[post-detail] Share tracking failed:', err));
+      PostApi.share(postId).catch((err) => { if (__DEV__) console.warn('[post-detail] Share tracking failed:', err); });
     },
   });
 
@@ -458,7 +458,7 @@ export default function PostDetailScreen() {
         await User.follow(authorId);
       }
     } catch (error: any) {
-      console.error('[post-detail] Error toggling follow:', error);
+      if (__DEV__) console.error('[post-detail] Error toggling follow:', error);
       setFollowing(prev); // Revert on error
     } finally {
       followInFlight.current = false;
@@ -478,7 +478,7 @@ export default function PostDetailScreen() {
         setSaved(!saved);
       }
     } catch (error) {
-      console.error('[post-detail] Error toggling save:', error);
+      if (__DEV__) console.error('[post-detail] Error toggling save:', error);
       // Revert optimistic update on error
       setSaved(saved);
     }

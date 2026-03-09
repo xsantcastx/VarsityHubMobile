@@ -47,7 +47,7 @@ export default function EventDetailScreen() {
         }
         data = raw;
       } catch (e: any) {
-        console.error('[event-detail] Failed to load event', { id, status: e?.status, message: e?.message });
+        if (__DEV__) console.error('[event-detail] Failed to load event', { id, status: e?.status, message: e?.message });
         setError(e?.status === 404 ? 'Event not found.' : 'Unable to load event. Please try again.');
         return;
       }
@@ -64,7 +64,7 @@ export default function EventDetailScreen() {
         setRsvped(!!(status?.attending ?? status?.going));
         setAttendeesCount(Number(status?.count || data?.attendees_count || data?.rsvp_count || 0));
       } catch (e: any) {
-        console.warn('[event-detail] Failed to load user/RSVP status (non-critical)', e);
+        if (__DEV__) console.warn('[event-detail] Failed to load user/RSVP status (non-critical)', e);
         setAttendeesCount(Number(data?.attendees_count || data?.rsvp_count || 0));
       }
     } finally {
@@ -216,7 +216,7 @@ export default function EventDetailScreen() {
         await Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${address}`);
       }
     } catch (error: any) {
-      console.warn('Failed to open maps:', error);
+      if (__DEV__) console.warn('Failed to open maps:', error);
       // Show address as last resort
       Alert.alert(
         'Unable to Open Maps',

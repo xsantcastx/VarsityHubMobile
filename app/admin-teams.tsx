@@ -71,7 +71,7 @@ export default function AdminTeamsScreen() {
                 try {
                   await TeamApi.delete(teamId);
                 } catch (e) {
-                  console.error('Failed to delete team:', teamId, e);
+                  if (__DEV__) console.error('Failed to delete team:', teamId, e);
                 }
               }
               Alert.alert('Success', `Deleted ${selectedTeams.size} team${selectedTeams.size > 1 ? 's' : ''}`);

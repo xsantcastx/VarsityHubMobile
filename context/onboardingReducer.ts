@@ -168,8 +168,8 @@ export function onboardingReducer(
 ): OnboardingReducerState {
   const logTransition = (fromStep: number, toStep: number, reason: string) => {
     if (__DEV__) {
-      console.log(`[ONBOARDING REDUCER] Transition: ${fromStep} → ${toStep} (${reason})`);
-      console.log(`[ONBOARDING REDUCER] State:`, {
+      if (__DEV__) console.log(`[ONBOARDING REDUCER] Transition: ${fromStep} → ${toStep} (${reason})`);
+      if (__DEV__) console.log(`[ONBOARDING REDUCER] State:`, {
         role: state.draftData.role,
         hasStep2: !!(state.draftData.username && state.draftData.dob),
         hasStep3: !!state.draftData.plan,

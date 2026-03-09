@@ -157,7 +157,7 @@ export default function MyAdsScreen() {
                 
                 Alert.alert('Success', 'Ad deleted successfully');
               } catch (error) {
-                console.error('[my-ads2] Error deleting ad:', error);
+                if (__DEV__) console.error('[my-ads2] Error deleting ad:', error);
                 Alert.alert('Error', 'Failed to delete ad. Please try again.');
               }
             })();

@@ -28,7 +28,7 @@ export default function RequestJoinOrganizationScreen() {
   const colorScheme = useCustomColorScheme();
   const theme = Colors[colorScheme];
   const router = useRouter();
-  const params = useLocalSearchParams<{ team_id: string; team_name?: string }>();
+  const params = useLocalSearchParams<{ team_id?: string; team_name?: string; orgId?: string }>();
 
   const [searching, setSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -38,9 +38,9 @@ export default function RequestJoinOrganizationScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [myTeam, setMyTeam] = useState<TeamData | null>(null);
 
+  // Load team details if team_id provided (coach flow)
   useEffect(() => {
     if (params.team_id) {
-      // Load team details
       Team.get(params.team_id)
         .then((data) => {
           setMyTeam({
@@ -52,14 +52,32 @@ export default function RequestJoinOrganizationScreen() {
           });
         })
         .catch((err) => {
-          console.error('[RequestJoinOrg] Error loading team:', err);
+          if (__DEV__) console.error('[RequestJoinOrg] Error loading team:', err);
           setMyTeam({
-            id: params.team_id,
+            id: params.team_id!,
             name: params.team_name || 'My Team',
           });
         });
     }
   }, [params.team_id, params.team_name]);
+
+  // Pre-select org if orgId provided (visitor flow from org detail page)
+  useEffect(() => {
+    if (params.orgId && !selectedOrg) {
+      Organization.get(params.orgId)
+        .then((data: any) => {
+          setSelectedOrg({
+            id: data.id,
+            name: data.name,
+            description: data.description,
+            avatar_url: data.avatar_url,
+          });
+        })
+        .catch((err: any) => {
+          if (__DEV__) console.error('[RequestJoinOrg] Error loading org:', err);
+        });
+    }
+  }, [params.orgId, selectedOrg]);
 
   const handleSearch = useCallback(async () => {
     if (!searchQuery.trim()) {
@@ -72,7 +90,7 @@ export default function RequestJoinOrganizationScreen() {
       const results = await Organization.list(searchQuery.trim(), 20);
       setOrganizations(Array.isArray(results) ? results : []);
     } catch (err: any) {
-      console.error('[RequestJoinOrg] Error searching organizations:', err);
+      if (__DEV__) console.error('[RequestJoinOrg] Error searching organizations:', err);
       Alert.alert('Error', 'Failed to search organizations');
     } finally {
       setSearching(false);
@@ -87,14 +105,14 @@ export default function RequestJoinOrganizationScreen() {
   }, [searchQuery, handleSearch]);
 
   const handleSubmitRequest = async () => {
-    if (!selectedOrg || !myTeam) return;
+    if (!selectedOrg) return;
 
     setSubmitting(true);
     try {
       await Organization.requestToJoin(
         selectedOrg.id,
         message.trim() || undefined,
-        undefined
+        myTeam?.id || undefined
       );
 
       Alert.alert(
@@ -108,14 +126,14 @@ export default function RequestJoinOrganizationScreen() {
         ]
       );
     } catch (err: any) {
-      console.error('[RequestJoinOrg] Error submitting request:', err);
+      if (__DEV__) console.error('[RequestJoinOrg] Error submitting request:', err);
       Alert.alert('Error', err?.message || 'Failed to send join request');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const canSubmit = selectedOrg && myTeam && !submitting;
+  const canSubmit = selectedOrg && !submitting;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>

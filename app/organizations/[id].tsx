@@ -139,14 +139,19 @@ export default function OrganizationDetailScreen() {
         </Pressable>
       </View>
 
-      {/* Placeholder sections for teams, upcoming games/events; can be expanded */}
+      {/* Teams count */}
       <View style={{ marginTop: 24 }}>
         <Text style={{ fontSize: 18, fontWeight: '600' }}>Teams</Text>
-        <Text style={{ color: '#777', marginTop: 6 }}>Coming soon</Text>
+        <Text style={{ color: '#777', marginTop: 6 }}>
+          {org._count?.teams ? `${org._count.teams} team${org._count.teams === 1 ? '' : 's'}` : 'No teams yet'}
+        </Text>
       </View>
+      {/* Members count */}
       <View style={{ marginTop: 24 }}>
-        <Text style={{ fontSize: 18, fontWeight: '600' }}>Upcoming</Text>
-        <Text style={{ color: '#777', marginTop: 6 }}>Games and events from this organization</Text>
+        <Text style={{ fontSize: 18, fontWeight: '600' }}>Members</Text>
+        <Text style={{ color: '#777', marginTop: 6 }}>
+          {org._count?.memberships ? `${org._count.memberships} member${org._count.memberships === 1 ? '' : 's'}` : 'No members yet'}
+        </Text>
       </View>
     </ScrollView>
   );

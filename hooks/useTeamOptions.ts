@@ -26,7 +26,7 @@ export function useTeamOptions<T = any>(autoLoad: boolean = true): UseTeamOption
       setTeams(Array.isArray(res) ? res : []);
       setError(null);
     } catch (err: any) {
-      console.error('[useTeamOptions] failed', err);
+      if (__DEV__) console.error('[useTeamOptions] failed', err);
       setError(err?.message || 'Unable to load teams');
       setTeams([]);
     } finally {

@@ -27,7 +27,7 @@ export default function Step10Confirmation() {
         const me: any = await User.me();
         if (!mounted) return;
         if (me?.preferences) {
-          console.log('[Step10] Hydrated from server:', JSON.stringify({
+          if (__DEV__) console.log('[Step10] Hydrated from server:', JSON.stringify({
             role: me.preferences.role,
             plan: me.preferences.plan,
             has_team_id: !!me.preferences.team_id,
@@ -46,7 +46,7 @@ export default function Step10Confirmation() {
   // CRITICAL: Redirect if not authenticated
   useEffect(() => {
     if (!user) {
-      console.warn('[Step10Confirmation] Unauthenticated user - redirecting to sign-in');
+      if (__DEV__) console.warn('[Step10Confirmation] Unauthenticated user - redirecting to sign-in');
       router.replace('/sign-in');
     }
   }, [user, router]);
@@ -75,6 +75,13 @@ export default function Step10Confirmation() {
   // Check completeness of onboarding
   const getCompletionStatus = () => {
     const checks = [
+      {
+        label: 'Email Verified',
+        completed: !!user?.email_verified,
+        required: true,
+        route: '/(tabs)/verify-email',
+        description: 'Verify your email address to unlock all features'
+      },
       {
         label: 'Role Selected',
         completed: !!ob.role,
@@ -173,7 +180,7 @@ export default function Step10Confirmation() {
     }
 
     setCompleting(true);
-    console.log('[Step10] onComplete start — context ob:', JSON.stringify({
+    if (__DEV__) console.log('[Step10] onComplete start — context ob:', JSON.stringify({
       role: ob.role,
       plan: ob.plan,
       username: ob.username ? 'set' : 'MISSING',
@@ -217,7 +224,7 @@ export default function Step10Confirmation() {
           latestOb = { ...latestOb, ...(me.preferences as Partial<OnboardingState>) };
           setOB((prev) => ({ ...(prev || {}), ...(me.preferences as Partial<OnboardingState>) }));
         }
-        console.log('[Step10] latestOb after server merge:', JSON.stringify({
+        if (__DEV__) console.log('[Step10] latestOb after server merge:', JSON.stringify({
           role: latestOb.role,
           plan: latestOb.plan,
           username: latestOb.username ? 'set' : 'MISSING',
@@ -226,7 +233,7 @@ export default function Step10Confirmation() {
           messaging_policy_accepted: latestOb.messaging_policy_accepted,
         }));
       } catch (e) {
-        console.warn('[Onboarding][Step10] failed to patch preferences before complete', e);
+        if (__DEV__) console.warn('[Onboarding][Step10] failed to patch preferences before complete', e);
       }
 
       const finalRole = latestOb.role;
@@ -299,7 +306,7 @@ export default function Step10Confirmation() {
         cleanedPayload.onboarding_completed = true;
       }
 
-      console.log('[Step10] Final payload:', JSON.stringify({
+      if (__DEV__) console.log('[Step10] Final payload:', JSON.stringify({
         role: cleanedPayload.role,
         plan: cleanedPayload.plan,
         username: cleanedPayload.username ? 'set' : 'MISSING',
@@ -322,10 +329,10 @@ export default function Step10Confirmation() {
     } catch (e: any) {
       const zodIssues = e?.data?.issues || e?.data?.details?.issues;
       if (__DEV__ && zodIssues) {
-        console.warn('[Onboarding][Step10] Invalid payload issues:', zodIssues);
+        if (__DEV__) console.warn('[Onboarding][Step10] Invalid payload issues:', zodIssues);
       }
       const errorMessage = e?.data?.error || e?.message || 'Failed to complete onboarding';
-      console.error('[Step10] onComplete error:', errorMessage);
+      if (__DEV__) console.error('[Step10] onComplete error:', errorMessage);
       Alert.alert(
         'Setup Not Complete',
         errorMessage,

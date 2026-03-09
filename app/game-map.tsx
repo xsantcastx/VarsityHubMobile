@@ -38,12 +38,12 @@ export default function GameMapScreen() {
       // Fetch ALL games and events worldwide - no location filter
       const [gamesResponse, eventsResponse] = await Promise.all([
         Game.list('-date', {}).catch((error) => {
-          console.error('[game-map] Failed to fetch games:', error);
+          if (__DEV__) console.error('[game-map] Failed to fetch games:', error);
           return { items: [] };
         }),
         // Fetch approved events (including past events for map display)
         httpGet('/events?approval_status=approved&include_past=1').catch((error) => {
-          console.error('[game-map] Failed to fetch events:', error);
+          if (__DEV__) console.error('[game-map] Failed to fetch events:', error);
           return [];
         }),
       ]);
@@ -117,7 +117,7 @@ export default function GameMapScreen() {
         if (__DEV__) console.warn(`[game-map] Loaded ${gameMarkers.length} games and ${eventMarkers.length} events with locations (${allMarkers.length} total pins)`);
       }
     } catch (error) {
-      console.error('Error loading games:', error);
+      if (__DEV__) console.error('Error loading games:', error);
       // Don't show alert - just load empty map
     } finally {
       setLoading(false);

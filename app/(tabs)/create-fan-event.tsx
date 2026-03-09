@@ -67,7 +67,7 @@ export default function CreateFanEventScreen() {
         const teams = await httpGet('/follows/teams?user_id=me');
         setRawTeams(Array.isArray(teams) ? teams : []);
       } catch (error: any) {
-        console.warn('[CreateFanEvent] Failed to load followed teams:', error);
+        if (__DEV__) console.warn('[CreateFanEvent] Failed to load followed teams:', error);
         setRawTeams([]);
       } finally {
         setTeamsLoading(false);
@@ -130,7 +130,7 @@ export default function CreateFanEventScreen() {
         const suggestions = await autocompleteLocations(text, 6);
         setLocationSuggestions(suggestions);
       } catch (error) {
-        console.warn('Location autocomplete failed:', error);
+        if (__DEV__) console.warn('Location autocomplete failed:', error);
         setLocationSuggestions([]);
       } finally {
         setLocationQuerying(false);
@@ -311,7 +311,7 @@ export default function CreateFanEventScreen() {
         );
       } else {
         const detailedError = errorMessage || e?.data?.message || e?.message || 'Failed to create event. Please try again.';
-        console.error('[CreateFanEvent] Create event error:', {
+        if (__DEV__) console.error('[CreateFanEvent] Create event error:', {
           error: e,
           errorMessage,
           errorCode,

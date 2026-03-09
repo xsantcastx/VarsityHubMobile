@@ -46,7 +46,7 @@ const ROUTE_MAP: Record<string, string> = {
   user: '/(tabs)/user-profile',
   // Auth-related routes
   'reset-password': '/reset-password',
-  'verify-email': '/verify-email',
+  'verify-email': '/verify',
   'verify': '/verify',
 };
 
@@ -74,10 +74,10 @@ export function parseDeepLink(url: string): ParsedDeepLink | null {
       return parsePathLink(parsed);
     }
     
-    console.warn('[DeepLinks] Unable to parse URL:', url);
+    if (__DEV__) console.warn('[DeepLinks] Unable to parse URL:', url);
     return null;
   } catch (error) {
-    console.error('[DeepLinks] Parse error:', error);
+    if (__DEV__) console.error('[DeepLinks] Parse error:', error);
     return null;
   }
 }
@@ -96,7 +96,7 @@ function parseSchemeLink(parsed: Linking.ParsedURL): ParsedDeepLink | null {
   const screen = ROUTE_MAP[type];
   
   if (!screen) {
-    console.warn('[DeepLinks] Unknown content type:', type);
+    if (__DEV__) console.warn('[DeepLinks] Unknown content type:', type);
     return null;
   }
   
@@ -119,13 +119,13 @@ function parseUniversalLink(parsed: Linking.ParsedURL): ParsedDeepLink | null {
     const id = queryParams.id as string;
     
     if (!type || !id) {
-      console.warn('[DeepLinks] Missing type or id in share link');
+      if (__DEV__) console.warn('[DeepLinks] Missing type or id in share link');
       return null;
     }
     
     const screen = ROUTE_MAP[type];
     if (!screen) {
-      console.warn('[DeepLinks] Unknown content type:', type);
+      if (__DEV__) console.warn('[DeepLinks] Unknown content type:', type);
       return null;
     }
     
@@ -180,16 +180,15 @@ export function handleDeepLink(url: string): boolean {
   const parsed = parseDeepLink(url);
   
   if (!parsed) {
-    console.log('[DeepLinks] Could not parse URL:', url);
+    if (__DEV__) console.log('[DeepLinks] Could not parse URL:', url);
     return false;
   }
   
-  console.log('[DeepLinks] Navigating to:', parsed.screen, parsed.params);
+  if (__DEV__) console.log('[DeepLinks] Navigating to:', parsed.screen, parsed.params);
   
   // Log UTM params for analytics if present
   if (parsed.utmParams) {
-    console.log('[DeepLinks] UTM params:', parsed.utmParams);
-    // TODO: Send to analytics service
+    if (__DEV__) console.log('[DeepLinks] UTM params:', parsed.utmParams);
   }
   
   try {
@@ -199,7 +198,7 @@ export function handleDeepLink(url: string): boolean {
     });
     return true;
   } catch (error) {
-    console.error('[DeepLinks] Navigation failed:', error);
+    if (__DEV__) console.error('[DeepLinks] Navigation failed:', error);
     return false;
   }
 }
@@ -211,7 +210,7 @@ export function setupDeepLinkListener(
   onLink?: (url: string, parsed: ParsedDeepLink | null) => void
 ): () => void {
   const subscription = Linking.addEventListener('url', ({ url }) => {
-    console.log('[DeepLinks] Received URL while app is open:', url);
+    if (__DEV__) console.log('[DeepLinks] Received URL while app is open:', url);
     const parsed = parseDeepLink(url);
     
     if (onLink) {
@@ -236,7 +235,7 @@ export async function handleInitialDeepLink(
     const url = await Linking.getInitialURL();
     
     if (url) {
-      console.log('[DeepLinks] App launched with URL:', url);
+      if (__DEV__) console.log('[DeepLinks] App launched with URL:', url);
       const parsed = parseDeepLink(url);
       
       if (onLink) {
@@ -249,7 +248,7 @@ export async function handleInitialDeepLink(
     
     return false;
   } catch (error) {
-    console.error('[DeepLinks] Error getting initial URL:', error);
+    if (__DEV__) console.error('[DeepLinks] Error getting initial URL:', error);
     return false;
   }
 }

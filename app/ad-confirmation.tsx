@@ -28,7 +28,7 @@ export default function AdConfirmationScreen() {
       // Validate ad_id format (should be a valid CUID or UUID)
       const adId = params.ad_id.trim();
       if (!adId || adId.length < 10) {
-        console.error('[AdConfirmation] Invalid ad_id format:', adId);
+        if (__DEV__) console.error('[AdConfirmation] Invalid ad_id format:', adId);
         setLoading(false);
         // Continue with defaults - user can still see confirmation
         return;
@@ -43,14 +43,14 @@ export default function AdConfirmationScreen() {
           setLoading(false);
         })
         .catch(err => {
-          console.error('[AdConfirmation] Failed to load ad details:', err);
+          if (__DEV__) console.error('[AdConfirmation] Failed to load ad details:', err);
           setLoading(false);
           // Continue with params/defaults - non-blocking error
         });
     } else {
       // No ad_id provided - require manual params
       if (!params.businessName && !params.selectedDates && !params.totalAmount) {
-        console.warn('[AdConfirmation] Missing ad_id and manual params');
+        if (__DEV__) console.warn('[AdConfirmation] Missing ad_id and manual params');
         // Still show confirmation with defaults - non-blocking
       }
       setLoading(false);

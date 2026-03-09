@@ -53,7 +53,7 @@ export default function TeamHubScreen() {
         const items = Array.isArray(list) ? list : list?.items || [];
         setEvents(items);
       } catch (err) {
-        console.error('Failed to load events', err);
+        if (__DEV__) console.error('Failed to load events', err);
         if (mounted) setEventsError('Unable to load events right now.');
       } finally {
         if (mounted) setEventsLoading(false);

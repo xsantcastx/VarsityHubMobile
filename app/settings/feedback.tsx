@@ -22,7 +22,7 @@ export default function FeedbackScreen() {
       try { 
         await User.me(); 
       } catch (error) {
-        console.warn('[feedback] Failed to load user data:', error);
+        if (__DEV__) console.warn('[feedback] Failed to load user data:', error);
         // Non-critical - feedback can be submitted without user data
       }
     })(); 

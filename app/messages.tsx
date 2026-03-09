@@ -105,7 +105,7 @@ export default function MessagesScreen() {
         setMe(u);
       } catch (error: any) {
         if (__DEV__) {
-          console.warn('[Messages] Failed to load user:', error?.message || error);
+          if (__DEV__) console.warn('[Messages] Failed to load user:', error?.message || error);
         }
         // Continue without user data
       }
@@ -118,7 +118,7 @@ export default function MessagesScreen() {
         setMessages(Array.isArray(result) ? result : []);
       }
     } catch (e: any) {
-      console.error('Failed to load messages', e);
+      if (__DEV__) console.error('Failed to load messages', e);
       setError('Unable to load messages.');
     } finally {
       setLoading(false);
@@ -247,7 +247,7 @@ export default function MessagesScreen() {
           Alert.alert('Login Required', 'You must be logged in to search for users.');
           setSearchResults([]);
         } else {
-          console.error('User search failed', e);
+          if (__DEV__) console.error('User search failed', e);
         }
       } finally {
         if (mounted) setSearchingUsers(false);

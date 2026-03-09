@@ -133,7 +133,7 @@ export default function SignInScreen() {
       try {
         await checkAuth();
       } catch (authError: any) {
-        console.warn('[sign-in] checkAuth after Google login failed:', authError?.message);
+        if (__DEV__) console.warn('[sign-in] checkAuth after Google login failed:', authError?.message);
         setError('Sign-in succeeded but we could not load your profile. Please try again.');
       }
     } catch (e: any) {
@@ -184,7 +184,7 @@ export default function SignInScreen() {
       try {
         await checkAuth();
       } catch (authError: any) {
-        console.warn('[sign-in] checkAuth after Apple login failed:', authError?.message);
+        if (__DEV__) console.warn('[sign-in] checkAuth after Apple login failed:', authError?.message);
         setError('Sign-in succeeded but we could not load your profile. Please try again.');
       }
     } catch (e: any) {

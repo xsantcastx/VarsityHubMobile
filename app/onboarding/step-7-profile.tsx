@@ -42,19 +42,19 @@ export default function Step7Profile() {
       
       // IMMEDIATE redirect - don't even render the screen
       if (!hasStep2) {
-        console.warn('[Step7] BLOCKED: Coach missing Step 2 - redirecting to Step 2');
+        if (__DEV__) console.warn('[Step7] BLOCKED: Coach missing Step 2 - redirecting to Step 2');
         setProgress(1);
         router.replace('/onboarding/step-2-basic');
         return;
       }
       if (!hasStep3) {
-        console.warn('[Step7] BLOCKED: Coach missing Step 3 - redirecting to Step 3');
+        if (__DEV__) console.warn('[Step7] BLOCKED: Coach missing Step 3 - redirecting to Step 3');
         setProgress(2);
         router.replace('/onboarding/step-3-plan');
         return;
       }
       if (!hasStep4) {
-        console.warn('[Step7] BLOCKED: Coach missing Step 4 - redirecting to Step 4');
+        if (__DEV__) console.warn('[Step7] BLOCKED: Coach missing Step 4 - redirecting to Step 4');
         setProgress(3);
         router.replace('/onboarding/step-4-organization');
         return;

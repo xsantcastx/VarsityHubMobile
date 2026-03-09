@@ -28,7 +28,7 @@ export const User = {
     } catch (error: any) {
       // If admin-only, return empty array instead of throwing
       if (error?.message?.includes('Admin only') || error?.status === 403) {
-        console.log('[User.listAll] Admin-only endpoint, returning empty results');
+        if (__DEV__) console.log('[User.listAll] Admin-only endpoint, returning empty results');
         return [];
       }
       throw error;
@@ -236,7 +236,7 @@ export const Post = {
       return normalizePostPage(res);
     } catch (error: any) {
       // If trending endpoint doesn't exist, fallback to regular posts sorted by created_at
-      console.log('[Post.trendingPage] Trending endpoint not available, falling back to recent posts');
+      if (__DEV__) console.log('[Post.trendingPage] Trending endpoint not available, falling back to recent posts');
       const q: string[] = [];
       if (cursor) q.push('cursor=' + encodeURIComponent(cursor));
       if (limit) q.push('limit=' + String(limit));
@@ -334,6 +334,8 @@ export const Organization = {
   },
   mine: () => httpGet('/organizations/mine'),
   get: (id: string) => httpGet('/organizations/' + encodeURIComponent(id)),
+  update: (id: string, data: { name?: string; description?: string | null; sport?: string | null; org_type?: string | null; location?: string | null; zip_code?: string | null }) =>
+    httpPatch('/organizations/' + encodeURIComponent(id), data),
   follow: (id: string) => httpPost(`/organizations/${encodeURIComponent(id)}/follow`, {}),
   unfollow: (id: string) => httpDelete(`/organizations/${encodeURIComponent(id)}/follow`),
   members: (id: string) => httpGet(`/organizations/${encodeURIComponent(id)}/members`),
@@ -537,13 +539,6 @@ export const Notification = {
   markAllRead: () => httpPost('/notifications/mark-read-all', {}),
 };
 
-export const CollaborativePost = {} as any;
-export const EventPost = {} as any;
-export const FreelancerBooking = {} as any;
-export const UserInteraction = {} as any;
-export const SponsorshipBid = {} as any;
-export const EventSponsorship = {} as any;
-export const SchoolPage = {} as any;
 export const Advertisement = {
   reservedDates: (from?: string, to?: string) => {
     const q: string[] = [];

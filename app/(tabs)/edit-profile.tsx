@@ -155,7 +155,7 @@ export default function EditProfileScreen() {
           const date = new Date(dobValue);
           setDateOfBirth(date);
         } catch {
-          console.warn('Invalid date format:', dobValue);
+          if (__DEV__) console.warn('Invalid date format:', dobValue);
           setDateOfBirth(null);
         }
       }
@@ -207,7 +207,7 @@ export default function EditProfileScreen() {
       }
       setUserRole(derivedRole);
     } catch (e: any) {
-      console.error('Error loading profile:', e);
+      if (__DEV__) console.error('Error loading profile:', e);
       setError('You must sign in to edit your profile.');
     } finally {
       setLoading(false);
@@ -316,7 +316,7 @@ export default function EditProfileScreen() {
         throw new Error('Upload failed - no URL returned');
       }
     } catch (error: any) {
-      console.error('Avatar upload error:', error);
+      if (__DEV__) console.error('Avatar upload error:', error);
       Alert.alert('Upload Failed', error?.message || 'Failed to upload profile picture. Please try again.');
     } finally {
       setUploadingAvatar(false);
@@ -373,7 +373,7 @@ export default function EditProfileScreen() {
         throw new Error('Upload failed - no URL returned');
       }
     } catch (error: any) {
-      console.error('Header image upload error:', error);
+      if (__DEV__) console.error('Header image upload error:', error);
       Alert.alert('Upload Failed', error?.message || 'Failed to upload background image. Please try again.');
     } finally {
       setUploadingHeaderImage(false);
@@ -504,7 +504,7 @@ export default function EditProfileScreen() {
         }
       }
     } catch (e: any) {
-      console.error('Save error:', e);
+      if (__DEV__) console.error('Save error:', e);
       Alert.alert('Error', e?.message || 'Failed to update profile');
     } finally {
       setSaving(false);

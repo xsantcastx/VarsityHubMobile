@@ -141,7 +141,7 @@ export default function TeamChatScreen() {
     try {
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
     } catch (error) {
-      console.error('Failed to save messages:', error);
+      if (__DEV__) console.error('Failed to save messages:', error);
     }
   }, [STORAGE_KEY]);
 
@@ -150,7 +150,7 @@ export default function TeamChatScreen() {
       const stored = await AsyncStorage.getItem(STORAGE_KEY);
       return stored ? JSON.parse(stored) : [];
     } catch (error) {
-      console.error('Failed to load messages:', error);
+      if (__DEV__) console.error('Failed to load messages:', error);
       return [];
     }
   }, [STORAGE_KEY]);
@@ -169,7 +169,7 @@ export default function TeamChatScreen() {
       const filesKey = `team-${id}-files`;
       await AsyncStorage.setItem(filesKey, JSON.stringify(filesList));
     } catch (error) {
-      console.error('Failed to save files:', error);
+      if (__DEV__) console.error('Failed to save files:', error);
     }
   }, [id]);
 
@@ -179,7 +179,7 @@ export default function TeamChatScreen() {
       const stored = await AsyncStorage.getItem(filesKey);
       return stored ? JSON.parse(stored) : [];
     } catch (error) {
-      console.error('Failed to load files:', error);
+      if (__DEV__) console.error('Failed to load files:', error);
       return [];
     }
   }, [id]);
@@ -243,10 +243,8 @@ export default function TeamChatScreen() {
     ]).start();
   }, [messageAnimations]);
 
-  // Removed legacy reaction and mock file helpers to reduce bundle size
-
-  // Mock messages data
-  const mockMessages: ChatMessage[] = useMemo(() => [
+  // Welcome messages shown when a team chat has no history yet
+  const welcomeMessages: ChatMessage[] = useMemo(() => [
     {
       id: '1',
       content: "Great practice today everyone! Don't forget we have the game against Warriors this Saturday at 7 PM.",
@@ -320,19 +318,19 @@ export default function TeamChatScreen() {
             avatar_url: m.user.avatar_url,
           } : undefined,
           role: m.role || 'player',
-          status: (Math.random() > 0.5 ? 'online' : 'offline') as 'online' | 'offline' | 'away',
-          lastSeen: new Date(Date.now() - Math.random() * 86400000).toISOString(),
+          status: 'offline' as 'online' | 'offline' | 'away',
+          lastSeen: undefined,
         })) : [];
         
         setMembers(formattedMembers);
         
-        // Load persisted messages first, then fallback to mock data
+        // Load persisted messages first, then fallback to welcome messages
         const savedMessages = await loadMessages();
         if (savedMessages.length > 0) {
           setMessages(savedMessages);
         } else {
-          setMessages(mockMessages);
-          await saveMessages(mockMessages);
+          setMessages(welcomeMessages);
+          await saveMessages(welcomeMessages);
         }
         
         // Load persisted files
@@ -341,11 +339,6 @@ export default function TeamChatScreen() {
         
         // Initialize with empty files list - files will be added as they're uploaded
         
-        // Mock typing users for demo
-        setTimeout(() => {
-          setTypingUsers(['Mike Davis']);
-          setTimeout(() => setTypingUsers([]), 3000);
-        }, 2000);
       } catch {
         if (!mounted) return; 
         setError('Failed to load team chat');
@@ -354,7 +347,7 @@ export default function TeamChatScreen() {
       }
     })();
     return () => { mounted = false; };
-  }, [id, loadFiles, loadMessages, mockMessages, saveMessages]);
+  }, [id, loadFiles, loadMessages, welcomeMessages, saveMessages]);
 
   // Start/stop typing animations based on typing users
   useEffect(() => {
@@ -400,27 +393,10 @@ export default function TeamChatScreen() {
         flatListRef.current?.scrollToEnd({ animated: true });
       }, 100);
       
-      // Simulate message status progression
-      setTimeout(() => {
-        setMessages(prev => prev.map(msg => 
-          msg.id === message.id ? { ...msg, status: 'sent' } : msg
-        ));
-      }, 500);
-      
-      setTimeout(() => {
-        setMessages(prev => prev.map(msg => 
-          msg.id === message.id ? { ...msg, status: 'delivered' } : msg
-        ));
-      }, 1000);
-      
-      setTimeout(() => {
-        setMessages(prev => prev.map(msg => 
-          msg.id === message.id ? { ...msg, status: 'read' } : msg
-        ));
-      }, 2000);
-      
-      // Mock API call
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Mark as sent (local-only chat, persisted to AsyncStorage)
+      setMessages(prev => prev.map(msg =>
+        msg.id === message.id ? { ...msg, status: 'sent' } : msg
+      ));
     } catch {
       showModal('Error', 'Failed to send message');
     } finally {
@@ -632,7 +608,7 @@ export default function TeamChatScreen() {
       
       showToast('Image uploaded successfully!');
     } catch (error) {
-      console.error('Image upload failed:', error);
+      if (__DEV__) console.error('Image upload failed:', error);
       
       // Update message to show error
       setMessages(prev => {
@@ -950,7 +926,7 @@ export default function TeamChatScreen() {
       
       showToast('File uploaded successfully!');
     } catch (error) {
-      console.error('File upload failed:', error);
+      if (__DEV__) console.error('File upload failed:', error);
       
       // Update message to show error - use a new variable since message is not in scope
       setMessages(prev => {
@@ -1069,19 +1045,6 @@ export default function TeamChatScreen() {
     // Handle typing indicator
     if (!isTyping && text.length > 0) {
       setIsTyping(true);
-      // Mock: Send typing start to server
-      
-      // Simulate others typing occasionally
-      if (Math.random() > 0.7) {
-        const simulatedUsers = ['John Doe', 'Sarah Wilson', 'Mike Johnson'];
-        const randomUser = simulatedUsers[Math.floor(Math.random() * simulatedUsers.length)];
-        setTypingUsers(prev => prev.includes(randomUser) ? prev : [...prev, randomUser]);
-        
-        // Stop simulated typing after a bit
-        setTimeout(() => {
-          setTypingUsers(prev => prev.filter(user => user !== randomUser));
-        }, 2000 + Math.random() * 3000);
-      }
     }
     
     // Clear existing timeout
@@ -1092,7 +1055,6 @@ export default function TeamChatScreen() {
     // Set new timeout
     typingTimeoutRef.current = setTimeout(() => {
       setIsTyping(false);
-      // Mock: Send typing stop to server
     }, 1000);
   }, [isTyping]);
 
@@ -1148,7 +1110,7 @@ export default function TeamChatScreen() {
         showModal('File Download', 'File download is not supported on this platform.');
       }
     } catch (error) {
-      console.error('Error opening file:', error);
+      if (__DEV__) console.error('Error opening file:', error);
     showModal('Error', 'Unable to open file');
     }
   }, [showModal]);
@@ -1532,7 +1494,7 @@ export default function TeamChatScreen() {
         <Text style={[styles.errorText, { color: '#EF4444' }]}>{error}</Text>
         <Pressable
           style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: Colors[colorScheme].tint, borderRadius: 10 }}
-          onPress={() => { setError(null); setLoading(true); void (async () => { try { const membersData = await TeamApi.members(String(id)); const formattedMembers: TeamMember[] = Array.isArray(membersData) ? membersData.map((m: any) => ({ id: String(m.id), user: m.user ? { id: String(m.user.id), display_name: m.user.display_name || m.user.name, email: m.user.email, avatar_url: m.user.avatar_url } : undefined, role: m.role || 'player', status: 'offline' as const, })) : []; setMembers(formattedMembers); const savedMessages = await loadMessages(); setMessages(savedMessages.length > 0 ? savedMessages : mockMessages); } catch { setError('Failed to load team chat'); } finally { setLoading(false); } })(); }}
+          onPress={() => { setError(null); setLoading(true); void (async () => { try { const membersData = await TeamApi.members(String(id)); const formattedMembers: TeamMember[] = Array.isArray(membersData) ? membersData.map((m: any) => ({ id: String(m.id), user: m.user ? { id: String(m.user.id), display_name: m.user.display_name || m.user.name, email: m.user.email, avatar_url: m.user.avatar_url } : undefined, role: m.role || 'player', status: 'offline' as const, })) : []; setMembers(formattedMembers); const savedMessages = await loadMessages(); setMessages(savedMessages.length > 0 ? savedMessages : welcomeMessages); } catch { setError('Failed to load team chat'); } finally { setLoading(false); } })(); }}
         >
           <Text style={{ color: '#fff', fontWeight: '700' }}>Retry</Text>
         </Pressable>

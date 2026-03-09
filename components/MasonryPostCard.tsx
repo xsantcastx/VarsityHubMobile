@@ -37,7 +37,7 @@ export default function MasonryPostCard({ post, onPress, onDeleted: _onDeleted, 
         setUpvotesCount(r.count);
       }
     } catch (error) {
-      console.error('[MasonryPostCard] Failed to toggle upvote:', error);
+      if (__DEV__) console.error('[MasonryPostCard] Failed to toggle upvote:', error);
       showErrorToast('Failed to update vote');
     } finally {
       upvoteInFlight.current = false;
@@ -53,7 +53,7 @@ export default function MasonryPostCard({ post, onPress, onDeleted: _onDeleted, 
       const r: any = await Post.toggleBookmark(String(post.id));
       if (r && typeof r.bookmarked === 'boolean') setBookmarked(r.bookmarked);
     } catch (error) {
-      console.error('[MasonryPostCard] Failed to toggle bookmark:', error);
+      if (__DEV__) console.error('[MasonryPostCard] Failed to toggle bookmark:', error);
       showErrorToast('Failed to save bookmark');
     } finally {
       bookmarkInFlight.current = false;
@@ -155,7 +155,9 @@ export default function MasonryPostCard({ post, onPress, onDeleted: _onDeleted, 
           ) : isVideo && previewUrl ? (
             <Image source={{ uri: previewUrl }} style={styles.media} contentFit="cover" />
           ) : isVideo && mediaUrl ? (
-            <VideoPlayer uri={mediaUrl} style={styles.media} />
+            <View style={[styles.media, { backgroundColor: '#0f172a', alignItems: 'center', justifyContent: 'center' }]}>
+              <MaterialIcons name="videocam" size={28} color="#94a3b8" />
+            </View>
           ) : null}
           {isVideo && (
             <View style={styles.playOverlay}>

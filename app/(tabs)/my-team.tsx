@@ -132,7 +132,7 @@ export default function MyTeamScreen() {
         setMembers([]);
       }
     } catch (e: any) {
-      console.error('Failed to load teams:', e);
+      if (__DEV__) console.error('Failed to load teams:', e);
       setError('Unable to load teams.');
       setTeams([]);
     }
@@ -159,7 +159,7 @@ export default function MyTeamScreen() {
         })),
       );
     } catch (e: any) {
-      console.error('Failed to load members:', e);
+      if (__DEV__) console.error('Failed to load members:', e);
       setMembers([]);
     }
   }, []);

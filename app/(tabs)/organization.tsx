@@ -62,6 +62,7 @@ export default function OrganizationScreen() {
   const [error, setError] = useState<string | null>(null);
   const [isOrgAdmin, setIsOrgAdmin] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
+  const [followBusy, setFollowBusy] = useState(false);
   const [isRequestingJoin, setIsRequestingJoin] = useState(false);
 
   const mounted = useRef(true);
@@ -95,7 +96,7 @@ export default function OrganizationScreen() {
         setIsFollowing(!!(orgData as any).is_following);
       } catch (err: any) {
         if (!mounted.current) return;
-        console.error('[organization] Failed to load organization data:', err);
+        if (__DEV__) console.error('[organization] Failed to load organization data:', err);
       }
 
       try {
@@ -112,7 +113,7 @@ export default function OrganizationScreen() {
           if (mounted.current) setIsOrgAdmin(false);
         }
       } catch (err: any) {
-        console.error('[organization] Failed to load current user:', err);
+        if (__DEV__) console.error('[organization] Failed to load current user:', err);
         if (mounted.current) setIsOrgAdmin(false);
       }
 
@@ -120,7 +121,7 @@ export default function OrganizationScreen() {
       try {
         allTeams = await Team.list();
       } catch (err: any) {
-        console.error('[organization] Failed to load teams list:', err);
+        if (__DEV__) console.error('[organization] Failed to load teams list:', err);
         allTeams = [];
       }
 
@@ -167,12 +168,12 @@ export default function OrganizationScreen() {
           });
         setGames(orgGames);
       } catch (err: any) {
-        console.error('[organization] Failed to load games:', err);
+        if (__DEV__) console.error('[organization] Failed to load games:', err);
         if (mounted.current) setGames([]);
       }
     } catch (err: any) {
       if (!mounted.current) return;
-      console.error('[organization] Failed to load organization:', err);
+      if (__DEV__) console.error('[organization] Failed to load organization:', err);
       setError(err?.message || 'Failed to load organization data');
     } finally {
       if (mounted.current) setLoading(false);
@@ -345,7 +346,7 @@ export default function OrganizationScreen() {
           {isOrgAdmin ? (
             <Pressable
               style={[styles.actionBtn, { flex: 1, backgroundColor: theme.card, borderColor: theme.border, borderWidth: StyleSheet.hairlineWidth }]}
-              onPress={() => Alert.alert('Coming Soon', 'Organization editing will be available in a future update.')}
+              onPress={() => router.push({ pathname: '/(tabs)/edit-organization', params: { id: organization?.id } })}
             >
               <Ionicons name="pencil-outline" size={16} color={theme.text} />
               <Text style={[styles.actionBtnText, { color: theme.text }]}>Edit Profile</Text>
@@ -362,8 +363,10 @@ export default function OrganizationScreen() {
                     borderWidth: 1,
                   },
                 ]}
+                disabled={followBusy}
                 onPress={async () => {
-                  if (!organization?.id) return;
+                  if (!organization?.id || followBusy) return;
+                  setFollowBusy(true);
                   try {
                     if (isFollowing) {
                       await Organization.unfollow(organization.id);
@@ -379,7 +382,10 @@ export default function OrganizationScreen() {
                       );
                     }
                   } catch (err) {
-                    console.error('Organization follow/unfollow failed:', err);
+                    if (__DEV__) console.error('Organization follow/unfollow failed:', err);
+                    Alert.alert('Error', 'Failed to update follow status. Please try again.');
+                  } finally {
+                    setFollowBusy(false);
                   }
                 }}
               >

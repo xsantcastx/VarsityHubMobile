@@ -45,7 +45,7 @@ export default function ImageEditor({ visible, imageUri, onSave, onClose }: Prop
       const uri = await captureRef(viewShotRef.current, { format: 'png', quality: 0.95 });
       onSave(uri as string);
     } catch (e) {
-      console.error('Failed to capture edited image', e);
+      if (__DEV__) console.error('Failed to capture edited image', e);
     }
   };
 
@@ -111,7 +111,7 @@ function MeasuredImage({ uri, maxW = 300, maxH = 240 }: { uri: string; maxW?: nu
   const [size, setSize] = useState<{w:number,h:number}|null>(null);
   useEffect(()=>{
     let mounted = true;
-    Image.getSize(uri, (w,h)=> { if (mounted) { setSize({w,h}); } }, (e) => { console.warn('getSize failed', e); });
+    Image.getSize(uri, (w,h)=> { if (mounted) { setSize({w,h}); } }, (e) => { if (__DEV__) console.warn('getSize failed', e); });
     return () => { mounted = false; };
   },[uri]);
 

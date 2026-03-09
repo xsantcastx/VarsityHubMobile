@@ -146,7 +146,7 @@ export default function ManageSeasonScreen() {
         });
       }
     } catch (error) {
-      console.error('Error loading team:', error);
+      if (__DEV__) console.error('Error loading team:', error);
     } finally {
       setLoading(false);
     }
@@ -201,7 +201,7 @@ export default function ManageSeasonScreen() {
       
       setGames(convertedGames);
     } catch (error) {
-      console.error('Error loading games:', error);
+      if (__DEV__) console.error('Error loading games:', error);
       const errorMessage = error instanceof Error && error.message.includes('Too many requests') 
         ? 'Server is busy, please try again in a moment'
         : 'Failed to load games from server';
@@ -433,7 +433,7 @@ export default function ManageSeasonScreen() {
                 message: 'Failed to delete game. Please try again.',
                 options: [{ label: 'OK', onPress: () => {}, color: undefined }],
               });
-              console.error('Error deleting game:', error);
+              if (__DEV__) console.error('Error deleting game:', error);
             }
           }
         },
@@ -592,7 +592,7 @@ export default function ManageSeasonScreen() {
         options: [{ label: 'OK', onPress: () => {} }],
       });
     } catch (error: any) {
-      console.error('Error approving game:', error);
+      if (__DEV__) console.error('Error approving game:', error);
       setActionModal({
         visible: true,
         title: 'Approval Failed',
@@ -624,7 +624,7 @@ export default function ManageSeasonScreen() {
                 options: [{ label: 'OK', onPress: () => {} }],
               });
             } catch (error: any) {
-              console.error('Error rejecting game:', error);
+              if (__DEV__) console.error('Error rejecting game:', error);
               setActionModal({
                 visible: true,
                 title: 'Rejection Failed',
@@ -822,10 +822,10 @@ export default function ManageSeasonScreen() {
       setEditingGame(null);
       
     } catch (error: any) {
-      console.error('Error adding quick game:', error);
-      console.error('Error status:', error?.status);
-      console.error('Error data:', error?.data);
-      console.error('Error message:', error?.message);
+      if (__DEV__) console.error('Error adding quick game:', error);
+      if (__DEV__) console.error('Error status:', error?.status);
+      if (__DEV__) console.error('Error data:', error?.data);
+      if (__DEV__) console.error('Error message:', error?.message);
       const details = error?.data?.issues ? `\nDetails: ${JSON.stringify(error.data.issues)}` : '';
       const rawMsg = (typeof error?.data === 'object' ? (error.data?.error || error.data?.message) : null) || error?.message || 'Unknown error';
       const errorMsg = (typeof rawMsg === 'string' && (rawMsg.includes('<') || rawMsg.startsWith('Cannot '))) ? 'Server error. Please try again.' : rawMsg;
@@ -887,7 +887,7 @@ export default function ManageSeasonScreen() {
         message: 'Failed to add event. Please try again.',
         options: [{ label: 'OK', onPress: () => {}, color: undefined }],
       });
-      console.error('Error adding game:', error);
+      if (__DEV__) console.error('Error adding game:', error);
     }
   };
 
@@ -967,7 +967,7 @@ export default function ManageSeasonScreen() {
         message: `Failed to create bulk games: ${error instanceof Error ? error.message : 'Unknown error'}`,
         options: [{ label: 'OK', onPress: () => {}, color: undefined }],
       });
-      console.error('Error creating bulk games:', error);
+      if (__DEV__) console.error('Error creating bulk games:', error);
     }
   };
 

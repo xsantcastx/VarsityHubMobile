@@ -52,7 +52,7 @@ export function MentionInput({
       setSuggestions(data.users || []);
       setShowSuggestions((data.users || []).length > 0);
     } catch (error) {
-      console.error('Failed to search users:', error);
+      if (__DEV__) console.error('Failed to search users:', error);
       setSuggestions([]);
       setShowSuggestions(false);
     }

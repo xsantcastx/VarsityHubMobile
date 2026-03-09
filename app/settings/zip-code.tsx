@@ -37,7 +37,7 @@ export default function ZipCodeScreen() {
       await User.updatePreferences({ zip_code: v || null });
       // Refresh user profile to reflect the change
       await refreshUserProfile().catch((error) => {
-        console.warn('[zip-code] Failed to refresh user profile after save:', error);
+        if (__DEV__) console.warn('[zip-code] Failed to refresh user profile after save:', error);
       });
       if (router.canGoBack()) {
         if (router.canGoBack()) router.back();
@@ -45,7 +45,7 @@ export default function ZipCodeScreen() {
         router.push('/(tabs)' as any);
       }
     } catch (e: any) {
-      console.error('[zip-code] Failed to save ZIP code:', e);
+      if (__DEV__) console.error('[zip-code] Failed to save ZIP code:', e);
       Alert.alert('Save failed', e?.message || 'Could not save');
     } finally {
       setSaving(false);

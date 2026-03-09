@@ -58,7 +58,7 @@ export default function ManageTeamsSimpleScreen() {
       }));
       setTeams(formattedTeams);
     } catch (e: any) {
-      console.error('Failed to load teams:', e);
+      if (__DEV__) console.error('Failed to load teams:', e);
       setError('Unable to load teams. Please try again.');
       setTeams([]);
     }
@@ -243,7 +243,7 @@ export default function ManageTeamsSimpleScreen() {
         [{ text: 'OK', onPress: () => {} }]
       );
     } catch (error) {
-      console.error('Error adding quick game:', error);
+      if (__DEV__) console.error('Error adding quick game:', error);
       Alert.alert(
         'Error',
         `Failed to add event: ${error instanceof Error ? error.message : 'Unknown error'}`,

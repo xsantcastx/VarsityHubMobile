@@ -67,7 +67,7 @@ export function useProfileData(): UseProfileDataResult {
         return;
       }
     } catch (e: any) {
-      console.error('[useProfileData] Failed to load profile', e);
+      if (__DEV__) console.error('[useProfileData] Failed to load profile', e);
       
       // Handle 401 Unauthorized specifically
       if (e && e.status === 401) {

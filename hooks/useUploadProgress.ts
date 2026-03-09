@@ -59,7 +59,7 @@ function formatBytes(bytes: number): string {
  * const handleUpload = async () => {
  *   const result = await upload(fileUri, 'photo.jpg', 'image/jpeg');
  *   if (result) {
- *     console.log('Uploaded to:', result.url);
+ *     if (__DEV__) console.log('Uploaded to:', result.url);
  *   }
  * };
  *

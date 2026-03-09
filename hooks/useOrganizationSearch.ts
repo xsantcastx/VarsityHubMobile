@@ -71,7 +71,7 @@ export function useOrganizationSearch<T = any>(
       setOrganizations(items as T[]);
       setError(null);
     } catch (err: any) {
-      console.error('[useOrganizationSearch] failed', err);
+      if (__DEV__) console.error('[useOrganizationSearch] failed', err);
       setError(err?.message || 'Unable to load organizations');
       setOrganizations([]);
     } finally {

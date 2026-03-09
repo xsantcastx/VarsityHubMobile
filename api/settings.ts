@@ -11,7 +11,7 @@ async function setItem(key: string, value: string) {
       await SecureStore.setItemAsync(prefix + key, value);
     }
   } catch (error) {
-    console.warn('[settings] Failed to save setting:', key, error);
+    if (__DEV__) console.warn('[settings] Failed to save setting:', key, error);
   }
 }
 
@@ -23,7 +23,7 @@ async function getItem(key: string): Promise<string | null> {
       return await SecureStore.getItemAsync(prefix + key);
     }
   } catch (error) {
-    console.warn('[settings] Failed to read setting:', key, error);
+    if (__DEV__) console.warn('[settings] Failed to read setting:', key, error);
     return null;
   }
 }

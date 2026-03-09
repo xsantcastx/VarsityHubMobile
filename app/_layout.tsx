@@ -179,7 +179,7 @@ export default function RootLayout() {
       } catch (error) {
         if (__DEV__) {
           // eslint-disable-next-line no-console
-          console.error('[Notifications] Navigation error:', error);
+          if (__DEV__) console.error('[Notifications] Navigation error:', error);
         }
       }
     });

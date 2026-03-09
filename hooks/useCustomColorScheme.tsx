@@ -47,7 +47,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
           setThemePreferenceState(savedTheme as ColorScheme);
         }
       } catch (error) {
-        console.warn('Failed to load theme preference:', error);
+        if (__DEV__) console.warn('Failed to load theme preference:', error);
       }
     };
     loadTheme();
@@ -68,7 +68,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       await SecureStore.setItemAsync(key, theme);
       setThemePreferenceState(theme);
     } catch (error) {
-      console.warn('Failed to save theme preference:', error);
+      if (__DEV__) console.warn('Failed to save theme preference:', error);
       // Still update state even if storage fails
       setThemePreferenceState(theme);
     }
@@ -95,7 +95,7 @@ export function useThemePreference() {
   const context = useContext(ThemeContext);
   if (context === undefined) {
     // Return default values if used outside provider instead of throwing
-    console.warn('useThemePreference used outside ThemeProvider, returning defaults');
+    if (__DEV__) console.warn('useThemePreference used outside ThemeProvider, returning defaults');
     return {
       themePreference: 'system' as ColorScheme,
       setThemePreference: () => {},

@@ -53,7 +53,7 @@ export default function EventMap({
         if (showUserLocation) {
           const { status } = await Location.requestForegroundPermissionsAsync();
           if (status !== 'granted') {
-            console.warn('Location permission not granted');
+            if (__DEV__) console.warn('Location permission not granted');
             setLoading(false);
             return;
           }
@@ -65,7 +65,7 @@ export default function EventMap({
           // User can tap the location button if they want to zoom to their position
         }
       } catch (error) {
-        console.error('Error getting location:', error);
+        if (__DEV__) console.error('Error getting location:', error);
       } finally {
         setLoading(false);
       }

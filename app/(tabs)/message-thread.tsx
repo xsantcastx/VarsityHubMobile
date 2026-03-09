@@ -84,7 +84,7 @@ export default function MessageThreadScreen() {
         else if (withParam) await MessageApi.markReadWith(String(withParam));
       } catch (error: any) {
         if (__DEV__) {
-          console.warn('[MessageThread] Failed to mark as read:', error?.message || error);
+          if (__DEV__) console.warn('[MessageThread] Failed to mark as read:', error?.message || error);
         }
         // Non-critical - continue without marking read
       }

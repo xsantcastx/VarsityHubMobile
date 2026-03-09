@@ -65,7 +65,7 @@ export default function AdminAdsScreen() {
         try {
           await AdsApi.review(adId, 'approve');
         } catch (e) {
-          console.error('Failed to approve ad:', adId, e);
+          if (__DEV__) console.error('Failed to approve ad:', adId, e);
         }
       }
       Alert.alert('Success', `Approved ${selectedAds.size} ad${selectedAds.size > 1 ? 's' : ''}`);
@@ -97,7 +97,7 @@ export default function AdminAdsScreen() {
                 try {
                   await AdsApi.review(adId, 'reject');
                 } catch (e) {
-                  console.error('Failed to reject ad:', adId, e);
+                  if (__DEV__) console.error('Failed to reject ad:', adId, e);
                 }
               }
               Alert.alert('Success', `Rejected ${selectedAds.size} ad${selectedAds.size > 1 ? 's' : ''}`);
@@ -133,7 +133,7 @@ export default function AdminAdsScreen() {
                 try {
                   await AdsApi.delete(adId);
                 } catch (e) {
-                  console.error('Failed to delete ad:', adId, e);
+                  if (__DEV__) console.error('Failed to delete ad:', adId, e);
                 }
               }
               Alert.alert('Success', `Deleted ${selectedAds.size} ad${selectedAds.size > 1 ? 's' : ''}`);

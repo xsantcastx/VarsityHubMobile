@@ -183,7 +183,7 @@ const FeedCard = memo(
           const user = await User.me();
           setCurrentUser(user);
         } catch (error) {
-          console.error('Failed to load user:', error);
+          if (__DEV__) console.error('Failed to load user:', error);
         }
       };
       void loadUser();
@@ -229,7 +229,7 @@ const FeedCard = memo(
           ]
         );
       } catch (error) {
-        console.error('Failed to delete post:', error);
+        if (__DEV__) console.error('Failed to delete post:', error);
       }
     };
 
@@ -244,7 +244,7 @@ const FeedCard = memo(
         setShowEditModal(false);
         onEditPost?.(editCaption);
       } catch (error) {
-        console.error('Failed to update post:', error);
+        if (__DEV__) console.error('Failed to update post:', error);
       }
     };
 
@@ -294,7 +294,7 @@ const FeedCard = memo(
         await MediaLibrary.saveToLibraryAsync(uri as any);
       } catch (error: any) {
         if (__DEV__) {
-          console.warn('[GameVerticalFeed] Failed to save collage:', error?.message || error);
+          if (__DEV__) console.warn('[GameVerticalFeed] Failed to save collage:', error?.message || error);
         }
         // Non-critical - user can try again
       }
@@ -503,7 +503,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
       s = s.replace(/\/+$/, '');
       return s.toLowerCase();
     } catch (error) {
-      console.warn('[GameVerticalFeedScreen] URL normalization failed:', error);
+      if (__DEV__) console.warn('[GameVerticalFeedScreen] URL normalization failed:', error);
       return null;
     }
   }, []);
@@ -556,7 +556,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
         try {
           if (JSON.stringify(prev) === JSON.stringify(next)) return prev;
         } catch (error) {
-          console.warn('[GameVerticalFeedScreen] State comparison failed, using new value:', error);
+          if (__DEV__) console.warn('[GameVerticalFeedScreen] State comparison failed, using new value:', error);
           // If comparison fails, fall back to setting the new value
         }
         return next;
@@ -648,7 +648,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
           setGame({ id: summary.id, title: summary.title || 'Game', date: summary.date ?? null });
         }
       } catch (error) {
-        console.warn('[GameVerticalFeedScreen] Failed to load game summary:', error);
+        if (__DEV__) console.warn('[GameVerticalFeedScreen] Failed to load game summary:', error);
         if (!cancelled) setGame(null);
       }
     })();
@@ -724,7 +724,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
         const more = Boolean(page?.nextCursor);
         hasMoreRef.current = more;
       } catch (error) {
-        console.error('[GameVerticalFeedScreen] Failed to load more posts:', error);
+        if (__DEV__) console.error('[GameVerticalFeedScreen] Failed to load more posts:', error);
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -734,9 +734,14 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
     [gameId, normalizedCountry, usingInitial, excludeSet, normalizeUrl],
   );
 
+  // Load feed on mount and when gameId changes — avoid depending on loadFeed
+  // to prevent re-fetch loops when the callback reference changes.
+  const loadFeedRef = useRef(loadFeed);
+  loadFeedRef.current = loadFeed;
   useEffect(() => {
-    void loadFeed(true);
-  }, [gameId, loadFeed, usingInitial]);
+    if (usingInitial) return;
+    void loadFeedRef.current(true);
+  }, [gameId, usingInitial]);
 
   // When using initial posts, jump to the provided startIndex only on first load
   const hasScrolledToInitial = useRef(false);
@@ -754,7 +759,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
       });
     } catch (error: any) {
       if (__DEV__) {
-        console.warn('[GameVerticalFeed] Failed to load posts:', error?.message || error);
+        if (__DEV__) console.warn('[GameVerticalFeed] Failed to load posts:', error?.message || error);
       }
       // Continue with existing posts
     }
@@ -972,7 +977,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
             setMeInfo({ id: me?.id ? String(me.id) : undefined, username: me?.username ?? null });
           } catch (error: any) {
             if (__DEV__) {
-              console.warn('[GameVerticalFeed] Failed to load user:', error?.message || error);
+              if (__DEV__) console.warn('[GameVerticalFeed] Failed to load user:', error?.message || error);
             }
             // Continue without user info
           }
@@ -1103,11 +1108,11 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
         keyExtractor={keyExtractor}
         renderItem={renderItem}
         pagingEnabled
-        snapToInterval={windowHeight}
+        snapToAlignment="start"
         decelerationRate="fast"
         showsVerticalScrollIndicator={false}
         onEndReached={onEndReached}
-        onEndReachedThreshold={0.6}
+        onEndReachedThreshold={0.3}
         initialScrollIndex={usingInitial ? Math.min(Math.max(0, startIndex || 0), Math.max(0, posts.length - 1)) : undefined}
         getItemLayout={(_, index) => ({ length: windowHeight, offset: windowHeight * index, index })}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors[colorScheme].tint} />}

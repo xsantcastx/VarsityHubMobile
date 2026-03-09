@@ -32,7 +32,7 @@ function SectionCard({ title, initiallyOpen = false, children }: { title: string
   const palette = Colors[cs ?? 'light'];
   return (
     <View style={[styles.card, { borderColor: palette.border, backgroundColor: palette.card }]}>
-      <Pressable style={styles.cardHeader} onPress={() => setOpen(!open)}>
+      <Pressable style={styles.cardHeader} onPress={() => setOpen(!open)} accessibilityRole="button" accessibilityLabel={`${title} section`} accessibilityState={{ expanded: open }}>
         <Text style={[styles.cardTitle, { color: palette.text }]}>{title}</Text>
         <Text style={[styles.chev, { color: palette.icon }, open && styles.chevOpen]}>›</Text>
       </Pressable>
@@ -45,7 +45,7 @@ function NavRow({ title, subtitle, onPress, destructive, isLast }: { title: stri
   const cs = useColorScheme();
   const palette = Colors[cs ?? 'light'];
   return (
-    <Pressable onPress={onPress} style={[styles.rowBetween, !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.border }]}>
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={title} accessibilityHint={subtitle} style={[styles.rowBetween, !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.border }]}>
       <View style={{ flex: 1 }}>
         <Text style={[styles.rowTitle, { color: destructive ? palette.destructive : palette.text }]}>{title}</Text>
         {subtitle && <Text style={[styles.mutedSmall, { color: palette.mutedText }]}>{subtitle}</Text>}
@@ -64,7 +64,7 @@ function SwitchRow({ title, subtitle, value, onValueChange, isLast }: { title: s
         <Text style={[styles.rowTitle, { color: palette.text }]}>{title}</Text>
         {subtitle && <Text style={[styles.mutedSmall, { color: palette.mutedText }]}>{subtitle}</Text>}
       </View>
-      <Switch value={value} onValueChange={onValueChange} />
+      <Switch value={value} onValueChange={onValueChange} accessibilityLabel={title} />
     </View>
   );
 }
@@ -132,7 +132,7 @@ export default function SettingsScreen() {
                       await User.updatePreferences(patchToSend);
                     } catch (e: any) {
                       // Error handled via Alert below
-                      console.error('[settings] Failed to update preferences:', e);
+                      if (__DEV__) console.error('[settings] Failed to update preferences:', e);
                       // Revert on failure if needed, though not implemented here
                       Alert.alert('Update failed', 'Could not save your preference. Please try again.');
                     }
@@ -166,19 +166,19 @@ export default function SettingsScreen() {
                     // Also clear local AsyncStorage flag so next launch doesn't skip onboarding
                     await markOnboardingIncompleteLocally();
                   } catch (error: any) {
-                    console.warn('[settings] Failed to reset onboarding_completed flag:', error);
+                    if (__DEV__) console.warn('[settings] Failed to reset onboarding_completed flag:', error);
                     // Continue anyway - user will be redirected to onboarding
                   }
                   if (setOB) void setOB(preload);
                   router.replace('/onboarding/step-1-role');
                 } catch (e: any) {
                   // Error in onboarding restart - try fallback
-                  console.error('[settings] Failed to restart onboarding:', e);
+                  if (__DEV__) console.error('[settings] Failed to restart onboarding:', e);
                   try {
                     void await User.updatePreferences({ onboarding_completed: false });
                     await markOnboardingIncompleteLocally();
                   } catch (error: any) {
-                    console.warn('[settings] Failed to reset onboarding status:', error);
+                    if (__DEV__) console.warn('[settings] Failed to reset onboarding status:', error);
                     // Continue anyway - user will be redirected to onboarding
                   }
                   router.replace('/onboarding');
@@ -189,13 +189,13 @@ export default function SettingsScreen() {
                 try {
                   void obCtx?.clearOnboarding?.();
                 } catch (error: any) {
-                  console.warn('[settings] Failed to clear onboarding:', error);
+                  if (__DEV__) console.warn('[settings] Failed to clear onboarding:', error);
                 }
 
                 try {
                   await signOut();
                 } catch (error: any) {
-                  console.warn('[settings] Sign out via AuthProvider failed:', error);
+                  if (__DEV__) console.warn('[settings] Sign out via AuthProvider failed:', error);
                   router.replace('/sign-in');
                 }
               };
@@ -207,7 +207,7 @@ export default function SettingsScreen() {
                   const { httpDelete } = await import('@/api/http');
                   await httpDelete('/users/me');
                 } catch (error: any) {
-                  console.error('[settings] Account deletion failed:', error);
+                  if (__DEV__) console.error('[settings] Account deletion failed:', error);
                   Alert.alert('Delete failed', error?.message || 'Could not delete your account.');
                   setDeletingAccount(false);
                   return;
@@ -304,12 +304,12 @@ export default function SettingsScreen() {
                         (e.message.toLowerCase().includes('unauthorized') ||
                           e.message.toLowerCase().includes('forbidden')));
                     if (isAuthError) {
-                      console.warn('[settings] Authentication error - refreshing auth state');
+                      if (__DEV__) console.warn('[settings] Authentication error - refreshing auth state');
                       // Trigger auth check to let AuthProvider handle redirect
                       try {
                         await checkAuth();
                       } catch (authErr) {
-                        console.warn('[settings] Auth check failed:', authErr);
+                        if (__DEV__) console.warn('[settings] Auth check failed:', authErr);
                       }
                       // Don't set error - let AuthProvider redirect to sign-in
                       // The error state will be cleared when user is redirected

@@ -15,7 +15,7 @@ async function saveToken(token: string | null) {
       await SecureStore.setItemAsync(TOKEN_KEY, token || '');
     }
   } catch (error) {
-    console.error('[auth] Failed to save token to secure storage:', error);
+    if (__DEV__) console.error('[auth] Failed to save token to secure storage:', error);
   }
 }
 
@@ -29,7 +29,7 @@ async function saveRefreshToken(token: string | null) {
       else await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
     }
   } catch (error) {
-    console.error('[auth] Failed to save refresh token to secure storage:', error);
+    if (__DEV__) console.error('[auth] Failed to save refresh token to secure storage:', error);
   }
 }
 
@@ -38,7 +38,7 @@ async function loadRefreshToken(): Promise<string | null> {
     if (Platform.OS === 'web') return window.localStorage.getItem(REFRESH_TOKEN_KEY);
     return await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
   } catch (error) {
-    console.error('[auth] Failed to load refresh token from secure storage:', error);
+    if (__DEV__) console.error('[auth] Failed to load refresh token from secure storage:', error);
     return null;
   }
 }
@@ -51,7 +51,7 @@ export async function loadToken(): Promise<string | null> {
     if (Platform.OS === 'web') t = window.localStorage.getItem(TOKEN_KEY);
     else t = await SecureStore.getItemAsync(TOKEN_KEY);
   } catch (error) {
-    console.error('[auth] Failed to load token from secure storage:', error);
+    if (__DEV__) console.error('[auth] Failed to load token from secure storage:', error);
   }
   if (t) setAuthToken(t);
   return t;
@@ -98,7 +98,7 @@ export const auth = {
       // On 401, session expired — log out and re-throw
       if (e && e.status === 401) {
         try { await auth.logout(); } catch (logoutError) {
-          console.warn('[auth] Cleanup logout failed:', logoutError);
+          if (__DEV__) console.warn('[auth] Cleanup logout failed:', logoutError);
         }
       }
       throw e;
@@ -115,7 +115,7 @@ export const auth = {
         await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
       }
     } catch (error) {
-      console.warn('[auth] Failed to clear tokens from secure storage:', error);
+      if (__DEV__) console.warn('[auth] Failed to clear tokens from secure storage:', error);
     }
   },
   async requestEmailVerification() {
@@ -161,7 +161,7 @@ export const auth = {
       await saveRefreshToken(refresh_token);
       return access_token;
     } catch (error) {
-      console.error('[auth] Token refresh failed:', error);
+      if (__DEV__) console.error('[auth] Token refresh failed:', error);
       await auth.logout();
       return null;
     }

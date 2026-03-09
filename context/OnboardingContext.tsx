@@ -135,7 +135,7 @@ export function OBProvider({ children }: PropsWithChildren) {
           }
         }
       } catch (e) {
-        console.error('Failed to load onboarding state from storage', e);
+        if (__DEV__) console.error('Failed to load onboarding state from storage', e);
       } finally {
         setIsLoaded(true);
         if (!initRef.current) {
@@ -176,7 +176,7 @@ export function OBProvider({ children }: PropsWithChildren) {
       await AsyncStorage.removeItem(ONBOARDING_PROGRESS_KEY);
       await AsyncStorage.removeItem(ONBOARDING_REDUCER_STATE_KEY);
     } catch (e) {
-      console.error('Failed to clear onboarding state from storage', e);
+      if (__DEV__) console.error('Failed to clear onboarding state from storage', e);
     }
   }, []);
 
@@ -190,7 +190,7 @@ export function OBProvider({ children }: PropsWithChildren) {
         isSaving: reducerState.isSaving,
         initialized: reducerState.initialized,
       })).catch(e => {
-        console.error('Failed to persist reducer state', e);
+        if (__DEV__) console.error('Failed to persist reducer state', e);
       });
     }
   }, [reducerState, isLoaded]);

@@ -23,7 +23,7 @@ export function getApiBaseUrl(): string {
 
   if (__DEV__ && !('__VH_LOGGED_API_BASE' in (globalThis as any))) {
     (globalThis as any).__VH_LOGGED_API_BASE = true;
-    console.log('[http] API base:', finalUrl, isCustom ? '(custom)' : '(production)');
+    if (__DEV__) console.log('[http] API base:', finalUrl, isCustom ? '(custom)' : '(production)');
   }
   
   return finalUrl;
@@ -174,7 +174,7 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
         name: error.name,
         ...(error.data && { responseData: error.data }),
       };
-      console.error('[http] Request failed:', errorDetails);
+      if (__DEV__) console.error('[http] Request failed:', errorDetails);
       
       // Capture non-network errors to Sentry (network errors already handled below)
       if (error.status && error.status >= 500) {
@@ -202,7 +202,7 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
       // This ensures maximum retries and proper handling
       const isRailwayInfraError = error.status === 502 || error.isRailwayErrorPage || hasCorrelationKey;
       
-      console.error('[http] 502 Bad Gateway on', path, '- Railway infra error:', isRailwayInfraError, '- retries left:', retries);
+      if (__DEV__) console.error('[http] 502 Bad Gateway on', path, '- Railway infra error:', isRailwayInfraError, '- retries left:', retries);
       captureException(error, { 
         tags: { 
           component: 'http-client', 
@@ -227,7 +227,7 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
         const baseDelay = isRailwayInfraError ? 1000 : 500;
         const delay = Math.min(3000, baseDelay * Math.pow(2, 1 - effectiveRetries)); // Exponential backoff
         
-        console.log(`[http] Retrying 502 Bad Gateway after ${delay}ms... (${effectiveRetries}/${maxRetriesFor502} retries left)`);
+        if (__DEV__) console.log(`[http] Retrying 502 Bad Gateway after ${delay}ms... (${effectiveRetries}/${maxRetriesFor502} retries left)`);
         await new Promise(r => setTimeout(r, delay));
         // Retry with original retries count but ensure we don't exceed maxRetriesFor502
         return request(path, options, timeoutMs, Math.min(retries - 1, maxRetriesFor502 - 1));

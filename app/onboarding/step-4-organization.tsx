@@ -404,7 +404,7 @@ export default function Step4Organization() {
       try {
         await User.updatePreferences({ organization_id: orgId, organization_name: orgName.trim() });
       } catch (err) {
-        console.warn('Failed to persist organization_id to backend:', err);
+        if (__DEV__) console.warn('Failed to persist organization_id to backend:', err);
       }
 
       // Show success toast

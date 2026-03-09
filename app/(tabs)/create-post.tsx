@@ -55,7 +55,7 @@ const getFileSizeFromUri = async (uri: string): Promise<number> => {
     if (info && info.exists && typeof (info as any).size === 'number') return (info as any).size;
     return 0;
   } catch (error) {
-    console.warn('Could not determine file size:', error);
+    if (__DEV__) console.warn('Could not determine file size:', error);
     return 0;
   }
 };
@@ -200,7 +200,7 @@ export default function CreatePostScreen() {
           }
         );
       } catch (e) {
-        console.warn('Failed to get image dimensions:', e);
+        if (__DEV__) console.warn('Failed to get image dimensions:', e);
         setMediaDimensions(null);
       }
     })();
@@ -291,7 +291,7 @@ export default function CreatePostScreen() {
           setError(null); // Clear any previous errors
         }
       } catch (error) {
-        console.warn('Failed to load game from params:', error);
+        if (__DEV__) console.warn('Failed to load game from params:', error);
         // If game not found (404), clear the selectedGameId so user can still post
         if ((error as any)?.status === 404) {
           setSelectedGameId(undefined);
@@ -300,7 +300,7 @@ export default function CreatePostScreen() {
         } else {
           // For other errors (network, etc.), keep the gameId and let backend validate
           // User can still try to post - backend will handle validation
-          console.warn('Game load failed but keeping gameId for backend validation:', error);
+          if (__DEV__) console.warn('Game load failed but keeping gameId for backend validation:', error);
         }
       }
     })();
@@ -352,7 +352,7 @@ export default function CreatePostScreen() {
           setSelectedGameId(String(top.id));
         }
       } catch (error) {
-        console.warn('Failed to fetch nearby games:', error);
+        if (__DEV__) console.warn('Failed to fetch nearby games:', error);
       } finally {
         setHasAutoSuggested(true);
       }
@@ -409,7 +409,7 @@ export default function CreatePostScreen() {
             uri = result.uri;
           } catch (error: any) {
             if (__DEV__) {
-              console.warn('[CreatePost] Image manipulation failed, using original:', error?.message || error);
+              if (__DEV__) console.warn('[CreatePost] Image manipulation failed, using original:', error?.message || error);
             }
             // Continue with original URI if manipulation fails
           }
@@ -423,7 +423,7 @@ export default function CreatePostScreen() {
         }
       }
     } catch (error: any) {
-      console.error('[CreatePost] Image picker error:', error);
+      if (__DEV__) console.error('[CreatePost] Image picker error:', error);
       // Handle iOS PHPicker "public.png" error gracefully
       if (error?.message?.includes('public.png') || error?.message?.includes('Failed to read picked image')) {
         Alert.alert(
@@ -521,7 +521,7 @@ export default function CreatePostScreen() {
             uri = result.uri;
           } catch (error: any) {
             if (__DEV__) {
-              console.warn('[CreatePost] Image manipulation failed, using original:', error?.message || error);
+              if (__DEV__) console.warn('[CreatePost] Image manipulation failed, using original:', error?.message || error);
             }
             // Continue with original URI if manipulation fails
           }
@@ -534,7 +534,7 @@ export default function CreatePostScreen() {
         }
       }
     } catch (error: any) {
-      console.error('[CreatePost] Camera error:', error);
+      if (__DEV__) console.error('[CreatePost] Camera error:', error);
       Alert.alert('Error', 'Failed to capture media. Please try again.');
     }
   };
@@ -584,7 +584,7 @@ export default function CreatePostScreen() {
         }
         if (__DEV__) console.warn('[CreatePost] Network OK');
       } catch (netErr: any) {
-        console.error('[CreatePost] Network check failed:', netErr?.message);
+        if (__DEV__) console.error('[CreatePost] Network check failed:', netErr?.message);
         throw new Error('Unable to connect to server. Please check your internet connection and try again.');
       }
 
@@ -614,6 +614,15 @@ export default function CreatePostScreen() {
             if (__DEV__) console.warn('[CreatePost] Thumbnail upload failed:', e);
           }
         }
+        // Clean up temp files (trimmed video, thumbnail) after successful upload
+        try {
+          const filesToClean = [trimmedUri, videoThumbnailUri].filter(
+            (f): f is string => !!f && f.startsWith(LegacyFileSystem.cacheDirectory || '')
+          );
+          for (const f of filesToClean) {
+            LegacyFileSystem.deleteAsync(f, { idempotent: true }).catch(() => {});
+          }
+        } catch { /* non-critical cleanup */ }
       }
       const trimmedContent = content.trim();
       
@@ -685,7 +694,7 @@ export default function CreatePostScreen() {
           cache[selectedGameId] = [newPost, ...existing].slice(0, 200);
           await settings.setJson(settings.SETTINGS_KEYS.SAMPLE_EVENT_POSTS, cache);
         } catch (cacheErr) {
-          console.warn('[CreatePost] Failed to cache sample post:', cacheErr);
+          if (__DEV__) console.warn('[CreatePost] Failed to cache sample post:', cacheErr);
         }
       }
       
@@ -734,7 +743,7 @@ export default function CreatePostScreen() {
         router.replace('/(tabs)');
       }, 2200);
     } catch (e: any) {
-      console.error('[CreatePost] Error creating post:', {
+      if (__DEV__) console.error('[CreatePost] Error creating post:', {
         message: e?.message,
         status: e?.status,
         data: e?.data,
@@ -980,7 +989,6 @@ export default function CreatePostScreen() {
 
         {/* Footer */}
         <View style={styles.footerSection}>
-          {/* TODO: Link to community guidelines page when available */}
           <Text style={[styles.footerLink, { color: Colors[colorScheme].tint }]}>Respect all the players on the field.</Text>
           {showPrecisionWarning ? (
             <View style={[styles.warningBanner, { 

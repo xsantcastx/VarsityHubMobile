@@ -79,7 +79,7 @@ export default function NotificationsScreen() {
     try {
       await Notification.markAllRead();
     } catch (err) {
-      console.error('Failed to mark all notifications as read', err);
+      if (__DEV__) console.error('Failed to mark all notifications as read', err);
       setItems(previousItems);
     } finally {
       setMarkingAll(false);
@@ -129,7 +129,7 @@ export default function NotificationsScreen() {
         const updated = items.map((n) => (n.id === item.id ? { ...n, read_at: now } : n));
         setItems(updated);
         Notification.markRead(item.id).catch((err) => {
-          console.error('Failed to mark notification as read', err);
+          if (__DEV__) console.error('Failed to mark notification as read', err);
           setItems(previousItems);
         });
       }

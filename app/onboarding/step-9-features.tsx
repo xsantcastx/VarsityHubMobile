@@ -109,7 +109,7 @@ export default function Step9Features() {
 
   const onContinue = async () => {
     setSaving(true);
-    console.log('[Step9] onContinue: role =', ob.role, '| locationEnabled =', locationEnabled, '| notificationsEnabled =', notificationsEnabled);
+    if (__DEV__) console.log('[Step9] onContinue: role =', ob.role, '| locationEnabled =', locationEnabled, '| notificationsEnabled =', notificationsEnabled);
     try {
       // Save to context
       setOB((prev) => ({
@@ -126,10 +126,20 @@ export default function Step9Features() {
         notifications_enabled: notificationsEnabled,
         messaging_policy_accepted: true,
       });
-      console.log('[Step9] messaging_policy_accepted saved to server');
+      if (__DEV__) console.log('[Step9] messaging_policy_accepted saved to server');
 
-      // For fans, complete onboarding and go to feed
+      // For fans, complete onboarding and go to feed (prompt email verification if not done)
       if (ob.role === 'fan') {
+        if (!user?.email_verified) {
+          Alert.alert(
+            'Verify Your Email',
+            'Some features like posting and messaging require a verified email. Verify now?',
+            [
+              { text: 'Skip for Now', style: 'cancel' },
+              { text: 'Verify', onPress: () => router.push('/(tabs)/verify-email') },
+            ]
+          );
+        }
         // Mark onboarding complete for fans - only send defined fields
         const payload: any = {
           messaging_policy_accepted: true,
@@ -168,7 +178,7 @@ export default function Step9Features() {
       }
       
       // For coaches, go to confirmation page
-      console.log('[Step9] Coach flow: navigating to step-10-confirmation');
+      if (__DEV__) console.log('[Step9] Coach flow: navigating to step-10-confirmation');
       setProgress(9); // step-10 is index 9 in stepRoutes array
       router.replace('/onboarding/step-10-confirmation');
     } catch (e: any) {

@@ -28,9 +28,10 @@ export default function ContactScreen() {
 
   const onSubmit = async () => {
     if (!subject.trim() || !message.trim()) { Alert.alert('Please fill subject and message'); return; }
+    if (!emailField.trim()) { Alert.alert('Email Required', 'Please enter your email so we can respond.'); return; }
     setSending(true);
     try {
-      await Support.contact({ name: name || 'Unknown', email: emailField || 'unknown@example.com', subject: subject.trim(), message: message.trim() });
+      await Support.contact({ name: name || 'Unknown', email: emailField.trim(), subject: subject.trim(), message: message.trim() });
       Alert.alert('Sent', 'Thanks for reaching out.');
       if (router.canGoBack()) {
         if (router.canGoBack()) router.back();
@@ -38,7 +39,7 @@ export default function ContactScreen() {
         router.push('/(tabs)' as any);
       }
     } catch (e: any) {
-      console.error('[contact] Failed to send contact message:', e);
+      if (__DEV__) console.error('[contact] Failed to send contact message:', e);
       Alert.alert('Failed', e?.message || 'Try again later');
     } finally {
       setSending(false);

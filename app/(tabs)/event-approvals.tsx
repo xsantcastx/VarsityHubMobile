@@ -105,7 +105,7 @@ export default function EventApprovalsScreen() {
       setEvents(pending);
       loadEventsFailedRef.current = false;
     } catch (e: any) {
-      console.warn('[Approvals] Events load failed:', e?.message);
+      if (__DEV__) console.warn('[Approvals] Events load failed:', e?.message);
       setEvents([]);
       loadEventsFailedRef.current = true;
     } finally {
@@ -122,7 +122,7 @@ export default function EventApprovalsScreen() {
       setTeamInvites(pending);
       loadInvitesFailedRef.current = false;
     } catch (e: any) {
-      console.warn('[Approvals] Team invites load failed:', e?.message);
+      if (__DEV__) console.warn('[Approvals] Team invites load failed:', e?.message);
       setTeamInvites([]);
       loadInvitesFailedRef.current = true;
     } finally {
@@ -139,7 +139,7 @@ export default function EventApprovalsScreen() {
       setOrgRequests(pending);
       loadOrgFailedRef.current = false;
     } catch (e: any) {
-      console.warn('[Approvals] Org join requests load failed:', e?.message);
+      if (__DEV__) console.warn('[Approvals] Org join requests load failed:', e?.message);
       setOrgRequests([]);
       loadOrgFailedRef.current = true;
     } finally {

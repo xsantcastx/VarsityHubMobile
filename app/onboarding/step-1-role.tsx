@@ -140,7 +140,7 @@ export default function Step1Role() {
   // CRITICAL: Redirect if not authenticated
   useEffect(() => {
     if (!user) {
-      console.warn('[Step1Role] Unauthenticated user - redirecting to sign-in');
+      if (__DEV__) console.warn('[Step1Role] Unauthenticated user - redirecting to sign-in');
       router.replace('/sign-in');
     }
   }, [user, router]);
@@ -184,7 +184,7 @@ export default function Step1Role() {
           const me: any = await User.me();
           setEmailVerified(me?.email_verified ?? null);
         } catch (error) {
-          console.error('Failed to check email verification:', error);
+          if (__DEV__) console.error('Failed to check email verification:', error);
         }
       })();
     }, [])
@@ -244,7 +244,7 @@ export default function Step1Role() {
         await User.updatePreferences({ role });
       } catch (error) {
         if (__DEV__) {
-          console.warn('[Onboarding][Step1] failed to persist role to server', error);
+          if (__DEV__) console.warn('[Onboarding][Step1] failed to persist role to server', error);
         }
       }
       
@@ -263,7 +263,7 @@ export default function Step1Role() {
         
         if (__DEV__) {
           // eslint-disable-next-line no-console
-          console.log('[STEP-1] Navigation after role selection:', {
+          if (__DEV__) console.log('[STEP-1] Navigation after role selection:', {
             role,
             wasCoachBefore,
             nextStepIndex,
@@ -282,7 +282,7 @@ export default function Step1Role() {
       }
     } catch (error) {
       if (__DEV__) {
-        console.error('[STEP-1] Error during continue:', error);
+        if (__DEV__) console.error('[STEP-1] Error during continue:', error);
       }
       dispatch({ type: 'SAVE_FAIL', error: error as Error });
     } finally {
@@ -296,7 +296,7 @@ export default function Step1Role() {
       await User.logout();
       router.replace('/sign-in');
     } catch (error) {
-      console.error('Failed to logout:', error);
+      if (__DEV__) console.error('Failed to logout:', error);
       router.replace('/sign-in');
     }
   };

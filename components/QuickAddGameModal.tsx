@@ -349,14 +349,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
   const teams: TeamOption[] = useMemo(() => {
     if (!Array.isArray(rawTeams) || rawTeams.length === 0) {
       return [
-        { id: 'my-team', name: currentTeamName || 'My Team', logo: 'https://via.placeholder.com/100/FF0000/FFFFFF?text=MT' },
-        { id: 'varsity-team', name: 'Varsity Team', logo: 'https://via.placeholder.com/100/0000FF/FFFFFF?text=VT' },
-        { id: 'home-team', name: 'Home Team', logo: 'https://via.placeholder.com/100/00FF00/FFFFFF?text=HT' },
-        { id: 'eagles', name: 'Eagles' },
-        { id: 'warriors', name: 'Warriors' },
-        { id: 'lions', name: 'Lions' },
-        { id: 'tigers', name: 'Tigers' },
-        { id: 'bulldogs', name: 'Bulldogs' },
+        { id: 'my-team', name: currentTeamName || 'My Team' },
       ];
     }
     return rawTeams.map((team: any) => ({
@@ -551,7 +544,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
               finalData.cover_image_url = url; // Also set cover_image_url to the same value
             }
           } catch (e) {
-            console.warn('Banner capture/upload failed, continuing without banner', e);
+            if (__DEV__) console.warn('Banner capture/upload failed, continuing without banner', e);
           } finally {
             setUploadingBanner(false);
           }
@@ -1321,7 +1314,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
                                 setEditingImageUri(uri as any);
                                 setEditorVisible(true);
                               } catch (e) {
-                                console.warn('Capture failed', e);
+                                if (__DEV__) console.warn('Capture failed', e);
                               }
                             }
                           };
@@ -1410,7 +1403,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
         const url = uploaded?.url || uploaded?.path || null;
         if (url) setBannerUrl(url);
       } catch (e) {
-        console.warn('Upload edited image failed', e);
+        if (__DEV__) console.warn('Upload edited image failed', e);
       } finally {
         setUploadingBanner(false);
       }

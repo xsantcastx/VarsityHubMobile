@@ -68,7 +68,7 @@ export async function autocompleteLocations(query: string, limit: number = 6): P
   } catch (error: any) {
     // If endpoint doesn't exist, return empty array
     if (error?.message?.includes('Cannot GET') || error?.status === 404) {
-      console.log('[geocoding] Autocomplete endpoint not available, returning empty results');
+      if (__DEV__) console.log('[geocoding] Autocomplete endpoint not available, returning empty results');
       return [];
     }
     throw error;

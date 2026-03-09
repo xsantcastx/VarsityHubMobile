@@ -55,7 +55,7 @@ export default function OnboardingFinish() {
         setMe(updatedUser);
         // Onboarding marked complete
       } catch (completeErr) {
-        console.error('[Onboarding][Finish] Failed to mark onboarding complete:', completeErr);
+        if (__DEV__) console.error('[Onboarding][Finish] Failed to mark onboarding complete:', completeErr);
         // Continue anyway - will let AuthProvider handle it
       }
       
@@ -63,7 +63,7 @@ export default function OnboardingFinish() {
       try {
         await markOnboardingCompleteLocally();
       } catch (error) {
-        console.warn('[Onboarding][Finish] Failed to mark locally:', error);
+        if (__DEV__) console.warn('[Onboarding][Finish] Failed to mark locally:', error);
       }
       
       // Navigate to main app
@@ -81,13 +81,13 @@ export default function OnboardingFinish() {
       setMe(updatedUser);
       // Onboarding marked complete during skip
     } catch (completeErr) {
-      console.error('[Onboarding][Finish] Failed to mark onboarding complete:', completeErr);
+      if (__DEV__) console.error('[Onboarding][Finish] Failed to mark onboarding complete:', completeErr);
     }
     
     try {
       await markOnboardingCompleteLocally();
     } catch (error) {
-      console.warn('[Onboarding][Finish] Failed to mark locally:', error);
+      if (__DEV__) console.warn('[Onboarding][Finish] Failed to mark locally:', error);
     }
     
     router.replace('/(tabs)/feed');

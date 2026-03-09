@@ -72,7 +72,7 @@ export function BannerAd({
                 Alert.alert('Invalid Link', 'Unable to open this link. Please check the URL format.');
               }
             } catch (error) {
-              console.error('Error opening ad link:', error);
+              if (__DEV__) console.error('Error opening ad link:', error);
               Alert.alert('Error', 'Failed to open link. Please try again.');
             }
           },
@@ -84,7 +84,8 @@ export function BannerAd({
   const parseRotate = (mode?: string | null) => {
     if (!mode) return { base: 'fill', rotation: 0 };
     if (mode.startsWith('rotate:')) {
-      const raw = Number(mode.split(':')[1]);
+      const parts = mode.split(':');
+      const raw = parts.length > 1 ? Number(parts[1]) : 0;
       return { base: 'rotate', rotation: Number.isFinite(raw) ? raw : 0 };
     }
     return { base: mode, rotation: 0 };
@@ -182,6 +183,8 @@ export function BannerAd({
         }
       }}
       onPress={handlePress}
+      accessibilityRole="link"
+      accessibilityLabel="Sponsored advertisement"
       android_ripple={{ color: 'rgba(0, 0, 0, 0.1)' }}
     >
       <Image

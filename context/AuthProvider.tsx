@@ -124,12 +124,12 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     
     // Skip push notifications in Expo Go
     if (isExpoGo || !Notifications) {
-      console.log('[PushNotifications] Skipping setup in Expo Go environment');
+      if (__DEV__) console.log('[PushNotifications] Skipping setup in Expo Go environment');
       return false;
     }
     
     if (!Device.isDevice) {
-      console.log('[PushNotifications] Skipping setup on simulator/emulator');
+      if (__DEV__) console.log('[PushNotifications] Skipping setup on simulator/emulator');
       return false;
     }
     if (lastPushRegistrationRef.current === userId) {
@@ -145,7 +145,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       }
 
       if (permissions.status !== 'granted') {
-        console.log('[PushNotifications] Permission denied by user');
+        if (__DEV__) console.log('[PushNotifications] Permission denied by user');
         return false;
       }
 
@@ -155,11 +155,11 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         const appJson = require('../app.json');
         projectId = appJson?.expo?.extra?.eas?.projectId;
       } catch {
-        console.error('[PushNotifications] Could not load app.json for projectId');
+        if (__DEV__) console.error('[PushNotifications] Could not load app.json for projectId');
       }
 
       if (!projectId) {
-        console.error('[PushNotifications] EXPO_PROJECT_ID not found in app.json');
+        if (__DEV__) console.error('[PushNotifications] EXPO_PROJECT_ID not found in app.json');
         return false;
       }
 
@@ -188,7 +188,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       await saveToken();
       return true;
     } catch (error: any) {
-      console.error('[PushNotifications] Failed to setup:', error?.message || error);
+      if (__DEV__) console.error('[PushNotifications] Failed to setup:', error?.message || error);
       // Don't block app - push notifications are optional
       return false;
     }
@@ -246,7 +246,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         if (!serverComplete && me?.id) {
           const lastUserId = await AsyncStorage.getItem(LAST_ONBOARDING_USER_KEY);
           if (lastUserId && lastUserId !== me.id) {
-            console.log('[AuthProvider] Different user needs onboarding — clearing stale data');
+            if (__DEV__) console.log('[AuthProvider] Different user needs onboarding — clearing stale data');
             await AsyncStorage.multiRemove([
               'onboarding_state',
               'onboarding_progress',
@@ -272,7 +272,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         // Don't clear onboarding flag on auth error - keep it for when user logs back in
         // Only throw if it's not a 401 (unauthorized) - 401 is expected when not logged in
         if (err?.status !== 401) {
-          console.error('[AuthProvider] checkAuth error:', err);
+          if (__DEV__) console.error('[AuthProvider] checkAuth error:', err);
         }
         throw err;
       }
@@ -290,7 +290,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     try {
       await auth.logout();
     } catch (error) {
-      console.warn('[auth] Failed to clear persisted session during sign out:', error);
+      if (__DEV__) console.warn('[auth] Failed to clear persisted session during sign out:', error);
     } finally {
       clearPostCacheOnLogout();
       setUser(null);
@@ -321,7 +321,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         await AsyncStorage.setItem(ONBOARDING_COMPLETE_USER_KEY, user.id);
       }
     } catch (error) {
-      console.warn('[Auth] Failed to persist onboarding completion flag:', error);
+      if (__DEV__) console.warn('[Auth] Failed to persist onboarding completion flag:', error);
     }
   }, [user?.id]);
 
@@ -331,14 +331,14 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       await AsyncStorage.removeItem(ONBOARDING_COMPLETE_KEY);
       await AsyncStorage.removeItem(ONBOARDING_COMPLETE_USER_KEY);
     } catch (error) {
-      console.warn('[Auth] Failed to clear onboarding completion flag:', error);
+      if (__DEV__) console.warn('[Auth] Failed to clear onboarding completion flag:', error);
     }
   }, []);
 
   // Initial auth check
   useEffect(() => {
     if (!navReady) {
-      console.log('[AuthProvider] Waiting for navigation state...');
+      if (__DEV__) console.log('[AuthProvider] Waiting for navigation state...');
       return;
     }
 
@@ -347,15 +347,15 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
 
     (async () => {
       // 1. Check health first
-      console.log('[AuthProvider] Checking backend health...');
+      if (__DEV__) console.log('[AuthProvider] Checking backend health...');
       const healthy = await checkHealth();
-      console.log('[AuthProvider] Health check result:', healthy);
+      if (__DEV__) console.log('[AuthProvider] Health check result:', healthy);
       
       if (!mounted) return;
 
       // 2. If backend is down, we can't authenticate
       if (!healthy) {
-        console.log('[AuthProvider] Backend unhealthy, stopping initialization');
+        if (__DEV__) console.log('[AuthProvider] Backend unhealthy, stopping initialization');
         setLoading(false);
         setInitializing(false);
         // Don't redirect - let user see offline banner
@@ -366,14 +366,14 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       if (__DEV__) console.log('[AuthProvider] Checking authentication...');
       try {
         await checkAuthRef.current();
-        console.log('[AuthProvider] Auth check successful');
+        if (__DEV__) console.log('[AuthProvider] Auth check successful');
       } catch (err: any) {
-        console.log('[AuthProvider] Auth check failed (user not logged in):', err.message);
+        if (__DEV__) console.log('[AuthProvider] Auth check failed (user not logged in):', err.message);
         // Auth failed - user not logged in
         // Don't redirect here - let the routing logic below handle it
       } finally {
         if (mounted) {
-          console.log('[AuthProvider] Initialization complete');
+          if (__DEV__) console.log('[AuthProvider] Initialization complete');
           setLoading(false);
           setInitializing(false);
         }
@@ -400,7 +400,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
   useEffect(() => {
     const timeout = setTimeout(() => {
       if (initializing) {
-        console.warn('[AuthProvider] ⚠️ Initialization timeout (5s) - forcing completion');
+        if (__DEV__) console.warn('[AuthProvider] ⚠️ Initialization timeout (5s) - forcing completion');
         setLoading(false);
         setInitializing(false);
       }
@@ -414,7 +414,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     let mounted = true;
     const timeout = setTimeout(() => {
       if (mounted) {
-        console.warn('[Auth] AsyncStorage timeout - assuming onboarding incomplete');
+        if (__DEV__) console.warn('[Auth] AsyncStorage timeout - assuming onboarding incomplete');
         setHasCompletedOnboarding(false);
       }
     }, 2000);
@@ -435,7 +435,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         }
       } catch (error) {
         clearTimeout(timeout);
-        console.warn('[Auth] Failed to load onboarding flag from storage:', error);
+        if (__DEV__) console.warn('[Auth] Failed to load onboarding flag from storage:', error);
       }
     })();
 
@@ -448,7 +448,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
   // Routing logic (runs after auth check completes)
   useEffect(() => {
     if (initializing) {
-      console.log('[AuthProvider] Still initializing, skipping routing');
+      if (__DEV__) console.log('[AuthProvider] Still initializing, skipping routing');
       return;
     }
 
@@ -456,11 +456,11 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     const publicRoutes = new Set(['sign-in', 'sign-up', 'verify-email', 'verify', 'verify-identity', 'forgot-password', 'reset-password', 'reset', 'public-event']);
     const isPublic = publicRoutes.has(firstSegment);
 
-    console.log('[AuthProvider] Routing check - segment:', firstSegment, 'user:', !!user, 'pendingVerif:', !!pendingVerificationEmail);
+    if (__DEV__) console.log('[AuthProvider] Routing check - segment:', firstSegment, 'user:', !!user, 'pendingVerif:', !!pendingVerificationEmail);
 
     // If backend is unhealthy, don't do any redirects
     if (!healthOk) {
-      console.log('[AuthProvider] Backend unhealthy, skipping routing');
+      if (__DEV__) console.log('[AuthProvider] Backend unhealthy, skipping routing');
       return;
     }
 
@@ -480,7 +480,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       // that the server's requireVerified middleware would reject with 403
       const verifyRoutes = new Set(['verify', 'verify-email', 'verify-identity']);
       if (user.email_verified === false && !verifyRoutes.has(firstSegment)) {
-        console.log('[AuthProvider] User email not verified, redirecting to verify');
+        if (__DEV__) console.log('[AuthProvider] User email not verified, redirecting to verify');
         if (lastRedirectRef.current !== '/verify') {
           lastRedirectRef.current = '/verify';
           router.replace('/verify');
@@ -500,7 +500,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
 
       // If needs onboarding and not already there, redirect to start onboarding
       if (needsOnboarding && firstSegment !== 'onboarding') {
-        console.log('[AuthProvider] User needs onboarding, redirecting to step 1');
+        if (__DEV__) console.log('[AuthProvider] User needs onboarding, redirecting to step 1');
         if (lastRedirectRef.current !== '/onboarding/step-1-role') {
           lastRedirectRef.current = '/onboarding/step-1-role';
           router.replace('/onboarding/step-1-role');
@@ -510,7 +510,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
 
       // If onboarding is complete and user is still on onboarding route, send to main app
       if (!needsOnboarding && firstSegment === 'onboarding') {
-        console.log('[AuthProvider] User completed onboarding, redirecting to main app');
+        if (__DEV__) console.log('[AuthProvider] User completed onboarding, redirecting to main app');
         const landingRoute = '/(tabs)';
         if (lastRedirectRef.current !== landingRoute) {
           lastRedirectRef.current = landingRoute;

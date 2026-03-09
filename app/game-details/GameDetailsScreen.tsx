@@ -150,7 +150,7 @@ function StoriesViewer({ visible, items, index, onClose, onSeen, onDelete, gameI
                 }
               }
             } catch (err) {
-              console.error('Failed to delete story', err);
+              if (__DEV__) console.error('Failed to delete story', err);
               Alert.alert('Error', 'Unable to delete story. Please try again.');
             } finally {
               setDeleting(false);
@@ -181,8 +181,7 @@ function StoriesViewer({ visible, items, index, onClose, onSeen, onDelete, gameI
   // Check if user can delete this story
   const canDelete = currentUserId && item?.user_id && currentUserId === item.user_id;
   
-  // TEMP: Show delete button for all stories during testing
-  const showDeleteButton = __DEV__ || canDelete;
+  const showDeleteButton = canDelete;
   
   return (
     <Modal
@@ -594,7 +593,7 @@ const GameDetailsScreen = () => {
       }));
       setTeams(teamInfo);
     } catch (error) {
-      console.error('Failed to load teams:', error);
+      if (__DEV__) console.error('Failed to load teams:', error);
     }
   };
 
@@ -848,42 +847,42 @@ const GameDetailsScreen = () => {
       }
 
       try {
-        console.log('[GameDetails] loadGameById() — fetching summary for', gameIdValue);
+        if (__DEV__) console.log('[GameDetails] loadGameById() — fetching summary for', gameIdValue);
         const summary: any = await retryWithBackoff(() => Game.summary(gameIdValue), {
           maxRetries: 0,
           initialDelayMs: 800,
           maxDelayMs: 4000,
         }).catch((err: any) => {
-          console.warn('[GameDetails] summary fetch failed:', { status: err?.status, message: err?.message });
+          if (__DEV__) console.warn('[GameDetails] summary fetch failed:', { status: err?.status, message: err?.message });
           if (err && err.status === 404) return null;
           // Treat transport / infra failures as recoverable and fall back to Game.get.
           if (err?.status === 0 || err?.status === 408 || err?.isNetworkError || err?.status >= 500) {
-            console.warn('[game-details] summary unavailable, falling back to game record:', err?.message);
+            if (__DEV__) console.warn('[game-details] summary unavailable, falling back to game record:', err?.message);
             return null;
           }
           throw err;
         });
-        console.log('[GameDetails] summary result:', summary ? 'ok' : 'null');
+        if (__DEV__) console.log('[GameDetails] summary result:', summary ? 'ok' : 'null');
 
         let gameRecord: any = null;
         if (!summary) {
-          console.log('[GameDetails] no summary — trying Game.get() fallback');
+          if (__DEV__) console.log('[GameDetails] no summary — trying Game.get() fallback');
           // Only attempt record fetch if summary missing; suppress 404 noise
           gameRecord = await retryWithBackoff(() => Game.get(gameIdValue), {
             maxRetries: 0,
             initialDelayMs: 800,
             maxDelayMs: 4000,
           }).catch((err: any) => {
-            console.warn('[GameDetails] Game.get() fallback failed:', { status: err?.status, message: err?.message });
+            if (__DEV__) console.warn('[GameDetails] Game.get() fallback failed:', { status: err?.status, message: err?.message });
             if (err && err.status === 404) return null;
-            console.warn('Game record fetch failed:', err?.message || err);
+            if (__DEV__) console.warn('Game record fetch failed:', err?.message || err);
             return null;
           });
-          console.log('[GameDetails] Game.get() result:', gameRecord ? 'ok' : 'null');
+          if (__DEV__) console.log('[GameDetails] Game.get() result:', gameRecord ? 'ok' : 'null');
         }
         // If neither summary nor record exists, bail out to show error UI
         if (!summary && !gameRecord) {
-          console.warn('[GameDetails] Both summary and gameRecord are null — throwing "Game not found"');
+          if (__DEV__) console.warn('[GameDetails] Both summary and gameRecord are null — throwing "Game not found"');
           throw new Error('Game not found');
         }
 
@@ -1105,7 +1104,7 @@ const GameDetailsScreen = () => {
         });
       }
       } catch (error: any) {
-        console.error('[GameDetails] loadGameById() inner catch:', {
+        if (__DEV__) console.error('[GameDetails] loadGameById() inner catch:', {
           message: error?.message,
           status: error?.status,
           data: error?.data,
@@ -1260,7 +1259,7 @@ const GameDetailsScreen = () => {
           await loadGameById(gameId);
           Alert.alert('Added', isSampleId(gameId) ? 'Story added (demo only).' : 'Story added to this game.');
         } catch (reloadErr: any) {
-          console.warn('[story] Camera - reload failed but story was uploaded:', reloadErr);
+          if (__DEV__) console.warn('[story] Camera - reload failed but story was uploaded:', reloadErr);
           Alert.alert('Added', 'Story added to this game. Refresh to see it.');
         }
       }
@@ -1273,7 +1272,7 @@ const GameDetailsScreen = () => {
           { text: 'Sign In', onPress: () => void router.push('/sign-in') },
         ]);
       } else {
-        console.error('Story upload error:', err);
+        if (__DEV__) console.error('Story upload error:', err);
         Alert.alert('Unable to add story', err?.message || 'Please try again.');
       }
     } finally {
@@ -1353,7 +1352,7 @@ const GameDetailsScreen = () => {
       });
       setVoteSummary(parseVoteSummary(res));
     } catch (err) {
-      console.warn('Failed to load game votes', err);
+      if (__DEV__) console.warn('Failed to load game votes', err);
     }
   }, [vm?.gameId, vm?.eventId]);
 
@@ -1361,9 +1360,9 @@ const GameDetailsScreen = () => {
     async (isRefresh = false) => {
       const gameIdValue = id ? String(id) : null;
       const eventIdValue = eventId ? String(eventId) : null;
-      console.log('[GameDetails] load() called', { gameIdValue, eventIdValue, isRefresh });
+      if (__DEV__) console.log('[GameDetails] load() called', { gameIdValue, eventIdValue, isRefresh });
       if (!gameIdValue && !eventIdValue) {
-        console.warn('[GameDetails] load() — no id or eventId, aborting');
+        if (__DEV__) console.warn('[GameDetails] load() — no id or eventId, aborting');
         setError('Missing game or event id.');
         setVm(null);
         setLoading(false);
@@ -1382,14 +1381,9 @@ const GameDetailsScreen = () => {
         } else if (eventIdValue) {
           await loadVirtualFromEvent(eventIdValue);
         }
-        console.log('[GameDetails] load() — done, vm should be set');
+        if (__DEV__) console.log('[GameDetails] load() — done, vm should be set');
       } catch (err: any) {
-        console.error('[GameDetails] load() — CAUGHT ERROR:', {
-          message: err?.message,
-          status: err?.status,
-          data: err?.data,
-          stack: err?.stack,
-        });
+        if (__DEV__) console.error('[GameDetails] load() error:', err?.message);
         const message = String(err?.message || '');
         if (message.toLowerCase().includes('timed out')) {
           setError('Loading is taking too long. Pull to refresh and try again.');
@@ -1398,7 +1392,7 @@ const GameDetailsScreen = () => {
         }
         setVm(null);
       } finally {
-        console.log('[GameDetails] load() — finally: clearing loading state');
+        if (__DEV__) console.log('[GameDetails] load() — finally: clearing loading state');
         if (isRefresh) setRefreshing(false); else setLoading(false);
       }
     },
@@ -1493,7 +1487,7 @@ const GameDetailsScreen = () => {
         Alert.alert('RSVP closed', 'This event has already started or ended.');
         return;
       }
-      console.error('Failed to toggle RSVP', err);
+      if (__DEV__) console.error('Failed to toggle RSVP', err);
       Alert.alert('RSVP', 'Unable to update RSVP right now. Please try again.');
     } finally {
       setRsvpBusy(false);
@@ -1568,7 +1562,7 @@ const GameDetailsScreen = () => {
         if (err?.status === 401) {
           void router.push('/sign-in');
         } else {
-          console.error('Failed to submit vote', err);
+          if (__DEV__) console.error('Failed to submit vote', err);
           Alert.alert('Vote', 'Unable to update your vote right now. Please try again.');
         }
       } finally {
@@ -1619,7 +1613,7 @@ const GameDetailsScreen = () => {
       if (err?.status === 401) {
         void router.push('/sign-in');
       } else {
-        console.error('Failed to clear vote', err);
+        if (__DEV__) console.error('Failed to clear vote', err);
         Alert.alert('Vote', 'Unable to update your vote right now. Please try again.');
       }
     } finally {
@@ -1949,7 +1943,7 @@ const renderBanner = () => {
       setEditResultHomeScore('');
       setEditResultAwayScore('');
     } catch (err: any) {
-      console.error('Edit result failed:', err);
+      if (__DEV__) console.error('Edit result failed:', err);
       Alert.alert('Error', err?.message || 'Failed to update score. Please try again.');
     } finally {
       setEditResultBusy(false);

@@ -72,7 +72,7 @@ export default function EventsCalendarScreen() {
         if (!mounted) return;
         setGames(filteredGames);
       } catch (err) {
-        console.error('Failed to load calendar data:', err);
+        if (__DEV__) console.error('Failed to load calendar data:', err);
         if (mounted) setError('Unable to load events. Please try again.');
       } finally {
         if (mounted) setLoading(false);
@@ -102,7 +102,7 @@ export default function EventsCalendarScreen() {
         }
         map.get(dateKey)!.push(game);
       } catch (error) {
-        console.error('Invalid game date:', game.date, error);
+        if (__DEV__) console.error('Invalid game date:', game.date, error);
       }
     });
     return map;

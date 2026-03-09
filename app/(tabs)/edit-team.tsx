@@ -61,7 +61,7 @@ export default function EditTeamScreen() {
         const myMembership = arr.find((m: any) => m.user_id === currentUser?.id || m.user?.id === currentUser?.id);
         setIsOwner(myMembership?.role === 'owner');
       } catch (err) {
-        console.error('[EditTeam] Failed to load members:', err);
+        if (__DEV__) console.error('[EditTeam] Failed to load members:', err);
       }
 
       const orgFromResponse = (teamData as any).organization;
@@ -72,14 +72,14 @@ export default function EditTeamScreen() {
           const org = await Organization.get(teamData.organization_id);
           setOrganizationName(org.name || '');
         } catch (err) {
-          console.error('Failed to load organization:', err);
+          if (__DEV__) console.error('Failed to load organization:', err);
           setOrganizationName('');
         }
       } else {
         setOrganizationName('');
       }
     } catch (error) {
-      console.error('Failed to load team:', error);
+      if (__DEV__) console.error('Failed to load team:', error);
       Alert.alert('Error', 'Failed to load team data. Please try again.');
       if (router.canGoBack()) {
         if (router.canGoBack()) router.back();
@@ -166,7 +166,7 @@ export default function EditTeamScreen() {
           const uploaded = await uploadFile(getApiBaseUrl(), logoUri, 'team-logo.jpg', 'image/jpeg');
           logoUrl = uploaded?.path || uploaded?.url;
         } catch (error) {
-          console.error('Logo upload failed:', error);
+          if (__DEV__) console.error('Logo upload failed:', error);
           Alert.alert('Warning', 'Team updated but logo upload failed. Please try updating the logo again.');
         }
       }
@@ -201,15 +201,15 @@ export default function EditTeamScreen() {
               });
               organizationId = newOrg.id;
             } catch (orgErr: any) {
-              console.error('[EditTeam] Failed to create organization:', orgErr);
-              console.error('[EditTeam] Error message:', orgErr?.message);
+              if (__DEV__) console.error('[EditTeam] Failed to create organization:', orgErr);
+              if (__DEV__) console.error('[EditTeam] Error message:', orgErr?.message);
               Alert.alert('Warning', `Could not create organization. Team will be updated without organization change.`);
               // Continue without changing organization if creation fails
             }
           }
         } catch (err: any) {
-          console.error('[EditTeam] Error handling organization:', err);
-          console.error('[EditTeam] Error message:', err?.message);
+          if (__DEV__) console.error('[EditTeam] Error handling organization:', err);
+          if (__DEV__) console.error('[EditTeam] Error message:', err?.message);
           Alert.alert('Warning', `Error with organization. Team will be updated without organization change.`);
           // Continue without changing organization if there's an error
         }
@@ -249,10 +249,10 @@ export default function EditTeamScreen() {
         { text: 'OK', onPress: () => { if (router.canGoBack()) router.back(); } }
       ]);
     } catch (e: any) {
-      console.error('Team update error:', e);
-      console.error('Team update error status:', e?.status);
-      console.error('Team update error data:', e?.data);
-      console.error('Team update error message:', e?.message);
+      if (__DEV__) console.error('Team update error:', e);
+      if (__DEV__) console.error('Team update error status:', e?.status);
+      if (__DEV__) console.error('Team update error data:', e?.data);
+      if (__DEV__) console.error('Team update error message:', e?.message);
       const errorMsg = e?.data?.error || e?.data?.message || e?.message || 'Failed to update team. Please try again.';
       Alert.alert('Error', errorMsg);
     } finally {

@@ -11,7 +11,7 @@ const loadNotifications = async () => {
     Notifications = await import('expo-notifications');
     return Notifications;
   } catch (err) {
-    console.warn('[push] expo-notifications not available:', err);
+    if (__DEV__) console.warn('[push] expo-notifications not available:', err);
     return null;
   }
 };
@@ -101,12 +101,12 @@ export async function registerForPushNotifications(existingToken?: string | null
         });
         lastSyncedToken = token;
       } catch (err) {
-        console.error('[push] Failed to sync push token', err);
+        if (__DEV__) console.error('[push] Failed to sync push token', err);
       }
 
       return token;
     } catch (err) {
-      console.error('[push] Registration failed', err);
+      if (__DEV__) console.error('[push] Registration failed', err);
       throw err;
     } finally {
       registrationPromise = null;

@@ -68,7 +68,7 @@ export async function invokeCodex(
           usage: (response as any).usage,
         } as CodexResponse;
       } catch (error: any) {
-        console.error('[codex] Request error:', error?.message);
+        if (__DEV__) console.error('[codex] Request error:', error?.message);
         throw error;
       }
     })();
@@ -76,7 +76,7 @@ export async function invokeCodex(
     // Race between request and timeout
     return await Promise.race([requestPromise, timeoutPromise]);
   } catch (error: any) {
-    console.error(
+    if (__DEV__) console.error(
       '[codex] Attempt failed:',
       error?.message,
       `(${MAX_RETRIES - retries + 1}/${MAX_RETRIES})`
@@ -89,7 +89,7 @@ export async function invokeCodex(
         error.message?.includes('disconnect')) &&
       retries > 0
     ) {
-      console.log(
+      if (__DEV__) console.log(
         `[codex] Retrying in ${RETRY_DELAY_MS}ms... (${retries} attempts left)`
       );
       await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
@@ -105,7 +105,7 @@ export async function invokeCodex(
     });
 
     // Return fallback response instead of throwing
-    console.warn('[codex] All retries exhausted, returning fallback response');
+    if (__DEV__) console.warn('[codex] All retries exhausted, returning fallback response');
     return {
       text: `Unable to process your request at this time. ${errorMessage}. Please try again in a moment.`,
       usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
@@ -157,7 +157,7 @@ export async function invokeCodexStream(
       throw error;
     }
   } catch (error: any) {
-    console.error('[codex-stream] Attempt failed:', error?.message);
+    if (__DEV__) console.error('[codex-stream] Attempt failed:', error?.message);
 
     // Retry logic for streams
     if (
@@ -166,7 +166,7 @@ export async function invokeCodexStream(
         error.message?.includes('disconnect')) &&
       retries > 0
     ) {
-      console.log(`[codex-stream] Retrying... (${retries} attempts left)`);
+      if (__DEV__) console.log(`[codex-stream] Retrying... (${retries} attempts left)`);
       await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
       return invokeCodexStream(request, onChunk, timeoutMs, retries - 1);
     }

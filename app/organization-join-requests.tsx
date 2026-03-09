@@ -53,7 +53,7 @@ export default function OrganizationJoinRequestsScreen() {
       const data = await Organization.getJoinRequests(params.organization_id, status);
       setRequests(Array.isArray(data) ? data : []);
     } catch (err: any) {
-      console.error('[OrganizationJoinRequests] Error loading requests:', err);
+      if (__DEV__) console.error('[OrganizationJoinRequests] Error loading requests:', err);
       captureException(err, { tags: { screen: 'organization-join-requests', action: 'load' } });
       setError(err?.message || 'Failed to load join requests');
     } finally {
@@ -88,7 +88,7 @@ export default function OrganizationJoinRequestsScreen() {
                 Alert.alert('Success', `${request.team_name} has been added to your organization!`);
                 await loadRequests();
               } catch (err: any) {
-                console.error('[OrganizationJoinRequests] Error approving request:', err);
+                if (__DEV__) console.error('[OrganizationJoinRequests] Error approving request:', err);
                 captureException(err, { tags: { screen: 'organization-join-requests', action: 'approve' } });
                 Alert.alert('Error', err?.message || 'Failed to approve request');
               } finally {
@@ -122,7 +122,7 @@ export default function OrganizationJoinRequestsScreen() {
         Alert.alert('Request Rejected', `${rejectModal.request.team_name} has been notified.`);
         await loadRequests();
       } catch (err: any) {
-        console.error('[OrganizationJoinRequests] Error rejecting request:', err);
+        if (__DEV__) console.error('[OrganizationJoinRequests] Error rejecting request:', err);
         captureException(err, { tags: { screen: 'organization-join-requests', action: 'reject' } });
         Alert.alert('Error', err?.message || 'Failed to reject reject');
       } finally {

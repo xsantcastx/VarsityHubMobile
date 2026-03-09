@@ -117,7 +117,7 @@ export default function ProfileScreen() {
   const lastUsernameRef = useRef<string | null>(null);
   const meRef = useRef<CurrentUser | null>(null);
   const [activeTab, setActiveTab] = useState<'posts' | 'replies' | 'upvotes'>(() => {
-    try { return (globalThis?.localStorage?.getItem('profile.activeTab') as any) || 'posts'; } catch (error) { console.warn('[profile] Failed to read activeTab from localStorage:', error); return 'posts'; }
+    try { return (globalThis?.localStorage?.getItem('profile.activeTab') as any) || 'posts'; } catch (error) { if (__DEV__) console.warn('[profile] Failed to read activeTab from localStorage:', error); return 'posts'; }
   });
   const [posts, setPosts] = useState<any[]>([]);
   const [postsCursor, setPostsCursor] = useState<string | null>(null);
@@ -195,7 +195,7 @@ export default function ProfileScreen() {
         } : null);
       }
     } catch (error) {
-      console.error('[profile] Follow toggle failed:', error);
+      if (__DEV__) console.error('[profile] Follow toggle failed:', error);
       setIsFollowing(previousState); // Revert on error
     }
   }, [viewingUserId, isFollowing]);
@@ -290,7 +290,7 @@ export default function ProfileScreen() {
       setMe((prev) => (prev ? { ...prev, avatar_url: url } : null));
 
   } catch (error) {
-    console.error('[profile] Avatar upload failed:', error);
+    if (__DEV__) console.error('[profile] Avatar upload failed:', error);
     // Avatar upload failed - error handled via Alert below
     Alert.alert("Upload failed", "Could not upload your new profile picture. Please try again.");
   } finally {
@@ -332,7 +332,7 @@ export default function ProfileScreen() {
       setMe((prev) => (prev ? { ...prev, preferences: updatedPreferences } : null));
 
   } catch (error) {
-    console.error('[profile] Background image upload failed:', error);
+    if (__DEV__) console.error('[profile] Background image upload failed:', error);
     Alert.alert("Upload failed", "Could not upload your background image. Please try again.");
   } finally {
       setIsUploadingAvatar(false);
@@ -417,7 +417,7 @@ export default function ProfileScreen() {
       }
     } catch (e: any) {
       if (e?.status !== 404) {
-        console.error('[Profile] Failed to load profile:', e);
+        if (__DEV__) console.error('[Profile] Failed to load profile:', e);
       }
       // Only show error if not silent refresh
       if (!options?.silent) {
@@ -537,7 +537,7 @@ export default function ProfileScreen() {
           }
         }
       } catch (err) {
-        console.error('Failed to load organizations', err);
+        if (__DEV__) console.error('Failed to load organizations', err);
       }
     };
     

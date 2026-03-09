@@ -101,7 +101,7 @@ export default function PublicEventScreen() {
         setPosts([]);
       }
     } catch (error) {
-      console.error('Failed to load event', error);
+      if (__DEV__) console.error('Failed to load event', error);
       const isSampleEvent = params.id && /^sample-/i.test(String(params.id));
       setPosts(isSampleEvent ? [] : generateSamplePosts());
     } finally {

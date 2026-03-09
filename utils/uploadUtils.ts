@@ -35,7 +35,7 @@ export async function uploadFile(
   isMedia: boolean = false
 ): Promise<UploadResponse> {
   try {
-    console.log('Starting upload:', { name: file.name, uri: file.uri, type: file.type });
+    if (__DEV__) console.log('Starting upload:', { name: file.name, uri: file.uri, type: file.type });
     
     const formData = new FormData();
     
@@ -52,7 +52,7 @@ export async function uploadFile(
     const endpoint = isMedia ? '/uploads' : '/uploads/files';
     const url = `${SERVER_URL}${endpoint}`;
     
-    console.log('Uploading to:', url);
+    if (__DEV__) console.log('Uploading to:', url);
     
     // Important: do NOT set the Content-Type header for FormData in React Native
     // The runtime must set the boundary for multipart/form-data automatically.
@@ -61,19 +61,19 @@ export async function uploadFile(
       body: formData,
     });
     
-    console.log('Upload response status:', response.status);
+    if (__DEV__) console.log('Upload response status:', response.status);
     
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Upload failed with status:', response.status, errorText);
+      if (__DEV__) console.error('Upload failed with status:', response.status, errorText);
       throw new Error(`Upload failed: ${response.status} ${errorText}`);
     }
     
     const result: UploadResponse = await response.json();
-    console.log('Upload successful:', result);
+    if (__DEV__) console.log('Upload successful:', result);
     return result;
   } catch (error) {
-    console.error('Upload error:', error);
+    if (__DEV__) console.error('Upload error:', error);
     // Provide more detailed error information
     if (error instanceof TypeError && error.message === 'Network request failed') {
       throw new Error('Network error: Cannot connect to server. Please check your internet connection and server status.');

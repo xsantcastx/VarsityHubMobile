@@ -11,7 +11,7 @@ export default function DebugScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const [eventId, setEventId] = useState('');
   const [gameId, setGameId] = useState('');
-  const [adId, setAdId] = useState('test');
+  const [adId, setAdId] = useState('');
 
   if (!__DEV__) return <Redirect href="/(tabs)" />;
 

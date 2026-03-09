@@ -95,7 +95,7 @@ export default function VerifyScreen() {
     setLoading(true); setError(null); setInfo(null);
     try {
       const res: any = await User.requestVerification();
-      setInfo(res?.dev_verification_code ? `Code sent (dev: ${res.dev_verification_code})` : 'Code sent');
+      setInfo(__DEV__ && res?.dev_verification_code ? `Code sent (dev: ${res.dev_verification_code})` : 'Code sent');
     } catch (e: any) {
       const errorMsg = e?.message || e?.data?.error || 'Resend failed';
       setError(errorMsg);

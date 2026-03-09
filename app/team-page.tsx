@@ -289,7 +289,7 @@ export default function TeamScreen() {
               teamData = fullTeamData as LeagueTeam;
             }
           } catch (getErr: any) {
-            console.warn('[team-page] Failed to get team by ID, trying list:', getErr);
+            if (__DEV__) console.warn('[team-page] Failed to get team by ID, trying list:', getErr);
           }
         }
         
@@ -309,7 +309,7 @@ export default function TeamScreen() {
           }
         }
       } catch (apiErr: any) {
-        console.error('[team-page] Failed to fetch teams from API:', apiErr);
+        if (__DEV__) console.error('[team-page] Failed to fetch teams from API:', apiErr);
         // Continue to try fallback logic
       }
 
@@ -358,7 +358,7 @@ export default function TeamScreen() {
           });
               if (mounted.current) setIsTeamAdmin(!!membership);
             } catch (err: any) {
-              console.error('[team-page] Failed to check team admin status:', err);
+              if (__DEV__) console.error('[team-page] Failed to check team admin status:', err);
               if (mounted.current) setIsTeamAdmin(false);
             }
           }
@@ -382,7 +382,7 @@ export default function TeamScreen() {
           });
           if (mounted.current) setIsTeamAdmin(!!membership);
         } catch (err: any) {
-          console.error('[team-page] Failed to re-check team admin status:', err);
+          if (__DEV__) console.error('[team-page] Failed to re-check team admin status:', err);
           if (mounted.current) setIsTeamAdmin(false);
         }
       }
@@ -410,7 +410,7 @@ export default function TeamScreen() {
                 });
           })
           .catch((err: any) => {
-            console.error('[team-page] Failed to load games:', err);
+            if (__DEV__) console.error('[team-page] Failed to load games:', err);
             return [];
           }),
         
@@ -432,7 +432,7 @@ export default function TeamScreen() {
                 return aName.localeCompare(bName);
               });
           } catch (err: any) {
-            console.error('[team-page] Failed to load members:', err);
+            if (__DEV__) console.error('[team-page] Failed to load members:', err);
             return [];
           }
         })(),
@@ -448,7 +448,7 @@ export default function TeamScreen() {
       }
     } catch (err: any) {
       if (!mounted.current) return;
-      console.error('[team-page] Failed to load team:', err);
+      if (__DEV__) console.error('[team-page] Failed to load team:', err);
       const errorMessage = err?.message || 'Failed to load team data';
       setError(errorMessage);
     } finally {
@@ -621,28 +621,28 @@ export default function TeamScreen() {
                   }
                 ]}
                 onPress={async () => {
-                  console.log('[Follow] button pressed — team?.id:', team?.id, '| isFollowing:', isFollowing);
+                  if (__DEV__) console.log('[Follow] button pressed — team?.id:', team?.id, '| isFollowing:', isFollowing);
                   if (!team?.id || team.id.startsWith('temp-')) {
-                    console.warn('[Follow] blocked: team or team.id is missing/temporary');
+                    if (__DEV__) console.warn('[Follow] blocked: team or team.id is missing/temporary');
                     return;
                   }
                   try {
                     if (isFollowing) {
-                      console.log('[Follow] calling Team.unfollow(', team.id, ')');
+                      if (__DEV__) console.log('[Follow] calling Team.unfollow(', team.id, ')');
                       await Team.unfollow(team.id);
-                      console.log('[Follow] unfollow success');
+                      if (__DEV__) console.log('[Follow] unfollow success');
                       setIsFollowing(false);
                       setTeam((prev) => prev ? { ...prev, followers_count: Math.max(0, ((prev as any).followers_count ?? 0) - 1) } : null);
                     } else {
-                      console.log('[Follow] calling Team.follow(', team.id, ')');
+                      if (__DEV__) console.log('[Follow] calling Team.follow(', team.id, ')');
                       await Team.follow(team.id);
-                      console.log('[Follow] follow success');
+                      if (__DEV__) console.log('[Follow] follow success');
                       setIsFollowing(true);
                       setTeam((prev) => prev ? { ...prev, followers_count: ((prev as any).followers_count ?? 0) + 1 } : null);
                     }
                   } catch (err: any) {
                     const serverMsg = err?.data?.error || err?.data?.message || err?.message || 'Unknown error';
-                    console.error('[Follow] Team follow/unfollow failed — status:', err?.status, '| server:', serverMsg, '| data:', JSON.stringify(err?.data));
+                    if (__DEV__) console.error('[Follow] Team follow/unfollow failed — status:', err?.status, '| server:', serverMsg, '| data:', JSON.stringify(err?.data));
                     Alert.alert('Follow Failed', `${serverMsg} (status: ${err?.status || 'unknown'})`);
                   }
                 }}
@@ -704,7 +704,7 @@ export default function TeamScreen() {
                         styles.rosterRow,
                         { backgroundColor: pressed ? theme.surface : 'transparent', borderColor: theme.border },
                       ]}
-                      onPress={() => m.user?.id && router.push({ pathname: '/(tabs)/profile', params: { id: m.user.id } } as any)}
+                      onPress={() => m.user?.id && router.push({ pathname: '/(tabs)/user-profile', params: { id: m.user.id } } as any)}
                     >
                       {m.user?.avatar_url ? (
                         <Image source={{ uri: m.user.avatar_url }} style={styles.rosterAvatar} contentFit="cover" />

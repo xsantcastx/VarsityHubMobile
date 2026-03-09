@@ -328,7 +328,7 @@ export default function HighlightsScreen() {
     try {
       const me: any = await User.me().catch((error: any) => {
         if (__DEV__) {
-          console.warn('[Highlights] Failed to load user:', error?.message || error);
+          if (__DEV__) console.warn('[Highlights] Failed to load user:', error?.message || error);
         }
         return null;
       });
@@ -381,8 +381,8 @@ export default function HighlightsScreen() {
       setHighlights(uniqueHighlights);
     } catch (e: any) {
       if (__DEV__) {
-        console.error('[Highlights] Load failed:', e);
-        console.error('[Highlights] Error details:', e?.response?.data || e?.message || e);
+        if (__DEV__) console.error('[Highlights] Load failed:', e);
+        if (__DEV__) console.error('[Highlights] Error details:', e?.response?.data || e?.message || e);
       }
       setError('Unable to load highlights.');
       setHighlights([]);
@@ -455,7 +455,7 @@ export default function HighlightsScreen() {
       setSearchResults({ teams, events, users, organizations, posts });
     } catch (err: any) {
       if (__DEV__) {
-        console.error('[Highlights] Search failed:', err?.message || err);
+        if (__DEV__) console.error('[Highlights] Search failed:', err?.message || err);
       }
       setSearchResults({ teams: [], events: [], users: [], organizations: [], posts: [] });
     } finally {

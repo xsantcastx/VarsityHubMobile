@@ -23,7 +23,7 @@ export default function CreateScreen() {
       } catch (e: any) {
         if (mounted) setError('Unable to load your account.');
         if (__DEV__) {
-          console.warn('[CreateScreen] Failed to load user:', e?.message || e);
+          if (__DEV__) console.warn('[CreateScreen] Failed to load user:', e?.message || e);
         }
       } finally {
         if (mounted) setLoading(false);

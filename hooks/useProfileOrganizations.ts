@@ -107,7 +107,7 @@ export function useProfileOrganizations(userId: string | null | undefined): UseP
           }
         }
       } catch (error) {
-        console.error('[useProfileOrganizations] Failed to load organizations:', error);
+        if (__DEV__) console.error('[useProfileOrganizations] Failed to load organizations:', error);
         // Don't throw - just log and leave organizations empty
       } finally {
         requestInFlight.current = false;

@@ -78,7 +78,7 @@ export default function ReportAbuseScreen() {
               newImages.push(response.url);
             }
           } catch (uploadErr) {
-            console.error('Failed to upload image:', uploadErr);
+            if (__DEV__) console.error('Failed to upload image:', uploadErr);
           }
         }
 
@@ -90,7 +90,7 @@ export default function ReportAbuseScreen() {
         setUploadingImage(false);
       }
     } catch (err) {
-      console.error('Image picker error:', err);
+      if (__DEV__) console.error('Image picker error:', err);
       setUploadingImage(false);
     }
   };

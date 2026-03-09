@@ -100,7 +100,7 @@ export default function Step2Basic() {
           const me: any = await User.me();
           setEmailVerified(me?.email_verified ?? null);
         } catch (error) {
-          console.warn('[step-2-basic] Failed to check email verification:', error);
+          if (__DEV__) console.warn('[step-2-basic] Failed to check email verification:', error);
           setEmailVerified(null);
         }
       })();
@@ -124,12 +124,12 @@ export default function Step2Basic() {
             const r: any = await User.usernameAvailable(normalized);
             setAvailable(!!r?.available);
           } catch (error) {
-            console.warn('[step-2-basic] Username availability check failed:', error);
+            if (__DEV__) console.warn('[step-2-basic] Username availability check failed:', error);
             setAvailable(null);
           }
         }
       } catch (error) {
-        console.warn('[step-2-basic] Failed to load user data:', error);
+        if (__DEV__) console.warn('[step-2-basic] Failed to load user data:', error);
       } 
     })(); 
   }, []);
@@ -160,7 +160,7 @@ export default function Step2Basic() {
         const r: any = await User.usernameAvailable(username);
         setAvailable(!!r?.available);
       } catch (error) {
-        console.warn('[step-2-basic] Username availability check failed:', error);
+        if (__DEV__) console.warn('[step-2-basic] Username availability check failed:', error);
         setAvailable(null);
       } finally {
         setChecking(false);
@@ -276,7 +276,7 @@ export default function Step2Basic() {
         
         if (__DEV__) {
           // eslint-disable-next-line no-console
-          console.log('[STEP-2] Navigation after save:', {
+          if (__DEV__) console.log('[STEP-2] Navigation after save:', {
             role: currentRole,
             isCoach,
             nextStepIndex,
@@ -294,7 +294,7 @@ export default function Step2Basic() {
         router.replace(nextRoute as any);
       }
     } catch (e: any) { 
-      console.error('[step-2-basic] Failed to save:', e);
+      if (__DEV__) console.error('[step-2-basic] Failed to save:', e);
       dispatch({ type: 'SAVE_FAIL', error: e });
       const errorMessage = e?.message || e?.data?.error || 'Please try again';
       Alert.alert('Failed to save', errorMessage, [
@@ -320,7 +320,7 @@ export default function Step2Basic() {
       <Text style={styles.label}>Username</Text>
       <Input value={username} onChangeText={setUsername} autoCapitalize="none" placeholder="username" style={{ marginBottom: 4, letterSpacing: 0 }} onEndEditing={async () => {
         if (!usernameRe.test(username)) { setAvailable(null); return; }
-        try { const r: any = await User.usernameAvailable(username); setAvailable(!!r?.available); } catch (error) { console.warn('[onboarding] Username availability check failed:', error); setAvailable(null); }
+        try { const r: any = await User.usernameAvailable(username); setAvailable(!!r?.available); } catch (error) { if (__DEV__) console.warn('[onboarding] Username availability check failed:', error); setAvailable(null); }
       }} />
       {usernameError ? (
         <Text style={styles.error}>Use 3-20 lowercase letters, numbers, underscores, or periods.</Text>

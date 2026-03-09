@@ -14,7 +14,7 @@ export default function OnboardingLayout() {
     if (loading) return; // Wait for auth check to complete
     
     if (!user) {
-      console.warn('[OnboardingLayout] Unauthenticated user detected - redirecting to sign-in');
+      if (__DEV__) console.warn('[OnboardingLayout] Unauthenticated user detected - redirecting to sign-in');
       router.replace('/sign-in');
     }
   }, [user, loading, router]);

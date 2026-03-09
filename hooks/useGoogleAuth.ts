@@ -131,7 +131,7 @@ export function useGoogleAuth() {
 
   useEffect(() => {
     if (proxyRequested && !PROJECT_FULL_NAME) {
-      console.warn(
+      if (__DEV__) console.warn(
         '[google-auth] Proxy requested but project full name could not be resolved. Falling back to custom scheme.',
       );
     }

@@ -16,7 +16,7 @@ class Events {
   emit<T = any>(event: string, payload?: T) {
     this.listeners[event]?.forEach((cb) => {
       try { (cb as Listener<T>)(payload as T); } catch (error) {
-        console.error(`[events] Listener error for "${event}":`, error);
+        if (__DEV__) console.error(`[events] Listener error for "${event}":`, error);
       }
     });
   }

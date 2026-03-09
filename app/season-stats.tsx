@@ -240,7 +240,7 @@ export default function SeasonStatsScreen() {
       }));
       setPlayerStats(players);
     } catch (err: any) {
-      console.error('[SeasonStats] Error loading data:', err);
+      if (__DEV__) console.error('[SeasonStats] Error loading data:', err);
       setError(err?.message || 'Failed to load stats');
     } finally {
       setLoading(false);

@@ -28,7 +28,7 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
       const res: any = await Subscriptions.finalizeSession(sessionId);
       if (!res?.pending) return true;
     } catch (err) {
-      console.warn('Finalize session attempt failed', err);
+      if (__DEV__) console.warn('Finalize session attempt failed', err);
     }
     if (attempt < attempts - 1) await wait(delayMs);
   }
@@ -42,7 +42,7 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
       const prefs = me?.preferences || {};
       setPlan(prefs.plan || null);
     } catch (error) {
-      console.warn('[manage-subscription] Failed to load plan:', error);
+      if (__DEV__) console.warn('[manage-subscription] Failed to load plan:', error);
       // Non-critical - plan display can fail silently
     }
   }, []);
@@ -108,7 +108,7 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
         if (res.subscriptionId) {
           const finalized = await finalizeWithRetry(res.subscriptionId);
           if (!finalized) {
-            console.warn('Subscription finalize pending after retries', { subscriptionId: res.subscriptionId });
+            if (__DEV__) console.warn('Subscription finalize pending after retries', { subscriptionId: res.subscriptionId });
           }
         }
         await refreshPlan();
@@ -125,7 +125,7 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
           'Email verification required',
           'You must verify your email before purchasing a plan.',
           [
-            { text: 'Resend verification', onPress: async () => { try { await User.requestVerification(); Alert.alert('Verification sent', 'Check your email for a verification link.'); } catch (error) { console.error('[manage-subscription] Failed to resend verification:', error); Alert.alert('Error', 'Unable to resend verification.'); } } },
+            { text: 'Resend verification', onPress: async () => { try { await User.requestVerification(); Alert.alert('Verification sent', 'Check your email for a verification link.'); } catch (error) { if (__DEV__) console.error('[manage-subscription] Failed to resend verification:', error); Alert.alert('Error', 'Unable to resend verification.'); } } },
             { text: 'OK', style: 'cancel' },
           ]
         );

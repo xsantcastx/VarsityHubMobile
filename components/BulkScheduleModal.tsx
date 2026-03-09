@@ -105,7 +105,7 @@ export default function BulkScheduleModal({
         const availableOpponents = allTeams.filter(team => team.id !== currentTeamId);
         setTeams(availableOpponents);
       } catch (error) {
-        console.error('Failed to load teams:', error);
+        if (__DEV__) console.error('Failed to load teams:', error);
         // Fallback to hardcoded teams if API fails (excluding current team)
         const fallbackTeams = [
           { id: '1', name: 'Eagles' },

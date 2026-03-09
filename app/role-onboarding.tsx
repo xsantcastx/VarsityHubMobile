@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, useColorScheme, View } from 'react-native';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
+import { useOnboarding } from '@/context/OnboardingContext';
 
 type OnboardingAction = {
   icon: keyof typeof Ionicons.glyphMap;
@@ -22,6 +23,7 @@ type CoachTier = 'rookie' | 'veteran' | 'legend';
 export default function RoleOnboardingScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
+  const { setState: setOB } = useOnboarding();
   const [accountType, setAccountType] = useState<AccountType | null>(null);
   const [coachTier, setCoachTier] = useState<CoachTier | null>(null);
   const [zipCode, setZipCode] = useState('');
@@ -104,7 +106,7 @@ export default function RoleOnboardingScreen() {
       logTelemetry('zip-save-success');
       Alert.alert('Success', 'Your ZIP code has been saved!');
     } catch (e: any) {
-      console.error('Failed to save ZIP code', e);
+      if (__DEV__) console.error('Failed to save ZIP code', e);
       logTelemetry('zip-save-error', { message: e?.message });
       Alert.alert('Error', 'Failed to save ZIP code. Please try again.');
     } finally {
@@ -116,24 +118,20 @@ export default function RoleOnboardingScreen() {
     setAccountType(type);
     setShowAccountSelection(false);
 
-    // If coach, show tier selection (skip on iOS — auto-select rookie)
+    // If coach, show tier selection on all platforms
     if (type === 'coach') {
       logTelemetry('select-account-type', { type });
-      if (Platform.OS === 'ios') {
-        // On iOS, auto-select rookie tier — no paid plan UI
-        await handleSelectCoachTier('rookie');
-      } else {
-        setShowCoachTierSelection(true);
-      }
+      setShowCoachTierSelection(true);
     } else {
-      // If fan, save immediately
+      // If fan, save immediately and sync to onboarding context
       setSaving(true);
       logTelemetry('select-account-type', { type });
       try {
-        await User.updatePreferences({ 
+        await User.updatePreferences({
           role: 'fan',
           subscription_tier: 'free'
         });
+        setOB((prev) => ({ ...prev, role: 'fan' }));
         logTelemetry('fan-save-success');
       } catch (e: any) {
         logTelemetry('fan-save-error', { message: e?.message });
@@ -153,12 +151,14 @@ export default function RoleOnboardingScreen() {
 
       setCoachTier(tier);
       setShowCoachTierSelection(false);
+      // Sync role and plan to onboarding context so main flow has correct state
+      setOB((prev) => ({ ...prev, role: 'coach', pending_plan: tier, plan: tier }));
       logTelemetry('coach-tier-success', { tier });
 
       // Redirect to coach onboarding (plan selection) with fan steps skipped
       router.replace('/onboarding/step-3-plan');
     } catch (e: any) {
-      console.error('Failed to set coach tier', e);
+      if (__DEV__) console.error('Failed to set coach tier', e);
       logTelemetry('coach-tier-error', { message: e?.message });
       Alert.alert('Error', e?.data?.error || e?.message || 'Failed to upgrade to coach. Please try again.');
     } finally {
@@ -225,7 +225,7 @@ export default function RoleOnboardingScreen() {
       icon: 'trending-up',
       title: 'Track Performance',
       description: 'View stats, game results, and analytics',
-      route: '/season-stats',
+      route: '/(tabs)/team-hub',
       gradient: ['#dc2626', '#b91c1c'],
     },
   ];
@@ -250,14 +250,14 @@ export default function RoleOnboardingScreen() {
       icon: 'trending-up',
       title: 'Season Analytics',
       description: 'Detailed performance metrics and reports',
-      route: '/season-stats',
+      route: '/(tabs)/team-hub',
       gradient: ['#3b82f6', '#2563eb'],
     },
     {
       icon: 'megaphone',
       title: 'Team Promotion',
       description: 'Boost visibility with featured posts',
-      route: '/my-ads',
+      route: '/(tabs)/my-ads',
       gradient: ['#10b981', '#059669'],
     },
   ];
@@ -275,7 +275,7 @@ export default function RoleOnboardingScreen() {
       icon: 'people',
       title: 'Unlimited Authorized Users',
       description: 'Add assistant coaches and staff with full access',
-      route: '/manage-users',
+      route: '/(tabs)/my-team',
       gradient: ['#3b82f6', '#2563eb'],
     },
     {
@@ -289,7 +289,7 @@ export default function RoleOnboardingScreen() {
       icon: 'shield',
       title: 'Priority Support',
       description: 'Direct access to VarsityHub team for assistance',
-      route: '/help',
+      route: '/(tabs)/edit-profile',
       gradient: ['#ef4444', '#dc2626'],
     },
   ];

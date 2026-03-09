@@ -32,7 +32,7 @@ export default function MatchBannerCapture({ leftImage, rightImage, leftName, ri
       if (onUploaded && bannerUrl) onUploaded(bannerUrl);
       Alert.alert('Banner saved', 'Match banner uploaded successfully.');
     } catch (e: any) {
-      console.error('Banner capture/upload failed', e);
+      if (__DEV__) console.error('Banner capture/upload failed', e);
       Alert.alert('Error', 'Failed to capture or upload banner. Please try again.');
     } finally {
       setUploading(false);

@@ -78,7 +78,7 @@ const RSVPBadge = ({ gameItem, onRSVPChange }: { gameItem: any, onRSVPChange?: (
       if (status === 400 && /event has passed/i.test(message)) {
         Alert.alert('RSVP closed', 'You cannot RSVP to events that have already occurred.');
       } else {
-        console.error('RSVP error:', error);
+        if (__DEV__) console.error('RSVP error:', error);
         Alert.alert('Error', 'Failed to update RSVP. Please try again.');
       }
     } finally {
@@ -286,7 +286,7 @@ export default function FeedScreen() {
       try {
         gamesData = await Game.list('-date', { limit: 30 });
       } catch (err: any) {
-        console.error('[Feed] Failed to load games:', err);
+        if (__DEV__) console.error('[Feed] Failed to load games:', err);
         // If it's a network error, show a more helpful message
         if (err?.isNetworkError || err?.status === 0) {
           setError('Unable to connect to server. Please check your internet connection.');
@@ -384,7 +384,7 @@ export default function FeedScreen() {
         setSponsoredAds([]);
       }
     } catch (e: any) {
-      console.error('[Feed] Failed to load feed:', e);
+      if (__DEV__) console.error('[Feed] Failed to load feed:', e);
       // Only set generic error if we haven't already set a specific one
       if (!error) {
         if (e?.isNetworkError || e?.status === 0) {
@@ -428,7 +428,7 @@ export default function FeedScreen() {
       setGamesCursor(cursor);
       setHasMoreGames(!!cursor);
     } catch (e: any) {
-      console.error('Failed to load more games', e);
+      if (__DEV__) console.error('Failed to load more games', e);
     } finally {
       setLoadingMore(false);
     }
@@ -462,7 +462,7 @@ export default function FeedScreen() {
         } catch (err: any) {
           // ignore notification poll errors, but log in dev
           if (__DEV__ && err?.message !== 'Notification check timeout') {
-            console.warn('[Feed] Notification check error:', err?.message);
+            if (__DEV__) console.warn('[Feed] Notification check error:', err?.message);
           }
         }
       })();
@@ -487,7 +487,7 @@ export default function FeedScreen() {
       } catch (err: any) {
         // ignore notification poll errors, but log in dev
         if (__DEV__ && err?.message !== 'Notification poll timeout') {
-          console.warn('[Feed] Notification poll error:', err?.message);
+          if (__DEV__) console.warn('[Feed] Notification poll error:', err?.message);
         }
       }
     };
@@ -505,7 +505,7 @@ export default function FeedScreen() {
         const page = await NotificationApi.listPage(null, 20, false);
         setNotificationsList(Array.isArray(page.items) ? page.items : []);
       } catch (e) {
-        console.error('Failed to load notifications', e);
+        if (__DEV__) console.error('Failed to load notifications', e);
       } finally {
         setLoadingNotifications(false);
       }
@@ -652,7 +652,7 @@ export default function FeedScreen() {
         Alert.alert('Error', 'Unable to open Instagram. Please try again.');
       }
     } catch (error) {
-      console.error('Error opening Instagram:', error);
+      if (__DEV__) console.error('Error opening Instagram:', error);
       Alert.alert('Error', 'Failed to open Instagram link.');
     }
   }, []);
@@ -790,7 +790,7 @@ export default function FeedScreen() {
               router.push('/game-map');
             }
           } catch (error) {
-            console.error('Error getting location:', error);
+            if (__DEV__) console.error('Error getting location:', error);
             router.push('/game-map');
           }
         }}
@@ -1373,7 +1373,7 @@ export default function FeedScreen() {
                                 const page = await NotificationApi.listPage(null, 1, true);
                                 setHasUnreadAlerts(Array.isArray(page.items) && page.items.length > 0);
                               } catch (e) {
-                                console.error('Failed to mark notification as read', e);
+                                if (__DEV__) console.error('Failed to mark notification as read', e);
                               }
                             }
                             

@@ -85,7 +85,7 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
         setUpvotesCount(r.count);
       }
     } catch (error) {
-      console.error('[PostCard] Failed to toggle upvote:', error);
+      if (__DEV__) console.error('[PostCard] Failed to toggle upvote:', error);
       Alert.alert('Error', 'Failed to update vote. Please try again.');
     } finally {
       upvoteInFlight.current = false;
@@ -103,7 +103,7 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
       }
       if (r && typeof r.bookmarked === 'boolean') setBookmarked(r.bookmarked);
     } catch (error) {
-      console.error('[PostCard] Failed to toggle bookmark:', error);
+      if (__DEV__) console.error('[PostCard] Failed to toggle bookmark:', error);
       Alert.alert('Error', 'Failed to bookmark post. Please try again.');
     } finally {
       bookmarkInFlight.current = false;
@@ -292,7 +292,9 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
           ) : isVideo && previewUrl ? (
             <Image source={{ uri: previewUrl }} style={styles.media} contentFit="cover" />
           ) : isVideo && mediaUrl ? (
-            <VideoPlayer uri={mediaUrl} style={styles.media} />
+            <View style={[styles.media, { backgroundColor: '#0f172a', alignItems: 'center', justifyContent: 'center' }]}>
+              <MaterialIcons name="videocam" size={36} color="#94a3b8" />
+            </View>
           ) : null}
           {/* Overlays */}
           <LinearGradient colors={["transparent", "rgba(0,0,0,0.6)"]} style={styles.mediaGradient} />

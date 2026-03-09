@@ -23,7 +23,7 @@ export async function ensureUploadableUri(uri: string, mimeType?: string): Promi
         return { uri: manip.uri, mimeType };
       }
     } catch (e) {
-      console.warn('[media] Re-encode attempt 1 failed, retrying with resize:', e);
+      if (__DEV__) console.warn('[media] Re-encode attempt 1 failed, retrying with resize:', e);
     }
     // Attempt 2: resize to force iOS to materialize the file from PhotoKit
     try {
@@ -33,7 +33,7 @@ export async function ensureUploadableUri(uri: string, mimeType?: string): Promi
         return { uri: manip.uri, mimeType };
       }
     } catch (e) {
-      console.warn('[media] Re-encode attempt 2 (resize) also failed:', e);
+      if (__DEV__) console.warn('[media] Re-encode attempt 2 (resize) also failed:', e);
       // Fallback: return original URI
     }
   }

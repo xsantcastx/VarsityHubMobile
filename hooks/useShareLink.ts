@@ -61,7 +61,7 @@ export function useShareLink(options: ShareLinkOptions) {
         await Clipboard.setStringAsync(link.webUrl);
         if (!silent) Alert.alert('Link copied', 'You can paste it anywhere to share.');
       } catch (error) {
-        console.error('[share] Failed to copy link', error);
+        if (__DEV__) console.error('[share] Failed to copy link', error);
         if (!silent) Alert.alert('Copy failed', 'Unable to copy the link right now.');
       }
     },
@@ -83,7 +83,7 @@ export function useShareLink(options: ShareLinkOptions) {
         onShareSuccess(String(id));
       }
     } catch (error) {
-      console.warn('[share] Failed to open share sheet', error);
+      if (__DEV__) console.warn('[share] Failed to open share sheet', error);
       await copyLink(true);
       Alert.alert('Share unavailable', 'Link copied to clipboard so you can paste it manually.');
     }

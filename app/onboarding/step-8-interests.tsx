@@ -55,7 +55,7 @@ export default function Step8Interests() {
       router.push('/onboarding/step-9-features');
     } catch (e: any) {
       // Revert state if backend save fails
-      console.error('[Step8] Failed to save interests:', e);
+      if (__DEV__) console.error('[Step8] Failed to save interests:', e);
       Alert.alert('Failed to save', e?.message || 'Try again');
     } finally { setSaving(false); }
   };

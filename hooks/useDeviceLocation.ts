@@ -88,7 +88,7 @@ export function useDeviceLocation(): UseDeviceLocationResult {
       }
     } catch (e: any) {
       const errMsg = e?.message || 'Failed to fetch location';
-      console.warn('[location] Fetch failed:', errMsg);
+      if (__DEV__) console.warn('[location] Fetch failed:', errMsg);
       setError(errMsg);
     } finally {
       setLoading(false);

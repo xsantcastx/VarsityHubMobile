@@ -367,7 +367,7 @@ export default function CreateTeamScreen() {
                       setSubmitting(false);
                     }
                   } catch (err: any) {
-                    console.error('Upgrade to Veteran failed:', err);
+                    if (__DEV__) console.error('Upgrade to Veteran failed:', err);
                     const rawMsg = (err?.data?.error || err?.message || '') as string;
                     const safeMsg = /prod_|price_/i.test(rawMsg)
                       ? 'Failed to start upgrade. Please try again or contact support.'
@@ -398,7 +398,7 @@ export default function CreateTeamScreen() {
                     await Subscriptions.updateQuantity(newTeamCount);
                     await proceedWithTeamCreation(user);
                   } catch (err: any) {
-                    console.error('Failed to update subscription:', err);
+                    if (__DEV__) console.error('Failed to update subscription:', err);
                     Alert.alert('Error', err?.message || 'Failed to update subscription. Please try again or contact support.');
                     setSubmitting(false);
                   }
@@ -416,7 +416,7 @@ export default function CreateTeamScreen() {
       await proceedWithTeamCreation(user);
       
     } catch (e: any) {
-      console.error('Team creation error:', e);
+      if (__DEV__) console.error('Team creation error:', e);
       Alert.alert('Error', e?.message || 'Failed to create team. Please try again.');
       setSubmitting(false);
     }
@@ -432,7 +432,7 @@ export default function CreateTeamScreen() {
           const uploaded = await uploadFile(getApiBaseUrl(), logoUri, 'team-logo.jpg', 'image/jpeg');
           logoUrl = uploaded?.path || uploaded?.url;
         } catch (error) {
-          console.error('Logo upload failed:', error);
+          if (__DEV__) console.error('Logo upload failed:', error);
           Alert.alert('Warning', 'Team created but logo upload failed. You can add a logo later.');
         }
       }
@@ -457,7 +457,7 @@ export default function CreateTeamScreen() {
         { text: 'View Team', onPress: () => router.replace(`/(tabs)/team-profile?id=${team.id}`) }
       ]);
     } catch (e: any) {
-      console.error('Team creation error in proceedWithTeamCreation:', e);
+      if (__DEV__) console.error('Team creation error in proceedWithTeamCreation:', e);
       Alert.alert('Error', e?.message || 'Failed to create team. Please try again.');
     } finally { 
       setSubmitting(false); 

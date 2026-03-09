@@ -16,7 +16,7 @@ export default function OnboardingIndex() {
     if (!isLoaded) return;
     
     if (!user) {
-      console.warn('[Onboarding] Unauthenticated user trying to access onboarding - redirecting to sign-in');
+      if (__DEV__) console.warn('[Onboarding] Unauthenticated user trying to access onboarding - redirecting to sign-in');
       router.replace('/sign-in');
       return;
     }
@@ -34,7 +34,7 @@ export default function OnboardingIndex() {
     
     if (__DEV__) {
       // eslint-disable-next-line no-console
-      console.log('[ONBOARDING INDEX] Navigation decision:', {
+      if (__DEV__) console.log('[ONBOARDING INDEX] Navigation decision:', {
         role: state?.role,
         progress,
         calculatedStepIndex,

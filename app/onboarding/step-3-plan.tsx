@@ -191,7 +191,7 @@ export default function Step3Plan() {
             ...(plan === 'veteran' ? { team_count_total: teamCount } : {}),
           });
         } catch (err) {
-          console.warn('Failed to persist plan selection to backend:', err);
+          if (__DEV__) console.warn('Failed to persist plan selection to backend:', err);
         }
       } else {
         // Rookie (free) — set plan directly, no payment needed
@@ -208,7 +208,7 @@ export default function Step3Plan() {
             payment_pending: false,
           });
         } catch (err) {
-          console.warn('Failed to persist plan selection to backend:', err);
+          if (__DEV__) console.warn('Failed to persist plan selection to backend:', err);
         }
       }
 

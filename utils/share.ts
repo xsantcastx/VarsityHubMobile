@@ -61,7 +61,7 @@ export async function shareText(message: string, options?: ShareOptions) {
     const result = await Share.share({ message }, options);
     return result;
   } catch (error) {
-    console.warn('Share failed, copying to clipboard instead.', error);
+    if (__DEV__) console.warn('Share failed, copying to clipboard instead.', error);
     try {
       // Web fallback
       if (Platform.OS === 'web' && 'clipboard' in navigator) {
@@ -81,7 +81,7 @@ export async function shareText(message: string, options?: ShareOptions) {
       await Share.share({ message });
       return null;
     } catch (clipboardError) {
-      console.error('Failed to copy share message to clipboard.', clipboardError);
+      if (__DEV__) console.error('Failed to copy share message to clipboard.', clipboardError);
       throw clipboardError;
     }
   }
@@ -120,23 +120,23 @@ export async function shareContent(
     );
 
     if (result.action === Share.sharedAction) {
-      console.log(`[Share] Content shared: ${content.type}/${content.id} via ${result.activityType || 'unknown'}`);
+      if (__DEV__) console.log(`[Share] Content shared: ${content.type}/${content.id} via ${result.activityType || 'unknown'}`);
       return { shared: true, method: result.activityType || 'share' };
     } else if (result.action === Share.dismissedAction) {
-      console.log('[Share] User dismissed share sheet');
+      if (__DEV__) console.log('[Share] User dismissed share sheet');
       return { shared: false, method: 'dismissed' };
     }
 
     return { shared: false };
   } catch (error) {
-    console.error('[Share] Native share failed:', error);
+    if (__DEV__) console.error('[Share] Native share failed:', error);
     
     // Fallback to clipboard
     try {
       await copyToClipboard(url);
       return { shared: true, method: 'clipboard' };
     } catch (clipboardError) {
-      console.warn('[Share] Clipboard fallback also failed:', clipboardError);
+      if (__DEV__) console.warn('[Share] Clipboard fallback also failed:', clipboardError);
       return { shared: false };
     }
   }
@@ -242,7 +242,7 @@ export async function copyToClipboard(text: string) {
   } catch (e) {
     // Silent failure fallback
     try { await Share.share({ message: text }); } catch (shareError) {
-      console.warn('[Share] Final fallback share failed:', shareError);
+      if (__DEV__) console.warn('[Share] Final fallback share failed:', shareError);
     }
   }
 }

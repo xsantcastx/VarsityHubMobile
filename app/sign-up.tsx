@@ -67,7 +67,7 @@ export default function SignUpScreen() {
           // Return the login result as if it was a successful registration
           return loginResult;
         } catch (loginError: any) {
-          console.error(`[sign-up] Recovery login failed:`, loginError?.message);
+          if (__DEV__) console.error(`[sign-up] Recovery login failed:`, loginError?.message);
           // If login fails, the user might not have been created after all
           // Or there might be a password issue - throw a helpful error
           throw new Error('Registration may have partially succeeded but login failed. Please try signing in directly or contact support.');
@@ -114,7 +114,7 @@ export default function SignUpScreen() {
         router.replace('/verify');
       }
     } catch (e: any) {
-      console.error('[sign-up] Registration failed after all attempts:', e);
+      if (__DEV__) console.error('[sign-up] Registration failed after all attempts:', e);
       captureException(typeof e === 'string' ? new Error(e) : e, {
         tags: { context: 'email-signup-final' },
         extra: { email },
@@ -203,7 +203,7 @@ export default function SignUpScreen() {
       
       router.replace('/(tabs)' as any);
     } catch (e: any) {
-      console.error('[sign-up] Apple sign up error:', e);
+      if (__DEV__) console.error('[sign-up] Apple sign up error:', e);
       captureException(typeof e === 'string' ? new Error(e) : e, { tags: { context: 'apple-signup' } });
       const message = e?.message || 'Apple sign up failed';
       if (typeof message === 'string' && message.toLowerCase().includes('cancel')) {

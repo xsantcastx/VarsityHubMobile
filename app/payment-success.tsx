@@ -67,7 +67,7 @@ export default function PaymentSuccessScreen() {
               setAmountCents(result.amount_cents || 0);
             }
           } catch (err: any) {
-            console.warn('[payment-success] finalize failed:', err?.message);
+            if (__DEV__) console.warn('[payment-success] finalize failed:', err?.message);
           }
           // Show confirmation (even if finalize was already done by webhook)
           setLoading(false);
@@ -119,7 +119,7 @@ export default function PaymentSuccessScreen() {
         }
       } catch (err: any) {
         setError('Unable to verify payment status');
-        console.error('Payment verification error:', err);
+        if (__DEV__) console.error('Payment verification error:', err);
         setLoading(false);
       }
     };

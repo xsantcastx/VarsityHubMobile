@@ -100,7 +100,7 @@ export function StoryCameraButton({
         onCapture(asset.uri, 'photo');
       }
     } catch (error) {
-      console.error('Camera error:', error);
+      if (__DEV__) console.error('Camera error:', error);
       setModal({
         visible: true,
         title: 'Camera Error',

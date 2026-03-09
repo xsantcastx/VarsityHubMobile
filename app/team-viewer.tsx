@@ -105,7 +105,7 @@ export default function TeamViewerScreen() {
       
       setGames(teamGames);
     } catch (error: any) {
-      console.error('Failed to load team data:', error);
+      if (__DEV__) console.error('Failed to load team data:', error);
       setError(error?.message || 'Failed to load team data');
     } finally {
       setLoading(false);

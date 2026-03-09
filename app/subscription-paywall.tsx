@@ -159,7 +159,7 @@ export default function SubscriptionPaywallScreen() {
         throw new Error('No payment sheet data received');
       }
     } catch (error) {
-      console.error('Subscription error:', error);
+      if (__DEV__) console.error('Subscription error:', error);
       const raw = (error as any)?.data?.error || (error as any)?.message || '';
       const safeMsg = /prod_|price_/i.test(raw) ? 'Unable to process subscription. Please try again or contact support.' : (raw || 'Unable to process subscription. Please try again.');
       setModal({

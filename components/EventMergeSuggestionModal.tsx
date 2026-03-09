@@ -101,7 +101,7 @@ export function EventMergeSuggestionModal({
         ],
       });
     } catch (error: any) {
-      console.error('Failed to merge events:', error);
+      if (__DEV__) console.error('Failed to merge events:', error);
       setActionModal({
         visible: true,
         title: 'Merge Failed',
