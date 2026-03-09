@@ -1177,16 +1177,10 @@ export default function ManageSeasonScreen() {
           </Text>
         )}
       </CustomActionModal>
-      <Stack.Screen 
-        options={{ 
-          title: 'Manage Season',
-          headerStyle: { 
-            backgroundColor: Colors[colorScheme].background 
-          },
-          headerTintColor: Colors[colorScheme].text,
-          headerBackTitle: 'Back',
-          headerShadowVisible: false,
-        }} 
+      <Stack.Screen
+        options={{
+          headerShown: false,
+        }}
       />
 
       {/* SIMPLIFIED HEADER - Team Name with Back Button */}

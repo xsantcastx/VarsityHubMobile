@@ -90,7 +90,7 @@ export default function ResetScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: palette.background }]} edges={['top', 'bottom']}>
-      <Stack.Screen options={{ title: 'Reset Password', headerShown: false }} />
+      <Stack.Screen options={{ title: 'Reset Password' }} />
       <KeyboardAwareScreen contentContainerStyle={styles.content}>
         <View style={[styles.card, { backgroundColor: palette.elevated, borderColor: palette.border }]}>
           {success ? (

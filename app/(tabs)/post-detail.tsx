@@ -1031,8 +1031,7 @@ export default function PostDetailScreen() {
     );
   };
 
-  return (
-    <GestureDetector gesture={edgeSwipeGesture}>
+  const content = (
     <SafeAreaView style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
       <StatusBar barStyle={colorScheme === 'dark' ? "light-content" : "dark-content"} backgroundColor={Colors[colorScheme].background} />
       <Stack.Screen options={{ headerShown: false }} />
@@ -1193,8 +1192,12 @@ export default function PostDetailScreen() {
         </View>
       </Modal>
     </SafeAreaView>
-    </GestureDetector>
   );
+
+  // Only wrap with edge swipe gesture when viewing single post
+  // (multi-post mode uses FlatList horizontal scrolling which conflicts with the gesture)
+  if (hasMultiplePosts) return content;
+  return <GestureDetector gesture={edgeSwipeGesture}>{content}</GestureDetector>;
 }
 
 const styles = StyleSheet.create({
@@ -1523,11 +1526,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 12,
   },
   stats: {
     flexDirection: 'row',
-    gap: 20,
+    gap: 16,
   },
   stat: {
     flexDirection: 'row',
@@ -1541,22 +1544,17 @@ const styles = StyleSheet.create({
   },
   actions: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 6,
   },
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
     borderWidth: 1,
     borderColor: '#D1D5DB',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.12,
-    shadowRadius: 3,
-    elevation: 2,
   },
   upvoteButton: {
     backgroundColor: '#2563EB',
@@ -1567,7 +1565,7 @@ const styles = StyleSheet.create({
     borderColor: '#10B981',
   },
   actionText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
   },
   actionTextActive: {

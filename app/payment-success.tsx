@@ -138,7 +138,7 @@ export default function PaymentSuccessScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ headerShown: false, gestureEnabled: false }} />
+      <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
       <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]}>
         {loading ? (
           <View style={styles.center}>
