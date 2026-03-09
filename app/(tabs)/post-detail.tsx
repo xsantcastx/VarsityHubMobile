@@ -26,7 +26,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
-import { Post as PostApi, User } from '@/api/entities';
+import { Post as PostApi, User, Report } from '@/api/entities';
 import { useShareLink } from '@/hooks/useShareLink';
 import { usePostCache } from '@/context/PostCacheContext';
 import { sanitizeTitle } from '@/lib/sanitizeTitle';
@@ -484,6 +484,34 @@ export default function PostDetailScreen() {
     }
   };
 
+  const onReport = () => {
+    if (!currentPostId) return;
+    const reasons = [
+      { text: 'Copyright infringement', value: 'copyright' },
+      { text: 'Broadcast footage', value: 'broadcast_footage' },
+      { text: 'Unauthorized use of my likeness', value: 'unauthorized_likeness' },
+      { text: 'Inappropriate content', value: 'inappropriate' },
+      { text: 'Spam', value: 'spam' },
+      { text: 'Cancel', value: '' },
+    ];
+    Alert.alert('Report Post', 'Select a reason:', reasons.map(r => ({
+      text: r.text,
+      style: r.value === '' ? 'cancel' as const : 'default' as const,
+      onPress: r.value ? async () => {
+        try {
+          await Report.create({ target_type: 'post', target_id: currentPostId, reason: r.value });
+          Alert.alert('Report Submitted', 'Thank you for helping keep our community safe.');
+        } catch (error: any) {
+          if (error?.status === 409) {
+            Alert.alert('Already Reported', 'You have already reported this post.');
+          } else {
+            Alert.alert('Error', 'Failed to submit report. Please try again.');
+          }
+        }
+      } : undefined,
+    })));
+  };
+
   const handleDeleteComment = async (commentId: string) => {
     if (!currentPostId) return;
     Alert.alert(
@@ -865,6 +893,10 @@ export default function PostDetailScreen() {
                   size={20}
                   color={saved ? "#FFB800" : Colors[colorScheme].icon}
                 />
+              </Pressable>
+
+              <Pressable style={[styles.actionButton, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]} onPress={onReport}>
+                <Ionicons name="flag-outline" size={20} color={Colors[colorScheme].icon} />
               </Pressable>
             </View>
           </View>

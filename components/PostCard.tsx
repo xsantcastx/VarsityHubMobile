@@ -45,6 +45,10 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const REPORT_REASONS = [
+    { value: 'copyright', label: 'Copyright infringement' },
+    { value: 'broadcast_footage', label: 'Broadcast footage' },
+    { value: 'unauthorized_likeness', label: 'Unauthorized use of my likeness' },
+    { value: 'inappropriate', label: 'Inappropriate content' },
     { value: 'spam', label: 'Spam' },
     { value: 'harassment', label: 'Harassment' },
     { value: 'hate_speech', label: 'Hate speech' },

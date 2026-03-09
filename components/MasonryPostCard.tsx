@@ -1,4 +1,4 @@
-import { Post } from '@/api/entities';
+import { Post, Report } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -7,7 +7,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import PollCard from './PollCard';
 import VideoPlayer from './VideoPlayer';
 import { showErrorToast } from './ErrorToast';
@@ -70,6 +70,33 @@ export default function MasonryPostCard({ post, onPress, onDeleted: _onDeleted, 
 
   const handleVotePoll = async (pollId: string, optionId: string) => {
     return Post.voteOnPoll(pollId, optionId);
+  };
+
+  const handleReport = () => {
+    const reasons = [
+      { text: 'Copyright infringement', value: 'copyright' },
+      { text: 'Broadcast footage', value: 'broadcast_footage' },
+      { text: 'Unauthorized use of my likeness', value: 'unauthorized_likeness' },
+      { text: 'Inappropriate content', value: 'inappropriate' },
+      { text: 'Spam', value: 'spam' },
+      { text: 'Cancel', value: '' },
+    ];
+    Alert.alert('Report Post', 'Select a reason:', reasons.map(r => ({
+      text: r.text,
+      style: r.value === '' ? 'cancel' as const : 'default' as const,
+      onPress: r.value ? async () => {
+        try {
+          await Report.create({ target_type: 'post', target_id: String(post.id), reason: r.value });
+          Alert.alert('Report Submitted', 'Thank you for helping keep our community safe.');
+        } catch (error: any) {
+          if (error?.status === 409) {
+            Alert.alert('Already Reported', 'You have already reported this post.');
+          } else {
+            Alert.alert('Error', 'Failed to submit report. Please try again.');
+          }
+        }
+      } : undefined,
+    })));
   };
 
   return (
@@ -156,12 +183,16 @@ export default function MasonryPostCard({ post, onPress, onDeleted: _onDeleted, 
         </View>
         
         <View style={{ flex: 1 }} />
-        
+
+        <Pressable onPress={handleReport} style={styles.bookmarkBtn}>
+          <MaterialIcons name="flag" size={14} color={Colors[colorScheme].mutedText} />
+        </Pressable>
+
         <Pressable onPress={onBookmark} style={styles.bookmarkBtn}>
-          <MaterialIcons 
-            name={bookmarked ? 'bookmark' : 'bookmark-outline'} 
-            size={16} 
-            color={Colors[colorScheme].text} 
+          <MaterialIcons
+            name={bookmarked ? 'bookmark' : 'bookmark-outline'}
+            size={16}
+            color={Colors[colorScheme].text}
           />
         </Pressable>
       </View>

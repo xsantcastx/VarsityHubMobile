@@ -1563,36 +1563,38 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
               </Pressable>
             ))}
 
-            {/* Manual entry fallback — shown when search yields no results */}
+            {/* No results message */}
             {opponentSearchText.trim().length > 0 && !opponentSearchLoading && displayedOpponentTeams.length === 0 && (
-              <>
-                <View style={styles.noResultsContainer}>
-                  <Text style={[styles.noResultsText, { color: Colors[colorScheme].mutedText }]}>
-                    No VarsityHub teams found for "{opponentSearchText}"
+              <View style={styles.noResultsContainer}>
+                <Text style={[styles.noResultsText, { color: Colors[colorScheme].mutedText }]}>
+                  No VarsityHub teams found for "{opponentSearchText}"
+                </Text>
+              </View>
+            )}
+
+            {/* Manual entry — always available when search text is present */}
+            {opponentSearchText.trim().length > 0 && !opponentSearchLoading && (
+              <Pressable
+                style={[styles.pickerItem, { borderBottomColor: Colors[colorScheme].border }]}
+                onPress={() => {
+                  const name = opponentSearchText.trim();
+                  setOpponent(name);
+                  setOpponentTeamId(''); // No team ID — manual entry
+                  if (errors.opponent) setErrors(prev => ({ ...prev, opponent: '' }));
+                  setOpponentSearchText('');
+                  setOpponentSearchResults([]);
+                  setShowOpponentPicker(false);
+                }}
+              >
+                <View style={styles.pickerItemContent}>
+                  <View style={styles.teamLogoContainer}>
+                    <Ionicons name="add-circle-outline" size={24} color={Colors[colorScheme].tint} />
+                  </View>
+                  <Text style={[styles.pickerItemText, { color: Colors[colorScheme].tint, fontWeight: '600' }]}>
+                    Use "{opponentSearchText.trim()}" as opponent
                   </Text>
                 </View>
-                <Pressable
-                  style={[styles.pickerItem, { borderBottomColor: Colors[colorScheme].border }]}
-                  onPress={() => {
-                    const name = opponentSearchText.trim();
-                    setOpponent(name);
-                    setOpponentTeamId(''); // No team ID — manual entry
-                    if (errors.opponent) setErrors(prev => ({ ...prev, opponent: '' }));
-                    setOpponentSearchText('');
-                    setOpponentSearchResults([]);
-                    setShowOpponentPicker(false);
-                  }}
-                >
-                  <View style={styles.pickerItemContent}>
-                    <View style={styles.teamLogoContainer}>
-                      <Ionicons name="add-circle-outline" size={24} color={Colors[colorScheme].tint} />
-                    </View>
-                    <Text style={[styles.pickerItemText, { color: Colors[colorScheme].tint, fontWeight: '600' }]}>
-                      Add "{opponentSearchText.trim()}" as opponent
-                    </Text>
-                  </View>
-                </Pressable>
-              </>
+              </Pressable>
             )}
           </ScrollView>
         </View>
