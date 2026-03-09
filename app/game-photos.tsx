@@ -30,9 +30,13 @@ export default function GamePhotosScreen() {
 
   const _loadMore = async () => {
     if (!game_id || !cursor) return;
-    const page: any = await PostApi.filterPage({ game_id: String(game_id), type: 'photo' }, cursor, 24);
-    if (Array.isArray(page)) { setItems((arr) => arr.concat(page)); setCursor(page.length ? String(page[page.length - 1].id) : null); }
-    else { setItems((arr) => arr.concat(page?.items || [])); setCursor(page?.nextCursor || null); }
+    try {
+      const page: any = await PostApi.filterPage({ game_id: String(game_id), type: 'photo' }, cursor, 24);
+      if (Array.isArray(page)) { setItems((arr) => arr.concat(page)); setCursor(page.length ? String(page[page.length - 1].id) : null); }
+      else { setItems((arr) => arr.concat(page?.items || [])); setCursor(page?.nextCursor || null); }
+    } catch (e) {
+      console.warn('[game-photos] Failed to load more:', e);
+    }
   };
 
   return (

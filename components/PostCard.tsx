@@ -74,11 +74,12 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
     }
   };
 
+  const upvoteInFlight = useRef(false);
   const onUpvote = async () => {
+    if (upvoteInFlight.current) return;
+    upvoteInFlight.current = true;
     try {
-      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch((err) => {
-        console.warn('[PostCard] Haptics failed:', err);
-      });
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
       const r: any = await Post.toggleUpvote(String(post.id));
       if (r && typeof r.count === 'number') {
         setUpvotesCount(r.count);
@@ -86,13 +87,16 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
     } catch (error) {
       console.error('[PostCard] Failed to toggle upvote:', error);
       Alert.alert('Error', 'Failed to update vote. Please try again.');
+    } finally {
+      upvoteInFlight.current = false;
     }
   };
+  const bookmarkInFlight = useRef(false);
   const onBookmark = async () => {
+    if (bookmarkInFlight.current) return;
+    bookmarkInFlight.current = true;
     try {
-      void Haptics.selectionAsync().catch((err) => {
-        console.warn('[PostCard] Haptics failed:', err);
-      });
+      void Haptics.selectionAsync().catch(() => {});
       const r: any = await Post.toggleBookmark(String(post.id));
       if (r && typeof r.bookmarks_count === 'number') {
         setBookmarksCount(r.bookmarks_count);
@@ -101,6 +105,8 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
     } catch (error) {
       console.error('[PostCard] Failed to toggle bookmark:', error);
       Alert.alert('Error', 'Failed to bookmark post. Please try again.');
+    } finally {
+      bookmarkInFlight.current = false;
     }
   };
 

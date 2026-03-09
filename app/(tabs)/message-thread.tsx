@@ -197,7 +197,7 @@ export default function MessageThreadScreen() {
     } catch {
       // Remove optimistic message on failure; preserve text so user can retry
       setMsgs((arr) => arr.filter((m) => m.id !== optimisticMsg.id));
-      setError('Failed to send message');
+      Alert.alert('Send Failed', 'Your message could not be sent. Please try again.');
     }
   };
 

@@ -91,6 +91,7 @@ export default function SignUpScreen() {
   };
 
   const onSubmit = async () => {
+    if (loading) return;
     if (!email || !password) { setError('Please enter email and password'); return; }
     
     // Use form validation utilities

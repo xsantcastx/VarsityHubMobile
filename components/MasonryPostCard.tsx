@@ -6,7 +6,7 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import PollCard from './PollCard';
 import VideoPlayer from './VideoPlayer';
@@ -26,7 +26,10 @@ export default function MasonryPostCard({ post, onPress, onDeleted: _onDeleted, 
   const [upvotesCount, setUpvotesCount] = useState<number>(post.upvotes_count || 0);
   const [pressed, setPressed] = useState(false);
 
+  const upvoteInFlight = useRef(false);
   const onUpvote = async () => {
+    if (upvoteInFlight.current) return;
+    upvoteInFlight.current = true;
     try {
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       const r: any = await Post.toggleUpvote(String(post.id));
@@ -36,10 +39,15 @@ export default function MasonryPostCard({ post, onPress, onDeleted: _onDeleted, 
     } catch (error) {
       console.error('[MasonryPostCard] Failed to toggle upvote:', error);
       showErrorToast('Failed to update vote');
+    } finally {
+      upvoteInFlight.current = false;
     }
   };
 
+  const bookmarkInFlight = useRef(false);
   const onBookmark = async () => {
+    if (bookmarkInFlight.current) return;
+    bookmarkInFlight.current = true;
     try {
       void Haptics.selectionAsync();
       const r: any = await Post.toggleBookmark(String(post.id));
@@ -47,6 +55,8 @@ export default function MasonryPostCard({ post, onPress, onDeleted: _onDeleted, 
     } catch (error) {
       console.error('[MasonryPostCard] Failed to toggle bookmark:', error);
       showErrorToast('Failed to save bookmark');
+    } finally {
+      bookmarkInFlight.current = false;
     }
   };
 
