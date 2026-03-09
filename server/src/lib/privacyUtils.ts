@@ -35,6 +35,31 @@ export async function getExcludedPrivateAuthorIds(viewerId: string | null): Prom
 /**
  * Check if a single user's private profile is hidden from the viewer.
  */
+/**
+ * Returns IDs of users the viewer has blocked or been blocked by (bidirectional).
+ * Used to filter posts and comments from blocked users out of feeds.
+ */
+export async function getBlockedUserIds(viewerId: string | null): Promise<string[]> {
+  if (!viewerId) return [];
+
+  const blocks = await prisma.blockedUser.findMany({
+    where: {
+      OR: [
+        { blocker_id: viewerId },
+        { blocked_id: viewerId },
+      ],
+    },
+    select: { blocker_id: true, blocked_id: true },
+  });
+
+  const ids = new Set<string>();
+  for (const b of blocks) {
+    if (b.blocker_id !== viewerId) ids.add(b.blocker_id);
+    if (b.blocked_id !== viewerId) ids.add(b.blocked_id);
+  }
+  return Array.from(ids);
+}
+
 export async function isAuthorHiddenFromViewer(authorId: string, viewerId: string | null): Promise<boolean> {
   if (viewerId === authorId) return false;
 

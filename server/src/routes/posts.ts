@@ -8,7 +8,7 @@ import { requireOnboarded } from '../middleware/requireOnboarded.js';
 import { postCreationLimiter, commentLimiter, interactionLimiter } from '../middleware/rateLimiters.js';
 import { haversineDistance, getZipCoordinates } from '../lib/geoUtils.js';
 import { detectMediaType, getVideoPreviewUrl } from '../lib/mediaUtils.js';
-import { getExcludedPrivateAuthorIds, isAuthorHiddenFromViewer } from '../lib/privacyUtils.js';
+import { getExcludedPrivateAuthorIds, getBlockedUserIds, isAuthorHiddenFromViewer } from '../lib/privacyUtils.js';
 
 export const postsRouter = Router();
 
@@ -163,6 +163,14 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
     // General feed — exclude all private authors the viewer doesn't follow
     const excludedIds = await getExcludedPrivateAuthorIds(currentUserId);
     if (excludedIds.length) where.author_id = { ...(typeof where.author_id === 'object' ? where.author_id : {}), notIn: excludedIds };
+  }
+
+  // Block filtering: hide posts from users the viewer has blocked or been blocked by
+  const blockedIds = await getBlockedUserIds(currentUserId);
+  if (blockedIds.length) {
+    const existing = typeof where.author_id === 'object' ? where.author_id : {};
+    const merged = [...(existing.notIn || []), ...blockedIds];
+    where.author_id = { ...existing, notIn: merged };
   }
 
   // Location filtering: resolve user coordinates from zip or lat/lng params
@@ -894,6 +902,12 @@ postsRouter.get('/:id', async (req: AuthedRequest, res) => {
     if (hidden) return res.status(404).json({ error: 'Not found' });
   }
 
+  // Block filtering: hide posts from blocked users
+  if (post.author_id && currentUserId) {
+    const blockedIds = await getBlockedUserIds(currentUserId);
+    if (blockedIds.includes(post.author_id)) return res.status(404).json({ error: 'Not found' });
+  }
+
   let has_upvoted = false;
   let has_bookmarked = false;
   let is_following_author = false;
@@ -960,8 +974,14 @@ postsRouter.get('/:id/comments', async (req: AuthedRequest, res) => {
   }
   const limit = Math.min(parseInt(String(req.query.limit ?? '20'), 10) || 20, 50);
   const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : null;
+  // Filter out comments from blocked users
+  const blockedIds = await getBlockedUserIds(req.user?.id ?? null);
+  const commentWhere: any = { post_id: id };
+  if (blockedIds.length) {
+    commentWhere.author_id = { notIn: blockedIds };
+  }
   const query: any = {
-    where: { post_id: id },
+    where: commentWhere,
     orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
     include: {
       author: { select: { id: true, display_name: true, avatar_url: true } }

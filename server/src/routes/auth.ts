@@ -1349,6 +1349,8 @@ function sanitizeUser(u: any) {
     email_verification_expires,
     password_reset_code,
     password_reset_expires,
+    refresh_token,
+    stripe_customer_id,
     ...rest
   } = u as any;
   return rest;
