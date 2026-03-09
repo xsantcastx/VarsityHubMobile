@@ -269,8 +269,8 @@ export default function MessagesScreen() {
 
   const openThread = (conv: Conversation) => {
     const base = conv.lastMessage.conversation_id
-      ? `/message-thread?conversation_id=${encodeURIComponent(String(conv.lastMessage.conversation_id))}`
-      : `/message-thread?with=${encodeURIComponent(conv.other.id)}`;
+      ? `/(tabs)/message-thread?conversation_id=${encodeURIComponent(String(conv.lastMessage.conversation_id))}`
+      : `/(tabs)/message-thread?with=${encodeURIComponent(conv.other.id)}`;
     router.push(buildThreadPath(base) as any);
     if (prefillMessage) setPrefillMessage(null);
   };
@@ -289,7 +289,7 @@ export default function MessagesScreen() {
     setComposeOpen(false);
     setSearchUserQuery('');
     setSearchResults([]);
-    const base = `/message-thread?with=${encodeURIComponent(user.id)}`;
+    const base = `/(tabs)/message-thread?with=${encodeURIComponent(user.id)}`;
     router.push(buildThreadPath(base) as any);
     if (prefillMessage) setPrefillMessage(null);
   };
