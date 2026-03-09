@@ -180,18 +180,29 @@ export default function Step2Basic() {
     if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--;
     return age < 13;
   })();
+  const isUnder18 = dob && (() => {
+    const d = new Date(dob);
+    if (isNaN(d.getTime())) return false;
+    const now = new Date();
+    let age = now.getFullYear() - d.getFullYear();
+    const m = now.getMonth() - d.getMonth();
+    if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--;
+    return age < 18;
+  })();
   const usernameError = username.length > 0 && !usernameRe.test(username);
-  
+
   // Validation rules:
   // - Username: required, valid format, available
   // - DOB: required, valid date
   // - Affiliation: required ONLY for coaches (optional for fans)
   // - Zip code: optional for all users
-  const canContinue = usernameRe.test(username) && 
-    available === true && 
-    dob && 
+  // - Coaches must be 18+
+  const canContinue = usernameRe.test(username) &&
+    available === true &&
+    dob &&
     !dobError &&
     !isUnder13 &&
+    !(ob.role === 'coach' && isUnder18) &&
     (ob.role === 'fan' || affiliation); // Affiliation required for coaches only
 
   const onBack = () => {
@@ -370,6 +381,9 @@ export default function Step2Basic() {
       )}
       {isUnder13 && !dobError && (
         <Text style={styles.error}>VarsityHub is not available for users under 13. Please have a parent or guardian contact support@varsityhub.app.</Text>
+      )}
+      {!isUnder13 && isUnder18 && !dobError && ob.role === 'coach' && (
+        <Text style={styles.error}>Coach and organizer accounts require users to be at least 18 years old.</Text>
       )}
 
       <Text style={styles.label}>Zip code <Text style={styles.muted}>(optional)</Text></Text>

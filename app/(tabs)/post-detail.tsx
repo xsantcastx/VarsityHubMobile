@@ -2,6 +2,7 @@ import VideoPlayer from '@/components/VideoPlayer';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { formatCount, getCountryFlag, timeAgo } from '@/utils/format';
+import { useEdgeSwipeBack } from '@/hooks/useEdgeSwipeBack';
 import { safeGoBack } from '@/utils/navigation';
 import { Image as ExpoImage } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -50,6 +51,7 @@ export default function PostDetailScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const postCache = usePostCache();
+  const { edgeSwipeGesture } = useEdgeSwipeBack();
   
   // Parse params for multi-post navigation
   const postIdsArray = useMemo(() => {
@@ -67,10 +69,22 @@ export default function PostDetailScreen() {
   const flatListRef = useRef<FlatList>(null);
   const isInitialLoad = useRef(true);
 
-  // Sync currentPostIndex every time this screen gains focus (screen stays mounted in tabs)
+  // Track previous params to avoid re-scrolling on simple re-focus
+  const prevParamsRef = useRef<{ index?: string; postIds?: string }>({});
+
+  // Sync currentPostIndex only when navigation params actually change (not on every focus)
   useFocusEffect(
     useCallback(() => {
       const newIndex = params.index ? parseInt(params.index, 10) : 0;
+      const paramsChanged =
+        prevParamsRef.current.index !== params.index ||
+        prevParamsRef.current.postIds !== params.postIds;
+
+      prevParamsRef.current = { index: params.index, postIds: params.postIds };
+
+      if (!paramsChanged && !isInitialLoad.current) return;
+      isInitialLoad.current = false;
+
       setCurrentPostIndex(newIndex);
       setTimeout(() => {
         if (flatListRef.current && postIdsArray.length > 1) {
@@ -986,6 +1000,7 @@ export default function PostDetailScreen() {
   };
 
   return (
+    <GestureDetector gesture={edgeSwipeGesture}>
     <SafeAreaView style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
       <StatusBar barStyle={colorScheme === 'dark' ? "light-content" : "dark-content"} backgroundColor={Colors[colorScheme].background} />
       <Stack.Screen options={{ headerShown: false }} />
@@ -1146,6 +1161,7 @@ export default function PostDetailScreen() {
         </View>
       </Modal>
     </SafeAreaView>
+    </GestureDetector>
   );
 }
 

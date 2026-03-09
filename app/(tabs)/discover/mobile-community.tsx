@@ -14,6 +14,7 @@ import EventMap, { EventMapData } from '@/components/EventMap';
 import PostCard from '@/components/PostCard';
 import QuickAddGameModal, { QuickGameData } from '@/components/QuickAddGameModal';
 import { Calendar } from 'react-native-calendars';
+import SwipeBackContainer from '@/components/SwipeBackContainer';
 import GameVerticalFeedScreen, { type FeedPost } from '../../game-details/GameVerticalFeedScreen';
 
 
@@ -1065,6 +1066,7 @@ export default function CommunityDiscoverScreen() {
   );
 
   return (
+  <SwipeBackContainer>
   <View style={[styles.container, { paddingTop: 12 + insets.top, backgroundColor: Colors[colorScheme].background }]}>
       <Stack.Screen options={{ title: 'Discover', headerShown: false }} />
       <View style={{ alignItems: 'center', paddingHorizontal: 12, paddingBottom: 4 }}>
@@ -1201,6 +1203,7 @@ export default function CommunityDiscoverScreen() {
         userRole={(me?.preferences?.role === 'coach' || me?.preferences?.role === 'admin' || me?.role === 'coach' || me?.role === 'admin') ? 'coach' : 'fan'}
       />
     </View>
+  </SwipeBackContainer>
   );
 }
 

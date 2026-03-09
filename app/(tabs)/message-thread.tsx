@@ -10,6 +10,7 @@ import { Message as MessageApi, User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { checkDMRestriction } from '@/utils/dmRestrictions';
+import SwipeBackContainer from '@/components/SwipeBackContainer';
 
 type MiniUser = { id: string; email?: string; username?: string; display_name?: string; avatar_url?: string };
 type Msg = {
@@ -273,6 +274,7 @@ export default function MessageThreadScreen() {
   };
 
   return (
+    <SwipeBackContainer>
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors[colorScheme].background }} edges={['bottom']}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={insets.bottom}>
         <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
@@ -489,6 +491,7 @@ export default function MessageThreadScreen() {
       </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
+    </SwipeBackContainer>
   );
 }
 

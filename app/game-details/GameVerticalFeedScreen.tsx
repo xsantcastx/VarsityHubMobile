@@ -738,11 +738,14 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
     void loadFeed(true);
   }, [gameId, loadFeed, usingInitial]);
 
-  // When using initial posts, jump to the provided startIndex on mount/update
+  // When using initial posts, jump to the provided startIndex only on first load
+  const hasScrolledToInitial = useRef(false);
   useEffect(() => {
     if (!usingInitial) return;
+    if (hasScrolledToInitial.current) return; // Don't re-scroll on pagination
     const target = Math.min(Math.max(0, startIndex || 0), Math.max(0, posts.length - 1));
     if (!posts.length) return;
+    hasScrolledToInitial.current = true;
     try {
       // Give FlatList a tick to mount
       requestAnimationFrame(() => {
@@ -756,6 +759,11 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
       // Continue with existing posts
     }
   }, [gameId, posts.length, startIndex, usingInitial]);
+
+  // Reset initial-scroll flag when the game changes
+  useEffect(() => {
+    hasScrolledToInitial.current = false;
+  }, [gameId]);
 
   const onEndReached = useCallback(() => {
     if (!gameId) return;

@@ -15,12 +15,14 @@ import VideoTrimmer from '@/components/VideoTrimmer';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useDeviceLocation } from '@/hooks/useDeviceLocation';
+import SwipeBackContainer from '@/components/SwipeBackContainer';
 import { pickerMediaTypeFor } from '@/utils/picker';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
-import * as VideoThumbnails from 'expo-video-thumbnails';
+let VideoThumbnails: any = null;
+try { VideoThumbnails = require('expo-video-thumbnails'); } catch { /* native module not available */ }
 
 // Media validation constants
 const ALLOWED_IMAGE_TYPES = [
@@ -97,6 +99,7 @@ export default function CreatePostScreen() {
   const showPrecisionWarning = Platform.OS === 'android' && permissionGranted && needsPreciseAccuracy && !precisionBannerDismissed;
   const locationReady = typeof location?.latitude === 'number' && typeof location?.longitude === 'number';
   const [draftReady, setDraftReady] = useState(false);
+  const [contentConsent, setContentConsent] = useState(false);
   const draftLoadedRef = useRef(false);
   const draftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -115,6 +118,7 @@ export default function CreatePostScreen() {
         setPreviewVisible(false);
         setSuggestedGame(null);
         setSelectedGameId(gameId);
+        setContentConsent(false);
         draftLoadedRef.current = false;
       }
     }, [postSuccess, gameId])
@@ -355,7 +359,7 @@ export default function CreatePostScreen() {
     })();
   }, [locationReady, permissionGranted, selectedGameId, hasAutoSuggested, location?.latitude, location?.longitude]);
 
-  const pickFromLibrary = async (media: 'image' | 'video') => {
+  const pickFromLibraryRaw = async (media: 'image' | 'video') => {
     try {
       const r = await ImagePicker.launchImageLibraryAsync({
         ...(pickerMediaTypeFor(media)),
@@ -413,9 +417,9 @@ export default function CreatePostScreen() {
         setPicked({ uri, type: media, mime: mimeType });
         // Generate thumbnail for video preview immediately
         if (media === 'video') {
-          VideoThumbnails.getThumbnailAsync(uri, { time: 0, quality: 0.7 })
-            .then((thumb) => setVideoThumbnailUri(thumb.uri))
-            .catch((e) => { if (__DEV__) console.warn('[CreatePost] Video thumbnail failed:', e); });
+          VideoThumbnails?.getThumbnailAsync?.(uri, { time: 0, quality: 0.7 })
+            ?.then((thumb: any) => setVideoThumbnailUri(thumb.uri))
+            ?.catch((e: any) => { if (__DEV__) console.warn('[CreatePost] Video thumbnail failed:', e); });
         }
       }
     } catch (error: any) {
@@ -430,6 +434,27 @@ export default function CreatePostScreen() {
         Alert.alert('Error', 'Failed to select media. Please try again.');
       }
     }
+  };
+
+  const pickFromLibrary = (media: 'image' | 'video') => {
+    if (contentConsent) {
+      pickFromLibraryRaw(media);
+      return;
+    }
+    Alert.alert(
+      'Content Upload Agreement',
+      'By uploading, you confirm you personally filmed or own this content. Broadcast footage, TV clips, and copyrighted highlights are strictly prohibited. Violations may result in account suspension.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'I Agree',
+          onPress: () => {
+            setContentConsent(true);
+            pickFromLibraryRaw(media);
+          },
+        },
+      ]
+    );
   };
 
   const captureWithCamera = async () => {
@@ -503,9 +528,9 @@ export default function CreatePostScreen() {
         }
         setPicked({ uri, type: media, mime: mimeType });
         if (media === 'video') {
-          VideoThumbnails.getThumbnailAsync(uri, { time: 0, quality: 0.7 })
-            .then((thumb) => setVideoThumbnailUri(thumb.uri))
-            .catch((e) => { if (__DEV__) console.warn('[CreatePost] Video thumbnail failed:', e); });
+          VideoThumbnails?.getThumbnailAsync?.(uri, { time: 0, quality: 0.7 })
+            ?.then((thumb: any) => setVideoThumbnailUri(thumb.uri))
+            ?.catch((e: any) => { if (__DEV__) console.warn('[CreatePost] Video thumbnail failed:', e); });
         }
       }
     } catch (error: any) {
@@ -757,9 +782,10 @@ export default function CreatePostScreen() {
     : (postType === 'highlight' ? 'Share Highlight' : 'Post');
 
   return (
+    <SwipeBackContainer>
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      
+
       {/* Header */}
       <View style={[styles.header, { backgroundColor: Colors[colorScheme].background, borderBottomColor: Colors[colorScheme].border }]}>
         <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} accessibilityLabel="Close" style={styles.iconBtn}>
@@ -1299,11 +1325,12 @@ export default function CreatePostScreen() {
         </Animated.View>
       )}
     </SafeAreaView>
+    </SwipeBackContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { 
+  container: {
     flex: 1
   },
   header: { 

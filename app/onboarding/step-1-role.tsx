@@ -8,7 +8,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useFocusEffect } from '@react-navigation/native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, TouchableOpacity, View, useColorScheme } from 'react-native';
 import OnboardingLayout from './components/OnboardingLayout';
 
 type UserRole = 'fan' | 'coach';
@@ -127,12 +127,14 @@ function RoleCard({
 
 export default function Step1Role() {
   const router = useRouter();
+  const colorScheme = useColorScheme() ?? 'light';
   const { user } = useAuth();
   const params = useLocalSearchParams<{ returnToConfirmation?: string }>();
   const { state: ob, setState: setOB, setProgress, clearOnboarding, dispatch, canNavigate } = useOnboarding();
   const [role, setRole] = useState<UserRole | null>(null);
   const [saving, setSaving] = useState(false);
   const [emailVerified, setEmailVerified] = useState<boolean | null>(null);
+  const [confirmedCoachAge, setConfirmedCoachAge] = useState(false);
   const serverFetchDoneRef = useRef(false);
 
   // CRITICAL: Redirect if not authenticated
@@ -190,8 +192,16 @@ export default function Step1Role() {
 
   const returnToConfirmation = params.returnToConfirmation === 'true';
 
+  // Reset coach age confirmation when switching away from coach
+  useEffect(() => {
+    if (role !== 'coach') {
+      setConfirmedCoachAge(false);
+    }
+  }, [role]);
+
   const onContinue = async () => {
     if (!role) return;
+    if (role === 'coach' && !confirmedCoachAge) return;
     
     // Prevent double-tap race condition
     if (!canNavigate || saving) {
@@ -329,7 +339,7 @@ export default function Step1Role() {
         icon="trophy"
         selected={role === 'coach'}
         onPress={() => setRole('coach')}
-        onContinue={onContinue}
+        onContinue={confirmedCoachAge ? onContinue : undefined}
         saving={saving}
         roleType="coach"
         features={[
@@ -339,6 +349,33 @@ export default function Step1Role() {
           'Organize seasons, rosters, and schedules',
         ]}
       />
+
+      {/* Coach 18+ Age Confirmation */}
+      {role === 'coach' && (
+        <View style={styles.coachAgeContainer}>
+          <TouchableOpacity
+            style={styles.coachAgeCheckboxRow}
+            onPress={() => setConfirmedCoachAge(!confirmedCoachAge)}
+            activeOpacity={0.7}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: confirmedCoachAge }}
+          >
+            <Ionicons
+              name={confirmedCoachAge ? 'checkbox' : 'checkbox-outline'}
+              size={24}
+              color={confirmedCoachAge ? '#DAA520' : '#9CA3AF'}
+            />
+            <Text style={[styles.coachAgeText, { color: colorScheme === 'dark' ? '#F9FAFB' : '#111827' }]}>
+              I confirm I am at least 18 years old
+            </Text>
+          </TouchableOpacity>
+          {!confirmedCoachAge && (
+            <Text style={styles.coachAgeHint}>
+              Coach and organizer accounts require users to be 18 or older.
+            </Text>
+          )}
+        </View>
+      )}
     </OnboardingLayout>
   );
 }
@@ -427,6 +464,28 @@ const styles = StyleSheet.create({
     writingDirection: 'ltr',
     transform: [{ rotate: '0deg' }],
     textAlign: 'center',
+  },
+  coachAgeContainer: {
+    marginBottom: 14,
+    paddingHorizontal: 4,
+  },
+  coachAgeCheckboxRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  coachAgeText: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: '600',
+  },
+  coachAgeHint: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginTop: 4,
+    marginLeft: 34,
+    lineHeight: 16,
   },
 });
 

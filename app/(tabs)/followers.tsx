@@ -9,6 +9,7 @@ import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TouchableOpac
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import SwipeBackContainer from '@/components/SwipeBackContainer';
 
 export default function FollowersScreen() {
   const router = useRouter();
@@ -77,6 +78,7 @@ export default function FollowersScreen() {
   );
 
   return (
+    <SwipeBackContainer>
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top']}>
       <Stack.Screen options={{ 
         title: `${username}'s Followers`,
@@ -122,6 +124,7 @@ export default function FollowersScreen() {
         />
       )}
     </SafeAreaView>
+    </SwipeBackContainer>
   );
 }
 

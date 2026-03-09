@@ -94,6 +94,12 @@ export default function SettingsLayout() {
         }}
       />
       <Stack.Screen
+        name="legal"
+        options={{
+          title: 'Legal',
+        }}
+      />
+      <Stack.Screen
         name="request-host-event"
         options={{
           title: 'Request to Host Event',

@@ -1,6 +1,6 @@
 import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Platform, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { User } from '@/api/entities';
@@ -34,6 +34,8 @@ export default function SignUpScreen() {
   const [retryCount, setRetryCount] = useState(0);
   const [showSignInPrompt, setShowSignInPrompt] = useState(false);
   const [passwordStrength, setPasswordStrength] = useState({ score: 0, feedback: 'Very weak' });
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [confirmedAge, setConfirmedAge] = useState(false);
 
   const handlePasswordChange = (value: string) => {
     setPassword(value);
@@ -240,40 +242,74 @@ export default function SignUpScreen() {
 
         {!showEmailForm ? (
           <>
-          <Text style={[styles.legalText, { color: Colors[colorScheme].mutedText }]}>
-            By signing up, you agree to our{' '}
-            <Text
-              style={{ color: Colors[colorScheme].tint, textDecorationLine: 'underline' }}
-              onPress={() => void router.push('/settings/terms-of-service')}
-            >
-              Terms of Service
+          {/* TOS Agreement Checkbox */}
+          <TouchableOpacity
+            style={styles.checkboxRow}
+            onPress={() => setAgreedToTerms(!agreedToTerms)}
+            activeOpacity={0.7}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: agreedToTerms }}
+          >
+            <Ionicons
+              name={agreedToTerms ? 'checkbox' : 'checkbox-outline'}
+              size={24}
+              color={agreedToTerms ? Colors[colorScheme].tint : Colors[colorScheme].mutedText}
+            />
+            <Text style={[styles.checkboxText, { color: Colors[colorScheme].text }]}>
+              I agree to the{' '}
+              <Text
+                style={{ color: Colors[colorScheme].tint, textDecorationLine: 'underline' }}
+                onPress={() => void Linking.openURL('https://varsityhub.app/terms')}
+              >
+                Terms of Service
+              </Text>
+              {' '}and{' '}
+              <Text
+                style={{ color: Colors[colorScheme].tint, textDecorationLine: 'underline' }}
+                onPress={() => void Linking.openURL('https://varsityhub.app/privacy')}
+              >
+                Privacy Policy
+              </Text>
             </Text>
-            {' '}and{' '}
-            <Text
-              style={{ color: Colors[colorScheme].tint, textDecorationLine: 'underline' }}
-              onPress={() => void router.push('/settings/privacy-policy')}
-            >
-              Privacy Policy
+          </TouchableOpacity>
+
+          {/* Age Verification Checkbox */}
+          <TouchableOpacity
+            style={styles.checkboxRow}
+            onPress={() => setConfirmedAge(!confirmedAge)}
+            activeOpacity={0.7}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: confirmedAge }}
+          >
+            <Ionicons
+              name={confirmedAge ? 'checkbox' : 'checkbox-outline'}
+              size={24}
+              color={confirmedAge ? Colors[colorScheme].tint : Colors[colorScheme].mutedText}
+            />
+            <Text style={[styles.checkboxText, { color: Colors[colorScheme].text }]}>
+              I confirm I am at least 13 years old
             </Text>
-          </Text>
+          </TouchableOpacity>
 
           {/* Apple Sign Up Option (iOS only) */}
           {Platform.OS === 'ios' ? (
-            <AppleAuthenticationButton
-              onPress={handleAppleSignUp}
-              buttonType={AppleAuthenticationButtonType.SIGN_UP}
-              buttonStyle={colorScheme === 'dark' ? AppleAuthenticationButtonStyle.WHITE : AppleAuthenticationButtonStyle.BLACK}
-              cornerRadius={8}
-              style={{ width: '100%', height: 50, marginBottom: 8 }}
-            />
+            <View pointerEvents={(!agreedToTerms || !confirmedAge) ? 'none' : 'auto'} style={(!agreedToTerms || !confirmedAge) ? styles.buttonDisabled : undefined}>
+              <AppleAuthenticationButton
+                onPress={handleAppleSignUp}
+                buttonType={AppleAuthenticationButtonType.SIGN_UP}
+                buttonStyle={colorScheme === 'dark' ? AppleAuthenticationButtonStyle.WHITE : AppleAuthenticationButtonStyle.BLACK}
+                cornerRadius={8}
+                style={{ width: '100%', height: 50, marginBottom: 8 }}
+              />
+            </View>
           ) : null}
 
           {/* Google Sign Up Option */}
           {googleReady ? (
             <Pressable
-              style={[styles.googleButton, googleLoading && styles.buttonDisabled, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
+              style={[styles.googleButton, (googleLoading || !agreedToTerms || !confirmedAge) && styles.buttonDisabled, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
               onPress={handleGoogleSignUp}
-              disabled={googleLoading}
+              disabled={googleLoading || !agreedToTerms || !confirmedAge}
               accessibilityRole="button"
             >
               <Ionicons name="logo-google" size={20} color="#4285F4" style={styles.googleIcon} />
@@ -304,7 +340,7 @@ export default function SignUpScreen() {
           </View>
 
           {/* Email Sign Up Option */}
-          <Button onPress={() => setShowEmailForm(true)} variant="outline">
+          <Button onPress={() => setShowEmailForm(true)} variant="outline" disabled={!agreedToTerms || !confirmedAge}>
             <MaterialIcons name="mail" size={16} color={Colors[colorScheme].mutedText} style={{ marginRight: 8 }} />
             <Text style={{ color: Colors[colorScheme].text, fontSize: 16, fontWeight: '600' }}>Sign up with Email</Text>
           </Button>
@@ -352,23 +388,57 @@ export default function SignUpScreen() {
           )}
           
           <View style={{ height: 12 }} />
-          <Text style={[styles.legalText, { color: Colors[colorScheme].mutedText }]}>
-            By signing up, you agree to our{' '}
-            <Text
-              style={{ color: Colors[colorScheme].tint, textDecorationLine: 'underline' }}
-              onPress={() => void router.push('/settings/terms-of-service')}
-            >
-              Terms of Service
+
+          {/* TOS Agreement Checkbox */}
+          <TouchableOpacity
+            style={styles.checkboxRow}
+            onPress={() => setAgreedToTerms(!agreedToTerms)}
+            activeOpacity={0.7}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: agreedToTerms }}
+          >
+            <Ionicons
+              name={agreedToTerms ? 'checkbox' : 'checkbox-outline'}
+              size={24}
+              color={agreedToTerms ? Colors[colorScheme].tint : Colors[colorScheme].mutedText}
+            />
+            <Text style={[styles.checkboxText, { color: Colors[colorScheme].text }]}>
+              I agree to the{' '}
+              <Text
+                style={{ color: Colors[colorScheme].tint, textDecorationLine: 'underline' }}
+                onPress={() => void Linking.openURL('https://varsityhub.app/terms')}
+              >
+                Terms of Service
+              </Text>
+              {' '}and{' '}
+              <Text
+                style={{ color: Colors[colorScheme].tint, textDecorationLine: 'underline' }}
+                onPress={() => void Linking.openURL('https://varsityhub.app/privacy')}
+              >
+                Privacy Policy
+              </Text>
             </Text>
-            {' '}and{' '}
-            <Text
-              style={{ color: Colors[colorScheme].tint, textDecorationLine: 'underline' }}
-              onPress={() => void router.push('/settings/privacy-policy')}
-            >
-              Privacy Policy
+          </TouchableOpacity>
+
+          {/* Age Verification Checkbox */}
+          <TouchableOpacity
+            style={styles.checkboxRow}
+            onPress={() => setConfirmedAge(!confirmedAge)}
+            activeOpacity={0.7}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: confirmedAge }}
+          >
+            <Ionicons
+              name={confirmedAge ? 'checkbox' : 'checkbox-outline'}
+              size={24}
+              color={confirmedAge ? Colors[colorScheme].tint : Colors[colorScheme].mutedText}
+            />
+            <Text style={[styles.checkboxText, { color: Colors[colorScheme].text }]}>
+              I confirm I am at least 13 years old
             </Text>
-          </Text>
-          <Button onPress={onSubmit} disabled={loading}>
+          </TouchableOpacity>
+
+          <Button onPress={onSubmit} disabled={loading || !agreedToTerms || !confirmedAge}>
             {loading ? (
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <ActivityIndicator size="small" color="white" />
@@ -473,5 +543,17 @@ const styles = StyleSheet.create({
   disabledGoogleButton: {
     borderColor: '#CBD5F5',
     backgroundColor: '#F3F4F6',
+  },
+  checkboxRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+    gap: 10,
+  },
+  checkboxText: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 20,
+    paddingTop: 2,
   },
 });
