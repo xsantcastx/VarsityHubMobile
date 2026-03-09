@@ -395,14 +395,15 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
   const handleOpponentSearchChange = (text: string) => {
     setOpponentSearchText(text);
     if (opponentSearchTimerRef.current) clearTimeout(opponentSearchTimerRef.current);
+    const q = text.trim();
+    if (!q) {
+      setOpponentSearchResults([]);
+      setOpponentSearchLoading(false);
+      return;
+    }
+    // Set loading immediately so UI responds to typing
+    setOpponentSearchLoading(true);
     opponentSearchTimerRef.current = setTimeout(async () => {
-      const q = text.trim();
-      if (!q) {
-        setOpponentSearchResults([]);
-        setOpponentSearchLoading(false);
-        return;
-      }
-      setOpponentSearchLoading(true);
       try {
         const res = await Team.list(q, false, { limit: 20 });
         const results: TeamOption[] = (Array.isArray(res) ? res : [])
@@ -1572,10 +1573,10 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
               </View>
             )}
 
-            {/* Manual entry — always available when search text is present */}
-            {opponentSearchText.trim().length > 0 && !opponentSearchLoading && (
+            {/* Manual entry — ALWAYS visible when text is present, even during loading */}
+            {opponentSearchText.trim().length > 0 && (
               <Pressable
-                style={[styles.pickerItem, { borderBottomColor: Colors[colorScheme].border }]}
+                style={[styles.pickerItem, { borderBottomColor: Colors[colorScheme].border, backgroundColor: Colors[colorScheme].surface }]}
                 onPress={() => {
                   const name = opponentSearchText.trim();
                   setOpponent(name);
@@ -1583,6 +1584,8 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
                   if (errors.opponent) setErrors(prev => ({ ...prev, opponent: '' }));
                   setOpponentSearchText('');
                   setOpponentSearchResults([]);
+                  if (opponentSearchTimerRef.current) clearTimeout(opponentSearchTimerRef.current);
+                  setOpponentSearchLoading(false);
                   setShowOpponentPicker(false);
                 }}
               >
