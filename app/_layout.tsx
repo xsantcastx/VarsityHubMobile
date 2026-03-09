@@ -209,22 +209,16 @@ export default function RootLayout() {
                 <NavigationThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
                   <OfflineBanner />
                   <ErrorToastContainer />
-                    <Stack screenOptions={{
-                      headerShown: true,
-                      headerBackTitle: 'Back',
-                      headerStyle: { backgroundColor: colorScheme === 'dark' ? Colors.dark.background : Colors.light.background },
-                      headerTintColor: colorScheme === 'dark' ? Colors.dark.text : Colors.light.text,
-                      headerShadowVisible: false,
-                    }}>
+                    <Stack screenOptions={{ headerShown: false }}>
                     <Stack.Screen name="index" options={{ headerShown: false }} />
                     <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
                     {/* Auth screens - lazy loaded */}
                     <Stack.Screen name="sign-in" options={{ headerShown: false }} />
                     <Stack.Screen name="sign-up" options={{ headerShown: false }} />
                     <Stack.Screen name="verify" options={{ headerShown: false }} />
-                    <Stack.Screen name="forgot-password" />
-                    <Stack.Screen name="reset" />
-                    <Stack.Screen name="reset-password" />
+                    <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
+                    <Stack.Screen name="reset" options={{ headerShown: false }} />
+                    <Stack.Screen name="reset-password" options={{ headerShown: false }} />
                     {/* Payment screens - lazy loaded */}
                     <Stack.Screen name="payment-success" options={{ headerShown: false }} />
                     <Stack.Screen name="payment-cancel" options={{ headerShown: false }} />
