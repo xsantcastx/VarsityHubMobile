@@ -1598,6 +1598,13 @@ export default function TeamChatScreen() {
               contentContainerStyle={styles.messagesContent}
               showsVerticalScrollIndicator={false}
               onScrollBeginDrag={Keyboard.dismiss}
+              ListEmptyComponent={
+                <View style={{ alignItems: 'center', paddingTop: 48 }}>
+                  <Ionicons name="chatbubbles-outline" size={40} color={Colors[colorScheme].mutedText} />
+                  <Text style={{ color: Colors[colorScheme].mutedText, marginTop: 12, fontSize: 15 }}>No messages yet</Text>
+                  <Text style={{ color: Colors[colorScheme].mutedText, fontSize: 13, marginTop: 4 }}>Start the conversation below</Text>
+                </View>
+              }
             />
           </Pressable>
           
@@ -1746,6 +1753,12 @@ export default function TeamChatScreen() {
           style={styles.membersList}
           contentContainerStyle={styles.membersContent}
           showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            <View style={{ alignItems: 'center', paddingTop: 48 }}>
+              <Ionicons name="people-outline" size={40} color={Colors[colorScheme].mutedText} />
+              <Text style={{ color: Colors[colorScheme].mutedText, marginTop: 12, fontSize: 15 }}>No members yet</Text>
+            </View>
+          }
         />
       )}
 
