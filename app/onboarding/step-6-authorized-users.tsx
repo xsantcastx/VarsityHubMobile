@@ -129,7 +129,8 @@ export default function Step6AuthorizedUsers() {
       return;
     }
 
-    if (ob.plan !== 'rookie' && !assignTeam.trim()) {
+    const currentEffectivePlan = ob.pending_plan || ob.plan;
+    if (currentEffectivePlan !== 'rookie' && currentEffectivePlan && !assignTeam.trim()) {
       setTeamError('Please assign this user to a team');
       return;
     }
@@ -145,16 +146,19 @@ export default function Step6AuthorizedUsers() {
       return;
     }
     
-    const targetId = ob.plan === 'rookie' ? ob.team_id : ob.organization_id;
-    if (!targetId) { 
-      Alert.alert('Missing Organization', 'Please create your organization first or select an organization you manage.'); 
-      return; 
+    // Use effective plan (pending_plan during onboarding before payment completes)
+    const effectivePlan = ob.pending_plan || ob.plan;
+    const isRookie = effectivePlan === 'rookie' || !effectivePlan;
+    const targetId = isRookie ? ob.team_id : ob.organization_id;
+    if (!targetId) {
+      Alert.alert('Missing Organization', 'Please create your organization first or select an organization you manage.');
+      return;
     }
-    
+
     setAdding(true);
     try {
       // Call backend to create an invite (organization for Veteran/Legend, team for Rookie)
-      if (ob.plan === 'rookie' && ob.team_id) {
+      if (isRookie && ob.team_id) {
         await httpPost(`/teams/${ob.team_id}/invite`, { email: e, role: mapRoleToBackend(role, 'team') });
       } else if (ob.organization_id) {
         await httpPost(`/organizations/${ob.organization_id}/invite`, { email: e, role: mapRoleToBackend(role, 'org') });

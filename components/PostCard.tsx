@@ -8,7 +8,7 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import RankingBadge from './RankingBadge';
@@ -43,6 +43,13 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
   const [showReportMenu, setShowReportMenu] = useState(false);
   const [reportSubmitting, setReportSubmitting] = useState(false);
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Cleanup delete timer on unmount to prevent memory leak
+  useEffect(() => {
+    return () => {
+      if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current);
+    };
+  }, []);
 
   const REPORT_REASONS = [
     { value: 'copyright', label: 'Copyright infringement' },

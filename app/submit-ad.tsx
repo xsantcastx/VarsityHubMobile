@@ -91,7 +91,7 @@ export default function SubmitAdScreen() {
           banner_fit_mode: bannerFitMode,
           target_url: targetUrl.trim() || undefined,
           target_zip_code: zip.trim(),
-          radius: 15,
+          radius: 9,
           description: desc.trim() || undefined,
         });
         serverId = String(created?.id || '');
@@ -227,7 +227,7 @@ export default function SubmitAdScreen() {
             />
 
             {/* Reach Map Preview - Shows advertisers exactly where their ad will appear */}
-            <ReachMapPreview zipCode={zip} radiusKm={15} />
+            <ReachMapPreview zipCode={zip} radiusKm={9} />
 
             <Text style={[styles.label, { color: theme.text }]}>Ad Banner *</Text>
             <BannerUpload 

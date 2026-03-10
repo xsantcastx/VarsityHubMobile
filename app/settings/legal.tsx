@@ -8,7 +8,7 @@ export default function LegalScreen() {
   const palette = Colors[colorScheme];
 
   const openLink = (url: string) => {
-    void Linking.openURL(url);
+    Linking.openURL(url).catch(() => {});
   };
 
   return (

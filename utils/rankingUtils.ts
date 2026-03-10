@@ -6,6 +6,8 @@ export interface HighlightItem {
   caption?: string;
   content?: string;
   media_url?: string;
+  preview_url?: string;
+  media_type?: string;
   upvotes_count?: number;
   created_at: string;
   author_id: string;

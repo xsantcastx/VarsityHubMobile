@@ -9,6 +9,7 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
+import { autoEscalate } from '../lib/moderation.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { reportLimiter } from '../middleware/rateLimiters.js';
@@ -263,6 +264,22 @@ reportsRouter.post('/', requireAuth as any, reportLimiter, async (req: AuthedReq
   // Log report for moderation tracking
   if (process.env.NODE_ENV !== 'production') {
     console.log(`[Reports] User ${req.user.id} reported ${target_type}:${target_id} for ${reason}`);
+  }
+
+  // Auto-escalation: check if the reported user should receive a warning/strike/suspension
+  let escalation: { action: string } | null = null;
+  try {
+    const targetUserId =
+      target_type === 'user' ? target_id :
+      (targetContext as any)?.post_author_id ||
+      (targetContext as any)?.comment_author_id ||
+      (targetContext as any)?.sender_id ||
+      null;
+    if (targetUserId) {
+      escalation = await autoEscalate(targetUserId);
+    }
+  } catch (err) {
+    console.error('[Reports] Auto-escalation check failed:', err);
   }
 
   return res.status(201).json({

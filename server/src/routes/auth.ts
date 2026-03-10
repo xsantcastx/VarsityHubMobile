@@ -202,6 +202,14 @@ authRouter.post('/refresh', refreshTokenLimiter, asyncHandler(async (req, res) =
   });
   if (!user) return res.status(401).json({ error: 'Invalid or expired refresh token' });
 
+  // Block banned or suspended users from refreshing tokens
+  if (user.banned) {
+    return res.status(403).json({ error: 'Account banned', ban_reason: (user as any).ban_reason || undefined });
+  }
+  if ((user as any).banned_until && new Date((user as any).banned_until) > new Date()) {
+    return res.status(403).json({ error: 'Account temporarily suspended', banned_until: (user as any).banned_until, ban_reason: (user as any).ban_reason || undefined });
+  }
+
   // Rotate: issue new token pair
   const { refresh_token: newRefreshToken } = await issueRefreshToken(user.id);
   const access_token = signJwt({ id: user.id });
@@ -216,11 +224,31 @@ const registerSchema = z.object({
   // Rookie is a coach plan, not a role
   role: z.enum(['fan', 'coach']).optional(),
   dob: z.string().optional(), // COPPA: reject if under 13
+  // Honeypot + timing fields for bot detection (optional — ignored if missing)
+  website: z.string().optional(), // Honeypot: bots fill this, real users don't
+  _t: z.number().optional(),      // Timestamp when form was loaded (detect instant submissions)
 });
 
 authRouter.post('/register', asyncHandler(async (req, res) => {
   const start = Date.now();
   debugLog('[register] Incoming request');
+
+  // Bot detection: honeypot field — if filled, silently reject
+  if (req.body?.website && typeof req.body.website === 'string' && req.body.website.trim().length > 0) {
+    debugLog('[register] Honeypot triggered');
+    // Return fake success to confuse bots
+    return res.status(201).json({ access_token: 'ok', refresh_token: 'ok', user: {} });
+  }
+
+  // Bot detection: timing — if form submitted in under 2 seconds, likely a bot
+  if (req.body?._t && typeof req.body._t === 'number') {
+    const elapsed = Date.now() - req.body._t;
+    if (elapsed < 2000) {
+      debugLog('[register] Form submitted too fast:', elapsed, 'ms');
+      return res.status(201).json({ access_token: 'ok', refresh_token: 'ok', user: {} });
+    }
+  }
+
   const parsed = registerSchema.safeParse(req.body);
   if (!parsed.success) {
     throw new ValidationError('Invalid registration data', {
@@ -329,11 +357,37 @@ authRouter.post('/login', asyncHandler(async (req, res) => {
   
   const user = await prisma.user.findUnique({ where: { email: sanitizedEmail } });
   if (!user) return res.status(401).json({ error: 'Invalid credentials' });
-  if (user.banned) return res.status(403).json({ error: 'Account banned' });
+  // Check permanent ban
+  if (user.banned) {
+    return res.status(403).json({ error: 'Account banned', ban_reason: user.ban_reason || 'Your account has been banned for violating community guidelines.' });
+  }
+  // Check temporary suspension
+  if (user.banned_until && new Date(user.banned_until) > new Date()) {
+    return res.status(403).json({ error: 'Account temporarily suspended', banned_until: user.banned_until, ban_reason: user.ban_reason || 'Your account has been temporarily suspended.' });
+  }
+  // Auto-lift expired suspensions
+  if (user.banned_until && new Date(user.banned_until) <= new Date()) {
+    await prisma.user.update({ where: { id: user.id }, data: { banned_until: null, ban_reason: null } });
+  }
   const ok = await bcrypt.compare(password, user.password_hash);
   if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
   const access_token = signJwt({ id: user.id });
   const { refresh_token } = await issueRefreshToken(user.id);
+
+  // Track device fingerprint (non-blocking)
+  const userAgent = req.headers['user-agent'] || 'unknown';
+  const ip = req.ip || 'unknown';
+  const deviceInfo = { ua: userAgent.substring(0, 200), ip, ts: new Date().toISOString() };
+  prisma.user.update({
+    where: { id: user.id },
+    data: {
+      preferences: {
+        ...(typeof user.preferences === 'object' && user.preferences !== null ? user.preferences as Record<string, unknown> : {}),
+        last_login_device: deviceInfo,
+      },
+    },
+  }).catch((err) => { console.warn('[auth] Failed to update device info:', err?.message); }); // fire-and-forget
+
   const sanitized = sanitizeUser(user);
   const needsOnboarding = sanitized?.preferences?.onboarding_completed === false;
   const body: any = { access_token, refresh_token, user: sanitized, needs_onboarding: needsOnboarding };
@@ -431,6 +485,14 @@ authRouter.post('/google', async (req, res) => {
           email_verification_expires: null,
         },
       });
+    }
+
+    // Block banned/suspended users from Google auth
+    if (user.banned) {
+      return res.status(403).json({ error: 'Account banned', ban_reason: user.ban_reason || 'Your account has been banned for violating community guidelines.' });
+    }
+    if (user.banned_until && new Date(user.banned_until) > new Date()) {
+      return res.status(403).json({ error: 'Account temporarily suspended', banned_until: user.banned_until, ban_reason: user.ban_reason || 'Your account has been temporarily suspended.' });
     }
 
     const sanitized = sanitizeUser(user);
@@ -601,6 +663,14 @@ authRouter.post('/apple', async (req, res) => {
           }
         }
       }
+    }
+
+    // Block banned/suspended users from Apple auth
+    if (user.banned) {
+      return res.status(403).json({ error: 'Account banned', ban_reason: user.ban_reason || 'Your account has been banned for violating community guidelines.' });
+    }
+    if (user.banned_until && new Date(user.banned_until) > new Date()) {
+      return res.status(403).json({ error: 'Account temporarily suspended', banned_until: user.banned_until, ban_reason: user.ban_reason || 'Your account has been temporarily suspended.' });
     }
 
     const sanitized = sanitizeUser(user);

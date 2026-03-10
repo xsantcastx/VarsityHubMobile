@@ -36,8 +36,9 @@ export default function Step4Organization() {
   const [checking, setChecking] = useState(true);
   
   // Search/Join state
-  const [showSearch, setShowSearch] = useState(false);
-  const [searchZip, setSearchZip] = useState(ob.zip || ob.zip_code || '');
+  const initialZip = ob.zip || ob.zip_code || '';
+  const [showSearch, setShowSearch] = useState(!!initialZip);
+  const [searchZip, setSearchZip] = useState(initialZip);
   const { organizations: nearbyOrgs, loading: searching, search: searchOrganizations, clear: clearOrganizations } = useOrganizationSearch(false);
   const [requestingJoin, setRequestingJoin] = useState(false);
   const [joinMessage, setJoinMessage] = useState('');
@@ -222,6 +223,15 @@ export default function Step4Organization() {
       clearOrganizations();
     }
   }, [clearOrganizations, executeNearbySearch]);
+
+  // Auto-search for nearby orgs when step loads with a zip code from Step 2
+  const didAutoSearch = useRef(false);
+  useEffect(() => {
+    if (initialZip && !didAutoSearch.current) {
+      didAutoSearch.current = true;
+      void executeNearbySearch(initialZip);
+    }
+  }, [initialZip, executeNearbySearch]);
 
   const handleLocationSelect = useCallback(({ address, placeId }: { address: string; placeId?: string; latitude?: number; longitude?: number }) => {
     setLocation(address);

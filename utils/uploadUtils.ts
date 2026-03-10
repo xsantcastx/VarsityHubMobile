@@ -3,10 +3,8 @@
  */
 
 import { Platform } from 'react-native';
+import auth from '../api/auth';
 import { getApiBaseUrl } from '../api/http';
-
-// Centralized server URL (uses android localhost remap internally)
-const SERVER_URL = getApiBaseUrl();
 
 export interface UploadResponse {
   url: string;
@@ -36,28 +34,35 @@ export async function uploadFile(
 ): Promise<UploadResponse> {
   try {
     if (__DEV__) console.log('Starting upload:', { name: file.name, uri: file.uri, type: file.type });
-    
+
+    const token = await auth.getToken();
+    if (!token) {
+      throw new Error('Unauthorized — please sign in to upload files.');
+    }
+
     const formData = new FormData();
-    
+
     // Create the file object for FormData
     const fileObj = {
       uri: file.uri,
       type: file.type || 'application/octet-stream',
       name: file.name,
     } as any;
-    
+
     formData.append('file', fileObj);
-    
+
     // Choose endpoint based on file type
+    const serverUrl = getApiBaseUrl();
     const endpoint = isMedia ? '/uploads' : '/uploads/files';
-    const url = `${SERVER_URL}${endpoint}`;
-    
+    const url = `${serverUrl}${endpoint}`;
+
     if (__DEV__) console.log('Uploading to:', url);
-    
+
     // Important: do NOT set the Content-Type header for FormData in React Native
     // The runtime must set the boundary for multipart/form-data automatically.
     const response = await fetch(url, {
       method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
       body: formData,
     });
     

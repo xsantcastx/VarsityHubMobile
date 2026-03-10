@@ -1,4 +1,4 @@
-import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
 const prefix = 'vh_settings_';
@@ -8,7 +8,7 @@ async function setItem(key: string, value: string) {
     if (Platform.OS === 'web') {
       window.localStorage.setItem(prefix + key, value);
     } else {
-      await SecureStore.setItemAsync(prefix + key, value);
+      await AsyncStorage.setItem(prefix + key, value);
     }
   } catch (error) {
     if (__DEV__) console.warn('[settings] Failed to save setting:', key, error);
@@ -20,7 +20,7 @@ async function getItem(key: string): Promise<string | null> {
     if (Platform.OS === 'web') {
       return window.localStorage.getItem(prefix + key);
     } else {
-      return await SecureStore.getItemAsync(prefix + key);
+      return await AsyncStorage.getItem(prefix + key);
     }
   } catch (error) {
     if (__DEV__) console.warn('[settings] Failed to read setting:', key, error);

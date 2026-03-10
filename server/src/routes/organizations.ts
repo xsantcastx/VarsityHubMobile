@@ -103,6 +103,59 @@ organizationsRouter.get('/mine', requireAuth as any, async (req: AuthedRequest, 
   }
 });
 
+// Update organization (admin only)
+const updateOrgSchema = z.object({
+  name: z.string().min(1).max(200).optional(),
+  description: z.string().max(2000).optional().nullable(),
+  sport: z.string().max(100).optional().nullable(),
+  org_type: z.string().max(50).optional().nullable(),
+  location: z.string().max(500).optional().nullable(),
+  zip_code: z.string().max(20).optional().nullable(),
+  contact_info: z.string().max(500).optional().nullable(),
+});
+
+organizationsRouter.patch('/:id', requireAuth as any, async (req: AuthedRequest, res) => {
+  const orgId = String(req.params.id);
+  const userId = req.user!.id;
+
+  // Verify user is org admin
+  const membership = await prisma.organizationMembership.findFirst({
+    where: { organization_id: orgId, user_id: userId, status: 'active', role: { in: ['owner', 'manager', 'administrator'] } },
+  });
+  if (!membership) return res.status(403).json({ error: 'Only organization admins can edit this organization.' });
+
+  const parsed = updateOrgSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
+
+  const data = parsed.data;
+
+  // Content filter on name and description
+  if (data.name || data.description) {
+    const filterResult = validateContent({ title: data.name, content: data.description ?? undefined });
+    if (!filterResult.valid) return res.status(400).json({ error: filterResult.error, code: filterResult.code });
+  }
+
+  try {
+    const updated = await prisma.organization.update({
+      where: { id: orgId },
+      data: {
+        ...(data.name !== undefined && { name: data.name }),
+        ...(data.description !== undefined && { description: data.description }),
+        ...(data.sport !== undefined && { sport: data.sport }),
+        ...(data.org_type !== undefined && { org_type: data.org_type }),
+        ...(data.location !== undefined && { location: data.location }),
+        ...(data.zip_code !== undefined && { zip_code: data.zip_code }),
+      },
+      select: { id: true, name: true, description: true, sport: true, org_type: true, location: true, zip_code: true },
+    });
+    return res.json(updated);
+  } catch (err: any) {
+    if (err?.code === 'P2002') return res.status(409).json({ error: 'An organization with that name already exists in this area.' });
+    console.error('[organizations] PATCH /:id error:', err);
+    return res.status(500).json({ error: 'Failed to update organization.' });
+  }
+});
+
 // Follow an organization
 organizationsRouter.post('/:id/follow', requireAuth as any, async (req: AuthedRequest, res) => {
   const userId = req.user!.id;
@@ -415,8 +468,11 @@ organizationsRouter.post('/:id/invite', requireAuth as any, inviteLimiter, async
     });
     const ownerId = ownerMembership?.user_id || req.user!.id;
     const owner = await prisma.user.findUnique({ where: { id: ownerId } });
-    const ownerPrefs = (owner?.preferences || {}) as any;
-    const plan = ownerPrefs.plan || 'rookie';
+    if (!owner) {
+      return res.status(404).json({ error: 'Organization owner not found. Please contact support.' });
+    }
+    const ownerPrefs = (owner.preferences || {}) as any;
+    const plan = ownerPrefs.pending_plan || ownerPrefs.plan || 'rookie';
 
     // Get team count for org-level limit calculation (from org owner's profile)
     const teamCountTotal = ownerPrefs.team_count_total || await prisma.teamMembership.count({
@@ -427,8 +483,8 @@ organizationsRouter.post('/:id/invite', requireAuth as any, inviteLimiter, async
     const limit = getAuthorizedUsersOrgLimit(plan, teamCountTotal);
     
     if (limit !== null) {
-      const inviteCount = await prisma.organizationInvite.count({ where: { organization_id: id } });
-      const memberCount = await prisma.organizationMembership.count({ where: { organization_id: id, role: { in: ['manager','member'] } } });
+      const inviteCount = await prisma.organizationInvite.count({ where: { organization_id: id, status: 'pending' } });
+      const memberCount = await prisma.organizationMembership.count({ where: { organization_id: id, status: 'active', role: { in: ['manager','member'] } } });
       const totalAuthorized = inviteCount + memberCount;
       if (totalAuthorized >= limit) {
         return res.status(403).json({

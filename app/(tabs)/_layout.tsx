@@ -120,6 +120,7 @@ export default function TabLayout() {
   <Tabs.Screen name="organization" options={hiddenTab} />
   <Tabs.Screen name="event-detail" options={hiddenTab} />
   <Tabs.Screen name="create-fan-event" options={hiddenTab} />
+  <Tabs.Screen name="edit-organization" options={hiddenTab} />
   <Tabs.Screen name="event-approvals" options={hiddenTab} />
   <Tabs.Screen name="verify-email" options={hiddenTab} />
       <Tabs.Screen

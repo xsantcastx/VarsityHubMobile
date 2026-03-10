@@ -1,49 +1,60 @@
-import { useRef } from 'react';
 import { Gesture } from 'react-native-gesture-handler';
+import { runOnJS, useSharedValue } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 
-const EDGE_WIDTH = 30; // iOS-standard edge zone (left 30px)
-const SWIPE_THRESHOLD = 80; // minimum horizontal distance to trigger back
+const EDGE_WIDTH = 40; // Left edge zone in px
+const SWIPE_THRESHOLD = 60; // Min horizontal distance to trigger back
 
 /**
- * Provides a Pan gesture that mimics the iOS edge-swipe-to-go-back behaviour.
- * Useful for screens that live inside a Tabs navigator (which has no native
- * back-swipe support) or where a horizontal ScrollView / FlatList would
- * otherwise swallow the gesture.
- *
- * Usage:
- *   const { edgeSwipeGesture } = useEdgeSwipeBack();
- *   return (
- *     <GestureDetector gesture={edgeSwipeGesture}>
- *       <View style={{ flex: 1 }}>…</View>
- *     </GestureDetector>
- *   );
+ * Edge-swipe-to-go-back gesture for tab screens that lack native back navigation.
+ * Uses manual activation so only touches starting in the left edge zone activate,
+ * letting ScrollViews handle all other touches normally.
  */
 export function useEdgeSwipeBack() {
   const router = useRouter();
-  const startedAtEdge = useRef(false);
+  const startedAtEdge = useSharedValue(false);
+
+  const goBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.push('/(tabs)' as any);
+    }
+  };
 
   const edgeSwipeGesture = Gesture.Pan()
-    .activeOffsetX(20) // only activate after 20px horizontal move
-    .failOffsetY([-15, 15]) // fail quickly if vertical
-    .onBegin((e) => {
-      // Only trigger when the touch starts within the left edge zone
-      startedAtEdge.current = e.x <= EDGE_WIDTH;
+    .manualActivation(true)
+    .onTouchesDown((e) => {
+      'worklet';
+      const touch = e.allTouches[0];
+      startedAtEdge.value = touch ? touch.x <= EDGE_WIDTH : false;
+    })
+    .onTouchesMove((e, stateManager) => {
+      'worklet';
+      if (!startedAtEdge.value) {
+        stateManager.fail();
+        return;
+      }
+      // Activate once we see enough horizontal movement
+      const touch = e.allTouches[0];
+      if (touch && touch.x > EDGE_WIDTH + 15) {
+        stateManager.activate();
+      }
     })
     .onEnd((e) => {
+      'worklet';
       if (
-        startedAtEdge.current &&
+        startedAtEdge.value &&
         e.translationX > SWIPE_THRESHOLD &&
-        Math.abs(e.translationY) < e.translationX // mostly horizontal
+        Math.abs(e.translationY) < e.translationX
       ) {
-        if (router.canGoBack()) {
-          router.back();
-        } else {
-          router.push('/(tabs)' as any);
-        }
+        runOnJS(goBack)();
       }
-      startedAtEdge.current = false;
     });
 
-  return { edgeSwipeGesture };
+  // Allow native scroll gestures to work simultaneously
+  const nativeGesture = Gesture.Native();
+  const composedGesture = Gesture.Simultaneous(edgeSwipeGesture, nativeGesture);
+
+  return { edgeSwipeGesture: composedGesture };
 }

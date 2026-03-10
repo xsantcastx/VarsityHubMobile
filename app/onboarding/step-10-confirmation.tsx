@@ -91,7 +91,7 @@ export default function Step10Confirmation() {
       },
       {
         label: 'Basic Info',
-        completed: !!(ob.username && ob.dob && (ob.zip || ob.zip_code)),
+        completed: !!(ob.username && ob.dob),
         required: true,
         route: '/onboarding/step-2-basic',
         description: 'Set username, date of birth, and location'

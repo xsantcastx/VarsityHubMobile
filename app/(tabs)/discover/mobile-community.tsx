@@ -681,7 +681,7 @@ export default function CommunityDiscoverScreen() {
                 <Pressable
                   key={t.id}
                   style={[styles.searchResultRow, { borderBottomColor: Colors[colorScheme].border }]}
-                  onPress={() => { setQuery(''); setUnifiedSearchResults(null); void router.push(`/(tabs)/team-profile?id=${t.id}`); }}
+                  onPress={() => { setQuery(''); setUnifiedSearchResults(null); void router.push(`/team-page?id=${t.id}`); }}
                 >
                   <View style={styles.searchResultLeft}>
                     {t.logo_url || t.avatar_url ? (

@@ -105,6 +105,7 @@ groupChatsRouter.get('/:chatId/messages', requireAuth as any, async (req: Authed
       return res.status(403).json({ error: 'Not a member of this chat' });
     }
 
+    // Fetch newest 100 messages (desc), then reverse to chronological order for display
     const messages = await prisma.groupChatMessage.findMany({
       where: { chat_id: chatId },
       include: {
@@ -116,11 +117,11 @@ groupChatsRouter.get('/:chatId/messages', requireAuth as any, async (req: Authed
           },
         },
       },
-      orderBy: { created_at: 'asc' },
-      take: 100, // Limit to last 100 messages
+      orderBy: { created_at: 'desc' },
+      take: 100,
     });
 
-    return res.json(messages);
+    return res.json(messages.reverse());
   } catch (error: any) {
     console.error('Error fetching group chat messages:', error);
     return res.status(500).json({ error: 'Failed to fetch messages' });

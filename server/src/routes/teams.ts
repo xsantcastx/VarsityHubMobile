@@ -1121,7 +1121,7 @@ teamsRouter.post('/:id/invite', requireAuth as any, inviteLimiter, async (req: A
       if (limit !== null) {
         // Count atomically within transaction
         const inviteCount = await tx.teamInvite.count({ where: { team_id: id, status: 'pending' } });
-        const memberCount = await tx.teamMembership.count({ where: { team_id: id, role: { in: ['manager','coach','assistant_coach','equipment','health_wellness'] } } });
+        const memberCount = await tx.teamMembership.count({ where: { team_id: id, status: 'active', role: { in: ['manager','coach','assistant_coach','equipment','health_wellness'] } } });
         const totalAuthorized = inviteCount + memberCount;
 
         if (totalAuthorized >= limit) {

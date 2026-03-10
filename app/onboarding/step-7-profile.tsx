@@ -36,8 +36,8 @@ export default function Step7Profile() {
   // This is a hard guard - coaches CANNOT access step 7 without completing required steps
   useEffect(() => {
     if (ob.role === 'coach' && !returnToConfirmation) {
-      const hasStep2 = !!(ob.username && ob.dob && (ob.zip || ob.zip_code));
-      const hasStep3 = !!ob.plan;
+      const hasStep2 = !!(ob.username && ob.dob);
+      const hasStep3 = !!(ob.pending_plan || ob.plan);
       const hasStep4 = !!(ob.team_id || ob.organization_id);
       
       // IMMEDIATE redirect - don't even render the screen
@@ -60,7 +60,7 @@ export default function Step7Profile() {
         return;
       }
     }
-  }, [ob.role, ob.username, ob.dob, ob.zip, ob.zip_code, ob.plan, ob.team_id, ob.organization_id, returnToConfirmation, router, setProgress]);
+  }, [ob.role, ob.username, ob.dob, ob.pending_plan, ob.plan, ob.team_id, ob.organization_id, returnToConfirmation, router, setProgress]);
 
   useEffect(() => {
     setAvatar(ob.avatar_url ?? null);
@@ -147,7 +147,7 @@ export default function Step7Profile() {
         router.replace('/onboarding/step-10-confirmation');
       } else {
         // Continue to interests
-        router.push('/onboarding/step-8-interests');
+        router.replace('/onboarding/step-8-interests');
       }
     } catch (e: any) { 
       Alert.alert('Failed to save profile', e?.message || 'Please try again'); 

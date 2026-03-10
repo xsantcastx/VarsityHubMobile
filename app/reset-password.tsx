@@ -86,7 +86,7 @@ export default function ResetPasswordScreen() {
       <KeyboardAwareScreen contentContainerStyle={styles.content}>
         <View style={[styles.card, { backgroundColor: palette.elevated, borderColor: palette.border }]}>
           <Text style={[styles.title, { color: palette.text }]}>Enter your reset code</Text>
-          <Text style={[styles.subtitle, { color: palette.mutedText }]}>We sent a 6-digit code to your email. Enter it with your new password.</Text>
+          <Text style={[styles.subtitle, { color: palette.mutedText }]}>We sent a reset code to your email. Enter it with your new password.</Text>
 
           {error ? <Text style={[styles.error, { color: '#b91c1c' }]}>{error}</Text> : null}
           {info ? <Text style={[styles.info, { color: '#065F46' }]}>{info}</Text> : null}
@@ -109,7 +109,7 @@ export default function ResetPasswordScreen() {
           />
 
           <Input
-            placeholder="123456"
+            placeholder="12345678"
             value={code}
             onChangeText={setCode}
             keyboardType="number-pad"

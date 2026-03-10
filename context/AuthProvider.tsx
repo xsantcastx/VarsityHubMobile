@@ -296,6 +296,8 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       setUser(null);
       setPendingVerificationEmail(null);
       setHasCompletedOnboarding(false);
+      setSubscriptionTier('rookie');
+      setHasActiveSubscription(false);
       await AsyncStorage.multiRemove([
         ONBOARDING_COMPLETE_KEY,
         ONBOARDING_COMPLETE_USER_KEY,

@@ -147,10 +147,17 @@ export default function MyAdsScreen() {
                 // Delete from server
                 await AdsApi.delete(id);
                 
-                // Also remove from local storage
-                const list = await settings.getJson<ManagedAd[]>(settings.SETTINGS_KEYS.LOCAL_ADS, []);
-                const next = list.filter((a) => a.id !== id);
-                await settings.setJson(settings.SETTINGS_KEYS.LOCAL_ADS, next);
+                // Also remove from local storage (both scoped and base keys)
+                const scopedKey = getLocalAdsKey();
+                const scopedList = await settings.getJson<ManagedAd[]>(scopedKey, []);
+                await settings.setJson(scopedKey, scopedList.filter((a) => a.id !== id));
+
+                // Also clean base key in case legacy entries exist
+                const baseKey = settings.SETTINGS_KEYS.LOCAL_ADS;
+                if (baseKey !== scopedKey) {
+                  const baseList = await settings.getJson<ManagedAd[]>(baseKey, []);
+                  await settings.setJson(baseKey, baseList.filter((a) => a.id !== id));
+                }
                 
                 // Reload the list
                 await load();

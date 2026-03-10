@@ -86,11 +86,12 @@ notificationsRouter.get('/', requireAuth as any, async (req: AuthedRequest, res)
 
     // Execute query with timeout
     const queryPromise = prisma.notification.findMany(query);
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Query timeout')), 25000)
-    );
+    let timeoutHandle: ReturnType<typeof setTimeout>;
+    const timeoutPromise = new Promise((_, reject) => {
+      timeoutHandle = setTimeout(() => reject(new Error('Query timeout')), 25000);
+    });
 
-    const rows = await Promise.race([queryPromise, timeoutPromise]) as any[];
+    const rows = await Promise.race([queryPromise, timeoutPromise]).finally(() => clearTimeout(timeoutHandle!)) as any[];
     const items = rows.slice(0, limit);
     // Use id as cursor (simpler and works with our where clause)
     const nextCursor = rows.length > limit ? rows[limit].id : null;

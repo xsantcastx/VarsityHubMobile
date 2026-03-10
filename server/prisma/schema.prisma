@@ -31,6 +31,8 @@ model User {
   refresh_token              String?
   refresh_token_expires      DateTime?
   banned                     Boolean   @default(false)
+  ban_reason                 String?   @db.Text
+  banned_until               DateTime?
   preferences                Json      @default("{}")
   
   // Subscription/Premium fields
@@ -87,6 +89,10 @@ model User {
   
   // Abuse Reports
   abuseReports    AbuseReport[]
+
+  // Warnings/Strikes
+  warnings        UserWarning[] @relation("warned_user")
+  issuedWarnings  UserWarning[] @relation("warning_issuer")
 }
 
 model Game {
@@ -956,6 +962,29 @@ model AbuseReport {
   @@index([reporter_id])
   @@index([status])
   @@index([created_at])
+}
+
+// ===========================
+// User Warnings / Strikes
+// ===========================
+
+model UserWarning {
+  id              String    @id @default(cuid())
+  user_id         String
+  issued_by       String?
+  reason          String    @db.Text
+  severity        String    @default("warning") // warning | strike | final_warning
+  report_id       String?   // Link to the report that triggered this
+  expires_at      DateTime? // Null = permanent
+  acknowledged    Boolean   @default(false)
+  created_at      DateTime  @default(now())
+
+  user   User  @relation("warned_user", fields: [user_id], references: [id], onDelete: Cascade)
+  issuer User? @relation("warning_issuer", fields: [issued_by], references: [id], onDelete: SetNull)
+
+  @@index([user_id])
+  @@index([user_id, created_at])
+  @@index([severity])
 }
 
 

@@ -136,7 +136,7 @@ export default function AdCalendarScreen() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
   const [reserved, setReserved] = useState<Set<string>>(new Set());
-  const [fullDates, setFullDates] = useState<Set<string>>(new Set()); // Dates with 3/3 slots filled
+  const [fullDates, setFullDates] = useState<Set<string>>(new Set()); // Dates with 2/2 slots filled
   const [_dateAvailability, setDateAvailability] = useState<Record<string, { slotsUsed: number; slotsRemaining: number }>>({});
   const [promo, setPromo] = useState('');
   const [preview, setPreview] = useState<any>(null);
@@ -169,13 +169,21 @@ export default function AdCalendarScreen() {
         const dates = Array.isArray(res?.dates) ? res.dates : [];
         setReserved(new Set<string>(dates));
         
-        // Get zip code and load availability
-        if (res?.ad?.target_zip_code) {
-          const zip = res.ad.target_zip_code;
-          setZipCode(zip);
-          
-          // Load availability for next 8 weeks
-          await loadAvailability(zip);
+        // Get zip code from ad details and load availability
+        // reservationsForAd returns { ad_id, dates } — need separate call for ad details
+        if (adId) {
+          try {
+            const adDetails: any = await Advertisement.get(String(adId));
+            if (adDetails?.target_zip_code) {
+              const zip = adDetails.target_zip_code;
+              setZipCode(zip);
+
+              // Load availability for next 8 weeks
+              await loadAvailability(zip);
+            }
+          } catch {
+            // Non-critical — calendar still works without availability
+          }
         }
       } catch {
         if (mounted) setReserved(new Set());
@@ -357,7 +365,7 @@ export default function AdCalendarScreen() {
       void fetchAlternativeZips([iso]).catch(() => {});
       Alert.alert(
         'Date Fully Booked', 
-        'This date already has 3/3 ad slots filled. Check below for nearby available zip codes or select a different date.'
+        'This date already has 2/2 ad slots filled. Check below for nearby available zip codes or select a different date.'
       );
       return;
     }
@@ -567,7 +575,7 @@ export default function AdCalendarScreen() {
               <Text style={[styles.cardTitle, { color: colorScheme === 'dark' ? '#BFDBFE' : '#1E40AF' }]}>Coverage Area</Text>
             </View>
             <Text style={{ color: colorScheme === 'dark' ? '#BFDBFE' : '#1E40AF', fontSize: 14 }}>
-              Your ad will reach <Text style={{ fontWeight: '700' }}>20 miles</Text> around zip code <Text style={{ fontWeight: '700' }}>{zipCode}</Text>
+              Your ad will reach approximately <Text style={{ fontWeight: '700' }}>6 miles</Text> around zip code <Text style={{ fontWeight: '700' }}>{zipCode}</Text>
             </Text>
           </View>
         )}

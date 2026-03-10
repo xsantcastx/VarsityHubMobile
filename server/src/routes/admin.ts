@@ -1,4 +1,5 @@
 import express from 'express';
+import { checkReportSpike, getUserModerationHistory, issueWarning, suspendUser } from '../lib/moderation.js';
 import { prisma } from '../lib/prisma.js';
 import { getFounderMetricsReport } from '../lib/founderMetrics.js';
 import {
@@ -320,6 +321,116 @@ adminRouter.get('/transactions/:sessionId', requireVerified as any, requireAdmin
   } catch (error) {
     console.error('[admin] Error fetching transaction:', error);
     return res.status(500).json({ error: 'Failed to fetch transaction' });
+  }
+});
+
+// ============================================
+// Moderation Endpoints
+// ============================================
+
+/**
+ * GET /admin/report-spike
+ * Check if there's a report volume spike
+ */
+adminRouter.get('/report-spike', requireVerified as any, requireAdminMiddleware as any, async (_req: AuthedRequest, res) => {
+  try {
+    const spike = await checkReportSpike();
+    return res.json(spike);
+  } catch (error) {
+    console.error('[admin] Error checking report spike:', error);
+    return res.status(500).json({ error: 'Failed to check report spike' });
+  }
+});
+
+/**
+ * GET /admin/users/:id/moderation
+ * Get moderation history for a user
+ */
+adminRouter.get('/users/:id/moderation', requireVerified as any, requireAdminMiddleware as any, async (req: AuthedRequest, res) => {
+  try {
+    const history = await getUserModerationHistory(req.params.id);
+    return res.json(history);
+  } catch (error) {
+    console.error('[admin] Error fetching moderation history:', error);
+    return res.status(500).json({ error: 'Failed to fetch moderation history' });
+  }
+});
+
+/**
+ * POST /admin/users/:id/warn
+ * Issue a warning to a user
+ */
+adminRouter.post('/users/:id/warn', requireVerified as any, requireAdminMiddleware as any, async (req: AuthedRequest, res) => {
+  try {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    const { reason, severity } = req.body;
+    if (!reason) return res.status(400).json({ error: 'Reason is required' });
+
+    const result = await issueWarning({
+      userId: req.params.id,
+      reason,
+      severity: severity || 'warning',
+      issuedBy: req.user.id,
+    });
+    return res.json({ ok: true, ...result });
+  } catch (error) {
+    console.error('[admin] Error issuing warning:', error);
+    return res.status(500).json({ error: 'Failed to issue warning' });
+  }
+});
+
+/**
+ * POST /admin/users/:id/suspend
+ * Temporarily suspend a user
+ */
+adminRouter.post('/users/:id/suspend', requireVerified as any, requireAdminMiddleware as any, async (req: AuthedRequest, res) => {
+  try {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    const { days, reason } = req.body;
+    if (!reason) return res.status(400).json({ error: 'Reason is required' });
+    const suspendDays = Math.max(1, Math.min(365, parseInt(days) || 7));
+
+    await suspendUser({
+      userId: req.params.id,
+      days: suspendDays,
+      reason,
+      adminId: req.user.id,
+    });
+    return res.json({ ok: true, suspended_days: suspendDays });
+  } catch (error) {
+    console.error('[admin] Error suspending user:', error);
+    return res.status(500).json({ error: 'Failed to suspend user' });
+  }
+});
+
+/**
+ * POST /admin/users/:id/ban
+ * Ban a user with reason
+ */
+adminRouter.post('/users/:id/ban', requireVerified as any, requireAdminMiddleware as any, async (req: AuthedRequest, res) => {
+  try {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    const { reason } = req.body;
+
+    await prisma.user.update({
+      where: { id: req.params.id },
+      data: {
+        banned: true,
+        ban_reason: reason || 'Banned by admin for violating community guidelines.',
+      },
+    });
+
+    await issueWarning({
+      userId: req.params.id,
+      reason: reason || 'Banned by admin',
+      severity: 'final_warning',
+      issuedBy: req.user.id,
+    });
+
+    return res.json({ ok: true, banned: true });
+  } catch (error) {
+    console.error('[admin] Error banning user:', error);
+    return res.status(500).json({ error: 'Failed to ban user' });
   }
 });
 

@@ -79,7 +79,7 @@ export default function ResetScreen() {
       setConfirmPassword('');
       // Redirect to sign-in after 2 seconds
       redirectTimerRef.current = setTimeout(() => {
-        void router.push('/sign-in');
+        void router.replace('/sign-in');
       }, 2000);
     } catch (e: any) {
       setError(e?.message || 'Unable to reset password. Please check your code and try again.');

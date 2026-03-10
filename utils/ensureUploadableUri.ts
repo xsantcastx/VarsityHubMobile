@@ -20,7 +20,7 @@ export async function ensureUploadableUri(uri: string, mimeType?: string): Promi
       const manip = await ImageManipulator.manipulateAsync(uri, [], { compress: 0.9, format: ImageManipulator.SaveFormat.JPEG });
       if (manip && manip.uri) {
         if (__DEV__) console.log('[media] Image re-encoded to:', manip.uri);
-        return { uri: manip.uri, mimeType };
+        return { uri: manip.uri, mimeType: 'image/jpeg' };
       }
     } catch (e) {
       if (__DEV__) console.warn('[media] Re-encode attempt 1 failed, retrying with resize:', e);
@@ -30,7 +30,7 @@ export async function ensureUploadableUri(uri: string, mimeType?: string): Promi
       const manip = await ImageManipulator.manipulateAsync(uri, [{ resize: { width: 1200 } }], { compress: 0.9, format: ImageManipulator.SaveFormat.JPEG });
       if (manip && manip.uri) {
         if (__DEV__) console.log('[media] Image re-encoded (resize fallback) to:', manip.uri);
-        return { uri: manip.uri, mimeType };
+        return { uri: manip.uri, mimeType: 'image/jpeg' };
       }
     } catch (e) {
       if (__DEV__) console.warn('[media] Re-encode attempt 2 (resize) also failed:', e);

@@ -1235,7 +1235,7 @@ const GameDetailsScreen = () => {
       const ensured = await (await import('../../utils/ensureUploadableUri')).ensureUploadableUri(uri, mimeType);
       uri = ensured.uri;
 
-      const uploaded = await uploadFile(base, uri, fileName, mimeType);
+      const uploaded = await uploadFile(base, uri, fileName, ensured.mimeType || mimeType);
       const mediaUrl = uploaded?.path || uploaded?.url;
       if (!mediaUrl) {
         throw new Error('Upload failed');
@@ -1287,7 +1287,7 @@ const GameDetailsScreen = () => {
       const base = getApiBaseUrl();
       const uploadUri = storyTrimmedUri || storyPreview.uri;
       const ensured = await (await import('../../utils/ensureUploadableUri')).ensureUploadableUri(uploadUri, storyPreview.mimeType);
-      const uploaded = await uploadFile(base, ensured.uri, storyPreview.fileName, storyPreview.mimeType);
+      const uploaded = await uploadFile(base, ensured.uri, storyPreview.fileName, ensured.mimeType || storyPreview.mimeType);
       const mediaUrl = uploaded?.path || uploaded?.url;
       if (!mediaUrl) throw new Error('Upload failed');
 
@@ -1830,13 +1830,13 @@ const renderBanner = () => {
         onLeftPress={() => {
           // Navigate to home team profile if team object exists
           if (homeTeamObj?.id) {
-            void router.push(`/(tabs)/team-profile?id=${homeTeamObj.id}`);
+            void router.push(`/team-page?id=${homeTeamObj.id}`);
           }
         }}
         onRightPress={() => {
           // Navigate to away team profile if team object exists
           if (awayTeamObj?.id) {
-            void router.push(`/(tabs)/team-profile?id=${awayTeamObj.id}`);
+            void router.push(`/team-page?id=${awayTeamObj.id}`);
           }
         }}
         leftColor={(homeTeamObj as any)?.color}

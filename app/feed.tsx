@@ -385,15 +385,12 @@ export default function FeedScreen() {
       }
     } catch (e: any) {
       if (__DEV__) console.error('[Feed] Failed to load feed:', e);
-      // Only set generic error if we haven't already set a specific one
-      if (!error) {
-        if (e?.isNetworkError || e?.status === 0) {
-          setError('Unable to connect to server. Please check your internet connection.');
-        } else if (e?.status === 401 || e?.status === 403) {
-          setError('Please sign in to view your feed.');
-        } else {
-          setError('Unable to load feed. Please try again.');
-        }
+      if (e?.isNetworkError || e?.status === 0) {
+        setError('Unable to connect to server. Please check your internet connection.');
+      } else if (e?.status === 401 || e?.status === 403) {
+        setError('Please sign in to view your feed.');
+      } else {
+        setError('Unable to load feed. Please try again.');
       }
       setGames([]);
       setHighlightPreview(null);
@@ -404,7 +401,7 @@ export default function FeedScreen() {
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [error]);
+  }, []);
 
   const _loadMore = useCallback(async () => {
     if (loadingMore || !hasMoreGames || !gamesCursor) return;
@@ -578,7 +575,7 @@ export default function FeedScreen() {
     const PROMO_DURATION_MS = activeAdsCount === 1 ? 15 * 1000 : 0; // 15s placeholder only for single ad
     const CYCLE_DURATION_MS = TOTAL_AD_TIME_MS + PROMO_DURATION_MS;
 
-    // Update every second to keep rotation smooth
+    // Update every 30 seconds (ads rotate every 2.5-5 min, no need for 1s polling)
     const interval = setInterval(() => {
       const now = Date.now();
       const elapsed = now - adCycleStartTimeRef.current;
@@ -594,7 +591,7 @@ export default function FeedScreen() {
         const newIndex = Math.min(adSlot % activeAdsCount, activeAdsCount - 1);
         setCurrentAdIndex((prev) => prev !== newIndex ? newIndex : prev);
       }
-    }, 1000);
+    }, 30000);
 
     return () => clearInterval(interval);
   }, [sponsoredAds?.length]);
@@ -746,7 +743,7 @@ export default function FeedScreen() {
 
       <View style={styles.contentContainer}>
 
-      {error && !loading && (
+      {error && (
         <View style={{ marginVertical: 24, paddingHorizontal: 24, alignItems: 'center' }}>
           <MaterialIcons name="cloud-off" size={48} color={Colors[colorScheme].mutedText} style={{ marginBottom: 12 }} />
           <Text style={{ color: Colors[colorScheme].text, fontSize: 16, fontWeight: '600', textAlign: 'center', marginBottom: 6 }}>{error}</Text>
@@ -937,6 +934,7 @@ export default function FeedScreen() {
 
               // Otherwise it's a regular event (game card)
               const gameItem = item as GameItem;
+              if (!gameItem.id) return null;
               const raw = gameItem as any;
               const firstMediaUrl =
                 Array.isArray(raw?.media) && raw.media.length > 0

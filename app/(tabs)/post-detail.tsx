@@ -512,6 +512,33 @@ export default function PostDetailScreen() {
     })));
   };
 
+  const handleReportComment = (commentId: string) => {
+    const reasons = [
+      { text: 'Harassment / Bullying', value: 'harassment' },
+      { text: 'Hate speech', value: 'hate_speech' },
+      { text: 'Spam', value: 'spam' },
+      { text: 'Inappropriate content', value: 'nudity' },
+      { text: 'Other', value: 'other' },
+      { text: 'Cancel', value: '' },
+    ];
+    Alert.alert('Report Comment', 'Select a reason:', reasons.map(r => ({
+      text: r.text,
+      style: r.value === '' ? 'cancel' as const : 'default' as const,
+      onPress: r.value ? async () => {
+        try {
+          await Report.create({ target_type: 'comment', target_id: commentId, reason: r.value });
+          Alert.alert('Report Submitted', 'Thank you for helping keep our community safe.');
+        } catch (error: any) {
+          if (error?.status === 409) {
+            Alert.alert('Already Reported', 'You have already reported this comment.');
+          } else {
+            Alert.alert('Error', 'Failed to submit report. Please try again.');
+          }
+        }
+      } : undefined,
+    })));
+  };
+
   const handleDeleteComment = async (commentId: string) => {
     if (!currentPostId) return;
     Alert.alert(
@@ -780,7 +807,7 @@ export default function PostDetailScreen() {
             <Pressable 
               style={[styles.teamInfo, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
               onPress={() => { const teamId = postData.team_id || postData.team?.id;
-                if (teamId) { void router.push(`/(tabs)/team-profile?id=${teamId}`);
+                if (teamId) { void router.push(`/team-page?id=${teamId}`);
                 }
               }}
             >
@@ -1000,7 +1027,7 @@ export default function PostDetailScreen() {
                           <Ionicons name="arrow-undo-outline" size={16} color={Colors[colorScheme].icon} />
                         </Pressable>
                       )}
-                      {currentUser && c.author_id && String(currentUser.id) === String(c.author_id) && (
+                      {currentUser && c.author_id && String(currentUser.id) === String(c.author_id) ? (
                         <>
                           <Pressable
                             style={styles.commentActionBtn}
@@ -1018,7 +1045,15 @@ export default function PostDetailScreen() {
                             <Ionicons name="trash" size={16} color="#DC2626" />
                           </Pressable>
                         </>
-                      )}
+                      ) : currentUser && c.author_id && String(currentUser.id) !== String(c.author_id) ? (
+                        <Pressable
+                          style={styles.commentActionBtn}
+                          onPress={() => handleReportComment(String(c.id))}
+                          accessibilityLabel="Report comment"
+                        >
+                          <Ionicons name="flag-outline" size={16} color={Colors[colorScheme].mutedText} />
+                        </Pressable>
+                      ) : null}
                     </View>
                   </View>
                   <Text style={[styles.commentText, { color: Colors[colorScheme].text }]}>{c.content}</Text>

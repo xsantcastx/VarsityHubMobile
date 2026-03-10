@@ -93,7 +93,14 @@ export default function SignInScreen() {
       } else if (status === 429) {
         setError('Too many login attempts. Please wait a moment and try again.');
       } else if (status === 403) {
-        setError('This account has been banned. Please contact support.');
+        const banReason = e?.data?.ban_reason || e?.response?.data?.ban_reason;
+        const bannedUntil = e?.data?.banned_until || e?.response?.data?.banned_until;
+        if (bannedUntil) {
+          const until = new Date(bannedUntil).toLocaleDateString();
+          setError(`Your account is temporarily suspended until ${until}.${banReason ? ` Reason: ${banReason}` : ''}`);
+        } else {
+          setError(banReason || 'This account has been banned. Please contact support@varsityhub.app.');
+        }
       } else if (errMsg.includes('Network') || errMsg.includes('timeout') || errMsg.includes('fetch')) {
         setError('Unable to connect to server. Please check your internet connection.');
       } else {

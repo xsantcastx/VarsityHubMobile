@@ -425,10 +425,13 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
   }
 });
 
-postsRouter.get('/trending', async (req: AuthedRequest, res, next) => {
+postsRouter.get('/trending', async (req: AuthedRequest, res) => {
+  // Set trending sort and reuse the main GET / handler
   req.query.sort = 'trending';
-  // Forward to the main GET / handler with trending sort
-  return next();
+  // Re-dispatch through the router by calling the root handler directly
+  // Express next() won't work across different paths, so we emit a synthetic request
+  req.url = '/';
+  (postsRouter as any).handle(req, res, () => res.status(404).json({ error: 'Not found' }));
 });
 
 // Debug endpoint to check follow relationships

@@ -645,9 +645,10 @@ export default function ProfileScreen() {
   const _primarySport = (preferences?.primary_sport || preferences?.sport || 'other') as Sport;
   const headerBackgroundImage = preferences?.header_image_url || null;
   const headerImageFocusY = clampValue(typeof preferences?.header_image_focus_y === 'number' ? preferences.header_image_focus_y : 0, -1, 1);
+  // Default gradient — theme color only affects the coach badge, not the banner
   const heroGradientColors: [string, string, ...string[]] = headerBackgroundImage
     ? ['rgba(4,7,20,0.85)', 'rgba(15,23,42,0.45)']
-    : (getGradientForColor(userThemeColor) as [string, string, ...string[]]);
+    : (getGradientForColor('#3B82F6') as [string, string, ...string[]]);
   
   // Helper function to determine text color based on background contrast
   // White is default, but switches to black if white has insufficient contrast
@@ -802,7 +803,7 @@ export default function ProfileScreen() {
           <Text style={[styles.profileName, { color: theme.text }]}>{displayUsername}</Text>
           {roleLabel && (
             <View style={[styles.roleBadge,
-              roleRaw === 'coach' && styles.coachBadge,
+              roleRaw === 'coach' && { backgroundColor: userThemeColor },
               roleRaw === 'player' && styles.playerBadge,
               roleRaw === 'fan' && styles.fanBadge
             ]}>
@@ -1416,13 +1417,13 @@ const styles = StyleSheet.create({
   },
   profileContent: {
     position: 'absolute',
-    bottom: -50,
+    bottom: -30,
     left: 16,
     zIndex: 100,
     elevation: 100,
   },
   avatarSection: {
-    marginBottom: -50, // Half of 100px avatar hangs below banner — closes the gap
+    marginBottom: -70, // Avatar overlaps cover image — most of avatar sits on banner
     zIndex: 99999,
     elevation: 99999,
     position: 'relative',

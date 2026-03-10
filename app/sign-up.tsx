@@ -260,14 +260,14 @@ export default function SignUpScreen() {
               I agree to the{' '}
               <Text
                 style={{ color: Colors[colorScheme].tint, textDecorationLine: 'underline' }}
-                onPress={() => void Linking.openURL('https://varsityhub.app/terms')}
+                onPress={() => Linking.openURL('https://varsityhub.app/terms').catch(() => {})}
               >
                 Terms of Service
               </Text>
               {' '}and{' '}
               <Text
                 style={{ color: Colors[colorScheme].tint, textDecorationLine: 'underline' }}
-                onPress={() => void Linking.openURL('https://varsityhub.app/privacy')}
+                onPress={() => Linking.openURL('https://varsityhub.app/privacy').catch(() => {})}
               >
                 Privacy Policy
               </Text>
@@ -407,14 +407,14 @@ export default function SignUpScreen() {
               I agree to the{' '}
               <Text
                 style={{ color: Colors[colorScheme].tint, textDecorationLine: 'underline' }}
-                onPress={() => void Linking.openURL('https://varsityhub.app/terms')}
+                onPress={() => Linking.openURL('https://varsityhub.app/terms').catch(() => {})}
               >
                 Terms of Service
               </Text>
               {' '}and{' '}
               <Text
                 style={{ color: Colors[colorScheme].tint, textDecorationLine: 'underline' }}
-                onPress={() => void Linking.openURL('https://varsityhub.app/privacy')}
+                onPress={() => Linking.openURL('https://varsityhub.app/privacy').catch(() => {})}
               >
                 Privacy Policy
               </Text>

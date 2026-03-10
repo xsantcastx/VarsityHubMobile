@@ -20,11 +20,11 @@ export async function authMiddleware(req: AuthedRequest, _res: Response, next: N
   if (payload?.id) {
     const user = await prisma.user.findUnique({
       where: { id: payload.id },
-      select: { password_changed_at: true, banned: true },
+      select: { password_changed_at: true, banned: true, banned_until: true },
     });
 
-    // Reject deleted or banned users
-    if (!user || user.banned) {
+    // Reject deleted, banned, or suspended users
+    if (!user || user.banned || (user.banned_until && new Date(user.banned_until) > new Date())) {
       clearUserContext();
       return next();
     }

@@ -103,8 +103,8 @@ export default function CreatePostScreen() {
   const draftLoadedRef = useRef(false);
   const draftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Reset trim state when media changes
-  useEffect(() => { setTrimmedUri(null); setVideoThumbnailUri(null); }, [picked?.uri]);
+  // Reset trim state and content consent when media changes
+  useEffect(() => { setTrimmedUri(null); setVideoThumbnailUri(null); setContentConsent(false); }, [picked?.uri]);
 
   // Reset form state when returning to this tab (handles stuck postSuccess)
   useFocusEffect(
@@ -1236,6 +1236,26 @@ export default function CreatePostScreen() {
               </View>
             </View>
 
+            {/* Content Consent (required for media uploads) */}
+            {picked?.uri && (
+              <Pressable
+                style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 16, paddingHorizontal: 4 }}
+                onPress={() => setContentConsent(!contentConsent)}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: contentConsent }}
+              >
+                <Ionicons
+                  name={contentConsent ? 'checkbox' : 'square-outline'}
+                  size={22}
+                  color={contentConsent ? Colors[colorScheme].tint : Colors[colorScheme].mutedText}
+                  style={{ marginRight: 10, marginTop: 2 }}
+                />
+                <Text style={{ flex: 1, fontSize: 13, lineHeight: 18, color: Colors[colorScheme].mutedText }}>
+                  By uploading, you confirm you personally filmed or own this content. Broadcast footage, TV clips, and copyrighted highlights are strictly prohibited.
+                </Text>
+              </Pressable>
+            )}
+
             {/* Action Buttons */}
             <View style={styles.previewActions}>
               <Pressable
@@ -1249,9 +1269,9 @@ export default function CreatePostScreen() {
               </Pressable>
 
               <Pressable
-                style={[styles.previewButton, styles.confirmButton, { opacity: submitting ? 0.6 : 1 }]}
+                style={[styles.previewButton, styles.confirmButton, { opacity: (submitting || (picked?.uri && !contentConsent)) ? 0.6 : 1 }]}
                 onPress={confirmPost}
-                disabled={submitting}
+                disabled={submitting || (!!picked?.uri && !contentConsent)}
               >
                 <Ionicons name="checkmark-circle" size={20} color="#fff" />
                 <Text style={styles.confirmButtonText}>

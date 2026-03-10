@@ -207,12 +207,12 @@ export default function EditAdScreen() {
                 onChangeText={setZip} 
                 keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
                 placeholder="12345"
-                maxLength={10}
+                maxLength={5}
                 placeholderTextColor={theme.mutedText}
               />
 
               {/* Reach Map Preview - Shows advertisers exactly where their ad will appear */}
-              <ReachMapPreview zipCode={zip} radiusKm={15} />
+              <ReachMapPreview zipCode={zip} radiusKm={9} />
 
               <Text style={[styles.label, { color: theme.text }]}>Banner Image</Text>
               {bannerUrl ? (

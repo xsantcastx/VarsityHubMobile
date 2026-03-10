@@ -134,7 +134,7 @@ export default function Step3Plan() {
   const params = useLocalSearchParams<{ returnToConfirmation?: string }>();
   const returnToConfirmation = params.returnToConfirmation === 'true';
   const { state: ob, setState: setOB, setProgress } = useOnboarding();
-  const [plan, setPlan] = useState<Plan | null>(ob.plan ?? null);
+  const [plan, setPlan] = useState<Plan | null>(ob.pending_plan ?? ob.plan ?? null);
   const [saving, setSaving] = useState(false);
   const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
@@ -280,7 +280,7 @@ export default function Step3Plan() {
                   styles.teamCountButton,
                   { backgroundColor: isDark ? '#374151' : '#F3F4F6', borderColor: isDark ? '#4B5563' : '#E5E7EB' }
                 ]}
-                onPress={() => setTeamCount(teamCount + 1)}
+                onPress={() => setTeamCount(Math.min(50, teamCount + 1))}
               >
                 <Text style={[styles.teamCountButtonText, { color: isDark ? '#F9FAFB' : '#111827' }]}>+</Text>
               </Pressable>

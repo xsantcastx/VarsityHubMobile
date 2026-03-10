@@ -10,6 +10,32 @@ import { debugLog } from '../lib/debugLog.js';
 import { calculateAdPriceDollars } from '../utils/adPricing.js';
 import { adCreationLimiter } from '../middleware/rateLimiters.js';
 import { sendAdApprovedEmail, sendAdPendingReviewEmail, sendAdRejectedEmail } from '../lib/email.js';
+import { z } from 'zod';
+
+const adCreateSchema = z.object({
+  contact_name: z.string().min(1).max(200),
+  contact_email: z.string().email().max(320),
+  business_name: z.string().min(1).max(200),
+  banner_url: z.string().url().max(2048).nullish(),
+  banner_fit_mode: z.enum(['cover', 'contain', 'fill']).nullish(),
+  target_url: z.string().url().max(2048).nullish(),
+  target_zip_code: z.string().regex(/^\d{5}$/, 'Must be a 5-digit US zip code'),
+  radius: z.number().optional(),
+  description: z.string().max(1000).nullish(),
+});
+
+const adUpdateSchema = z.object({
+  contact_name: z.string().min(1).max(200).optional(),
+  contact_email: z.string().email().max(320).optional(),
+  business_name: z.string().min(1).max(200).optional(),
+  banner_url: z.string().url().max(2048).nullish(),
+  banner_fit_mode: z.enum(['cover', 'contain', 'fill']).nullish(),
+  target_url: z.string().url().max(2048).nullish(),
+  target_zip_code: z.string().regex(/^\d{5}$/, 'Must be a 5-digit US zip code').optional(),
+  radius: z.number().optional(),
+  description: z.string().max(1000).nullish(),
+  status: z.enum(['draft', 'active', 'paused']).optional(),
+});
 
 /**
  * Get coordinates for a ZIP code with fallback to Google Geocoding API
@@ -37,35 +63,23 @@ export const adsRouter = Router();
 // Create an Ad (optionally associated to the authenticated user)
 adsRouter.post('/', requireVerified as any, adCreationLimiter, async (req: AuthedRequest, res) => {
   const { payment_status: _ps, status: _st, ...safeBody } = req.body || {};
-  const {
-    contact_name,
-    contact_email,
-    business_name,
-    banner_url,
-    banner_fit_mode,
-    target_url,
-    target_zip_code,
-    radius,
-    description,
-  } = safeBody;
-  if (!contact_name || !contact_email || !business_name || !target_zip_code) {
-    return res.status(400).json({ error: 'Missing required fields' });
+  const parsed = adCreateSchema.safeParse(safeBody);
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten().fieldErrors });
   }
-  if (!/^\d{5}$/.test(String(target_zip_code))) {
-    return res.status(400).json({ error: 'target_zip_code must be a 5-digit US zip code' });
-  }
+  const { contact_name, contact_email, business_name, banner_url, banner_fit_mode, target_url, target_zip_code, description } = parsed.data;
   const ad = await prisma.ad.create({
     data: {
       user_id: req.user?.id,
-      contact_name: String(contact_name),
-      contact_email: String(contact_email),
-      business_name: String(business_name),
-      banner_url: banner_url ? String(banner_url) : null,
-      banner_fit_mode: banner_fit_mode ? String(banner_fit_mode) : null,
-      target_url: target_url ? String(target_url) : null,
-      target_zip_code: String(target_zip_code),
+      contact_name,
+      contact_email,
+      business_name,
+      banner_url: banner_url ?? null,
+      banner_fit_mode: banner_fit_mode ?? null,
+      target_url: target_url ?? null,
+      target_zip_code,
       radius: 9, // Fixed 9km radius for all ads
-      description: description ? String(description) : null,
+      description: description ?? null,
       status: 'draft',
       payment_status: 'unpaid',
     },
@@ -96,7 +110,18 @@ adsRouter.get('/', requireAuth as any, async (req: AuthedRequest, res) => {
     where.user_id = req.user.id;
     debugLog('[ads] GET / filtering by user_id:', req.user.id);
   } else if (contactEmail) {
-    where.contact_email = contactEmail;
+    // SECURITY: Only allow querying by contact_email if the user is an admin
+    // or if the email belongs to the authenticated user. This prevents IDOR
+    // where any user could enumerate ads by guessing email addresses.
+    const isAdmin = await getIsAdmin(req as any);
+    if (!isAdmin) {
+      // Non-admins can only see their own ads (by user_id), not query by arbitrary email
+      if (!req.user?.id) return res.status(401).json({ error: 'Auth required' });
+      where.user_id = req.user.id;
+      where.contact_email = contactEmail;
+    } else {
+      where.contact_email = contactEmail;
+    }
   } else if (all) {
     const isAdmin = await getIsAdmin(req as any);
     if (!isAdmin) return res.status(403).json({ error: 'Admin only' });
@@ -228,10 +253,14 @@ adsRouter.put('/:id([a-z0-9-]{20,40})', requireAuth as any, async (req: AuthedRe
   if (!ad) return res.status(404).json({ error: 'Ad not found' });
   if (ad.user_id !== req.user!.id) return res.status(403).json({ error: 'Not authorized' });
   const { payment_status, ...safeBody } = req.body || {};
-  const data: any = {};
-  const allowed = ['contact_name','contact_email','business_name','banner_url','banner_fit_mode','target_url','target_zip_code','radius','description','status'] as const;
-  for (const k of allowed) {
-    if (k in safeBody) (data as any)[k] = (safeBody as any)[k];
+  const parsed = adUpdateSchema.safeParse(safeBody);
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten().fieldErrors });
+  }
+  // Only include fields that were explicitly provided in the request
+  const data: Record<string, any> = {};
+  for (const [k, v] of Object.entries(parsed.data)) {
+    if (k in safeBody) data[k] = v;
   }
 
   // If banner_url changed, set status to pending for admin review

@@ -1212,17 +1212,12 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
           {eventType === 'team_trip' && (
             <View style={styles.formSection}>
               <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Destination *</Text>
-              <TextInput
-                style={[styles.input, {
-                  backgroundColor: Colors[colorScheme].surface,
-                  borderColor: errors.destination ? '#EF4444' : Colors[colorScheme].border,
-                  color: Colors[colorScheme].text,
-                }]}
-                placeholder="e.g., State Tournament, Orlando FL"
-                placeholderTextColor={Colors[colorScheme].mutedText}
+              <LocationPicker
                 value={destination}
-                onChangeText={setDestination}
-                maxLength={200}
+                onLocationSelect={(location) => {
+                  setDestination(location.address);
+                }}
+                placeholder="e.g., State Tournament, Orlando FL"
               />
               {errors.destination && <Text style={styles.errorText}>{errors.destination}</Text>}
             </View>

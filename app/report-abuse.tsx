@@ -32,11 +32,11 @@ export default function ReportAbuseScreen() {
       try {
         const me: any = await User.me();
         if (canceled) return;
-        if (typeof me?.display_name === 'string' && !name) {
-          setName(me.display_name);
+        if (typeof me?.display_name === 'string') {
+          setName((prev) => prev || me.display_name);
         }
-        if (typeof me?.email === 'string' && !email) {
-          setEmail(me.email);
+        if (typeof me?.email === 'string') {
+          setEmail((prev) => prev || me.email);
         }
       } catch {
         // Ignore, user can fill fields manually.
@@ -45,7 +45,7 @@ export default function ReportAbuseScreen() {
     return () => {
       canceled = true;
     };
-  }, [name, email]);
+  }, []);
 
   const canSubmit = useMemo(() => {
     return Boolean(subject.trim() && details.trim() && email.trim());

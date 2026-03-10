@@ -677,8 +677,8 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
       const invoice = subscription.latest_invoice as Stripe.Invoice;
       const paymentIntent = invoice.payment_intent as Stripe.PaymentIntent;
 
-      // Log transaction
-      const amount = chosen === 'veteran' ? 150 * billableQuantity : 2000;
+      // Log transaction (must match actual Stripe charge: $1.00/team veteran, $20.00/year legend)
+      const amount = chosen === 'veteran' ? 100 * billableQuantity : 2000;
       await logTransaction({
         transactionType: 'SUBSCRIPTION_PURCHASE',
         status: 'PENDING',
@@ -922,6 +922,7 @@ paymentsRouter.post('/webhook', async (req, res) => {
       const canceledUser = await prisma.user.findFirst({ where: { stripe_customer_id: subscription.customer as string } });
       if (canceledUser) {
         const prefs = (canceledUser.preferences && typeof canceledUser.preferences === 'object') ? (canceledUser.preferences as any) : {};
+        const previousPlan = prefs.plan || 'rookie';
         delete prefs.subscription_id;
         delete prefs.subscription_period_end;
         prefs.plan = 'rookie';
@@ -935,7 +936,7 @@ paymentsRouter.post('/webhook', async (req, res) => {
           status: 'COMPLETED',
           stripeSubscriptionId: subscription.id,
           userId: canceledUser.id,
-          metadata: { reason: 'subscription_deleted', previous_plan: prefs.plan },
+          metadata: { reason: 'subscription_deleted', previous_plan: previousPlan },
         }).catch(err => console.warn('[transaction-log] cancel log failed:', err));
       }
     }
@@ -961,11 +962,19 @@ paymentsRouter.post('/webhook', async (req, res) => {
         };
         const newStatus = statusMap[subscription.status] || subscription.status;
 
+        // Also update preferences.plan to keep it in sync with subscription_tier
+        const planFromTier = newTier === 'veteran' ? 'veteran' : newTier === 'legend' ? 'legend' : undefined;
+        const updateData: any = { subscription_tier: newTier, subscription_status: newStatus };
+        if (planFromTier && (newStatus === 'active')) {
+          const existingPrefs = (subUser.preferences && typeof subUser.preferences === 'object') ? (subUser.preferences as any) : {};
+          updateData.preferences = { ...existingPrefs, plan: planFromTier, pending_plan: null, payment_pending: false };
+        }
+
         await prisma.user.update({
           where: { id: subUser.id },
-          data: { subscription_tier: newTier, subscription_status: newStatus },
+          data: updateData,
         });
-        console.log(`[webhook] subscription.updated: user ${subUser.id} -> tier=${newTier} status=${newStatus}`);
+        console.log(`[webhook] subscription.updated: user ${subUser.id} -> tier=${newTier} status=${newStatus} plan=${planFromTier || 'unchanged'}`);
       }
 
       if (subscription.status === 'active') {

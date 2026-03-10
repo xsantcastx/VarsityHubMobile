@@ -1,4 +1,5 @@
 import { Colors } from '@/constants/Colors';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Modal, Platform, Pressable, ScrollView, Share, StyleSheet, Switch, Text, TextInput, useColorScheme, View } from 'react-native';
@@ -327,12 +328,17 @@ export default function SettingsScreen() {
 
               return (
                 <>
-                  <Stack.Screen 
-                    options={{ 
+                  <Stack.Screen
+                    options={{
                       title: 'Settings',
                       headerShown: true,
                       headerBackTitle: 'Back',
-                    }} 
+                      headerLeft: () => (
+                        <Pressable onPress={() => router.back()} hitSlop={12} style={{ marginRight: 8 }}>
+                          <Ionicons name="chevron-back" size={28} color={Colors[colorScheme ?? 'light'].tint} />
+                        </Pressable>
+                      ),
+                    }}
                   />
                   <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme ?? 'light'].background }]} edges={['top', 'bottom']}>
                     <ScrollView>

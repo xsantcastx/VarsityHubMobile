@@ -44,7 +44,8 @@ usersRouter.get('/', requireAdmin as any, async (req, res) => {
 usersRouter.post('/:id/ban', requireAdmin as any, async (req, res) => {
   try {
     const id = String(req.params.id);
-    const u = await prisma.user.update({ where: { id }, data: { banned: true } });
+    const { reason } = req.body || {};
+    const u = await prisma.user.update({ where: { id }, data: { banned: true, ban_reason: reason || 'Banned for violating community guidelines.' } });
     return res.json({ ok: true, id: u.id, banned: true });
   } catch (err) {
     console.error('[users] POST /:id/ban error:', err);
@@ -55,7 +56,7 @@ usersRouter.post('/:id/ban', requireAdmin as any, async (req, res) => {
 usersRouter.post('/:id/unban', requireAdmin as any, async (req, res) => {
   try {
     const id = String(req.params.id);
-    const u = await prisma.user.update({ where: { id }, data: { banned: false } });
+    const u = await prisma.user.update({ where: { id }, data: { banned: false, ban_reason: null, banned_until: null } });
     return res.json({ ok: true, id: u.id, banned: false });
   } catch (err) {
     console.error('[users] POST /:id/unban error:', err);
@@ -249,13 +250,15 @@ const sortParamToOrder = (sort?: string) => {
 
 /** Returns true if profile owner has profile_private and viewer is not owner/follower */
 async function isProfileHiddenFromViewer(ownerId: string, viewerId: string | null): Promise<boolean> {
-  if (!viewerId || viewerId === ownerId) return false;
+  if (viewerId === ownerId) return false;
   const owner = await prisma.user.findUnique({
     where: { id: ownerId },
     select: { preferences: true },
   });
   const prefs = (owner?.preferences || {}) as any;
   if (prefs?.profile_private !== true) return false;
+  // Unauthenticated users cannot see private profiles
+  if (!viewerId) return true;
   const rel = await prisma.follows.findUnique({
     where: { follower_id_following_id: { follower_id: viewerId, following_id: ownerId } },
     select: { follower_id: true },
@@ -572,6 +575,19 @@ usersRouter.post('/:id/follow', requireAuth as any, async (req: AuthedRequest, r
 
   if (follower_id === following_id) {
     return res.status(400).json({ error: 'You cannot follow yourself.' });
+  }
+
+  // Prevent following if either user has blocked the other
+  const block = await prisma.blockedUser.findFirst({
+    where: {
+      OR: [
+        { blocker_id: follower_id, blocked_id: following_id },
+        { blocker_id: following_id, blocked_id: follower_id },
+      ],
+    },
+  });
+  if (block) {
+    return res.status(403).json({ error: 'Cannot follow this user.' });
   }
 
   try {

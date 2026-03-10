@@ -46,7 +46,7 @@ export default function MasonryGrid({
           style={[styles.column, { width: columnWidth, marginRight: columnIndex < numColumns - 1 ? gap : 0 }]}
         >
           {column.map(({ item, index }) => (
-            <View key={index} style={{ marginBottom: gap }}>
+            <View key={item.id || `${columnIndex}-${index}`} style={{ marginBottom: gap }}>
               {renderItem(item, index)}
             </View>
           ))}

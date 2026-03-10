@@ -23,7 +23,7 @@ export function signJwt(payload: Record<string, unknown>, expiresIn: string = DE
 
 export function verifyJwt<T = Record<string, unknown>>(token: string): T | null {
   try {
-    return jwt.verify(token, JWT_SECRET) as T;
+    return jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] }) as T;
   } catch (_error) {
     return null;
   }

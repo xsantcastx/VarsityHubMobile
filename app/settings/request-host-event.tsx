@@ -113,6 +113,10 @@ export default function RequestHostEventScreen() {
 
   const handleSubmit = async () => {
     if (!validateForm()) return;
+    if (!profileEmail) {
+      Alert.alert('Error', 'Your profile email is required to submit a request. Please update your profile first.');
+      return;
+    }
     setSubmitting(true);
     try {
       const eventData = {
@@ -124,12 +128,12 @@ export default function RequestHostEventScreen() {
         venue_place_id: selectedPlace?.place_id,
         date: date.toISOString(),
         requested_by: displayName || 'Unknown',
-        requested_email: profileEmail || 'unknown@example.com',
+        requested_email: profileEmail,
       };
       await Event.create(eventData);
-      // Send notification to coach/admin (placeholder email)
+      // Send notification to coach/admin
       await Message.send({
-        content: `New event host request submitted: ${title}\nLocation: ${location}\nDate: ${date.toLocaleString()}\nRequested by: ${displayName || 'Unknown'} (${profileEmail || 'unknown@example.com'})`,
+        content: `New event host request submitted: ${title}\nLocation: ${location}\nDate: ${date.toLocaleString()}\nRequested by: ${displayName || 'Unknown'} (${profileEmail})`,
         recipient_email: getConfig().adminEmails[0] || 'admin@varsityhub.com',
       });
       Alert.alert('Request Submitted!', 'Your request to host an event has been submitted. You will be notified when it is reviewed.', [{ text: 'OK', onPress: () => { if (router.canGoBack()) router.back(); } }]);
