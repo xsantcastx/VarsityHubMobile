@@ -107,3 +107,18 @@ healthRouter.get('/', async (req: AuthedRequest, res) => {
   }
   res.json(body);
 });
+
+// TEMPORARY: One-time DB reset endpoint - REMOVE AFTER USE
+healthRouter.post('/reset-all-data', async (req, res) => {
+  const secret = req.headers['x-reset-secret'];
+  if (secret !== 'varsityhub-fresh-start-2026') {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  try {
+    // Delete in dependency order
+    await prisma.$executeRawUnsafe(`DO $$ DECLARE r RECORD; BEGIN FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP EXECUTE 'TRUNCATE TABLE "' || r.tablename || '" CASCADE'; END LOOP; END $$;`);
+    return res.json({ ok: true, message: 'All data wiped' });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
