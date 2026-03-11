@@ -232,7 +232,8 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
   const [editorVisible, setEditorVisible] = useState(false);
   const [uploadingCustomBanner, setUploadingCustomBanner] = useState(false);
   const [appearance, setAppearance] = useState<AppearancePreset>('classic');
-  
+  const [submitting, setSubmitting] = useState(false);
+
   // New state for competitive toggle and attendance
   const [isCompetitive, setIsCompetitive] = useState(true); // Default to competitive game
   const [expectedAttendance, setExpectedAttendance] = useState('');
@@ -478,7 +479,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
   };
 
   const handleSave = () => {
-    if (!validateForm()) {
+    if (!validateForm() || submitting) {
       return;
     }
     
@@ -521,39 +522,44 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
 
     // If we already have a banner uploaded, include it. Otherwise attempt to capture & upload.
     const doSave = async () => {
-      let finalData: QuickGameData = { 
-        ...baseGameData,
-        appearance: appearance,
-      };
-      
-      // Priority: custom uploaded banner > auto-generated banner
-      if (bannerUrl) {
-        // User has uploaded a custom banner, use it directly
-        finalData.banner_url = bannerUrl;
-        finalData.cover_image_url = bannerUrl; // Also set cover_image_url to the same value
-      } else if (isCompetitive && getHomeAwayTeams().homeTeam && getHomeAwayTeams().awayTeam) {
-        // No custom banner, competitive game - try to capture the auto-generated preview and upload
-        if (viewShotRef.current) {
-          try {
-            setUploadingBanner(true);
-            const uri = await captureRef(viewShotRef, { format: 'png', quality: 0.9 });
-            const uploaded = await uploadFile(getApiBaseUrl(), uri, 'match-banner.png', 'image/png');
-            const url = uploaded?.url || uploaded?.path || null;
-            if (url) {
-              finalData.banner_url = url;
-              finalData.cover_image_url = url; // Also set cover_image_url to the same value
+      setSubmitting(true);
+      try {
+        let finalData: QuickGameData = {
+          ...baseGameData,
+          appearance: appearance,
+        };
+
+        // Priority: custom uploaded banner > auto-generated banner
+        if (bannerUrl) {
+          // User has uploaded a custom banner, use it directly
+          finalData.banner_url = bannerUrl;
+          finalData.cover_image_url = bannerUrl; // Also set cover_image_url to the same value
+        } else if (isCompetitive && getHomeAwayTeams().homeTeam && getHomeAwayTeams().awayTeam) {
+          // No custom banner, competitive game - try to capture the auto-generated preview and upload
+          if (viewShotRef.current) {
+            try {
+              setUploadingBanner(true);
+              const uri = await captureRef(viewShotRef, { format: 'png', quality: 0.9 });
+              const uploaded = await uploadFile(getApiBaseUrl(), uri, 'match-banner.png', 'image/png');
+              const url = uploaded?.url || uploaded?.path || null;
+              if (url) {
+                finalData.banner_url = url;
+                finalData.cover_image_url = url; // Also set cover_image_url to the same value
+              }
+            } catch (e) {
+              if (__DEV__) console.warn('Banner capture/upload failed, continuing without banner', e);
+            } finally {
+              setUploadingBanner(false);
             }
-          } catch (e) {
-            if (__DEV__) console.warn('Banner capture/upload failed, continuing without banner', e);
-          } finally {
-            setUploadingBanner(false);
           }
         }
-      }
 
-      onSave(finalData);
-      resetForm();
-      onClose();
+        onSave(finalData);
+        resetForm();
+        onClose();
+      } finally {
+        setSubmitting(false);
+      }
     };
 
     // run save (async allowed)
@@ -591,7 +597,10 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
     try {
       const result = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (result.granted === false) {
-        Alert.alert('Permission Required', 'Please allow access to your photos to upload a banner.');
+        Alert.alert('Permission Required', 'Please allow access to your photos to upload a banner.', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => Linking.openSettings() },
+        ]);
         return;
       }
 
@@ -615,7 +624,10 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
     try {
       const result = await ImagePicker.requestCameraPermissionsAsync();
       if (result.granted === false) {
-        Alert.alert('Permission Required', 'Please allow camera access to take a banner photo.');
+        Alert.alert('Permission Required', 'Please allow camera access to take a banner photo.', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => Linking.openSettings() },
+        ]);
         return;
       }
 
@@ -712,19 +724,23 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
           <Pressable
             style={[
               styles.headerButton,
-              uploadingBanner && styles.headerButtonDisabled,
+              (uploadingBanner || submitting) && styles.headerButtonDisabled,
             ]}
             onPress={handleSave}
-            disabled={uploadingBanner}
+            disabled={uploadingBanner || submitting}
           >
-            <Text
-              style={[
-                styles.headerButtonText,
-                { color: uploadingBanner ? Colors[colorScheme].mutedText : Colors[colorScheme].tint },
-              ]}
-            >
-              {uploadingBanner ? 'Generating...' : initialData ? 'Save' : 'Add'}
-            </Text>
+            {submitting ? (
+              <ActivityIndicator size="small" color={Colors[colorScheme].tint} />
+            ) : (
+              <Text
+                style={[
+                  styles.headerButtonText,
+                  { color: uploadingBanner ? Colors[colorScheme].mutedText : Colors[colorScheme].tint },
+                ]}
+              >
+                {uploadingBanner ? 'Generating...' : initialData ? 'Save' : 'Add'}
+              </Text>
+            )}
           </Pressable>
         </View>
 

@@ -542,7 +542,10 @@ export default function CommunityDiscoverScreen() {
       if (!permissionGranted) {
         const granted = await requestPermission();
         if (!granted) {
-          Alert.alert('Location Permission', 'Enable location to view the map and see nearby events.');
+          Alert.alert('Location Permission', 'Enable location to view the map and see nearby events.', [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Open Settings', onPress: () => openSettings() },
+          ]);
           return;
         }
       }
@@ -571,7 +574,7 @@ export default function CommunityDiscoverScreen() {
               Precise location is off. Nearby recommendations will be less accurate on Android.
             </Text>
             <View style={styles.precisionActions}>
-              <Pressable onPress={() => setPrecisionBannerDismissed(true)}>
+              <Pressable onPress={() => setPrecisionBannerDismissed(true)} accessibilityRole="button" accessibilityLabel="Dismiss precision location banner">
                 <Text style={[styles.precisionActionLink, { color: '#92400E' }]}>Dismiss</Text>
               </Pressable>
               <Pressable
@@ -579,6 +582,8 @@ export default function CommunityDiscoverScreen() {
                   setPrecisionBannerDismissed(true);
                   void openSettings();
                 }}
+                accessibilityRole="button"
+                accessibilityLabel="Open location settings"
               >
                 <Text style={[styles.precisionActionLink, { color: Colors[colorScheme].tint, fontWeight: '700' }]}>
                   Open settings
@@ -604,6 +609,7 @@ export default function CommunityDiscoverScreen() {
             style={styles.searchInput}
             returnKeyType="search"
             onBlur={() => setZipSuggestionsOpen(false)}
+            accessibilityLabel="Search people, teams, organizations, or zip code"
           />
         </View>
 
@@ -611,6 +617,8 @@ export default function CommunityDiscoverScreen() {
         <Pressable
           onPress={() => { void handleToggleViewMode(); }}
           style={[styles.viewToggle, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
+          accessibilityRole="button"
+          accessibilityLabel={viewMode === 'list' ? 'Switch to map view' : 'Switch to list view'}
         >
           <MaterialIcons 
             name={viewMode === 'list' ? 'map' : 'list'} 
@@ -627,6 +635,8 @@ export default function CommunityDiscoverScreen() {
               key={entry.zip}
               style={styles.zipSuggestionItem}
               onPress={() => { setQuery(entry.zip); setZipSuggestionsOpen(false); }}
+              accessibilityRole="button"
+              accessibilityLabel={`Search zip code ${entry.zip}, ${entry.count} ${entry.count === 1 ? 'game' : 'games'}`}
             >
               <Text style={[styles.zipSuggestionZip, { color: Colors[colorScheme].text }]}>{entry.zip}</Text>
               <Text style={[styles.zipSuggestionCount, { color: Colors[colorScheme].mutedText }]}>{entry.count === 1 ? '1 game' : `${entry.count} games`}</Text>
@@ -650,6 +660,8 @@ export default function CommunityDiscoverScreen() {
                   key={u.id}
                   style={[styles.searchResultRow, { borderBottomColor: Colors[colorScheme].border }]}
                   onPress={() => { setQuery(''); setUnifiedSearchResults(null); void router.push(`/(tabs)/user-profile?id=${u.id}`); }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`View profile of ${u.display_name || u.username || 'User'}`}
                 >
                   <View style={styles.searchResultLeft}>
                     {u.avatar_url ? (
@@ -666,6 +678,8 @@ export default function CommunityDiscoverScreen() {
                     <Pressable
                       onPress={async (e) => { e.stopPropagation(); const next = !u.is_following; setUnifiedSearchResults((prev) => prev ? { ...prev, users: prev.users.map((x) => x.id === u.id ? { ...x, is_following: next } : x) } : null); try { if (next) await User.follow(u.id); else await User.unfollow(u.id); } catch { setUnifiedSearchResults((prev) => prev ? { ...prev, users: prev.users.map((x) => x.id === u.id ? { ...x, is_following: !next } : x) } : null); } }}
                       style={[styles.searchFollowBtn, { backgroundColor: u.is_following ? Colors[colorScheme].border : Colors[colorScheme].tint }]}
+                      accessibilityRole="button"
+                      accessibilityLabel={u.is_following ? `Unfollow ${u.display_name || u.username || 'user'}` : `Follow ${u.display_name || u.username || 'user'}`}
                     >
                       <Text style={[styles.searchFollowBtnText, { color: u.is_following ? Colors[colorScheme].text : Colors[colorScheme].background }]}>{u.is_following ? 'Following' : 'Follow'}</Text>
                     </Pressable>
@@ -682,6 +696,8 @@ export default function CommunityDiscoverScreen() {
                   key={t.id}
                   style={[styles.searchResultRow, { borderBottomColor: Colors[colorScheme].border }]}
                   onPress={() => { setQuery(''); setUnifiedSearchResults(null); void router.push(`/team-page?id=${t.id}`); }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`View team ${t.name}`}
                 >
                   <View style={styles.searchResultLeft}>
                     {t.logo_url || t.avatar_url ? (
@@ -697,6 +713,8 @@ export default function CommunityDiscoverScreen() {
                   <Pressable
                     onPress={async (e) => { e.stopPropagation(); const next = !t.is_following; setUnifiedSearchResults((prev) => prev ? { ...prev, teams: prev.teams.map((x) => x.id === t.id ? { ...x, is_following: next } : x) } : null); try { if (next) await Team.follow(t.id); else await Team.unfollow(t.id); } catch { setUnifiedSearchResults((prev) => prev ? { ...prev, teams: prev.teams.map((x) => x.id === t.id ? { ...x, is_following: !next } : x) } : null); } }}
                     style={[styles.searchFollowBtn, { backgroundColor: t.is_following ? Colors[colorScheme].border : Colors[colorScheme].tint }]}
+                    accessibilityRole="button"
+                    accessibilityLabel={t.is_following ? `Unfollow team ${t.name}` : `Follow team ${t.name}`}
                   >
                     <Text style={[styles.searchFollowBtnText, { color: t.is_following ? Colors[colorScheme].text : Colors[colorScheme].background }]}>{t.is_following ? 'Following' : 'Follow'}</Text>
                   </Pressable>
@@ -712,6 +730,8 @@ export default function CommunityDiscoverScreen() {
                   key={o.id}
                   style={[styles.searchResultRow, { borderBottomColor: Colors[colorScheme].border }]}
                   onPress={() => { setQuery(''); setUnifiedSearchResults(null); void router.push(`/(tabs)/organization?id=${o.id}`); }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`View organization ${o.name}`}
                 >
                   <View style={styles.searchResultLeft}>
                     <LinearGradient colors={['#1e293b', '#0f172a']} style={[styles.searchResultAvatar, { borderRadius: 8 }]} />
@@ -723,6 +743,8 @@ export default function CommunityDiscoverScreen() {
                   <Pressable
                     onPress={async (e) => { e.stopPropagation(); const next = !o.is_following; setUnifiedSearchResults((prev) => prev ? { ...prev, organizations: prev.organizations.map((x) => x.id === o.id ? { ...x, is_following: next } : x) } : null); try { if (next) await Organization.follow(o.id); else await Organization.unfollow(o.id); } catch { setUnifiedSearchResults((prev) => prev ? { ...prev, organizations: prev.organizations.map((x) => x.id === o.id ? { ...x, is_following: !next } : x) } : null); } }}
                     style={[styles.searchFollowBtn, { backgroundColor: o.is_following ? Colors[colorScheme].border : Colors[colorScheme].tint }]}
+                    accessibilityRole="button"
+                    accessibilityLabel={o.is_following ? `Unfollow organization ${o.name}` : `Follow organization ${o.name}`}
                   >
                     <Text style={[styles.searchFollowBtnText, { color: o.is_following ? Colors[colorScheme].text : Colors[colorScheme].background }]}>{o.is_following ? 'Following' : 'Follow'}</Text>
                   </Pressable>
@@ -737,7 +759,7 @@ export default function CommunityDiscoverScreen() {
       ) : null}
 
       {/* Calendar - Right below search */}
-      <View style={styles.calendarSection}>
+      <View style={[styles.calendarSection, { backgroundColor: colorScheme === 'light' ? '#FFFFFF' : Colors[colorScheme].background }]}>
         <Calendar
           onDayPress={(day) => {
             setSelectedDate(day.dateString);
@@ -769,8 +791,8 @@ export default function CommunityDiscoverScreen() {
             return marked;
           }, [games, selectedDate, colorScheme])}
           theme={{
-            backgroundColor: Colors[colorScheme].background,
-            calendarBackground: Colors[colorScheme].background,
+            backgroundColor: colorScheme === 'light' ? '#FFFFFF' : Colors[colorScheme].background,
+            calendarBackground: colorScheme === 'light' ? '#FFFFFF' : Colors[colorScheme].background,
             textSectionTitleColor: Colors[colorScheme].text,
             selectedDayBackgroundColor: Colors[colorScheme].tint,
             selectedDayTextColor: Colors[colorScheme].background,
@@ -811,6 +833,8 @@ export default function CommunityDiscoverScreen() {
                   key={game.id}
                   style={[styles.dateGameCard, { backgroundColor: Colors[colorScheme].background, borderColor: Colors[colorScheme].border }]}
                   onPress={() => void router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(game.id) } })}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${game.title || `${labels.teamA} vs ${labels.teamB}`} at ${time}`}
                 >
                   <View style={styles.dateGameTime}>
                     <MaterialIcons name="access-time" size={16} color={Colors[colorScheme].tint} />
@@ -843,17 +867,21 @@ export default function CommunityDiscoverScreen() {
           {/* Role-based actions */}
           {me?.preferences?.role === 'coach' ? (
             <>
-              <Pressable 
+              <Pressable
                 style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30' }]}
                 onPress={() => void router.push('/(tabs)/manage-teams')}
+                accessibilityRole="button"
+                accessibilityLabel="Manage Teams"
               >
                 <MaterialIcons name="group" size={24} color={Colors[colorScheme].tint} />
                 <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Manage Teams</Text>
                 <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Create and manage your teams</Text>
               </Pressable>
-              <Pressable 
+              <Pressable
                 style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: 12 }]}
                 onPress={() => void router.push('/manage-season')}
+                accessibilityRole="button"
+                accessibilityLabel="Team Schedule"
               >
                 <MaterialIcons name="event" size={24} color={Colors[colorScheme].tint} />
                 <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Team Schedule</Text>
@@ -862,6 +890,8 @@ export default function CommunityDiscoverScreen() {
               <Pressable
                 style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: 12 }]}
                 onPress={() => void router.push('/(tabs)/event-approvals')}
+                accessibilityRole="button"
+                accessibilityLabel="Review pending event approvals"
               >
                 <MaterialIcons name="done-all" size={24} color={Colors[colorScheme].tint} />
                 <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Approvals</Text>
@@ -870,6 +900,8 @@ export default function CommunityDiscoverScreen() {
               <Pressable
                 style={[styles.coachActionCard, { backgroundColor: '#1E3A5F15', borderColor: '#1E3A5F30', marginLeft: 12 }]}
                 onPress={() => void handleManageOrg()}
+                accessibilityRole="button"
+                accessibilityLabel="Manage your organization"
               >
                 <MaterialIcons name="business" size={24} color="#1E3A5F" />
                 <Text style={[styles.coachActionTitle, { color: '#1E3A5F' }]}>Manage Org</Text>
@@ -883,6 +915,8 @@ export default function CommunityDiscoverScreen() {
                 <Pressable
                   style={[styles.coachActionCard, { backgroundColor: '#1E3A5F15', borderColor: '#1E3A5F30' }]}
                   onPress={() => void handleManageOrg()}
+                  accessibilityRole="button"
+                  accessibilityLabel="Manage your organization"
                 >
                   <MaterialIcons name="business" size={24} color="#1E3A5F" />
                   <Text style={[styles.coachActionTitle, { color: '#1E3A5F' }]}>Manage Org</Text>
@@ -893,22 +927,28 @@ export default function CommunityDiscoverScreen() {
               <Pressable
                 style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: me?.preferences?.role === 'organizer' ? 12 : 0 }]}
                 onPress={() => void router.push('/(tabs)/create-fan-event')}
+                accessibilityRole="button"
+                accessibilityLabel="Create a fan event"
               >
                 <MaterialIcons name="group" size={24} color={Colors[colorScheme].tint} />
                 <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Fan Event</Text>
                 <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Watch parties & meetups</Text>
               </Pressable>
-              <Pressable 
+              <Pressable
                 style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: 12 }]}
                 onPress={() => void router.push('/(tabs)/create-post')}
+                accessibilityRole="button"
+                accessibilityLabel="Share a moment"
               >
                 <MaterialIcons name="camera-alt" size={24} color={Colors[colorScheme].tint} />
                 <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Share Moment</Text>
                 <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Post photos and videos</Text>
               </Pressable>
-              <Pressable 
+              <Pressable
                 style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: 12 }]}
                 onPress={() => void router.push('/favorites')}
+                accessibilityRole="button"
+                accessibilityLabel="View saved posts"
               >
                 <MaterialIcons name="bookmark" size={24} color={Colors[colorScheme].tint} />
                 <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Saved Post</Text>
@@ -924,7 +964,7 @@ export default function CommunityDiscoverScreen() {
           <MaterialIcons name="group" size={18} color="#2563EB" />
           <Text style={[styles.followingText, { color: Colors[colorScheme].text }]}>{`Following ${me._count.following} people`}</Text>
           <View style={{ flex: 1 }} />
-          <Pressable onPress={() => void router.push(`/(tabs)/following?id=${me.id}&username=${me.display_name || me.username || 'You'}`)} style={styles.followingBtn}>
+          <Pressable onPress={() => void router.push(`/(tabs)/following?id=${me.id}&username=${me.display_name || me.username || 'You'}`)} style={styles.followingBtn} accessibilityRole="button" accessibilityLabel="Manage who you follow">
             <Text style={styles.followingBtnText}>Manage</Text>
           </Pressable>
         </View>
@@ -937,10 +977,10 @@ export default function CommunityDiscoverScreen() {
 
       {/* Segmented tabs for posts */}
       <View style={[styles.tabsWrap, { backgroundColor: Colors[colorScheme].border }]}>
-        <Pressable onPress={() => setTab('discover')} style={[styles.tab, tab === 'discover' && [styles.tabOn, { backgroundColor: Colors[colorScheme].card }]]}>
+        <Pressable onPress={() => setTab('discover')} style={[styles.tab, tab === 'discover' && [styles.tabOn, { backgroundColor: Colors[colorScheme].card }]]} accessibilityRole="tab" accessibilityLabel="Discover posts">
           <Text style={[styles.tabLabel, tab === 'discover' && styles.tabLabelOn, { color: Colors[colorScheme].text }]}>Discover</Text>
         </Pressable>
-        <Pressable onPress={() => setTab('following')} style={[styles.tab, tab === 'following' && [styles.tabOn, { backgroundColor: Colors[colorScheme].card }]]}>
+        <Pressable onPress={() => setTab('following')} style={[styles.tab, tab === 'following' && [styles.tabOn, { backgroundColor: Colors[colorScheme].card }]]} accessibilityRole="tab" accessibilityLabel="Posts from people you follow">
           <Text style={[styles.tabLabel, tab === 'following' && styles.tabLabelOn, { color: Colors[colorScheme].text }]}>Following</Text>
         </Pressable>
       </View>
@@ -967,6 +1007,8 @@ export default function CommunityDiscoverScreen() {
                       // Navigate to the specific user's profile, not own profile
                       void router.push(`/(tabs)/user-profile?id=${authorId}`);
                     }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`View profile of ${author?.display_name || 'User'}`}
                   >
                     <View style={styles.postAvatarWrap}>
                       {author?.avatar_url ? (
@@ -997,9 +1039,11 @@ export default function CommunityDiscoverScreen() {
                         }
                       }}
                       style={[
-                        styles.followBtn, 
+                        styles.followBtn,
                         { backgroundColor: p.is_following_author ? Colors[colorScheme].border : Colors[colorScheme].tint }
                       ]}
+                      accessibilityRole="button"
+                      accessibilityLabel={p.is_following_author ? `Unfollow ${author?.display_name || 'user'}` : `Follow ${author?.display_name || 'user'}`}
                     >
                       <Text style={[
                         styles.followBtnText, 
@@ -1040,7 +1084,7 @@ export default function CommunityDiscoverScreen() {
           <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>Nearby people</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }} contentContainerStyle={{ paddingRight: 8 }}>
             {nearbyPeople.map((u) => (
-              <Pressable key={String(u.id)} style={styles.personTile} onPress={() => void router.push(`/(tabs)/user-profile?id=${u.id}`)}>
+              <Pressable key={String(u.id)} style={styles.personTile} onPress={() => void router.push(`/(tabs)/user-profile?id=${u.id}`)} accessibilityRole="button" accessibilityLabel={`View profile of ${u.display_name || u.username || 'User'}`}>
                 <View style={styles.personAvatar}>
                   {u.avatar_url ? (
                     <Image source={{ uri: String(u.avatar_url) }} style={styles.personAvatar} contentFit="cover" />

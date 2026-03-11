@@ -76,76 +76,8 @@ billingRouter.post('/checkout/create-session', requireAuth as any, async (req: A
     return res.json({ session_id: session.id, url: session.url });
   } catch (e: any) {
     console.error('[billing] create-session failed', e);
-    return res.status(500).json({ error: 'Failed to create billing session', message: e?.message });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Stripe webhook (raw body expected - configure in main server setup)
-billingRouter.post('/webhooks/stripe', async (req: AuthedRequest, res) => {
-  if (!stripe) return res.status(503).json({ error: 'BillingUnavailable' });
-  const sig = req.get('stripe-signature');
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-  if (!webhookSecret) return res.status(500).json({ error: 'Missing webhook secret' });
-  let event;
-  try {
-    event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
-  } catch (err: any) {
-    console.error('[billing] webhook signature failed', err?.message || err);
-    return res.status(400).send('Webhook Error: Invalid signature');
-  }
-
-  // Event-level deduplication: reject replayed webhook events
-  try {
-    await prisma.processedStripeEvent.create({
-      data: { event_id: event.id, event_type: event.type },
-    });
-  } catch (dedupErr: any) {
-    if (dedupErr?.code === 'P2002') {
-      console.warn('[billing] Duplicate event skipped', event.id, event.type);
-      return res.json({ received: true, deduplicated: true });
-    }
-    // Non-unique error — log warning but proceed
-    console.warn('[billing] Failed to record event for dedup, proceeding anyway:', dedupErr?.message || dedupErr);
-  }
-
-  try {
-    if (event.type === 'checkout.session.completed') {
-      const session = event.data.object;
-      // Security: Only process if payment was actually successful
-      if (session.payment_status !== 'paid') {
-        console.warn('[billing] Webhook skipped - session not paid', {
-          session_id: session.id,
-          payment_status: session.payment_status,
-          status: session.status
-        });
-        return res.json({ received: true, skipped: true });
-      }
-      const userId = session.metadata?.user_id;
-      const plan = session.metadata?.plan;
-      if (userId && plan) {
-        const user = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } });
-        const existingPrefs = (user?.preferences || {}) as Record<string, any>;
-        // Rule A: On successful payment, promote pending_plan → plan,
-        // clear payment flags, and activate subscription tier.
-        const { payment_approved, pending_plan, join_request_pending, ...restPrefs } = existingPrefs;
-        await prisma.user.update({
-          where: { id: userId },
-          data: {
-            subscription_tier: plan,
-            subscription_status: 'active',
-            stripe_customer_id: session.customer?.toString(),
-            preferences: {
-              ...restPrefs,
-              plan,
-              pending_plan: null,
-              payment_pending: false
-            }
-          }
-        });
-      }
-    }
-  } catch (e) {
-    console.error('[billing] webhook processing error', e);
-  }
-  return res.json({ received: true });
-});
+// Legacy webhook removed — all Stripe webhooks are handled in payments.ts

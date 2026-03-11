@@ -62,7 +62,6 @@ function StoriesViewer({ visible, items, index, onClose, onSeen, onDelete, gameI
   const w = useWindowDimensions().width;
   const progress = useRef(new Animated.Value(0)).current;
   const [paused, setPaused] = useState(false);
-  const progressFracRef = useRef(0);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -847,25 +846,30 @@ const GameDetailsScreen = () => {
       }
 
       try {
+        // eslint-disable-next-line no-console
         if (__DEV__) console.log('[GameDetails] loadGameById() — fetching summary for', gameIdValue);
         const summary: any = await retryWithBackoff(() => Game.summary(gameIdValue), {
           maxRetries: 0,
           initialDelayMs: 800,
           maxDelayMs: 4000,
         }).catch((err: any) => {
+          // eslint-disable-next-line no-console
           if (__DEV__) console.warn('[GameDetails] summary fetch failed:', { status: err?.status, message: err?.message });
           if (err && err.status === 404) return null;
           // Treat transport / infra failures as recoverable and fall back to Game.get.
           if (err?.status === 0 || err?.status === 408 || err?.isNetworkError || err?.status >= 500) {
+            // eslint-disable-next-line no-console
             if (__DEV__) console.warn('[game-details] summary unavailable, falling back to game record:', err?.message);
             return null;
           }
           throw err;
         });
+        // eslint-disable-next-line no-console
         if (__DEV__) console.log('[GameDetails] summary result:', summary ? 'ok' : 'null');
 
         let gameRecord: any = null;
         if (!summary) {
+          // eslint-disable-next-line no-console
           if (__DEV__) console.log('[GameDetails] no summary — trying Game.get() fallback');
           // Only attempt record fetch if summary missing; suppress 404 noise
           gameRecord = await retryWithBackoff(() => Game.get(gameIdValue), {
@@ -873,11 +877,14 @@ const GameDetailsScreen = () => {
             initialDelayMs: 800,
             maxDelayMs: 4000,
           }).catch((err: any) => {
+            // eslint-disable-next-line no-console
             if (__DEV__) console.warn('[GameDetails] Game.get() fallback failed:', { status: err?.status, message: err?.message });
             if (err && err.status === 404) return null;
+            // eslint-disable-next-line no-console
             if (__DEV__) console.warn('Game record fetch failed:', err?.message || err);
             return null;
           });
+          // eslint-disable-next-line no-console
           if (__DEV__) console.log('[GameDetails] Game.get() result:', gameRecord ? 'ok' : 'null');
         }
         // If neither summary nor record exists, bail out to show error UI
@@ -1178,7 +1185,11 @@ const GameDetailsScreen = () => {
     if (cameraStatus !== 'granted' || mediaStatus !== 'granted') {
       Alert.alert(
         'Permission Required',
-        'You need to grant camera and photo library permissions to add a story.'
+        'You need to grant camera and photo library permissions to add a story.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => Linking.openSettings() },
+        ]
       );
       return;
     }
@@ -1190,6 +1201,10 @@ const GameDetailsScreen = () => {
         Alert.alert(
           'Location Permission',
           'Stories can still post without location, but pins and discovery will be less accurate until you enable it.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Open Settings', onPress: () => Linking.openSettings() },
+          ]
         );
       }
       if (Platform.OS === 'android' && needsPreciseAccuracy) {
@@ -1360,6 +1375,7 @@ const GameDetailsScreen = () => {
     async (isRefresh = false) => {
       const gameIdValue = id ? String(id) : null;
       const eventIdValue = eventId ? String(eventId) : null;
+      // eslint-disable-next-line no-console
       if (__DEV__) console.log('[GameDetails] load() called', { gameIdValue, eventIdValue, isRefresh });
       if (!gameIdValue && !eventIdValue) {
         if (__DEV__) console.warn('[GameDetails] load() — no id or eventId, aborting');
@@ -1381,8 +1397,10 @@ const GameDetailsScreen = () => {
         } else if (eventIdValue) {
           await loadVirtualFromEvent(eventIdValue);
         }
+        // eslint-disable-next-line no-console
         if (__DEV__) console.log('[GameDetails] load() — done, vm should be set');
       } catch (err: any) {
+        // eslint-disable-next-line no-console
         if (__DEV__) console.error('[GameDetails] load() error:', err?.message);
         const message = String(err?.message || '');
         if (message.toLowerCase().includes('timed out')) {
@@ -1392,6 +1410,7 @@ const GameDetailsScreen = () => {
         }
         setVm(null);
       } finally {
+        // eslint-disable-next-line no-console
         if (__DEV__) console.log('[GameDetails] load() — finally: clearing loading state');
         if (isRefresh) setRefreshing(false); else setLoading(false);
       }

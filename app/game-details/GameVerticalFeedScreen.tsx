@@ -16,6 +16,7 @@ import {
     Dimensions,
     FlatList,
     KeyboardAvoidingView,
+    Linking,
     Modal,
     Platform,
     Pressable,
@@ -289,7 +290,13 @@ const FeedCard = memo(
       if (!post?.collage) return;
       try {
         const perm = await MediaLibrary.requestPermissionsAsync();
-        if (perm.status !== 'granted') return;
+        if (perm.status !== 'granted') {
+          Alert.alert('Permission Required', 'Please grant photo library access to save images.', [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Open Settings', onPress: () => Linking.openSettings() },
+          ]);
+          return;
+        }
         const uri = await captureRef(collageRef, { format: 'jpg', quality: 0.92 } as any);
         await MediaLibrary.saveToLibraryAsync(uri as any);
       } catch (error: any) {
@@ -927,6 +934,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
       },
       { text: 'Cancel', style: 'cancel' },
     ]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally excludes submitReport to avoid re-creating action sheet handler
   }, []);
 
   const submitReport = useCallback(async (post: FeedPost, reason: string) => {

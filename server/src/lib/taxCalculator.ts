@@ -27,7 +27,7 @@ const STATE_TAX_RATES: Record<string, number> = {
   'IA': 0.06,    // Iowa: 6%
   'KS': 0.065,   // Kansas: 6.5%
   'KY': 0.06,    // Kentucky: 6%
-  'LA': 0.0445,  // Louisiana: 4.45%
+  'LA': 0.05,    // Louisiana: 5% (effective Jan 1, 2025)
   'ME': 0.055,   // Maine: 5.5%
   'MD': 0.06,    // Maryland: 6%
   'MA': 0.0625,  // Massachusetts: 6.25%

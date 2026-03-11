@@ -15,6 +15,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useCallback, useState } from 'react';
 import {
     ActivityIndicator,
+    Linking,
     Modal,
     Pressable,
     StyleSheet,
@@ -57,7 +58,8 @@ export function StoryCameraButton({
         title: 'Camera Permission Required',
         message: 'Please enable camera access in your device settings to capture Stories.',
         options: [
-          { label: 'OK', onPress: () => setModal(null), color: '#2563EB' },
+          { label: 'Cancel', onPress: () => setModal(null) },
+          { label: 'Open Settings', onPress: () => { setModal(null); void Linking.openSettings(); }, color: '#2563EB' },
         ],
       });
       return false;

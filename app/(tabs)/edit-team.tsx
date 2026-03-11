@@ -5,7 +5,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Organization, Team } from '@/api/entities';
@@ -89,6 +89,7 @@ export default function EditTeamScreen() {
     } finally {
       setLoading(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally excludes currentUser?.id to prevent re-fetching when auth state changes
   }, [params.id, router]);
 
   useEffect(() => {
@@ -101,7 +102,10 @@ export default function EditTeamScreen() {
     const result = await ImagePicker.requestMediaLibraryPermissionsAsync();
     
     if (result.granted === false) {
-      Alert.alert('Permission Required', 'Please allow access to your photos to upload a team logo.');
+      Alert.alert('Permission Required', 'Please allow access to your photos to upload a team logo.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Open Settings', onPress: () => Linking.openSettings() },
+      ]);
       return;
     }
 
@@ -122,7 +126,10 @@ export default function EditTeamScreen() {
     const result = await ImagePicker.requestCameraPermissionsAsync();
     
     if (result.granted === false) {
-      Alert.alert('Permission Required', 'Please allow camera access to take a team logo photo.');
+      Alert.alert('Permission Required', 'Please allow camera access to take a team logo photo.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Open Settings', onPress: () => Linking.openSettings() },
+      ]);
       return;
     }
 
@@ -318,7 +325,7 @@ export default function EditTeamScreen() {
                   <MaterialIcons name="camera-alt" size={32} color={Colors[colorScheme].mutedText} />
                 </View>
               )}
-              <View style={[styles.logoOverlay, { backgroundColor: Colors[colorScheme].tint }]}>
+              <View style={[styles.logoOverlay, { backgroundColor: Colors[colorScheme].tint, borderColor: Colors[colorScheme].background }]}>
                 <MaterialIcons name="camera-alt" size={20} color="#fff" />
               </View>
             </Pressable>
@@ -729,7 +736,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: 'rgba(0,0,0,0.05)',
+    backgroundColor: 'rgba(128,128,128,0.15)',
   },
   chipText: {
     fontSize: 14,

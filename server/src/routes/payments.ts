@@ -3,7 +3,7 @@ import expressPkg, { Router } from 'express';
 import Stripe from 'stripe';
 import { Prisma } from '@prisma/client';
 import { debugLog } from '../lib/debugLog.js';
-import { sendAdPaymentConfirmedEmail, sendBillingNoticeEmail } from '../lib/email.js';
+import { sendAdPaymentConfirmedEmail, sendAdPendingReviewEmail, sendBillingNoticeEmail } from '../lib/email.js';
 import { getAllPlanDefinitions, getMaxTeamsForPlan } from '../lib/planLimits.js';
 import { prisma } from '../lib/prisma.js';
 import { previewPromo, redeemPromo } from '../lib/promos.js';
@@ -402,13 +402,31 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paym
     }
     try {
       await prisma.$transaction([
-        prisma.ad.update({ where: { id: String(ad_id) }, data: { payment_status: 'paid', status: 'active' } }),
+        prisma.ad.update({ where: { id: String(ad_id) }, data: { payment_status: 'paid', status: 'pending' } }),
         prisma.adReservation.createMany({ data: isoDates.map((s) => ({ ad_id: String(ad_id), date: new Date(s + 'T00:00:00.000Z') })), skipDuplicates: true }),
       ]);
     } catch (e) {
       console.error('Failed to create ad reservations for free promo:', e);
       return res.status(500).json({ error: 'Failed to reserve ad dates. Please try again.' });
     }
+    // Log $0 transaction for audit trail
+    logTransaction({
+      transactionType: 'AD_PURCHASE',
+      status: 'COMPLETED',
+      userId: req.user!.id,
+      subtotalCents: subtotal,
+      taxCents: 0,
+      discountCents: discount,
+      promoCode: appliedCode || undefined,
+      promoDiscountCents: discount,
+      totalCents: 0,
+      netCents: 0,
+      currency: 'usd',
+      metadata: { free_promo: true, ad_id: String(ad_id), dates: isoDates },
+    }).catch((err) => {
+      console.error('[payments] Failed to log free promo transaction:', err);
+      captureException(err as Error, { context: 'free_promo_transaction_log', adId: String(ad_id) });
+    });
     // Send confirmation email (same as Stripe webhook path)
     sendAdPaymentEmail({
       userId: req.user!.id,
@@ -418,6 +436,13 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paym
       businessName: ad.business_name,
       zipCode: ad.target_zip_code,
     }).catch((err) => console.warn('[payments] Free promo ad email failed:', err?.message || err));
+    // Notify admin for review
+    sendAdPendingReviewEmail({
+      to: 'emancero@varsityhub.app',
+      businessName: ad.business_name || undefined,
+      zipCode: ad.target_zip_code || undefined,
+      adId: String(ad_id),
+    }).catch((err) => console.warn('[payments] Free promo admin review email failed:', err?.message || err));
     return res.json({ free: true });
   }
 
@@ -764,14 +789,39 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
     }
     try {
       await prisma.$transaction([
-        prisma.ad.update({ where: { id: String(ad_id) }, data: { payment_status: 'paid', status: 'active' } }),
+        prisma.ad.update({ where: { id: String(ad_id) }, data: { payment_status: 'paid', status: 'pending' } }),
         prisma.adReservation.createMany({ data: isoDates.map((s) => ({ ad_id: String(ad_id), date: new Date(s + 'T00:00:00.000Z') })), skipDuplicates: true }),
       ]);
     } catch (e) {
       console.error('Failed to create ad reservations for free promo:', e);
       return res.status(500).json({ error: 'Failed to reserve ad dates. Please try again.' });
     }
+    // Log $0 transaction for audit trail
+    logTransaction({
+      transactionType: 'AD_PURCHASE',
+      status: 'COMPLETED',
+      userId,
+      subtotalCents: subtotal,
+      taxCents: 0,
+      discountCents: discount,
+      promoCode: appliedCode || undefined,
+      promoDiscountCents: discount,
+      totalCents: 0,
+      netCents: 0,
+      currency: 'usd',
+      metadata: { free_promo: true, ad_id: String(ad_id), dates: isoDates },
+    }).catch((err) => {
+      console.error('[payments] Failed to log free promo transaction:', err);
+      captureException(err as Error, { context: 'free_promo_transaction_log_pi', adId: String(ad_id) });
+    });
     sendAdPaymentEmail({ userId, adId: String(ad_id), dates: isoDates, totalCents: 0, businessName: ad.business_name, zipCode: ad.target_zip_code }).catch((err) => console.warn('[payments] Free promo ad email failed:', err?.message || err));
+    // Notify admin for review
+    sendAdPendingReviewEmail({
+      to: 'emancero@varsityhub.app',
+      businessName: ad.business_name || undefined,
+      zipCode: ad.target_zip_code || undefined,
+      adId: String(ad_id),
+    }).catch((err) => console.warn('[payments] Free promo admin review email failed:', err?.message || err));
     return res.json({ free: true });
   }
 
@@ -818,6 +868,7 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
 
     return res.json({
       paymentIntent: paymentIntent.client_secret,
+      payment_intent_id: paymentIntent.id,
       ephemeralKey: ephemeralKey.secret,
       customer: customerId,
       publishableKey,
@@ -868,8 +919,9 @@ paymentsRouter.post('/webhook', async (req, res) => {
     try {
       await finalizeFromSession(session);
     } catch (e) {
-      console.warn('Error finalizing session in webhook:', (e as any)?.message || e);
+      console.error('[webhook] CRITICAL: Error finalizing session — returning 500 for Stripe retry:', (e as any)?.message || e);
       captureException(e as Error, { context: 'stripe_webhook_finalize_failed', sessionId: session.id });
+      return res.status(500).json({ error: 'Finalization failed' });
     }
   }
   
@@ -883,6 +935,21 @@ paymentsRouter.post('/webhook', async (req, res) => {
         amount: `$${(invoice.amount_paid / 100).toFixed(2)}`,
         planName: invoice.lines.data[0]?.description || 'VarsityHub Subscription',
       }).catch(err => console.warn('[billing-email] payment_succeeded failed:', err));
+    }
+    // Log renewal transaction
+    if (invoice.customer && invoice.subscription) {
+      const renewalUser = await prisma.user.findFirst({ where: { stripe_customer_id: String(invoice.customer) }, select: { id: true } });
+      if (renewalUser) {
+        logTransaction({
+          transactionType: 'SUBSCRIPTION_RENEWAL',
+          status: 'COMPLETED',
+          userId: renewalUser.id,
+          totalCents: invoice.amount_paid || 0,
+          stripeSessionId: String(invoice.id),
+          stripeSubscriptionId: String(invoice.subscription),
+          metadata: { event: 'invoice.payment_succeeded', period_end: invoice.period_end },
+        }).catch(err => captureException(err as Error, { context: 'renewal_transaction_log' }));
+      }
     }
   }
   
@@ -926,18 +993,30 @@ paymentsRouter.post('/webhook', async (req, res) => {
         delete prefs.subscription_id;
         delete prefs.subscription_period_end;
         prefs.plan = 'rookie';
-        await prisma.user.update({
-          where: { id: canceledUser.id },
-          data: { preferences: prefs, subscription_tier: 'free', subscription_status: 'canceled' },
-        });
-        // Log cancellation transaction
-        await logTransaction({
-          transactionType: 'SUBSCRIPTION_CANCEL',
-          status: 'COMPLETED',
-          stripeSubscriptionId: subscription.id,
-          userId: canceledUser.id,
-          metadata: { reason: 'subscription_deleted', previous_plan: previousPlan },
-        }).catch(err => console.warn('[transaction-log] cancel log failed:', err));
+        // ATOMIC: downgrade + cancellation log must succeed or fail together
+        await prisma.$transaction([
+          prisma.user.update({
+            where: { id: canceledUser.id },
+            data: { preferences: prefs, subscription_tier: 'free', subscription_status: 'canceled' },
+          }),
+          prisma.transactionLog.create({
+            data: {
+              transaction_type: 'SUBSCRIPTION_CANCEL',
+              status: 'COMPLETED',
+              stripe_subscription_id: subscription.id,
+              user_id: canceledUser.id,
+              metadata: { reason: 'subscription_deleted', previous_plan: previousPlan },
+              subtotal_cents: 0,
+              tax_cents: 0,
+              stripe_fee_cents: 0,
+              discount_cents: 0,
+              total_cents: 0,
+              net_cents: 0,
+              promo_discount_cents: 0,
+              currency: 'usd',
+            },
+          }),
+        ]);
       }
     }
   }
@@ -975,6 +1054,11 @@ paymentsRouter.post('/webhook', async (req, res) => {
           data: updateData,
         });
         console.log(`[webhook] subscription.updated: user ${subUser.id} -> tier=${newTier} status=${newStatus} plan=${planFromTier || 'unchanged'}`);
+
+        // Update any PENDING transaction log created by PaymentSheet flow
+        updateTransactionStatus(subscription.id, 'COMPLETED', {
+          metadata: { event: 'subscription.updated', status: subscription.status },
+        }).catch(err => captureException(err as Error, { context: 'sub_paymentsheet_transaction_update' }));
       }
 
       if (subscription.status === 'active') {
@@ -993,7 +1077,7 @@ paymentsRouter.post('/webhook', async (req, res) => {
     const session = event.data.object as Stripe.Checkout.Session;
     await updateTransactionStatus(session.id, 'FAILED', {
       metadata: { reason: 'checkout_expired' },
-    }).catch(err => console.warn('[transaction-log] expired session update failed:', err));
+    }).catch(err => { console.error('[transaction-log] expired session update failed:', err); captureException(err as Error, { context: 'transaction_log_expired_session' }); });
   }
 
   // Handle failed payment intents
@@ -1007,7 +1091,7 @@ paymentsRouter.post('/webhook', async (req, res) => {
       userId: meta.user_id || undefined,
       totalCents: pi.amount,
       metadata: { reason: pi.last_payment_error?.message || 'payment_failed', ...meta },
-    }).catch(err => console.warn('[transaction-log] failed payment log failed:', err));
+    }).catch(err => { console.error('[transaction-log] failed payment log failed:', err); captureException(err as Error, { context: 'transaction_log_failed_payment' }); });
 
     // Notify user of failed payment
     if (meta.user_id) {
@@ -1058,7 +1142,7 @@ paymentsRouter.post('/webhook', async (req, res) => {
                 }
               }
             }
-            await tx.ad.update({ where: { id: adId }, data: { payment_status: 'paid', status: 'active' } });
+            await tx.ad.update({ where: { id: adId }, data: { payment_status: 'paid', status: 'pending' } });
             await tx.adReservation.createMany({
               data: piDates.map((s) => ({ ad_id: adId, date: new Date(s + 'T00:00:00.000Z') })),
               skipDuplicates: true,
@@ -1067,7 +1151,7 @@ paymentsRouter.post('/webhook', async (req, res) => {
 
           // Update transaction & send email
           await updateTransactionStatus(pi.id, 'COMPLETED', { stripePaymentIntentId: pi.id });
-          const adForEmail = await prisma.ad.findUnique({ where: { id: adId }, select: { business_name: true, target_zip_code: true } });
+          const adForEmail = await prisma.ad.findUnique({ where: { id: adId }, select: { business_name: true, contact_name: true, contact_email: true, target_zip_code: true, banner_url: true } });
           sendAdPaymentEmail({
             userId: meta.user_id || null,
             adId,
@@ -1076,21 +1160,64 @@ paymentsRouter.post('/webhook', async (req, res) => {
             businessName: adForEmail?.business_name,
             zipCode: adForEmail?.target_zip_code,
           }).catch((err) => console.warn('[webhook] ad payment email failed:', err?.message || err));
+          // Notify admin that a new ad needs approval
+          sendAdPendingReviewEmail({
+            to: 'emancero@varsityhub.app',
+            businessName: adForEmail?.business_name || undefined,
+            contactName: adForEmail?.contact_name || undefined,
+            contactEmail: adForEmail?.contact_email || undefined,
+            zipCode: adForEmail?.target_zip_code || undefined,
+            bannerUrl: adForEmail?.banner_url || undefined,
+            adId,
+          }).catch((err) => captureException(err as Error, { context: 'ad_pending_review_email_pi' }));
 
           // Redeem promo code if one was used
           if (meta.promo_code) {
             const promoSubtotal = Number(meta.subtotal_cents || 0) || 0;
-            await redeemPromo({ code: meta.promo_code, subtotalCents: promoSubtotal, userId: meta.user_id || '', service: 'booking', orderId: pi.id }).catch((e) => console.warn('[webhook] promo redeem failed:', e));
+            await redeemPromo({ code: meta.promo_code, subtotalCents: promoSubtotal, userId: meta.user_id || '', service: 'booking', orderId: pi.id }).catch((e) => {
+              console.error('[webhook] promo redeem failed — user may reuse code:', e);
+              captureException(e as Error, { context: 'promo_redeem_failed', promoCode: meta.promo_code, piId: pi.id, userId: meta.user_id });
+              updateTransactionStatus(pi.id, 'COMPLETED', {
+                metadata: { promo_redemption_failed: true, promo_code: meta.promo_code },
+              }).catch((err) => console.warn('[webhook] failed to flag promo redemption failure:', err));
+            });
           }
         } catch (e: any) {
           if (e?.slotFull) {
-            console.error('[payments] SLOT_FULL on payment_intent.succeeded — manual refund required', { ad_id: adId, dates: e.dates, pi_id: pi.id });
-            await updateTransactionStatus(pi.id, 'REFUNDED', {
-              metadata: { reason: 'slot_full', overbooked_dates: e.dates },
-            }).catch(err => console.warn('[transaction-log] PI slot-full status update failed:', err));
+            console.error('[payments] SLOT_FULL on payment_intent.succeeded — issuing auto-refund', { ad_id: adId, dates: e.dates, pi_id: pi.id });
+            // Auto-refund: charge the user's card back immediately
+            try {
+              const refund = await stripe.refunds.create({ payment_intent: pi.id, reason: 'requested_by_customer' });
+              await updateTransactionStatus(pi.id, 'REFUNDED', {
+                metadata: { reason: 'slot_full', overbooked_dates: e.dates, stripe_refund_id: refund.id },
+              });
+              // Notify user their dates were unavailable and they've been refunded
+              const adForRefund = await prisma.ad.findUnique({ where: { id: adId }, select: { business_name: true, target_zip_code: true } });
+              const refundUser = meta.user_id ? await prisma.user.findUnique({ where: { id: meta.user_id }, select: { email: true } }) : null;
+              if (refundUser?.email) {
+                sendBillingNoticeEmail({
+                  to: refundUser.email,
+                  type: 'payment_failed',
+                  planName: `Ad Reservation for ${adForRefund?.business_name || 'your ad'}`,
+                  amount: `$${(pi.amount / 100).toFixed(2)}`,
+                  perks: [`Your selected dates in zip code ${adForRefund?.target_zip_code || 'N/A'} were fully booked. You have been fully refunded $${(pi.amount / 100).toFixed(2)}.`],
+                }).catch(err => {
+                  console.error('[payments] Failed to send refund email:', err);
+                  captureException(err as Error, { context: 'slot_full_refund_email', adId, piId: pi.id });
+                });
+              }
+            } catch (refundErr: any) {
+              // Refund failed — this is critical, requires manual intervention
+              console.error('[payments] CRITICAL: Auto-refund FAILED for SLOT_FULL', { ad_id: adId, pi_id: pi.id, error: refundErr?.message });
+              captureException(refundErr as Error, { context: 'slot_full_auto_refund_failed', adId, piId: pi.id, amount: pi.amount });
+              await updateTransactionStatus(pi.id, 'REFUNDED', {
+                metadata: { reason: 'slot_full', overbooked_dates: e.dates, refund_failed: true },
+              }).catch(err => { console.error('[transaction-log] PI slot-full status update failed:', err); captureException(err as Error, { context: 'transaction_log_slot_full_pi' }); });
+            }
           } else {
-            console.error('[payments] Error processing ad PI succeeded', { ad_id: adId, pi_id: pi.id, error: e });
+            console.error('[payments] CRITICAL: Error processing ad PI succeeded — returning 500 for Stripe retry', { ad_id: adId, pi_id: pi.id, error: e });
             captureException(e as Error, { context: 'payment_intent_succeeded_ad', adId, piId: pi.id });
+            return res.status(500).json({ error: 'Ad processing failed' });
           }
         }
       }
@@ -1100,6 +1227,31 @@ paymentsRouter.post('/webhook', async (req, res) => {
   return res.json({ received: true });
 });
 
+
+// Cancel an abandoned PaymentIntent and mark transaction as FAILED
+paymentsRouter.post('/cancel-intent', expressPkg.json(), requireVerified as any, async (req: AuthedRequest, res) => {
+  const { payment_intent_id } = req.body || {};
+  if (!payment_intent_id || typeof payment_intent_id !== 'string') {
+    return res.status(400).json({ error: 'Missing payment_intent_id' });
+  }
+  try {
+    const pi = await stripe.paymentIntents.retrieve(payment_intent_id);
+    // Only cancel if the PI belongs to this user and is still cancelable
+    if (pi.metadata?.user_id !== req.user!.id) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+    if (['requires_payment_method', 'requires_confirmation', 'requires_action'].includes(pi.status)) {
+      await stripe.paymentIntents.cancel(payment_intent_id);
+    }
+    await updateTransactionStatus(payment_intent_id, 'FAILED', {
+      metadata: { reason: 'user_abandoned', canceled_at: new Date().toISOString() },
+    }).catch(err => { console.error('[transaction-log] cancel-intent log failed:', err); captureException(err as Error, { context: 'cancel_intent_log' }); });
+    return res.json({ canceled: true });
+  } catch (err: any) {
+    console.warn('[payments] cancel-intent error:', err?.message);
+    return res.json({ canceled: false });
+  }
+});
 
 // Create a subscription Checkout Session for recurring membership plans
 paymentsRouter.post('/subscribe', expressPkg.json(), requireVerified as any, async (req: AuthedRequest, res) => {
@@ -1153,7 +1305,7 @@ paymentsRouter.post('/subscription/cancel', expressPkg.json(), requireVerified a
       stripeSubscriptionId: subscriptionId,
       userId,
       metadata: { action: 'cancel_at_period_end', plan: prefs.plan },
-    }).catch(err => console.warn('[transaction-log] cancel request log failed:', err));
+    }).catch(err => { console.error('[transaction-log] cancel request log failed:', err); captureException(err as Error, { context: 'transaction_log_cancel_request' }); });
 
     return res.json({ ok: true });
   } catch (err) {
@@ -1224,11 +1376,20 @@ paymentsRouter.post('/update-subscription-quantity', expressPkg.json(), requireV
       await stripe.subscriptionItems.update(subscriptionItem.id, {
         quantity: billable,
       });
-      
+
+      // Log the quantity update
+      logTransaction({
+        transactionType: 'SUBSCRIPTION_PURCHASE',
+        status: 'COMPLETED',
+        userId,
+        stripeSubscriptionId: subscriptionId,
+        metadata: { event: 'quantity_update', new_quantity: billable, total_teams: team_count, subscription_id: subscriptionId },
+      }).catch(err => captureException(err as Error, { context: 'quantity_update_transaction_log' }));
+
       debugLog(`[payments] Updated subscription ${subscriptionId} billable quantity to ${billable} (total teams ${team_count})`);
-      
-      return res.json({ 
-        ok: true, 
+
+      return res.json({
+        ok: true,
         subscription_id: subscriptionId,
         total_teams: team_count,
         billable_teams: billable,
@@ -1596,7 +1757,7 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
 
         await tx.ad.update({
           where: { id: ad_id },
-          data: { payment_status: 'paid', status: 'active' },
+          data: { payment_status: 'paid', status: 'pending' },
         });
         await tx.adReservation.createMany({
           data: dates.map((s) => ({ ad_id, date: new Date(s + 'T00:00:00.000Z') })),
@@ -1629,20 +1790,59 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
         businessName: adForEmail?.business_name,
         zipCode: adForEmail?.target_zip_code,
       });
+      // Notify admin that a new ad needs approval
+      void sendAdPendingReviewEmail({
+        to: 'emancero@varsityhub.app',
+        businessName: adForEmail?.business_name || undefined,
+        contactEmail: fallbackEmail || undefined,
+        zipCode: adForEmail?.target_zip_code || undefined,
+        adId: String(ad_id),
+      }).catch((err) => console.warn('[payments] Failed to send ad review email:', (err as any)?.message || err));
     } catch (e: any) {
       if (e?.slotFull) {
         // Expected: another payment beat this one to the last slot(s).
-        // Payment was already taken — a manual refund will be needed.
-        // Log clearly but do NOT re-throw (webhook must still return 200).
-        console.error('[payments] SLOT_FULL: ad dates overbooked after payment — manual refund required', {
+        // Auto-refund immediately instead of requiring manual intervention.
+        console.error('[payments] SLOT_FULL: ad dates overbooked after payment — issuing auto-refund', {
           ad_id,
           full_dates: e.dates,
           session_id: session.id,
         });
-        // Mark transaction as needing refund
-        await updateTransactionStatus(session.id, 'REFUNDED', {
-          metadata: { reason: 'slot_full', overbooked_dates: e.dates },
-        }).catch(err => console.warn('[transaction-log] slot-full status update failed:', err));
+        try {
+          const piId = session.payment_intent ? String(session.payment_intent) : '';
+          if (piId) {
+            const refund = await stripe.refunds.create({ payment_intent: piId, reason: 'requested_by_customer' });
+            await updateTransactionStatus(session.id, 'REFUNDED', {
+              metadata: { reason: 'slot_full', overbooked_dates: e.dates, stripe_refund_id: refund.id },
+            });
+            // Notify user
+            if (fallbackEmail) {
+              const adForRefund = await prisma.ad.findUnique({ where: { id: ad_id }, select: { business_name: true, target_zip_code: true } });
+              sendBillingNoticeEmail({
+                to: fallbackEmail,
+                type: 'payment_failed',
+                planName: `Ad Reservation for ${adForRefund?.business_name || 'your ad'}`,
+                amount: `$${(totalCents / 100).toFixed(2)}`,
+                perks: [`Your selected dates in zip code ${adForRefund?.target_zip_code || 'N/A'} were fully booked. You have been fully refunded $${(totalCents / 100).toFixed(2)}.`],
+              }).catch(err => {
+                console.error('[payments] Failed to send refund email:', err);
+                captureException(err as Error, { context: 'slot_full_refund_email_session', sessionId: session.id });
+              });
+            }
+          } else {
+            // No payment_intent to refund from session — mark for manual refund
+            console.error('[payments] CRITICAL: No payment_intent on session for auto-refund', { session_id: session.id });
+            captureException(new Error('SLOT_FULL: no payment_intent for refund'), { context: 'slot_full_no_pi', sessionId: session.id });
+            await updateTransactionStatus(session.id, 'REFUNDED', {
+              metadata: { reason: 'slot_full', overbooked_dates: e.dates, refund_failed: true },
+            }).catch(err => { console.error('[transaction-log] slot-full status update failed:', err); captureException(err as Error, { context: 'transaction_log_slot_full' }); });
+          }
+        } catch (refundErr: any) {
+          console.error('[payments] CRITICAL: Auto-refund FAILED for SLOT_FULL', { session_id: session.id, error: refundErr?.message });
+          captureException(refundErr as Error, { context: 'slot_full_auto_refund_failed_session', sessionId: session.id });
+          await updateTransactionStatus(session.id, 'REFUNDED', {
+            metadata: { reason: 'slot_full', overbooked_dates: e.dates, refund_failed: true },
+          }).catch(err => { console.error('[transaction-log] slot-full status update failed:', err); captureException(err as Error, { context: 'transaction_log_slot_full' }); });
+        }
         return;
       }
       console.error('[payments] Error processing ad reservation payment', {
@@ -1706,40 +1906,48 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
         if (session.customer) {
           prefs.stripe_customer_id = String(session.customer);
         }
-        
+
         // Update max_teams and subscription_tier based on plan
         const maxTeams = getMaxTeamsForPlan(plan);
         const subscriptionTier = plan === 'rookie' ? 'free' : plan === 'veteran' ? 'premium' : 'pro';
-        
-        await prisma.user.update({ 
-          where: { id: userId }, 
-          data: { 
-            preferences: prefs,
-            max_teams: maxTeams ?? 999, // Use 999 as unlimited (null not supported by Int type)
-            subscription_tier: subscriptionTier,
-            subscription_status: 'active'
-          } 
-        });
-        console.info('[payments] membership finalize', { 
-          userId, 
-          plan, 
+
+        // ATOMIC: user update + transaction log must succeed or fail together
+        await prisma.$transaction([
+          prisma.user.update({
+            where: { id: userId },
+            data: {
+              preferences: prefs,
+              max_teams: maxTeams ?? 999,
+              subscription_tier: subscriptionTier,
+              subscription_status: 'active'
+            }
+          }),
+          prisma.transactionLog.update({
+            where: { stripe_session_id: session.id },
+            data: {
+              status: 'COMPLETED',
+              updated_at: new Date(),
+              stripe_payment_intent_id: session.payment_intent ? String(session.payment_intent) : undefined,
+              stripe_subscription_id: session.subscription ? String(session.subscription) : undefined,
+            },
+          }),
+        ]);
+        console.info('[payments] membership finalize', {
+          userId,
+          plan,
           max_teams: maxTeams ?? 999,
           subscription_tier: subscriptionTier,
-          subscription_id: prefs.subscription_id, 
-          subscription_period_end: prefs.subscription_period_end 
+          subscription_id: prefs.subscription_id,
+          subscription_period_end: prefs.subscription_period_end
         });
-        
-        // Update transaction log to COMPLETED
-        await updateTransactionStatus(session.id, 'COMPLETED', {
-          stripePaymentIntentId: session.payment_intent ? String(session.payment_intent) : undefined,
-          stripeSubscriptionId: session.subscription ? String(session.subscription) : undefined,
-        });
-        await sendSubscriptionEmail({
+
+        // Email is non-critical — fire after atomic commit
+        sendSubscriptionEmail({
           userId,
           fallbackEmail,
           plan,
           totalCents,
-        });
+        }).catch(err => console.warn('[payments] subscription email failed:', (err as any)?.message || err));
       } catch (err) {
         console.warn('Failed to finalize membership from session:', (err as any)?.message || err);
       }
@@ -1870,7 +2078,7 @@ paymentsRouter.post('/apple/verify-receipt', expressPkg.json(), requireAuth as a
     }
 
     // Update user's plan in database
-    const user = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } });
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true, email: true } });
     const currentPrefs = (user?.preferences && typeof user.preferences === 'object') ? user.preferences as any : {};
 
     // Rule A: Clear pending_plan, payment_pending, payment_approved after successful payment
@@ -1906,6 +2114,17 @@ paymentsRouter.post('/apple/verify-receipt', expressPkg.json(), requireAuth as a
       console.warn('[apple-iap] Failed to log transaction:', logErr);
     }
 
+    // Send confirmation email
+    if (user?.email) {
+      sendBillingNoticeEmail({
+        to: user.email,
+        type: 'payment_succeeded',
+        planName: plan.charAt(0).toUpperCase() + plan.slice(1),
+        amount: 'Purchased via Apple',
+        manageLink: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/settings/manage-subscription`,
+      }).catch(err => captureException(err as Error, { context: 'apple_iap_confirmation_email' }));
+    }
+
     debugLog('apple-iap', `User ${userId} subscribed to ${plan} via Apple IAP`);
 
     return res.json({
@@ -1917,6 +2136,90 @@ paymentsRouter.post('/apple/verify-receipt', expressPkg.json(), requireAuth as a
     console.error('[apple-iap] verify-receipt error:', err);
     captureException(err, { tags: { context: 'apple-iap-verify' } });
     return res.status(500).json({ error: 'Receipt verification failed' });
+  }
+});
+
+// ── Google Play Billing verification ────────────────────────────────
+const GOOGLE_PRODUCT_TO_PLAN: Record<string, string> = {
+  veteran_vhub: 'veteran',
+  Legend_vhub: 'legend',
+};
+
+// Google Play purchase verification — uses requireAuth (not requireVerified) because Google
+// already charged the user; blocking on email verification would leave them in a broken state.
+paymentsRouter.post('/google/verify-purchase', expressPkg.json(), requireAuth as any, async (req: AuthedRequest, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'AUTH_REQUIRED' });
+
+    const { purchase_token, product_id, package_name } = req.body || {};
+
+    if (!purchase_token || !product_id) {
+      return res.status(400).json({ error: 'Missing purchase_token or product_id' });
+    }
+
+    const plan = GOOGLE_PRODUCT_TO_PLAN[product_id];
+    if (!plan) {
+      return res.status(400).json({ error: `Unknown product: ${product_id}` });
+    }
+
+    // Update user's plan in database
+    // Note: Full Google Play Developer API verification should be added for production hardening.
+    // For now, we trust the purchase token from the client (same pattern as Apple verify-receipt).
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true, email: true } });
+    const currentPrefs = (user?.preferences && typeof user.preferences === 'object') ? user.preferences as any : {};
+
+    // Clear pending flags after successful payment (same as Apple flow)
+    const { payment_pending, payment_approved, pending_plan, join_request_pending, ...restPrefs } = currentPrefs;
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        subscription_tier: plan === 'legend' ? 'pro' : 'premium',
+        subscription_status: 'active',
+        preferences: {
+          ...restPrefs,
+          plan,
+          pending_plan: null,
+          payment_pending: false,
+          google_purchase_token: purchase_token,
+          google_product_id: product_id,
+          subscription_platform: 'google',
+        } as any,
+      },
+    });
+
+    // Log the transaction
+    try {
+      await logTransaction({
+        transactionType: 'SUBSCRIPTION_PURCHASE',
+        status: 'COMPLETED',
+        userId,
+        orderId: purchase_token.substring(0, 40),
+        metadata: { source: 'google_play', product_id, plan, package_name },
+      });
+    } catch (logErr) {
+      console.warn('[google-iap] Failed to log transaction:', logErr);
+    }
+
+    // Send confirmation email
+    if (user?.email) {
+      sendBillingNoticeEmail({
+        to: user.email,
+        type: 'payment_succeeded',
+        planName: plan.charAt(0).toUpperCase() + plan.slice(1),
+        amount: 'Purchased via Google Play',
+        manageLink: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/settings/manage-subscription`,
+      }).catch(err => captureException(err as Error, { context: 'google_iap_confirmation_email' }));
+    }
+
+    debugLog('google-iap', `User ${userId} subscribed to ${plan} via Google Play Billing`);
+
+    return res.json({ ok: true, plan });
+  } catch (err: any) {
+    console.error('[google-iap] verify-purchase error:', err);
+    captureException(err, { tags: { context: 'google-iap-verify' } });
+    return res.status(500).json({ error: 'Verification failed' });
   }
 });
 

@@ -23,6 +23,7 @@ export function OfflineBanner() {
       await checkAuth();
     } catch (error) {
       // Error already handled by AuthProvider, log for debugging
+      // eslint-disable-next-line no-console
       if (__DEV__) console.log('[OfflineBanner] Retry checkAuth error:', error);
     } finally {
       setRetrying(false);

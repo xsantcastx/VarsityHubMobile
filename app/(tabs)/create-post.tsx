@@ -1,6 +1,6 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Animated, Easing, Modal, Platform, Pressable, Image as RNImage, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Animated, Easing, Linking, Modal, Platform, Pressable, Image as RNImage, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Game, Post, User } from '@/api/entities';
@@ -438,7 +438,7 @@ export default function CreatePostScreen() {
 
   const pickFromLibrary = (media: 'image' | 'video') => {
     if (contentConsent) {
-      pickFromLibraryRaw(media);
+      void pickFromLibraryRaw(media);
       return;
     }
     Alert.alert(
@@ -450,7 +450,7 @@ export default function CreatePostScreen() {
           text: 'I Agree',
           onPress: () => {
             setContentConsent(true);
-            pickFromLibraryRaw(media);
+            void pickFromLibraryRaw(media);
           },
         },
       ]
@@ -461,7 +461,10 @@ export default function CreatePostScreen() {
     try {
       const perm = await ImagePicker.requestCameraPermissionsAsync();
       if (!perm.granted) {
-        Alert.alert('Permission required', 'Camera permission is needed to capture media.');
+        Alert.alert('Permission required', 'Camera permission is needed to capture media.', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => Linking.openSettings() },
+        ]);
         return;
       }
       // Version-safe mediaTypes: new SDK uses MediaType array, old SDK uses MediaTypeOptions
@@ -564,7 +567,6 @@ export default function CreatePostScreen() {
     if (__DEV__) console.warn('[CreatePost] State - selectedGameId:', selectedGameId, '| suggestedGame:', suggestedGame?.id);
     setSubmitting(true);
     setError(null);
-    setPreviewVisible(false);
 
     try {
       // Quick network connectivity check
@@ -698,16 +700,7 @@ export default function CreatePostScreen() {
         }
       }
       
-      // Show success message based on where post will appear
-      const postDestination = (payload.game_id || isSelectedSample) ? 'event page' : 'profile';
-      const successMessage = isSelectedSample
-        ? (postType === 'highlight' 
-            ? 'Your highlight has been shared to the sample event!' 
-            : 'Your post has been created for the sample event!')
-        : (postType === 'highlight' 
-            ? (payload.game_id ? 'Your highlight has been shared to the event.' : 'Your highlight has been shared to your profile.') 
-            : `Your post has been created and will appear on the ${postDestination}.`);
-      
+      setPreviewVisible(false);
       setPostSuccess(true);
 
       // Full-screen celebration animation
@@ -782,6 +775,7 @@ export default function CreatePostScreen() {
       }
     } finally {
       setSubmitting(false);
+      if (!postSuccess) setPreviewVisible(false);
     }
   };
 

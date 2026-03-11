@@ -2,7 +2,7 @@ import { Colors } from '@/constants/Colors';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Modal, Platform, Pressable, ScrollView, Share, StyleSheet, Switch, Text, TextInput, useColorScheme, View } from 'react-native';
+import { Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, useColorScheme, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Event, User } from '@/api/entities';
@@ -143,7 +143,7 @@ export default function SettingsScreen() {
                 });
               };
 
-              const restartOnboarding = async () => {
+              const _restartOnboarding = async () => {
                 try {
                   const me: any = await User.me();
                   const prefsFromServer = me?.preferences || {};
@@ -346,7 +346,8 @@ export default function SettingsScreen() {
                     <SectionCard title="Account" initiallyOpen>
                       <NavRow title="Edit Username" onPress={() => void router.push('/settings/edit-username')} />
                       <NavRow title="Reset Password" onPress={() => void router.push('/settings/reset-password')} />
-                      <NavRow title="RSVP History" isLast onPress={() => void router.push('/settings/rsvp-history')} />
+                      <NavRow title="RSVP History" onPress={() => void router.push('/settings/rsvp-history')} />
+                      <NavRow title="Followed Teams" isLast onPress={() => void router.push('/settings/followed-teams')} />
                     </SectionCard>
 
                     {/* Notifications */}
@@ -464,8 +465,6 @@ export default function SettingsScreen() {
 
                     {/* Legal */}
                     <SectionCard title="Legal">
-                      <NavRow title="Legal" subtitle="Terms, Privacy, DMCA & Copyright" onPress={() => void router.push('/settings/legal')} />
-                      <NavRow title="View Core Values" onPress={() => void router.push('/settings/core-values')} />
                       <NavRow title="Privacy Policy" onPress={() => void router.push('/settings/privacy-policy')} />
                       <NavRow title="Terms of Service" onPress={() => void router.push('/settings/terms-of-service')} />
                       <NavRow title="Report Abuse" isLast onPress={() => void router.navigate('/report-abuse')} />

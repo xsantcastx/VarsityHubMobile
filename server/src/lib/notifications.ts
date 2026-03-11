@@ -107,7 +107,8 @@ export async function notifyNewMessage(
   recipientId: string,
   senderId: string,
   senderName: string,
-  messagePreview: string
+  messagePreview: string,
+  conversationId?: string
 ): Promise<void> {
   const user = await prisma.user.findUnique({
     where: { id: recipientId },
@@ -124,8 +125,9 @@ export async function notifyNewMessage(
     messagePreview.substring(0, 100),
     {
       type: 'new_message',
+      screen: 'message-thread',
+      conversation_id: conversationId,
       sender_id: senderId,
-      screen: 'messages',
     }
   );
 }

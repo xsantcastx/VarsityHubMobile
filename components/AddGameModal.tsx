@@ -84,6 +84,7 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
   const [errors, setErrors] = useState<{[key: string]: string}>({});
   const [editorVisible, setEditorVisible] = useState(false);
   const [editingImageUri, setEditingImageUri] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
 
   // Scroll the focused field into view above the keyboard
@@ -98,7 +99,7 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
         target,
         scrollNode,
         () => {},
-        (_x: number, y: number, _w: number, h: number) => {
+        (_x: number, y: number, _w: number, _h: number) => {
           scrollRef.current?.scrollTo({ y: Math.max(0, y - 120), animated: true });
         },
       );
@@ -166,13 +167,18 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSave = () => {
-    if (!validateForm()) {
+  const handleSave = async () => {
+    if (!validateForm() || submitting) {
       return;
     }
-    onSave({ ...formData, opponent_team_id: opponentTeamId });
-    resetForm();
-    onClose();
+    setSubmitting(true);
+    try {
+      onSave({ ...formData, opponent_team_id: opponentTeamId });
+      resetForm();
+      onClose();
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const resetForm = () => {
@@ -250,8 +256,12 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
           
           <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>Add Game</Text>
           
-          <Pressable style={styles.headerButton} onPress={handleSave}>
-            <Text style={[styles.headerButtonText, { color: Colors[colorScheme].tint }]}>Save</Text>
+          <Pressable style={styles.headerButton} onPress={handleSave} disabled={submitting}>
+            {submitting ? (
+              <ActivityIndicator size="small" color={Colors[colorScheme].tint} />
+            ) : (
+              <Text style={[styles.headerButtonText, { color: Colors[colorScheme].tint }]}>Save</Text>
+            )}
           </Pressable>
         </View>
 

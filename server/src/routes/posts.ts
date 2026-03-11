@@ -97,7 +97,7 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
       return res.status(401).json({ items: [], nextCursor: null, followed_feed_meta: { following_count: 0 } });
     }
     const following = await prisma.follows.findMany({
-      where: { follower_id: currentUserId },
+      where: { follower_id: currentUserId, status: 'accepted' },
       select: { following_id: true },
     });
     const followingIds = following.map((f) => f.following_id);
@@ -150,6 +150,15 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
   }
   if (req.query.team_id) {
     where.team_id = String(req.query.team_id);
+  }
+  if (req.query.event_id) {
+    const event = await prisma.event.findUnique({ where: { id: String(req.query.event_id) }, select: { game_id: true } });
+    if (event?.game_id) {
+      where.game_id = event.game_id;
+    } else {
+      // Event not found or has no linked game — no posts to return
+      return res.json({ items: [], nextCursor: null });
+    }
   }
   if (req.query.type) where.type = String(req.query.type);
   if (req.query.user_id) where.author_id = String(req.query.user_id);
@@ -1141,6 +1150,7 @@ postsRouter.post('/:id/comments', requireAuth as any, commentLimiter, async (req
 // Toggle upvote
 
 postsRouter.post('/:id/upvote', requireAuth as any, interactionLimiter, async (req: AuthedRequest, res) => {
+  try {
   const postId = String(req.params.id);
   const userId = req.user!.id;
 
@@ -1162,22 +1172,22 @@ postsRouter.post('/:id/upvote', requireAuth as any, interactionLimiter, async (r
     prisma.post.update({ where: { id: postId }, data: { upvotes_count: { increment: 1 } } }),
   ]);
   const { upvotes_count } = await prisma.post.findFirstOrThrow({ where: { id: postId, deleted_at: null }, select: { upvotes_count: true } });
-  
+
   // Notify post author (if not self)
   try {
-    const post = await prisma.post.findFirst({ 
-      where: { id: postId, deleted_at: null }, 
-      select: { 
+    const post = await prisma.post.findFirst({
+      where: { id: postId, deleted_at: null },
+      select: {
         author_id: true,
         author: { select: { display_name: true } }
-      } 
+      }
     });
     const recipient = post?.author_id;
     if (recipient && recipient !== userId) {
-      await (prisma as any).notification.create({ 
-        data: { user_id: recipient, actor_id: userId, type: 'UPVOTE', post_id: postId } 
+      await (prisma as any).notification.create({
+        data: { user_id: recipient, actor_id: userId, type: 'UPVOTE', post_id: postId }
       });
-      
+
       // Send push notification
       const actor = await prisma.user.findUnique({ where: { id: userId }, select: { display_name: true } });
       if (actor) {
@@ -1194,10 +1204,15 @@ postsRouter.post('/:id/upvote', requireAuth as any, interactionLimiter, async (r
     console.error('Failed to send upvote notification:', e);
   }
   return res.json({ has_upvoted: true, upvotes_count, upvoted: true, count: upvotes_count });
+  } catch (err) {
+    console.error('[posts] upvote error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 
 postsRouter.post('/:id/bookmark', requireAuth as any, interactionLimiter, async (req: AuthedRequest, res) => {
+  try {
   const postId = String(req.params.id);
   const userId = req.user!.id;
 
@@ -1214,10 +1229,15 @@ postsRouter.post('/:id/bookmark', requireAuth as any, interactionLimiter, async 
   await prisma.postBookmark.create({ data: { post_id: postId, user_id: userId } });
   const bookmarks_count = await prisma.postBookmark.count({ where: { post_id: postId } });
   return res.json({ has_bookmarked: true, bookmarks_count, bookmarked: true });
+  } catch (err) {
+    console.error('[posts] bookmark error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Share post (tracks share for notifications)
 postsRouter.post('/:id/share', requireAuth as any, async (req: AuthedRequest, res) => {
+  try {
   const postId = String(req.params.id);
   const userId = req.user!.id;
 
@@ -1251,6 +1271,10 @@ postsRouter.post('/:id/share', requireAuth as any, async (req: AuthedRequest, re
     }
   }
   return res.json({ shared: true });
+  } catch (err) {
+    console.error('[posts] share error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Delete post (author, or coach/owner of team the post is associated with)

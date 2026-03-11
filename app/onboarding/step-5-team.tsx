@@ -1,9 +1,9 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View, useColorScheme } from 'react-native';
+import { ActivityIndicator, Alert, Keyboard, Pressable, StyleSheet, Text, TextInput, View, useColorScheme } from 'react-native';
 // @ts-ignore
-import { Team } from '@/api/entities';
+import { Team, User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useOnboarding } from '@/context/OnboardingContext';
 import OnboardingLayout from './components/OnboardingLayout';
@@ -45,6 +45,7 @@ export default function Step5Team() {
 
   const onContinue = async () => {
     if (!canSubmit) return;
+    Keyboard.dismiss();
     setSaving(true);
     try {
       const created: any = await Team.create({
@@ -60,6 +61,11 @@ export default function Step5Team() {
         team_name: created?.name || teamName.trim(),
         sport: effectiveSport,
       }));
+
+      // Persist team_id to server preferences
+      if (created?.id) {
+        User.updatePreferences({ team_id: created.id }).catch(() => {});
+      }
 
       setProgress(5);
       if (returnToConfirmation) {
@@ -144,7 +150,7 @@ export default function Step5Team() {
   );
 }
 
-const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
+const createStyles = (_colorScheme: 'light' | 'dark') => StyleSheet.create({
   content: { padding: 16 },
   label: { fontSize: 16, fontWeight: '700', marginBottom: 8 },
   input: {

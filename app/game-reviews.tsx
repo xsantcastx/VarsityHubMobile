@@ -14,14 +14,18 @@ export default function GameReviewsScreen() {
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<any[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
+  const [error, setError] = useState(false);
 
   const load = useCallback(async () => {
     if (!game_id) return;
     setLoading(true);
+    setError(false);
     try {
       const page: any = await PostApi.filterPage({ game_id: String(game_id), type: 'review' }, null, 20);
       if (Array.isArray(page)) { setItems(page); setCursor(page.length ? String(page[page.length - 1].id) : null); }
       else { setItems(page?.items || []); setCursor(page?.nextCursor || null); }
+    } catch {
+      setError(true);
     } finally { setLoading(false); }
   }, [game_id]);
 
@@ -42,21 +46,33 @@ export default function GameReviewsScreen() {
             </Pressable>
           ) }} />
       {loading && <ActivityIndicator />}
-      <FlatList
-        data={items}
-        keyExtractor={(i) => String(i.id)}
-        renderItem={({ item }) => (
-          <View style={[styles.card, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
-            {item.title ? <Text style={[styles.title, { color: Colors[colorScheme].text }]}>{String(item.title)}</Text> : null}
-            {item.content ? <Text style={[styles.content, { color: Colors[colorScheme].text }]}>{String(item.content)}</Text> : <Text style={[styles.contentMuted, { color: Colors[colorScheme].mutedText }]}>No content</Text>}
-          </View>
-        )}
-        ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
-        contentContainerStyle={{ padding: 12 }}
-        onEndReached={_loadMore}
-        onEndReachedThreshold={0.5}
-        ListEmptyComponent={!loading ? <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>No reviews yet.</Text> : null}
-      />
+      {error ? (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+          <MaterialIcons name="error-outline" size={48} color={Colors[colorScheme].mutedText} />
+          <Text style={{ color: Colors[colorScheme].text, fontSize: 16, fontWeight: '600', marginTop: 12 }}>
+            Something went wrong
+          </Text>
+          <Pressable onPress={() => { setError(false); void load(); }} style={{ marginTop: 16, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8, backgroundColor: Colors[colorScheme].tint }}>
+            <Text style={{ color: '#fff', fontWeight: '600' }}>Try Again</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <FlatList
+          data={items}
+          keyExtractor={(i) => String(i.id)}
+          renderItem={({ item }) => (
+            <View style={[styles.card, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
+              {item.title ? <Text style={[styles.title, { color: Colors[colorScheme].text }]}>{String(item.title)}</Text> : null}
+              {item.content ? <Text style={[styles.content, { color: Colors[colorScheme].text }]}>{String(item.content)}</Text> : <Text style={[styles.contentMuted, { color: Colors[colorScheme].mutedText }]}>No content</Text>}
+            </View>
+          )}
+          ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
+          contentContainerStyle={{ padding: 12 }}
+          onEndReached={_loadMore}
+          onEndReachedThreshold={0.5}
+          ListEmptyComponent={!loading ? <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>No reviews yet.</Text> : null}
+        />
+      )}
     </View>
   );
 }

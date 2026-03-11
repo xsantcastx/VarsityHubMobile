@@ -115,27 +115,27 @@ const updateOrgSchema = z.object({
 });
 
 organizationsRouter.patch('/:id', requireAuth as any, async (req: AuthedRequest, res) => {
-  const orgId = String(req.params.id);
-  const userId = req.user!.id;
-
-  // Verify user is org admin
-  const membership = await prisma.organizationMembership.findFirst({
-    where: { organization_id: orgId, user_id: userId, status: 'active', role: { in: ['owner', 'manager', 'administrator'] } },
-  });
-  if (!membership) return res.status(403).json({ error: 'Only organization admins can edit this organization.' });
-
-  const parsed = updateOrgSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
-
-  const data = parsed.data;
-
-  // Content filter on name and description
-  if (data.name || data.description) {
-    const filterResult = validateContent({ title: data.name, content: data.description ?? undefined });
-    if (!filterResult.valid) return res.status(400).json({ error: filterResult.error, code: filterResult.code });
-  }
-
   try {
+    const orgId = String(req.params.id);
+    const userId = req.user!.id;
+
+    // Verify user is org admin
+    const membership = await prisma.organizationMembership.findFirst({
+      where: { organization_id: orgId, user_id: userId, status: 'active', role: { in: ['owner', 'manager', 'administrator'] } },
+    });
+    if (!membership) return res.status(403).json({ error: 'Only organization admins can edit this organization.' });
+
+    const parsed = updateOrgSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
+
+    const data = parsed.data;
+
+    // Content filter on name and description
+    if (data.name || data.description) {
+      const filterResult = validateContent({ title: data.name, content: data.description ?? undefined });
+      if (!filterResult.valid) return res.status(400).json({ error: filterResult.error, code: filterResult.code });
+    }
+
     const updated = await prisma.organization.update({
       where: { id: orgId },
       data: {
@@ -152,121 +152,141 @@ organizationsRouter.patch('/:id', requireAuth as any, async (req: AuthedRequest,
   } catch (err: any) {
     if (err?.code === 'P2002') return res.status(409).json({ error: 'An organization with that name already exists in this area.' });
     console.error('[organizations] PATCH /:id error:', err);
-    return res.status(500).json({ error: 'Failed to update organization.' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 // Follow an organization
 organizationsRouter.post('/:id/follow', requireAuth as any, async (req: AuthedRequest, res) => {
-  const userId = req.user!.id;
-  const orgId = String(req.params.id);
-  const org = await prisma.organization.findUnique({ where: { id: orgId } });
-  if (!org) return res.status(404).json({ error: 'Organization not found' });
   try {
-    await prisma.organizationFollow.create({ data: { user_id: userId, organization_id: orgId } });
-    return res.status(201).json({ is_following: true });
-  } catch (e: any) {
-    if (e?.code === 'P2002') return res.status(201).json({ is_following: true });
-    throw e;
+    const userId = req.user!.id;
+    const orgId = String(req.params.id);
+    const org = await prisma.organization.findUnique({ where: { id: orgId } });
+    if (!org) return res.status(404).json({ error: 'Organization not found' });
+    try {
+      await prisma.organizationFollow.create({ data: { user_id: userId, organization_id: orgId } });
+      return res.status(201).json({ is_following: true });
+    } catch (e: any) {
+      if (e?.code === 'P2002') return res.status(201).json({ is_following: true });
+      throw e;
+    }
+  } catch (err) {
+    console.error('[organizations] POST /:id/follow error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 // Unfollow an organization
 organizationsRouter.delete('/:id/follow', requireAuth as any, async (req: AuthedRequest, res) => {
-  const userId = req.user!.id;
-  const orgId = String(req.params.id);
-  await prisma.organizationFollow.deleteMany({ where: { user_id: userId, organization_id: orgId } });
-  return res.json({ is_following: false });
+  try {
+    const userId = req.user!.id;
+    const orgId = String(req.params.id);
+    await prisma.organizationFollow.deleteMany({ where: { user_id: userId, organization_id: orgId } });
+    return res.json({ is_following: false });
+  } catch (err) {
+    console.error('[organizations] DELETE /:id/follow error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Get single organization
 organizationsRouter.get('/:id', async (req, res) => {
-  const id = String(req.params.id);
-  const currentUserId = (req as AuthedRequest).user?.id ?? null;
-  const organization = await prisma.organization.findUnique({ 
-    where: { id },
-    include: {
-      _count: { select: { followers: true } },
-      teams: {
-        orderBy: { name: 'asc' },
-        select: { 
-          id: true,
-          name: true,
-          description: true,
-          sport: true,
-          season_start: true,
-          season_end: true,
-          status: true,
-          logo_url: true,
-          avatar_url: true,
-          created_at: true,
-          _count: {
-            select: {
-              memberships: true,
+  try {
+    const id = String(req.params.id);
+    const currentUserId = (req as AuthedRequest).user?.id ?? null;
+    const organization = await prisma.organization.findUnique({
+      where: { id },
+      include: {
+        _count: { select: { followers: true } },
+        teams: {
+          orderBy: { name: 'asc' },
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            sport: true,
+            season_start: true,
+            season_end: true,
+            status: true,
+            logo_url: true,
+            avatar_url: true,
+            created_at: true,
+            _count: {
+              select: {
+                memberships: true,
+              }
             }
           }
-        }
-      },
-      memberships: {
-        include: {
-          user: {
-            select: { id: true, display_name: true, avatar_url: true }
-          }
         },
-        orderBy: { created_at: 'desc' }
+        memberships: {
+          include: {
+            user: {
+              select: { id: true, display_name: true, avatar_url: true }
+            }
+          },
+          orderBy: { created_at: 'desc' }
+        }
       }
-    }
-  });
-  
-  if (!organization) return res.status(404).json({ error: 'Organization not found' });
-  const payload = { ...organization } as any;
-  payload.followers_count = (organization as any)._count?.followers ?? 0;
-  payload.is_following = currentUserId
-    ? !!(await prisma.organizationFollow.findFirst({ where: { user_id: currentUserId, organization_id: id } }))
-    : null;
-  delete payload._count;
-  return res.json(payload);
+    });
+
+    if (!organization) return res.status(404).json({ error: 'Organization not found' });
+    const payload = { ...organization } as any;
+    payload.followers_count = (organization as any)._count?.followers ?? 0;
+    payload.is_following = currentUserId
+      ? !!(await prisma.organizationFollow.findFirst({ where: { user_id: currentUserId, organization_id: id } }))
+      : null;
+    delete payload._count;
+    return res.json(payload);
+  } catch (err) {
+    console.error('[organizations] GET /:id error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Get organization members
 organizationsRouter.get('/:id/members', async (req, res) => {
-  const id = String(req.params.id);
-  const organization = await prisma.organization.findUnique({ where: { id } });
-  if (!organization) return res.status(404).json({ error: 'Organization not found' });
-  
-  const members = await prisma.organizationMembership.findMany({
-    where: { organization_id: id, status: 'active' },
-    take: 500,
-    include: {
-      user: {
-        select: {
-          id: true,
-          display_name: true,
-          username: true,
-          avatar_url: true,
-          preferences: true
-        }
-      }
-    },
-    orderBy: { created_at: 'desc' }
-  });
+  try {
+    const id = String(req.params.id);
+    const organization = await prisma.organization.findUnique({ where: { id } });
+    if (!organization) return res.status(404).json({ error: 'Organization not found' });
 
-  const list = members.map((m) => {
-    const user = (m as any).user;
-    const prefs = (user?.preferences || {}) as any;
-    return {
-      ...m,
-      user: {
-        id: user?.id,
-        display_name: user?.display_name,
-        username: user?.username,
-        avatar_url: user?.avatar_url,
-        is_parent: prefs?.is_parent === true,
-      }
-    };
-  });
-  
-  return res.json(list);
+    const members = await prisma.organizationMembership.findMany({
+      where: { organization_id: id, status: 'active' },
+      take: 500,
+      include: {
+        user: {
+          select: {
+            id: true,
+            display_name: true,
+            username: true,
+            avatar_url: true,
+            preferences: true
+          }
+        }
+      },
+      orderBy: { created_at: 'desc' }
+    });
+
+    const list = members.map((m) => {
+      const user = (m as any).user;
+      const prefs = (user?.preferences || {}) as any;
+      return {
+        ...m,
+        user: {
+          id: user?.id,
+          display_name: user?.display_name,
+          username: user?.username,
+          avatar_url: user?.avatar_url,
+          is_parent: prefs?.is_parent === true,
+        }
+      };
+    });
+
+    return res.json(list);
+  } catch (err) {
+    console.error('[organizations] GET /:id/members error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 const createOrganizationSchema = z.object({
@@ -282,52 +302,57 @@ const createOrganizationSchema = z.object({
 
 // Create organization
 organizationsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
-  const parsed = createOrganizationSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
-  
-  const data = parsed.data;
-  // Duplicate guard: when zip_code is provided scope to that area; otherwise skip the
-  // full-table scan (no zip_code means we can't reliably detect cross-area duplicates and
-  // `zip_code: undefined` in a Prisma where clause removes the filter entirely, causing a
-  // scan of ALL organizations).
-  const nm = normalizeOrganizationName(data.name);
-  let dup: { id: string; name: string } | null = null;
-  if (data.zip_code) {
-    const sameZipOrgs = await prisma.organization.findMany({
-      where: { zip_code: data.zip_code, status: 'active' },
-      select: { id: true, name: true },
-      take: 100,
-    });
-    dup = sameZipOrgs.find(o => normalizeOrganizationName(o.name) === nm) ?? null;
-  }
-  if (dup) {
-    return res.status(409).json({ error: 'DUPLICATE_ORGANIZATION', duplicate_of: { id: dup.id, name: dup.name } });
-  }
-  const filterResult = validateContent({ title: data.name, content: data.description ?? undefined });
-  if (!filterResult.valid) {
-    return res.status(400).json({ error: filterResult.error, code: filterResult.code });
-  }
-  // Transaction: create org + owner membership atomically
-  const organization = await prisma.$transaction(async (tx) => {
-    const org = await tx.organization.create({
-      data: {
-        ...data,
-        season_start: data.season_start ? new Date(data.season_start) : null,
-        season_end: data.season_end ? new Date(data.season_end) : null,
-        updated_at: new Date(),
-      }
-    });
-    await tx.organizationMembership.create({
-      data: {
-        organization_id: org.id,
-        user_id: req.user!.id,
-        role: 'owner'
-      }
-    });
-    return org;
-  });
+  try {
+    const parsed = createOrganizationSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
 
-  return res.status(201).json(organization);
+    const data = parsed.data;
+    // Duplicate guard: when zip_code is provided scope to that area; otherwise skip the
+    // full-table scan (no zip_code means we can't reliably detect cross-area duplicates and
+    // `zip_code: undefined` in a Prisma where clause removes the filter entirely, causing a
+    // scan of ALL organizations).
+    const nm = normalizeOrganizationName(data.name);
+    let dup: { id: string; name: string } | null = null;
+    if (data.zip_code) {
+      const sameZipOrgs = await prisma.organization.findMany({
+        where: { zip_code: data.zip_code, status: 'active' },
+        select: { id: true, name: true },
+        take: 100,
+      });
+      dup = sameZipOrgs.find(o => normalizeOrganizationName(o.name) === nm) ?? null;
+    }
+    if (dup) {
+      return res.status(409).json({ error: 'DUPLICATE_ORGANIZATION', duplicate_of: { id: dup.id, name: dup.name } });
+    }
+    const filterResult = validateContent({ title: data.name, content: data.description ?? undefined });
+    if (!filterResult.valid) {
+      return res.status(400).json({ error: filterResult.error, code: filterResult.code });
+    }
+    // Transaction: create org + owner membership atomically
+    const organization = await prisma.$transaction(async (tx) => {
+      const org = await tx.organization.create({
+        data: {
+          ...data,
+          season_start: data.season_start ? new Date(data.season_start) : null,
+          season_end: data.season_end ? new Date(data.season_end) : null,
+          updated_at: new Date(),
+        }
+      });
+      await tx.organizationMembership.create({
+        data: {
+          organization_id: org.id,
+          user_id: req.user!.id,
+          role: 'owner'
+        }
+      });
+      return org;
+    });
+
+    return res.status(201).json(organization);
+  } catch (err) {
+    console.error('[organizations] POST / error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 const createOrganizationWithTeamsSchema = z.object({
@@ -349,91 +374,96 @@ const createOrganizationWithTeamsSchema = z.object({
 
 // Enhanced create organization for onboarding
 organizationsRouter.post('/create', requireAuth as any, async (req: AuthedRequest, res) => {
-  const parsed = createOrganizationWithTeamsSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
-  
-  const data = parsed.data;
-  // Duplicate guard (same logic as simple create)
-  const nm = normalizeOrganizationName(data.name);
-  const possibleDuplicates = await prisma.organization.findMany({
-    where: {
-      zip_code: data.zip_code || undefined,
-      status: 'active'
-    },
-    select: { id: true, name: true, zip_code: true },
-    take: 100,
-  });
-  const dup = possibleDuplicates.find(o => normalizeOrganizationName(o.name) === nm);
-  if (dup) {
-    return res.status(409).json({ error: 'DUPLICATE_ORGANIZATION', duplicate_of: { id: dup.id, name: dup.name } });
-  }
-  const filterResult = validateContent({ title: data.name, content: data.description ?? undefined });
-  if (!filterResult.valid) {
-    return res.status(400).json({ error: filterResult.error, code: filterResult.code });
-  }
-  
-  // Transaction: create org + owner membership atomically
-  const organization = await prisma.$transaction(async (tx) => {
-    const org = await tx.organization.create({
-      data: {
-        name: data.name,
-        description: data.description,
-        sport: data.sport,
-        org_type: data.org_type,
-        location: data.location,
-        zip_code: data.zip_code,
-        season_start: data.season_start ? new Date(data.season_start) : null,
-        season_end: data.season_end ? new Date(data.season_end) : null,
-        updated_at: new Date(),
-      }
-    });
-    await tx.organizationMembership.create({
-      data: {
-        organization_id: org.id,
-        user_id: req.user!.id,
-        role: 'owner'
-      }
-    });
-    return org;
-  });
+  try {
+    const parsed = createOrganizationWithTeamsSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
 
-  // Send invites to authorized users
-  if (data.authorized_users && data.authorized_users.length > 0) {
-    const invites = data.authorized_users
-      .filter(user => user.email)
-      .map(user => ({
-        organization_id: organization.id,
-        email: user.email!,
-        role: user.role || 'member',
-      }));
-    
-    if (invites.length > 0) {
-      await prisma.organizationInvite.createMany({
-        data: invites,
-        skipDuplicates: true,
-      });
-      // Send invite emails (best effort)
-      const [inviter, createdInvites] = await Promise.all([
-        prisma.user.findUnique({ where: { id: req.user!.id }, select: { display_name: true } }),
-        prisma.organizationInvite.findMany({
-          where: { organization_id: organization.id, email: { in: invites.map(i => i.email) } },
-          select: { id: true, email: true },
-        }),
-      ]);
-      const tokenByEmail = Object.fromEntries(createdInvites.map(i => [i.email, i.id]));
-      await Promise.all(invites.map(inv =>
-        sendOrganizationInviteEmail({
-          to: inv.email,
-          organizationName: organization.name,
-          role: inv.role,
-          inviterName: inviter?.display_name || 'An organizer',
-          inviteToken: tokenByEmail[inv.email],
-        }).catch(() => false)
-      ));
+    const data = parsed.data;
+    // Duplicate guard (same logic as simple create)
+    const nm = normalizeOrganizationName(data.name);
+    const possibleDuplicates = await prisma.organization.findMany({
+      where: {
+        zip_code: data.zip_code || undefined,
+        status: 'active'
+      },
+      select: { id: true, name: true, zip_code: true },
+      take: 100,
+    });
+    const dup = possibleDuplicates.find(o => normalizeOrganizationName(o.name) === nm);
+    if (dup) {
+      return res.status(409).json({ error: 'DUPLICATE_ORGANIZATION', duplicate_of: { id: dup.id, name: dup.name } });
     }
+    const filterResult = validateContent({ title: data.name, content: data.description ?? undefined });
+    if (!filterResult.valid) {
+      return res.status(400).json({ error: filterResult.error, code: filterResult.code });
+    }
+
+    // Transaction: create org + owner membership atomically
+    const organization = await prisma.$transaction(async (tx) => {
+      const org = await tx.organization.create({
+        data: {
+          name: data.name,
+          description: data.description,
+          sport: data.sport,
+          org_type: data.org_type,
+          location: data.location,
+          zip_code: data.zip_code,
+          season_start: data.season_start ? new Date(data.season_start) : null,
+          season_end: data.season_end ? new Date(data.season_end) : null,
+          updated_at: new Date(),
+        }
+      });
+      await tx.organizationMembership.create({
+        data: {
+          organization_id: org.id,
+          user_id: req.user!.id,
+          role: 'owner'
+        }
+      });
+      return org;
+    });
+
+    // Send invites to authorized users
+    if (data.authorized_users && data.authorized_users.length > 0) {
+      const invites = data.authorized_users
+        .filter(user => user.email)
+        .map(user => ({
+          organization_id: organization.id,
+          email: user.email!,
+          role: user.role || 'member',
+        }));
+
+      if (invites.length > 0) {
+        await prisma.organizationInvite.createMany({
+          data: invites,
+          skipDuplicates: true,
+        });
+        // Send invite emails (best effort)
+        const [inviter, createdInvites] = await Promise.all([
+          prisma.user.findUnique({ where: { id: req.user!.id }, select: { display_name: true } }),
+          prisma.organizationInvite.findMany({
+            where: { organization_id: organization.id, email: { in: invites.map(i => i.email) } },
+            select: { id: true, email: true },
+          }),
+        ]);
+        const tokenByEmail = Object.fromEntries(createdInvites.map(i => [i.email, i.id]));
+        await Promise.all(invites.map(inv =>
+          sendOrganizationInviteEmail({
+            to: inv.email,
+            organizationName: organization.name,
+            role: inv.role,
+            inviterName: inviter?.display_name || 'An organizer',
+            inviteToken: tokenByEmail[inv.email],
+          }).catch(() => false)
+        ));
+      }
+    }
+
+    return res.status(201).json(organization);
+  } catch (err) {
+    console.error('[organizations] POST /create error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
   }
-  
-  return res.status(201).json(organization);
 });
 
 const inviteUserSchema = z.object({
@@ -445,17 +475,18 @@ const inviteUserSchema = z.object({
 // Rule B: No plan gate on the inviting user — authorized users are covered by the org owner's plan.
 // The plan-based user limit is enforced inside the handler using the org owner's tier.
 organizationsRouter.post('/:id/invite', requireAuth as any, inviteLimiter, async (req: AuthedRequest, res) => {
+  try {
   const id = String(req.params.id);
   const parsed = inviteUserSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
-  
+
   const { email, role } = parsed.data;
-  
+
   // Check if user is a member of the organization
   const membership = await prisma.organizationMembership.findUnique({
     where: { organization_id_user_id: { organization_id: id, user_id: req.user!.id } as any }
   });
-  
+
   if (!membership || !isOrganizationAdmin(membership.role)) {
     return res.status(403).json({ error: 'Insufficient permissions' });
   }
@@ -521,66 +552,85 @@ organizationsRouter.post('/:id/invite', requireAuth as any, inviteLimiter, async
   }
   
   return res.status(201).json(invite);
+  } catch (err) {
+    console.error('[organizations] POST /:id/invite error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Get my organization invites
 organizationsRouter.get('/invites/me', requireAuth as any, async (req: AuthedRequest, res) => {
-  const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
-  if (!user) return res.status(404).json({ error: 'User not found' });
-  
-  const invites = await prisma.organizationInvite.findMany({ 
-    where: { email: user.email, status: 'pending' }, 
-    include: { organization: true }, 
-    orderBy: { created_at: 'desc' } 
-  });
-  
-  return res.json(invites);
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const invites = await prisma.organizationInvite.findMany({
+      where: { email: user.email, status: 'pending' },
+      include: { organization: true },
+      orderBy: { created_at: 'desc' }
+    });
+
+    return res.json(invites);
+  } catch (err) {
+    console.error('[organizations] GET /invites/me error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Accept organization invite
 organizationsRouter.post('/invites/:inviteId/accept', requireAuth as any, async (req: AuthedRequest, res) => {
-  const inviteId = String(req.params.inviteId);
-  const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
-  if (!user) return res.status(404).json({ error: 'User not found' });
-  
-  const invite = await prisma.organizationInvite.findUnique({ where: { id: inviteId } });
-  if (!invite || invite.email !== user.email || invite.status !== 'pending') {
-    return res.status(404).json({ error: 'Invite not found or not valid' });
+  try {
+    const inviteId = String(req.params.inviteId);
+    const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const invite = await prisma.organizationInvite.findUnique({ where: { id: inviteId } });
+    if (!invite || invite.email !== user.email || invite.status !== 'pending') {
+      return res.status(404).json({ error: 'Invite not found or not valid' });
+    }
+
+    await prisma.$transaction([
+      prisma.organizationMembership.upsert({
+        where: { organization_id_user_id: { organization_id: invite.organization_id, user_id: user.id } as any },
+        update: { role: invite.role, status: 'active' },
+        create: { organization_id: invite.organization_id, user_id: user.id, role: invite.role, status: 'active' }
+      }),
+      prisma.organizationInvite.update({ where: { id: inviteId }, data: { status: 'accepted' } }),
+    ]);
+
+    // Send welcome email
+    const org = await prisma.organization.findUnique({ where: { id: invite.organization_id }, select: { name: true } });
+    if (org) {
+      await sendOrganizationApprovalEmail({ to: user.email, organizationName: org.name }).catch(err =>
+        console.warn('[org-invite-accept] Email send failed:', err)
+      );
+    }
+
+    return res.json({ message: 'Invite accepted' });
+  } catch (err) {
+    console.error('[organizations] POST /invites/:inviteId/accept error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
   }
-  
-  await prisma.$transaction([
-    prisma.organizationMembership.upsert({ 
-      where: { organization_id_user_id: { organization_id: invite.organization_id, user_id: user.id } as any }, 
-      update: { role: invite.role, status: 'active' }, 
-      create: { organization_id: invite.organization_id, user_id: user.id, role: invite.role, status: 'active' } 
-    }),
-    prisma.organizationInvite.update({ where: { id: inviteId }, data: { status: 'accepted' } }),
-  ]);
-  
-  // Send welcome email
-  const org = await prisma.organization.findUnique({ where: { id: invite.organization_id }, select: { name: true } });
-  if (org) {
-    await sendOrganizationApprovalEmail({ to: user.email, organizationName: org.name }).catch(err => 
-      console.warn('[org-invite-accept] Email send failed:', err)
-    );
-  }
-  
-  return res.json({ message: 'Invite accepted' });
 });
 
 // Decline organization invite
 organizationsRouter.post('/invites/:inviteId/decline', requireAuth as any, async (req: AuthedRequest, res) => {
-  const inviteId = String(req.params.inviteId);
-  const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
-  if (!user) return res.status(404).json({ error: 'User not found' });
-  
-  const invite = await prisma.organizationInvite.findUnique({ where: { id: inviteId } });
-  if (!invite || invite.email !== user.email || invite.status !== 'pending') {
-    return res.status(404).json({ error: 'Invite not found or not valid' });
+  try {
+    const inviteId = String(req.params.inviteId);
+    const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const invite = await prisma.organizationInvite.findUnique({ where: { id: inviteId } });
+    if (!invite || invite.email !== user.email || invite.status !== 'pending') {
+      return res.status(404).json({ error: 'Invite not found or not valid' });
+    }
+
+    await prisma.organizationInvite.update({ where: { id: inviteId }, data: { status: 'declined' } });
+    return res.json({ message: 'Invite declined' });
+  } catch (err) {
+    console.error('[organizations] POST /invites/:inviteId/decline error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
   }
-  
-  await prisma.organizationInvite.update({ where: { id: inviteId }, data: { status: 'declined' } });
-  return res.json({ message: 'Invite declined' });
 });
 
 // ===========================================
@@ -589,101 +639,111 @@ organizationsRouter.post('/invites/:inviteId/decline', requireAuth as any, async
 
 // Search organizations by zip code / proximity
 organizationsRouter.get('/search/nearby', async (req, res) => {
-  const query = String((req.query as any).query || '').trim();
-  const sport = String((req.query as any).sport || '').trim();
-  const orgType = String((req.query as any).org_type || '').trim();
-  const limit = Math.min(parseInt(String((req.query as any).limit || '20'), 10) || 20, 50);
-  
-  debugLog('🔍 Organization search request:', { query, sport, orgType, limit });
-  
-  if (!query) {
-    return res.status(400).json({ error: 'query parameter is required' });
-  }
-  
-  // Check if query is a zip code (5 digits) or organization name
-  const isZipCode = /^\d{5}$/.test(query);
-  
-  const where: any = {
-    status: 'active',
-    OR: isZipCode 
-      ? [{ zip_code: query }]
-      : [
-          { name: { contains: query, mode: 'insensitive' } },
-          { location: { contains: query, mode: 'insensitive' } }
-        ]
-  };
-  
-  if (sport) where.sport = sport;
-  if (orgType) where.org_type = orgType;
-  
-  const organizations = await prisma.organization.findMany({
-    where,
-    take: limit,
-    orderBy: { created_at: 'desc' },
-    select: { 
-      id: true, 
-      name: true, 
-      description: true, 
-      sport: true,
-      org_type: true,
-      location: true,
-      zip_code: true,
-      created_at: true,
-      _count: {
-        select: {
-          memberships: true,
-          teams: true
+  try {
+    const query = String((req.query as any).query || '').trim();
+    const sport = String((req.query as any).sport || '').trim();
+    const orgType = String((req.query as any).org_type || '').trim();
+    const limit = Math.min(parseInt(String((req.query as any).limit || '20'), 10) || 20, 50);
+
+    debugLog('🔍 Organization search request:', { query, sport, orgType, limit });
+
+    if (!query) {
+      return res.status(400).json({ error: 'query parameter is required' });
+    }
+
+    // Check if query is a zip code (5 digits) or organization name
+    const isZipCode = /^\d{5}$/.test(query);
+
+    const where: any = {
+      status: 'active',
+      OR: isZipCode
+        ? [{ zip_code: query }]
+        : [
+            { name: { contains: query, mode: 'insensitive' } },
+            { location: { contains: query, mode: 'insensitive' } }
+          ]
+    };
+
+    if (sport) where.sport = sport;
+    if (orgType) where.org_type = orgType;
+
+    const organizations = await prisma.organization.findMany({
+      where,
+      take: limit,
+      orderBy: { created_at: 'desc' },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        sport: true,
+        org_type: true,
+        location: true,
+        zip_code: true,
+        created_at: true,
+        _count: {
+          select: {
+            memberships: true,
+            teams: true
+          }
         }
-      }
-    },
-  });
-  
-  debugLog(`✅ Found ${organizations.length} organizations matching "${query}"`);
-  return res.json(organizations);
+      },
+    });
+
+    debugLog(`✅ Found ${organizations.length} organizations matching "${query}"`);
+    return res.json(organizations);
+  } catch (err) {
+    console.error('[organizations] GET /search/nearby error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Check for duplicate organizations using normalized name comparison
 organizationsRouter.post('/check-duplicate', requireAuth as any, async (req, res) => {
-  const { name, zip_code } = req.body;
+  try {
+    const { name, zip_code } = req.body;
 
-  if (!name) {
-    return res.status(400).json({ error: 'name is required' });
-  }
+    if (!name) {
+      return res.status(400).json({ error: 'name is required' });
+    }
 
-  const normalizedInput = normalizeOrganizationName(name);
-  if (!normalizedInput) {
-    return res.json({ exists: false, organization: null });
-  }
+    const normalizedInput = normalizeOrganizationName(name);
+    if (!normalizedInput) {
+      return res.json({ exists: false, organization: null });
+    }
 
-  // If zip_code provided, check orgs in that zip first
-  if (zip_code) {
-    const localOrgs = await prisma.organization.findMany({
-      where: { zip_code, status: 'active' },
+    // If zip_code provided, check orgs in that zip first
+    if (zip_code) {
+      const localOrgs = await prisma.organization.findMany({
+        where: { zip_code, status: 'active' },
+        select: { id: true, name: true, location: true, sport: true },
+      });
+      const localMatch = localOrgs.find(
+        (o) => normalizeOrganizationName(o.name) === normalizedInput
+      );
+      if (localMatch) {
+        return res.json({ exists: true, organization: localMatch });
+      }
+    }
+
+    // Broader name-only scan as fallback (recent 200 active orgs)
+    const recentOrgs = await prisma.organization.findMany({
+      where: { status: 'active' },
+      orderBy: { created_at: 'desc' },
+      take: 200,
       select: { id: true, name: true, location: true, sport: true },
     });
-    const localMatch = localOrgs.find(
+    const broadMatch = recentOrgs.find(
       (o) => normalizeOrganizationName(o.name) === normalizedInput
     );
-    if (localMatch) {
-      return res.json({ exists: true, organization: localMatch });
-    }
+
+    return res.json({
+      exists: !!broadMatch,
+      organization: broadMatch ?? null,
+    });
+  } catch (err) {
+    console.error('[organizations] POST /check-duplicate error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
   }
-
-  // Broader name-only scan as fallback (recent 200 active orgs)
-  const recentOrgs = await prisma.organization.findMany({
-    where: { status: 'active' },
-    orderBy: { created_at: 'desc' },
-    take: 200,
-    select: { id: true, name: true, location: true, sport: true },
-  });
-  const broadMatch = recentOrgs.find(
-    (o) => normalizeOrganizationName(o.name) === normalizedInput
-  );
-
-  return res.json({
-    exists: !!broadMatch,
-    organization: broadMatch ?? null,
-  });
 });
 
 // Create join request
@@ -693,172 +753,188 @@ const createJoinRequestSchema = z.object({
 });
 
 organizationsRouter.post('/join-requests', requireAuth as any, async (req: AuthedRequest, res) => {
-  const parsed = createJoinRequestSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
-  
-  const { organization_id, message } = parsed.data;
-  
-  // Check if organization exists
-  const organization = await prisma.organization.findUnique({ 
-    where: { id: organization_id },
-    include: {
-      memberships: {
-        where: { role: 'owner' },
-        include: {
-          user: {
-            select: { id: true, email: true, display_name: true }
+  try {
+    const parsed = createJoinRequestSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
+
+    const { organization_id, message } = parsed.data;
+
+    // Check if organization exists
+    const organization = await prisma.organization.findUnique({
+      where: { id: organization_id },
+      include: {
+        memberships: {
+          where: { role: 'owner' },
+          include: {
+            user: {
+              select: { id: true, email: true, display_name: true }
+            }
           }
         }
       }
+    });
+
+    if (!organization) {
+      return res.status(404).json({ error: 'Organization not found' });
     }
-  });
-  
-  if (!organization) {
-    return res.status(404).json({ error: 'Organization not found' });
-  }
-  
-  // Check if user is already a member
-  const existingMembership = await prisma.organizationMembership.findUnique({
-    where: { 
-      organization_id_user_id: { 
-        organization_id, 
-        user_id: req.user!.id 
-      } as any 
+
+    // Check if user is already a member
+    const existingMembership = await prisma.organizationMembership.findUnique({
+      where: {
+        organization_id_user_id: {
+          organization_id,
+          user_id: req.user!.id
+        } as any
+      }
+    });
+
+    if (existingMembership) {
+      return res.status(400).json({ error: 'You are already a member of this organization' });
     }
-  });
-  
-  if (existingMembership) {
-    return res.status(400).json({ error: 'You are already a member of this organization' });
-  }
-  
-  // Check for existing pending request
-  const existingRequest = await prisma.organizationJoinRequest.findUnique({
-    where: {
-      organization_id_user_id: {
+
+    // Check for existing pending request
+    const existingRequest = await prisma.organizationJoinRequest.findUnique({
+      where: {
+        organization_id_user_id: {
+          organization_id,
+          user_id: req.user!.id
+        } as any
+      }
+    });
+
+    if (existingRequest && existingRequest.status === 'pending') {
+      return res.status(400).json({ error: 'You already have a pending request for this organization' });
+    }
+
+    // Create or update join request
+    const joinRequest = await prisma.organizationJoinRequest.upsert({
+      where: {
+        organization_id_user_id: {
+          organization_id,
+          user_id: req.user!.id
+        } as any
+      },
+      create: {
         organization_id,
-        user_id: req.user!.id
-      } as any
-    }
-  });
-  
-  if (existingRequest && existingRequest.status === 'pending') {
-    return res.status(400).json({ error: 'You already have a pending request for this organization' });
-  }
-  
-  // Create or update join request
-  const joinRequest = await prisma.organizationJoinRequest.upsert({
-    where: {
-      organization_id_user_id: {
-        organization_id,
-        user_id: req.user!.id
-      } as any
-    },
-    create: {
-      organization_id,
-      user_id: req.user!.id,
-      message,
-      status: 'pending'
-    },
-    update: {
-      message,
-      status: 'pending',
-      created_at: new Date(),
-      reviewed_at: null,
-      reviewed_by: null
-    },
-    include: {
-      user: {
-        select: { id: true, display_name: true, email: true }
+        user_id: req.user!.id,
+        message,
+        status: 'pending'
+      },
+      update: {
+        message,
+        status: 'pending',
+        created_at: new Date(),
+        reviewed_at: null,
+        reviewed_by: null
+      },
+      include: {
+        user: {
+          select: { id: true, display_name: true, email: true }
+        }
+      }
+    });
+
+    // Send email notification to organization owners
+    if (organization.memberships.length > 0) {
+      const owner = organization.memberships[0];
+      try {
+        await sendJoinRequestToAdmin({
+          adminEmail: owner.user.email,
+          adminName: owner.user.display_name || 'Admin',
+          requesterName: joinRequest.user.display_name || 'A user',
+          organizationName: organization.name,
+          message: message,
+          requestId: joinRequest.id,
+        });
+      } catch (err) {
+        console.error('Failed to send join request email to admin:', err);
       }
     }
-  });
-  
-  // Send email notification to organization owners
-  if (organization.memberships.length > 0) {
-    const owner = organization.memberships[0];
-    try {
-      await sendJoinRequestToAdmin({
-        adminEmail: owner.user.email,
-        adminName: owner.user.display_name || 'Admin',
-        requesterName: joinRequest.user.display_name || 'A user',
-        organizationName: organization.name,
-        message: message,
-        requestId: joinRequest.id,
-      });
-    } catch (err) {
-      console.error('Failed to send join request email to admin:', err);
-    }
+
+    return res.status(201).json(joinRequest);
+  } catch (err) {
+    console.error('[organizations] POST /join-requests error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
   }
-  
-  return res.status(201).json(joinRequest);
 });
 
 // Get join requests for an organization (admin only)
 organizationsRouter.get('/:id/join-requests', requireAuth as any, async (req: AuthedRequest, res) => {
-  const id = String(req.params.id);
-  const status = String((req.query as any).status || 'pending');
-  
-  // Check if user is owner/manager
-  const membership = await prisma.organizationMembership.findUnique({
-    where: { 
-      organization_id_user_id: { 
-        organization_id: id, 
-        user_id: req.user!.id 
-      } as any 
-    }
-  });
-  
-  if (!membership || !isOrganizationAdmin(membership.role)) {
-    return res.status(403).json({ error: 'Insufficient permissions' });
-  }
-  
-  const joinRequests = await prisma.organizationJoinRequest.findMany({
-    where: {
-      organization_id: id,
-      status: status === 'all' ? undefined : status
-    },
-    include: {
-      user: {
-        select: {
-          id: true,
-          display_name: true,
-          username: true,
-          avatar_url: true,
-          email: true
-        }
+  try {
+    const id = String(req.params.id);
+    const status = String((req.query as any).status || 'pending');
+
+    // Check if user is owner/manager
+    const membership = await prisma.organizationMembership.findUnique({
+      where: {
+        organization_id_user_id: {
+          organization_id: id,
+          user_id: req.user!.id
+        } as any
       }
-    },
-    orderBy: { created_at: 'desc' }
-  });
-  
-  return res.json(joinRequests);
+    });
+
+    if (!membership || !isOrganizationAdmin(membership.role)) {
+      return res.status(403).json({ error: 'Insufficient permissions' });
+    }
+
+    const joinRequests = await prisma.organizationJoinRequest.findMany({
+      where: {
+        organization_id: id,
+        status: status === 'all' ? undefined : status
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            display_name: true,
+            username: true,
+            avatar_url: true,
+            email: true
+          }
+        }
+      },
+      orderBy: { created_at: 'desc' }
+    });
+
+    return res.json(joinRequests);
+  } catch (err) {
+    console.error('[organizations] GET /:id/join-requests error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Get user's own join requests
 organizationsRouter.get('/join-requests/me', requireAuth as any, async (req: AuthedRequest, res) => {
-  const joinRequests = await prisma.organizationJoinRequest.findMany({
-    where: { user_id: req.user!.id },
-    include: {
-      organization: {
-        select: {
-          id: true,
-          name: true,
-          description: true,
-          sport: true,
-          location: true
+  try {
+    const joinRequests = await prisma.organizationJoinRequest.findMany({
+      where: { user_id: req.user!.id },
+      include: {
+        organization: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            sport: true,
+            location: true
+          }
         }
-      }
-    },
-    orderBy: { created_at: 'desc' }
-  });
-  
-  return res.json(joinRequests);
+      },
+      orderBy: { created_at: 'desc' }
+    });
+
+    return res.json(joinRequests);
+  } catch (err) {
+    console.error('[organizations] GET /join-requests/me error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Approve join request
 organizationsRouter.post('/join-requests/:requestId/approve', requireAuth as any, async (req: AuthedRequest, res) => {
+  try {
   const requestId = String(req.params.requestId);
-  
+
   const joinRequest = await prisma.organizationJoinRequest.findUnique({
     where: { id: requestId },
     include: {
@@ -970,6 +1046,10 @@ organizationsRouter.post('/join-requests/:requestId/approve', requireAuth as any
   }
 
   return res.json({ message: 'Join request approved' });
+  } catch (err) {
+    console.error('[organizations] POST /join-requests/:requestId/approve error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Deny join request
@@ -978,6 +1058,7 @@ const denyJoinRequestSchema = z.object({
 });
 
 organizationsRouter.post('/join-requests/:requestId/deny', requireAuth as any, async (req: AuthedRequest, res) => {
+  try {
   const requestId = String(req.params.requestId);
   const parsed = denyJoinRequestSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
@@ -1043,4 +1124,8 @@ organizationsRouter.post('/join-requests/:requestId/deny', requireAuth as any, a
   }
   
   return res.json({ message: 'Join request denied' });
+  } catch (err) {
+    console.error('[organizations] POST /join-requests/:requestId/deny error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });

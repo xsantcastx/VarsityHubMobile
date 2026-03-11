@@ -15,7 +15,7 @@ import { captureException } from '@/utils/sentry';
 export default function VerifyScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
-  const { pendingVerificationEmail, checkAuth, user, markOnboardingCompleteLocally } = useAuth();
+  const { pendingVerificationEmail, checkAuth, user, markOnboardingCompleteLocally: _markOnboardingCompleteLocally } = useAuth();
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [info, setInfo] = useState<string | null>(null);

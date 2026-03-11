@@ -52,7 +52,7 @@ export default function Step8Interests() {
       setProgress(8); // step-9 is index 8 in stepRoutes array
       
       // Continue to step 9 (features)
-      router.push('/onboarding/step-9-features');
+      router.replace('/onboarding/step-9-features');
     } catch (e: any) {
       // Revert state if backend save fails
       if (__DEV__) console.error('[Step8] Failed to save interests:', e);

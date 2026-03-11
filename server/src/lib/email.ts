@@ -149,6 +149,9 @@ const REQUIRED_TEMPLATE_KEYS: TemplateKey[] = [
   'AD_PENDING_REVIEW',
   'AD_APPROVED',
   'AD_REJECTED',
+  // Cron job reports
+  'DAILY_TRANSACTION_REPORT',
+  'FOUNDER_METRICS',
 ];
 
 export function isSendGridConfigured(): boolean {

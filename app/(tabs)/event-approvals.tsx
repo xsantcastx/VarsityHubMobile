@@ -155,6 +155,7 @@ export default function EventApprovalsScreen() {
     }
   }, []);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- initial load only
   useEffect(() => { void loadAll(); }, []);
 
   const onRefresh = useCallback(async () => {

@@ -183,6 +183,7 @@ export default function CreateFanEventScreen() {
         setSelectedPlace(null);
       }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally excludes locationTouched to avoid resetting location on every touch state change
   }, [gameType, selectedTeamId, teams, eventType]);
 
   // Opponent team search

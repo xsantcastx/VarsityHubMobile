@@ -1,11 +1,10 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { Image } from 'expo-image';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View, Animated, PanResponder } from 'react-native';
+import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View, Animated, PanResponder } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { User } from '@/api/entities';
@@ -51,7 +50,6 @@ export default function EditProfileScreen() {
   const [location, setLocation] = useState('');
   const [zipCode, setZipCode] = useState('');
   const [dateOfBirth, setDateOfBirth] = useState<Date | null>(null);
-  const [showDatePicker, setShowDatePicker] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [avatarTouched, setAvatarTouched] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -88,15 +86,6 @@ export default function EditProfileScreen() {
   const headerImageAnimatedOffset = useRef(new Animated.Value(0)).current;
 
   // Inline validation handlers
-  const validateZipOnBlur = useCallback(() => {
-    if (!zipCode) {
-      setFieldErrors(prev => ({ ...prev, zipCode: undefined }));
-      return;
-    }
-    const result = validateZipCode(zipCode);
-    setFieldErrors(prev => ({ ...prev, zipCode: result.error }));
-  }, [zipCode]);
-
   const validateGradYearOnBlur = useCallback(() => {
     if (!graduationYear) {
       setFieldErrors(prev => ({ ...prev, graduationYear: undefined }));
@@ -105,16 +94,6 @@ export default function EditProfileScreen() {
     const result = validateYear(graduationYear, { min: 2020, max: 2040 });
     setFieldErrors(prev => ({ ...prev, graduationYear: result.error }));
   }, [graduationYear]);
-
-  const handleZipChange = useCallback((text: string) => {
-    // Only allow digits and dash
-    const cleaned = text.replace(/[^\d-]/g, '');
-    setZipCode(cleaned);
-    // Clear error when user starts typing
-    if (fieldErrors.zipCode) {
-      setFieldErrors(prev => ({ ...prev, zipCode: undefined }));
-    }
-  }, [fieldErrors.zipCode]);
 
   const handleGradYearChange = useCallback((text: string) => {
     // Only allow digits
@@ -235,21 +214,6 @@ export default function EditProfileScreen() {
     );
   };
 
-  const onDateChange = (event: any, selectedDate?: Date) => {
-    const currentDate = selectedDate || dateOfBirth;
-    setShowDatePicker(Platform.OS === 'ios');
-    setDateOfBirth(currentDate);
-  };
-
-  const formatDateForDisplay = (date: Date | null) => {
-    if (!date) return 'Select your date of birth';
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-  };
-
   const formatDateForAPI = (date: Date | null) => {
     if (!date) return undefined;
     return date.toISOString().split('T')[0]; // YYYY-MM-DD format
@@ -258,7 +222,10 @@ export default function EditProfileScreen() {
   const pickAvatarImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission required', 'Gallery permission is needed to select a profile picture.');
+      Alert.alert('Permission required', 'Gallery permission is needed to select a profile picture.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Open Settings', onPress: () => Linking.openSettings() },
+      ]);
       return;
     }
 
@@ -278,7 +245,10 @@ export default function EditProfileScreen() {
   const takeAvatarPhoto = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission required', 'Camera permission is needed to take a profile picture.');
+      Alert.alert('Permission required', 'Camera permission is needed to take a profile picture.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Open Settings', onPress: () => Linking.openSettings() },
+      ]);
       return;
     }
 
@@ -338,7 +308,10 @@ export default function EditProfileScreen() {
   const pickHeaderImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission required', 'Gallery permission is needed to select a background image.');
+      Alert.alert('Permission required', 'Gallery permission is needed to select a background image.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Open Settings', onPress: () => Linking.openSettings() },
+      ]);
       return;
     }
 

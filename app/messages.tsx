@@ -75,7 +75,7 @@ export default function MessagesScreen() {
   useEffect(() => {
     if (!composeOpen || suggestedLoaded || !me?.id) return;
     let mounted = true;
-    (async () => {
+    void (async () => {
       try {
         const res = await User.following(String(me.id));
         if (!mounted) return;
@@ -443,7 +443,15 @@ export default function MessagesScreen() {
 
       <View style={styles.contentContainer}>
         {loading && <View style={styles.center}><ActivityIndicator /></View>}
-        {error && !loading && <Text style={styles.error}>{error}</Text>}
+        {error && !loading && (
+          <View style={styles.errorState}>
+            <MaterialIcons name="error-outline" size={48} color="#DC2626" />
+            <Text style={[styles.errorStateText, { color: Colors[colorScheme].text }]}>{error}</Text>
+            <Pressable style={[styles.retryButton, { backgroundColor: Colors[colorScheme].tint }]} onPress={() => void load()}>
+              <Text style={styles.retryButtonText}>Try Again</Text>
+            </Pressable>
+          </View>
+        )}
 
         {!loading && filtered.length === 0 && !error && (
           <View style={styles.emptyState}>
@@ -640,6 +648,29 @@ const styles = StyleSheet.create({
   },
   center: { paddingVertical: 32, alignItems: 'center' },
   error: { color: '#b91c1c', marginBottom: 8, paddingHorizontal: 16 },
+  errorState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 48,
+    paddingHorizontal: 32,
+    gap: 12,
+  },
+  errorStateText: {
+    fontSize: 16,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  retryButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginTop: 4,
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 15,
+  },
   conversationRow: {
     flexDirection: 'row',
     alignItems: 'center',

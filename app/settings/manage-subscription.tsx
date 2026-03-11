@@ -59,13 +59,18 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
   );
 
   const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
-  const { connected: iapConnected, purchase: iapPurchase, purchasing: iapPurchasing } = useVHubIAP();
+  const { connected: iapConnected, purchase: iapPurchase, purchasing: _iapPurchasing } = useVHubIAP();
 
   const onSubscribe = async (targetPlan: 'veteran' | 'legend') => {
-    // iOS: Use Apple IAP
-    if (isIOS) {
+    // iOS and Android: Use native IAP (Apple IAP / Google Play Billing)
+    if (isIOS || Platform.OS === 'android') {
       if (!iapConnected) {
-        Alert.alert('Store Unavailable', 'Unable to connect to the App Store. Please try again later.');
+        Alert.alert(
+          'Store Unavailable',
+          isIOS
+            ? 'Unable to connect to the App Store. Please try again later.'
+            : 'Unable to connect to Google Play. Please try again later.',
+        );
         return;
       }
       setLoading(true);
@@ -82,6 +87,8 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
       }
       return;
     }
+
+    // Web/fallback: Use Stripe
     setLoading(true);
     try {
       const res: any = await httpPost('/payments/create-payment-sheet', { plan: targetPlan });
@@ -91,9 +98,7 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
           customerEphemeralKeySecret: res.ephemeralKey,
           customerId: res.customer,
           merchantDisplayName: 'Varsity Hub',
-          applePay: Platform.OS === 'ios' ? { merchantCountryCode: 'US' } : undefined,
-          googlePay: Platform.OS === 'android' ? { merchantCountryCode: 'US', testEnv: __DEV__ } : undefined,
-          paymentMethodOrder: ['apple_pay', 'google_pay', 'card'],
+          paymentMethodOrder: ['card'],
         });
         if (initError) {
           Alert.alert('Error', initError.message);
@@ -176,6 +181,10 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
               {isIOS ? (
                 <Button onPress={() => Linking.openURL('https://apps.apple.com/account/subscriptions')} variant="outline">
                   <Text>Manage in App Store</Text>
+                </Button>
+              ) : Platform.OS === 'android' ? (
+                <Button onPress={() => Linking.openURL('https://play.google.com/store/account/subscriptions')} variant="outline">
+                  <Text>Manage in Google Play</Text>
                 </Button>
               ) : (
                 <Button onPress={onCancel} disabled={loading} variant="outline">

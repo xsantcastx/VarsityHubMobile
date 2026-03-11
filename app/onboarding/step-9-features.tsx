@@ -4,7 +4,7 @@ import { Type } from '@/ui/tokens';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, StyleSheet, Switch, Text, View, useColorScheme } from 'react-native';
+import { Alert, Linking, StyleSheet, Switch, Text, View, useColorScheme } from 'react-native';
 // @ts-ignore
 import { User } from '@/api/entities';
 import { useAuth } from '@/context/AuthProvider';
@@ -49,13 +49,19 @@ export default function Step9Features() {
         setLocationEnabled(true);
       } else {
         Alert.alert(
-          'Permission Denied', 
+          'Permission Denied',
           'Location access is needed to find local games and events. You can enable this later in your device settings.',
-          [{ text: 'OK' }]
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Open Settings', onPress: () => Linking.openSettings() },
+          ]
         );
       }
     } catch {
-      Alert.alert('Error', 'Unable to request location permission. You can enable this later in settings.');
+      Alert.alert('Error', 'Unable to request location permission. You can enable this later in settings.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Open Settings', onPress: () => Linking.openSettings() },
+      ]);
     }
   };
 
@@ -94,7 +100,11 @@ export default function Step9Features() {
                 setNotificationsEnabled(false);
                 Alert.alert(
                   'Notifications Disabled',
-                  'We could not enable push notifications. You can turn them on later from device settings.'
+                  'We could not enable push notifications. You can turn them on later from device settings.',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Open Settings', onPress: () => Linking.openSettings() },
+                  ]
                 );
               } else {
                 setNotificationsEnabled(true);
@@ -109,6 +119,7 @@ export default function Step9Features() {
 
   const onContinue = async () => {
     setSaving(true);
+    // eslint-disable-next-line no-console
     if (__DEV__) console.log('[Step9] onContinue: role =', ob.role, '| locationEnabled =', locationEnabled, '| notificationsEnabled =', notificationsEnabled);
     try {
       // Save to context
@@ -126,6 +137,7 @@ export default function Step9Features() {
         notifications_enabled: notificationsEnabled,
         messaging_policy_accepted: true,
       });
+      // eslint-disable-next-line no-console
       if (__DEV__) console.log('[Step9] messaging_policy_accepted saved to server');
 
       // For fans, complete onboarding and go to feed (prompt email verification if not done)
@@ -178,6 +190,7 @@ export default function Step9Features() {
       }
       
       // For coaches, go to confirmation page
+      // eslint-disable-next-line no-console
       if (__DEV__) console.log('[Step9] Coach flow: navigating to step-10-confirmation');
       setProgress(9); // step-10 is index 9 in stepRoutes array
       router.replace('/onboarding/step-10-confirmation');

@@ -15,14 +15,18 @@ export default function GamePhotosScreen() {
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<any[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
+  const [error, setError] = useState(false);
 
   const load = useCallback(async () => {
     if (!game_id) return;
     setLoading(true);
+    setError(false);
     try {
       const page: any = await PostApi.filterPage({ game_id: String(game_id), type: 'photo' }, null, 24);
       if (Array.isArray(page)) { setItems(page); setCursor(page.length ? String(page[page.length - 1].id) : null); }
       else { setItems(page?.items || []); setCursor(page?.nextCursor || null); }
+    } catch {
+      setError(true);
     } finally { setLoading(false); }
   }, [game_id]);
 
@@ -47,22 +51,35 @@ export default function GamePhotosScreen() {
             </Pressable>
           ) }} />
       {loading && <ActivityIndicator color={Colors[colorScheme].tint} />}
-      <FlatList
-        data={items}
-        keyExtractor={(i) => String(i.id)}
-        numColumns={3}
-        renderItem={({ item }) => (
-          <Pressable
-            onPress={() => void router.push(`/(tabs)/post-detail?id=${encodeURIComponent(String(item.id))}`)}
-            accessibilityRole="button"
-            accessibilityLabel="View photo"
-          >
-            <Image source={{ uri: String(item.media_url || '') }} style={[styles.cell, { backgroundColor: Colors[colorScheme].surface }]} contentFit="cover" />
+      {error ? (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+          <MaterialIcons name="error-outline" size={48} color={Colors[colorScheme].mutedText} />
+          <Text style={{ color: Colors[colorScheme].text, fontSize: 16, fontWeight: '600', marginTop: 12 }}>
+            Something went wrong
+          </Text>
+          <Pressable onPress={() => { setError(false); void load(); }} style={{ marginTop: 16, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8, backgroundColor: Colors[colorScheme].tint }}>
+            <Text style={{ color: '#fff', fontWeight: '600' }}>Try Again</Text>
           </Pressable>
-        )}
-        onEndReached={_loadMore}
-        onEndReachedThreshold={0.5}
-      />
+        </View>
+      ) : (
+        <FlatList
+          data={items}
+          keyExtractor={(i) => String(i.id)}
+          numColumns={3}
+          renderItem={({ item }) => (
+            <Pressable
+              onPress={() => void router.push(`/(tabs)/post-detail?id=${encodeURIComponent(String(item.id))}`)}
+              accessibilityRole="button"
+              accessibilityLabel="View photo"
+            >
+              <Image source={{ uri: String(item.media_url || '') }} style={[styles.cell, { backgroundColor: Colors[colorScheme].surface }]} contentFit="cover" />
+            </Pressable>
+          )}
+          onEndReached={_loadMore}
+          onEndReachedThreshold={0.5}
+          ListEmptyComponent={!loading ? <Text style={{ color: Colors[colorScheme].mutedText, textAlign: 'center', marginTop: 16 }}>No photos yet</Text> : null}
+        />
+      )}
     </View>
   );
 }

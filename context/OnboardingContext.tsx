@@ -54,6 +54,8 @@ export type OnboardingState = {
   location_enabled?: boolean;
   notifications_enabled?: boolean;
   messaging_policy_accepted?: boolean;
+  parental_consent_given?: boolean;
+  parent_guardian_email?: string;
   // Track which steps have been explicitly visited/completed
   step_2_visited?: boolean;
   step_3_visited?: boolean;

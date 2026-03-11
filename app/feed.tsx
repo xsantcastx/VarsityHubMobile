@@ -19,6 +19,7 @@ import * as Location from 'expo-location';
 
 import PostCard from '@/components/PostCard';
 import { PostCardSkeleton } from '@/components/ui/SkeletonCard';
+import { optimizeImageUrl } from '@/utils/imageUrl';
 import GameVerticalFeedScreen from './game-details/GameVerticalFeedScreen';
 
 type GameItem = { id: string; title?: string; date?: string; location?: string; cover_image_url?: string; banner_url?: string | null; event_id?: string | null; home_score?: number | null; away_score?: number | null; winner?: string | null };
@@ -681,6 +682,8 @@ export default function FeedScreen() {
           borderColor: colorScheme === 'dark' ? Colors[colorScheme].border : '#FDE68A',
           marginBottom: 12,
         }}
+        accessibilityRole="button"
+        accessibilityLabel="Verify your email to unlock posting and ads"
       >
         <Text style={{ color: colorScheme === 'dark' ? Colors[colorScheme].text : '#92400E', fontWeight: '700' }}>
           Verify your email to unlock posting and ads. Tap to verify.
@@ -811,7 +814,11 @@ export default function FeedScreen() {
         </View>
       )}
       {!loading && upcomingEvents.length === 0 && pastEvents.length === 0 && !error && (
-  <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>No games found.</Text>
+        <View style={{ alignItems: 'center', paddingVertical: 32, paddingHorizontal: 24 }}>
+          <MaterialIcons name="sports" size={56} color={Colors[colorScheme].mutedText} />
+          <Text style={{ color: Colors[colorScheme].text, fontSize: 17, fontWeight: '600', marginTop: 12, marginBottom: 6 }}>No games found</Text>
+          <Text style={[styles.muted, { color: Colors[colorScheme].mutedText, textAlign: 'center', lineHeight: 20 }]}>Check back later for upcoming games in your area.</Text>
+        </View>
       )}
 
       <ScrollView
@@ -980,7 +987,7 @@ export default function FeedScreen() {
                 >
                   <LinearGradient colors={gradient} style={StyleSheet.absoluteFillObject} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
                   {hasBanner && (
-                    <Image source={{ uri: banner! }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
+                    <Image source={{ uri: optimizeImageUrl(banner!, 400) }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
                   )}
                   <LinearGradient
                     colors={colorScheme === 'dark' ? ['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.9)'] : ['rgba(15,23,42,0.05)', 'rgba(15,23,42,0.85)']}
@@ -1093,7 +1100,7 @@ export default function FeedScreen() {
                     >
                       <LinearGradient colors={gradient} style={StyleSheet.absoluteFillObject} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
                       {mediaUrl && (
-                        <Image source={{ uri: mediaUrl }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
+                        <Image source={{ uri: optimizeImageUrl(mediaUrl, 400) }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
                       )}
                       <LinearGradient
                         colors={['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.9)']}
@@ -1214,7 +1221,7 @@ export default function FeedScreen() {
                   >
                     <LinearGradient colors={gradient} style={StyleSheet.absoluteFillObject} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
                     {hasBanner && (
-                      <Image source={{ uri: banner! }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
+                      <Image source={{ uri: optimizeImageUrl(banner!, 400) }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
                     )}
                     <LinearGradient
                       colors={colorScheme === 'dark' ? ['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.9)'] : ['rgba(15,23,42,0.05)', 'rgba(15,23,42,0.85)']}
@@ -1269,7 +1276,7 @@ export default function FeedScreen() {
               accessibilityLabel="Open highlights reel"
             >
               {verticalFeedPreviewImage ? (
-                <Image source={{ uri: verticalFeedPreviewImage }} style={styles.verticalFeedImage} contentFit="cover" />
+                <Image source={{ uri: optimizeImageUrl(verticalFeedPreviewImage, 800) }} style={styles.verticalFeedImage} contentFit="cover" />
               ) : (
                 <LinearGradient
                   colors={colorScheme === 'dark' ? ['#1e293b', '#0f172a'] : ['#1e293b', '#0f172a']}
@@ -1342,6 +1349,9 @@ export default function FeedScreen() {
               <FlatList
                     data={notificationsList}
                     keyExtractor={(item) => item.id}
+                    maxToRenderPerBatch={10}
+                    windowSize={10}
+                    removeClippedSubviews={true}
                     renderItem={({ item }) => {
                       const title = item.type === 'FOLLOW'
                         ? `${item.actor?.username ? `@${item.actor.username}` : item.actor?.display_name || 'Someone'} followed you`

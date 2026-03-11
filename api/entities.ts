@@ -76,6 +76,10 @@ export const User = {
   blockedUsers: () => httpGet('/users/blocked'),
   // GDPR/CCPA data portability - export all user data as JSON (longer timeout for large exports)
   exportMyData: () => httpGet('/users/me/export', {}, 60000),
+  // Follow approval (private profiles)
+  acceptFollow: (id: string) => httpPost(`/users/${encodeURIComponent(id)}/accept-follow`, {}),
+  rejectFollow: (id: string) => httpPost(`/users/${encodeURIComponent(id)}/reject-follow`, {}),
+  getFollowRequests: () => httpGet('/users/me/follow-requests'),
 };
 
 export const Game = {

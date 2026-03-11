@@ -5,7 +5,7 @@ import { useRouter } from 'expo-router';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 
 export default function CenterTabButton(props: BottomTabBarButtonProps) {
-  const { accessibilityState, accessibilityRole, accessibilityLabel = 'Create post', testID } = props;
+  const { accessibilityState, accessibilityRole, accessibilityLabel = 'Create post', testID: _testID } = props;
   const selected = accessibilityState?.selected;
   const router = useRouter();
 

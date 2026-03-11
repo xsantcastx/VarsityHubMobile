@@ -120,6 +120,7 @@ recipient_email: z.string().email().optional(),
 });
 
 messagesRouter.post('/', requireAuth as any, messageLimiter, async (req: AuthedRequest, res) => {
+try {
 if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 const parsed = sendSchema.safeParse(req.body);
 if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
@@ -283,7 +284,8 @@ if (toId !== meId) {
       toId!,
       meId,
       created.sender?.display_name || 'Someone',
-      content
+      content,
+      convId!
     );
   } catch (e) {
     console.error('Failed to send message notification:', e);
@@ -291,6 +293,10 @@ if (toId !== meId) {
 }
 
 return res.status(201).json(created);
+} catch (err) {
+console.error('[messages] POST / error:', err);
+return res.status(500).json({ error: 'Internal server error' });
+}
 });
 
 messagesRouter.post('/mark-read', requireAuth as any, async (req: AuthedRequest, res) => {

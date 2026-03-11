@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { notifyNewFollower } from '../lib/notifications.js';
+import { notifyNewFollower, sendPushNotification } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
@@ -202,35 +202,40 @@ usersRouter.get('/me/export', requireAuth as any, async (req: AuthedRequest, res
     return res.send(json);
   } catch (e: any) {
     console.error('Data export error:', e);
-    return res.status(500).json({ error: 'Failed to export data', message: e?.message || 'Unknown error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 // CSV export of user's ads and reservations (admin only)
 usersRouter.get('/:id/export', requireAdmin as any, async (req, res) => {
-  const id = String(req.params.id);
-  const user = await prisma.user.findUnique({ where: { id }, select: { id: true, email: true, username: true } });
-  if (!user) return res.status(404).send('Not found');
-  const ads = await prisma.ad.findMany({ where: { user_id: id }, orderBy: { created_at: 'desc' }, take: 100 });
-  const adIds = ads.map(a => a.id);
-  const reservations = adIds.length ? await prisma.adReservation.findMany({ where: { ad_id: { in: adIds } }, orderBy: { date: 'asc' }, take: 1000 }) : [];
-  const datesByAd: Record<string, string[]> = {};
-  for (const r of reservations) {
-    const key = r.ad_id;
-    if (!datesByAd[key]) datesByAd[key] = [];
-    datesByAd[key].push(r.date.toISOString().slice(0,10));
+  try {
+    const id = String(req.params.id);
+    const user = await prisma.user.findUnique({ where: { id }, select: { id: true, email: true, username: true } });
+    if (!user) return res.status(404).send('Not found');
+    const ads = await prisma.ad.findMany({ where: { user_id: id }, orderBy: { created_at: 'desc' }, take: 100 });
+    const adIds = ads.map(a => a.id);
+    const reservations = adIds.length ? await prisma.adReservation.findMany({ where: { ad_id: { in: adIds } }, orderBy: { date: 'asc' }, take: 1000 }) : [];
+    const datesByAd: Record<string, string[]> = {};
+    for (const r of reservations) {
+      const key = r.ad_id;
+      if (!datesByAd[key]) datesByAd[key] = [];
+      datesByAd[key].push(r.date.toISOString().slice(0,10));
+    }
+    let csv = 'ad_id,business_name,status,payment_status,created_at,reservation_dates\n';
+    for (const a of ads) {
+      const dates = (datesByAd[a.id] || []).join(';');
+      const row = [a.id, a.business_name || '', a.status || '', a.payment_status || '', a.created_at.toISOString(), dates]
+        .map((v) => '"' + String(v).replace(/"/g,'""') + '"').join(',');
+      csv += row + '\n';
+    }
+    const filename = `user-${user.id}-ads.csv`;
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    return res.send(csv);
+  } catch (err) {
+    console.error('[users] GET /:id/export error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
   }
-  let csv = 'ad_id,business_name,status,payment_status,created_at,reservation_dates\n';
-  for (const a of ads) {
-    const dates = (datesByAd[a.id] || []).join(';');
-    const row = [a.id, a.business_name || '', a.status || '', a.payment_status || '', a.created_at.toISOString(), dates]
-      .map((v) => '"' + String(v).replace(/"/g,'""') + '"').join(',');
-    csv += row + '\n';
-  }
-  const filename = `user-${user.id}-ads.csv`;
-  res.setHeader('Content-Type', 'text/csv');
-  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-  return res.send(csv);
 });
 
 // =============================
@@ -261,9 +266,10 @@ async function isProfileHiddenFromViewer(ownerId: string, viewerId: string | nul
   if (!viewerId) return true;
   const rel = await prisma.follows.findUnique({
     where: { follower_id_following_id: { follower_id: viewerId, following_id: ownerId } },
-    select: { follower_id: true },
+    select: { follower_id: true, status: true },
   });
-  return !rel; // Hidden if not a follower
+  // Hidden if not a follower OR if follow is still pending
+  return !rel || rel.status !== 'accepted';
 }
 
 function mapPostForPayload(post: any) {
@@ -285,45 +291,51 @@ function mapPostForPayload(post: any) {
 
 // GET /users/:id/posts?cursor=...&limit=...&sort=...
 usersRouter.get('/:id/posts', async (req: AuthedRequest, res) => {
-  const id = String(req.params.id);
-  const currentUserId = req.user?.id || null;
-  const hidden = await isProfileHiddenFromViewer(id, currentUserId);
-  if (hidden) {
-    return res.json({ items: [], nextCursor: null, counts: { posts: 0, likes: 0, comments: 0, reposts: 0, saves: 0 } });
+  try {
+    const id = String(req.params.id);
+    const currentUserId = req.user?.id || null;
+    const hidden = await isProfileHiddenFromViewer(id, currentUserId);
+    if (hidden) {
+      return res.json({ items: [], nextCursor: null, counts: { posts: 0, likes: 0, comments: 0, reposts: 0, saves: 0 } });
+    }
+    const limit = Math.min(parseInt(String(req.query.limit || '10'), 10) || 10, 50);
+    const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : null;
+    const sort = typeof req.query.sort === 'string' ? req.query.sort : 'newest';
+
+    const orderBy = sortParamToOrder(sort);
+    const query: any = {
+      where: { author_id: id, deleted_at: null },
+      take: limit + 1,
+      orderBy,
+      include: {
+        author: { select: { id: true, username: true, avatar_url: true } },
+        _count: { select: { comments: true, bookmarks: true } },
+      },
+    };
+    if (cursor) { query.cursor = { id: cursor }; query.skip = 1; }
+    const rows = await prisma.post.findMany(query);
+    const items = rows.slice(0, limit);
+    const nextCursor = rows.length > limit ? rows[limit].id : null;
+
+    const payload = items.map(mapPostForPayload);
+    const counts = {
+      posts: await prisma.post.count({ where: { author_id: id, deleted_at: null } }),
+      likes: await prisma.postUpvote.count({ where: { user_id: id } }),
+      comments: await prisma.comment.count({ where: { author_id: id } as any }),
+      reposts: 0,
+      saves: await prisma.postBookmark.count({ where: { user_id: id } }),
+    };
+
+    return res.json({ items: payload, nextCursor, counts });
+  } catch (err) {
+    console.error('[users] GET /:id/posts error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
   }
-  const limit = Math.min(parseInt(String(req.query.limit || '10'), 10) || 10, 50);
-  const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : null;
-  const sort = typeof req.query.sort === 'string' ? req.query.sort : 'newest';
-
-  const orderBy = sortParamToOrder(sort);
-  const query: any = {
-    where: { author_id: id, deleted_at: null },
-    take: limit + 1,
-    orderBy,
-    include: {
-      author: { select: { id: true, username: true, avatar_url: true } },
-      _count: { select: { comments: true, bookmarks: true } },
-    },
-  };
-  if (cursor) { query.cursor = { id: cursor }; query.skip = 1; }
-  const rows = await prisma.post.findMany(query);
-  const items = rows.slice(0, limit);
-  const nextCursor = rows.length > limit ? rows[limit].id : null;
-
-  const payload = items.map(mapPostForPayload);
-  const counts = {
-    posts: await prisma.post.count({ where: { author_id: id, deleted_at: null } }),
-    likes: await prisma.postUpvote.count({ where: { user_id: id } }),
-    comments: await prisma.comment.count({ where: { author_id: id } as any }),
-    reposts: 0,
-    saves: await prisma.postBookmark.count({ where: { user_id: id } }),
-  };
-
-  return res.json({ items: payload, nextCursor, counts });
 });
 
 // GET /users/:id/interactions?type=like|comment|repost|save|all&cursor=...&limit=...&sort=...
 usersRouter.get('/:id/interactions', async (req: AuthedRequest, res) => {
+  try {
   const id = String(req.params.id);
   const currentUserId = req.user?.id || null;
   const hidden = await isProfileHiddenFromViewer(id, currentUserId);
@@ -405,10 +417,15 @@ usersRouter.get('/:id/interactions', async (req: AuthedRequest, res) => {
   };
 
   return res.json({ items: ordered, nextCursor, counts });
+  } catch (err) {
+    console.error('[users] GET /:id/interactions error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // GET /users/:id/teams - Teams the user is a member of (for athlete profile)
 usersRouter.get('/:id/teams', async (req: AuthedRequest, res) => {
+  try {
   const id = String(req.params.id);
   const currentUserId = req.user?.id || null;
   const hidden = await isProfileHiddenFromViewer(id, currentUserId);
@@ -457,6 +474,10 @@ usersRouter.get('/:id/teams', async (req: AuthedRequest, res) => {
   });
 
   return res.json(teams);
+  } catch (err) {
+    console.error('[users] GET /:id/teams error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Delete own account (soft-delete with anonymization)
@@ -511,7 +532,7 @@ usersRouter.delete('/me', requireAuth as any, async (req: AuthedRequest, res) =>
     return res.json({ deleted: true, message: 'Account deleted successfully' });
   } catch (e: any) {
     console.error('Account deletion error:', e);
-    return res.status(500).json({ error: 'Failed to delete account', message: e?.message || 'Unknown error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -591,21 +612,43 @@ usersRouter.post('/:id/follow', requireAuth as any, async (req: AuthedRequest, r
   }
 
   try {
-    await prisma.follows.upsert({
-      where: {
-        follower_id_following_id: { follower_id, following_id },
-      },
-      create: { follower_id, following_id },
-      update: {},  // already following — no-op
+    // Check if target profile is private
+    const targetUser = await prisma.user.findUnique({
+      where: { id: following_id },
+      select: { preferences: true },
     });
-    // Create follow notification for the recipient
+    const targetPrefs = (targetUser?.preferences || {}) as any;
+    const isPrivate = targetPrefs?.profile_private === true;
+
+    // Check if there's already a follow record
+    const existing = await prisma.follows.findUnique({
+      where: { follower_id_following_id: { follower_id, following_id } },
+    });
+
+    if (existing) {
+      // Already following or pending — return current status
+      return res.status(200).json({
+        is_following_author: existing.status === 'accepted',
+        follow_status: existing.status,
+      });
+    }
+
+    const followStatus = isPrivate ? 'pending' : 'accepted';
+
+    await prisma.follows.create({
+      data: { follower_id, following_id, status: followStatus },
+    });
+
+    // Create notification
     try {
       if (follower_id !== following_id) {
+        const notificationType = isPrivate ? 'FOLLOW_REQUEST' : 'FOLLOW';
         await (prisma as any).notification.create({
           data: {
             user_id: following_id,
             actor_id: follower_id,
-            type: 'FOLLOW' as any,
+            type: notificationType as any,
+            meta: isPrivate ? { requires_action: true } : undefined,
           },
         });
 
@@ -618,15 +661,19 @@ usersRouter.post('/:id/follow', requireAuth as any, async (req: AuthedRequest, r
           await notifyNewFollower(
             following_id,
             follower_id,
-            follower.display_name || 'Someone'
+            isPrivate
+              ? `${follower.display_name || 'Someone'} requested to follow you`
+              : (follower.display_name || 'Someone')
           );
         }
       }
     } catch (e) {
       console.error('Failed to send follow notification:', e);
     }
-    // Return is_following_author for caller
-    res.status(201).json({ is_following_author: true });
+    res.status(201).json({
+      is_following_author: followStatus === 'accepted',
+      follow_status: followStatus,
+    });
   } catch (error) {
     console.error('Follow error:', error);
     res.status(500).json({ error: 'Something went wrong.' });
@@ -649,6 +696,93 @@ usersRouter.delete('/:id/follow', requireAuth as any, async (req: AuthedRequest,
   }
 });
 
+// Accept a follow request (for private profiles)
+usersRouter.post('/:id/accept-follow', requireAuth as any, async (req: AuthedRequest, res) => {
+  const currentUserId = req.user!.id;
+  const followerId = req.params.id;
+
+  try {
+    const follow = await prisma.follows.findUnique({
+      where: { follower_id_following_id: { follower_id: followerId, following_id: currentUserId } },
+    });
+    if (!follow) return res.status(404).json({ error: 'Follow request not found' });
+    if (follow.status === 'accepted') return res.json({ ok: true, status: 'accepted' });
+
+    await prisma.follows.update({
+      where: { follower_id_following_id: { follower_id: followerId, following_id: currentUserId } },
+      data: { status: 'accepted' },
+    });
+
+    // Notify the follower that their request was accepted
+    try {
+      await (prisma as any).notification.create({
+        data: {
+          user_id: followerId,
+          actor_id: currentUserId,
+          type: 'FOLLOW' as any,
+        },
+      });
+
+      // Send push notification that follow request was accepted
+      const currentUser = await prisma.user.findUnique({
+        where: { id: currentUserId },
+        select: { display_name: true },
+      });
+      sendPushNotification(
+        followerId,
+        'Follow Request Accepted',
+        `${currentUser?.display_name || 'Someone'} accepted your follow request`,
+        { type: 'new_follower', screen: 'user-profile', user_id: currentUserId }
+      ).catch(() => {});
+    } catch (e) {
+      console.error('Failed to send follow accept notification:', e);
+    }
+
+    res.json({ ok: true, status: 'accepted' });
+  } catch (error) {
+    console.error('Accept follow error:', error);
+    res.status(500).json({ error: 'Something went wrong.' });
+  }
+});
+
+// Reject a follow request (for private profiles)
+usersRouter.post('/:id/reject-follow', requireAuth as any, async (req: AuthedRequest, res) => {
+  const currentUserId = req.user!.id;
+  const followerId = req.params.id;
+
+  try {
+    await prisma.follows.deleteMany({
+      where: { follower_id: followerId, following_id: currentUserId, status: 'pending' },
+    });
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Reject follow error:', error);
+    res.status(500).json({ error: 'Something went wrong.' });
+  }
+});
+
+// Get pending follow requests for current user
+usersRouter.get('/me/follow-requests', requireAuth as any, async (req: AuthedRequest, res) => {
+  try {
+    const requests = await prisma.follows.findMany({
+      where: { following_id: req.user!.id, status: 'pending' },
+      include: {
+        follower: { select: { id: true, display_name: true, username: true, avatar_url: true } },
+      },
+      orderBy: { created_at: 'desc' },
+      take: 50,
+    });
+    res.json(requests.map(r => ({
+      id: r.follower_id,
+      follower: r.follower,
+      created_at: r.created_at,
+    })));
+  } catch (error) {
+    console.error('Follow requests error:', error);
+    res.status(500).json({ error: 'Something went wrong.' });
+  }
+});
+
 // Get followers
 usersRouter.get('/:id/followers', requireAuth as any, async (req: AuthedRequest, res) => {
   const { id } = req.params;
@@ -659,7 +793,7 @@ usersRouter.get('/:id/followers', requireAuth as any, async (req: AuthedRequest,
   const cursor = (req.query.cursor as string | undefined) || undefined;
 
   const follows = await prisma.follows.findMany({
-    where: { following_id: id },
+    where: { following_id: id, status: 'accepted' },
     take: limit + 1,
     cursor: cursor ? { follower_id_following_id: { follower_id: cursor, following_id: id } } : undefined,
     include: { follower: { select: publicUserSelect } },
@@ -675,6 +809,7 @@ usersRouter.get('/:id/followers', requireAuth as any, async (req: AuthedRequest,
         where: {
           follower_id: currentUserId,
           following_id: { in: userIds },
+          status: 'accepted',
         },
         select: { following_id: true },
       })).map(f => f.following_id)
@@ -695,7 +830,7 @@ usersRouter.get('/:id/following', requireAuth as any, async (req: AuthedRequest,
   const cursor = (req.query.cursor as string | undefined) || undefined;
 
   const follows = await prisma.follows.findMany({
-    where: { follower_id: id },
+    where: { follower_id: id, status: 'accepted' },
     take: limit + 1,
     cursor: cursor ? { follower_id_following_id: { follower_id: id, following_id: cursor } } : undefined,
     include: { following: { select: publicUserSelect } },
@@ -711,6 +846,7 @@ usersRouter.get('/:id/following', requireAuth as any, async (req: AuthedRequest,
         where: {
           follower_id: currentUserId,
           following_id: { in: userIds },
+          status: 'accepted',
         },
         select: { following_id: true },
       })).map(f => f.following_id)
@@ -833,9 +969,9 @@ usersRouter.get('/:id', async (req: AuthedRequest, res) => {
   } else if (currentUserId) {
     const rel = await prisma.follows.findUnique({
       where: { follower_id_following_id: { follower_id: currentUserId, following_id: id } },
-      select: { follower_id: true },
+      select: { follower_id: true, status: true },
     });
-    isFollower = Boolean(rel);
+    isFollower = Boolean(rel) && rel?.status === 'accepted';
   }
 
   // Private profile: non-followers get only basic info
@@ -851,8 +987,8 @@ usersRouter.get('/:id', async (req: AuthedRequest, res) => {
 
   const [posts_count, followers_count, following_count, rel] = await Promise.all([
     prisma.post.count({ where: { author_id: id, deleted_at: null } }),
-    prisma.follows.count({ where: { following_id: id } }),
-    prisma.follows.count({ where: { follower_id: id } }),
+    prisma.follows.count({ where: { following_id: id, status: 'accepted' } }),
+    prisma.follows.count({ where: { follower_id: id, status: 'accepted' } }),
     currentUserId
       ? prisma.follows.findUnique({
           where: { follower_id_following_id: { follower_id: currentUserId, following_id: id } },

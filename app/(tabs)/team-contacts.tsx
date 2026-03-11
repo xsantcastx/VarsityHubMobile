@@ -97,7 +97,7 @@ export default function TeamChatScreen() {
   const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState<string | null>(null);
   const [files, setFiles] = useState<any[]>([]);
-  const [typingUsers, setTypingUsers] = useState<string[]>([]);
+  const [typingUsers, _setTypingUsers] = useState<string[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [selectedImage, setSelectedImage] = useState<{ uri: string; width: number; height: number } | null>(null);
   const [imageViewerVisible, setImageViewerVisible] = useState(false);
@@ -669,7 +669,10 @@ export default function TeamChatScreen() {
     try {
       const { status } = await MediaLibrary.requestPermissionsAsync();
       if (status !== 'granted') {
-  showModal('Permission needed', 'Please grant permission to save images to your gallery');
+  showModal('Permission needed', 'Please grant permission to save images to your gallery.', [
+    { label: 'Cancel', onPress: () => {} },
+    { label: 'Open Settings', onPress: () => Linking.openSettings(), color: '#2563eb' },
+  ]);
         return;
       }
       
@@ -999,7 +1002,7 @@ export default function TeamChatScreen() {
     } finally {
       setIsUploadingFile(false);
     }
-  }, [sendImageMessage, sendFileMessage, pickDocument, showToast]);
+  }, [sendImageMessage, pickDocument, showToast]);
 
   const confirmVideoSend = useCallback(async () => {
     if (!videoToTrim) return;

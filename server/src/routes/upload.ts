@@ -28,8 +28,13 @@ uploadRouter.post('/avatar', requireAuth as any, uploadLimiter, memory.single('f
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   if (!req.file) return res.status(400).json({ error: 'Missing file' });
   
+  const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
+  if (!allowedMimes.includes(req.file.mimetype)) {
+    return res.status(400).json({ error: 'Invalid file type. Only images are allowed.' });
+  }
+
   try {
-    const ext = (req.file.mimetype && req.file.mimetype.includes('png')) ? '.png' : '.jpg';
+    const ext = req.file.mimetype === 'image/png' ? '.png' : '.jpg';
     const name = `${req.user.id}_${Date.now()}${ext}`;
     const full = path.join(UPLOAD_DIR, name);
     await fs.promises.writeFile(full, req.file.buffer);
@@ -38,7 +43,8 @@ uploadRouter.post('/avatar', requireAuth as any, uploadLimiter, memory.single('f
     res.set('Cache-Control', 'no-store, private');
     return res.json({ url });
   } catch (e: any) {
-    return res.status(500).json({ error: e?.message || 'Upload failed' });
+    console.error('[upload] POST /avatar error:', e);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 

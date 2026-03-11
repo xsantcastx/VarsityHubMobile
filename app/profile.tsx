@@ -1,4 +1,4 @@
-import { Organization, Team, User } from '@/api/entities';
+import { Organization, Report, Team, User } from '@/api/entities';
 import uploadFile from '@/api/upload';
 import { Sport } from '@/components/JerseyBadge';
 import { Button } from '@/components/ui/button';
@@ -7,7 +7,6 @@ import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { useUser } from '@/hooks/useUser';
-import { calculateContrastRatio } from '@/utils/accessibility';
 import events from '@/utils/events';
 import { pickerMediaTypesProp } from '@/utils/picker';
 import { getGradientForColor } from '@/utils/theme';
@@ -19,7 +18,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Dimensions, FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Dimensions, FlatList, Linking, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import GameVerticalFeedScreen, { FeedPost } from './game-details/GameVerticalFeedScreen';
 
@@ -149,8 +148,10 @@ export default function ProfileScreen() {
   const viewingUserId = rawId && !invalidId ? rawId : undefined;
   const [isFollowing, setIsFollowing] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [userTeams, setUserTeams] = useState<Array<{ id: string; name: string; logo_url?: string | null; avatar_url?: string | null; role?: string; position?: string | null; jersey_number?: string | number | null }>>([]);
+  const [userTeams, _setUserTeams] = useState<Array<{ id: string; name: string; logo_url?: string | null; avatar_url?: string | null; role?: string; position?: string | null; jersey_number?: string | number | null }>>([]);
   const [avatarViewerVisible, setAvatarViewerVisible] = useState(false);
+  const [showReportMenu, setShowReportMenu] = useState(false);
+  const [reportSubmitting, setReportSubmitting] = useState(false);
 
   const isOwnProfile = !viewingUserId || viewingUserId === currentUserId;
 
@@ -199,6 +200,32 @@ export default function ProfileScreen() {
       setIsFollowing(previousState); // Revert on error
     }
   }, [viewingUserId, isFollowing]);
+
+  const REPORT_REASONS = [
+    { value: 'harassment', label: 'Harassment or bullying' },
+    { value: 'spam', label: 'Spam or fake account' },
+    { value: 'inappropriate', label: 'Inappropriate content' },
+    { value: 'impersonation', label: 'Impersonation' },
+    { value: 'other', label: 'Other' },
+  ];
+
+  const handleReportUser = async (reason: string) => {
+    if (!viewingUserId) return;
+    setReportSubmitting(true);
+    try {
+      await Report.create({ target_type: 'user', target_id: viewingUserId, reason });
+      Alert.alert('Report Submitted', 'Thank you for helping keep our community safe.');
+    } catch (error: any) {
+      if (error?.status === 409) {
+        Alert.alert('Already Reported', 'You have already reported this user.');
+      } else {
+        Alert.alert('Error', error?.message || 'Failed to submit report. Please try again.');
+      }
+    } finally {
+      setReportSubmitting(false);
+      setShowReportMenu(false);
+    }
+  };
 
   const refreshPosts = useCallback(async (userId: string) => {
     if (postsRequestInFlight.current) return;
@@ -262,7 +289,10 @@ export default function ProfileScreen() {
     try {
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (permissionResult.granted === false) {
-        Alert.alert("Permission required", "You've refused to allow this app to access your photos.");
+        Alert.alert("Permission required", "You've refused to allow this app to access your photos.", [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => Linking.openSettings() },
+        ]);
         return;
       }
 
@@ -303,7 +333,10 @@ export default function ProfileScreen() {
     try {
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (permissionResult.granted === false) {
-        Alert.alert("Permission required", "You've refused to allow this app to access your photos.");
+        Alert.alert("Permission required", "You've refused to allow this app to access your photos.", [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => Linking.openSettings() },
+        ]);
         return;
       }
 
@@ -650,39 +683,6 @@ export default function ProfileScreen() {
     ? ['rgba(4,7,20,0.85)', 'rgba(15,23,42,0.45)']
     : (getGradientForColor('#3B82F6') as [string, string, ...string[]]);
   
-  // Helper function to determine text color based on background contrast
-  // White is default, but switches to black if white has insufficient contrast
-  const getTextColorForBackground = (bgColor: string): string => {
-    // Convert rgba to hex if needed
-    let hexColor = bgColor;
-    if (bgColor.startsWith('rgba')) {
-      const match = bgColor.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
-      if (match) {
-        const r = parseInt(match[1], 10);
-        const g = parseInt(match[2], 10);
-        const b = parseInt(match[3], 10);
-        hexColor = `#${[r, g, b].map(x => {
-          const hex = x.toString(16);
-          return hex.length === 1 ? '0' + hex : hex;
-        }).join('')}`;
-      }
-    }
-    
-    // Calculate contrast ratio for white text (default)
-    const whiteContrast = calculateContrastRatio('#FFFFFF', hexColor);
-    
-    // If white has sufficient contrast (>= 3.0 for large text), use white
-    // Otherwise, use black
-    if (whiteContrast && whiteContrast >= 3.0) {
-      return '#FFFFFF';
-    }
-    return '#000000';
-  };
-  
-  // Get the first gradient color to determine text color
-  const firstGradientColor = heroGradientColors[0] || userThemeColor;
-  const userNameTextColor = getTextColorForBackground(firstGradientColor);
-  
   const _stats = [
     { label: 'posts', value: me?._count?.posts ?? 0 },
     { label: 'followers', value: me?._count?.followers ?? 0 },
@@ -694,10 +694,12 @@ export default function ProfileScreen() {
       {/* Banner Header - Exact Match to Reference */}
       <View style={[styles.headerContainer, { backgroundColor: theme.background }]}>
         {/* Background Image / Gradient */}
-        <Pressable 
-          onPress={handleBackgroundImagePress} 
+        <Pressable
+          onPress={handleBackgroundImagePress}
           style={styles.headerBackgroundPressable}
           disabled={isUploadingAvatar}
+          accessibilityRole="button"
+          accessibilityLabel="Change background image"
         >
           {headerBackgroundImage ? (
             <Image
@@ -735,6 +737,8 @@ export default function ProfileScreen() {
             onPress={() => { if (router.canGoBack()) router.back(); }}
             hitSlop={12}
             style={[styles.controlButton, { position: 'absolute', left: 16, top: 12, zIndex: 200, elevation: 200, backgroundColor: colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)' }]}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
           >
             <MaterialIcons name="chevron-left" size={18} color={colorScheme === 'dark' ? '#FFFFFF' : '#333'} />
           </Pressable>
@@ -752,6 +756,8 @@ export default function ProfileScreen() {
                   : { backgroundColor: '#FFD600', borderWidth: 0, width: 36, height: 36, borderRadius: 18 }
               ]}
               onPress={handleFollowToggle}
+              accessibilityRole="button"
+              accessibilityLabel={isFollowing ? 'Unfollow user' : 'Follow user'}
             >
               {isFollowing ? (
                 <MaterialIcons name="check" size={18} color="#000" />
@@ -760,10 +766,23 @@ export default function ProfileScreen() {
               )}
             </Pressable>
           ) : null}
-          
+
+          {/* More Options Button - Only for viewing other users */}
+          {viewingUserId && viewingUserId !== currentUserId ? (
+            <Pressable
+              onPress={() => setShowReportMenu(true)}
+              hitSlop={12}
+              style={[styles.controlButton, { backgroundColor: colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)' }]}
+              accessibilityRole="button"
+              accessibilityLabel="More options"
+            >
+              <MaterialIcons name="more-vert" size={18} color={colorScheme === 'dark' ? '#FFFFFF' : '#333'} />
+            </Pressable>
+          ) : null}
+
           {/* Settings Button - Only when viewing own profile */}
           {!viewingUserId || viewingUserId === currentUserId ? (
-            <Pressable onPress={() => router.push('/settings')} hitSlop={12} style={[styles.controlButton, { backgroundColor: colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)' }]}>
+            <Pressable onPress={() => router.push('/settings')} hitSlop={12} style={[styles.controlButton, { backgroundColor: colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)' }]} accessibilityRole="button" accessibilityLabel="Settings">
               <MaterialIcons name="settings" size={18} color={colorScheme === 'dark' ? '#FFFFFF' : '#333'} />
             </Pressable>
           ) : null}
@@ -777,6 +796,8 @@ export default function ProfileScreen() {
               : (isOwnProfile ? handleAvatarPress : undefined)}
             disabled={isOwnProfile && isUploadingAvatar}
             style={styles.avatarSection}
+            accessibilityRole="button"
+            accessibilityLabel={me?.avatar_url ? 'View profile picture' : 'Change profile picture'}
           >
             <View style={styles.avatarContainer}>
               {me?.avatar_url ? (
@@ -815,7 +836,7 @@ export default function ProfileScreen() {
         {/* Edit Profile Button Row - Only shown when viewing own profile */}
         {!viewingUserId || viewingUserId === currentUserId ? (
           <View style={styles.usernameRow}>
-            <Pressable style={[styles.editButtonBelowBanner, { backgroundColor: theme.surface || theme.background, borderColor: theme.border }]} onPress={() => void router.push('/(tabs)/edit-profile')}>
+            <Pressable style={[styles.editButtonBelowBanner, { backgroundColor: theme.surface || theme.background, borderColor: theme.border }]} onPress={() => void router.push('/(tabs)/edit-profile')} accessibilityRole="button" accessibilityLabel="Edit profile">
               <Text style={[styles.editButtonBelowBannerText, { color: theme.text }]}>Edit profile</Text>
             </Pressable>
           </View>
@@ -897,18 +918,24 @@ export default function ProfileScreen() {
           <Pressable
             onPress={() => { setActiveTab('posts'); try { globalThis?.localStorage?.setItem('profile.activeTab','posts'); } catch (error) { if (__DEV__) console.warn('[profile] localStorage error:', error); } }}
             style={[styles.tab, activeTab === 'posts' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
+            accessibilityRole="tab"
+            accessibilityLabel="Posts"
           >
             <Text style={[styles.tabText, { color: activeTab === 'posts' ? theme.tint : theme.mutedText }]}>Posts</Text>
           </Pressable>
           <Pressable
             onPress={() => { setActiveTab('replies'); try { globalThis?.localStorage?.setItem('profile.activeTab','replies'); } catch (error) { if (__DEV__) console.warn('[profile] localStorage error:', error); } }}
             style={[styles.tab, activeTab === 'replies' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
+            accessibilityRole="tab"
+            accessibilityLabel="Replies"
           >
             <Text style={[styles.tabText, { color: activeTab === 'replies' ? theme.tint : theme.mutedText }]}>Replies</Text>
           </Pressable>
           <Pressable
             onPress={() => { setActiveTab('upvotes'); try { globalThis?.localStorage?.setItem('profile.activeTab','upvotes'); } catch (error) { if (__DEV__) console.warn('[profile] localStorage error:', error); } }}
             style={[styles.tab, activeTab === 'upvotes' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
+            accessibilityRole="tab"
+            accessibilityLabel="Upvotes"
           >
             <Text style={[styles.tabText, { color: activeTab === 'upvotes' ? theme.tint : theme.mutedText }]}>Upvotes</Text>
           </Pressable>
@@ -923,16 +950,18 @@ export default function ProfileScreen() {
       <Text style={[styles.emptySubtitle, { 
         color: colorScheme === 'dark' ? theme.mutedText : '#4B5563' // Darker grey for better contrast in light mode
       }]}>Share your first moment with the community!</Text>
-      <Pressable 
-        onPress={() => void router.push('/(tabs)/create-post')} 
+      <Pressable
+        onPress={() => void router.push('/(tabs)/create-post')}
         style={({ pressed }) => [
-          styles.createPostButton, 
-          { 
+          styles.createPostButton,
+          {
             backgroundColor: theme.tint,
             borderColor: theme.tint,
             opacity: pressed ? 0.9 : 1,
           }
         ]}
+        accessibilityRole="button"
+        accessibilityLabel="Create your first post"
       >
         <Text style={[styles.createPostButtonText, { color: '#FFFFFF', fontWeight: '700' }]}>Create Your First Post</Text>
       </Pressable>
@@ -1060,6 +1089,8 @@ export default function ProfileScreen() {
             return (
               <Pressable
                 style={styles.gridItem}
+                accessibilityRole="button"
+                accessibilityLabel={`View post`}
                 onPress={() => {
                   const mapped = (posts || []).map(toFeedPost);
                   const items = mapped.filter(Boolean) as FeedPost[];
@@ -1150,6 +1181,8 @@ export default function ProfileScreen() {
             return (
               <Pressable
                 style={styles.gridItem}
+                accessibilityRole="button"
+                accessibilityLabel="View reply"
                 onPress={() => {
                   const mapped = (replies || []).map(unwrapPost).map(toFeedPost);
                   const items = mapped.filter(Boolean) as FeedPost[];
@@ -1239,6 +1272,8 @@ export default function ProfileScreen() {
             return (
               <Pressable
                 style={styles.gridItem}
+                accessibilityRole="button"
+                accessibilityLabel="View upvoted post"
                 onPress={() => {
                   const mapped = (upvotes || []).map(unwrapPost).map(toFeedPost);
                   const items = mapped.filter(Boolean) as FeedPost[];
@@ -1343,6 +1378,36 @@ export default function ProfileScreen() {
           title={activeTab === 'posts' ? 'Your posts' : activeTab === 'replies' ? 'Your replies' : 'Your upvotes'}
         />
       </Modal>
+
+      {/* Report User Modal */}
+      <Modal
+        visible={showReportMenu}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowReportMenu(false)}
+      >
+        <Pressable
+          style={styles.reportModalOverlay}
+          onPress={() => !reportSubmitting && setShowReportMenu(false)}
+        >
+          <View style={[styles.reportActionsMenu, { backgroundColor: theme.card }]}>
+            <Text style={[styles.reportMenuTitle, { color: theme.text }]}>Report this user</Text>
+            <View style={[styles.reportSeparator, { backgroundColor: theme.border }]} />
+            {REPORT_REASONS.map((r) => (
+              <Pressable
+                key={r.value}
+                style={styles.reportActionItem}
+                disabled={reportSubmitting}
+                onPress={() => void handleReportUser(r.value)}
+                accessibilityRole="button"
+                accessibilityLabel={`Report for ${r.label}`}
+              >
+                <Text style={[styles.reportActionText, { color: theme.text, opacity: reportSubmitting ? 0.5 : 1 }]}>{r.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1417,13 +1482,13 @@ const styles = StyleSheet.create({
   },
   profileContent: {
     position: 'absolute',
-    bottom: -30,
+    bottom: -10,
     left: 16,
     zIndex: 100,
     elevation: 100,
   },
   avatarSection: {
-    marginBottom: -70, // Avatar overlaps cover image — most of avatar sits on banner
+    marginBottom: -90, // Avatar overlaps cover image — most of avatar sits on banner
     zIndex: 99999,
     elevation: 99999,
     position: 'relative',
@@ -1969,4 +2034,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center',
   },
+
+  // Report modal styles
+  reportModalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'center', alignItems: 'center' },
+  reportActionsMenu: { backgroundColor: 'white', borderRadius: 12, minWidth: 220, paddingVertical: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4, elevation: 5 },
+  reportActionItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, gap: 12 },
+  reportActionText: { fontSize: 16, fontWeight: '500', color: '#374151' },
+  reportSeparator: { height: 1, backgroundColor: '#E5E7EB', marginHorizontal: 8 },
+  reportMenuTitle: { fontSize: 16, fontWeight: '700', paddingHorizontal: 16, paddingVertical: 12 },
 });

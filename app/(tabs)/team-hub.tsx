@@ -35,7 +35,7 @@ export default function TeamHubScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const palette = useMemo(() => buildPalette(colorScheme), [colorScheme]);
-  const S = useMemo(() => createStyles(palette), [palette]);
+  const S = useMemo(() => createStyles(palette, colorScheme), [palette, colorScheme]);
   const [_activeTab, _setActiveTab] = useState<'team' | 'create' | 'approvals'>('team');
   const [query, setQuery] = useState('');
   const [events, setEvents] = useState<any[]>([]);
@@ -266,7 +266,7 @@ const buildPalette = (scheme: keyof typeof Colors) => ({
   borderMuted: Colors[scheme].border,
 });
 
-const createStyles = (palette: Palette) => StyleSheet.create({
+const createStyles = (palette: Palette, scheme: 'light' | 'dark') => StyleSheet.create({
   page: { flex: 1, backgroundColor: palette.pageBg },
   searchWrap: {
     flexDirection: 'row', alignItems: 'center',
@@ -370,12 +370,12 @@ const createStyles = (palette: Palette) => StyleSheet.create({
   eventLocation: { color: palette.text, fontWeight: '600', flex: 1 },
   eventChip: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: '#DBEAFE', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 4,
+    backgroundColor: scheme === 'dark' ? '#1E3A5F' : '#DBEAFE', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 4,
   },
-  eventChipText: { color: '#1e3a8a', fontWeight: '700' },
+  eventChipText: { color: scheme === 'dark' ? '#93C5FD' : '#1e3a8a', fontWeight: '700' },
   eventChipMuted: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: '#f1f5f9', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 4,
+    backgroundColor: scheme === 'dark' ? '#1F2937' : '#f1f5f9', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 4,
   },
-  eventChipMutedText: { color: '#475569', fontWeight: '600' },
+  eventChipMutedText: { color: palette.mutedText, fontWeight: '600' },
 });

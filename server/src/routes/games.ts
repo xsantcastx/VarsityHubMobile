@@ -414,6 +414,7 @@ gamesRouter.post('/', requireAuth as any, gameCreationLimiter, async (req: Authe
 
 // Batch vote summaries - avoids N+1 when loading feed with many games (must be before /:id)
 gamesRouter.get('/votes-summary', async (req: AuthedRequest, res) => {
+  try {
   const idsParam = String(req.query.ids || '').trim();
   if (!idsParam) return res.status(400).json({ error: 'ids required (comma-separated game IDs)' });
   const ids = idsParam.split(',').map((s) => s.trim()).filter(Boolean);
@@ -462,14 +463,19 @@ gamesRouter.get('/votes-summary', async (req: AuthedRequest, res) => {
     };
   }
   return res.json(result);
+  } catch (err) {
+    console.error('[games] votes-summary error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Get single game by id
 gamesRouter.get('/:id', async (req, res) => {
+  try {
   const id = String(req.params.id);
   const game = await (prisma.game.findUnique as any)({
     where: { id },
-    include: { 
+    include: {
       events: { orderBy: { date: 'asc' }, take: 1 },
       homeTeam: { select: { id: true, name: true, avatar_url: true } },
       awayTeam: { select: { id: true, name: true, avatar_url: true } },
@@ -480,6 +486,10 @@ gamesRouter.get('/:id', async (req, res) => {
   const event = gameData.events[0] ?? null;
   const { events, ...rest } = gameData;
   return res.json({ ...rest, appearance: rest.appearance ?? null, event_id: event?.id ?? null });
+  } catch (err) {
+    console.error('[games] get-by-id error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Compact summary payload for the Game Details screen.
@@ -487,6 +497,7 @@ gamesRouter.get('/:id', async (req, res) => {
 // separately via GET /games/:id/posts and GET /games/:id/stories so this
 // endpoint stays fast (no heavy joins on potentially large post tables).
 gamesRouter.get('/:id/summary', async (req: AuthedRequest, res) => {
+  try {
   const id = String(req.params.id);
   const game = await (prisma.game.findUnique as any)({
     where: { id },
@@ -602,16 +613,26 @@ gamesRouter.get('/:id/summary', async (req: AuthedRequest, res) => {
     winner: gameData.winner ?? null,
     can_edit_result: canEditResult,
   });
+  } catch (err) {
+    console.error('[games] summary error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 
 gamesRouter.get('/:id/votes/summary', async (req: AuthedRequest, res) => {
-  const gameId = String(req.params.id);
-  const summary = await summarizeVotes(gameId, req.user?.id);
-  res.json(summary);
+  try {
+    const gameId = String(req.params.id);
+    const summary = await summarizeVotes(gameId, req.user?.id);
+    res.json(summary);
+  } catch (err) {
+    console.error('[games] votes-summary-single error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 gamesRouter.post('/:id/votes', requireAuth as any, voteLimiter, async (req: AuthedRequest, res) => {
+  try {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const gameId = String(req.params.id);
   const teamInput = String((req.body?.team ?? '')).trim().toUpperCase();
@@ -627,14 +648,23 @@ gamesRouter.post('/:id/votes', requireAuth as any, voteLimiter, async (req: Auth
 
   const summary = await summarizeVotes(gameId, req.user.id);
   res.json(summary);
+  } catch (err) {
+    console.error('[games] cast-vote error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 gamesRouter.delete('/:id/votes', requireAuth as any, async (req: AuthedRequest, res) => {
+  try {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const gameId = String(req.params.id);
   await prisma.gameVote.deleteMany({ where: { game_id: gameId, user_id: req.user.id } });
   const summary = await summarizeVotes(gameId, req.user.id);
   res.json(summary);
+  } catch (err) {
+    console.error('[games] delete-vote error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Delete a game
@@ -698,6 +728,7 @@ gamesRouter.delete('/:id', requireAuth as any, async (req: AuthedRequest, res) =
 
 // Posts tied to a game
 gamesRouter.get('/:id/posts', async (req: AuthedRequest, res) => {
+  try {
   const id = String(req.params.id);
   const limit = Math.min(parseInt(String(req.query.limit || '50'), 10) || 50, 100);
   // Privacy: exclude posts from private-profile authors the viewer doesn't follow
@@ -712,6 +743,10 @@ gamesRouter.get('/:id/posts', async (req: AuthedRequest, res) => {
     },
   });
   res.json(posts.map(serializePost));
+  } catch (err) {
+    console.error('[games] get-posts error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Media (stories) tied to a game
@@ -763,6 +798,7 @@ gamesRouter.post('/:id/stories', requireAuth as any, makeCreateStoryHandler({ pr
 
 // Update game result (scores) - coaches and team owners only
 gamesRouter.patch('/:id/result', requireAuth as any, async (req: AuthedRequest, res) => {
+  try {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
   const id = String(req.params.id);
@@ -819,6 +855,10 @@ gamesRouter.patch('/:id/result', requireAuth as any, async (req: AuthedRequest, 
     data,
   });
   return res.json(updated);
+  } catch (err) {
+    console.error('[games] update-result error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Update cover image
@@ -1024,8 +1064,9 @@ gamesRouter.put('/:id', requireAuth as any, async (req: AuthedRequest, res) => {
 
 // Approve or reject event
 gamesRouter.put('/:id/approve', requireAuth as any, async (req: AuthedRequest, res) => {
+  try {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  
+
   const id = String(req.params.id);
   const schema = z.object({
     approval_status: z.enum(['approved', 'rejected']),
@@ -1084,4 +1125,8 @@ gamesRouter.put('/:id/approve', requireAuth as any, async (req: AuthedRequest, r
   });
 
   return res.json(updatedGame);
+  } catch (err) {
+    console.error('[games] approve error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });

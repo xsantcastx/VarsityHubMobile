@@ -6,7 +6,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import { usePaymentSheet } from '@stripe/stripe-react-native';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Platform, Pressable, ScrollView as RNScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Linking, Platform, Pressable, ScrollView as RNScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Organization, Subscriptions, Team, User } from '@/api/entities';
@@ -160,7 +160,10 @@ export default function CreateTeamScreen() {
     const result = await ImagePicker.requestMediaLibraryPermissionsAsync();
     
     if (result.granted === false) {
-      Alert.alert('Permission Required', 'Please allow access to your photos to upload a team logo.');
+      Alert.alert('Permission Required', 'Please allow access to your photos to upload a team logo.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Open Settings', onPress: () => Linking.openSettings() },
+      ]);
       return;
     }
 
@@ -181,7 +184,10 @@ export default function CreateTeamScreen() {
     const result = await ImagePicker.requestCameraPermissionsAsync();
     
     if (result.granted === false) {
-      Alert.alert('Permission Required', 'Please allow camera access to take a team logo photo.');
+      Alert.alert('Permission Required', 'Please allow camera access to take a team logo photo.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Open Settings', onPress: () => Linking.openSettings() },
+      ]);
       return;
     }
 

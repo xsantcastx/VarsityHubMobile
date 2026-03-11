@@ -104,38 +104,19 @@ export default function EditAdScreen() {
     if (!id || !canSave || saving) return;
     setSaving(true);
     try {
-      try {
-        await AdsApi.update(String(id), {
-          contact_name: contactName.trim(),
-          contact_email: contactEmail.trim(),
-          business_name: business.trim(),
-          banner_url: bannerUrl || undefined,
-          target_url: targetUrl.trim() || undefined,
-          target_zip_code: zip.trim(),
-          description: desc.trim() || undefined,
-        });
-      } catch {
-        // If not permitted or offline, update local draft copy
-        const list = await settings.getJson<any[]>(settings.SETTINGS_KEYS.LOCAL_ADS, []);
-        const idx = list.findIndex((a) => String(a.id) === String(id));
-        const next = {
-          id,
-          contact_name: contactName.trim(),
-          contact_email: contactEmail.trim(),
-          business_name: business.trim(),
-          banner_url: bannerUrl || undefined,
-          target_url: targetUrl.trim() || undefined,
-          zip_code: zip.trim(),
-          description: desc.trim() || undefined,
-          status,
-          payment_status: payment,
-          created_at: new Date().toISOString(),
-        };
-        if (idx >= 0) list[idx] = { ...list[idx], ...next }; else list.push(next);
-        await settings.setJson(settings.SETTINGS_KEYS.LOCAL_ADS, list);
-      }
+      await AdsApi.update(String(id), {
+        contact_name: contactName.trim(),
+        contact_email: contactEmail.trim(),
+        business_name: business.trim(),
+        banner_url: bannerUrl || undefined,
+        target_url: targetUrl.trim() || undefined,
+        target_zip_code: zip.trim(),
+        description: desc.trim() || undefined,
+      });
       Alert.alert('Saved', 'Your ad was updated.');
       if (router.canGoBack()) router.back(); else router.push('/(tabs)/my-ads');
+    } catch (e: any) {
+      Alert.alert('Save failed', e?.message || 'Could not update the ad. Please try again.');
     } finally {
       setSaving(false);
     }

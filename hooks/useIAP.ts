@@ -2,7 +2,7 @@
  * useVHubIAP — Wraps react-native-iap's useIAP hook for VarsityHub subscriptions.
  *
  * Handles product fetching, purchasing, and server-side receipt validation
- * for veteran_vhub and Legend_vhub IAP products on iOS.
+ * for veteran_vhub and Legend_vhub IAP products on iOS and Android.
  */
 
 import { useEffect, useCallback, useState, useRef } from 'react';
@@ -14,7 +14,10 @@ import {
 import type { Purchase, PurchaseError } from 'react-native-iap';
 import { httpPost } from '@/api/http';
 
-// Apple IAP product IDs — must match App Store Connect exactly
+const isIOS = Platform.OS === 'ios';
+const isAndroid = Platform.OS === 'android';
+
+// IAP product IDs — must match App Store Connect / Google Play Console exactly
 export const IAP_PRODUCT_IDS = {
   veteran: 'veteran_vhub',
   legend: 'Legend_vhub',
@@ -23,7 +26,6 @@ export const IAP_PRODUCT_IDS = {
 const ALL_SKUS = [IAP_PRODUCT_IDS.veteran, IAP_PRODUCT_IDS.legend];
 
 export function useVHubIAP() {
-  const isIOS = Platform.OS === 'ios';
   const [purchasing, setPurchasing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const purchaseResolveRef = useRef<((success: boolean) => void) | null>(null);
@@ -37,24 +39,38 @@ export function useVHubIAP() {
   } = useRNIAP({
     onPurchaseSuccess: async (purchase: Purchase) => {
       try {
-        // Get the receipt for server validation
-        let receipt: string | undefined;
-        try {
-          receipt = await getReceiptIOS();
-        } catch {
-          receipt = (purchase as any).transactionReceipt;
+        if (isIOS) {
+          // iOS: Get receipt and verify with Apple endpoint
+          let receipt: string | undefined;
+          try {
+            receipt = await getReceiptIOS();
+          } catch {
+            receipt = (purchase as any).transactionReceipt;
+          }
+
+          if (!receipt) {
+            throw new Error('No receipt available for validation');
+          }
+
+          await httpPost('/payments/apple/verify-receipt', {
+            receipt,
+            productId: purchase.productId,
+          });
+        } else if (isAndroid) {
+          // Android: Send purchaseToken to Google verification endpoint
+          const purchaseToken = (purchase as any).purchaseToken;
+          if (!purchaseToken) {
+            throw new Error('No purchase token available for validation');
+          }
+
+          await httpPost('/payments/google/verify-purchase', {
+            purchase_token: purchaseToken,
+            product_id: purchase.productId,
+            package_name: (purchase as any).packageNameAndroid || 'com.varsityhub.varsityhub',
+          });
         }
 
-        if (!receipt) {
-          throw new Error('No receipt available for validation');
-        }
-
-        await httpPost('/payments/apple/verify-receipt', {
-          receipt,
-          productId: purchase.productId,
-        });
-
-        // Acknowledge the transaction with Apple
+        // Acknowledge the transaction with the store
         await finishTransaction({ purchase, isConsumable: false });
 
         setPurchasing(false);
@@ -90,13 +106,13 @@ export function useVHubIAP() {
     },
   });
 
-  // Fetch subscription products on mount
+  // Fetch subscription products on mount (iOS and Android)
   useEffect(() => {
-    if (!isIOS || !connected) return;
+    if (!connected || (!isIOS && !isAndroid)) return;
     fetchProducts({ skus: ALL_SKUS, type: 'subs' }).catch((err) => {
       if (__DEV__) console.warn('[useVHubIAP] fetchProducts error:', err);
     });
-  }, [isIOS, connected, fetchProducts]);
+  }, [connected, fetchProducts]);
 
   const purchase = useCallback(
     async (plan: 'veteran' | 'legend'): Promise<boolean> => {
@@ -111,7 +127,13 @@ export function useVHubIAP() {
 
       return new Promise<boolean>((resolve) => {
         purchaseResolveRef.current = resolve;
-        requestPurchase({ type: 'subs', request: { apple: { sku } } }).catch((err: any) => {
+
+        // Platform-specific purchase request
+        const purchaseRequest = isAndroid
+          ? { type: 'subs' as const, request: { google: { skus: [sku] } } }
+          : { type: 'subs' as const, request: { apple: { sku } } };
+
+        requestPurchase(purchaseRequest).catch((err: any) => {
           const msg = err?.message || '';
           if (msg.toLowerCase().includes('cancel')) {
             setPurchasing(false);
@@ -138,7 +160,7 @@ export function useVHubIAP() {
   );
 
   return {
-    connected: isIOS ? connected : false,
+    connected,
     products: subscriptions,
     purchasing,
     error,

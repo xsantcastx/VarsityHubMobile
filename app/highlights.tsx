@@ -8,11 +8,10 @@ import * as Haptics from 'expo-haptics';
 import { Image as ExpoImage } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
-    Dimensions,
     FlatList,
     Platform,
     Pressable,
@@ -35,7 +34,6 @@ import { calculateRanking, HighlightItem } from '../utils/rankingUtils';
 
 type TabType = 'trending' | 'recent' | 'top';
 const CARD_HEIGHT = 220;
-const SCREEN_WIDTH = Dimensions.get('window').width;
 
 const mapHighlightItem = (input: any): HighlightItem | null => {
   if (!input) return null;
@@ -48,6 +46,7 @@ const mapHighlightItem = (input: any): HighlightItem | null => {
     caption: input.caption ?? undefined,
     content: input.content ?? undefined,
     media_url: typeof input.media_url === 'string' ? input.media_url : undefined,
+    preview_url: typeof input.preview_url === 'string' ? input.preview_url : undefined,
     upvotes_count: typeof input.upvotes_count === 'number' ? input.upvotes_count : undefined,
     created_at: typeof input.created_at === 'string' ? input.created_at : new Date().toISOString(),
     author_id: String(authorId),
@@ -158,7 +157,7 @@ const HighlightCard = ({
           )}
           {hasMedia ? (
             <View style={styles.mediaContainer}>
-              <ExpoImage source={{ uri: isVideo && item.preview_url ? item.preview_url : item.media_url }} style={styles.mediaImage} contentFit="cover" />
+              <ExpoImage source={{ uri: isVideo ? (item.preview_url || item.media_url?.replace(/\.(mp4|mov|webm|m4v|avi)$/i, '.jpg')) : item.media_url }} style={styles.mediaImage} contentFit="cover" />
               {isVideo && (
                 <View style={styles.videoOverlay}>
                   <View style={styles.playButton}>

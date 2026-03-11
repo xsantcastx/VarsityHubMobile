@@ -107,7 +107,14 @@ export default function SubmitAdScreen() {
         }
       }
 
-      const adId = serverId || `local-${Date.now()}-${Math.round(Math.random() * 1e6)}`;
+      // If server creation failed, do NOT navigate — the ad doesn't exist on the server
+      // so payment will always fail with "Ad not found"
+      if (!serverId) {
+        Alert.alert('Error', createError || 'Could not create your ad. Please check your connection and try again.');
+        return;
+      }
+
+      const adId = serverId;
       // Keep a local copy so My Ads can show offline
       try {
         const draft: DraftAd = {
@@ -122,7 +129,7 @@ export default function SubmitAdScreen() {
           description: desc.trim() || undefined,
           created_at: new Date().toISOString(),
           owner_id: currentUserId,
-          isLocal: !serverId,
+          isLocal: false,
         };
         const baseKey = settings.SETTINGS_KEYS.LOCAL_ADS;
         const scopedKey = currentUserId ? `${baseKey}_${currentUserId}` : baseKey;

@@ -93,7 +93,7 @@ export function useDeviceLocation(): UseDeviceLocationResult {
     } finally {
       setLoading(false);
     }
-  }, [assignLocation]);
+  }, [assignLocation, CACHE_DURATION_MS]);
 
   const requestPermission = useCallback(async (): Promise<boolean> => {
     try {
@@ -124,7 +124,7 @@ export function useDeviceLocation(): UseDeviceLocationResult {
 
   // Check permissions on mount
   useEffect(() => {
-    (async () => {
+    void (async () => {
       try {
         const { status } = await Location.getForegroundPermissionsAsync();
         const granted = status === 'granted';

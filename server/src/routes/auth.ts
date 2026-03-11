@@ -524,7 +524,7 @@ const appleAuthSchema = z.object({
 });
 
 authRouter.post('/apple', async (req, res) => {
-  const APPLE_CLIENT_ID = process.env.APPLE_CLIENT_ID;
+  const APPLE_CLIENT_ID = process.env.APPLE_CLIENT_ID || process.env.APPLE_BUNDLE_ID || 'com.varsithub.varsityhub-ios';
   if (!APPLE_CLIENT_ID) {
     return res.status(503).json({ error: 'Apple Sign-In is not configured' });
   }
@@ -578,7 +578,7 @@ authRouter.post('/apple', async (req, res) => {
         debugLog('[auth/apple] Apple token verified');
       } catch (err: any) {
         console.error('[auth/apple] Token verification failed:', err?.message || err);
-        return res.status(400).json({ error: 'Failed to verify Apple token', detail: err?.message });
+        return res.status(400).json({ error: 'Failed to verify Apple token' });
       }
     }
 
@@ -810,6 +810,11 @@ authRouter.post('/password/change', requireAuth as any, async (req: AuthedReques
   const user = await prisma.user.findUnique({ where: { id: req.user.id } });
   if (!user) return res.status(404).json({ error: 'User not found' });
   
+  // Users who signed up via Apple/Google may not have a password hash
+  if (!user.password_hash) {
+    return res.status(400).json({ error: 'Your account uses Apple or Google sign-in. Please use your provider to manage your password.' });
+  }
+
   // Verify current password
   const isValid = await bcrypt.compare(current_password, user.password_hash);
   if (!isValid) return res.status(401).json({ error: 'Current password is incorrect' });

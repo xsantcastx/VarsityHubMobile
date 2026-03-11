@@ -11,12 +11,14 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { ensureUploadableUri } from '@/utils/ensureUploadableUri';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
+import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
     Animated,
+    Linking,
     Platform,
     Pressable,
     StyleSheet,
@@ -70,7 +72,11 @@ export function BannerUpload({
       if (status !== 'granted') {
         Alert.alert(
           'Permission Required',
-          'Please grant photo library access to upload banner images.'
+          'Please grant photo library access to upload banner images.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Open Settings', onPress: () => Linking.openSettings() },
+          ]
         );
         setUploading(false);
         return;
@@ -80,23 +86,35 @@ export function BannerUpload({
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: false, // Allow full image without cropping
-        quality: 0.9,
+        quality: 0.8,
         exif: false,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const asset = result.assets[0];
 
+        // Resize/compress image before size validation
+        let processedUri = asset.uri;
+        try {
+          const manipulated = await ImageManipulator.manipulateAsync(
+            asset.uri,
+            [{ resize: { width: 1920 } }],
+            { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+          );
+          processedUri = manipulated.uri;
+        } catch (error: any) {
+          if (__DEV__) console.warn('[BannerUpload] Image manipulation failed, using original:', error?.message || error);
+          // Continue with original URI if manipulation fails
+        }
+
         // Validate image size (max 5MB)
-        let fileSize = (asset as any)?.fileSize as number | undefined;
-        if (!fileSize) {
-          try {
-            const response = await fetch(asset.uri);
-            const blob = await response.blob();
-            fileSize = blob.size;
-          } catch {
-            // Continue upload without size validation
-          }
+        let fileSize: number | undefined;
+        try {
+          const response = await fetch(processedUri);
+          const blob = await response.blob();
+          fileSize = blob.size;
+        } catch {
+          // Continue upload without size validation
         }
 
         if (fileSize && fileSize > 5 * 1024 * 1024) {
@@ -114,11 +132,11 @@ export function BannerUpload({
 
         const rawName = asset.fileName || asset.uri.split('/').pop() || `banner_${Date.now()}.jpg`;
         const fileName = rawName.includes('.') ? rawName : `${rawName}.jpg`;
-        const mimeType = (asset as any)?.mimeType as string | undefined;
+        const mimeType = 'image/jpeg';
         const uploadSource =
           Platform.OS === 'web'
-            ? { uri: asset.uri, mimeType }
-            : await ensureUploadableUri(asset.uri, mimeType);
+            ? { uri: processedUri, mimeType }
+            : await ensureUploadableUri(processedUri, mimeType);
 
         const uploaded = await uploadFile(null, uploadSource.uri, fileName, uploadSource.mimeType);
         const uploadedUrl = uploaded?.url || uploaded?.signed_url || uploaded?.path;
@@ -158,7 +176,7 @@ export function BannerUpload({
     ]);
   };
 
-  const handleFitModeChange = (newMode: BannerFitMode) => {
+  const _handleFitModeChange = (newMode: BannerFitMode) => {
     setFitMode(newMode);
     if (value) {
       onChange(value, getFitValue(newMode), newMode === 'fill' ? position : { x: 50, y: 50 });
@@ -259,6 +277,11 @@ export function BannerUpload({
                   if (touches.length >= 2) {
                     initialDistance.current = getDistance(touches[0], touches[1]);
                   }
+                  // Store initial touch position for delta-based panning
+                  if (touches.length === 1) {
+                    (panStart.current as any)._startX = touches[0].locationX;
+                    (panStart.current as any)._startY = touches[0].locationY;
+                  }
                 }}
                 onResponderMove={(e) => {
                   const touches = Array.from(e.nativeEvent.touches);
@@ -267,30 +290,29 @@ export function BannerUpload({
                   if (touches.length >= 2) {
                     const currentDistance = getDistance(touches[0], touches[1]);
 
-                    // Lazily initialize on the first 2-finger move frame
-                    // (onResponderGrant fires on touch-start with only 1 finger,
-                    // so initialDistance is still 0 when the second finger arrives)
                     if (initialDistance.current === 0) {
                       initialDistance.current = currentDistance;
                       initialScale.current = scale;
                     }
 
-                    // Pinch to scale only — no rotation
                     const rawRatio = currentDistance / initialDistance.current;
                     const dampenedRatio = 1 + (rawRatio - 1) * 0.4;
                     const newScale = clamp(dampenedRatio * initialScale.current, 1, 3);
                     setScale(newScale);
                   } else if (touches.length === 1) {
-                    // Reset pinch state when back to single finger
                     if (initialDistance.current !== 0) {
                       initialDistance.current = 0;
                     }
                     if (fitMode === 'fill') {
-                      // Pan the image in fill mode (works at any zoom level)
+                      // Delta-based panning — less sensitive than absolute positioning
                       const { locationX, locationY } = touches[0];
                       if (!width || !height) return;
-                      const xPct = clamp((locationX / width) * 100, 0, 100);
-                      const yPct = clamp((locationY / height) * 100, 0, 100);
+                      const startX = (panStart.current as any)._startX ?? locationX;
+                      const startY = (panStart.current as any)._startY ?? locationY;
+                      const deltaXPct = ((locationX - startX) / width) * 50; // dampened by 0.5x
+                      const deltaYPct = ((locationY - startY) / height) * 50;
+                      const xPct = clamp(panStart.current.x + deltaXPct, 0, 100);
+                      const yPct = clamp(panStart.current.y + deltaYPct, 0, 100);
                       setPosition({ x: xPct, y: yPct });
                     }
                   }

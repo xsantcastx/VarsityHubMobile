@@ -174,6 +174,7 @@ export default function Step1Role() {
     return () => {
       cancelled = true;
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- initial mount only; ob.role and setOB are stable context values
   }, []);
 
   // Check email verification status on mount and when screen focuses

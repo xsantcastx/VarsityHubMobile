@@ -98,7 +98,7 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
   const [slideAnim] = useState(new Animated.Value(-100));
   const [fadeAnim] = useState(new Animated.Value(0));
   const colorScheme = useColorScheme() ?? 'light';
-  const colors = Colors[colorScheme];
+  const _colors = Colors[colorScheme];
 
   useEffect(() => {
     // Slide in and fade in
@@ -114,6 +114,7 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
         useNativeDriver: true,
       }),
     ]).start();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- fadeAnim and slideAnim are Animated.Values (ref-like), initial mount only
   }, []);
 
   const getToastStyle = () => {

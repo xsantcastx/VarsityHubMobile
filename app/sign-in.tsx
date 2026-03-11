@@ -69,6 +69,7 @@ export default function SignInScreen() {
           await checkAuth({ email, pendingVerification: true });
         } catch (authError) {
           // Token is saved, AuthProvider will handle routing on next render
+          // eslint-disable-next-line no-console
           if (__DEV__) console.log('[sign-in] checkAuth after verification login:', authError);
         }
         setLoading(false);
@@ -81,6 +82,7 @@ export default function SignInScreen() {
       } catch (authError) {
         // Token is saved, let AuthProvider handle routing
         // Don't show error - token is valid, routing will happen
+        // eslint-disable-next-line no-console
         if (__DEV__) console.log('[sign-in] checkAuth after email login:', authError);
       }
     } catch (e: any) {

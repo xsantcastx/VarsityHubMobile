@@ -123,8 +123,16 @@ export default function RootLayout() {
       try {
         switch (data.type) {
           case 'new_message':
-            devLog('[Notifications] Navigating to messages');
-            router.push('/(tabs)/messages' as any);
+            if (data.conversation_id) {
+              devLog('[Notifications] Navigating to message thread:', data.conversation_id);
+              router.push(`/(tabs)/message-thread?conversation_id=${data.conversation_id}` as any);
+            } else if (data.sender_id) {
+              devLog('[Notifications] Navigating to message thread with sender:', data.sender_id);
+              router.push(`/(tabs)/message-thread?with=${data.sender_id}` as any);
+            } else {
+              devLog('[Notifications] Navigating to messages');
+              router.push('/(tabs)/messages' as any);
+            }
             break;
 
           case 'post_interaction':

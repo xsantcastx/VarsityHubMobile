@@ -290,8 +290,8 @@ export default function AdminDashboardScreen() {
                 </Text>
               </Pressable>
 
-              <Pressable 
-                style={[styles.actionButton, { 
+              <Pressable
+                style={[styles.actionButton, {
                   backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white',
                   borderColor: colorScheme === 'dark' ? '#374151' : '#E5E7EB',
                 }]}
@@ -300,6 +300,19 @@ export default function AdminDashboardScreen() {
                 <MaterialIcons name="list" size={28} color="#8B5CF6" />
                 <Text style={[styles.actionText, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
                   Activity Log
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={[styles.actionButton, {
+                  backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white',
+                  borderColor: colorScheme === 'dark' ? '#374151' : '#E5E7EB',
+                }]}
+                onPress={() => void router.push('/admin-create-event')}
+              >
+                <MaterialIcons name="event" size={28} color="#06B6D4" />
+                <Text style={[styles.actionText, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
+                  Events
                 </Text>
               </Pressable>
             </View>

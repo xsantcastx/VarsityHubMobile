@@ -22,8 +22,9 @@ const debugLog = (...args: Parameters<typeof console.log>) => {
 
 // Get teams managed by current user (requires authentication)
 teamsRouter.get('/managed', requireAuth as any, async (req: AuthedRequest, res) => {
+  try {
   if (!req.user) return res.status(401).json({ error: 'Authentication required' });
-  
+
   const q = String((req.query as any).q || '').trim().toLowerCase();
   const userId = req.user.id;
   const managementRoles = ['owner', 'manager', 'coach', 'assistant_coach'];
@@ -86,11 +87,15 @@ teamsRouter.get('/managed', requireAuth as any, async (req: AuthedRequest, res) 
   }));
   
   return res.json(list);
+  } catch (err) {
+    console.error('[teams] managed error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Check team creation limits for current user
 teamsRouter.get('/limits', requireAuth as any, async (req: AuthedRequest, res) => {
-  
+  try {
   const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
   if (!user) return res.status(401).json({ error: 'User not found' });
 
@@ -125,10 +130,15 @@ teamsRouter.get('/limits', requireAuth as any, async (req: AuthedRequest, res) =
     subscription_tier: subscriptionTier,
     upgrade_required: !canCreateMore
   });
+  } catch (err) {
+    console.error('[teams] limits error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // List teams with member counts; optional search q
 teamsRouter.get('/', async (req, res) => {
+  try {
   const q = String((req.query as any).q || '').trim().toLowerCase();
   const all = String((req.query as any).all || '') === '1';
   const mine = String((req.query as any).mine || '') === '1';
@@ -202,6 +212,10 @@ teamsRouter.get('/', async (req, res) => {
     venue_place_id: (t as any).venue_place_id || null,
   }));
   return res.json(list);
+  } catch (err) {
+    console.error('[teams] list error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Follow a team
@@ -239,6 +253,7 @@ teamsRouter.delete('/:id/follow', requireAuth as any, async (req: AuthedRequest,
 
 // Team details with counts
 teamsRouter.get('/:id', async (req, res) => {
+  try {
   const id = String(req.params.id);
   const currentUserId = (req as AuthedRequest).user?.id ?? null;
   const t = await prisma.team.findUnique({
@@ -282,10 +297,15 @@ teamsRouter.get('/:id', async (req, res) => {
     avatar_url: (t as any).avatar_url || null,
     created_at: t.created_at,
   });
+  } catch (err) {
+    console.error('[teams] get-by-id error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Team members list
 teamsRouter.get('/:id/members', async (req, res) => {
+  try {
   const id = String(req.params.id);
   const mems = await prisma.teamMembership.findMany({
     where: { team_id: id },
@@ -322,10 +342,15 @@ teamsRouter.get('/:id/members', async (req, res) => {
     };
   });
   return res.json(list);
+  } catch (err) {
+    console.error('[teams] get-members error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // All members across teams (admin screens). Paged and DB-filtered to avoid unbounded scans.
 teamsRouter.get('/members/all', requireAuth as any, async (req: AuthedRequest, res) => {
+  try {
   const isAdmin = await getIsAdmin(req);
   if (!isAdmin) return res.status(403).json({ error: 'Admin only' });
 
@@ -381,6 +406,10 @@ teamsRouter.get('/members/all', requireAuth as any, async (req: AuthedRequest, r
   }));
 
   return res.json(list);
+  } catch (err) {
+    console.error('[teams] members-all error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Create team (auth required). Creator becomes owner.
@@ -393,6 +422,7 @@ const createSchema = z.object({
   onboarding: z.boolean().optional(),
 });
 teamsRouter.post('/', requireVerified as any, requirePlan('rookie') as any, async (req: AuthedRequest, res) => {
+  try {
   // req.user is guaranteed by requireVerified middleware
   const parsed = createSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -476,6 +506,10 @@ teamsRouter.post('/', requireVerified as any, requirePlan('rookie') as any, asyn
   } });
   await prisma.teamMembership.create({ data: { team_id: t.id, user_id: me.id, role: 'owner' } });
   return res.status(201).json(t);
+  } catch (err) {
+    console.error('[teams] create error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Update team (auth required). Only owners/admins can update.
@@ -597,9 +631,8 @@ teamsRouter.put('/:id', requireVerified as any, async (req: AuthedRequest, res) 
       created_at: updatedTeam.created_at,
     });
   } catch (err: any) {
-    console.error('Failed to update team', err?.message || err);
-    // Handle common Prisma client runtime errors gracefully
-    return res.status(500).json({ error: 'Failed to update team', detail: err?.message || String(err) });
+    console.error('[teams] update error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -634,8 +667,8 @@ teamsRouter.delete('/:id', requireVerified as any, async (req: AuthedRequest, re
     
     return res.json({ ok: true, message: 'Team deleted successfully' });
   } catch (err: any) {
-    console.error('Failed to delete team', err?.message || err);
-    return res.status(500).json({ error: 'Failed to delete team', detail: err?.message || String(err) });
+    console.error('[teams] delete error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -649,7 +682,7 @@ if (process.env.NODE_ENV !== 'production') {
   return res.json({ ok: true, team: { id: t.id, logo_url: (t as any).logo_url } });
     } catch (e: any) {
       console.error('dev-set-logo failed', e?.message || e);
-      return res.status(500).json({ error: 'dev-set-logo failed', detail: e?.message || String(e) });
+      return res.status(500).json({ error: 'Internal server error' });
     }
   });
 }
@@ -920,9 +953,7 @@ teamsRouter.post('/create', requireVerified as any, requirePlan('rookie') as any
     } catch (orgError: any) {
       console.error('[Teams] Failed to validate organization:', orgError);
       return res.status(500).json({
-        error: 'Failed to validate organization',
-        message: 'Unable to verify organization. Please try again.',
-        detail: orgError?.message || String(orgError)
+        error: 'Internal server error',
       });
     }
   }
@@ -1057,9 +1088,7 @@ teamsRouter.post('/create', requireVerified as any, requirePlan('rookie') as any
     }
 
     return res.status(500).json({
-      error: 'Failed to create team',
-      message: 'Unable to create team. Please try again.',
-      detail: teamError?.message || String(teamError)
+      error: 'Internal server error',
     });
   }
 });
@@ -1213,16 +1242,22 @@ teamsRouter.post('/:id/invite', requireAuth as any, inviteLimiter, async (req: A
 
 // List invites for the authed user's email
 teamsRouter.get('/invites/me', requireAuth as any, async (req: AuthedRequest, res) => {
+  try {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const user = await prisma.user.findUnique({ where: { id: req.user.id } });
   if (!user?.email) return res.status(400).json({ error: 'User email not found' });
   const invites = await prisma.teamInvite.findMany({ where: { email: user.email, status: 'pending' }, include: { team: true }, orderBy: { created_at: 'desc' } });
   const list = invites.map((i) => ({ id: i.id, role: i.role, created_at: i.created_at, team: { id: i.team_id, name: (i as any).team?.name || '' } }));
   return res.json(list);
+  } catch (err) {
+    console.error('[teams] invites-me error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Accept invite
 teamsRouter.post('/invites/:inviteId/accept', requireAuth as any, async (req: AuthedRequest, res) => {
+  try {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const inviteId = String(req.params.inviteId);
   const invite = await prisma.teamInvite.findUnique({ where: { id: inviteId } });
@@ -1301,10 +1336,15 @@ teamsRouter.post('/invites/:inviteId/accept', requireAuth as any, async (req: Au
   }
 
   return res.json({ ok: true });
+  } catch (err) {
+    console.error('[teams] accept-invite error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Decline invite
 teamsRouter.post('/invites/:inviteId/decline', requireAuth as any, async (req: AuthedRequest, res) => {
+  try {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const inviteId = String(req.params.inviteId);
   const invite = await prisma.teamInvite.findUnique({ where: { id: inviteId } });
@@ -1313,10 +1353,15 @@ teamsRouter.post('/invites/:inviteId/decline', requireAuth as any, async (req: A
   if (!user?.email || user.email.toLowerCase() !== invite.email.toLowerCase()) return res.status(403).json({ error: 'Invite not for this user' });
   await prisma.teamInvite.update({ where: { id: invite.id }, data: { status: 'declined' } });
   return res.json({ ok: true });
+  } catch (err) {
+    console.error('[teams] decline-invite error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Transfer team ownership
 teamsRouter.post('/:id/transfer-ownership', requireAuth as any, async (req: AuthedRequest, res) => {
+  try {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const teamId = String(req.params.id);
   const { new_owner_id } = req.body || {};
@@ -1353,4 +1398,8 @@ teamsRouter.post('/:id/transfer-ownership', requireAuth as any, async (req: Auth
   ]);
 
   return res.json({ ok: true, message: 'Ownership transferred successfully' });
+  } catch (err) {
+    console.error('[teams] transfer-ownership error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });

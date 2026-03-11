@@ -35,7 +35,7 @@ export default function PaymentSuccessScreen() {
 
   const isAdPayment = params.type === 'ad';
   const isSubscription = params.type === 'subscription';
-  const maxAttempts = 5;
+  const maxAttempts = 10;
 
   const clearRetry = () => {
     if (retryTimeoutRef.current) {
@@ -90,10 +90,16 @@ export default function PaymentSuccessScreen() {
                 Animated.timing(contentOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
               ]).start();
             } else if (verificationAttempt < maxAttempts - 1) {
+              // Midway fallback: try finalize-session to nudge the server
+              if (verificationAttempt === 4) {
+                try {
+                  await httpPost('/payments/finalize-session', { session_id: sessionId });
+                } catch { /* finalize may already be done */ }
+              }
               clearRetry();
               retryTimeoutRef.current = setTimeout(() => {
                 setVerificationAttempt((a) => a + 1);
-              }, 2000);
+              }, 3000);
             } else {
               // Last attempt — try finalize
               try {
@@ -126,6 +132,7 @@ export default function PaymentSuccessScreen() {
 
     void verify();
     return () => clearRetry();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- checkOpacity and contentOpacity are Animated.Values (ref-like), adding them causes infinite loops
   }, [params.session_id, isAdPayment, verificationAttempt]);
 
   const formatDate = (iso: string) => {
@@ -143,7 +150,7 @@ export default function PaymentSuccessScreen() {
         {loading ? (
           <View style={styles.center}>
             <ActivityIndicator size="large" color={theme.tint} />
-            <Text style={[styles.loadingText, { color: theme.mutedText }]}>Confirming your payment...</Text>
+            <Text style={[styles.loadingText, { color: theme.mutedText }]}>Confirming your payment{verificationAttempt > 3 ? '\nThis may take a moment...' : '...'}</Text>
           </View>
         ) : error ? (
           <View style={styles.center}>

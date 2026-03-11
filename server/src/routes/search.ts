@@ -12,6 +12,7 @@ export const searchRouter = Router();
  * Auth is optional; unauthenticated requests return results with is_following: false.
  */
 searchRouter.get('/', authMiddleware as any, async (req: AuthedRequest, res) => {
+  try {
   const q = String((req.query as any).q || '').trim().toLowerCase();
   const limit = Math.min(parseInt(String((req.query as any).limit || '10'), 10) || 10, 20);
   const currentUserId = req.user?.id ?? null;
@@ -149,4 +150,8 @@ searchRouter.get('/', authMiddleware as any, async (req: AuthedRequest, res) => 
     teams: teamsPayload,
     organizations: organizationsPayload,
   });
+  } catch (err) {
+    console.error('[search] GET / error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });

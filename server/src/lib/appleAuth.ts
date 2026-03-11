@@ -52,7 +52,7 @@ export async function verifyAppleToken(identityToken: string): Promise<AppleToke
     const decoded = jwt.verify(identityToken, publicKeyPem, {
       algorithms: ['RS256'],
       issuer: 'https://appleid.apple.com',
-      audience: process.env.APPLE_BUNDLE_ID || 'com.xsantcastx.varsityhub',
+      audience: process.env.APPLE_BUNDLE_ID || 'com.varsithub.varsityhub-ios',
     }) as AppleTokenPayload;
 
     // Additional validation
@@ -61,7 +61,7 @@ export async function verifyAppleToken(identityToken: string): Promise<AppleToke
       return null;
     }
 
-    if (decoded.aud !== (process.env.APPLE_BUNDLE_ID || 'com.xsantcastx.varsityhub')) {
+    if (decoded.aud !== (process.env.APPLE_BUNDLE_ID || 'com.varsithub.varsityhub-ios')) {
       console.error('[apple-auth] Invalid audience:', decoded.aud);
       return null;
     }
@@ -117,7 +117,7 @@ export function loadApplePrivateKey(): string | null {
 
 /**
  * Environment variables required:
- * - APPLE_BUNDLE_ID: Bundle identifier (com.xsantcastx.varsityhub)
+ * - APPLE_BUNDLE_ID: Bundle identifier (com.varsithub.varsityhub-ios)
  * - APPLE_TEAM_ID: Apple Developer Team ID
  * - APPLE_KEY_ID: Key ID (LS9X6BV22K)
  * 

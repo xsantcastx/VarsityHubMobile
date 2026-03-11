@@ -6,7 +6,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Image, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { Alert, Image, Linking, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
 // @ts-ignore
 import { User } from '@/api/entities';
 import { uploadFile } from '@/api/upload';
@@ -83,7 +83,7 @@ export default function Step7Profile() {
 
   const pickImage = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) { Alert.alert('Permission required'); return; }
+    if (!perm.granted) { Alert.alert('Permission Required', 'Please allow access to your photos to select a profile picture.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Open Settings', onPress: () => Linking.openSettings() }]); return; }
     const res = await ImagePicker.launchImageLibraryAsync({
       ...pickerMediaTypesProp(),
       allowsEditing: true,

@@ -177,7 +177,7 @@ export default function MyTeamScreen() {
   useFocusEffect(
     useCallback(() => {
       setLoading(true);
-      loadAll().finally(() => setLoading(false));
+      void loadAll().finally(() => setLoading(false));
     }, [loadAll]),
   );
 
@@ -185,7 +185,7 @@ export default function MyTeamScreen() {
   useFocusEffect(
     useCallback(() => {
       if (selectedTeamId) {
-        loadMembersForSelected();
+        void loadMembersForSelected();
       }
     }, [selectedTeamId, loadMembersForSelected]),
   );

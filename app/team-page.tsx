@@ -621,21 +621,27 @@ export default function TeamScreen() {
                   }
                 ]}
                 onPress={async () => {
+                  // eslint-disable-next-line no-console
                   if (__DEV__) console.log('[Follow] button pressed — team?.id:', team?.id, '| isFollowing:', isFollowing);
                   if (!team?.id || team.id.startsWith('temp-')) {
+                    // eslint-disable-next-line no-console
                     if (__DEV__) console.warn('[Follow] blocked: team or team.id is missing/temporary');
                     return;
                   }
                   try {
                     if (isFollowing) {
+                      // eslint-disable-next-line no-console
                       if (__DEV__) console.log('[Follow] calling Team.unfollow(', team.id, ')');
                       await Team.unfollow(team.id);
+                      // eslint-disable-next-line no-console
                       if (__DEV__) console.log('[Follow] unfollow success');
                       setIsFollowing(false);
                       setTeam((prev) => prev ? { ...prev, followers_count: Math.max(0, ((prev as any).followers_count ?? 0) - 1) } : null);
                     } else {
+                      // eslint-disable-next-line no-console
                       if (__DEV__) console.log('[Follow] calling Team.follow(', team.id, ')');
                       await Team.follow(team.id);
+                      // eslint-disable-next-line no-console
                       if (__DEV__) console.log('[Follow] follow success');
                       setIsFollowing(true);
                       setTeam((prev) => prev ? { ...prev, followers_count: ((prev as any).followers_count ?? 0) + 1 } : null);

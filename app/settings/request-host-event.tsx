@@ -23,6 +23,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 
+// TODO v1.1: Wire up navigation from settings or discover
 export default function RequestHostEventScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';

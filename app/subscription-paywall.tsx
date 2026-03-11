@@ -2,7 +2,8 @@
  * Coach Subscription Paywall
  *
  * iOS: Uses Apple IAP (react-native-iap) for veteran_vhub / Legend_vhub
- * Android: Uses Stripe Payment Sheets
+ * Android: Uses Google Play Billing (react-native-iap) for veteran_vhub / Legend_vhub
+ * Web/fallback: Uses Stripe Payment Sheets
  */
 
 import { httpPost } from '@/api/http';
@@ -61,9 +62,8 @@ export default function SubscriptionPaywallScreen() {
     options: Array<{ label: string; onPress: () => void; color?: string }>;
   } | null>(null);
 
-  // Get Apple IAP price string for display
+  // Get IAP price string for display (iOS and Android)
   const getIAPPrice = (tier: 'veteran' | 'legend'): string | null => {
-    if (!isIOS) return null;
     const product = getProduct(tier);
     return product?.displayPrice || null;
   };
@@ -75,13 +75,15 @@ export default function SubscriptionPaywallScreen() {
       return;
     }
 
-    // iOS: Use Apple IAP
-    if (isIOS) {
+    // iOS and Android: Use native IAP (Apple IAP / Google Play Billing)
+    if (isIOS || Platform.OS === 'android') {
       if (!iapConnected) {
         setModal({
           visible: true,
           title: 'Store Unavailable',
-          message: 'Unable to connect to the App Store. Please try again later.',
+          message: isIOS
+            ? 'Unable to connect to the App Store. Please try again later.'
+            : 'Unable to connect to Google Play. Please try again later.',
           options: [{ label: 'OK', onPress: () => setModal(null), color: '#2563EB' }],
         });
         return;
@@ -111,7 +113,7 @@ export default function SubscriptionPaywallScreen() {
       return;
     }
 
-    // Android: Use Stripe
+    // Web/fallback: Use Stripe PaymentSheet
     setLoading(true);
     try {
       const data: any = await httpPost('/payments/create-payment-sheet', {
@@ -125,9 +127,7 @@ export default function SubscriptionPaywallScreen() {
           customerEphemeralKeySecret: data.ephemeralKey,
           customerId: data.customer,
           merchantDisplayName: 'Varsity Hub',
-          applePay: Platform.OS === 'ios' ? { merchantCountryCode: 'US' } : undefined,
-          googlePay: Platform.OS === 'android' ? { merchantCountryCode: 'US', testEnv: __DEV__ } : undefined,
-          paymentMethodOrder: ['apple_pay', 'google_pay', 'card'],
+          paymentMethodOrder: ['card'],
         });
         if (initError) {
           Alert.alert('Error', initError.message);
@@ -198,7 +198,7 @@ export default function SubscriptionPaywallScreen() {
         </View>
 
         {/* IAP Error Banner */}
-        {isIOS && iapError ? (
+        {(isIOS || Platform.OS === 'android') && iapError ? (
           <View style={styles.errorBanner}>
             <Text style={styles.errorBannerText}>{iapError}</Text>
           </View>
@@ -222,7 +222,7 @@ export default function SubscriptionPaywallScreen() {
                   <Text style={styles.popularText}>BEST VALUE</Text>
                 </View>
               )}
-              {isIOS && tier !== 'rookie' && getIAPPrice(tier as 'veteran' | 'legend') ? (
+              {(isIOS || Platform.OS === 'android') && tier !== 'rookie' && getIAPPrice(tier as 'veteran' | 'legend') ? (
                 <Text style={styles.iapPriceText}>
                   {getIAPPrice(tier as 'veteran' | 'legend')}
                 </Text>
@@ -282,8 +282,8 @@ export default function SubscriptionPaywallScreen() {
           </View>
         </View>
 
-        {/* Promo Code Section — Android only (Apple doesn't allow promo codes through IAP) */}
-        {!isIOS && selectedTier !== 'rookie' && (
+        {/* Promo Code Section — web/fallback only (Apple/Google don't allow promo codes through IAP) */}
+        {!isIOS && Platform.OS !== 'android' && selectedTier !== 'rookie' && (
           <View style={styles.promoSection}>
             <Text style={[styles.promoLabel, { color: Colors[colorScheme].text }]}>
               Have a promo code?
@@ -347,6 +347,11 @@ export default function SubscriptionPaywallScreen() {
           {isIOS && selectedTier !== 'rookie' && (
             <Text style={[styles.ctaSubtext, { color: '#9CA3AF', fontSize: 11, marginTop: 4 }]}>
               Payment will be charged to your Apple ID account. Subscription automatically renews unless canceled at least 24 hours before the end of the current period. Manage subscriptions in Settings.
+            </Text>
+          )}
+          {Platform.OS === 'android' && selectedTier !== 'rookie' && (
+            <Text style={[styles.ctaSubtext, { color: '#9CA3AF', fontSize: 11, marginTop: 4 }]}>
+              Payment will be charged to your Google Play account. Subscription automatically renews unless canceled at least 24 hours before the end of the current period. Manage subscriptions in Google Play.
             </Text>
           )}
         </View>

@@ -71,10 +71,12 @@ export function useUnsavedChanges(
   const navigation = useNavigation();
 
   // Update initial values if they change
+  const initialValuesKey = JSON.stringify(initialValues);
   useEffect(() => {
     initialRef.current = initialValues;
     currentRef.current = { ...initialValues };
-  }, [JSON.stringify(initialValues)]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- using serialized key to deep-compare initialValues
+  }, [initialValuesKey]);
 
   // Track a value change
   const trackChange = useCallback((key: string, value: any) => {

@@ -15,14 +15,16 @@ export function useAppleAuth() {
   // IMPORTANT: Just checking availability should NOT trigger the auth dialog
   useEffect(() => {
     let mounted = true;
-    (async () => {
+    void (async () => {
       try {
         const isAvailable = await AppleAuthentication.isAvailableAsync();
         if (mounted) {
           setAvailable(Boolean(isAvailable));
+          // eslint-disable-next-line no-console
           if (__DEV__) console.log('[Apple Auth] Availability check result:', isAvailable);
         }
       } catch (err) {
+        // eslint-disable-next-line no-console
         if (__DEV__) console.warn('[Apple Auth] Availability check failed:', err);
         if (mounted) setAvailable(false);
       }
@@ -34,6 +36,7 @@ export function useAppleAuth() {
 
   const signInWithApple = useCallback(async (): Promise<AppleAuthResult> => {
     if (signInInProgressRef.current) {
+      // eslint-disable-next-line no-console
       if (__DEV__) console.log('[Apple Auth] Sign-in already in progress, skipping duplicate call');
       throw new Error('User canceled Apple sign-in');
     }
@@ -41,6 +44,7 @@ export function useAppleAuth() {
     setError(null);
     setLoading(true);
     try {
+      // eslint-disable-next-line no-console
       if (__DEV__) console.log('[Apple Auth] signInWithApple called, available:', available);
       
       // Determine availability: if Apple Sign In isn't available (e.g., Simulator),
@@ -59,6 +63,7 @@ export function useAppleAuth() {
 
       let credential;
       if (isSimulator) {
+        // eslint-disable-next-line no-console
         if (__DEV__) console.log('[Apple Auth] Using simulator mock credential (local dev server)');
         // Create a STABLE mock credential for testing - same ID every time
         // This prevents creating duplicate accounts in simulator
@@ -73,17 +78,20 @@ export function useAppleAuth() {
         };
       } else {
         const attemptNativeSignIn = async (scopes: any[]) => {
+          // eslint-disable-next-line no-console
           if (__DEV__) console.log('[Apple Auth] Attempting native sign-in with scopes:', scopes);
           return AppleAuthentication.signInAsync({ requestedScopes: scopes });
         };
 
         try {
           // First attempt with standard scopes
+          // eslint-disable-next-line no-console
           if (__DEV__) console.log('[Apple Auth] Starting Apple authentication dialog...');
           credential = await attemptNativeSignIn([
             AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
             AppleAuthentication.AppleAuthenticationScope.EMAIL,
           ]);
+          // eslint-disable-next-line no-console
           if (__DEV__) console.log('[Apple Auth] Got credential from native sign-in');
         } catch (appleErr: any) {
           const errCode = String(appleErr?.code || '').toLowerCase();
@@ -99,6 +107,7 @@ export function useAppleAuth() {
             errMsg.includes('user canceled');
 
           if (isCanceled) {
+            // eslint-disable-next-line no-console
             if (__DEV__) console.log('[Apple Auth] User canceled sign-in (not an error)');
             throw new Error('User canceled Apple sign-in');
           }
@@ -109,6 +118,7 @@ export function useAppleAuth() {
             errCode === 'err_request_unknown' ||
             errMsg.includes('unknown reason');
           if (__DEV__ && Platform.OS === 'ios' && isSimulatorUnknown) {
+            // eslint-disable-next-line no-console
             if (__DEV__) console.log('[Apple Auth] Simulator fallback (native auth unavailable)');
             credential = {
               user: 'sim-dev-apple-user',
@@ -180,6 +190,7 @@ export function useAppleAuth() {
           
           if (isRetryable && attempts < maxAttempts) {
             const delayMs = 1000 * Math.pow(2, attempts - 1); // exponential backoff: 1s, 2s, 4s
+            // eslint-disable-next-line no-console
             if (__DEV__) console.log(`[Apple Auth] Retry attempt ${attempts}/${maxAttempts} after ${delayMs}ms`);
             await new Promise(resolve => setTimeout(resolve, delayMs));
           }
@@ -203,6 +214,7 @@ export function useAppleAuth() {
         code === 'err_request_canceled';
       
       if (isCanceled) {
+        // eslint-disable-next-line no-console
         if (__DEV__) console.log('[Apple Auth] User canceled sign-in (not showing error)');
         // Don't set error or log exception - user initiated cancellation
         throw err;
@@ -210,13 +222,16 @@ export function useAppleAuth() {
       
       // Suppress error logging for expected simulator failures
       if (!(__DEV__ && Platform.OS === 'ios')) {
+        // eslint-disable-next-line no-console
         if (__DEV__) console.error('[Apple Auth] Error:', err);
       } else {
+        // eslint-disable-next-line no-console
         if (__DEV__) console.log('[Apple Auth] Native Apple auth unavailable (expected in simulator)');
       }
       
       // In dev/simulator mode, suppress user-facing errors for expected auth failures
       if (__DEV__ && Platform.OS === 'ios') {
+        // eslint-disable-next-line no-console
         if (__DEV__) console.log('[Apple Auth] Native auth not available in simulator - expected behavior');
         throw err;
       }

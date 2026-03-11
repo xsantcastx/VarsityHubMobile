@@ -34,6 +34,7 @@ export default function MyAdsScreen() {
   const [datesByAd, setDatesByAd] = useState<Record<string, string[]>>({});
   const [userId, setUserId] = useState<string | null>(null);
   const [userLoaded, setUserLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
   const successOpacity = useRef(new Animated.Value(0)).current;
 
@@ -63,6 +64,7 @@ export default function MyAdsScreen() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       let serverAds: any[] | null = null;
       try {
@@ -104,6 +106,9 @@ export default function MyAdsScreen() {
       const map: Record<string, string[]> = {};
       for (const [id, dates] of entries) map[id] = dates;
       setDatesByAd(map);
+    } catch (e: any) {
+      if (__DEV__) console.error('[my-ads] Error loading ads:', e);
+      setLoadError('Unable to load your ads. Please try again.');
     } finally { setLoading(false); }
   }, [getLocalAdsKey]);
 
@@ -130,6 +135,7 @@ export default function MyAdsScreen() {
         Animated.timing(successOpacity, { toValue: 0, duration: 200, useNativeDriver: true }),
       ]).start(() => setShowSuccess(false));
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- successOpacity is an Animated.Value (ref-like), adding it causes infinite loops
   }, [payment_success]);
 
   const remove = async (id: string) => {
@@ -418,7 +424,21 @@ export default function MyAdsScreen() {
           </View>
         )}
         
-        {!loading && ads.length === 0 ? (
+        {!loading && loadError && (
+          <View style={styles.emptyContainer}>
+            <MaterialIcons name="error-outline" size={64} color="#EF4444" />
+            <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text }]}>Something went wrong</Text>
+            <Text style={[styles.emptyText, { color: Colors[colorScheme].mutedText }]}>{loadError}</Text>
+            <Pressable
+              style={[styles.emptyButton, { backgroundColor: Colors[colorScheme].tint }]}
+              onPress={() => void load()}
+            >
+              <Text style={styles.emptyButtonText}>Try Again</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {!loading && !loadError && ads.length === 0 ? (
           <View style={styles.emptyContainer}>
             <MaterialIcons name="campaign" size={80} color={Colors[colorScheme].mutedText} />
             <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text }]}>No Ads Yet</Text>

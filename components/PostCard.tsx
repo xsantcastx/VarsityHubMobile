@@ -11,8 +11,8 @@ import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { optimizeImageUrl } from '@/utils/imageUrl';
 import RankingBadge from './RankingBadge';
-import VideoPlayer from './VideoPlayer';
 
 type PostCardProps = {
   post: any;
@@ -52,10 +52,9 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
   }, []);
 
   const REPORT_REASONS = [
-    { value: 'copyright', label: 'Copyright infringement' },
-    { value: 'broadcast_footage', label: 'Broadcast footage' },
-    { value: 'unauthorized_likeness', label: 'Unauthorized use of my likeness' },
-    { value: 'inappropriate', label: 'Inappropriate content' },
+    { value: 'copyright', label: 'Copyright / broadcast footage' },
+    { value: 'impersonation', label: 'Unauthorized use of my likeness' },
+    { value: 'nudity', label: 'Inappropriate content' },
     { value: 'spam', label: 'Spam' },
     { value: 'harassment', label: 'Harassment' },
     { value: 'hate_speech', label: 'Hate speech' },
@@ -235,13 +234,15 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
       onPressIn={() => setPressed(true)}
       onPressOut={() => setPressed(false)}
       style={[
-        styles.container, 
-        { 
-          backgroundColor: Colors[colorScheme].card, 
-          borderColor: Colors[colorScheme].border 
-        }, 
+        styles.container,
+        {
+          backgroundColor: Colors[colorScheme].card,
+          borderColor: Colors[colorScheme].border
+        },
         pressed && styles.containerPressed
       ]}
+      accessibilityRole="button"
+      accessibilityLabel={`Post: ${caption || 'No caption'}`}
     >
       {/* Top-left round rank badge (e.g. #1, #2, #3, ...), only if rank is present */}
       {typeof rank === 'number' && (
@@ -262,6 +263,8 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
             style={styles.authorInfo}
             onPress={() => { if (!author?.id) return; void router.push({ pathname: '/(tabs)/user-profile', params: { id: String(author.id), username: author.username || 'User' } });
             }}
+            accessibilityRole="button"
+            accessibilityLabel={`View profile of ${author?.display_name || author?.username || 'User'}`}
           >
             <View style={styles.authorAvatarWrap}>
               {author?.avatar_url ? (
@@ -282,6 +285,8 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
             <Pressable
               style={styles.actionsButton}
               onPress={() => setShowActionsMenu(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Post actions"
             >
               <MaterialIcons name="more-horiz" size={20} color={Colors[colorScheme].text} />
             </Pressable>
@@ -295,9 +300,9 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
       {(isImage || isVideo) ? (
         <View style={styles.mediaWrap}>
           {isImage && mediaUrl ? (
-            <Image source={{ uri: mediaUrl }} style={styles.media} contentFit="cover" />
+            <Image source={{ uri: optimizeImageUrl(mediaUrl, 600) }} style={styles.media} contentFit="cover" />
           ) : isVideo && previewUrl ? (
-            <Image source={{ uri: previewUrl }} style={styles.media} contentFit="cover" />
+            <Image source={{ uri: optimizeImageUrl(previewUrl, 600) }} style={styles.media} contentFit="cover" />
           ) : isVideo && mediaUrl ? (
             <View style={[styles.media, { backgroundColor: '#0f172a', alignItems: 'center', justifyContent: 'center' }]}>
               <MaterialIcons name="videocam" size={36} color="#94a3b8" />
@@ -386,6 +391,8 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
                     setShowActionsMenu(false);
                     setEditModalVisible(true);
                   }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Edit post"
                 >
                   <MaterialIcons name="edit" size={20} color={theme.icon} />
                   <Text style={[styles.actionText, { color: theme.text }]}>Edit Post</Text>
@@ -397,6 +404,8 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
                     setShowActionsMenu(false);
                     void handleDeletePost().catch(() => {});
                   }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Delete post"
                 >
                   <MaterialIcons name="delete" size={20} color="#dc2626" />
                   <Text style={[styles.actionText, { color: '#dc2626' }]}>Delete Post</Text>
@@ -409,6 +418,8 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
                   setShowActionsMenu(false);
                   setShowReportMenu(true);
                 }}
+                accessibilityRole="button"
+                accessibilityLabel="Report post"
               >
                 <MaterialIcons name="flag" size={20} color={theme.icon} />
                 <Text style={[styles.actionText, { color: theme.text }]}>Report Post</Text>
@@ -438,6 +449,8 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
                 style={styles.actionItem}
                 disabled={reportSubmitting}
                 onPress={() => void handleReportPost(r.value)}
+                accessibilityRole="button"
+                accessibilityLabel={`Report for ${r.label}`}
               >
                 <Text style={[styles.actionText, { color: theme.text, opacity: reportSubmitting ? 0.5 : 1 }]}>{r.label}</Text>
               </Pressable>
@@ -454,11 +467,11 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
       >
         <View style={[styles.editModal, { backgroundColor: theme.background }]}>
           <View style={[styles.editHeader, { borderBottomColor: theme.border }]}>
-            <Pressable onPress={() => setEditModalVisible(false)}>
+            <Pressable onPress={() => setEditModalVisible(false)} accessibilityRole="button" accessibilityLabel="Cancel editing">
               <Text style={[styles.cancelButton, { color: theme.mutedText }]}>Cancel</Text>
             </Pressable>
             <Text style={[styles.editTitle, { color: theme.text }]}>Edit Post</Text>
-            <Pressable onPress={handleEditPost} disabled={updating}>
+            <Pressable onPress={handleEditPost} disabled={updating} accessibilityRole="button" accessibilityLabel={updating ? 'Saving post' : 'Save post'}>
               <Text style={[styles.saveButton, { color: theme.tint }, updating && styles.saveButtonDisabled]}>
                 {updating ? 'Saving...' : 'Save'}
               </Text>
@@ -472,6 +485,7 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
               value={editTitle}
               onChangeText={setEditTitle}
               multiline
+              accessibilityLabel="Post title"
             />
             <TextInput
               style={[styles.contentInput, { borderColor: theme.border, color: theme.text }]}
@@ -481,6 +495,7 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
               onChangeText={setEditContent}
               multiline
               textAlignVertical="top"
+              accessibilityLabel="Post content"
             />
           </View>
         </View>
@@ -517,7 +532,7 @@ const styles = StyleSheet.create({
   textTile: { height: 180, borderRadius: 12, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', padding: 12, marginBottom: 10 },
   textTileCaption: { color: 'white', fontWeight: '800', fontSize: 16, textAlign: 'center' },
   footer: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
-  upvoteBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999 },
+  upvoteBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999 },
   upvoteText: { fontWeight: '800', fontSize: 13 },
   bookmarkBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, marginLeft: 8 },
   bookmarkText: { fontWeight: '800', fontSize: 13 },

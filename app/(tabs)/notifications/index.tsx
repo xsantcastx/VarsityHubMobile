@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
-import { Notification } from '@/api/entities';
+import { Notification, User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { retryWithBackoff } from '@/utils/retryWithBackoff';
@@ -86,10 +86,28 @@ export default function NotificationsScreen() {
     }
   };
 
+  const handleFollowRequest = async (actorId: string, action: 'accept' | 'reject', notifId: string) => {
+    const previousItems = items;
+    // Optimistically remove the notification
+    setItems((prev) => prev.filter((n) => n.id !== notifId));
+    try {
+      if (action === 'accept') {
+        await User.acceptFollow(actorId);
+      } else {
+        await User.rejectFollow(actorId);
+      }
+    } catch (err) {
+      if (__DEV__) console.error('Failed to handle follow request', err);
+      setItems(previousItems);
+    }
+  };
+
   const renderItem = ({ item }: { item: Notif }) => {
     const actorName = item.actor?.username ? `@${item.actor.username}` : (item.actor?.display_name || 'Someone');
     const title = item.type === 'FOLLOW'
       ? `${actorName} followed you`
+      : item.type === 'FOLLOW_REQUEST'
+      ? `${actorName} wants to follow you`
       : item.type === 'UPVOTE'
       ? `${actorName} upvoted your post`
       : item.type === 'COMMENT'
@@ -108,7 +126,7 @@ export default function NotificationsScreen() {
       ? `Game reminder: ${(item.event?.title || item.meta?.event_title) || 'Your game'}`
       : 'Notification';
     const onPress = () => {
-      if (item.type === 'FOLLOW' && item.actor?.id) {
+      if ((item.type === 'FOLLOW' || item.type === 'FOLLOW_REQUEST') && item.actor?.id) {
         router.push(`/(tabs)/user-profile?id=${encodeURIComponent(item.actor.id)}` as any);
       } else if ((item.type === 'UPVOTE' || item.type === 'COMMENT' || item.type === 'MENTION' || item.type === 'COMMENT_REPLY' || item.type === 'SHARE') && item.post?.id) {
         const q = (item.type === 'MENTION' || item.type === 'COMMENT_REPLY') && item.comment?.id
@@ -136,7 +154,7 @@ export default function NotificationsScreen() {
     };
     const theme = Colors[colorScheme];
     return (
-      <Pressable style={[S.row, { borderBottomColor: theme.border }, !item.read_at && { backgroundColor: colorScheme === 'dark' ? 'rgba(59,130,246,0.08)' : '#F0F5FF' }]} onPress={onPress}>
+      <Pressable style={[S.row, { borderBottomColor: theme.border }, !item.read_at && { backgroundColor: colorScheme === 'dark' ? 'rgba(59,130,246,0.08)' : '#F0F5FF' }]} onPress={onPress} accessibilityRole="button" accessibilityLabel={`${title}${!item.read_at ? ', unread' : ''}`}>
         <View style={S.avatarWrap}>
           {/* Always render fallback as base layer */}
           <View style={[S.avatar, S.avatarFallback, { backgroundColor: theme.border }]}>
@@ -144,12 +162,21 @@ export default function NotificationsScreen() {
           </View>
           {/* Overlay actual image on top — if it fails to load, fallback remains visible */}
           {item.actor?.avatar_url ? (
-            <Image source={{ uri: item.actor.avatar_url }} style={[S.avatar, S.avatarOverlay]} contentFit="cover" />
+            <Image source={{ uri: item.actor.avatar_url }} style={[S.avatar, S.avatarOverlay]} contentFit="cover" accessibilityLabel={`${actorName} avatar`} />
           ) : null}
         </View>
         <View style={{ flex: 1 }}>
           <Text style={[S.title, { color: Colors[colorScheme].text }]}>{title}</Text>
-          {item.post?.content ? (
+          {item.type === 'FOLLOW_REQUEST' && item.actor?.id ? (
+            <View style={S.followRequestActions}>
+              <Pressable style={[S.followBtn, { backgroundColor: Colors[colorScheme].tint }]} onPress={() => handleFollowRequest(item.actor!.id, 'accept', item.id)} accessibilityRole="button" accessibilityLabel="Accept follow request">
+                <Text style={S.followBtnText}>Accept</Text>
+              </Pressable>
+              <Pressable style={[S.followBtn, { backgroundColor: theme.border }]} onPress={() => handleFollowRequest(item.actor!.id, 'reject', item.id)} accessibilityRole="button" accessibilityLabel="Decline follow request">
+                <Text style={[S.followBtnText, { color: Colors[colorScheme].text }]}>Decline</Text>
+              </Pressable>
+            </View>
+          ) : item.post?.content ? (
             <Text numberOfLines={1} style={[S.subtitle, { color: Colors[colorScheme].mutedText }]}>{item.post.content}</Text>
           ) : item.message?.content ? (
             <Text numberOfLines={1} style={[S.subtitle, { color: Colors[colorScheme].mutedText }]}>{item.message.content}</Text>
@@ -184,7 +211,7 @@ export default function NotificationsScreen() {
       ) : error && items.length === 0 ? (
         <View style={S.center}>
           <Text style={{ color: Colors[colorScheme].destructive, marginBottom: 12 }}>{error}</Text>
-          <Pressable style={[S.retryButton, { backgroundColor: Colors[colorScheme].tint }]} onPress={() => void load(null, false).catch(() => {})}>
+          <Pressable style={[S.retryButton, { backgroundColor: Colors[colorScheme].tint }]} onPress={() => void load(null, false).catch(() => {})} accessibilityRole="button" accessibilityLabel="Retry loading notifications">
             <Text style={S.retryText}>Retry</Text>
           </Pressable>
         </View>
@@ -195,7 +222,7 @@ export default function NotificationsScreen() {
           renderItem={renderItem}
           ListHeaderComponent={hasUnread ? (
             <View style={S.headerRow}>
-              <Pressable style={S.markAllBtn} onPress={onMarkAllRead} disabled={markingAll}>
+              <Pressable style={[S.markAllBtn, { backgroundColor: colorScheme === 'dark' ? '#374151' : '#F3F4F6' }]} onPress={onMarkAllRead} disabled={markingAll} accessibilityRole="button" accessibilityLabel={markingAll ? 'Marking all as read' : 'Mark all as read'}>
                 <Text style={[S.markAllText, { color: Colors[colorScheme].text }]}>{markingAll ? 'Marking…' : 'Mark all as read'}</Text>
               </Pressable>
             </View>
@@ -254,7 +281,7 @@ const S = StyleSheet.create({
   avatarOverlay: { position: 'absolute', top: 0, left: 0 },
   title: { fontWeight: '700', color: 'transparent' }, // Will be overridden with Colors[colorScheme].text
   subtitle: { color: 'transparent', marginTop: 2 }, // Will be overridden with Colors[colorScheme].mutedText
-  markAllBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: '#F3F4F6', borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB' },
+  markAllBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB' },
   markAllText: { color: 'transparent', fontWeight: '700' }, // Will be overridden with Colors[colorScheme].text
   retryButton: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, backgroundColor: '#3B82F6' },
   retryText: { color: '#FFFFFF', fontWeight: '600' },
@@ -274,5 +301,20 @@ const S = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     lineHeight: 20,
+  },
+  followRequestActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+  },
+  followBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  followBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 13,
   },
 });

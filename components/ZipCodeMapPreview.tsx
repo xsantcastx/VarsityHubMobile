@@ -95,7 +95,7 @@ export function ZipCodeMapPreview({
   }, [zipCode]);
 
   const radiusMeters = radiusKm * 1000;
-  const radiusMiles = Math.round(radiusKm * 0.621371);
+  const _radiusMiles = Math.round(radiusKm * 0.621371);
 
   if (!zipCode.trim()) return null;
 

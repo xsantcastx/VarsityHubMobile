@@ -9,7 +9,6 @@ import { useRouter } from 'expo-router';
 import { useMemo, useRef, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import PollCard from './PollCard';
-import VideoPlayer from './VideoPlayer';
 import { showErrorToast } from './ErrorToast';
 
 type MasonryPostCardProps = {

@@ -27,6 +27,7 @@ export default function Step10Confirmation() {
         const me: any = await User.me();
         if (!mounted) return;
         if (me?.preferences) {
+          // eslint-disable-next-line no-console
           if (__DEV__) console.log('[Step10] Hydrated from server:', JSON.stringify({
             role: me.preferences.role,
             plan: me.preferences.plan,
@@ -36,7 +37,7 @@ export default function Step10Confirmation() {
           }));
           setOB((prev) => ({ ...prev, ...(me.preferences as Partial<OnboardingState>) }));
         }
-      } catch (e) {
+      } catch {
         // Non-critical — continue with local context state
       }
     })();
@@ -180,6 +181,7 @@ export default function Step10Confirmation() {
     }
 
     setCompleting(true);
+    // eslint-disable-next-line no-console
     if (__DEV__) console.log('[Step10] onComplete start — context ob:', JSON.stringify({
       role: ob.role,
       plan: ob.plan,
@@ -224,6 +226,7 @@ export default function Step10Confirmation() {
           latestOb = { ...latestOb, ...(me.preferences as Partial<OnboardingState>) };
           setOB((prev) => ({ ...(prev || {}), ...(me.preferences as Partial<OnboardingState>) }));
         }
+        // eslint-disable-next-line no-console
         if (__DEV__) console.log('[Step10] latestOb after server merge:', JSON.stringify({
           role: latestOb.role,
           plan: latestOb.plan,
@@ -306,6 +309,7 @@ export default function Step10Confirmation() {
         cleanedPayload.onboarding_completed = true;
       }
 
+      // eslint-disable-next-line no-console
       if (__DEV__) console.log('[Step10] Final payload:', JSON.stringify({
         role: cleanedPayload.role,
         plan: cleanedPayload.plan,

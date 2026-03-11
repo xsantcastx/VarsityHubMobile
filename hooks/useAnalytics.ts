@@ -6,6 +6,7 @@ export const useAnalytics = () => {
   const trackTap = useCallback((eventName: string, payload: AnalyticsEventPayload = {}) => {
     try {
       // Reserved for real analytics sink
+      // eslint-disable-next-line no-console
       if (__DEV__) console.log('[analytics] trackTap:', eventName, payload);
     } catch (error) {
       // Swallow logging errors – analytics should never break the UX.

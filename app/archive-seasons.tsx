@@ -3,6 +3,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { Stack } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 
+// TODO v1.1: Wire up navigation from manage-season or team-page
 export default function ArchiveSeasonsScreen() {
   const colorScheme = useColorScheme() ?? 'light';
 

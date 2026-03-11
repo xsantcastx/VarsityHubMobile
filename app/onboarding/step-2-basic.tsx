@@ -37,6 +37,7 @@ function SportBallRow() {
       setActive(prev => (prev + 1) % SPORT_BALLS.length);
     }, 800);
     return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- opacities and scales are Animated.Values (ref-like), initial mount only
   }, []);
 
   useEffect(() => {
@@ -54,6 +55,7 @@ function SportBallRow() {
         }),
       ]).start();
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- opacities and scales are Animated.Values (ref-like), only active index should trigger
   }, [active]);
 
   return (
@@ -256,6 +258,13 @@ export default function Step2Basic() {
       // Save username (not display_name) - this is the single identifier
       await User.patchMe({ username: finalUsername, preferences: { affiliation, dob, zip_code: zip || undefined } });
       
+      // If user is 13-17 and hasn't already given parental consent, redirect to consent screen
+      if (isUnder18 && !isUnder13 && !ob.parental_consent_given) {
+        dispatch({ type: 'SAVE_SUCCESS', data: updatedData });
+        router.replace('/onboarding/parental-consent' as any);
+        return;
+      }
+
       // Navigate back to confirmation if we came from there, otherwise use reducer to calculate next step
       if (returnToConfirmation) {
         dispatch({ type: 'SET_STEP', stepIndex: 9, reason: 'RETURN_TO_CONFIRMATION' });

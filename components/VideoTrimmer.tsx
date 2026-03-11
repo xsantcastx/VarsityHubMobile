@@ -117,7 +117,7 @@ export default function VideoTrimmer({ uri, onTrimComplete, onTrimReset }: Video
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    void (async () => {
       if (Platform.OS === 'ios' && uri.startsWith('ph://')) {
         // Copy from PhotoKit to a temp file
         const dest = `${FileSystem.cacheDirectory}trim_input_${Date.now()}.mp4`;

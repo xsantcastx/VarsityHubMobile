@@ -14,6 +14,7 @@ import {
     Alert,
     Dimensions,
     FlatList,
+    KeyboardAvoidingView,
     Modal,
     Platform,
     Pressable,
@@ -90,7 +91,7 @@ export default function PostDetailScreen() {
         if (flatListRef.current && postIdsArray.length > 1) {
           try {
             flatListRef.current.scrollToIndex({ index: newIndex, animated: false });
-          } catch (_) { /* scrollToIndex may fail before layout */ }
+          } catch { /* scrollToIndex may fail before layout */ }
         }
       }, 50);
     }, [params.index, params.postIds, postIdsArray.length])
@@ -113,7 +114,7 @@ export default function PostDetailScreen() {
   const [following, setFollowing] = useState(false);
   const [saved, setSaved] = useState(false);
   const [fullscreenMedia, setFullscreenMedia] = useState(false);
-  const [imageRotation, setImageRotation] = useState(0);
+  const [_imageRotation, setImageRotation] = useState(0);
   const imageScale = useSharedValue(1);
   const savedScale = useSharedValue(1);
 
@@ -234,7 +235,7 @@ export default function PostDetailScreen() {
       setError(null);
       setLoading(false);
       // Still load comments and fresh data in background
-      PostApi.comments(targetId).catch(() => [])
+      void PostApi.comments(targetId).catch(() => [])
         .then((c: any) => {
           let commentsArray: any[] = [];
           if (Array.isArray(c)) {
@@ -488,9 +489,9 @@ export default function PostDetailScreen() {
     if (!currentPostId) return;
     const reasons = [
       { text: 'Copyright infringement', value: 'copyright' },
-      { text: 'Broadcast footage', value: 'broadcast_footage' },
-      { text: 'Unauthorized use of my likeness', value: 'unauthorized_likeness' },
-      { text: 'Inappropriate content', value: 'inappropriate' },
+      { text: 'Broadcast footage', value: 'violence' },
+      { text: 'Unauthorized use of my likeness', value: 'impersonation' },
+      { text: 'Inappropriate content', value: 'nudity' },
       { text: 'Spam', value: 'spam' },
       { text: 'Cancel', value: '' },
     ];
@@ -905,13 +906,6 @@ export default function PostDetailScreen() {
                   size={20}
                   color="#fff"
                 />
-                <Text style={[
-                  styles.actionText,
-                  { color: "#fff" },
-                  postData?.has_upvoted && styles.actionTextActive
-                ]}>
-                  {voting ? '...' : (postData?.has_upvoted ? 'Upvoted' : 'Upvote')}
-                </Text>
               </Pressable>
               
               <Pressable style={[styles.actionButton, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]} onPress={onSave}>
@@ -1070,6 +1064,7 @@ export default function PostDetailScreen() {
     <SafeAreaView style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
       <StatusBar barStyle={colorScheme === 'dark' ? "light-content" : "dark-content"} backgroundColor={Colors[colorScheme].background} />
       <Stack.Screen options={{ headerShown: false }} />
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }} keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
       
       {/* Custom Header */}
       <View style={[styles.header, { backgroundColor: Colors[colorScheme].surface, borderBottomColor: Colors[colorScheme].border }]}>
@@ -1144,6 +1139,7 @@ export default function PostDetailScreen() {
         post ? renderPostContent(post, comments, false) : null
       )}
 
+      </KeyboardAvoidingView>
       {/* Edit Comment Modal */}
       <Modal
         visible={editCommentId !== null}

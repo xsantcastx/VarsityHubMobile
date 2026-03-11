@@ -188,50 +188,59 @@ eventsRouter.get('/my-rsvps', requireAuth as any, async (req: AuthedRequest, res
 
 // List current user's created events (for fans to track their submissions)
 eventsRouter.get('/my-events', requireAuth as any, async (req: AuthedRequest, res) => {
-  // req.user is guaranteed by requireAuth middleware
-  const events = await prisma.event.findMany({
-    where: { creator_id: req.user!.id },
-    orderBy: { created_at: 'desc' },
-    take: 50,
-    select: {
-      id: true,
-      title: true,
-      date: true,
-      location: true,
-      event_type: true,
-      approval_status: true,
-      status: true,
-      rejected_reason: true,
-      created_at: true,
-      approved_at: true,
-      description: true,
-    },
-  });
-  return res.json(events);
+  try {
+    // req.user is guaranteed by requireAuth middleware
+    const events = await prisma.event.findMany({
+      where: { creator_id: req.user!.id },
+      orderBy: { created_at: 'desc' },
+      take: 50,
+      select: {
+        id: true,
+        title: true,
+        date: true,
+        location: true,
+        event_type: true,
+        approval_status: true,
+        status: true,
+        rejected_reason: true,
+        created_at: true,
+        approved_at: true,
+        description: true,
+      },
+    });
+    return res.json(events);
+  } catch (err) {
+    console.error('[events] GET /my-events error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Get pending events for approval (admins & coaches only) - MUST be before /:id to avoid "pending" matching as id
 eventsRouter.get('/pending', requireAuth as any, async (req: AuthedRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const isAdmin = await getIsAdmin(req as any);
 
-  const userId = req.user!.id;
-  const isAdmin = await getIsAdmin(req as any);
+    // Only coaches, org admins, and platform admins can view pending events (DB-verified roles)
+    if (!isAdmin && !(await isTeamCoach(userId)) && !(await isOrgAdmin(userId))) {
+      return res.status(403).json({ error: 'Only coaches and admins can view pending events' });
+    }
 
-  // Only coaches, org admins, and platform admins can view pending events (DB-verified roles)
-  if (!isAdmin && !(await isTeamCoach(userId)) && !(await isOrgAdmin(userId))) {
-    return res.status(403).json({ error: 'Only coaches and admins can view pending events' });
+    const events = await prisma.event.findMany({
+      where: { approval_status: 'pending' },
+      orderBy: { created_at: 'desc' },
+      include: {
+        game: { select: { id: true, title: true, cover_image_url: true, date: true, location: true } },
+        creator: { select: { id: true, display_name: true, avatar_url: true } }
+      },
+      take: 100,
+    });
+
+    return res.json(events.map((event) => serializeEvent(event, { includeGame: true, includeCreator: true })));
+  } catch (err) {
+    console.error('[events] GET /pending error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
   }
-  
-  const events = await prisma.event.findMany({
-    where: { approval_status: 'pending' },
-    orderBy: { created_at: 'desc' },
-    include: {
-      game: { select: { id: true, title: true, cover_image_url: true, date: true, location: true } },
-      creator: { select: { id: true, display_name: true, avatar_url: true } }
-    },
-    take: 100,
-  });
-  
-  return res.json(events.map((event) => serializeEvent(event, { includeGame: true, includeCreator: true })));
 });
 
 // Get single event with RSVP count (optionally includes can_cancel when authenticated)
@@ -722,6 +731,7 @@ const updateEventSchema = z.object({
 const COACH_EDITABLE_FIELDS = ['date', 'location', 'latitude', 'longitude', 'description', 'opponent', 'away_team_id', 'away_team_name'];
 
 eventsRouter.patch('/:id', requireAuth as any, async (req: AuthedRequest, res) => {
+  try {
   const eventId = String(req.params.id);
   const userId = req.user!.id;
 
@@ -889,10 +899,15 @@ eventsRouter.patch('/:id', requireAuth as any, async (req: AuthedRequest, res) =
     ...serializeEvent(updated),
     message: 'Event updated successfully.',
   });
+  } catch (err) {
+    console.error('[events] PATCH /:id error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Cancel event (creator or team owner only)
 eventsRouter.patch('/:id/cancel', requireAuth as any, async (req: AuthedRequest, res) => {
+  try {
   const eventId = String(req.params.id);
   const userId = req.user!.id;
 
@@ -988,4 +1003,8 @@ eventsRouter.patch('/:id/cancel', requireAuth as any, async (req: AuthedRequest,
     ...serializeEvent(updated),
     message: 'Event cancelled successfully.',
   });
+  } catch (err) {
+    console.error('[events] PATCH /:id/cancel error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });

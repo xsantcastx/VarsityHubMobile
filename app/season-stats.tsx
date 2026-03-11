@@ -63,17 +63,13 @@ function computeTeamStats(games: any[], teamId: string): TeamStats {
     pointsFor += teamScore;
     pointsAgainst += oppScore;
 
-    let outcome: 'W' | 'L' | 'T';
     if (g.winner === 'tie') {
-      outcome = 'T';
       ties++;
       if (isHome) homeTies++; else awayTies++;
     } else if ((g.winner === 'home' && isHome) || (g.winner === 'away' && !isHome)) {
-      outcome = 'W';
       wins++;
       if (isHome) homeWins++; else awayWins++;
     } else {
-      outcome = 'L';
       losses++;
       if (isHome) homeLosses++; else awayLosses++;
     }
@@ -155,6 +151,7 @@ function buildGameResults(games: any[], teamId: string): GameResult[] {
     });
 }
 
+// TODO v1.1: Wire up navigation from manage-season
 export default function SeasonStatsScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const params = useLocalSearchParams<{ teamId?: string }>();
@@ -251,7 +248,8 @@ export default function SeasonStatsScreen() {
   useFocusEffect(
     useCallback(() => {
       setLoading(true);
-      loadData(params.teamId ?? null);
+      void loadData(params.teamId ?? null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadData is stable; only re-run on teamId change
     }, [params.teamId])
   );
 
@@ -364,7 +362,7 @@ export default function SeasonStatsScreen() {
                 setActiveTeamId(t.id);
                 setTeamName(t.name || '');
                 setLoading(true);
-                loadData(t.id);
+                void loadData(t.id);
               }}
             >
               <Text

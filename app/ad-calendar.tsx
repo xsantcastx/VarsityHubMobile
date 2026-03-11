@@ -5,6 +5,7 @@ import { usePaymentSheet } from '@stripe/stripe-react-native';
 import React, { useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Animated, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useUnsavedChanges } from '@/hooks/useUnsavedChanges';
 // @ts-ignore
 import { httpPost } from '@/api/http';
 import { addWeeks, format, startOfToday } from 'date-fns';
@@ -130,10 +131,21 @@ function calculatePrice(selectedISO: Set<string>): number {
 export default function AdCalendarScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ adId?: string }>();
-  const adId = params.adId ?? '';
+  const adId = Array.isArray(params.adId) ? params.adId[0] : params.adId || '';
   const colorScheme = useColorScheme() ?? 'light';
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  const { setDirty } = useUnsavedChanges({
+    title: 'Discard Selection?',
+    message: 'You have dates selected. Are you sure you want to go back?',
+  });
+
+  // Keep dirty state in sync with date selection
+  React.useEffect(() => {
+    setDirty(selected.size > 0);
+  }, [selected, setDirty]);
+
   const [submitting, setSubmitting] = useState(false);
   const [reserved, setReserved] = useState<Set<string>>(new Set());
   const [fullDates, setFullDates] = useState<Set<string>>(new Set()); // Dates with 2/2 slots filled
@@ -497,6 +509,10 @@ export default function AdCalendarScreen() {
         const { error } = await presentPaymentSheet();
         if (error) {
           if (error.code !== 'Canceled') Alert.alert('Payment Failed', error.message);
+          // Notify server of abandoned/failed payment so transaction is marked FAILED
+          if (data.payment_intent_id) {
+            httpPost('/payments/cancel-intent', { payment_intent_id: data.payment_intent_id }).catch(() => {});
+          }
           return;
         }
         // Payment succeeded — navigate to confirmation receipt

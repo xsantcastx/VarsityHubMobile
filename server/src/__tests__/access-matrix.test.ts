@@ -207,10 +207,10 @@ afterAll(async () => {
     if (orgIds.length) await prisma.organization.deleteMany({ where: { id: { in: orgIds } } }).catch(() => {});
     // Follows
     if (userIds.length) {
-      await prisma.follow.deleteMany({ where: { OR: [{ follower_id: { in: userIds } }, { following_id: { in: userIds } }] } }).catch(() => {});
+      await prisma.follows.deleteMany({ where: { OR: [{ follower_id: { in: userIds } }, { following_id: { in: userIds } }] } }).catch(() => {});
     }
     // Reports
-    if (userIds.length) await prisma.report.deleteMany({ where: { reporter_id: { in: userIds } } }).catch(() => {});
+    if (userIds.length) await prisma.abuseReport.deleteMany({ where: { reporter_id: { in: userIds } } }).catch(() => {});
     // Users
     if (userIds.length) await prisma.user.deleteMany({ where: { id: { in: userIds } } });
   } catch (e) {

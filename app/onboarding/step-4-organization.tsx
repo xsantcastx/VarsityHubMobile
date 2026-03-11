@@ -47,9 +47,8 @@ export default function Step4Organization() {
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [selectedPlace, setSelectedPlace] = useState<PlaceSuggestion | null>(null);
   const [selectedPlaceZip, setSelectedPlaceZip] = useState<string | null>(null);
-  const [emailVerified, setEmailVerified] = useState<boolean | null>(null);
+  const [_emailVerified, setEmailVerified] = useState<boolean | null>(null);
   const [duplicateOrg, setDuplicateOrg] = useState<{ id: string; name: string; location?: string; sport?: string } | null>(null);
-  const duplicateWarning = duplicateOrg ? `An organization with a similar name already exists: "${duplicateOrg.name}"` : null;
   const dupCheckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const styles = useMemo(() => createStyles(colorScheme), [colorScheme]);
@@ -134,6 +133,7 @@ export default function Step4Organization() {
         setChecking(false);
       }
     })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- ob.pending_plan is intentionally excluded; only ob.plan should trigger re-run
   }, [ob.plan, returnToConfirmation, router, setOB, setProgress]);
 
   useEffect(() => {
@@ -374,7 +374,7 @@ export default function Step4Organization() {
           router.replace('/onboarding/step-10-confirmation');
         } else {
           setProgress(4); // step-5 is index 4
-          router.push('/onboarding/step-5-team');
+          router.replace('/onboarding/step-5-team');
         }
         return;
       }

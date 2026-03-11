@@ -93,6 +93,9 @@ model User {
   // Warnings/Strikes
   warnings        UserWarning[] @relation("warned_user")
   issuedWarnings  UserWarning[] @relation("warning_issuer")
+
+  @@index([subscription_status])
+  @@index([banned])
 }
 
 model Game {
@@ -164,6 +167,7 @@ model Game {
   @@index([latitude, longitude])
   @@index([home_team_id])
   @@index([away_team_id])
+  @@index([approval_status])
 }
 
 model Post {
@@ -210,6 +214,7 @@ model Post {
   @@index([team_id, is_pinned])
   @@index([deleted_at, created_at])
   @@index([country_code, upvotes_count])
+  @@index([type, created_at])
 }
 
 model Poll {
@@ -469,6 +474,7 @@ model Ad {
   @@index([user_id, created_at])
   @@index([status])
   @@index([target_zip_code, payment_status])
+  @@index([status, payment_status])
 }
 
 model Category {
@@ -557,6 +563,7 @@ model Story {
 
 enum NotificationType {
   FOLLOW
+  FOLLOW_REQUEST
   UPVOTE
   COMMENT
   TEAM_INVITE
@@ -722,9 +729,10 @@ model TeamMembership {
   team_id String
   user_id String
 
-  role       String   @default("member") // owner | manager | coach | assistant_coach | equipment | health_wellness | player | parent | member
-  status     String   @default("active") // active | invited | archived
-  created_at DateTime @default(now())
+  role            String   @default("member") // owner | manager | coach | assistant_coach | equipment | health_wellness | player | parent | member
+  status          String   @default("active") // active | invited | archived
+  custom_position String?
+  created_at      DateTime @default(now())
 
   team Team @relation(fields: [team_id], references: [id], onDelete: Cascade)
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
@@ -755,6 +763,7 @@ model TeamInvite {
 model Follows {
   follower_id  String
   following_id String
+  status       String   @default("accepted") // accepted | pending
   created_at   DateTime @default(now())
 
   follower  User @relation("following", fields: [follower_id], references: [id], onDelete: Cascade)
@@ -763,6 +772,7 @@ model Follows {
   @@id([follower_id, following_id])
   @@index([follower_id])
   @@index([following_id])
+  @@index([following_id, status])
 }
 
 model TeamFollow {

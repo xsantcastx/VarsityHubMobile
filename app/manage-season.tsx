@@ -95,7 +95,7 @@ export default function ManageSeasonScreen() {
 
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedTab, setSelectedTab] = useState<'schedule' | 'standings' | 'playoffs'>('schedule');
+  const [selectedTab, _setSelectedTab] = useState<'schedule' | 'standings' | 'playoffs'>('schedule');
   const [showAddGameModal, setShowAddGameModal] = useState(false);
   const [showQuickAddModal, setShowQuickAddModal] = useState(false);
   const [showBulkScheduleModal, setShowBulkScheduleModal] = useState(false);
@@ -229,7 +229,7 @@ export default function ManageSeasonScreen() {
   }, [currentTeam?.id, loadGames]);
 
   // Compute season stats from real game data
-  const seasonStats: SeasonStats = (() => {
+  const _seasonStats: SeasonStats = (() => {
     const teamId = currentTeam?.id;
     if (!teamId) return { wins: 0, losses: 0, ties: 0, gamesPlayed: 0, totalGames: 0, pointsFor: 0, pointsAgainst: 0 };
     const completed = games.filter(g => g.status === 'completed' || (g as any).winner);
@@ -969,11 +969,6 @@ export default function ManageSeasonScreen() {
       });
       if (__DEV__) console.error('Error creating bulk games:', error);
     }
-  };
-
-  const getWinPercentage = () => {
-    if (seasonStats.gamesPlayed === 0) return 0;
-    return ((seasonStats.wins + seasonStats.ties * 0.5) / seasonStats.gamesPlayed * 100).toFixed(1);
   };
 
   const handlePlayoffMatchupPress = (matchup: PlayoffMatchup) => {
