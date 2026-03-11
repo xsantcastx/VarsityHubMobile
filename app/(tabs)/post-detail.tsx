@@ -506,7 +506,7 @@ export default function PostDetailScreen() {
           if (error?.status === 409) {
             Alert.alert('Already Reported', 'You have already reported this post.');
           } else {
-            Alert.alert('Error', 'Failed to submit report. Please try again.');
+            Alert.alert('Error', error?.message || 'Failed to submit report. Please try again.');
           }
         }
       } : undefined,
@@ -533,7 +533,7 @@ export default function PostDetailScreen() {
           if (error?.status === 409) {
             Alert.alert('Already Reported', 'You have already reported this comment.');
           } else {
-            Alert.alert('Error', 'Failed to submit report. Please try again.');
+            Alert.alert('Error', error?.message || 'Failed to submit report. Please try again.');
           }
         }
       } : undefined,
@@ -717,6 +717,8 @@ export default function PostDetailScreen() {
       nestedScrollEnabled={isInsidePager}
       directionalLockEnabled
       keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="interactive"
+      automaticallyAdjustKeyboardInsets
     >
         {/* Hero Media Section */}
         <View style={styles.heroSection}>
@@ -1064,7 +1066,7 @@ export default function PostDetailScreen() {
     <SafeAreaView style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
       <StatusBar barStyle={colorScheme === 'dark' ? "light-content" : "dark-content"} backgroundColor={Colors[colorScheme].background} />
       <Stack.Screen options={{ headerShown: false }} />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }} keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }} keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 20}>
       
       {/* Custom Header */}
       <View style={[styles.header, { backgroundColor: Colors[colorScheme].surface, borderBottomColor: Colors[colorScheme].border }]}>
@@ -1578,12 +1580,11 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   actionButton: {
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
+    justifyContent: 'center',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: '#D1D5DB',
   },

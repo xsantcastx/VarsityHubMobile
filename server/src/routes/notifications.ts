@@ -8,6 +8,7 @@ export const notificationsRouter = Router();
 const summarize = (n: any) => {
   switch (n.type) {
     case 'FOLLOW': return 'followed you';
+    case 'FOLLOW_REQUEST': return 'requested to follow you';
     case 'UPVOTE': return 'upvoted your post';
     case 'COMMENT': return 'commented on your post';
     case 'MESSAGE': return 'sent you a message';

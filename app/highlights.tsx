@@ -9,6 +9,8 @@ import { Image as ExpoImage } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
+let VideoThumbnails: any = null;
+try { VideoThumbnails = require('expo-video-thumbnails'); } catch { /* native module not available */ }
 import {
     ActivityIndicator,
     Alert,
@@ -105,6 +107,33 @@ const getSportCategory = (sport?: string, title?: string | null, content?: strin
   return { name: 'Sports', icon: '🏆', color: '#FF6B35' };
 };
 
+// Component that generates a thumbnail from a video URL when preview_url is missing
+const VideoThumbnailImage = ({ videoUrl, style }: { videoUrl: string; style: any }) => {
+  const [thumbUri, setThumbUri] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (VideoThumbnails && videoUrl) {
+      VideoThumbnails.getThumbnailAsync(videoUrl, { time: 1000 })
+        .then((result: any) => {
+          if (!cancelled && result?.uri) setThumbUri(result.uri);
+        })
+        .catch(() => {});
+    }
+    return () => { cancelled = true; };
+  }, [videoUrl]);
+
+  if (thumbUri) {
+    return <ExpoImage source={{ uri: thumbUri }} style={style} contentFit="cover" />;
+  }
+  // Fallback: sport-themed gradient placeholder instead of black
+  return (
+    <LinearGradient colors={['#1e293b', '#0f172a']} style={[style, { alignItems: 'center', justifyContent: 'center' }]}>
+      <Ionicons name="videocam" size={32} color="#64748b" />
+    </LinearGradient>
+  );
+};
+
 const HighlightCard = ({ 
   item, 
   index = 0,
@@ -157,7 +186,11 @@ const HighlightCard = ({
           )}
           {hasMedia ? (
             <View style={styles.mediaContainer}>
-              <ExpoImage source={{ uri: isVideo ? (item.preview_url || item.media_url?.replace(/\.(mp4|mov|webm|m4v|avi)$/i, '.jpg')) : item.media_url }} style={styles.mediaImage} contentFit="cover" />
+              {isVideo && !item.preview_url ? (
+                <VideoThumbnailImage videoUrl={item.media_url!} style={styles.mediaImage} />
+              ) : (
+                <ExpoImage source={{ uri: isVideo ? item.preview_url : item.media_url }} style={styles.mediaImage} contentFit="cover" />
+              )}
               {isVideo && (
                 <View style={styles.videoOverlay}>
                   <View style={styles.playButton}>

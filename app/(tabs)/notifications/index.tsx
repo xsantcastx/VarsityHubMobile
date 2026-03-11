@@ -107,7 +107,7 @@ export default function NotificationsScreen() {
     const title = item.type === 'FOLLOW'
       ? `${actorName} followed you`
       : item.type === 'FOLLOW_REQUEST'
-      ? `${actorName} wants to follow you`
+      ? `${actorName} requested to follow you`
       : item.type === 'UPVOTE'
       ? `${actorName} upvoted your post`
       : item.type === 'COMMENT'

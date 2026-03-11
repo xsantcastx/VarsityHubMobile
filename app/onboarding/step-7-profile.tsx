@@ -32,35 +32,37 @@ export default function Step7Profile() {
 
   const styles = useMemo(() => createStyles(colorScheme), [colorScheme]);
 
-  // CRITICAL: For coaches, IMMEDIATELY redirect if steps 2-6 not completed
-  // This is a hard guard - coaches CANNOT access step 7 without completing required steps
+  // Guard: For coaches, redirect if prior steps not visited.
+  // Uses step_X_visited flags (same as onboardingReducer) to avoid false redirects
+  // when data fields like plan/pending_plan are transiently undefined between renders.
   useEffect(() => {
     if (ob.role === 'coach' && !returnToConfirmation) {
-      const hasStep2 = !!(ob.username && ob.dob);
-      const hasStep3 = !!(ob.pending_plan || ob.plan);
-      const hasStep4 = !!(ob.team_id || ob.organization_id);
-      
-      // IMMEDIATE redirect - don't even render the screen
-      if (!hasStep2) {
-        if (__DEV__) console.warn('[Step7] BLOCKED: Coach missing Step 2 - redirecting to Step 2');
+      if (!ob.step_2_visited) {
+        if (__DEV__) console.warn('[Step7] BLOCKED: Coach missing Step 2 - redirecting');
         setProgress(1);
         router.replace('/onboarding/step-2-basic');
         return;
       }
-      if (!hasStep3) {
-        if (__DEV__) console.warn('[Step7] BLOCKED: Coach missing Step 3 - redirecting to Step 3');
+      if (!ob.step_3_visited) {
+        if (__DEV__) console.warn('[Step7] BLOCKED: Coach missing Step 3 - redirecting');
         setProgress(2);
         router.replace('/onboarding/step-3-plan');
         return;
       }
-      if (!hasStep4) {
-        if (__DEV__) console.warn('[Step7] BLOCKED: Coach missing Step 4 - redirecting to Step 4');
+      if (!ob.step_4_visited) {
+        if (__DEV__) console.warn('[Step7] BLOCKED: Coach missing Step 4 - redirecting');
         setProgress(3);
         router.replace('/onboarding/step-4-organization');
         return;
       }
+      if (!ob.step_6_visited) {
+        if (__DEV__) console.warn('[Step7] BLOCKED: Coach missing Step 6 - redirecting');
+        setProgress(5);
+        router.replace('/onboarding/step-6-authorized-users');
+        return;
+      }
     }
-  }, [ob.role, ob.username, ob.dob, ob.pending_plan, ob.plan, ob.team_id, ob.organization_id, returnToConfirmation, router, setProgress]);
+  }, [ob.role, ob.step_2_visited, ob.step_3_visited, ob.step_4_visited, ob.step_6_visited, returnToConfirmation, router, setProgress]);
 
   useEffect(() => {
     setAvatar(ob.avatar_url ?? null);

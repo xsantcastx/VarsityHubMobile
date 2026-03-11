@@ -147,6 +147,7 @@ export default function ProfileScreen() {
   const invalidId = !!rawId && !(rawId !== 'undefined' && rawId !== 'null' && /^[a-zA-Z0-9_-]{1,128}$/.test(rawId));
   const viewingUserId = rawId && !invalidId ? rawId : undefined;
   const [isFollowing, setIsFollowing] = useState(false);
+  const [followStatus, setFollowStatus] = useState<'accepted' | 'pending' | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [userTeams, _setUserTeams] = useState<Array<{ id: string; name: string; logo_url?: string | null; avatar_url?: string | null; role?: string; position?: string | null; jersey_number?: string | number | null }>>([]);
   const [avatarViewerVisible, setAvatarViewerVisible] = useState(false);
@@ -169,37 +170,48 @@ export default function ProfileScreen() {
 
   const handleFollowToggle = useCallback(async () => {
     if (!viewingUserId) return;
-    
-    const previousState = isFollowing;
-    setIsFollowing(!isFollowing); // Optimistic update
-    
+
+    const previousFollowing = isFollowing;
+    const previousStatus = followStatus;
+
     try {
-      if (isFollowing) {
+      if (isFollowing || followStatus === 'pending') {
+        // Unfollow or cancel pending request
+        setIsFollowing(false);
+        setFollowStatus(null);
         await User.unfollow(viewingUserId);
-        // Update follower count
-        setMe(prev => prev ? {
-          ...prev,
-          _count: {
-            ...prev._count,
-            followers: Math.max(0, (prev._count?.followers || 0) - 1)
-          }
-        } : null);
+        // Only decrement follower count if was actually accepted (not pending)
+        if (previousFollowing) {
+          setMe(prev => prev ? {
+            ...prev,
+            _count: {
+              ...prev._count,
+              followers: Math.max(0, (prev._count?.followers || 0) - 1)
+            }
+          } : null);
+        }
       } else {
-        await User.follow(viewingUserId);
-        // Update follower count
-        setMe(prev => prev ? {
-          ...prev,
-          _count: {
-            ...prev._count,
-            followers: (prev._count?.followers || 0) + 1
-          }
-        } : null);
+        const result: any = await User.follow(viewingUserId);
+        const newStatus = result?.follow_status || 'accepted';
+        setFollowStatus(newStatus);
+        setIsFollowing(newStatus === 'accepted');
+        // Only increment follower count if actually accepted (not pending)
+        if (newStatus === 'accepted') {
+          setMe(prev => prev ? {
+            ...prev,
+            _count: {
+              ...prev._count,
+              followers: (prev._count?.followers || 0) + 1
+            }
+          } : null);
+        }
       }
     } catch (error) {
       if (__DEV__) console.error('[profile] Follow toggle failed:', error);
-      setIsFollowing(previousState); // Revert on error
+      setIsFollowing(previousFollowing);
+      setFollowStatus(previousStatus);
     }
-  }, [viewingUserId, isFollowing]);
+  }, [viewingUserId, isFollowing, followStatus]);
 
   const REPORT_REASONS = [
     { value: 'harassment', label: 'Harassment or bullying' },
@@ -398,6 +410,7 @@ export default function ProfileScreen() {
         u = await User.getPublic(viewingUserId);
         if (u) {
           setIsFollowing(u.is_following || false);
+          setFollowStatus(u.follow_status || null);
           // Normalize flat count fields from public endpoint into _count structure
           if (u.followers_count !== undefined || u.following_count !== undefined || u.posts_count !== undefined) {
             u._count = {
@@ -751,15 +764,18 @@ export default function ProfileScreen() {
             <Pressable
               style={[
                 styles.headerFollowButton,
-                isFollowing
-                  ? { backgroundColor: '#FFD600', borderWidth: 0, width: 36, height: 36, borderRadius: 18 }
-                  : { backgroundColor: '#FFD600', borderWidth: 0, width: 36, height: 36, borderRadius: 18 }
+                {
+                  backgroundColor: followStatus === 'pending' ? '#E5E7EB' : '#FFD600',
+                  borderWidth: 0, width: 36, height: 36, borderRadius: 18,
+                }
               ]}
               onPress={handleFollowToggle}
               accessibilityRole="button"
-              accessibilityLabel={isFollowing ? 'Unfollow user' : 'Follow user'}
+              accessibilityLabel={followStatus === 'pending' ? 'Cancel follow request' : isFollowing ? 'Unfollow user' : 'Follow user'}
             >
-              {isFollowing ? (
+              {followStatus === 'pending' ? (
+                <MaterialIcons name="hourglass-top" size={16} color="#666" />
+              ) : isFollowing ? (
                 <MaterialIcons name="check" size={18} color="#000" />
               ) : (
                 <MaterialIcons name="person-add" size={16} color="#000" />
@@ -1482,7 +1498,7 @@ const styles = StyleSheet.create({
   },
   profileContent: {
     position: 'absolute',
-    bottom: -10,
+    bottom: 30,
     left: 16,
     zIndex: 100,
     elevation: 100,

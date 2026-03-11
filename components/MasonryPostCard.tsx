@@ -101,7 +101,7 @@ export default function MasonryPostCard({ post, onPress, onDeleted: _onDeleted, 
           if (error?.status === 409) {
             Alert.alert('Already Reported', 'You have already reported this post.');
           } else {
-            Alert.alert('Error', 'Failed to submit report. Please try again.');
+            Alert.alert('Error', error?.message || 'Failed to submit report. Please try again.');
           }
         }
       } : undefined,

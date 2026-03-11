@@ -964,6 +964,7 @@ usersRouter.get('/:id', async (req: AuthedRequest, res) => {
 
   // Check if viewer is the profile owner or a follower
   let isFollower = false;
+  let viewerFollowStatus: string | null = null;
   if (currentUserId === id) {
     isFollower = true; // Owner always sees full profile
   } else if (currentUserId) {
@@ -972,6 +973,7 @@ usersRouter.get('/:id', async (req: AuthedRequest, res) => {
       select: { follower_id: true, status: true },
     });
     isFollower = Boolean(rel) && rel?.status === 'accepted';
+    viewerFollowStatus = rel?.status || null;
   }
 
   // Private profile: non-followers get only basic info
@@ -982,6 +984,7 @@ usersRouter.get('/:id', async (req: AuthedRequest, res) => {
       avatar_url: user.avatar_url,
       profile_private: true,
       is_following: false,
+      follow_status: viewerFollowStatus,
     });
   }
 
@@ -992,7 +995,7 @@ usersRouter.get('/:id', async (req: AuthedRequest, res) => {
     currentUserId
       ? prisma.follows.findUnique({
           where: { follower_id_following_id: { follower_id: currentUserId, following_id: id } },
-          select: { follower_id: true },
+          select: { follower_id: true, status: true },
         })
       : Promise.resolve(null),
   ]);
@@ -1007,7 +1010,8 @@ usersRouter.get('/:id', async (req: AuthedRequest, res) => {
     posts_count,
     followers_count,
     following_count,
-    is_following: Boolean(rel),
+    is_following: Boolean(rel) && rel?.status === 'accepted',
+    follow_status: rel?.status || null,
     is_parent, // Include parent status for coaches viewing profiles
   });
 });

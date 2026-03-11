@@ -790,6 +790,7 @@ export default function CommunityDiscoverScreen() {
             }
             return marked;
           }, [games, selectedDate, colorScheme])}
+          style={{ backgroundColor: colorScheme === 'light' ? '#FFFFFF' : Colors[colorScheme].background }}
           theme={{
             backgroundColor: colorScheme === 'light' ? '#FFFFFF' : Colors[colorScheme].background,
             calendarBackground: colorScheme === 'light' ? '#FFFFFF' : Colors[colorScheme].background,
@@ -804,6 +805,17 @@ export default function CommunityDiscoverScreen() {
             textDayFontWeight: '500',
             textMonthFontWeight: '800',
             textDayHeaderFontWeight: '600',
+            // @ts-ignore - headerStyle not in TS types but supported by react-native-calendars
+            'stylesheet.calendar.header': {
+              header: {
+                backgroundColor: colorScheme === 'light' ? '#FFFFFF' : Colors[colorScheme].background,
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                paddingHorizontal: 10,
+                paddingVertical: 10,
+              },
+            },
           }}
         />
       </View>
@@ -1264,6 +1276,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderRadius: 12,
     overflow: 'hidden',
+    padding: 4,
   },
   searchBox: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 48, borderRadius: 12, paddingHorizontal: 12, marginBottom: 8, borderWidth: StyleSheet.hairlineWidth },
   searchInput: { flex: 1, height: 44 },

@@ -219,78 +219,32 @@ export default function Step6AuthorizedUsers() {
   const onContinue = () => {
     if (__DEV__) console.warn('[STEP-6] Continue clicked, current progress:', progress);
 
-    // Use callback form to get the LATEST state, then validate + navigate in the callback
-    setOB((prev) => {
-      const updated = { ...prev, authorized: list, step_6_visited: true };
+    setOB((prev) => ({ ...prev, authorized: list, step_6_visited: true }));
 
-      // Schedule navigation after state update
-      setTimeout(() => {
-        if (returnToConfirmation) {
-          setProgress(9);
-          router.replace('/onboarding/step-10-confirmation');
-        } else {
-          // Validate using the UPDATED state, not the stale closure
-          if (updated.role === 'coach') {
-            const hasStep2 = !!(updated.username && updated.dob && (updated.zip || updated.zip_code));
-            const hasStep3 = !!(updated.plan || updated.pending_plan);
-            const hasStep4 = !!(updated.team_id || updated.organization_id);
-
-            if (__DEV__) console.warn('[STEP-6] Coach validation:', { hasStep2, hasStep3, hasStep4 });
-
-            if (!hasStep2) {
-              setProgress(1);
-              router.replace('/onboarding/step-2-basic');
-              return;
-            }
-            if (!hasStep3) {
-              setProgress(2);
-              router.replace('/onboarding/step-3-plan');
-              return;
-            }
-            if (!hasStep4) {
-              setProgress(3);
-              router.replace('/onboarding/step-4-organization');
-              return;
-            }
-          }
-
-          // All validations passed - advance to Step 7
-          if (__DEV__) console.warn('[STEP-6] All validations passed, advancing to Step 7');
-          setProgress(6);
-          router.replace('/onboarding/step-7-profile');
-        }
-      }, 0);
-
-      return updated;
-    });
+    if (returnToConfirmation) {
+      setProgress(9);
+      router.replace('/onboarding/step-10-confirmation');
+    } else {
+      // User reached step 6 through the normal flow (steps 1-5 already completed).
+      // No need to re-validate earlier steps here — that caused redirect loops
+      // when state fields (plan/pending_plan) were transiently undefined.
+      if (__DEV__) console.warn('[STEP-6] Advancing to Step 7');
+      setProgress(6);
+      router.replace('/onboarding/step-7-profile');
+    }
   };
 
   const skipStep = () => {
     if (isOptional) {
-      setOB((prev) => {
-        const updated = { ...prev, authorized: [], step_6_visited: true };
+      setOB((prev) => ({ ...prev, authorized: [], step_6_visited: true }));
 
-        setTimeout(() => {
-          if (returnToConfirmation) {
-            setProgress(9);
-            router.replace('/onboarding/step-10-confirmation');
-          } else {
-            if (updated.role === 'coach') {
-              const hasStep2 = !!(updated.username && updated.dob && (updated.zip || updated.zip_code));
-              const hasStep3 = !!(updated.plan || updated.pending_plan);
-              const hasStep4 = !!(updated.team_id || updated.organization_id);
-
-              if (!hasStep2) { setProgress(1); router.replace('/onboarding/step-2-basic'); return; }
-              if (!hasStep3) { setProgress(2); router.replace('/onboarding/step-3-plan'); return; }
-              if (!hasStep4) { setProgress(3); router.replace('/onboarding/step-4-organization'); return; }
-            }
-            setProgress(6);
-            router.replace('/onboarding/step-7-profile');
-          }
-        }, 0);
-
-        return updated;
-      });
+      if (returnToConfirmation) {
+        setProgress(9);
+        router.replace('/onboarding/step-10-confirmation');
+      } else {
+        setProgress(6);
+        router.replace('/onboarding/step-7-profile');
+      }
     }
   };
 

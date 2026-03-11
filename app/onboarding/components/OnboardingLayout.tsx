@@ -138,13 +138,14 @@ export default function OnboardingLayout({
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 60 : 0}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 60 : 20}
       >
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
+          automaticallyAdjustKeyboardInsets
         >
           <View style={styles.titleSection}>
             {aboveTitle}
@@ -229,7 +230,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 20,
-    paddingBottom: 40,
+    paddingBottom: 80,
   },
   titleSection: {
     marginBottom: 24,

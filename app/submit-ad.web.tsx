@@ -94,9 +94,21 @@ export default function SubmitAdScreen() {
         if (typeof created?.contact_email === 'string') {
           normalizedEmail = created.contact_email.trim().toLowerCase();
         }
-      } catch {}
+      } catch (err: any) {
+        if (err?.status === 403) {
+          Alert.alert('Verification Required', 'Please verify your email before submitting an ad.');
+          return;
+        }
+      }
 
-      const adId = serverId || `local-${Date.now()}-${Math.round(Math.random() * 1e6)}`;
+      // If server creation failed, do NOT navigate — the ad doesn't exist on the server
+      // so payment will always fail with "Ad not found"
+      if (!serverId) {
+        Alert.alert('Error', 'Could not create your ad. Please check your connection and try again.');
+        return;
+      }
+
+      const adId = serverId;
       // Keep a local copy so My Ads can show offline
       try {
         const draft: DraftAd = {
@@ -111,7 +123,7 @@ export default function SubmitAdScreen() {
           description: desc.trim() || undefined,
           created_at: new Date().toISOString(),
           owner_id: currentUserId,
-          isLocal: !serverId,
+          isLocal: false,
         };
         const baseKey = settings.SETTINGS_KEYS.LOCAL_ADS;
         const scopedKey = currentUserId ? `${baseKey}_${currentUserId}` : baseKey;

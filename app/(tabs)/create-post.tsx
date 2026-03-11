@@ -722,7 +722,7 @@ export default function CreatePostScreen() {
         }),
         Animated.timing(confettiAnim, {
           toValue: 1,
-          duration: 2000,
+          duration: 2800,
           easing: Easing.out(Easing.cubic),
           useNativeDriver: true,
         }),
@@ -734,7 +734,7 @@ export default function CreatePostScreen() {
         setPicked(null);
         setError(null);
         router.replace('/(tabs)');
-      }, 2200);
+      }, 3500);
     } catch (e: any) {
       if (__DEV__) console.error('[CreatePost] Error creating post:', {
         message: e?.message,
@@ -1297,16 +1297,16 @@ export default function CreatePostScreen() {
         <Animated.View style={[styles.celebrationOverlay, { opacity: celebrationOpacity }]}>
           <Animated.View style={[styles.celebrationContent, { transform: [{ scale: celebrationScale }] }]}>
             {/* Confetti particles */}
-            {[...Array(12)].map((_, i) => {
-              const angle = (i / 12) * 2 * Math.PI;
-              const radius = 80;
+            {[...Array(16)].map((_, i) => {
+              const angle = (i / 16) * 2 * Math.PI;
+              const radius = 120;
               return (
                 <Animated.View
                   key={i}
                   style={[
                     styles.confettiDot,
                     {
-                      backgroundColor: ['#F59E0B', '#10B981', '#3B82F6', '#EF4444', '#8B5CF6', '#EC4899'][i % 6],
+                      backgroundColor: ['#F59E0B', '#10B981', '#3B82F6', '#EF4444', '#8B5CF6', '#EC4899', '#FFD700', '#F97316'][i % 8],
                       transform: [
                         {
                           translateX: confettiAnim.interpolate({
@@ -1317,13 +1317,13 @@ export default function CreatePostScreen() {
                         {
                           translateY: confettiAnim.interpolate({
                             inputRange: [0, 1],
-                            outputRange: [0, Math.sin(angle) * radius + 40],
+                            outputRange: [0, Math.sin(angle) * radius + 50],
                           }),
                         },
                         {
                           scale: confettiAnim.interpolate({
                             inputRange: [0, 0.5, 1],
-                            outputRange: [0, 1.2, 0],
+                            outputRange: [0, 1.5, 0],
                           }),
                         },
                       ],
@@ -1337,7 +1337,7 @@ export default function CreatePostScreen() {
               );
             })}
             <Animated.View style={{ transform: [{ scale: celebrationScale }] }}>
-              <Ionicons name="checkmark-circle" size={96} color="#F59E0B" />
+              <Ionicons name="checkmark-circle" size={140} color="#FFD700" />
             </Animated.View>
             <Text style={styles.celebrationTitle}>Posted!</Text>
             <Text style={styles.celebrationSubtitle}>
@@ -2089,7 +2089,7 @@ const styles = StyleSheet.create({
   },
   celebrationOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 999,
@@ -2099,23 +2099,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   celebrationTitle: {
-    color: '#F59E0B',
-    fontSize: 28,
-    fontWeight: '800',
-    marginTop: 16,
-    letterSpacing: 0.5,
+    color: '#FFD700',
+    fontSize: 34,
+    fontWeight: '900',
+    marginTop: 20,
+    letterSpacing: 1,
   },
   celebrationSubtitle: {
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontSize: 16,
-    fontWeight: '500',
-    marginTop: 8,
+    color: 'rgba(255, 255, 255, 0.85)',
+    fontSize: 18,
+    fontWeight: '600',
+    marginTop: 10,
   },
   confettiDot: {
     position: 'absolute',
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
   },
   headerPostBtn: {
     flexDirection: 'row',
