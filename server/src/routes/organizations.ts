@@ -1129,3 +1129,48 @@ organizationsRouter.post('/join-requests/:requestId/deny', requireAuth as any, a
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+// -----------------------------------------------
+// POST /organizations/:id/transfer-ownership
+// -----------------------------------------------
+organizationsRouter.post('/:id/transfer-ownership', requireAuth as any, async (req: AuthedRequest, res) => {
+  try {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    const orgId = req.params.id;
+    const { new_owner_id } = req.body || {};
+    if (!new_owner_id) return res.status(400).json({ error: 'new_owner_id is required' });
+
+    // Verify requester is current owner
+    const currentOwnership = await prisma.organizationMembership.findFirst({
+      where: { organization_id: orgId, user_id: req.user.id, role: 'owner' },
+    });
+    if (!currentOwnership) {
+      return res.status(403).json({ error: 'Only the current owner can transfer ownership' });
+    }
+
+    // Verify new owner is a member of the organization
+    const newOwnerMembership = await prisma.organizationMembership.findFirst({
+      where: { organization_id: orgId, user_id: new_owner_id },
+    });
+    if (!newOwnerMembership) {
+      return res.status(400).json({ error: 'New owner must be a member of the organization' });
+    }
+
+    // Transfer: demote current owner to admin, promote new owner
+    await prisma.$transaction([
+      prisma.organizationMembership.update({
+        where: { id: currentOwnership.id },
+        data: { role: 'admin' },
+      }),
+      prisma.organizationMembership.update({
+        where: { id: newOwnerMembership.id },
+        data: { role: 'owner' },
+      }),
+    ]);
+
+    return res.json({ message: 'Ownership transferred successfully' });
+  } catch (err) {
+    console.error('[organizations] POST /:id/transfer-ownership error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});

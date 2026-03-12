@@ -48,6 +48,15 @@ export async function getUserPlan(userId: string): Promise<AnyTier> {
   // paid yet (awaiting admin approval or checkout). Treat as free until payment completes.
   if (prefs.payment_pending === true) return 'free';
 
+  // Rule B: If subscription has an expiry date and it's in the past, treat as free.
+  const expiryRaw = prefs.subscription_end_date || prefs.plan_expiry_date;
+  if (expiryRaw) {
+    const expiry = new Date(expiryRaw);
+    if (!isNaN(expiry.getTime()) && expiry < new Date()) {
+      return 'free';
+    }
+  }
+
   const prefPlan = prefs.plan as string | undefined; // rookie | veteran | legend
 
   const plan = prefPlan || user.subscription_tier;

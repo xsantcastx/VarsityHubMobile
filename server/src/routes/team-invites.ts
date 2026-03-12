@@ -4,6 +4,7 @@ import { requireAuth } from '../middleware/requireAuth.js';
 import { prisma } from '../lib/prisma.js';
 import { getAuthorizedUsersPerTeam } from '../lib/planLimits.js';
 import { inviteLimiter } from '../middleware/rateLimiters.js';
+import { sendTeamInviteEmail } from '../lib/email.js';
 
 export const teamInvitesRouter = Router();
 
@@ -82,6 +83,17 @@ teamInvitesRouter.post('/', requireAuth as any, inviteLimiter, async (req: Authe
     }
     throw e;
   }
+
+  // Send invitation email (fire-and-forget)
+  const inviter = await prisma.user.findUnique({ where: { id: req.user.id }, select: { display_name: true } });
+  sendTeamInviteEmail({
+    to: emailLower,
+    teamName: team.name,
+    role: role || 'member',
+    inviterName: inviter?.display_name || 'VarsityHub Coach',
+  }).catch((err) => {
+    console.error('[team-invites] Failed to send invite email:', err);
+  });
 
   return res.status(201).json(invite);
 });

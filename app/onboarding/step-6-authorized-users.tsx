@@ -5,7 +5,7 @@ import { Type } from '@/ui/tokens';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Picker } from '@react-native-picker/picker';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Modal, Platform, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
 // @ts-ignore
 import { httpPost } from '@/api/http';
@@ -216,34 +216,42 @@ export default function Step6AuthorizedUsers() {
     }
   };
 
+  // Navigate only AFTER state is confirmed committed — prevents race condition
+  // where step-7 reads stale state and redirects back to step-3
+  const pendingNav = useRef<string | null>(null);
+  useEffect(() => {
+    if (pendingNav.current && ob.step_6_visited) {
+      const target = pendingNav.current;
+      pendingNav.current = null;
+      router.replace(target as any);
+    }
+  }, [ob.step_6_visited, router]);
+
   const onContinue = () => {
     if (__DEV__) console.warn('[STEP-6] Continue clicked, current progress:', progress);
 
-    setOB((prev) => ({ ...prev, authorized: list, step_6_visited: true }));
-
     if (returnToConfirmation) {
       setProgress(9);
-      router.replace('/onboarding/step-10-confirmation');
+      setOB((prev) => ({ ...prev, authorized: list, step_6_visited: true }));
+      pendingNav.current = '/onboarding/step-10-confirmation';
     } else {
-      // User reached step 6 through the normal flow (steps 1-5 already completed).
-      // No need to re-validate earlier steps here — that caused redirect loops
-      // when state fields (plan/pending_plan) were transiently undefined.
       if (__DEV__) console.warn('[STEP-6] Advancing to Step 7');
       setProgress(6);
-      router.replace('/onboarding/step-7-profile');
+      setOB((prev) => ({ ...prev, authorized: list, step_6_visited: true }));
+      pendingNav.current = '/onboarding/step-7-profile';
     }
   };
 
   const skipStep = () => {
     if (isOptional) {
-      setOB((prev) => ({ ...prev, authorized: [], step_6_visited: true }));
-
       if (returnToConfirmation) {
         setProgress(9);
-        router.replace('/onboarding/step-10-confirmation');
+        setOB((prev) => ({ ...prev, authorized: [], step_6_visited: true }));
+        pendingNav.current = '/onboarding/step-10-confirmation';
       } else {
         setProgress(6);
-        router.replace('/onboarding/step-7-profile');
+        setOB((prev) => ({ ...prev, authorized: [], step_6_visited: true }));
+        pendingNav.current = '/onboarding/step-7-profile';
       }
     }
   };

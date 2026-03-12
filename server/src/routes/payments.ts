@@ -19,6 +19,9 @@ import { calculateAdPriceCents } from '../utils/adPricing.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', { apiVersion: '2024-06-20' });
 
+// Admin notification email — falls back to first ADMIN_EMAILS entry
+const ADMIN_NOTIFY_EMAIL = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim()).filter(Boolean)[0] || 'emancero@varsityhub.app';
+
 export const paymentsRouter = Router();
 
 // Public config for coach onboarding and payment UI (no auth required)
@@ -172,6 +175,13 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
   if (chosen === 'veteran') {
     if (typeof teamCount !== 'number' || teamCount < 3) {
       throw membershipError(400, 'Veteran plan requires at least 3 total teams (first 2 are free)');
+    }
+    // Verify the claimed team count matches actual ownership
+    const actualTeamCount = await prisma.teamMembership.count({
+      where: { user_id: req.user!.id, role: 'owner', status: 'active' },
+    });
+    if (teamCount > actualTeamCount) {
+      throw membershipError(400, `Team count mismatch: you own ${actualTeamCount} teams but requested billing for ${teamCount}`);
     }
   }
 
@@ -347,16 +357,18 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paym
   // Up to MAX_AD_SLOTS different ads may run per date per zip.
   const MAX_AD_SLOTS = 2;
   if (ad.target_zip_code) {
-    const paidAdsInZip = await prisma.ad.findMany({
-      where: { target_zip_code: ad.target_zip_code, payment_status: 'paid', NOT: { id: String(ad_id) } },
+    // Include both 'paid' and 'hold' ads when checking slot availability.
+    // 'hold' ads have temporary reservations created at checkout time to prevent race conditions.
+    const reservedAdsInZip = await prisma.ad.findMany({
+      where: { target_zip_code: ad.target_zip_code, payment_status: { in: ['paid', 'hold'] }, NOT: { id: String(ad_id) } },
       select: { id: true },
       take: 100,
     });
-    if (paidAdsInZip.length > 0) {
+    if (reservedAdsInZip.length > 0) {
       const dateObjects = isoDates.map((s) => new Date(s + 'T00:00:00.000Z'));
       const bookedSlots = await prisma.adReservation.groupBy({
         by: ['date'],
-        where: { ad_id: { in: paidAdsInZip.map((a) => a.id) }, date: { in: dateObjects } },
+        where: { ad_id: { in: reservedAdsInZip.map((a) => a.id) }, date: { in: dateObjects } },
         _count: { date: true },
       });
       const fullDates = bookedSlots.filter((s) => s._count.date >= MAX_AD_SLOTS);
@@ -438,7 +450,7 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paym
     }).catch((err) => console.warn('[payments] Free promo ad email failed:', err?.message || err));
     // Notify admin for review
     sendAdPendingReviewEmail({
-      to: 'emancero@varsityhub.app',
+      to: ADMIN_NOTIFY_EMAIL,
       businessName: ad.business_name || undefined,
       zipCode: ad.target_zip_code || undefined,
       adId: String(ad_id),
@@ -564,6 +576,21 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paym
     idempotencyKey: `ad_${req.user!.id}_${ad_id}_${Math.floor(Date.now() / 120000)}`,
   });
 
+  // Hold slots: create temporary reservations + mark ad as 'hold' so other checkouts see them.
+  // On payment success, status moves to 'paid'. On failure/expiry, hold is released.
+  try {
+    await prisma.$transaction([
+      prisma.ad.update({ where: { id: String(ad_id) }, data: { payment_status: 'hold' } }),
+      prisma.adReservation.createMany({
+        data: isoDates.map((s) => ({ ad_id: String(ad_id), date: new Date(s + 'T00:00:00.000Z') })),
+        skipDuplicates: true,
+      }),
+    ]);
+  } catch (holdErr) {
+    // Non-fatal: if hold fails, fall back to existing refund-on-conflict behavior
+    console.warn('[payments] Failed to create slot hold, continuing:', (holdErr as any)?.message);
+  }
+
   // Log transaction
   const currentUser = await prisma.user.findUnique({
     where: { id: req.user!.id },
@@ -645,6 +672,13 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
       if (effectiveTeamCount < 3) {
         return res.status(400).json({ error: 'Veteran plan requires at least 3 total teams (first 2 are free)' });
       }
+      // Verify the claimed team count matches actual ownership
+      const actualTeamCount = await prisma.teamMembership.count({
+        where: { user_id: userId, role: 'owner', status: 'active' },
+      });
+      if (effectiveTeamCount > actualTeamCount) {
+        return res.status(400).json({ error: `Team count mismatch: you own ${actualTeamCount} teams but requested billing for ${effectiveTeamCount}` });
+      }
     }
 
     // Check if user already has this plan (check active plan, not pending_plan)
@@ -723,6 +757,7 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
 
       return res.json({
         paymentIntent: paymentIntent.client_secret,
+        payment_intent_id: paymentIntent.id,
         ephemeralKey: ephemeralKey.secret,
         customer: customerId,
         publishableKey,
@@ -743,19 +778,19 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
   const ad = await prisma.ad.findUnique({ where: { id: String(ad_id) } });
   if (!ad) return res.status(404).json({ error: 'Ad not found' });
 
-  // Slot availability check
+  // Slot availability check — include 'hold' ads to prevent race conditions
   const MAX_AD_SLOTS = 2;
   if (ad.target_zip_code) {
-    const paidAdsInZip = await prisma.ad.findMany({
-      where: { target_zip_code: ad.target_zip_code, payment_status: 'paid', NOT: { id: String(ad_id) } },
+    const reservedAdsInZip = await prisma.ad.findMany({
+      where: { target_zip_code: ad.target_zip_code, payment_status: { in: ['paid', 'hold'] }, NOT: { id: String(ad_id) } },
       select: { id: true },
       take: 100,
     });
-    if (paidAdsInZip.length > 0) {
+    if (reservedAdsInZip.length > 0) {
       const dateObjects = isoDates.map((s) => new Date(s + 'T00:00:00.000Z'));
       const bookedSlots = await prisma.adReservation.groupBy({
         by: ['date'],
-        where: { ad_id: { in: paidAdsInZip.map((a) => a.id) }, date: { in: dateObjects } },
+        where: { ad_id: { in: reservedAdsInZip.map((a) => a.id) }, date: { in: dateObjects } },
         _count: { date: true },
       });
       const fullDates = bookedSlots.filter((s) => s._count.date >= MAX_AD_SLOTS);
@@ -817,7 +852,7 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
     sendAdPaymentEmail({ userId, adId: String(ad_id), dates: isoDates, totalCents: 0, businessName: ad.business_name, zipCode: ad.target_zip_code }).catch((err) => console.warn('[payments] Free promo ad email failed:', err?.message || err));
     // Notify admin for review
     sendAdPendingReviewEmail({
-      to: 'emancero@varsityhub.app',
+      to: ADMIN_NOTIFY_EMAIL,
       businessName: ad.business_name || undefined,
       zipCode: ad.target_zip_code || undefined,
       adId: String(ad_id),
@@ -845,6 +880,19 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
     }, {
       idempotencyKey: `ad_pi_${userId}_${ad_id}_${Math.floor(Date.now() / 120000)}`,
     });
+
+    // Hold slots to prevent race conditions
+    try {
+      await prisma.$transaction([
+        prisma.ad.update({ where: { id: String(ad_id) }, data: { payment_status: 'hold' } }),
+        prisma.adReservation.createMany({
+          data: isoDates.map((s) => ({ ad_id: String(ad_id), date: new Date(s + 'T00:00:00.000Z') })),
+          skipDuplicates: true,
+        }),
+      ]);
+    } catch (holdErr) {
+      console.warn('[payments] Failed to create slot hold (PaymentSheet), continuing:', (holdErr as any)?.message);
+    }
 
     // Log transaction
     await logTransaction({
@@ -1072,12 +1120,30 @@ paymentsRouter.post('/webhook', async (req, res) => {
     }
   }
 
-  // Handle expired checkout sessions — mark PENDING transactions as FAILED
+  // Handle expired checkout sessions — mark PENDING transactions as FAILED and release holds
   if (event.type === 'checkout.session.expired') {
     const session = event.data.object as Stripe.Checkout.Session;
     await updateTransactionStatus(session.id, 'FAILED', {
       metadata: { reason: 'checkout_expired' },
     }).catch(err => { console.error('[transaction-log] expired session update failed:', err); captureException(err as Error, { context: 'transaction_log_expired_session' }); });
+
+    // Release ad slot holds if this was an ad checkout
+    const expiredAdId = session.metadata?.ad_id;
+    if (expiredAdId) {
+      try {
+        const heldAd = await prisma.ad.findUnique({ where: { id: expiredAdId }, select: { payment_status: true } });
+        if (heldAd?.payment_status === 'hold') {
+          await prisma.$transaction([
+            prisma.adReservation.deleteMany({ where: { ad_id: expiredAdId } }),
+            prisma.ad.update({ where: { id: expiredAdId }, data: { payment_status: 'unpaid' } }),
+          ]);
+          debugLog('[webhook] Released ad slot hold on checkout expiry', { ad_id: expiredAdId });
+        }
+      } catch (releaseErr) {
+        console.error('[webhook] Failed to release ad hold on expiry:', (releaseErr as any)?.message);
+        captureException(releaseErr as Error, { context: 'release_ad_hold_expired', adId: expiredAdId });
+      }
+    }
   }
 
   // Handle failed payment intents
@@ -1092,6 +1158,23 @@ paymentsRouter.post('/webhook', async (req, res) => {
       totalCents: pi.amount,
       metadata: { reason: pi.last_payment_error?.message || 'payment_failed', ...meta },
     }).catch(err => { console.error('[transaction-log] failed payment log failed:', err); captureException(err as Error, { context: 'transaction_log_failed_payment' }); });
+
+    // Release ad slot holds on payment failure
+    if (meta.ad_id) {
+      try {
+        const heldAd = await prisma.ad.findUnique({ where: { id: meta.ad_id }, select: { payment_status: true } });
+        if (heldAd?.payment_status === 'hold') {
+          await prisma.$transaction([
+            prisma.adReservation.deleteMany({ where: { ad_id: meta.ad_id } }),
+            prisma.ad.update({ where: { id: meta.ad_id }, data: { payment_status: 'unpaid' } }),
+          ]);
+          debugLog('[webhook] Released ad slot hold on payment failure', { ad_id: meta.ad_id });
+        }
+      } catch (releaseErr) {
+        console.error('[webhook] Failed to release ad hold on payment failure:', (releaseErr as any)?.message);
+        captureException(releaseErr as Error, { context: 'release_ad_hold_failed_pi', adId: meta.ad_id });
+      }
+    }
 
     // Notify user of failed payment
     if (meta.user_id) {
@@ -1121,16 +1204,17 @@ paymentsRouter.post('/webhook', async (req, res) => {
             const MAX_AD_SLOTS = 2;
             const adRecord = await tx.ad.findUnique({ where: { id: adId }, select: { target_zip_code: true } });
             if (adRecord?.target_zip_code) {
-              const paidAdsInZip = await tx.ad.findMany({
-                where: { target_zip_code: adRecord.target_zip_code, payment_status: 'paid', NOT: { id: adId } },
+              // Count paid and held ads (excluding this one) to check slot availability
+              const reservedAdsInZip = await tx.ad.findMany({
+                where: { target_zip_code: adRecord.target_zip_code, payment_status: { in: ['paid', 'hold'] }, NOT: { id: adId } },
                 select: { id: true },
                 take: 100,
               });
-              if (paidAdsInZip.length > 0) {
+              if (reservedAdsInZip.length > 0) {
                 const dateObjects = piDates.map((s) => new Date(s + 'T00:00:00.000Z'));
                 const bookedSlots = await tx.adReservation.groupBy({
                   by: ['date'],
-                  where: { ad_id: { in: paidAdsInZip.map((a) => a.id) }, date: { in: dateObjects } },
+                  where: { ad_id: { in: reservedAdsInZip.map((a) => a.id) }, date: { in: dateObjects } },
                   _count: { date: true },
                 });
                 const fullDates = bookedSlots.filter((s) => s._count.date >= MAX_AD_SLOTS);
@@ -1162,7 +1246,7 @@ paymentsRouter.post('/webhook', async (req, res) => {
           }).catch((err) => console.warn('[webhook] ad payment email failed:', err?.message || err));
           // Notify admin that a new ad needs approval
           sendAdPendingReviewEmail({
-            to: 'emancero@varsityhub.app',
+            to: ADMIN_NOTIFY_EMAIL,
             businessName: adForEmail?.business_name || undefined,
             contactName: adForEmail?.contact_name || undefined,
             contactEmail: adForEmail?.contact_email || undefined,
@@ -1171,16 +1255,27 @@ paymentsRouter.post('/webhook', async (req, res) => {
             adId,
           }).catch((err) => captureException(err as Error, { context: 'ad_pending_review_email_pi' }));
 
-          // Redeem promo code if one was used
+          // Redeem promo code if one was used — retry up to 3 times to prevent reuse
           if (meta.promo_code) {
             const promoSubtotal = Number(meta.subtotal_cents || 0) || 0;
-            await redeemPromo({ code: meta.promo_code, subtotalCents: promoSubtotal, userId: meta.user_id || '', service: 'booking', orderId: pi.id }).catch((e) => {
-              console.error('[webhook] promo redeem failed — user may reuse code:', e);
-              captureException(e as Error, { context: 'promo_redeem_failed', promoCode: meta.promo_code, piId: pi.id, userId: meta.user_id });
+            let promoRedeemed = false;
+            for (let attempt = 1; attempt <= 3; attempt++) {
+              try {
+                await redeemPromo({ code: meta.promo_code, subtotalCents: promoSubtotal, userId: meta.user_id || '', service: 'booking', orderId: pi.id });
+                promoRedeemed = true;
+                break;
+              } catch (e) {
+                console.warn(`[webhook] promo redeem attempt ${attempt}/3 failed:`, (e as any)?.message);
+                if (attempt < 3) await new Promise(r => setTimeout(r, 500 * attempt));
+              }
+            }
+            if (!promoRedeemed) {
+              console.error('[webhook] promo redeem FAILED after 3 attempts — flagging for manual review', { code: meta.promo_code, pi_id: pi.id });
+              captureException(new Error('Promo redemption failed after retries'), { context: 'promo_redeem_failed', promoCode: meta.promo_code, piId: pi.id, userId: meta.user_id });
               updateTransactionStatus(pi.id, 'COMPLETED', {
                 metadata: { promo_redemption_failed: true, promo_code: meta.promo_code },
               }).catch((err) => console.warn('[webhook] failed to flag promo redemption failure:', err));
-            });
+            }
           }
         } catch (e: any) {
           if (e?.slotFull) {
@@ -1246,6 +1341,37 @@ paymentsRouter.post('/cancel-intent', expressPkg.json(), requireVerified as any,
     await updateTransactionStatus(payment_intent_id, 'FAILED', {
       metadata: { reason: 'user_abandoned', canceled_at: new Date().toISOString() },
     }).catch(err => { console.error('[transaction-log] cancel-intent log failed:', err); captureException(err as Error, { context: 'cancel_intent_log' }); });
+
+    // Cancel incomplete subscription if this PI belongs to one (prevents orphaned subscriptions in Stripe)
+    if (pi.invoice) {
+      try {
+        const invoice = await stripe.invoices.retrieve(String(pi.invoice));
+        if (invoice.subscription) {
+          const sub = await stripe.subscriptions.retrieve(String(invoice.subscription));
+          if (sub.status === 'incomplete') {
+            await stripe.subscriptions.cancel(sub.id);
+            debugLog('[payments] Canceled incomplete subscription on cancel-intent', { sub_id: sub.id });
+          }
+        }
+      } catch (subErr) {
+        console.warn('[payments] Failed to cancel incomplete subscription:', (subErr as any)?.message);
+      }
+    }
+
+    // Release ad slot holds if this was an ad payment
+    const cancelAdId = pi.metadata?.ad_id;
+    if (cancelAdId) {
+      const heldAd = await prisma.ad.findUnique({ where: { id: cancelAdId }, select: { payment_status: true } });
+      if (heldAd?.payment_status === 'hold') {
+        await prisma.$transaction([
+          prisma.adReservation.deleteMany({ where: { ad_id: cancelAdId } }),
+          prisma.ad.update({ where: { id: cancelAdId }, data: { payment_status: 'unpaid' } }),
+        ]).catch(releaseErr => {
+          console.error('[payments] Failed to release hold on cancel-intent:', (releaseErr as any)?.message);
+        });
+      }
+    }
+
     return res.json({ canceled: true });
   } catch (err: any) {
     console.warn('[payments] cancel-intent error:', err?.message);
@@ -1637,7 +1763,7 @@ paymentsRouter.post('/admin/reset-unpaid-subscriptions', requireVerified as any,
 });
 
 // Authenticated helper to finalize a Checkout Session by id when webhooks are unavailable
-paymentsRouter.post('/finalize-session', expressPkg.json(), requireVerified as any, async (req: AuthedRequest, res) => {
+paymentsRouter.post('/finalize-session', expressPkg.json(), requireVerified as any, paymentLimiter, async (req: AuthedRequest, res) => {
   try {
     const { session_id } = req.body || {};
     if (!session_id || typeof session_id !== 'string') return res.status(400).json({ error: 'session_id required' });
@@ -1733,16 +1859,16 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
         const MAX_AD_SLOTS = 2;
         const adRecord = await tx.ad.findUnique({ where: { id: ad_id }, select: { target_zip_code: true } });
         if (adRecord?.target_zip_code) {
-          const paidAdsInZip = await tx.ad.findMany({
-            where: { target_zip_code: adRecord.target_zip_code, payment_status: 'paid', NOT: { id: ad_id } },
+          const reservedAdsInZip = await tx.ad.findMany({
+            where: { target_zip_code: adRecord.target_zip_code, payment_status: { in: ['paid', 'hold'] }, NOT: { id: ad_id } },
             select: { id: true },
             take: 100,
           });
-          if (paidAdsInZip.length > 0) {
+          if (reservedAdsInZip.length > 0) {
             const dateObjects = dates.map((s) => new Date(s + 'T00:00:00.000Z'));
             const bookedSlots = await tx.adReservation.groupBy({
               by: ['date'],
-              where: { ad_id: { in: paidAdsInZip.map((a) => a.id) }, date: { in: dateObjects } },
+              where: { ad_id: { in: reservedAdsInZip.map((a) => a.id) }, date: { in: dateObjects } },
               _count: { date: true },
             });
             const fullDates = bookedSlots.filter((s) => s._count.date >= MAX_AD_SLOTS);
@@ -1792,7 +1918,7 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
       });
       // Notify admin that a new ad needs approval
       void sendAdPendingReviewEmail({
-        to: 'emancero@varsityhub.app',
+        to: ADMIN_NOTIFY_EMAIL,
         businessName: adForEmail?.business_name || undefined,
         contactEmail: fallbackEmail || undefined,
         zipCode: adForEmail?.target_zip_code || undefined,
@@ -1955,10 +2081,20 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
   }
 
   if (code && userId && subtotalCents > 0) {
-    try {
-      await redeemPromo({ code, userId, subtotalCents, service: 'booking', orderId: session.id });
-    } catch (e) {
-      console.error('[payments] Promo redemption failed:', { code, userId, session_id: session.id, error: (e as any)?.message || e });
+    let redeemed = false;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        await redeemPromo({ code, userId, subtotalCents, service: 'booking', orderId: session.id });
+        redeemed = true;
+        break;
+      } catch (e) {
+        console.warn(`[payments] Promo redemption attempt ${attempt}/3 failed:`, (e as any)?.message);
+        if (attempt < 3) await new Promise(r => setTimeout(r, 500 * attempt));
+      }
+    }
+    if (!redeemed) {
+      console.error('[payments] Promo redemption FAILED after 3 attempts — flagging', { code, userId, session_id: session.id });
+      captureException(new Error('Promo redemption failed after retries (session)'), { context: 'promo_redeem_failed_session', promoCode: code, sessionId: session.id, userId });
     }
   }
 }

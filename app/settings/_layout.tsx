@@ -76,12 +76,6 @@ export default function SettingsLayout() {
         }}
       />
       <Stack.Screen
-        name="core-values"
-        options={{
-          title: 'Core Values',
-        }}
-      />
-      <Stack.Screen
         name="privacy-policy"
         options={{
           title: 'Privacy Policy',
@@ -91,12 +85,6 @@ export default function SettingsLayout() {
         name="terms-of-service"
         options={{
           title: 'Terms of Service',
-        }}
-      />
-      <Stack.Screen
-        name="legal"
-        options={{
-          title: 'Legal',
         }}
       />
       <Stack.Screen

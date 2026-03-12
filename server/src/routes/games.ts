@@ -4,6 +4,8 @@ import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { isEmailAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
+import { requireVerified } from '../middleware/requireVerified.js';
+import { requireOnboarded } from '../middleware/requireOnboarded.js';
 import { makeCreateStoryHandler, makeListMediaHandler, serializeMedia } from './gameStories.js';
 import { debugLog } from '../lib/debugLog.js';
 import { gameCreationLimiter, voteLimiter } from '../middleware/rateLimiters.js';
@@ -197,7 +199,7 @@ gamesRouter.get('/', async (req, res) => {
 });
 
 // Create a new game
-gamesRouter.post('/', requireAuth as any, gameCreationLimiter, async (req: AuthedRequest, res) => {
+gamesRouter.post('/', requireVerified as any, requireOnboarded as any, gameCreationLimiter, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   
   const schema = z.object({

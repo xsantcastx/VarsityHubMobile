@@ -489,7 +489,7 @@ export default function PostDetailScreen() {
     if (!currentPostId) return;
     const reasons = [
       { text: 'Copyright infringement', value: 'copyright' },
-      { text: 'Broadcast footage', value: 'violence' },
+      { text: 'Broadcast footage', value: 'copyright' },
       { text: 'Unauthorized use of my likeness', value: 'impersonation' },
       { text: 'Inappropriate content', value: 'nudity' },
       { text: 'Spam', value: 'spam' },
@@ -505,8 +505,10 @@ export default function PostDetailScreen() {
         } catch (error: any) {
           if (error?.status === 409) {
             Alert.alert('Already Reported', 'You have already reported this post.');
+          } else if (error?.status === 400 && error?.data?.error?.includes('own')) {
+            Alert.alert('Cannot Report', 'You cannot report your own content.');
           } else {
-            Alert.alert('Error', error?.message || 'Failed to submit report. Please try again.');
+            Alert.alert('Error', error?.data?.error || error?.message || 'Failed to submit report. Please try again.');
           }
         }
       } : undefined,
@@ -532,8 +534,10 @@ export default function PostDetailScreen() {
         } catch (error: any) {
           if (error?.status === 409) {
             Alert.alert('Already Reported', 'You have already reported this comment.');
+          } else if (error?.status === 400 && error?.data?.error?.includes('own')) {
+            Alert.alert('Cannot Report', 'You cannot report your own content.');
           } else {
-            Alert.alert('Error', error?.message || 'Failed to submit report. Please try again.');
+            Alert.alert('Error', error?.data?.error || error?.message || 'Failed to submit report. Please try again.');
           }
         }
       } : undefined,
@@ -1063,18 +1067,16 @@ export default function PostDetailScreen() {
   };
 
   const content = (
-    <SafeAreaView style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
+    <SafeAreaView style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]} edges={['top']}>
       <StatusBar barStyle={colorScheme === 'dark' ? "light-content" : "dark-content"} backgroundColor={Colors[colorScheme].background} />
       <Stack.Screen options={{ headerShown: false }} />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }} keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 20}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }} keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}>
       
       {/* Custom Header */}
       <View style={[styles.header, { backgroundColor: Colors[colorScheme].surface, borderBottomColor: Colors[colorScheme].border }]}>
         <Pressable style={styles.backButton} onPress={() => {
           if (router.canGoBack()) {
             router.back();
-          } else if (params.from === 'highlights') {
-            router.navigate('/(tabs)/highlights' as any);
           } else {
             router.push('/(tabs)' as any);
           }

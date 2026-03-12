@@ -166,11 +166,8 @@ export default function OrganizationJoinRequestsScreen() {
       <View style={[styles.header, { backgroundColor: theme.background, borderColor: theme.border }]}>
         <Pressable 
           onPress={() => {
-            if (router.canGoBack()) {
-              if (router.canGoBack()) router.back();
-            } else {
-              router.push('/(tabs)' as any);
-            }
+            if (router.canGoBack()) router.back();
+            else router.push('/(tabs)' as any);
           }} 
           style={styles.backButton}
         >

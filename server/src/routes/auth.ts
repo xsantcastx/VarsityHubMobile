@@ -12,7 +12,7 @@ import { prisma } from '../lib/prisma.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
-import { refreshTokenLimiter } from '../middleware/rateLimiters.js';
+import { authLimiter, passwordResetLimiter, refreshTokenLimiter, verificationLimiter } from '../middleware/rateLimiters.js';
 
 export const authRouter = Router();
 // Simple in-memory rate limiting for auth endpoints
@@ -229,7 +229,7 @@ const registerSchema = z.object({
   _t: z.number().optional(),      // Timestamp when form was loaded (detect instant submissions)
 });
 
-authRouter.post('/register', asyncHandler(async (req, res) => {
+authRouter.post('/register', authLimiter, asyncHandler(async (req, res) => {
   const start = Date.now();
   debugLog('[register] Incoming request');
 
@@ -344,7 +344,7 @@ authRouter.post('/register', asyncHandler(async (req, res) => {
 
 const loginSchema = z.object({ email: z.string().email(), password: z.string().min(1) });
 
-authRouter.post('/login', asyncHandler(async (req, res) => {
+authRouter.post('/login', authLimiter, asyncHandler(async (req, res) => {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid credentials' });
   const { email, password } = parsed.data;
@@ -399,7 +399,7 @@ const googleAuthSchema = z.object({
   id_token: z.string().min(10),
 });
 
-authRouter.post('/google', async (req, res) => {
+authRouter.post('/google', authLimiter, async (req, res) => {
   const parsed = googleAuthSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
 
@@ -523,7 +523,7 @@ const appleAuthSchema = z.object({
   identity_token: z.string().min(1),
 });
 
-authRouter.post('/apple', async (req, res) => {
+authRouter.post('/apple', authLimiter, async (req, res) => {
   const APPLE_CLIENT_ID = process.env.APPLE_CLIENT_ID || process.env.APPLE_BUNDLE_ID || 'com.varsithub.varsityhub-ios';
   if (!APPLE_CLIENT_ID) {
     return res.status(503).json({ error: 'Apple Sign-In is not configured' });
@@ -693,7 +693,7 @@ authRouter.post('/apple', async (req, res) => {
 
 const passwordResetRequestSchema = z.object({ email: z.string().email() });
 
-authRouter.post('/password/forgot', async (req, res) => {
+authRouter.post('/password/forgot', passwordResetLimiter, async (req, res) => {
   const parsed = passwordResetRequestSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
   const email = parsed.data.email.trim().toLowerCase();
@@ -747,7 +747,7 @@ const passwordResetSchema = z.object({
   password: z.string().min(8),
 });
 
-authRouter.post('/password/reset', async (req, res) => {
+authRouter.post('/password/reset', passwordResetLimiter, async (req, res) => {
   const parsed = passwordResetSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
   const { email, code, password } = parsed.data;
@@ -1268,8 +1268,11 @@ authRouter.post('/me/complete-onboarding', requireAuth as any, async (req: Authe
     if (!data.username) {
       return res.status(400).json({ error: 'Username required for coach onboarding' });
     }
-    if (!data.team_id && !data.organization_id) {
-      return res.status(400).json({ error: 'Team or organization required for coach onboarding' });
+    if (!data.organization_id) {
+      return res.status(400).json({ error: 'Organization required for coach onboarding' });
+    }
+    if (!data.team_id) {
+      return res.status(400).json({ error: 'Team required for coach onboarding. Every coach must be assigned a team.' });
     }
   }
 

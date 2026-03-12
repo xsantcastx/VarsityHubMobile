@@ -136,6 +136,10 @@ export default function SubscriptionPaywallScreen() {
         const { error } = await presentPaymentSheet();
         if (error) {
           if (error.code !== 'Canceled') Alert.alert('Payment Failed', error.message);
+          // Clean up: cancel the incomplete PaymentIntent so the subscription doesn't linger
+          if (data.payment_intent_id) {
+            httpPost('/payments/cancel-intent', { payment_intent_id: data.payment_intent_id }).catch(() => {});
+          }
           return;
         }
         // Poll for plan activation (webhook may take a moment)

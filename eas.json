@@ -39,11 +39,13 @@
         "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_live_51RtgdGGJt8CsPE1E5nDpNo8bfow30VYpeqZwJfp6y1SP49NbwaruTcMWOi04SxujUTjACB3fwJwFSTgItU4IlA4S00HFBL7D3p"
       },
       "ios": {
-        "resourceClass": "m-medium"
+        "resourceClass": "m-medium",
+        "credentialsSource": "remote"
       },
       "android": {
         "resourceClass": "medium",
-        "buildType": "apk"
+        "buildType": "apk",
+        "credentialsSource": "remote"
       }
     },
     "production": {

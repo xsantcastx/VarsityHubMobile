@@ -112,11 +112,18 @@ export default function Step10Confirmation() {
         description: 'Choose your subscription plan (coaches only)'
       },
       {
-        label: 'Page Created',
-        completed: !!(ob.team_id || ob.organization_id),
+        label: 'Organization Created',
+        completed: !!ob.organization_id,
         required: isCoach, // Only required for coaches
         route: '/onboarding/step-4-organization',
-        description: 'Create your team or organization page (coaches only)'
+        description: 'Create or join an organization (coaches only)'
+      },
+      {
+        label: 'Team Created',
+        completed: !!ob.team_id,
+        required: isCoach, // Only required for coaches
+        route: '/onboarding/step-5-team',
+        description: 'Create your team page (coaches only)'
       },
       {
         label: 'Profile Setup',

@@ -93,13 +93,18 @@ export function BannerUpload({
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const asset = result.assets[0];
 
+        // Detect if original is PNG to preserve transparency
+        const originalName = (asset.fileName || asset.uri || '').toLowerCase();
+        const isPng = originalName.endsWith('.png');
+        const saveFormat = isPng ? ImageManipulator.SaveFormat.PNG : ImageManipulator.SaveFormat.JPEG;
+
         // Resize/compress image before size validation
         let processedUri = asset.uri;
         try {
           const manipulated = await ImageManipulator.manipulateAsync(
             asset.uri,
             [{ resize: { width: 1920 } }],
-            { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+            { compress: isPng ? 1 : 0.8, format: saveFormat }
           );
           processedUri = manipulated.uri;
         } catch (error: any) {
@@ -107,7 +112,7 @@ export function BannerUpload({
           // Continue with original URI if manipulation fails
         }
 
-        // Validate image size (max 5MB)
+        // Validate image size (max 10MB)
         let fileSize: number | undefined;
         try {
           const response = await fetch(processedUri);
@@ -117,10 +122,10 @@ export function BannerUpload({
           // Continue upload without size validation
         }
 
-        if (fileSize && fileSize > 5 * 1024 * 1024) {
+        if (fileSize && fileSize > 10 * 1024 * 1024) {
           Alert.alert(
             'File Too Large',
-            'Banner images must be under 5MB. Please choose a smaller image.'
+            'Banner images must be under 10MB. Accepted formats: JPEG, PNG.'
           );
           setUploading(false);
           return;
@@ -130,9 +135,10 @@ export function BannerUpload({
         setScale(1);
         setPosition({ x: 50, y: 50 });
 
-        const rawName = asset.fileName || asset.uri.split('/').pop() || `banner_${Date.now()}.jpg`;
-        const fileName = rawName.includes('.') ? rawName : `${rawName}.jpg`;
-        const mimeType = 'image/jpeg';
+        const ext = isPng ? 'png' : 'jpg';
+        const rawName = asset.fileName || asset.uri.split('/').pop() || `banner_${Date.now()}.${ext}`;
+        const fileName = rawName.includes('.') ? rawName : `${rawName}.${ext}`;
+        const mimeType = isPng ? 'image/png' : 'image/jpeg';
         const uploadSource =
           Platform.OS === 'web'
             ? { uri: processedUri, mimeType }
@@ -352,7 +358,7 @@ export function BannerUpload({
               Recommended: 1920x1080 (16:9)
             </Text>
             <Text style={[styles.uploadHint, { color: Colors[colorScheme].mutedText }]}>
-              Max size: 5MB
+              JPEG or PNG, max 10MB
             </Text>
           </Pressable>
         )}

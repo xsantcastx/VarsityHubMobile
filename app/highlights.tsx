@@ -110,26 +110,31 @@ const getSportCategory = (sport?: string, title?: string | null, content?: strin
 // Component that generates a thumbnail from a video URL when preview_url is missing
 const VideoThumbnailImage = ({ videoUrl, style }: { videoUrl: string; style: any }) => {
   const [thumbUri, setThumbUri] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    if (VideoThumbnails && videoUrl) {
+    if (VideoThumbnails && videoUrl && !failed) {
       VideoThumbnails.getThumbnailAsync(videoUrl, { time: 1000 })
         .then((result: any) => {
           if (!cancelled && result?.uri) setThumbUri(result.uri);
+          else if (!cancelled) setFailed(true);
         })
-        .catch(() => {});
+        .catch(() => { if (!cancelled) setFailed(true); });
     }
     return () => { cancelled = true; };
-  }, [videoUrl]);
+  }, [videoUrl, failed]);
 
   if (thumbUri) {
     return <ExpoImage source={{ uri: thumbUri }} style={style} contentFit="cover" />;
   }
-  // Fallback: sport-themed gradient placeholder instead of black
+  // Fallback: dark gradient with prominent play icon — never a blank card
   return (
     <LinearGradient colors={['#1e293b', '#0f172a']} style={[style, { alignItems: 'center', justifyContent: 'center' }]}>
-      <Ionicons name="videocam" size={32} color="#64748b" />
+      <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' }}>
+        <Ionicons name="play" size={28} color="#fff" style={{ marginLeft: 3 }} />
+      </View>
+      <Text style={{ color: '#94a3b8', fontSize: 11, marginTop: 6, fontWeight: '600' }}>Video</Text>
     </LinearGradient>
   );
 };
@@ -186,10 +191,14 @@ const HighlightCard = ({
           )}
           {hasMedia ? (
             <View style={styles.mediaContainer}>
-              {isVideo && !item.preview_url ? (
-                <VideoThumbnailImage videoUrl={item.media_url!} style={styles.mediaImage} />
+              {isVideo ? (
+                item.preview_url ? (
+                  <ExpoImage source={{ uri: item.preview_url }} style={styles.mediaImage} contentFit="cover" />
+                ) : (
+                  <VideoThumbnailImage videoUrl={item.media_url!} style={styles.mediaImage} />
+                )
               ) : (
-                <ExpoImage source={{ uri: isVideo ? item.preview_url : item.media_url }} style={styles.mediaImage} contentFit="cover" />
+                <ExpoImage source={{ uri: item.media_url }} style={styles.mediaImage} contentFit="cover" />
               )}
               {isVideo && (
                 <View style={styles.videoOverlay}>

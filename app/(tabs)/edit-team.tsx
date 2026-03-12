@@ -81,11 +81,8 @@ export default function EditTeamScreen() {
     } catch (error) {
       if (__DEV__) console.error('Failed to load team:', error);
       Alert.alert('Error', 'Failed to load team data. Please try again.');
-      if (router.canGoBack()) {
-        if (router.canGoBack()) router.back();
-      } else {
-        router.push('/(tabs)' as any);
-      }
+      if (router.canGoBack()) router.back();
+      else router.push('/(tabs)' as any);
     } finally {
       setLoading(false);
     }

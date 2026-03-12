@@ -9,6 +9,7 @@ import { authMiddleware } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
 import { requireVerified } from '../middleware/requireVerified.js';
+import { requireOnboarded } from '../middleware/requireOnboarded.js';
 import { requirePlan } from '../middleware/subscription.js';
 import { teamCreationLimiter, followLimiter, inviteLimiter } from '../middleware/rateLimiters.js';
 import { getAuthorizedUsersPerTeam, getMaxTeamsForPlan } from '../lib/planLimits.js';
@@ -421,7 +422,7 @@ const createSchema = z.object({
   season_end: z.string().optional(),
   onboarding: z.boolean().optional(),
 });
-teamsRouter.post('/', requireVerified as any, requirePlan('rookie') as any, async (req: AuthedRequest, res) => {
+teamsRouter.post('/', requireVerified as any, requireOnboarded as any, requirePlan('rookie') as any, async (req: AuthedRequest, res) => {
   try {
   // req.user is guaranteed by requireVerified middleware
   const parsed = createSchema.safeParse(req.body);
@@ -715,7 +716,7 @@ const createTeamSchema = z.object({
   onboarding: z.boolean().optional(),
 });
 
-teamsRouter.post('/create', requireVerified as any, requirePlan('rookie') as any, teamCreationLimiter, async (req: AuthedRequest, res) => {
+teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, requirePlan('rookie') as any, teamCreationLimiter, async (req: AuthedRequest, res) => {
   // req.user is guaranteed by requireVerified middleware
   const parsed = createTeamSchema.safeParse(req.body);
   if (!parsed.success) {

@@ -1,8 +1,9 @@
 import { NextFunction, Request, Response, Router } from 'express';
 import multer from 'multer';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { isCloudinaryConfigured, uploadBufferToCloudinary } from '../lib/cloudinary.js';
+import { getCloudinaryFolder, isCloudinaryConfigured, uploadBufferToCloudinary } from '../lib/cloudinary.js';
 import { captureException } from '../lib/sentry.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { uploadLimiter } from '../middleware/rateLimiters.js';
@@ -93,6 +94,44 @@ uploadsRouter.use((req, res, next) => {
     contentType: req.headers['content-type'],
   });
   next();
+});
+
+// -----------------------------------------------
+// GET /uploads/cloudinary-signature
+// Returns a signed payload for direct client-to-Cloudinary upload.
+// The file never touches this server — goes straight from phone to CDN.
+// -----------------------------------------------
+uploadsRouter.get('/cloudinary-signature', requireAuth as any, uploadLimiter as any, (_req: Request, res: Response) => {
+  if (!useCloudinary) {
+    return res.status(503).json({ error: 'Direct upload not available — Cloudinary not configured' });
+  }
+
+  try {
+    const cloudName = process.env.CLOUDINARY_CLOUD_NAME!;
+    const apiKey = process.env.CLOUDINARY_API_KEY!;
+    const apiSecret = process.env.CLOUDINARY_API_SECRET!;
+    const folder = getCloudinaryFolder();
+    const timestamp = Math.floor(Date.now() / 1000);
+
+    const params: Record<string, string> = { folder, timestamp: String(timestamp) };
+    // Cloudinary requires alphabetically-sorted params for signature
+    const toSign = Object.keys(params)
+      .sort()
+      .map((key) => `${key}=${params[key]}`)
+      .join('&');
+    const signature = crypto.createHash('sha1').update(`${toSign}${apiSecret}`).digest('hex');
+
+    return res.json({
+      cloudName,
+      apiKey,
+      signature,
+      timestamp,
+      folder,
+    });
+  } catch (error: any) {
+    console.error('[uploads] Failed to generate Cloudinary signature:', error);
+    return res.status(500).json({ error: 'Failed to generate upload signature' });
+  }
 });
 
 uploadsRouter.get('/sign', requireAuth as any, (req: MulterRequest, res) => {

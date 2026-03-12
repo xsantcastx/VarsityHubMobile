@@ -80,6 +80,8 @@ export const User = {
   acceptFollow: (id: string) => httpPost(`/users/${encodeURIComponent(id)}/accept-follow`, {}),
   rejectFollow: (id: string) => httpPost(`/users/${encodeURIComponent(id)}/reject-follow`, {}),
   getFollowRequests: () => httpGet('/users/me/follow-requests'),
+  // Account deletion (Apple App Store requirement)
+  deleteAccount: () => httpDelete('/users/me'),
 };
 
 export const Game = {
