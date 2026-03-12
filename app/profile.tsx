@@ -1498,13 +1498,12 @@ const styles = StyleSheet.create({
   },
   profileContent: {
     position: 'absolute',
-    bottom: 30,
+    bottom: -50,
     left: 16,
     zIndex: 100,
     elevation: 100,
   },
   avatarSection: {
-    marginBottom: -90, // Avatar overlaps cover image — most of avatar sits on banner
     zIndex: 99999,
     elevation: 99999,
     position: 'relative',
@@ -1607,10 +1606,10 @@ const styles = StyleSheet.create({
   // Profile Details Below Banner — paddingTop clears the overlapping avatar
   profileDetailsContainer: {
     backgroundColor: 'transparent',
-    paddingTop: 8,
+    paddingTop: 56,
     marginBottom: 0,
     paddingBottom: 0,
-    gap: 2,
+    gap: 0,
   },
   profileNameRow: {
     flexDirection: 'row',
@@ -1618,7 +1617,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     gap: 8,
     paddingHorizontal: 16,
-    marginBottom: 4,
+    marginBottom: 0,
   },
   profileName: {
     fontSize: 22,
@@ -1640,8 +1639,8 @@ const styles = StyleSheet.create({
   },
   userDetails: {
     paddingHorizontal: 16,
-    paddingTop: 0,
-    paddingBottom: 2,
+    paddingTop: 2,
+    paddingBottom: 0,
   },
   usernameRow: {
     flexDirection: 'row',
@@ -1649,6 +1648,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     paddingHorizontal: 16,
     paddingBottom: 0,
+    marginTop: 2,
     gap: 12,
   },
   userHandle: {
@@ -1659,18 +1659,15 @@ const styles = StyleSheet.create({
   userBio: {
     fontSize: 15,
     fontWeight: '400',
-    marginBottom: 2,
+    marginBottom: 0,
     lineHeight: 20,
-    textShadowColor: 'rgba(0, 0, 0, 0.15)',
-    textShadowOffset: { width: 0, height: 0.5 },
-    textShadowRadius: 2,
   },
   metaItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 0, // Removed margin to close gap
-    marginTop: 2, // Small top margin instead
+    marginBottom: 0,
+    marginTop: 0,
   },
   metaText: {
     fontSize: 14,
@@ -1679,8 +1676,8 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    marginTop: 2,
-    gap: 0, // No gap between number and label
+    marginTop: 0,
+    gap: 0,
   },
   statNumber: {
     fontSize: 15,

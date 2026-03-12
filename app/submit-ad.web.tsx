@@ -44,6 +44,13 @@ export default function SubmitAdScreen() {
   const [desc, setDesc] = useState('');
   const [busy, setBusy] = useState(false);
 
+  const normalizeUrl = (url: string): string => {
+    const trimmed = url.trim();
+    if (!trimmed) return '';
+    if (/^https?:\/\//i.test(trimmed)) return trimmed;
+    return `https://${trimmed}`;
+  };
+
   const canSubmit = useMemo(() => {
     // Website link is required; description is optional
     if (!name.trim() || !email.trim() || !business.trim() || !zip.trim()) return false;
@@ -84,7 +91,7 @@ export default function SubmitAdScreen() {
           business_name: business.trim(),
           banner_url: bannerUrl || undefined,
           banner_fit_mode: bannerFitMode,
-          target_url: targetUrl.trim() || undefined,
+          target_url: normalizeUrl(targetUrl) || undefined,
           target_zip_code: zip.trim(),
           radius: 45,
           description: desc.trim() || undefined,
@@ -118,7 +125,7 @@ export default function SubmitAdScreen() {
           contact_email: normalizedEmail || email.trim().toLowerCase(),
           banner_url: bannerUrl || undefined,
           banner_fit_mode: bannerFitMode,
-          target_url: targetUrl.trim() || undefined,
+          target_url: normalizeUrl(targetUrl) || undefined,
           zip_code: zip.trim(),
           description: desc.trim() || undefined,
           created_at: new Date().toISOString(),
