@@ -22,7 +22,7 @@ export default function RsvpHistoryScreen() {
   const loadRsvps = useCallback(async () => {
     setLoading(true); setError(null);
     try {
-      const list: any[] = await EventApi.myRsvps();
+      const list = await EventApi.myRsvps() as Item[];
       setItems(Array.isArray(list) ? list : []);
     } catch (error) {
       if (__DEV__) console.error('[rsvp-history] Failed to load RSVPs:', error);

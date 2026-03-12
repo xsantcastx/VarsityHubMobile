@@ -9,8 +9,10 @@ import { authMiddleware } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
 import { requireVerified } from '../middleware/requireVerified.js';
+import { requireOnboarded } from '../middleware/requireOnboarded.js';
 import { eventCreationLimiter, rsvpLimiter } from '../middleware/rateLimiters.js';
 import { haversineDistance, getZipCoordinates } from '../lib/geoUtils.js';
+import { geocodeLocation } from '../lib/geocoding.js';
 
 export const eventsRouter = Router();
 
@@ -128,6 +130,10 @@ eventsRouter.get('/', async (req, res) => {
   if (!showAll) {
     if (req.query.zip && typeof req.query.zip === 'string') {
       userCoords = getZipCoordinates(req.query.zip as string);
+      if (!userCoords) {
+        const geo = await geocodeLocation(req.query.zip as string);
+        if (geo) userCoords = { lat: geo.latitude, lon: geo.longitude };
+      }
     } else if (req.query.lat && req.query.lng) {
       const pLat = Number(req.query.lat);
       const pLng = Number(req.query.lng);
@@ -410,7 +416,7 @@ const createEventSchema = z.object({
   game_id: z.string().optional(),
 });
 
-eventsRouter.post('/', requireVerified as any, eventCreationLimiter, async (req: AuthedRequest, res) => {
+eventsRouter.post('/', requireVerified as any, requireOnboarded as any, eventCreationLimiter, async (req: AuthedRequest, res) => {
   // req.user is guaranteed by requireVerified middleware
   const parsed = createEventSchema.safeParse(req.body);
   if (!parsed.success) {

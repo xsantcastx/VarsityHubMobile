@@ -5,14 +5,20 @@ import { FlatList, StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/Colors';
 
+interface FollowedTeam {
+  id: string;
+  name: string;
+  description?: string;
+}
+
 export default function FollowedTeamsScreen() {
   const colorScheme = useColorScheme();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [items, setItems] = useState<any[]>([]);
+  const [items, setItems] = useState<FollowedTeam[]>([]);
   useEffect(() => { void (async () => {
     setLoading(true); setError(null);
-    try { const rows = await httpGet('/follows/teams?user_id=me'); setItems(Array.isArray(rows) ? rows : []); }
+    try { const rows = await httpGet('/follows/teams?user_id=me') as FollowedTeam[]; setItems(Array.isArray(rows) ? rows : []); }
     catch (e: any) { setError(e?.message || 'Failed to load'); }
     finally { setLoading(false); }
   })(); }, []);

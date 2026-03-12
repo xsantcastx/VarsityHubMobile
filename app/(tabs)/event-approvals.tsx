@@ -17,6 +17,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { httpGet, httpPost, httpPut } from '@/api/http';
+// @ts-ignore
+import { User } from '@/api/entities';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -154,6 +156,22 @@ export default function EventApprovalsScreen() {
       setError('Failed to load approvals. Pull down to refresh.');
     }
   }, []);
+
+  // Guard: redirect non-coaches
+  useEffect(() => {
+    void (async () => {
+      try {
+        const me = await User.me() as { preferences?: { role?: string } };
+        if (me?.preferences?.role !== 'coach') {
+          Alert.alert('Restricted', 'Only coach accounts can access Approvals.');
+          if (router.canGoBack()) router.back();
+          else router.push('/(tabs)');
+        }
+      } catch {
+        // silently ignore — auth errors handled elsewhere
+      }
+    })();
+  }, [router]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps -- initial load only
   useEffect(() => { void loadAll(); }, []);

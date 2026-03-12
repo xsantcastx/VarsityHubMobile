@@ -3,7 +3,7 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -18,7 +18,7 @@ import {
   View,
 } from 'react-native';
 // @ts-ignore JS exports
-import { Team as TeamApi } from '@/api/entities';
+import { Team as TeamApi, User } from '@/api/entities';
 
 type ManagedTeam = {
   id: string;
@@ -109,6 +109,22 @@ export default function MyTeamScreen() {
 
   // Team selector
   const [showTeamPicker, setShowTeamPicker] = useState(false);
+
+  // Guard: redirect non-coaches
+  useEffect(() => {
+    void (async () => {
+      try {
+        const me = await User.me() as { preferences?: { role?: string } };
+        if (me?.preferences?.role !== 'coach') {
+          Alert.alert('Restricted', 'Only coach accounts can access My Team.');
+          if (router.canGoBack()) router.back();
+          else router.push('/(tabs)');
+        }
+      } catch {
+        // silently ignore
+      }
+    })();
+  }, [router]);
 
   const loadTeams = useCallback(async () => {
     try {
@@ -346,6 +362,9 @@ export default function MyTeamScreen() {
           <Text style={styles.inviteButtonText}>Invite</Text>
         </Pressable>
       </View>
+      {members.length > 0 && (
+        <Text style={[styles.longPressHint, { color: Colors[colorScheme].mutedText }]}>Long-press a member to edit role, position, or remove</Text>
+      )}
     </View>
   );
 
@@ -829,6 +848,10 @@ const styles = StyleSheet.create({
   emptySubtitle: {
     fontSize: 14,
     textAlign: 'center',
+  },
+  longPressHint: {
+    fontSize: 12,
+    marginBottom: 8,
   },
   retryButton: {
     marginTop: 16,

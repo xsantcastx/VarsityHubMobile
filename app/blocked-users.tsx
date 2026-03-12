@@ -7,19 +7,25 @@ import { useCallback, useEffect, useState } from 'react';
 import { Alert, FlatList, Pressable, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+interface BlockedUser {
+  id: string;
+  email: string;
+  display_name?: string;
+}
+
 export default function BlockedUsersScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
   const theme = Colors[colorScheme];
   const [loading, setLoading] = useState(true);
-  const [list, setList] = useState<any[]>([]);
+  const [list, setList] = useState<BlockedUser[]>([]);
   const [username, setUsername] = useState('');
 
   const loadBlocked = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await User.blockedUsers();
+      const res = await User.blockedUsers() as BlockedUser[];
       setList(Array.isArray(res) ? res : []);
     } catch (err) {
       if (__DEV__) console.error('Failed to load blocked users', err);

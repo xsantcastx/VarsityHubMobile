@@ -1,5 +1,5 @@
 import { Stack, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -11,11 +11,13 @@ import {
     View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 // @ts-ignore
 import { httpPost } from '@/api/http';
+import { autocompleteLocations, PlaceSuggestion } from '@/api/geocoding';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 const EVENT_TYPES = [
@@ -36,11 +38,41 @@ export default function CreateEventScreen() {
   const [description, setDescription] = useState('');
   const [eventType, setEventType] = useState<string>('game');
   const [location, setLocation] = useState('');
+  const [locationSuggestions, setLocationSuggestions] = useState<PlaceSuggestion[]>([]);
+  const [locationQuerying, setLocationQuerying] = useState(false);
+  const [selectedPlace, setSelectedPlace] = useState<PlaceSuggestion | null>(null);
+  const locationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [date, setDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
+
+  const handleLocationChange = useCallback((text: string) => {
+    setLocation(text);
+    setSelectedPlace(null);
+    setErrors(prev => ({ ...prev, location: '' }));
+    if (locationTimerRef.current) clearTimeout(locationTimerRef.current);
+    if (text.length < 3) { setLocationSuggestions([]); setLocationQuerying(false); return; }
+    setLocationQuerying(true);
+    locationTimerRef.current = setTimeout(async () => {
+      try {
+        const suggestions = await autocompleteLocations(text, 6);
+        setLocationSuggestions(suggestions);
+      } catch { setLocationSuggestions([]); }
+      finally { setLocationQuerying(false); }
+    }, 300);
+  }, []);
+
+  const handleSelectLocation = useCallback((suggestion: PlaceSuggestion) => {
+    setLocation(suggestion.description);
+    setSelectedPlace(suggestion);
+    setLocationSuggestions([]);
+    setLocationQuerying(false);
+    setErrors(prev => ({ ...prev, location: '' }));
+  }, []);
+
+  useEffect(() => { return () => { if (locationTimerRef.current) clearTimeout(locationTimerRef.current); }; }, []);
 
   const validateForm = (): boolean => {
     const newErrors: { [key: string]: string } = {};
@@ -55,11 +87,13 @@ export default function CreateEventScreen() {
 
     setSubmitting(true);
     try {
-      const eventData = {
+      const eventData: Record<string, any> = {
         title,
         description,
         event_type: eventType,
-        location,
+        location: selectedPlace?.description || location,
+        venue_address: selectedPlace?.description || location,
+        venue_place_id: selectedPlace?.place_id,
         date: date.toISOString(),
       };
 
@@ -129,22 +163,52 @@ export default function CreateEventScreen() {
           />
         </View>
 
-        <View style={styles.section}>
+        <View style={[styles.section, { zIndex: 10 }]}>
           <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Location *</Text>
-          <TextInput
-            style={[
-              styles.input,
-              {
-                backgroundColor: Colors[colorScheme].card,
-                borderColor: errors.location ? '#EF4444' : Colors[colorScheme].border,
-                color: Colors[colorScheme].text,
-              },
-            ]}
-            value={location}
-            onChangeText={setLocation}
-            placeholder="e.g., Madison Square Garden"
-            placeholderTextColor={Colors[colorScheme].mutedText}
-          />
+          <View style={{ position: 'relative' }}>
+            <TextInput
+              style={[
+                styles.input,
+                {
+                  backgroundColor: Colors[colorScheme].card,
+                  borderColor: errors.location ? '#EF4444' : Colors[colorScheme].border,
+                  color: Colors[colorScheme].text,
+                },
+              ]}
+              value={location}
+              onChangeText={handleLocationChange}
+              placeholder="Start typing an address or venue"
+              placeholderTextColor={Colors[colorScheme].mutedText}
+              autoCapitalize="words"
+              autoCorrect={false}
+            />
+            {locationQuerying && (
+              <ActivityIndicator size="small" color={Colors[colorScheme].tint} style={{ position: 'absolute', right: 12, top: 12 }} />
+            )}
+            {locationSuggestions.length > 0 && (
+              <View style={[styles.suggestionList, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
+                {locationSuggestions.map((suggestion, index) => (
+                  <Pressable
+                    key={suggestion.place_id}
+                    style={[styles.suggestionItem, { borderBottomColor: Colors[colorScheme].border }, index === locationSuggestions.length - 1 && { borderBottomWidth: 0 }]}
+                    onPress={() => handleSelectLocation(suggestion)}
+                  >
+                    <MaterialIcons name="location-on" size={16} color={Colors[colorScheme].tint} style={{ marginRight: 8 }} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 15, fontWeight: '500', color: Colors[colorScheme].text }}>
+                        {suggestion.structured_formatting?.main_text || suggestion.description}
+                      </Text>
+                      {suggestion.structured_formatting?.secondary_text && (
+                        <Text style={{ fontSize: 13, color: Colors[colorScheme].mutedText, marginTop: 2 }}>
+                          {suggestion.structured_formatting.secondary_text}
+                        </Text>
+                      )}
+                    </View>
+                  </Pressable>
+                ))}
+              </View>
+            )}
+          </View>
           {errors.location && <Text style={styles.errorText}>{errors.location}</Text>}
         </View>
 
@@ -322,5 +386,23 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: '700',
+  },
+  suggestionList: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    marginTop: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    maxHeight: 200,
+    zIndex: 1000,
+    elevation: 5,
+  },
+  suggestionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
 });

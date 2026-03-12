@@ -218,9 +218,17 @@ adsRouter.get('/for-feed', async (req, res) => {
     });
 
     // Filter by distance — only show ads whose target zip is within their radius
+    // Pre-resolve ad ZIP coordinates (with Google fallback for ZIPs not in static table)
+    const adZipCoords = new Map<string, { lat: number; lon: number }>();
+    const uniqueAdZips = [...new Set(ads.map(a => a.target_zip_code).filter(Boolean))] as string[];
+    await Promise.all(uniqueAdZips.map(async (zip) => {
+      const coords = await getZipCoordinatesWithFallback(zip);
+      if (coords) adZipCoords.set(zip, coords);
+    }));
+
     const filtered = ads.filter(ad => {
-      if (!ad.target_zip_code) return false; // No zip = not shown
-      const adCoords = getZipCoordinates(ad.target_zip_code);
+      if (!ad.target_zip_code) return false;
+      const adCoords = adZipCoords.get(ad.target_zip_code);
       if (!adCoords) return false;
       const dist = haversineDistance(userCoords!.lat, userCoords!.lon, adCoords.lat, adCoords.lon);
       return dist <= 5.59; // Fixed 9km radius (5.59 miles)
@@ -550,13 +558,20 @@ adsRouter.get('/alternative-zips', async (req: AuthedRequest, res) => {
     // Calculate distances and group by zip code
     const zipDistances: Map<string, number> = new Map();
 
-    for (const ad of allAds) {
-      if (!ad.target_zip_code) continue; // Skip ads without zip codes
-      if (ad.target_zip_code === zipCode) continue; // Skip the original zip
-      if (zipDistances.has(ad.target_zip_code)) continue; // Already calculated
+    // Pre-resolve unique ad ZIP coordinates (with Google fallback)
+    const uniqueZips = [...new Set(allAds.map(a => a.target_zip_code).filter(Boolean))] as string[];
+    const adZipMap = new Map<string, { lat: number; lon: number }>();
+    await Promise.all(uniqueZips.map(async (z) => {
+      const coords = await getZipCoordinatesWithFallback(z);
+      if (coords) adZipMap.set(z, coords);
+    }));
 
-      // Use sync lookup for iteration (to avoid too many API calls)
-      const adCoords = getZipCoordinates(ad.target_zip_code);
+    for (const ad of allAds) {
+      if (!ad.target_zip_code) continue;
+      if (ad.target_zip_code === zipCode) continue;
+      if (zipDistances.has(ad.target_zip_code)) continue;
+
+      const adCoords = adZipMap.get(ad.target_zip_code);
       if (!adCoords) continue;
 
       const distance = haversineDistance(

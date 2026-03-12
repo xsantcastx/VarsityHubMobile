@@ -345,6 +345,8 @@ type GameVM = {
   away_score?: number | null;
   winner?: string | null;
   can_edit_result?: boolean;
+  venueLat?: number | null;
+  venueLng?: number | null;
 };
 
 const ensureIso = (value: any) => {
@@ -387,10 +389,10 @@ const canAddStory = (eventIso?: string | null, gameId?: string | null) => {
   const now = Date.now();
   const eventTime = eventDate.getTime();
   // Match the server's geofencing window:
-  // 24 hours before the event up to 12 hours after it ends.
+  // 12 hours before the event up to 12 hours after it ends.
   // Previously this blocked once the event started (now <= eventTime), which
   // prevented users at the venue from adding stories during the game.
-  const windowStart = eventTime - 24 * 60 * 60 * 1000;
+  const windowStart = eventTime - 12 * 60 * 60 * 1000;
   const windowEnd   = eventTime + 12 * 60 * 60 * 1000;
   return now >= windowStart && now <= windowEnd;
 };
@@ -623,13 +625,13 @@ const GameDetailsScreen = () => {
     return { phase: 'final' as const, diffMs: 0 };
   }, [vm?.date, nowTs]);
 
-  // Countdown to when "Add Story" unlocks (24h before event start).
+  // Countdown to when "Add Story" unlocks (12h before event start).
   // Derives from the already-ticking `nowTs` — no extra interval needed.
   const storyUnlockCountdown = useMemo(() => {
     if (!vm?.date || !vm?.gameId || isSampleId(vm.gameId)) return null;
     const eventTime = new Date(vm.date).getTime();
     if (!Number.isFinite(eventTime)) return null;
-    const windowStart = eventTime - 24 * 60 * 60 * 1000; // same as canAddStory
+    const windowStart = eventTime - 12 * 60 * 60 * 1000; // same as canAddStory
     const msUntil = windowStart - nowTs;
     if (msUntil <= 0) return null; // window already open
     const totalSecs = Math.ceil(msUntil / 1000);
@@ -1023,6 +1025,10 @@ const GameDetailsScreen = () => {
         maxDelayMs: 4000,
       }).catch(() => null);
 
+      // Extract venue coordinates for proactive geofencing
+      const rawLat = (summary as any)?.latitude ?? (summary as any)?.event?.latitude ?? (gameRecord as any)?.latitude ?? null;
+      const rawLng = (summary as any)?.longitude ?? (summary as any)?.event?.longitude ?? (gameRecord as any)?.longitude ?? null;
+
       const vmPayload: GameVM = {
         id: gameIdValue,
         gameId: gameIdValue,
@@ -1047,6 +1053,8 @@ const GameDetailsScreen = () => {
         home_score: homeScore,
         away_score: awayScore,
         can_edit_result: canEditResult,
+        venueLat: typeof rawLat === 'number' ? rawLat : null,
+        venueLng: typeof rawLng === 'number' ? rawLng : null,
       };
 
       setVm(vmPayload);
@@ -1178,6 +1186,28 @@ const GameDetailsScreen = () => {
   const handleAddStory = useCallback(async () => {
     if (!vm?.gameId || storyBusy) return;
 
+    // Proactive distance check — warn user before they capture media
+    if (!isSampleId(vm.gameId) && location?.latitude && location?.longitude) {
+      const venueLat = vm.venueLat;
+      const venueLng = vm.venueLng;
+      if (typeof venueLat === 'number' && typeof venueLng === 'number') {
+        const toRad = (d: number) => (d * Math.PI) / 180;
+        const dLat = toRad(venueLat - location.latitude);
+        const dLon = toRad(venueLng - location.longitude);
+        const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(location.latitude)) * Math.cos(toRad(venueLat)) * Math.sin(dLon / 2) ** 2;
+        const distKm = 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        if (distKm > 1) {
+          const distMi = (distKm * 0.621371).toFixed(1);
+          Alert.alert(
+            'Too Far From Venue',
+            `You're ${distMi} mi away. Stories require you to be within 1 km of the venue.`,
+            [{ text: 'OK' }]
+          );
+          return;
+        }
+      }
+    }
+
     // Request permissions first
     const { status: cameraStatus } = await ImagePicker.requestCameraPermissionsAsync();
     const { status: mediaStatus } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -1280,11 +1310,23 @@ const GameDetailsScreen = () => {
       }
     } catch (err: any) {
       const status = err?.status;
-      const message = String(err?.message || err?.data?.error || '');
+      const code = err?.data?.error || '';
+      const serverMsg = err?.data?.message || '';
+      const message = String(err?.message || code || '');
       if (status === 401 || /unauthorized/i.test(message)) {
         Alert.alert('Session expired', 'Please sign in again to upload stories.', [
           { text: 'Cancel', style: 'cancel' },
           { text: 'Sign In', onPress: () => void router.push('/sign-in') },
+        ]);
+      } else if (code === 'POSTING_WINDOW_CLOSED') {
+        Alert.alert('Not Yet', serverMsg || 'The story posting window is not open for this event.');
+      } else if (code === 'TOO_FAR_FROM_VENUE') {
+        const dist = err?.data?.distance;
+        Alert.alert('Too Far', serverMsg || `You need to be within 1 km of the venue.${dist ? ` You're ${dist.toFixed(1)} km away.` : ''}`);
+      } else if (code === 'LOCATION_REQUIRED') {
+        Alert.alert('Location Required', 'Enable location access to post stories at this event.', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => Linking.openSettings() },
         ]);
       } else {
         if (__DEV__) console.error('Story upload error:', err);
@@ -1293,7 +1335,7 @@ const GameDetailsScreen = () => {
     } finally {
       setStoryBusy(false);
     }
-  }, [loadGameById, storyBusy, vm?.gameId, location?.latitude, location?.longitude, permissionGranted, requestPermission, needsPreciseAccuracy, openSettings, router]);
+  }, [loadGameById, storyBusy, vm?.gameId, vm?.venueLat, vm?.venueLng, location?.latitude, location?.longitude, permissionGranted, requestPermission, needsPreciseAccuracy, openSettings, router]);
 
   const confirmStoryUpload = useCallback(async () => {
     if (!storyPreview || !vm?.gameId) return;

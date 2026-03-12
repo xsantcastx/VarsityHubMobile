@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Stack } from 'expo-router';
 import { useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, useColorScheme } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useUser } from '@/hooks/useUser';
 import { useAuth } from '@/context/AuthProvider';
@@ -11,12 +11,17 @@ import { Colors } from '@/constants/Colors';
 
 export default function ResetPasswordScreen() {
   const colorScheme = useColorScheme();
-  const { refresh: refreshUser } = useUser(false);
+  const { refresh: refreshUser, user } = useUser(false);
   const { checkAuth } = useAuth();
   const [current, setCurrent] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [saving, setSaving] = useState(false);
+
+  // Check if user signed up via OAuth (Apple/Google) — password change not applicable
+  const userRecord = user as { auth_provider?: string; preferences?: { auth_provider?: string } } | null;
+  const authProvider = userRecord?.auth_provider || userRecord?.preferences?.auth_provider;
+  const isOAuth = authProvider === 'apple' || authProvider === 'google';
 
   const onSave = async () => {
     const currentValue = current.trim();
@@ -46,13 +51,26 @@ export default function ResetPasswordScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme ?? 'light'].background }]} edges={['bottom']}>
       <Stack.Screen options={{ title: 'Change Password', headerBackTitle: 'Back', headerShown: true }} />
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-        <Text style={[styles.label, { color: Colors[colorScheme ?? 'light'].mutedText }]}>Current Password</Text>
-        <Input placeholder="Enter current password" value={current} onChangeText={setCurrent} secureTextEntry style={{ marginBottom: 16 }} />
-        <Text style={[styles.label, { color: Colors[colorScheme ?? 'light'].mutedText }]}>New Password</Text>
-        <Input placeholder="At least 8 characters" value={password} onChangeText={setPassword} secureTextEntry style={{ marginBottom: 16 }} />
-        <Text style={[styles.label, { color: Colors[colorScheme ?? 'light'].mutedText }]}>Confirm Password</Text>
-        <Input placeholder="Re-enter your password" value={confirm} onChangeText={setConfirm} secureTextEntry style={{ marginBottom: 24 }} />
-        <Button onPress={onSave} disabled={saving}>{saving ? 'Saving…' : 'Update Password'}</Button>
+        {isOAuth ? (
+          <View style={{ alignItems: 'center', paddingTop: 32 }}>
+            <Text style={[styles.label, { color: Colors[colorScheme ?? 'light'].text, fontSize: 16, textAlign: 'center', marginBottom: 12 }]}>
+              Password change is not available
+            </Text>
+            <Text style={[{ color: Colors[colorScheme ?? 'light'].mutedText, textAlign: 'center', lineHeight: 22 }]}>
+              Your account was created with {authProvider === 'apple' ? 'Apple' : 'Google'} Sign-In. To change your password, manage it through your {authProvider === 'apple' ? 'Apple ID' : 'Google Account'} settings.
+            </Text>
+          </View>
+        ) : (
+          <>
+            <Text style={[styles.label, { color: Colors[colorScheme ?? 'light'].mutedText }]}>Current Password</Text>
+            <Input placeholder="Enter current password" value={current} onChangeText={setCurrent} secureTextEntry style={{ marginBottom: 16 }} />
+            <Text style={[styles.label, { color: Colors[colorScheme ?? 'light'].mutedText }]}>New Password</Text>
+            <Input placeholder="At least 8 characters" value={password} onChangeText={setPassword} secureTextEntry style={{ marginBottom: 16 }} />
+            <Text style={[styles.label, { color: Colors[colorScheme ?? 'light'].mutedText }]}>Confirm Password</Text>
+            <Input placeholder="Re-enter your password" value={confirm} onChangeText={setConfirm} secureTextEntry style={{ marginBottom: 24 }} />
+            <Button onPress={onSave} disabled={saving}>{saving ? 'Saving…' : 'Update Password'}</Button>
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );

@@ -7,6 +7,7 @@ import { requireVerified } from '../middleware/requireVerified.js';
 import { requireOnboarded } from '../middleware/requireOnboarded.js';
 import { postCreationLimiter, commentLimiter, interactionLimiter } from '../middleware/rateLimiters.js';
 import { haversineDistance, getZipCoordinates } from '../lib/geoUtils.js';
+import { geocodeLocation } from '../lib/geocoding.js';
 import { detectMediaType, getVideoPreviewUrl } from '../lib/mediaUtils.js';
 import { getExcludedPrivateAuthorIds, getBlockedUserIds, isAuthorHiddenFromViewer } from '../lib/privacyUtils.js';
 
@@ -187,6 +188,10 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
   let userCoords: { lat: number; lon: number } | null = null;
   if (req.query.zip && typeof req.query.zip === 'string') {
     userCoords = getZipCoordinates(req.query.zip as string);
+    if (!userCoords) {
+      const geo = await geocodeLocation(req.query.zip as string);
+      if (geo) userCoords = { lat: geo.latitude, lon: geo.longitude };
+    }
   } else if (req.query.lat && req.query.lng) {
     const pLat = Number(req.query.lat);
     const pLng = Number(req.query.lng);

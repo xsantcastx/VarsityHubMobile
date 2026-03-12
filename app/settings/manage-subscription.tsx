@@ -11,6 +11,27 @@ import { Alert, Linking, Platform, ScrollView, StyleSheet, Text, useColorScheme,
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/Colors';
 
+interface UserMeResponse {
+  preferences?: { plan?: string };
+}
+
+interface PaymentSheetResponse {
+  paymentIntent?: string;
+  ephemeralKey?: string;
+  customer?: string;
+  subscriptionId?: string;
+  free?: boolean;
+}
+
+interface FinalizeResponse {
+  pending?: boolean;
+}
+
+interface CancelResponse {
+  ok?: boolean;
+  error?: string;
+}
+
 const isIOS = Platform.OS === 'ios';
 
 export default function ManageSubscription() {
@@ -25,7 +46,7 @@ async function wait(ms: number) {
 async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayMs: number = 2000) {
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     try {
-      const res: any = await Subscriptions.finalizeSession(sessionId);
+      const res = await Subscriptions.finalizeSession(sessionId) as FinalizeResponse;
       if (!res?.pending) return true;
     } catch (err) {
       if (__DEV__) console.warn('Finalize session attempt failed', err);
@@ -38,7 +59,7 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
 
   const refreshPlan = useCallback(async () => {
     try {
-      const me: any = await User.me();
+      const me = await User.me() as UserMeResponse;
       const prefs = me?.preferences || {};
       setPlan(prefs.plan || null);
     } catch (error) {
@@ -91,7 +112,7 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
     // Web/fallback: Use Stripe
     setLoading(true);
     try {
-      const res: any = await httpPost('/payments/create-payment-sheet', { plan: targetPlan });
+      const res = await httpPost('/payments/create-payment-sheet', { plan: targetPlan }) as PaymentSheetResponse;
       if (res?.paymentIntent) {
         const { error: initError } = await initPaymentSheet({
           paymentIntentClientSecret: res.paymentIntent,
@@ -114,7 +135,12 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
           const finalized = await finalizeWithRetry(res.subscriptionId);
           if (!finalized) {
             if (__DEV__) console.warn('Subscription finalize pending after retries', { subscriptionId: res.subscriptionId });
+            Alert.alert('Payment Received', 'Your payment went through. Your plan may take a moment to activate — pull down to refresh.');
+          } else {
+            Alert.alert('Success', 'Your subscription is now active!');
           }
+        } else {
+          Alert.alert('Success', 'Your subscription is now active!');
         }
         await refreshPlan();
       } else if (res?.free) {
@@ -147,7 +173,7 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
   const onCancel = async () => {
     setLoading(true);
     try {
-      const res: any = await Subscriptions.cancel();
+      const res = await Subscriptions.cancel() as CancelResponse;
       if (res?.ok) {
         Alert.alert('Canceled', 'Your subscription will be canceled at the end of the current period.');
         await refreshPlan();

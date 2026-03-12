@@ -61,7 +61,7 @@ export async function autocompleteLocations(query: string, limit: number = 6): P
   }
 
   try {
-    const res: any = await httpGet(`/geocoding/autocomplete?q=${encodeURIComponent(trimmed)}&limit=${limit}`);
+    const res: any = await httpGet(`/geocoding/autocomplete?input=${encodeURIComponent(trimmed)}&limit=${limit}`);
     const suggestions: PlaceSuggestion[] = Array.isArray(res?.suggestions) ? res.suggestions : [];
     suggestionCache.set(normalized, { timestamp: Date.now(), suggestions });
     return suggestions.slice(0, limit);

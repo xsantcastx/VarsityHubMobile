@@ -73,7 +73,6 @@ geocodingRouter.get('/autocomplete', requireAuth, async (req: AuthedRequest, res
       params: {
         input,
         key: apiKey,
-        types: '(cities)',
         sessiontoken,
       },
     });

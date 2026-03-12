@@ -308,15 +308,18 @@ export default function ManageTeamsSimpleScreen() {
           <Text style={styles.inlineActionText}>Create Team</Text>
         </Pressable>
         
-        <Pressable 
+        <Pressable
           style={[styles.inlineActionButton, { backgroundColor: '#10B981' }]}
-          onPress={() => { // Navigate to first team's add event, or show team selection if multiple teams
-            if (activeTeams.length > 0) { void router.push(`/manage-season?teamId=${activeTeams[0].id}`);
+          onPress={() => {
+            if (activeTeams.length === 0) {
+              Alert.alert('No Teams', 'Create a team first before adding events.');
+              return;
             }
+            void router.push(`/manage-season?teamId=${activeTeams[0].id}`);
           }}
         >
           <MaterialIcons name="sports-basketball" size={24} color="#fff" />
-          <Text style={styles.inlineActionText}>Add Event</Text>
+          <Text style={styles.inlineActionText}>Schedule</Text>
         </Pressable>
       </View>
 
@@ -443,10 +446,16 @@ export default function ManageTeamsSimpleScreen() {
 
           <Pressable
             style={[styles.bigActionButton, { backgroundColor: '#10B981' }]}
-            onPress={() => setShowQuickAddModal(true)}
+            onPress={() => {
+              if (activeTeams.length === 0) {
+                Alert.alert('No Teams', 'Create a team first before adding events.');
+                return;
+              }
+              setShowQuickAddModal(true);
+            }}
           >
             <MaterialIcons name="event" size={32} color="#FFF" />
-            <Text style={styles.bigActionButtonText}>ADD EVENT</Text>
+            <Text style={styles.bigActionButtonText}>QUICK ADD EVENT</Text>
           </Pressable>
         </View>
 

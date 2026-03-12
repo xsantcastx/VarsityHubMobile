@@ -10,6 +10,25 @@ import { getConfig } from '@/config/env';
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboardingOptional } from '@/context/OnboardingContext';
 
+interface PendingHostRequest {
+  id: string;
+  title?: string;
+  event_type?: string;
+  approval_status?: string;
+}
+
+interface UserMeResponse {
+  email?: string;
+  role?: string;
+  display_name?: string;
+  affiliation?: string;
+  dob?: string | null;
+  zip_code?: string;
+  avatar_url?: string | null;
+  bio?: string;
+  preferences?: Record<string, unknown>;
+}
+
 type CommentPermission = 'everyone' | 'following' | 'none';
 
 interface Preferences {
@@ -97,7 +116,7 @@ export default function SettingsScreen() {
   });
   const [plan, setPlan] = useState<string | null>(null);
   const [role, setRole] = useState<string | null>(null);
-  const [_pendingHostRequests, setPendingHostRequests] = useState<any[]>([]);
+  const [_pendingHostRequests, setPendingHostRequests] = useState<PendingHostRequest[]>([]);
   const [_pendingLoading, setPendingLoading] = useState(false);
   const [_pendingError, setPendingError] = useState<string | null>(null);
   const [deleteWarningVisible, setDeleteWarningVisible] = useState(false);
@@ -108,7 +127,8 @@ export default function SettingsScreen() {
 
   // Debounced PATCH updater for preferences
   // Only sends the specific fields being changed to avoid overwriting other preferences (e.g. role)
-  const patchPrefs = (patch: Partial<Preferences>) => {
+  type PrefsPatch = Omit<Partial<Preferences>, 'notifications'> & { notifications?: Partial<Preferences['notifications']> };
+  const patchPrefs = (patch: PrefsPatch) => {
     const key = JSON.stringify(patch);
     if (timers.current[key]) clearTimeout(timers.current[key]);
     
@@ -145,9 +165,9 @@ export default function SettingsScreen() {
 
               const _restartOnboarding = async () => {
                 try {
-                  const me: any = await User.me();
-                  const prefsFromServer = me?.preferences || {};
-                  const preload = {
+                  const me = await User.me() as UserMeResponse;
+                  const prefsFromServer = (me?.preferences || {}) as Record<string, unknown>;
+                  const preload: Record<string, unknown> = {
                     role: prefsFromServer.role || me?.role || 'fan',
                     display_name: prefsFromServer.display_name ?? me?.display_name ?? '',
                     affiliation: prefsFromServer.affiliation ?? me?.affiliation ?? '',
@@ -159,7 +179,7 @@ export default function SettingsScreen() {
                     sports_interests: prefsFromServer.sports_interests ?? prefsFromServer.sports ?? [],
                     primary_intents: prefsFromServer.primary_intents ?? [],
                     authorized_users: prefsFromServer.authorized_users ?? prefsFromServer.authorized ?? [],
-                  } as any;
+                  };
 
                   // Previously we attempted to record onboarding history here, but the context no longer exposes that API.
                   try {
@@ -256,14 +276,14 @@ export default function SettingsScreen() {
                   setLoading(true);
                   setError(null);
                   try {
-                    const me: any = await User.me();
+                    const me = await User.me() as UserMeResponse;
                     if (!mounted) return;
                     setEmail(me?.email || null);
                     // Check if user is admin (email-based)
                     const adminEmails = (appConfig.adminEmails.length ? appConfig.adminEmails : ['admin@varsityhub.app'])
                       .map((e) => e.toLowerCase());
                     setIsAdmin(adminEmails.includes((me?.email || '').toLowerCase()));
-                    const serverPrefs = (me && me.preferences) || {};
+                    const serverPrefs = ((me && me.preferences) || {}) as Record<string, any>;
                     setPrefs({
                       notifications: {
                         game_event_reminders: !!serverPrefs?.notifications?.game_event_reminders,
@@ -288,8 +308,8 @@ export default function SettingsScreen() {
                       setPendingLoading(true);
                       setPendingError(null);
                       try {
-                        const events = await Event.filter({ event_type: 'host_request', approval_status: 'pending' });
-                        if (mounted) setPendingHostRequests(Array.isArray(events) ? events : (events?.items || []));
+                        const events = await Event.filter({ event_type: 'host_request', approval_status: 'pending' }) as PendingHostRequest[] | { items?: PendingHostRequest[] };
+                        if (mounted) setPendingHostRequests(Array.isArray(events) ? events : ((events as { items?: PendingHostRequest[] })?.items || []));
                       } catch (e: any) {
                         if (mounted) setPendingError(e?.message || 'Failed to load event requests');
                       } finally {
@@ -334,7 +354,7 @@ export default function SettingsScreen() {
                       headerShown: true,
                       headerBackTitle: 'Back',
                       headerLeft: () => (
-                        <Pressable onPress={() => router.back()} hitSlop={12} style={{ marginRight: 8 }}>
+                        <Pressable onPress={() => { if (router.canGoBack()) router.back(); else router.push('/(tabs)' as any); }} hitSlop={12} style={{ marginRight: 8 }}>
                           <Ionicons name="chevron-back" size={28} color={Colors[colorScheme ?? 'light'].tint} />
                         </Pressable>
                       ),
@@ -355,29 +375,29 @@ export default function SettingsScreen() {
                       <SwitchRow
                         title="Game/Event Reminders"
                         value={!!prefs.notifications.game_event_reminders}
-                        onValueChange={(v) => patchPrefs({ notifications: { game_event_reminders: v } } as any)}
+                        onValueChange={(v) => patchPrefs({ notifications: { game_event_reminders: v } })}
                       />
                       <SwitchRow
                         title="Team Updates"
                         value={!!prefs.notifications.team_updates}
-                        onValueChange={(v) => patchPrefs({ notifications: { team_updates: v } } as any)}
+                        onValueChange={(v) => patchPrefs({ notifications: { team_updates: v } })}
                       />
                       <SwitchRow
                         title="Comments & Upvotes"
                         value={!!prefs.notifications.comments_upvotes}
-                        onValueChange={(v) => patchPrefs({ notifications: { comments_upvotes: v } } as any)}
+                        onValueChange={(v) => patchPrefs({ notifications: { comments_upvotes: v } })}
                       />
                       <SwitchRow
                         title="New Followers"
                         subtitle="When someone follows you"
                         value={!!prefs.notifications.follows_notifications}
-                        onValueChange={(v) => patchPrefs({ notifications: { follows_notifications: v } } as any)}
+                        onValueChange={(v) => patchPrefs({ notifications: { follows_notifications: v } })}
                       />
                       <SwitchRow
                         title="Direct Messages"
                         subtitle="When someone sends you a DM"
                         value={!!prefs.notifications.messages_notifications}
-                        onValueChange={(v) => patchPrefs({ notifications: { messages_notifications: v } } as any)}
+                        onValueChange={(v) => patchPrefs({ notifications: { messages_notifications: v } })}
                         isLast
                       />
                     </SectionCard>
@@ -463,17 +483,13 @@ export default function SettingsScreen() {
                       </SectionCard>
                     )}
 
-                    {/* Legal */}
-                    <SectionCard title="Legal">
-                      <NavRow title="Privacy Policy" onPress={() => void router.push('/settings/privacy-policy')} />
-                      <NavRow title="Terms of Service" onPress={() => void router.push('/settings/terms-of-service')} />
-                      <NavRow title="Report Abuse" isLast onPress={() => void router.navigate('/report-abuse')} />
-                    </SectionCard>
-
                     {/* Support & Feedback */}
                     <SectionCard title="Support & Feedback">
                       <NavRow title="Contact Varsity Hub Team" onPress={() => void router.push('/settings/contact')} />
-                      <NavRow title="Leave Feedback" isLast onPress={() => void router.push('/settings/feedback')} />
+                      <NavRow title="Leave Feedback" onPress={() => void router.push('/settings/feedback')} />
+                      <NavRow title="Privacy Policy" onPress={() => void router.push('/settings/privacy-policy')} />
+                      <NavRow title="Terms of Service" onPress={() => void router.push('/settings/terms-of-service')} />
+                      <NavRow title="Report Abuse" isLast onPress={() => void router.navigate('/report-abuse')} />
                     </SectionCard>
 
                     {/* Admin Panel - Only visible to admins */}

@@ -399,19 +399,18 @@ export default function CreatePostScreen() {
         
         let uri = a.uri;
         if (media === 'image') {
-          // Compress/resize image before upload
-          try {
-            const result = await ImageManipulator.manipulateAsync(
-              a.uri,
-              [{ resize: { width: 1280 } }],
-              { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
-            );
-            uri = result.uri;
-          } catch (error: any) {
-            if (__DEV__) {
+          // Skip resize for small images (under 2MB) — already fast enough
+          if (fileSize > 2 * 1024 * 1024) {
+            try {
+              const result = await ImageManipulator.manipulateAsync(
+                a.uri,
+                [{ resize: { width: 1280 } }],
+                { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+              );
+              uri = result.uri;
+            } catch (error: any) {
               if (__DEV__) console.warn('[CreatePost] Image manipulation failed, using original:', error?.message || error);
             }
-            // Continue with original URI if manipulation fails
           }
         }
         setPicked({ uri, type: media, mime: mimeType });
@@ -515,18 +514,18 @@ export default function CreatePostScreen() {
         
         let uri = a.uri;
         if (media === 'image') {
-          try {
-            const result = await ImageManipulator.manipulateAsync(
-              a.uri,
-              [{ resize: { width: 1280 } }],
-              { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
-            );
-            uri = result.uri;
-          } catch (error: any) {
-            if (__DEV__) {
+          // Skip resize for small images (under 2MB) — already fast enough
+          if (fileSize > 2 * 1024 * 1024) {
+            try {
+              const result = await ImageManipulator.manipulateAsync(
+                a.uri,
+                [{ resize: { width: 1280 } }],
+                { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+              );
+              uri = result.uri;
+            } catch (error: any) {
               if (__DEV__) console.warn('[CreatePost] Image manipulation failed, using original:', error?.message || error);
             }
-            // Continue with original URI if manipulation fails
           }
         }
         setPicked({ uri, type: media, mime: mimeType });
@@ -543,6 +542,41 @@ export default function CreatePostScreen() {
   };
 
   const [error, setError] = useState<string | null>(null);
+
+  // Proactive geofence + time window check when a game is selected
+  const geofenceWarning = useMemo(() => {
+    if (!suggestedGame || !selectedGameId || isSampleEvent(selectedGameId)) return null;
+    const eventDate = suggestedGame.date ? new Date(suggestedGame.date) : null;
+    if (!eventDate || isNaN(eventDate.getTime())) return null;
+
+    // Check posting window (2 days before → 1 day after)
+    const now = Date.now();
+    const windowStart = eventDate.getTime() - 2 * 24 * 60 * 60 * 1000;
+    const windowEnd = eventDate.getTime() + 1 * 24 * 60 * 60 * 1000;
+    if (now < windowStart) {
+      const openDate = new Date(windowStart);
+      return `Posting opens ${openDate.toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${openDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. You can still draft your post now.`;
+    }
+    if (now > windowEnd) {
+      return 'The posting window for this event has closed.';
+    }
+
+    // Check distance (3km = ~1.86 miles) if both user and venue coords are available
+    const venueLat = suggestedGame.latitude ?? suggestedGame.venue_lat;
+    const venueLng = suggestedGame.longitude ?? suggestedGame.venue_lng;
+    if (locationReady && location?.latitude && location?.longitude && typeof venueLat === 'number' && typeof venueLng === 'number') {
+      const toRad = (d: number) => (d * Math.PI) / 180;
+      const dLat = toRad(venueLat - location.latitude);
+      const dLon = toRad(venueLng - location.longitude);
+      const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(location.latitude)) * Math.cos(toRad(venueLat)) * Math.sin(dLon / 2) ** 2;
+      const distKm = 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      if (distKm > 3) {
+        const distMi = (distKm * 0.621371).toFixed(1);
+        return `You're ${distMi} mi from the venue. You need to be within 3 km to post to this event.`;
+      }
+    }
+    return null;
+  }, [suggestedGame, selectedGameId, locationReady, location?.latitude, location?.longitude]);
 
   const onSubmit = async () => {
     // First, show preview
@@ -604,18 +638,19 @@ export default function CreatePostScreen() {
         const name = picked.type === 'image' ? 'image.jpg' : 'video.mp4';
         const mime = picked.mime || (picked.type === 'image' ? 'image/jpeg' : 'video/mp4');
         const uploadUri = (picked.type === 'video' && trimmedUri) ? trimmedUri : picked.uri;
-        const res = await uploadFile(base, uploadUri, name, mime);
+        // Upload main file and thumbnail in parallel for speed
+        const mainUpload = uploadFile(base, uploadUri, name, mime);
+        const thumbUpload = (picked.type === 'video' && videoThumbnailUri)
+          ? uploadFile(base, videoThumbnailUri, 'thumbnail.jpg', 'image/jpeg').catch((e) => {
+              if (__DEV__) console.warn('[CreatePost] Thumbnail upload failed:', e);
+              return null;
+            })
+          : Promise.resolve(null);
+
+        const [res, thumbRes] = await Promise.all([mainUpload, thumbUpload]);
         finalMediaUrl = res?.url || res?.path;
+        if (thumbRes) finalThumbnailUrl = thumbRes?.url || thumbRes?.path || '';
         if (__DEV__) console.warn('[CreatePost] Upload complete:', finalMediaUrl);
-        // Upload video thumbnail if available
-        if (picked.type === 'video' && videoThumbnailUri) {
-          try {
-            const thumbRes = await uploadFile(base, videoThumbnailUri, 'thumbnail.jpg', 'image/jpeg');
-            finalThumbnailUrl = thumbRes?.url || thumbRes?.path || '';
-          } catch (e) {
-            if (__DEV__) console.warn('[CreatePost] Thumbnail upload failed:', e);
-          }
-        }
         // Clean up temp files (trimmed video, thumbnail) after successful upload
         try {
           const filesToClean = [trimmedUri, videoThumbnailUri].filter(
@@ -972,12 +1007,26 @@ export default function CreatePostScreen() {
               <Ionicons name="checkmark-circle" size={22} color="#A0A0A0" />
             </Pressable>
             
-            <Pressable 
+            <Pressable
               style={{ alignSelf: 'flex-end', marginTop: 8, paddingVertical: 4 }}
               onPress={() => { setSuggestedGame(null); setSelectedGameId(undefined); }}
             >
               <Text style={{ color: Colors[colorScheme].mutedText, fontSize: 13 }}>Remove</Text>
             </Pressable>
+          </View>
+        )}
+
+        {/* Geofence / Time Window Warning */}
+        {geofenceWarning && (
+          <View style={[styles.warningBanner, {
+            backgroundColor: colorScheme === 'dark' ? Colors[colorScheme].surface : '#FEF3C7',
+            borderColor: colorScheme === 'dark' ? Colors[colorScheme].border : '#F59E0B',
+            marginBottom: 12,
+          }]}>
+            <Ionicons name="warning-outline" size={16} color={colorScheme === 'dark' ? '#FBBF24' : '#B45309'} />
+            <Text style={[styles.warningText, {
+              color: colorScheme === 'dark' ? '#FBBF24' : '#92400E',
+            }]}>{geofenceWarning}</Text>
           </View>
         )}
 

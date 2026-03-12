@@ -40,6 +40,9 @@ export default function CreateFanEventScreen() {
 
   // Detect user role to differentiate Pitch Event (fan) vs Create Event (coach)
   const [userRole, setUserRole] = useState<string>('fan');
+  const [pendingEventCount, setPendingEventCount] = useState<number | null>(null);
+  const eventLimitReached = userRole !== 'coach' && pendingEventCount !== null && pendingEventCount >= 3;
+
   useEffect(() => {
     User.me()
       .then((u: any) => {
@@ -53,6 +56,15 @@ export default function CreateFanEventScreen() {
       .catch(() => {
         setEventType('watch_party');
       });
+    // Pre-check pending event count so we can warn before form fill
+    httpGet('/events/my-events')
+      .then((events: any) => {
+        if (Array.isArray(events)) {
+          const pending = events.filter((e: any) => e.approval_status === 'pending').length;
+          setPendingEventCount(pending);
+        }
+      })
+      .catch(() => {});
   }, []);
   const isCoach = userRole === 'coach';
 
@@ -377,6 +389,18 @@ export default function CreateFanEventScreen() {
               : 'Suggest a community event — watch parties, fundraisers, socials, and more. A coach or admin will review your idea.'}
           </Text>
         </View>
+
+        {/* Event Limit Warning */}
+        {eventLimitReached && (
+          <View style={[styles.infoBox, { backgroundColor: '#FEF3C7', borderColor: '#F59E0B', marginBottom: 16 }]}>
+            <MaterialIcons name="warning" size={20} color="#B45309" />
+            <Text style={{ flex: 1, fontSize: 13, lineHeight: 18, color: '#92400E' }}>
+              You have {pendingEventCount} pending events (limit: 3). Wait for approval or{' '}
+              <Text style={{ fontWeight: '700' }} onPress={() => router.push('/billing' as any)}>upgrade your plan</Text>
+              {' '}to create more.
+            </Text>
+          </View>
+        )}
 
         {/* Event Type */}
         <View style={styles.section}>
@@ -714,16 +738,16 @@ export default function CreateFanEventScreen() {
           style={[
             styles.submitButton,
             { backgroundColor: Colors[colorScheme].tint },
-            submitting && styles.submitButtonDisabled,
+            (submitting || eventLimitReached) && styles.submitButtonDisabled,
           ]}
           onPress={handleSubmit}
-          disabled={submitting}
+          disabled={submitting || eventLimitReached}
         >
           {submitting ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (
             <Text style={styles.submitButtonText}>
-              {isCoach ? 'Create Event' : 'Submit Pitch'}
+              {eventLimitReached ? 'Event Limit Reached' : isCoach ? 'Create Event' : 'Submit Pitch'}
             </Text>
           )}
         </Pressable>
