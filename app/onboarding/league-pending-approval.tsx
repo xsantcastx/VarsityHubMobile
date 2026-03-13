@@ -77,10 +77,6 @@ export default function LeaguePendingApproval() {
     router.replace('/sign-in');
   };
 
-  const handleExploreAsFan = () => {
-    router.replace('/(tabs)');
-  };
-
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#0B1120' : '#F8FAFC' }]}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -130,29 +126,7 @@ export default function LeaguePendingApproval() {
               </View>
             </View>
 
-            {/* While you wait section */}
-            <View style={[styles.waitSection, { backgroundColor: isDark ? '#1F2937' : '#FFFFFF', borderColor: isDark ? '#374151' : '#E5E7EB' }]}>
-              <Text style={[styles.waitTitle, { color: isDark ? '#F9FAFB' : '#111827' }]}>While you wait</Text>
-              <View style={styles.bulletRow}>
-                <MaterialIcons name="explore" size={18} color={isDark ? '#60A5FA' : '#2563EB'} />
-                <Text style={[styles.bulletText, { color: isDark ? '#D1D5DB' : '#374151' }]}>Browse the app as a fan</Text>
-              </View>
-              <View style={styles.bulletRow}>
-                <MaterialIcons name="people" size={18} color={isDark ? '#60A5FA' : '#2563EB'} />
-                <Text style={[styles.bulletText, { color: isDark ? '#D1D5DB' : '#374151' }]}>Follow teams and players</Text>
-              </View>
-              <View style={styles.bulletRow}>
-                <MaterialIcons name="person" size={18} color={isDark ? '#60A5FA' : '#2563EB'} />
-                <Text style={[styles.bulletText, { color: isDark ? '#D1D5DB' : '#374151' }]}>Set up your profile</Text>
-              </View>
-            </View>
-
             {/* Buttons */}
-            <Pressable style={styles.primaryButton} onPress={handleExploreAsFan}>
-              <Text style={styles.primaryButtonText}>Explore as Fan</Text>
-              <MaterialIcons name="arrow-forward" size={20} color="#fff" />
-            </Pressable>
-
             <Pressable style={[styles.secondaryButton, { borderColor: isDark ? '#374151' : '#D1D5DB' }]} onPress={handleLogout}>
               <Text style={[styles.secondaryButtonText, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Log Out</Text>
             </Pressable>

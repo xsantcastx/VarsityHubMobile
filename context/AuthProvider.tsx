@@ -492,16 +492,10 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         return;
       }
 
-      // Block pending coaches from coach-only screens — redirect to pending-approval
+      // Block pending coaches from ALL screens — must stay on pending-approval until approved
       const isPendingCoach = user.approval_status === 'PENDING' && user.preferences?.role === 'coach';
-      const coachOnlyScreens = new Set([
-        'create-team', 'edit-team', 'manage-teams', 'team-hub',
-        'create-fan-event', 'event-approvals', 'approvals', 'manage-season',
-        'create-post', 'team-contacts', 'edit-organization', 'my-team',
-      ]);
-      const secondSegment = Array.isArray(segmentsRef.current) && segmentsRef.current.length > 1 ? String(segmentsRef.current[1]) : '';
-      if (isPendingCoach && (coachOnlyScreens.has(firstSegment) || coachOnlyScreens.has(secondSegment))) {
-        if (__DEV__) console.log('[AuthProvider] Pending coach blocked from coach-only screen:', firstSegment);
+      if (isPendingCoach && firstSegment !== 'onboarding' && firstSegment !== 'sign-in' && firstSegment !== 'sign-up') {
+        if (__DEV__) console.log('[AuthProvider] Pending coach blocked — must wait for approval');
         if (lastRedirectRef.current !== '/onboarding/pending-approval') {
           lastRedirectRef.current = '/onboarding/pending-approval';
           router.replace('/onboarding/pending-approval');

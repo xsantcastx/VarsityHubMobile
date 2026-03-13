@@ -1471,6 +1471,7 @@ organizationsRouter.post('/:id/coaches/:userId/approve', requireAuth as any, req
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const { id: orgId, userId: coachId } = req.params;
+    const { team_id: teamId } = req.body || {};
 
     // Verify requester is league owner
     const membership = await prisma.organizationMembership.findFirst({
@@ -1484,14 +1485,22 @@ organizationsRouter.post('/:id/coaches/:userId/approve', requireAuth as any, req
     });
     if (!joinRequest) return res.status(404).json({ error: 'No pending join request found for this coach' });
 
+    // If team_id provided, verify the team belongs to this organization
+    if (teamId) {
+      const team = await prisma.team.findUnique({ where: { id: teamId }, select: { organization_id: true } });
+      if (!team || team.organization_id !== orgId) {
+        return res.status(400).json({ error: 'Team does not belong to this organization' });
+      }
+    }
+
     // Get org and coach info
     const [org, coach] = await Promise.all([
       prisma.organization.findUnique({ where: { id: orgId }, select: { name: true } }),
       prisma.user.findUnique({ where: { id: coachId }, select: { display_name: true, email: true } }),
     ]);
 
-    // Approve: update join request, create membership, set coach approval status
-    await prisma.$transaction([
+    // Approve: update join request, create org membership, assign to team, set coach approval status
+    const txOps: any[] = [
       prisma.organizationJoinRequest.update({
         where: { id: joinRequest.id },
         data: { status: 'approved', reviewed_at: new Date(), reviewed_by: req.user.id },
@@ -1503,7 +1512,18 @@ organizationsRouter.post('/:id/coaches/:userId/approve', requireAuth as any, req
         where: { id: coachId },
         data: { approval_status: 'APPROVED', paid_by_owner: true },
       }),
-    ]);
+    ];
+
+    // Assign coach to specific team if provided
+    if (teamId) {
+      txOps.push(
+        prisma.teamMembership.create({
+          data: { team_id: teamId, user_id: coachId, role: 'coach', status: 'active' },
+        })
+      );
+    }
+
+    await prisma.$transaction(txOps);
 
     // Email the coach
     if (coach?.email) {
