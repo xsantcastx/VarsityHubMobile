@@ -835,28 +835,26 @@ export default function ProfileScreen() {
 
       {/* Content Below Banner */}
       <View style={styles.profileDetailsContainer}>
-        {/* Username + Role Badge - below avatar */}
+        {/* Username + Role Badge + Edit Button - single row */}
         <View style={styles.profileNameRow}>
-          <Text style={[styles.profileName, { color: theme.text }]}>{displayUsername}</Text>
-          {roleLabel && (
-            <View style={[styles.roleBadge,
-              roleRaw === 'coach' && { backgroundColor: userThemeColor },
-              roleRaw === 'player' && styles.playerBadge,
-              roleRaw === 'fan' && styles.fanBadge
-            ]}>
-              <Text style={styles.roleText}>{roleRaw === 'coach' ? 'COACH' : roleRaw.toUpperCase()}</Text>
-            </View>
-          )}
-        </View>
-
-        {/* Edit Profile Button Row - Only shown when viewing own profile */}
-        {!viewingUserId || viewingUserId === currentUserId ? (
-          <View style={styles.usernameRow}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+            <Text style={[styles.profileName, { color: theme.text }]}>{displayUsername}</Text>
+            {roleLabel && (
+              <View style={[styles.roleBadge,
+                roleRaw === 'coach' && { backgroundColor: userThemeColor },
+                roleRaw === 'player' && styles.playerBadge,
+                roleRaw === 'fan' && styles.fanBadge
+              ]}>
+                <Text style={styles.roleText}>{roleRaw === 'coach' ? 'COACH' : roleRaw.toUpperCase()}</Text>
+              </View>
+            )}
+          </View>
+          {!viewingUserId || viewingUserId === currentUserId ? (
             <Pressable style={[styles.editButtonBelowBanner, { backgroundColor: theme.surface || theme.background, borderColor: theme.border }]} onPress={() => void router.push('/(tabs)/edit-profile')} accessibilityRole="button" accessibilityLabel="Edit profile">
               <Text style={[styles.editButtonBelowBannerText, { color: theme.text }]}>Edit profile</Text>
             </Pressable>
-          </View>
-        ) : null}
+          ) : null}
+        </View>
 
         {/* User Details - Left aligned with avatar */}
         <View style={styles.userDetails}>
@@ -1614,8 +1612,7 @@ const styles = StyleSheet.create({
   profileNameRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-start',
-    gap: 8,
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
     marginBottom: 0,
   },
@@ -1639,17 +1636,8 @@ const styles = StyleSheet.create({
   },
   userDetails: {
     paddingHorizontal: 16,
-    paddingTop: 2,
+    paddingTop: 4,
     paddingBottom: 0,
-  },
-  usernameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    paddingHorizontal: 16,
-    paddingBottom: 0,
-    marginTop: -2,
-    gap: 12,
   },
   userHandle: {
     fontSize: 15,

@@ -336,7 +336,7 @@ organizationsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res
     if (!filterResult.valid) {
       return res.status(400).json({ error: filterResult.error, code: filterResult.code });
     }
-    // Transaction: create org + owner membership atomically
+    // Transaction: create org + owner membership + set coach to PENDING atomically
     const organization = await prisma.$transaction(async (tx) => {
       const org = await tx.organization.create({
         data: {
@@ -354,6 +354,11 @@ organizationsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res
           user_id: req.user!.id,
           role: 'owner'
         }
+      });
+      // Set coach to PENDING until league is approved by super admin
+      await tx.user.update({
+        where: { id: req.user!.id },
+        data: { approval_status: 'PENDING' },
       });
       return org;
     });
@@ -1313,6 +1318,14 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
       },
     });
 
+    // Approve the league owner so they get coach tools
+    if (org.leagueOwner?.id) {
+      await prisma.user.update({
+        where: { id: org.leagueOwner.id },
+        data: { approval_status: 'APPROVED' },
+      });
+    }
+
     // Email league owner
     if (org.leagueOwner?.email) {
       sendLeagueApprovedEmail({
@@ -1373,6 +1386,14 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
       where: { id: orgId },
       data: { status: 'rejected' },
     });
+
+    // Set league owner back to REJECTED so they can't access coach tools
+    if (org.leagueOwner?.id) {
+      await prisma.user.update({
+        where: { id: org.leagueOwner.id },
+        data: { approval_status: 'REJECTED' },
+      });
+    }
 
     // Email league owner
     if (org.leagueOwner?.email) {

@@ -187,8 +187,13 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
 
   // Check if user already has this exact paid plan (allow upgrades from rookie)
   const userId = req.user!.id;
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } });
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true, approval_status: true } });
   const prefs = (user?.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
+
+  // Block checkout if coach hasn't been approved yet
+  if (prefs.role === 'coach' && user?.approval_status !== 'APPROVED') {
+    throw membershipError(403, 'Your league must be approved before you can subscribe.');
+  }
   const currentPlan = prefs.plan || 'rookie'; // Default to rookie if no plan set
   
   // Only block if user already has the exact same paid plan they're trying to purchase
@@ -656,13 +661,12 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
     if (resolvedPlan !== 'veteran' && resolvedPlan !== 'legend') return res.status(400).json({ error: 'Invalid plan for subscription' });
     const chosen = resolvedPlan as MembershipPlan;
 
-    // Rule A: Block checkout if admin hasn't approved yet — BUT only for coaches
-    // who actually have a pending join request. Independent coaches (who created their
-    // own org or have no join_request_pending) should be able to pay immediately.
-    if (prefs.payment_pending === true && prefs.payment_approved !== true && prefs.join_request_pending === true) {
+    // Rule A: Block checkout if coach hasn't been approved yet
+    const approvalCheck = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { approval_status: true } });
+    if (prefs.role === 'coach' && approvalCheck?.approval_status !== 'APPROVED') {
       return res.status(403).json({
         error: 'APPROVAL_REQUIRED',
-        message: 'Your league admin must approve your account before you can subscribe.'
+        message: 'Your league must be approved before you can subscribe.'
       });
     }
 
@@ -865,7 +869,7 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
       amount: total,
       currency: 'usd',
       customer: customerId,
-      automatic_payment_methods: { enabled: true, allow_redirects: 'never' },
+      automatic_payment_methods: { enabled: true },
       metadata: {
         ad_id: String(ad_id),
         dates: JSON.stringify(isoDates),
