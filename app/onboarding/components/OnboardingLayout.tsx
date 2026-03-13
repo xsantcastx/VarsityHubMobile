@@ -24,7 +24,7 @@ interface OnboardingLayoutProps {
 
 export default function OnboardingLayout({
   step,
-  totalSteps = 10,
+  totalSteps = 3,
   title,
   subtitle,
   aboveTitle,
@@ -44,9 +44,10 @@ export default function OnboardingLayout({
   const insets = useSafeAreaInsets();
   const { state: ob } = useOnboarding();
 
-  // Map each step number to the previous step's route, role-aware
-  // Fans skip steps 3, 4, 6 so their back navigation must skip those too
+  // Fans have 2 steps (role + basic info), coaches have 3 (+ league)
   const isFan = ob.role !== 'coach';
+  const effectiveTotalSteps = totalSteps ?? (isFan ? 2 : 3);
+
   const previousStepRoute: Record<number, string> = isFan
     ? {
         2: '/onboarding/step-1-role',
@@ -99,7 +100,7 @@ export default function OnboardingLayout({
         )}
         
         <Text style={[styles.stepIndicator, { color: colors.textMuted }]}>
-          Step {step}/{totalSteps}
+          Step {step}/{effectiveTotalSteps}
         </Text>
         
         {emailVerified === false && onVerifyEmail ? (
@@ -117,7 +118,7 @@ export default function OnboardingLayout({
           style={[
             styles.progressBar, 
             { 
-              width: `${(step / totalSteps) * 100}%`,
+              width: `${(step / effectiveTotalSteps) * 100}%`,
               backgroundColor: colors.primary
             }
           ]} 
