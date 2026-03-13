@@ -515,7 +515,7 @@ authRouter.post('/google', authLimiter, async (req, res) => {
       name: err?.name,
       stack: err?.stack?.split('\n').slice(0, 5).join('\n'),
     });
-    return res.status(500).json({ error: 'Failed to authenticate with Google', debug_message: err?.message, debug_code: err?.code, debug_meta: err?.meta });
+    return res.status(500).json({ error: 'Failed to authenticate with Google' });
   }
 });
 
