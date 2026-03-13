@@ -1,0 +1,219 @@
+import { Colors } from '@/constants/Colors';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { StyleSheet, Text, View, useColorScheme, Pressable, ActivityIndicator } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAuth } from '@/context/AuthProvider';
+import { useOnboarding } from '@/context/OnboardingContext';
+// @ts-ignore
+import { User } from '@/api/entities';
+import { httpGet } from '@/api/http';
+
+export default function LeaguePendingApproval() {
+  const router = useRouter();
+  const { signOut, markOnboardingCompleteLocally } = useAuth();
+  const { state: ob } = useOnboarding();
+  const colorScheme = useColorScheme() ?? 'light';
+  const isDark = colorScheme === 'dark';
+  const params = useLocalSearchParams<{ leagueName?: string; orgId?: string }>();
+  const leagueName = params.leagueName || 'your league';
+  const orgId = params.orgId || '';
+  const [approved, setApproved] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Poll organization status every 30 seconds
+  const checkApproval = useCallback(async () => {
+    if (!orgId) return;
+    try {
+      setChecking(true);
+      const org: any = await httpGet(`/organizations/${orgId}`);
+      if (org?.admin_approved === true) {
+        setApproved(true);
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        }
+        // Complete onboarding on server, then go to main app
+        try {
+          const me: any = await User.me().catch(() => null);
+          await User.completeOnboarding({
+            role: 'coach',
+            username: me?.username || ob.username,
+            dob: ob.dob,
+            zip_code: ob.zip_code || ob.zip,
+            affiliation: ob.affiliation,
+            organization_id: orgId || ob.organization_id,
+            organization_name: leagueName || ob.organization_name,
+          });
+          await markOnboardingCompleteLocally();
+        } catch (err) {
+          if (__DEV__) console.warn('[league-pending-approval] Failed to complete onboarding:', err);
+        }
+        setTimeout(() => {
+          router.replace('/(tabs)' as any);
+        }, 2000);
+      }
+    } catch {
+      // ignore polling errors
+    } finally {
+      setChecking(false);
+    }
+  }, [orgId, router]);
+
+  useEffect(() => {
+    checkApproval();
+    intervalRef.current = setInterval(checkApproval, 30000);
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [checkApproval]);
+
+  const handleLogout = async () => {
+    try {
+      await signOut();
+    } catch {}
+    router.replace('/sign-in');
+  };
+
+  const handleExploreAsFan = () => {
+    router.replace('/(tabs)');
+  };
+
+  return (
+    <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#0B1120' : '#F8FAFC' }]}>
+      <Stack.Screen options={{ headerShown: false }} />
+
+      <View style={styles.content}>
+        {/* Logo */}
+        <View style={styles.logoRow}>
+          <Ionicons name="shield-checkmark" size={28} color="#1B3A6B" />
+          <Text style={[styles.logoText, { color: isDark ? '#F9FAFB' : '#111827' }]}>VarsityHub</Text>
+        </View>
+
+        {/* Icon */}
+        <View style={[styles.iconCircle, { backgroundColor: isDark ? 'rgba(218,165,32,0.15)' : '#FEF9C3' }]}>
+          {approved ? (
+            <MaterialIcons name="check-circle" size={56} color="#16A34A" />
+          ) : (
+            <MaterialIcons name="verified" size={56} color="#DAA520" />
+          )}
+        </View>
+
+        {/* Heading */}
+        <Text style={[styles.heading, { color: isDark ? '#F9FAFB' : '#111827' }]}>
+          {approved ? 'League Approved!' : 'League Submitted for Review'}
+        </Text>
+
+        {/* Subheading */}
+        <Text style={[styles.subheading, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>
+          {approved
+            ? `"${leagueName}" is now live on VarsityHub! Let's finish setting up...`
+            : `VarsityHub is reviewing "${leagueName}". This usually takes less than 24 hours. You'll receive an email when your league is approved and ready.`
+          }
+        </Text>
+
+        {!approved && (
+          <>
+            {/* Info card */}
+            <View style={[styles.infoCard, { backgroundColor: isDark ? '#1F2937' : '#FFFFFF', borderColor: isDark ? '#374151' : '#E5E7EB' }]}>
+              <View style={styles.infoRow}>
+                <MaterialIcons name="business" size={18} color={isDark ? '#60A5FA' : '#2563EB'} />
+                <Text style={[styles.infoLabel, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>League:</Text>
+                <Text style={[styles.infoValue, { color: isDark ? '#F9FAFB' : '#111827' }]}>{leagueName}</Text>
+              </View>
+              <View style={styles.infoRow}>
+                <MaterialIcons name="schedule" size={18} color={isDark ? '#60A5FA' : '#2563EB'} />
+                <Text style={[styles.infoLabel, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Estimated:</Text>
+                <Text style={[styles.infoValue, { color: isDark ? '#F9FAFB' : '#111827' }]}>Within 24 hours</Text>
+              </View>
+            </View>
+
+            {/* While you wait section */}
+            <View style={[styles.waitSection, { backgroundColor: isDark ? '#1F2937' : '#FFFFFF', borderColor: isDark ? '#374151' : '#E5E7EB' }]}>
+              <Text style={[styles.waitTitle, { color: isDark ? '#F9FAFB' : '#111827' }]}>While you wait</Text>
+              <View style={styles.bulletRow}>
+                <MaterialIcons name="explore" size={18} color={isDark ? '#60A5FA' : '#2563EB'} />
+                <Text style={[styles.bulletText, { color: isDark ? '#D1D5DB' : '#374151' }]}>Browse the app as a fan</Text>
+              </View>
+              <View style={styles.bulletRow}>
+                <MaterialIcons name="people" size={18} color={isDark ? '#60A5FA' : '#2563EB'} />
+                <Text style={[styles.bulletText, { color: isDark ? '#D1D5DB' : '#374151' }]}>Follow teams and players</Text>
+              </View>
+              <View style={styles.bulletRow}>
+                <MaterialIcons name="person" size={18} color={isDark ? '#60A5FA' : '#2563EB'} />
+                <Text style={[styles.bulletText, { color: isDark ? '#D1D5DB' : '#374151' }]}>Set up your profile</Text>
+              </View>
+            </View>
+
+            {/* Buttons */}
+            <Pressable style={styles.primaryButton} onPress={handleExploreAsFan}>
+              <Text style={styles.primaryButtonText}>Explore as Fan</Text>
+              <MaterialIcons name="arrow-forward" size={20} color="#fff" />
+            </Pressable>
+
+            <Pressable style={[styles.secondaryButton, { borderColor: isDark ? '#374151' : '#D1D5DB' }]} onPress={handleLogout}>
+              <Text style={[styles.secondaryButtonText, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Log Out</Text>
+            </Pressable>
+
+            {/* Polling indicator */}
+            {checking && (
+              <View style={styles.pollingRow}>
+                <ActivityIndicator size="small" color={isDark ? '#6B7280' : '#9CA3AF'} />
+                <Text style={[styles.pollingText, { color: isDark ? '#6B7280' : '#9CA3AF' }]}>Checking status...</Text>
+              </View>
+            )}
+
+            {/* Support */}
+            <Text style={[styles.supportText, { color: isDark ? '#6B7280' : '#9CA3AF' }]}>
+              Questions? Contact support@varsityhub.app
+            </Text>
+          </>
+        )}
+
+        {approved && (
+          <ActivityIndicator size="large" color="#16A34A" style={{ marginTop: 24 }} />
+        )}
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  content: { flex: 1, paddingHorizontal: 24, paddingTop: 40, alignItems: 'center' },
+  logoRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 40 },
+  logoText: { fontSize: 22, fontWeight: '800', letterSpacing: -0.5 },
+  iconCircle: {
+    width: 100, height: 100, borderRadius: 50,
+    justifyContent: 'center', alignItems: 'center', marginBottom: 24,
+  },
+  heading: { fontSize: 26, fontWeight: '800', textAlign: 'center', marginBottom: 12, letterSpacing: -0.5 },
+  subheading: { fontSize: 15, lineHeight: 22, textAlign: 'center', marginBottom: 28, paddingHorizontal: 12 },
+  infoCard: {
+    width: '100%', borderRadius: 12, padding: 14, borderWidth: 1, marginBottom: 16, gap: 10,
+  },
+  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  infoLabel: { fontSize: 13, fontWeight: '600' },
+  infoValue: { fontSize: 13, fontWeight: '700', flex: 1 },
+  waitSection: {
+    width: '100%', borderRadius: 12, padding: 16, borderWidth: 1, marginBottom: 28, gap: 12,
+  },
+  waitTitle: { fontSize: 16, fontWeight: '700', marginBottom: 4 },
+  bulletRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  bulletText: { fontSize: 14, lineHeight: 20 },
+  primaryButton: {
+    width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#1B3A6B', paddingVertical: 14, borderRadius: 10, gap: 8, marginBottom: 12,
+  },
+  primaryButtonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  secondaryButton: {
+    width: '100%', alignItems: 'center', paddingVertical: 12, borderRadius: 10,
+    borderWidth: 1, marginBottom: 20,
+  },
+  secondaryButtonText: { fontSize: 14, fontWeight: '600' },
+  pollingRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
+  pollingText: { fontSize: 12 },
+  supportText: { fontSize: 12, textAlign: 'center', marginTop: 'auto', marginBottom: 16 },
+});

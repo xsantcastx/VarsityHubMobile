@@ -38,6 +38,9 @@ export default function ManageSubscription() {
   const colorScheme = useColorScheme();
   const [loading, setLoading] = useState(false);
   const [plan, setPlan] = useState<string | null>(null);
+  const [paidByOwner, setPaidByOwner] = useState(false);
+  const [ownerLeagueName, setOwnerLeagueName] = useState<string | null>(null);
+  const [approvalStatus, setApprovalStatus] = useState<string | null>(null);
 
 async function wait(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -59,12 +62,24 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
 
   const refreshPlan = useCallback(async () => {
     try {
-      const me = await User.me() as UserMeResponse;
+      const me: any = await User.me();
       const prefs = me?.preferences || {};
       setPlan(prefs.plan || null);
+      setPaidByOwner(!!me?.paid_by_owner);
+      setApprovalStatus(me?.approval_status || null);
+
+      // If covered by owner, fetch the league name
+      if (me?.paid_by_owner) {
+        try {
+          const { Organization } = await import('@/api/entities');
+          const orgs: any = await Organization.mine();
+          if (Array.isArray(orgs) && orgs.length > 0) {
+            setOwnerLeagueName(orgs[0].name || null);
+          }
+        } catch { /* ignore */ }
+      }
     } catch (error) {
       if (__DEV__) console.warn('[manage-subscription] Failed to load plan:', error);
-      // Non-critical - plan display can fail silently
     }
   }, []);
 
@@ -194,38 +209,61 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
         <Text style={[styles.title, { color: Colors[colorScheme ?? 'light'].text }]}>Subscription</Text>
         <Text style={[styles.subtitle, { color: Colors[colorScheme ?? 'light'].mutedText }]}>Manage your membership plan.</Text>
 
-        <View style={[styles.card, { 
+        <View style={[styles.card, {
           backgroundColor: Colors[colorScheme ?? 'light'].card,
           borderColor: Colors[colorScheme ?? 'light'].border
         }]}>
-          <Text style={[styles.rowLabel, { color: Colors[colorScheme ?? 'light'].mutedText }]}>Current plan</Text>
-          <Text style={[styles.rowValue, { color: Colors[colorScheme ?? 'light'].text }]}>{plan || 'rookie'}</Text>
-
-          {plan && plan !== 'rookie' ? (
-            // Paid plans (veteran/legend) - show cancel/manage option
-            <View style={{ marginTop: 12 }}>
-              {isIOS ? (
-                <Button onPress={() => Linking.openURL('https://apps.apple.com/account/subscriptions')} variant="outline">
-                  <Text>Manage in App Store</Text>
-                </Button>
-              ) : Platform.OS === 'android' ? (
-                <Button onPress={() => Linking.openURL('https://play.google.com/store/account/subscriptions')} variant="outline">
-                  <Text>Manage in Google Play</Text>
-                </Button>
-              ) : (
-                <Button onPress={onCancel} disabled={loading} variant="outline">
-                  <Text>Cancel subscription</Text>
-                </Button>
-              )}
-            </View>
-          ) : (
-            // Free plan (rookie) or no plan - show upgrade options
+          {/* Approved coach covered by league owner */}
+          {paidByOwner && approvalStatus === 'APPROVED' ? (
             <>
-              <Text style={[styles.description, { color: Colors[colorScheme ?? 'light'].mutedText }]}>Choose a plan to unlock organization features.</Text>
-              <View style={{ height: 12 }} />
-              <Button onPress={() => onSubscribe('veteran')} disabled={loading}><Text>Upgrade to Veteran</Text></Button>
-              <View style={{ height: 8 }} />
-              <Button onPress={() => onSubscribe('legend')} disabled={loading}><Text>Upgrade to Legend</Text></Button>
+              <Text style={[styles.rowLabel, { color: Colors[colorScheme ?? 'light'].mutedText }]}>Your subscription</Text>
+              <Text style={[styles.rowValue, { color: Colors[colorScheme ?? 'light'].text }]}>
+                Covered by {ownerLeagueName || 'your league'}
+              </Text>
+              <Text style={[styles.description, { color: Colors[colorScheme ?? 'light'].mutedText }]}>
+                Your league owner manages the subscription. You have full access to coach features at no cost.
+              </Text>
+            </>
+          ) : paidByOwner && approvalStatus === 'PENDING' ? (
+            /* Coach pending approval */
+            <>
+              <Text style={[styles.rowLabel, { color: Colors[colorScheme ?? 'light'].mutedText }]}>Your subscription</Text>
+              <Text style={[styles.rowValue, { color: '#DAA520' }]}>Pending Approval</Text>
+              <Text style={[styles.description, { color: Colors[colorScheme ?? 'light'].mutedText }]}>
+                Your subscription activates after your coach application is approved by the league owner.
+              </Text>
+            </>
+          ) : (
+            /* League owner or standalone user — original flow */
+            <>
+              <Text style={[styles.rowLabel, { color: Colors[colorScheme ?? 'light'].mutedText }]}>Current plan</Text>
+              <Text style={[styles.rowValue, { color: Colors[colorScheme ?? 'light'].text }]}>{plan || 'rookie'}</Text>
+
+              {plan && plan !== 'rookie' ? (
+                <View style={{ marginTop: 12 }}>
+                  {isIOS ? (
+                    <Button onPress={() => Linking.openURL('https://apps.apple.com/account/subscriptions')} variant="outline">
+                      <Text>Manage in App Store</Text>
+                    </Button>
+                  ) : Platform.OS === 'android' ? (
+                    <Button onPress={() => Linking.openURL('https://play.google.com/store/account/subscriptions')} variant="outline">
+                      <Text>Manage in Google Play</Text>
+                    </Button>
+                  ) : (
+                    <Button onPress={onCancel} disabled={loading} variant="outline">
+                      <Text>Cancel subscription</Text>
+                    </Button>
+                  )}
+                </View>
+              ) : (
+                <>
+                  <Text style={[styles.description, { color: Colors[colorScheme ?? 'light'].mutedText }]}>Choose a plan to unlock league features.</Text>
+                  <View style={{ height: 12 }} />
+                  <Button onPress={() => onSubscribe('veteran')} disabled={loading}><Text>Upgrade to Veteran</Text></Button>
+                  <View style={{ height: 8 }} />
+                  <Button onPress={() => onSubscribe('legend')} disabled={loading}><Text>Upgrade to Legend</Text></Button>
+                </>
+              )}
             </>
           )}
         </View>

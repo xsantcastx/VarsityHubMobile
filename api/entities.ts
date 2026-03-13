@@ -375,6 +375,13 @@ export const Organization = {
   },
   approveJoinRequest: (requestId: string) => httpPost(`/organizations/join-requests/${encodeURIComponent(requestId)}/approve`, {}),
   rejectJoinRequest: (requestId: string, reason?: string) => httpPost(`/organizations/join-requests/${encodeURIComponent(requestId)}/deny`, { reason }),
+  // League owner coach approval
+  pendingCoaches: (organizationId: string) =>
+    httpGet(`/organizations/${encodeURIComponent(organizationId)}/pending-coaches`),
+  approveCoach: (organizationId: string, userId: string) =>
+    httpPost(`/organizations/${encodeURIComponent(organizationId)}/coaches/${encodeURIComponent(userId)}/approve`, {}),
+  rejectCoach: (organizationId: string, userId: string, reason?: string) =>
+    httpPost(`/organizations/${encodeURIComponent(organizationId)}/coaches/${encodeURIComponent(userId)}/reject`, { reason }),
 };
 
 export const Team = {

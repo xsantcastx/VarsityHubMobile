@@ -156,7 +156,7 @@ export default function RoleOnboardingScreen() {
       logTelemetry('coach-tier-success', { tier });
 
       // Redirect to coach onboarding (plan selection) with fan steps skipped
-      router.replace('/onboarding/step-3-plan');
+      router.replace('/onboarding/step-3-league');
     } catch (e: any) {
       if (__DEV__) console.error('Failed to set coach tier', e);
       logTelemetry('coach-tier-error', { message: e?.message });
@@ -381,10 +381,10 @@ export default function RoleOnboardingScreen() {
               <Ionicons name="arrow-back" size={24} color={Colors[colorScheme].text} />
             </Pressable>
             <Text style={[styles.title, { color: Colors[colorScheme].text, marginTop: 16 }]}>
-              Choose Your Coach Tier 🏀
+              Choose Your League Plan 🏀
             </Text>
             <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>
-              Select the plan that fits your needs
+              As the league owner, your plan covers all approved coaches
             </Text>
           </View>
 

@@ -59,11 +59,6 @@ export type OnboardingState = {
   // Track which steps have been explicitly visited/completed
   step_2_visited?: boolean;
   step_3_visited?: boolean;
-  step_4_visited?: boolean;
-  step_6_visited?: boolean;
-  step_7_visited?: boolean;
-  step_8_visited?: boolean;
-  step_9_visited?: boolean;
 };
 
 type Ctx = { 

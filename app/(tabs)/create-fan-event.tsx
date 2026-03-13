@@ -103,6 +103,11 @@ export default function CreateFanEventScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<{[key: string]: string}>({});
 
+  // Team selection for fan event pitches (must be tied to a team)
+  const [pitchTeamId, setPitchTeamId] = useState('');
+  const [pitchTeamName, setPitchTeamName] = useState('');
+  const [showPitchTeamPicker, setShowPitchTeamPicker] = useState(false);
+
   // Game-specific fields (coach only)
   const [selectedTeam, setSelectedTeam] = useState('');
   const [selectedTeamId, setSelectedTeamId] = useState('');
@@ -240,6 +245,9 @@ export default function CreateFanEventScreen() {
       if (!title.trim()) {
         newErrors.title = 'Event title is required';
       }
+      if (!pitchTeamId) {
+        newErrors.pitchTeam = 'Please select a team for this event';
+      }
     }
 
     if (!location.trim()) {
@@ -288,7 +296,7 @@ export default function CreateFanEventScreen() {
 
         await Game.create(gamePayload);
       } else {
-        // Non-game event or fan pitch
+        // Non-game event or fan pitch — must be tied to a team
         const eventData: Record<string, any> = {
           title,
           description,
@@ -298,6 +306,11 @@ export default function CreateFanEventScreen() {
           venue_place_id: selectedPlace?.place_id,
           date: gameDateTime.toISOString(),
         };
+
+        // Tie event to the selected team
+        if (pitchTeamId) {
+          eventData.home_team_id = pitchTeamId;
+        }
 
         await Game.create(eventData);
       }
@@ -463,6 +476,32 @@ export default function CreateFanEventScreen() {
               onChangeText={setTitle}
             />
             {errors.title && <Text style={styles.errorText}>{errors.title}</Text>}
+          </View>
+        )}
+
+        {/* Team selection for fan event pitches (non-game events must be tied to a team) */}
+        {!isGameEvent && (
+          <View style={styles.section}>
+            <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Team *</Text>
+            <Pressable
+              style={[
+                styles.input,
+                {
+                  backgroundColor: Colors[colorScheme].card,
+                  borderColor: errors.pitchTeam ? '#DC2626' : Colors[colorScheme].border,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                },
+              ]}
+              onPress={() => setShowPitchTeamPicker(true)}
+            >
+              <Text style={[{ color: pitchTeamName ? Colors[colorScheme].text : Colors[colorScheme].mutedText }]}>
+                {pitchTeamName || 'Select a team'}
+              </Text>
+              <MaterialIcons name="expand-more" size={20} color={Colors[colorScheme].mutedText} />
+            </Pressable>
+            {errors.pitchTeam && <Text style={styles.errorText}>{errors.pitchTeam}</Text>}
           </View>
         )}
 
@@ -803,6 +842,62 @@ export default function CreateFanEventScreen() {
                     </Text>
                   </View>
                   {selectedTeam === team.name && (
+                    <MaterialIcons name="check" size={20} color={Colors[colorScheme].tint} />
+                  )}
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Pitch Team Picker Modal (for fan event pitches) */}
+      <Modal
+        visible={showPitchTeamPicker}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowPitchTeamPicker(false)}
+      >
+        <View style={styles.pickerOverlay}>
+          <View style={[styles.pickerContainer, { backgroundColor: Colors[colorScheme].background }]}>
+            <View style={styles.pickerHeader}>
+              <Pressable onPress={() => setShowPitchTeamPicker(false)}>
+                <Text style={[styles.pickerHeaderButton, { color: Colors[colorScheme].text }]}>Cancel</Text>
+              </Pressable>
+              <Text style={[styles.pickerTitle, { color: Colors[colorScheme].text }]}>Select Team</Text>
+              <View style={{ width: 50 }} />
+            </View>
+            <ScrollView style={styles.pickerList}>
+              {teams.length === 0 && (
+                <View style={styles.noResultsContainer}>
+                  <Text style={[styles.noResultsText, { color: Colors[colorScheme].mutedText }]}>
+                    No followed teams found. Follow a team first to pitch an event.
+                  </Text>
+                </View>
+              )}
+              {teams.map((team) => (
+                <Pressable
+                  key={team.id}
+                  style={[
+                    styles.pickerItem,
+                    { borderBottomColor: Colors[colorScheme].border },
+                    pitchTeamId === team.id && { backgroundColor: Colors[colorScheme].surface }
+                  ]}
+                  onPress={() => {
+                    setPitchTeamId(team.id);
+                    setPitchTeamName(team.name);
+                    setShowPitchTeamPicker(false);
+                  }}
+                >
+                  <View style={styles.pickerItemContent}>
+                    {team.logo && (
+                      <Image source={{ uri: team.logo }} style={styles.teamLogo} />
+                    )}
+                    <Text style={[styles.pickerItemText, { color: Colors[colorScheme].text }]}>
+                      {team.name}
+                    </Text>
+                  </View>
+                  {pitchTeamId === team.id && (
                     <MaterialIcons name="check" size={20} color={Colors[colorScheme].tint} />
                   )}
                 </Pressable>

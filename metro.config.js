@@ -32,6 +32,18 @@ config.resolver.extraNodeModules = {
   '@react-native-community/push-notification-ios': path.resolve(__dirname, 'shims/PushNotificationIOS.js'),
 };
 
+// Shim native-only modules on web so Metro doesn't try to bundle them
+const originalResolveRequest = config.resolver.resolveRequest;
+config.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (platform === 'web' && moduleName === '@stripe/stripe-react-native') {
+    return { type: 'sourceFile', filePath: path.resolve(__dirname, 'shims/stripe-react-native.js') };
+  }
+  if (originalResolveRequest) {
+    return originalResolveRequest(context, moduleName, platform);
+  }
+  return context.resolveRequest(context, moduleName, platform);
+};
+
 // Ensure shims directory is included in the watch folders
 config.watchFolders = [
   ...config.watchFolders,

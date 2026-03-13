@@ -1348,3 +1348,195 @@ export async function sendWelcomeEmail(_to: string, _name?: string): Promise<boo
   console.warn('[email] sendWelcomeEmail: not configured');
   return false;
 }
+
+// =====================================================
+// League / Business Model Approval Emails (plain HTML)
+// =====================================================
+
+const API_BASE_URL = (process.env.API_BASE_URL || 'https://api-production-8ac3.up.railway.app').replace(/\/$/, '');
+
+/**
+ * Notify super admin (emancero@varsityhub.app) that a new league was created and needs approval.
+ * Includes one-click approve/reject links with signed JWT tokens.
+ */
+export async function sendLeagueApprovalRequestEmail(params: {
+  leagueId: string;
+  leagueName: string;
+  ownerName: string;
+  ownerEmail: string;
+  sport?: string;
+  orgType?: string;
+  approveToken: string;
+  rejectToken: string;
+}): Promise<boolean> {
+  const approveUrl = `${API_BASE_URL}/organizations/${params.leagueId}/approve?token=${params.approveToken}`;
+  const rejectUrl = `${API_BASE_URL}/organizations/${params.leagueId}/reject?token=${params.rejectToken}`;
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #1B3A6B;">New League Page Awaiting Approval</h2>
+      <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+        <tr><td style="padding: 8px; font-weight: bold;">League Name:</td><td style="padding: 8px;">${params.leagueName}</td></tr>
+        <tr><td style="padding: 8px; font-weight: bold;">Owner:</td><td style="padding: 8px;">${params.ownerName} (${params.ownerEmail})</td></tr>
+        <tr><td style="padding: 8px; font-weight: bold;">Sport:</td><td style="padding: 8px;">${params.sport || 'Not specified'}</td></tr>
+        <tr><td style="padding: 8px; font-weight: bold;">Type:</td><td style="padding: 8px;">${params.orgType || 'Not specified'}</td></tr>
+        <tr><td style="padding: 8px; font-weight: bold;">Created:</td><td style="padding: 8px;">${new Date().toLocaleDateString()}</td></tr>
+      </table>
+      <div style="margin: 24px 0;">
+        <a href="${approveUrl}" style="display: inline-block; padding: 12px 32px; background: #16A34A; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; margin-right: 12px;">Approve League</a>
+        <a href="${rejectUrl}" style="display: inline-block; padding: 12px 32px; background: #DC2626; color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">Reject League</a>
+      </div>
+      <p style="color: #6B7280; font-size: 13px;">These links expire in 7 days. No login required.</p>
+    </div>
+  `;
+
+  return sendEmail({
+    to: 'emancero@varsityhub.app',
+    subject: `New League Awaiting Approval: ${params.leagueName}`,
+    text: `New league "${params.leagueName}" by ${params.ownerName} (${params.ownerEmail}) needs your approval. Approve: ${approveUrl} — Reject: ${rejectUrl}`,
+    html,
+  });
+}
+
+/**
+ * Notify league owner that their league has been approved by super admin.
+ */
+export async function sendLeagueApprovedEmail(params: {
+  to: string;
+  ownerName: string;
+  leagueName: string;
+}): Promise<boolean> {
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #16A34A;">Your League is Live!</h2>
+      <p>Hi ${params.ownerName},</p>
+      <p>Great news — <strong>${params.leagueName}</strong> has been approved and is now live on VarsityHub.</p>
+      <p>You can now complete your onboarding, set up your subscription, and start inviting coaches to your league.</p>
+      <div style="margin: 24px 0;">
+        <a href="${APP_BASE_URL}" style="display: inline-block; padding: 12px 32px; background: #1B3A6B; color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">Open VarsityHub</a>
+      </div>
+      <p style="color: #6B7280; font-size: 13px;">If you have questions, contact us at support@varsityhub.app</p>
+    </div>
+  `;
+
+  return sendEmail({
+    to: params.to,
+    subject: `Your league "${params.leagueName}" is live!`,
+    text: `Hi ${params.ownerName}, great news — ${params.leagueName} has been approved and is now live on VarsityHub. Open the app to continue onboarding.`,
+    html,
+  });
+}
+
+/**
+ * Notify league owner that their league was rejected by super admin.
+ */
+export async function sendLeagueRejectedEmail(params: {
+  to: string;
+  ownerName: string;
+  leagueName: string;
+  reason?: string;
+}): Promise<boolean> {
+  const reasonText = params.reason ? `<p><strong>Reason:</strong> ${params.reason}</p>` : '';
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #DC2626;">League Not Approved</h2>
+      <p>Hi ${params.ownerName},</p>
+      <p>Unfortunately, <strong>${params.leagueName}</strong> was not approved on VarsityHub.</p>
+      ${reasonText}
+      <p>If you believe this was a mistake or would like to resubmit, please contact us at support@varsityhub.app.</p>
+    </div>
+  `;
+
+  return sendEmail({
+    to: params.to,
+    subject: `League "${params.leagueName}" — not approved`,
+    text: `Hi ${params.ownerName}, unfortunately ${params.leagueName} was not approved on VarsityHub.${params.reason ? ' Reason: ' + params.reason : ''} Contact support@varsityhub.app for questions.`,
+    html,
+  });
+}
+
+/**
+ * Notify coach that they have been approved by the league owner.
+ */
+export async function sendCoachApprovedEmail(params: {
+  to: string;
+  coachName: string;
+  leagueName: string;
+}): Promise<boolean> {
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #16A34A;">You've Been Approved!</h2>
+      <p>Hi ${params.coachName},</p>
+      <p>The owner of <strong>${params.leagueName}</strong> has approved your coach account. You now have full access to coach tools.</p>
+      <div style="margin: 24px 0;">
+        <a href="${APP_BASE_URL}" style="display: inline-block; padding: 12px 32px; background: #1B3A6B; color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">Continue Setup</a>
+      </div>
+      <p style="color: #6B7280; font-size: 13px;">Open the app to finish setting up your profile and start managing your team.</p>
+    </div>
+  `;
+
+  return sendEmail({
+    to: params.to,
+    subject: `You're approved — welcome to ${params.leagueName}!`,
+    text: `Hi ${params.coachName}, the owner of ${params.leagueName} has approved your coach account. Open VarsityHub to continue setup.`,
+    html,
+  });
+}
+
+/**
+ * Notify coach that they were rejected by the league owner.
+ */
+export async function sendCoachRejectedEmail(params: {
+  to: string;
+  coachName: string;
+  leagueName: string;
+  reason?: string;
+}): Promise<boolean> {
+  const reasonText = params.reason ? `<p><strong>Reason:</strong> ${params.reason}</p>` : '';
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #DC2626;">Coach Request Declined</h2>
+      <p>Hi ${params.coachName},</p>
+      <p>Your request to join <strong>${params.leagueName}</strong> as a coach was not approved.</p>
+      ${reasonText}
+      <p>You can apply to a different league or contact support@varsityhub.app for help.</p>
+    </div>
+  `;
+
+  return sendEmail({
+    to: params.to,
+    subject: `Coach request for ${params.leagueName} — declined`,
+    text: `Hi ${params.coachName}, your request to join ${params.leagueName} as a coach was not approved.${params.reason ? ' Reason: ' + params.reason : ''} You can apply to a different league.`,
+    html,
+  });
+}
+
+/**
+ * Notify league owner that a new coach wants to join.
+ */
+export async function sendNewCoachRequestEmail(params: {
+  to: string;
+  ownerName: string;
+  coachName: string;
+  coachEmail: string;
+  leagueName: string;
+}): Promise<boolean> {
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #1B3A6B;">New Coach Request</h2>
+      <p>Hi ${params.ownerName},</p>
+      <p><strong>${params.coachName}</strong> (${params.coachEmail}) wants to join <strong>${params.leagueName}</strong> as a coach.</p>
+      <p>Open VarsityHub to approve or decline this request from your league dashboard.</p>
+      <div style="margin: 24px 0;">
+        <a href="${APP_BASE_URL}" style="display: inline-block; padding: 12px 32px; background: #1B3A6B; color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">Review Request</a>
+      </div>
+    </div>
+  `;
+
+  return sendEmail({
+    to: params.to,
+    subject: `New coach request for ${params.leagueName}: ${params.coachName}`,
+    text: `Hi ${params.ownerName}, ${params.coachName} (${params.coachEmail}) wants to join ${params.leagueName} as a coach. Open VarsityHub to review.`,
+    html,
+  });
+}

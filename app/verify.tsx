@@ -75,8 +75,8 @@ export default function VerifyScreen() {
             const hasUsername = !!refreshed?.username;
 
             if (hasRole && hasUsername) {
-              // They have role and username, resume from step 3 (plan selection)
-              destination = '/onboarding/step-3-plan';
+              // They have role and username, resume from step 3 (league)
+              destination = '/onboarding/step-3-league';
             } else if (hasRole) {
               // They have role but not username, resume from step 2
               destination = '/onboarding/step-2-basic';

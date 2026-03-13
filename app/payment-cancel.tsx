@@ -28,7 +28,7 @@ export default function PaymentCancelScreen() {
       if (router.canGoBack()) router.back();
       else router.push('/(tabs)/my-ads');
     } else {
-      router.replace('/onboarding/step-3-plan');
+      router.replace('/onboarding/step-3-league');
     }
   };
 

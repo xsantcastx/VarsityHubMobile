@@ -40,9 +40,17 @@ function tierGte(a: AnyTier, b: AnyTier): boolean {
 
 // Fetch plan from preferences (rookie/veteran/legend) falling back to subscription_tier column
 export async function getUserPlan(userId: string): Promise<AnyTier> {
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { subscription_tier: true, preferences: true } });
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { subscription_tier: true, preferences: true, paid_by_owner: true },
+  });
   if (!user) return 'free';
   const prefs = (user.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
+
+  // Coaches covered by league owner: look up the owner's plan instead
+  if (user.paid_by_owner) {
+    return getLeagueOwnerPlan(userId);
+  }
 
   // Rule A: If payment_pending is true, the coach selected a paid plan but hasn't
   // paid yet (awaiting admin approval or checkout). Treat as free until payment completes.
@@ -61,6 +69,44 @@ export async function getUserPlan(userId: string): Promise<AnyTier> {
 
   const plan = prefPlan || user.subscription_tier;
 
+  return toCanonical(plan);
+}
+
+// For coaches with paid_by_owner, resolve the league owner's plan
+async function getLeagueOwnerPlan(coachId: string): Promise<AnyTier> {
+  // Find the coach's active org membership → org → league owner
+  const membership = await prisma.organizationMembership.findFirst({
+    where: { user_id: coachId, status: 'active' },
+    select: {
+      organization: {
+        select: {
+          league_owner_id: true,
+        },
+      },
+    },
+  });
+
+  const ownerId = membership?.organization?.league_owner_id;
+  if (!ownerId) return 'free'; // no league owner found
+
+  // Get the owner's plan (non-recursive — owners are never paid_by_owner)
+  const owner = await prisma.user.findUnique({
+    where: { id: ownerId },
+    select: { subscription_tier: true, preferences: true },
+  });
+  if (!owner) return 'free';
+
+  const ownerPrefs = (owner.preferences && typeof owner.preferences === 'object') ? (owner.preferences as any) : {};
+
+  if (ownerPrefs.payment_pending === true) return 'free';
+
+  const expiryRaw = ownerPrefs.subscription_end_date || ownerPrefs.plan_expiry_date;
+  if (expiryRaw) {
+    const expiry = new Date(expiryRaw);
+    if (!isNaN(expiry.getTime()) && expiry < new Date()) return 'free';
+  }
+
+  const plan = ownerPrefs.plan || owner.subscription_tier;
   return toCanonical(plan);
 }
 

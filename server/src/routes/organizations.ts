@@ -1,14 +1,21 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { validateContent } from '../lib/contentFilter.js';
-import { sendJoinRequestApproved, sendJoinRequestDenied, sendJoinRequestToAdmin, sendOrganizationInviteEmail } from '../lib/email.js';
+import {
+  sendJoinRequestApproved, sendJoinRequestDenied, sendJoinRequestToAdmin,
+  sendOrganizationInviteEmail, sendLeagueApprovalRequestEmail, sendLeagueApprovedEmail,
+  sendLeagueRejectedEmail, sendCoachApprovedEmail, sendCoachRejectedEmail,
+  sendNewCoachRequestEmail, sendEmail,
+} from '../lib/email.js';
 import { sendOrganizationApprovalEmail, sendPushNotification } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
+import { requireAdmin, isEmailAdmin } from '../middleware/requireAdmin.js';
 import { debugLog } from '../lib/debugLog.js';
 import { inviteLimiter } from '../middleware/rateLimiters.js';
 import { getAuthorizedUsersOrgLimit } from '../lib/planLimits.js';
+import { signJwt, verifyJwt } from '../lib/jwt.js';
 
 export const organizationsRouter = Router();
 
@@ -336,6 +343,8 @@ organizationsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res
           season_start: data.season_start ? new Date(data.season_start) : null,
           season_end: data.season_end ? new Date(data.season_end) : null,
           updated_at: new Date(),
+          league_owner_id: req.user!.id,
+          admin_approved: false, // requires super admin approval
         }
       });
       await tx.organizationMembership.create({
@@ -347,6 +356,21 @@ organizationsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res
       });
       return org;
     });
+
+    // Send approval request email to super admin (best effort)
+    const creator = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { display_name: true, email: true } });
+    const approveToken = signJwt({ orgId: organization.id, action: 'approve_league' }, '7d');
+    const rejectToken = signJwt({ orgId: organization.id, action: 'reject_league' }, '7d');
+    sendLeagueApprovalRequestEmail({
+      leagueId: organization.id,
+      leagueName: organization.name,
+      ownerName: creator?.display_name || 'Unknown',
+      ownerEmail: creator?.email || '',
+      sport: data.sport,
+      orgType: data.org_type,
+      approveToken,
+      rejectToken,
+    }).catch(() => {});
 
     return res.status(201).json(organization);
   } catch (err) {
@@ -411,6 +435,8 @@ organizationsRouter.post('/create', requireAuth as any, async (req: AuthedReques
           season_start: data.season_start ? new Date(data.season_start) : null,
           season_end: data.season_end ? new Date(data.season_end) : null,
           updated_at: new Date(),
+          league_owner_id: req.user!.id,
+          admin_approved: false, // requires super admin approval
         }
       });
       await tx.organizationMembership.create({
@@ -422,6 +448,21 @@ organizationsRouter.post('/create', requireAuth as any, async (req: AuthedReques
       });
       return org;
     });
+
+    // Send approval request email to super admin (best effort)
+    const creator = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { display_name: true, email: true } });
+    const approveToken = signJwt({ orgId: organization.id, action: 'approve_league' }, '7d');
+    const rejectToken = signJwt({ orgId: organization.id, action: 'reject_league' }, '7d');
+    sendLeagueApprovalRequestEmail({
+      leagueId: organization.id,
+      leagueName: organization.name,
+      ownerName: creator?.display_name || 'Unknown',
+      ownerEmail: creator?.email || '',
+      sport: data.sport,
+      orgType: data.org_type,
+      approveToken,
+      rejectToken,
+    }).catch(() => {});
 
     // Send invites to authorized users
     if (data.authorized_users && data.authorized_users.length > 0) {
@@ -834,10 +875,23 @@ organizationsRouter.post('/join-requests', requireAuth as any, async (req: Authe
       }
     });
 
+    // Set coach approval_status to PENDING (if they're a coach)
+    const requesterPrefs = (joinRequest.user as any)?.preferences;
+    const isCoachRole = requesterPrefs?.role === 'coach' ||
+      (await prisma.user.findUnique({ where: { id: req.user!.id }, select: { preferences: true } })
+        .then(u => (u?.preferences as any)?.role === 'coach'));
+    if (isCoachRole) {
+      await prisma.user.update({
+        where: { id: req.user!.id },
+        data: { approval_status: 'PENDING' },
+      });
+    }
+
     // Send email notification to organization owners
     if (organization.memberships.length > 0) {
       const owner = organization.memberships[0];
       try {
+        // Legacy template-based notification
         await sendJoinRequestToAdmin({
           adminEmail: owner.user.email,
           adminName: owner.user.display_name || 'Admin',
@@ -846,6 +900,38 @@ organizationsRouter.post('/join-requests', requireAuth as any, async (req: Authe
           message: message,
           requestId: joinRequest.id,
         });
+
+        // New: plain-text coach request notification to league owner
+        await sendNewCoachRequestEmail({
+          to: owner.user.email,
+          ownerName: owner.user.display_name || 'League Owner',
+          coachName: joinRequest.user.display_name || 'A coach',
+          coachEmail: joinRequest.user.email,
+          leagueName: organization.name,
+        });
+
+        // Push notification to league owner
+        sendPushNotification(
+          owner.user.id,
+          'New coach request',
+          `${joinRequest.user.display_name || 'A coach'} wants to join ${organization.name}`,
+          { type: 'coach_request', screen: 'approvals', organization_id: organization.id },
+        ).catch(() => {});
+
+        // In-app notification record for league owner
+        prisma.notification.create({
+          data: {
+            user_id: owner.user.id,
+            actor_id: req.user!.id,
+            type: 'TEAM_INVITE', // Closest available type for coach request
+            meta: {
+              coach_request: true,
+              organization_id: organization.id,
+              organization_name: organization.name,
+              coach_name: joinRequest.user.display_name || 'A coach',
+            },
+          },
+        }).catch(() => {});
       } catch (err) {
         console.error('Failed to send join request email to admin:', err);
       }
@@ -1171,6 +1257,333 @@ organizationsRouter.post('/:id/transfer-ownership', requireAuth as any, async (r
     return res.json({ message: 'Ownership transferred successfully' });
   } catch (err) {
     console.error('[organizations] POST /:id/transfer-ownership error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// =====================================================
+// SUPER ADMIN LEAGUE APPROVAL (emancero@varsityhub.app)
+// =====================================================
+
+/**
+ * POST /organizations/:id/approve
+ * Approves a league page. Supports two auth methods:
+ * 1. Authenticated admin (requireAdmin middleware)
+ * 2. Email-based token (JWT in query param, no login required)
+ */
+// GET handler so email links work as simple browser clicks
+organizationsRouter.get('/:id/approve', (req, res, next) => { (approveLeagueHandler as any)(req, res).catch(next); });
+organizationsRouter.post('/:id/approve', (req, res, next) => { (approveLeagueHandler as any)(req, res).catch(next); });
+
+async function approveLeagueHandler(req: AuthedRequest, res: any) {
+  try {
+    const orgId = req.params.id;
+    const token = req.query.token as string | undefined;
+
+    // Auth: either signed token OR authenticated admin
+    let adminUserId: string | null = null;
+
+    if (token) {
+      const payload = verifyJwt<{ orgId: string; action: string }>(token);
+      if (!payload || payload.orgId !== orgId || payload.action !== 'approve_league') {
+        return res.status(401).json({ error: 'Invalid or expired approval token' });
+      }
+    } else {
+      // Require authenticated admin
+      if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+      const me = await prisma.user.findUnique({ where: { id: req.user.id }, select: { email: true } });
+      if (!isEmailAdmin(me?.email)) return res.status(403).json({ error: 'Admin only' });
+      adminUserId = req.user.id;
+    }
+
+    const org = await prisma.organization.findUnique({
+      where: { id: orgId },
+      include: { leagueOwner: { select: { id: true, display_name: true, email: true } } },
+    });
+    if (!org) return res.status(404).json({ error: 'Organization not found' });
+    if (org.admin_approved) return res.json({ message: 'Already approved' });
+
+    await prisma.organization.update({
+      where: { id: orgId },
+      data: {
+        admin_approved: true,
+        approved_by: adminUserId || 'email-token',
+        approved_at: new Date(),
+      },
+    });
+
+    // Email league owner
+    if (org.leagueOwner?.email) {
+      sendLeagueApprovedEmail({
+        to: org.leagueOwner.email,
+        ownerName: org.leagueOwner.display_name || 'League Owner',
+        leagueName: org.name,
+      }).catch(() => {});
+    }
+
+    // Confirm action to super admin
+    sendEmail({
+      to: 'emancero@varsityhub.app',
+      subject: `League Approved: ${org.name}`,
+      text: `League "${org.name}" owned by ${org.leagueOwner?.display_name || 'Unknown'} (${org.leagueOwner?.email || ''}) has been approved.`,
+    }).catch(() => {});
+
+    // If accessed via browser link, show a simple HTML confirmation
+    if (token) {
+      return res.send(`<html><body style="font-family:Arial;text-align:center;padding:60px"><h1 style="color:#16A34A">League Approved</h1><p>"${org.name}" is now live on VarsityHub.</p></body></html>`);
+    }
+
+    return res.json({ message: 'League approved', organization_id: orgId });
+  } catch (err) {
+    console.error('[organizations] POST /:id/approve error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+// GET handler so email reject links work as simple browser clicks
+organizationsRouter.get('/:id/reject', (req, res, next) => { (rejectLeagueHandler as any)(req, res).catch(next); });
+organizationsRouter.post('/:id/reject', (req, res, next) => { (rejectLeagueHandler as any)(req, res).catch(next); });
+
+async function rejectLeagueHandler(req: AuthedRequest, res: any) {
+  try {
+    const orgId = req.params.id;
+    const token = req.query.token as string | undefined;
+    const reason = req.body?.reason as string | undefined;
+
+    // Auth: either signed token OR authenticated admin
+    if (token) {
+      const payload = verifyJwt<{ orgId: string; action: string }>(token);
+      if (!payload || payload.orgId !== orgId || payload.action !== 'reject_league') {
+        return res.status(401).json({ error: 'Invalid or expired rejection token' });
+      }
+    } else {
+      if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+      const me = await prisma.user.findUnique({ where: { id: req.user.id }, select: { email: true } });
+      if (!isEmailAdmin(me?.email)) return res.status(403).json({ error: 'Admin only' });
+    }
+
+    const org = await prisma.organization.findUnique({
+      where: { id: orgId },
+      include: { leagueOwner: { select: { id: true, display_name: true, email: true } } },
+    });
+    if (!org) return res.status(404).json({ error: 'Organization not found' });
+
+    await prisma.organization.update({
+      where: { id: orgId },
+      data: { status: 'rejected' },
+    });
+
+    // Email league owner
+    if (org.leagueOwner?.email) {
+      sendLeagueRejectedEmail({
+        to: org.leagueOwner.email,
+        ownerName: org.leagueOwner.display_name || 'League Owner',
+        leagueName: org.name,
+        reason,
+      }).catch(() => {});
+    }
+
+    // Confirm action to super admin
+    sendEmail({
+      to: 'emancero@varsityhub.app',
+      subject: `League Rejected: ${org.name}`,
+      text: `League "${org.name}" owned by ${org.leagueOwner?.display_name || 'Unknown'} (${org.leagueOwner?.email || ''}) has been rejected.${reason ? ' Reason: ' + reason : ''}`,
+    }).catch(() => {});
+
+    if (token) {
+      return res.send(`<html><body style="font-family:Arial;text-align:center;padding:60px"><h1 style="color:#DC2626">League Rejected</h1><p>"${org.name}" has been declined.</p></body></html>`);
+    }
+
+    return res.json({ message: 'League rejected', organization_id: orgId });
+  } catch (err) {
+    console.error('[organizations] POST /:id/reject error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+// =====================================================
+// LEAGUE OWNER → COACH APPROVAL
+// =====================================================
+
+/**
+ * GET /organizations/:id/pending-coaches
+ * Returns all users with PENDING approval_status who have a join request for this org.
+ * Requires league owner role.
+ */
+organizationsRouter.get('/:id/pending-coaches', requireAuth as any, async (req: AuthedRequest, res) => {
+  try {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    const orgId = req.params.id;
+
+    // Verify requester is league owner
+    const membership = await prisma.organizationMembership.findFirst({
+      where: { organization_id: orgId, user_id: req.user.id, role: 'owner', status: 'active' },
+    });
+    if (!membership) return res.status(403).json({ error: 'Only the league owner can view pending coaches' });
+
+    const pendingRequests = await prisma.organizationJoinRequest.findMany({
+      where: { organization_id: orgId, status: 'pending' },
+      include: {
+        user: {
+          select: {
+            id: true, display_name: true, username: true, email: true,
+            avatar_url: true, approval_status: true, preferences: true,
+          },
+        },
+      },
+      orderBy: { created_at: 'desc' },
+    });
+
+    return res.json(pendingRequests);
+  } catch (err) {
+    console.error('[organizations] GET /:id/pending-coaches error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /organizations/:id/coaches/:userId/approve
+ * League owner approves a coach. Sets approval_status: APPROVED, paid_by_owner: true.
+ */
+organizationsRouter.post('/:id/coaches/:userId/approve', requireAuth as any, async (req: AuthedRequest, res) => {
+  try {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    const { id: orgId, userId: coachId } = req.params;
+
+    // Verify requester is league owner
+    const membership = await prisma.organizationMembership.findFirst({
+      where: { organization_id: orgId, user_id: req.user.id, role: 'owner', status: 'active' },
+    });
+    if (!membership) return res.status(403).json({ error: 'Only the league owner can approve coaches' });
+
+    // Verify there's a pending join request for this coach
+    const joinRequest = await prisma.organizationJoinRequest.findFirst({
+      where: { organization_id: orgId, user_id: coachId, status: 'pending' },
+    });
+    if (!joinRequest) return res.status(404).json({ error: 'No pending join request found for this coach' });
+
+    // Get org and coach info
+    const [org, coach] = await Promise.all([
+      prisma.organization.findUnique({ where: { id: orgId }, select: { name: true } }),
+      prisma.user.findUnique({ where: { id: coachId }, select: { display_name: true, email: true } }),
+    ]);
+
+    // Approve: update join request, create membership, set coach approval status
+    await prisma.$transaction([
+      prisma.organizationJoinRequest.update({
+        where: { id: joinRequest.id },
+        data: { status: 'approved', reviewed_at: new Date(), reviewed_by: req.user.id },
+      }),
+      prisma.organizationMembership.create({
+        data: { organization_id: orgId, user_id: coachId, role: 'member', status: 'active' },
+      }),
+      prisma.user.update({
+        where: { id: coachId },
+        data: { approval_status: 'APPROVED', paid_by_owner: true },
+      }),
+    ]);
+
+    // Email the coach
+    if (coach?.email) {
+      sendCoachApprovedEmail({
+        to: coach.email,
+        coachName: coach.display_name || 'Coach',
+        leagueName: org?.name || 'your league',
+      }).catch(() => {});
+    }
+
+    // Push notification to coach
+    sendPushNotification(
+      coachId,
+      'Application Approved!',
+      `${org?.name || 'Your league'} approved your coach application`,
+      { type: 'coach_approved', screen: 'onboarding', organization_id: orgId },
+    ).catch(() => {});
+
+    // In-app notification for coach
+    prisma.notification.create({
+      data: {
+        user_id: coachId,
+        actor_id: req.user.id,
+        type: 'TEAM_INVITE', // Closest available type
+        meta: {
+          coach_approved: true,
+          organization_id: orgId,
+          organization_name: org?.name || 'your league',
+        },
+      },
+    }).catch(() => {});
+
+    return res.json({ message: 'Coach approved', coach_id: coachId });
+  } catch (err: any) {
+    // Handle unique constraint violation (coach already a member)
+    if (err?.code === 'P2002') {
+      // Already a member — just update the join request and approval status
+      const { id: orgId, userId: coachId } = req.params;
+      await prisma.organizationJoinRequest.updateMany({
+        where: { organization_id: orgId, user_id: coachId, status: 'pending' },
+        data: { status: 'approved', reviewed_at: new Date(), reviewed_by: req.user!.id },
+      });
+      await prisma.user.update({
+        where: { id: coachId },
+        data: { approval_status: 'APPROVED', paid_by_owner: true },
+      });
+      return res.json({ message: 'Coach approved (already a member)', coach_id: coachId });
+    }
+    console.error('[organizations] POST /:id/coaches/:userId/approve error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /organizations/:id/coaches/:userId/reject
+ * League owner rejects a coach request.
+ */
+organizationsRouter.post('/:id/coaches/:userId/reject', requireAuth as any, async (req: AuthedRequest, res) => {
+  try {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    const { id: orgId, userId: coachId } = req.params;
+    const reason = req.body?.reason as string | undefined;
+
+    // Verify requester is league owner
+    const membership = await prisma.organizationMembership.findFirst({
+      where: { organization_id: orgId, user_id: req.user.id, role: 'owner', status: 'active' },
+    });
+    if (!membership) return res.status(403).json({ error: 'Only the league owner can reject coaches' });
+
+    const joinRequest = await prisma.organizationJoinRequest.findFirst({
+      where: { organization_id: orgId, user_id: coachId, status: 'pending' },
+    });
+    if (!joinRequest) return res.status(404).json({ error: 'No pending join request found for this coach' });
+
+    const [org, coach] = await Promise.all([
+      prisma.organization.findUnique({ where: { id: orgId }, select: { name: true } }),
+      prisma.user.findUnique({ where: { id: coachId }, select: { display_name: true, email: true } }),
+    ]);
+
+    await prisma.$transaction([
+      prisma.organizationJoinRequest.update({
+        where: { id: joinRequest.id },
+        data: { status: 'denied', message: reason, reviewed_at: new Date(), reviewed_by: req.user.id },
+      }),
+      prisma.user.update({
+        where: { id: coachId },
+        data: { approval_status: 'REJECTED' },
+      }),
+    ]);
+
+    if (coach?.email) {
+      sendCoachRejectedEmail({
+        to: coach.email,
+        coachName: coach.display_name || 'Coach',
+        leagueName: org?.name || 'the league',
+        reason,
+      }).catch(() => {});
+    }
+
+    return res.json({ message: 'Coach request rejected', coach_id: coachId });
+  } catch (err) {
+    console.error('[organizations] POST /:id/coaches/:userId/reject error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });

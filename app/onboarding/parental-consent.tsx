@@ -52,10 +52,10 @@ export default function ParentalConsent() {
       const isCoach = currentRole === 'coach';
       const updatedState = { ...ob, parental_consent_given: true, step_2_visited: true };
       const nextStepIndex = isCoach
-        ? 2 // Step 3 (Plan) for coaches
+        ? 2 // Step 3 (League) for coaches
         : nextIncompleteStep(updatedState, currentRole);
       const nextRoute = isCoach
-        ? '/onboarding/step-3-plan'
+        ? '/onboarding/step-3-league'
         : (STEP_ROUTES[nextStepIndex] || STEP_ROUTES[0]);
 
       dispatch({

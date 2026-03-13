@@ -414,6 +414,7 @@ const createEventSchema = z.object({
   contact_info: z.string().trim().optional(),
   banner_url: z.string().optional(),
   game_id: z.string().optional(),
+  home_team_id: z.string().optional(),
 });
 
 eventsRouter.post('/', requireVerified as any, requireOnboarded as any, eventCreationLimiter, async (req: AuthedRequest, res) => {
@@ -495,6 +496,7 @@ eventsRouter.post('/', requireVerified as any, requireOnboarded as any, eventCre
       contact_info: data.contact_info,
       banner_url: data.banner_url,
       game_id: data.game_id,
+      team_id: data.home_team_id || null,
       creator_id: userId,
       creator_role: userIsCoach ? 'coach' : userIsOrgAdmin ? 'organizer' : 'fan',
       approval_status: autoApprove ? 'approved' : 'pending',
@@ -543,7 +545,7 @@ eventsRouter.post('/', requireVerified as any, requireOnboarded as any, eventCre
 });
 
 // Approve event
-eventsRouter.put('/:id/approve', requireVerified as any, async (req: AuthedRequest, res) => {
+eventsRouter.put('/:id/approve', requireVerified as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
   // req.user is guaranteed by requireVerified middleware
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   
@@ -638,7 +640,7 @@ const rejectEventSchema = z.object({
   reason: z.string().optional(),
 });
 
-eventsRouter.put('/:id/reject', requireVerified as any, async (req: AuthedRequest, res) => {
+eventsRouter.put('/:id/reject', requireVerified as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
   // req.user is guaranteed by requireVerified middleware
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   
@@ -736,7 +738,7 @@ const updateEventSchema = z.object({
 
 const COACH_EDITABLE_FIELDS = ['date', 'location', 'latitude', 'longitude', 'description', 'opponent', 'away_team_id', 'away_team_name'];
 
-eventsRouter.patch('/:id', requireAuth as any, async (req: AuthedRequest, res) => {
+eventsRouter.patch('/:id', requireAuth as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
   try {
   const eventId = String(req.params.id);
   const userId = req.user!.id;
@@ -912,7 +914,7 @@ eventsRouter.patch('/:id', requireAuth as any, async (req: AuthedRequest, res) =
 });
 
 // Cancel event (creator or team owner only)
-eventsRouter.patch('/:id/cancel', requireAuth as any, async (req: AuthedRequest, res) => {
+eventsRouter.patch('/:id/cancel', requireAuth as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
   try {
   const eventId = String(req.params.id);
   const userId = req.user!.id;

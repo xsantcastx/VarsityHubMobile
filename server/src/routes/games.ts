@@ -670,7 +670,7 @@ gamesRouter.delete('/:id/votes', requireAuth as any, async (req: AuthedRequest, 
 });
 
 // Delete a game
-gamesRouter.delete('/:id', requireAuth as any, async (req: AuthedRequest, res) => {
+gamesRouter.delete('/:id', requireAuth as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const id = String(req.params.id);
 
@@ -755,7 +755,7 @@ gamesRouter.get('/:id/posts', async (req: AuthedRequest, res) => {
 gamesRouter.get('/:id/media', makeListMediaHandler({ prisma }));
 
 // Delete a specific media/story from a game
-gamesRouter.delete('/:id/media/:mediaId', requireAuth as any, async (req: AuthedRequest, res) => {
+gamesRouter.delete('/:id/media/:mediaId', requireAuth as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   
   const gameId = String(req.params.id);
@@ -796,10 +796,10 @@ gamesRouter.delete('/:id/media/:mediaId', requireAuth as any, async (req: Authed
 // Legacy stories endpoints (kept for backwards compatibility)
 gamesRouter.get('/:id/stories', makeListMediaHandler({ prisma }));
 
-gamesRouter.post('/:id/stories', requireAuth as any, makeCreateStoryHandler({ prisma }));
+gamesRouter.post('/:id/stories', requireAuth as any, requireOnboarded as any, makeCreateStoryHandler({ prisma }));
 
 // Update game result (scores) - coaches and team owners only
-gamesRouter.patch('/:id/result', requireAuth as any, async (req: AuthedRequest, res) => {
+gamesRouter.patch('/:id/result', requireAuth as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
   try {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
@@ -864,7 +864,7 @@ gamesRouter.patch('/:id/result', requireAuth as any, async (req: AuthedRequest, 
 });
 
 // Update cover image
-gamesRouter.patch('/:id', requireAuth as any, async (req: AuthedRequest, res) => {
+gamesRouter.patch('/:id', requireAuth as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
   const id = String(req.params.id);
@@ -932,7 +932,7 @@ gamesRouter.patch('/:id', requireAuth as any, async (req: AuthedRequest, res) =>
 });
 
 // Full update of a game (coaches, creators, admins)
-gamesRouter.put('/:id', requireAuth as any, async (req: AuthedRequest, res) => {
+gamesRouter.put('/:id', requireAuth as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
   const id = String(req.params.id);
@@ -1065,7 +1065,7 @@ gamesRouter.put('/:id', requireAuth as any, async (req: AuthedRequest, res) => {
 });
 
 // Approve or reject event
-gamesRouter.put('/:id/approve', requireAuth as any, async (req: AuthedRequest, res) => {
+gamesRouter.put('/:id/approve', requireAuth as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
   try {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 

@@ -45,9 +45,20 @@ function detectMime(mimeType?: string, filename?: string, uri?: string): string 
 // Direct-to-Cloudinary upload (skips your server)
 // Phone → Cloudinary CDN. ~2x faster than proxying through Railway.
 // -----------------------------------------------
+
+// Cache signature for 55s (signatures valid ~60min, but re-fetch well before expiry)
+let _sigCache: { sig: { cloudName: string; apiKey: string; signature: string; timestamp: number; folder: string }; fetchedAt: number } | null = null;
+const SIG_CACHE_TTL_MS = 55_000;
+
 async function getCloudinarySignature(baseUrl: string): Promise<{
   cloudName: string; apiKey: string; signature: string; timestamp: number; folder: string;
 } | null> {
+  // Return cached signature if still fresh
+  if (_sigCache && Date.now() - _sigCache.fetchedAt < SIG_CACHE_TTL_MS) {
+    if (__DEV__) console.log('[upload] Using cached Cloudinary signature');
+    return _sigCache.sig;
+  }
+
   const token = await resolveUploadToken();
   if (!token) return null;
   try {
@@ -55,7 +66,9 @@ async function getCloudinarySignature(baseUrl: string): Promise<{
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return null;
-    return await res.json() as any;
+    const sig = await res.json() as any;
+    _sigCache = { sig, fetchedAt: Date.now() };
+    return sig;
   } catch {
     return null;
   }

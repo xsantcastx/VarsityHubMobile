@@ -423,11 +423,15 @@ export default function CreateTeamScreen() {
       
     } catch (e: any) {
       if (__DEV__) console.error('Team creation error:', e);
-      Alert.alert('Error', e?.message || 'Failed to create team. Please try again.');
+      if (e?.data?.code === 'APPROVAL_REQUIRED' || e?.code === 'APPROVAL_REQUIRED') {
+        Alert.alert('Approval Required', 'Your coach account is pending approval. You can create teams once a league admin approves your application.');
+      } else {
+        Alert.alert('Error', e?.message || 'Failed to create team. Please try again.');
+      }
       setSubmitting(false);
     }
   };
-  
+
   const proceedWithTeamCreation = async (_user?: any) => {
     try {
       let logoUrl = null;
@@ -464,7 +468,11 @@ export default function CreateTeamScreen() {
       ]);
     } catch (e: any) {
       if (__DEV__) console.error('Team creation error in proceedWithTeamCreation:', e);
-      Alert.alert('Error', e?.message || 'Failed to create team. Please try again.');
+      if (e?.data?.code === 'APPROVAL_REQUIRED' || e?.code === 'APPROVAL_REQUIRED') {
+        Alert.alert('Approval Required', 'Your coach account is pending approval. You can create teams once a league admin approves your application.');
+      } else {
+        Alert.alert('Error', e?.message || 'Failed to create team. Please try again.');
+      }
     } finally { 
       setSubmitting(false); 
     }

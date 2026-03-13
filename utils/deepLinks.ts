@@ -48,6 +48,9 @@ const ROUTE_MAP: Record<string, string> = {
   'reset-password': '/reset-password',
   'verify-email': '/verify',
   'verify': '/verify',
+  // Onboarding continuation (after coach approval)
+  'onboarding': '/onboarding',
+  'approvals': '/(tabs)/approvals',
 };
 
 /**

@@ -498,7 +498,9 @@ export default function AdCalendarScreen() {
         return;
       }
       if (data?.paymentIntent) {
-        const { error: initError } = await initPaymentSheet({
+        // Try with Apple/Google Pay first, fall back to card-only if it fails
+        let initError: any = null;
+        const { error: err1 } = await initPaymentSheet({
           paymentIntentClientSecret: data.paymentIntent,
           customerEphemeralKeySecret: data.ephemeralKey,
           customerId: data.customer,
@@ -506,10 +508,25 @@ export default function AdCalendarScreen() {
           applePay: Platform.OS === 'ios' ? { merchantCountryCode: 'US' } : undefined,
           googlePay: Platform.OS === 'android' ? { merchantCountryCode: 'US', testEnv: __DEV__ } : undefined,
           allowsDelayedPaymentMethods: false,
-          paymentMethodOrder: ['apple_pay', 'google_pay', 'card'],
         });
+        initError = err1;
+
+        // If Apple/Google Pay setup failed, retry with card-only
         if (initError) {
-          Alert.alert('Error', initError.message);
+          if (__DEV__) console.warn('[AdCalendar] PaymentSheet init failed with native pay, retrying card-only:', initError.message);
+          const { error: err2 } = await initPaymentSheet({
+            paymentIntentClientSecret: data.paymentIntent,
+            customerEphemeralKeySecret: data.ephemeralKey,
+            customerId: data.customer,
+            merchantDisplayName: 'Varsity Hub',
+            allowsDelayedPaymentMethods: false,
+          });
+          initError = err2;
+        }
+
+        if (initError) {
+          if (__DEV__) console.error('[AdCalendar] PaymentSheet init failed:', initError);
+          Alert.alert('Payment Error', initError.message || 'Unable to initialize payment. Please try again.');
           return;
         }
         const { error } = await presentPaymentSheet();

@@ -1283,7 +1283,7 @@ postsRouter.post('/:id/share', requireAuth as any, async (req: AuthedRequest, re
 });
 
 // Delete post (author, or coach/owner of team the post is associated with)
-postsRouter.delete('/:id', requireAuth as any, async (req: AuthedRequest, res) => {
+postsRouter.delete('/:id', requireAuth as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
   const postId = String(req.params.id);
   const userId = req.user!.id;
 
@@ -1369,7 +1369,7 @@ postsRouter.post('/:id/restore', requireAuth as any, async (req: AuthedRequest, 
 });
 
 // Update post (author: content/title/is_pinned; coach of team: is_pinned only)
-postsRouter.patch('/:id', requireAuth as any, async (req: AuthedRequest, res) => {
+postsRouter.patch('/:id', requireAuth as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
   const postId = String(req.params.id);
   const userId = req.user!.id;
 

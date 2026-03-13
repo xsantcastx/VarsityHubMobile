@@ -1,5 +1,5 @@
 # VarsityHub Mobile — Codebase Map
-**Last updated:** 2026-02-24
+**Last updated:** 2026-03-12
 **Purpose:** Session briefing document for AI assistants. Read this before making any changes.
 
 ---
@@ -52,12 +52,13 @@ VarsityHubMobile/
 │   │   ├── step-2-basic.tsx    # Username, DOB, zip, affiliation
 │   │   ├── step-3-plan.tsx     # Plan selection (Rookie/Veteran/Legend)
 │   │   ├── step-4-organization.tsx # Organization setup (coach only)
+│   │   ├── step-5-team.tsx      # Team creation (coach only)
 │   │   ├── step-6-authorized-users.tsx # Add team staff (coach only)
 │   │   ├── step-7-profile.tsx  # Avatar, bio
 │   │   ├── step-8-interests.tsx # Sport interests (fan path)
 │   │   ├── step-9-features.tsx # Notifications/location toggles
 │   │   ├── step-10-confirmation.tsx # Final review and submit
-│   │   └── finish.tsx          # Completion/redirect
+│   │   └── parental-consent.tsx # COPPA consent for under-18 users
 │   ├── settings/               # Settings area
 │   │   └── index.tsx           # Settings screen (notifications, privacy, account)
 │   ├── game-details/           # Game detail sub-screens (separate folder)
@@ -70,7 +71,7 @@ VarsityHubMobile/
 │   ├── auth.ts                 # Auth functions (login, register, token storage)
 │   ├── entities.ts             # All entity API objects (User, Post, Game, Team, etc.)
 │   ├── settings.ts             # SecureStore/localStorage wrapper for app settings
-│   └── upload.ts               # File upload helper (multipart form to /uploads)
+│   └── upload.ts               # File upload (tries direct-to-Cloudinary first, falls back to server proxy)
 │
 ├── components/                 # Reusable React Native components
 │   ├── PostCard.tsx            # Core post card (upvote, bookmark, comment, share)
@@ -83,6 +84,8 @@ VarsityHubMobile/
 │   ├── OfflineBanner.tsx       # Banner shown when offline
 │   ├── PollCard.tsx            # Poll display and voting
 │   ├── QuickAddGameModal.tsx   # Quick game creation modal
+│   ├── MasonryPostCard.tsx     # Grid/masonry post card (feed grid view)
+│   ├── VideoTrimmer.tsx        # Native video trimming (requires EAS build)
 │   ├── StoryCameraButton.tsx   # Camera button for game stories
 │   └── ui/                     # Low-level UI primitives
 │       ├── button.tsx          # Base Button component
@@ -387,7 +390,7 @@ The tab bar has **4 visible tabs**: Feed, Highlights, Create (center), Discover,
 - `User.updatePreferences(patch)` → `PATCH /me/preferences`
 - `Event.filter({ ... })` → used to load RSVP history data
 - `User.exportMyData()` → `GET /users/me/export`
-- `DELETE /me` via `User.updateMe` (account deletion)
+- `DELETE /users/me` for account deletion (in users.ts, not auth.ts)
 **Key state:** `preferences`, notification toggles, `loading`
 **Navigation:** Uses `router.push` to child settings screens (edit-username, billing, blocked-users, etc.).
 
@@ -421,11 +424,11 @@ Server entry: `server/src/index.ts` → `server/src/app.ts`
 
 | Method | Path | Auth | Description | Used by |
 |--------|------|------|-------------|---------|
-| POST | /auth/register | No | Create account (email/password) | sign-up |
-| POST | /auth/login | No | Email/password login → returns access_token + refresh_token | sign-in |
-| POST | /auth/google | No | Google OAuth login (id_token in body) | useGoogleAuth |
-| POST | /auth/apple | No | Apple Sign In (identity_token in body) | useAppleAuth |
-| POST | /auth/refresh | No | Refresh access token using refresh_token | api/auth.ts |
+| POST | /auth/register | No (rate-limited) | Create account (email/password) | sign-up |
+| POST | /auth/login | No (rate-limited) | Email/password login → returns access_token + refresh_token | sign-in |
+| POST | /auth/google | No (rate-limited) | Google OAuth login (id_token in body) | useGoogleAuth |
+| POST | /auth/apple | No (rate-limited) | Apple Sign In (identity_token in body) | useAppleAuth |
+| POST | /auth/refresh | No (rate-limited) | Refresh access token using refresh_token | api/auth.ts |
 | GET | /me | Required | Get current user profile | AuthProvider, everywhere |
 | PUT | /auth/me | Required | Update profile (display_name, bio, avatar_url, etc.) | edit-profile |
 | PATCH | /me | Required | Partial update of profile | profile screen |
@@ -433,10 +436,10 @@ Server entry: `server/src/index.ts` → `server/src/app.ts`
 | POST | /me/complete-onboarding | Required | Finalize onboarding; sets onboarding_completed=true | step-10-confirmation |
 | POST | /auth/verify/request | Required | Send email verification code | verify flow |
 | POST | /auth/verify/confirm | Required | Confirm email with code | verify flow |
-| POST | /auth/password/forgot | No | Request password reset email | forgot-password |
-| POST | /auth/password/reset | No | Reset password with code | reset-password |
+| POST | /auth/password/forgot | No (rate-limited) | Request password reset email | forgot-password |
+| POST | /auth/password/reset | No (rate-limited) | Reset password with code | reset-password |
 | POST | /auth/password/change | Required | Change password (requires current_password) | settings |
-| DELETE | /me | Required | Delete/anonymize account (GDPR) | settings |
+| DELETE | /users/me | Required | Delete/anonymize account (GDPR) — in users.ts | settings |
 
 ### Posts Routes — `routes/posts.ts`
 
@@ -466,12 +469,12 @@ Server entry: `server/src/index.ts` → `server/src/app.ts`
 | Method | Path | Auth | Description | Used by |
 |--------|------|------|-------------|---------|
 | GET | /games | Optional | List games (sort, lat/lng/distance, dateFrom/dateTo, approval_status) | feed, discover |
-| POST | /games | Required | Create game (coach only) | discover, create-game |
+| POST | /games | Verified + onboarded + rate-limited | Create game (coach only) | discover, create-game |
 | GET | /games/votes-summary | Optional | Batch vote summary for multiple game IDs | feed |
 | GET | /games/:id | Optional | Get single game | game-detail |
 | GET | /games/:id/summary | Optional | Get game summary (score, teams, event info) | game-detail |
 | PUT | /games/:id | Required | Update game (coach/owner of associated team) | edit-game |
-| DELETE | /games/:id | Required | Delete game | admin |
+| DELETE | /games/:id | Required | Delete game (creator, team coach, or admin only) | game-detail, admin |
 | PATCH | /games/:id/result | Required | Set game score and winner | game-detail |
 | PUT | /games/:id/approve | Required (admin) | Approve/reject game | admin |
 | GET | /games/:id/posts | Optional | Posts associated with game | game-detail |
@@ -516,8 +519,8 @@ Server entry: `server/src/index.ts` → `server/src/app.ts`
 | GET | /teams/limits | Required | Plan-based team limits for current user | subscription-paywall |
 | GET | /teams/members/all | Required | All members across managed teams | team management |
 | GET | /teams/invites/me | Required | Pending team invites for current user | team-invites screen |
-| POST | /teams | Required | Create basic team | team creation |
-| POST | /teams/create | Required | Create team with full options (authorized users, org link) | onboarding |
+| POST | /teams | Verified + onboarded + plan(rookie) | Create basic team | team creation |
+| POST | /teams/create | Verified + onboarded + plan(rookie) + rate-limited | Create team with full options (authorized users, org link) | onboarding |
 | GET | /teams/:id | Optional | Get team details | team-profile |
 | PUT | /teams/:id | Required | Update team | edit-team |
 | DELETE | /teams/:id | Required | Delete team | team management |
@@ -529,6 +532,7 @@ Server entry: `server/src/index.ts` → `server/src/app.ts`
 | DELETE | /teams/:id/members/:userId | Required | Remove member from team | team management |
 | POST | /teams/invites/:inviteId/accept | Required | Accept team invite | team-invites |
 | POST | /teams/invites/:inviteId/decline | Required | Decline team invite | team-invites |
+| POST | /teams/:id/transfer-ownership | Required (owner) | Transfer team ownership to another member | team management |
 
 ### Notifications Routes — `routes/notifications.ts`
 
@@ -550,7 +554,7 @@ Server entry: `server/src/index.ts` → `server/src/app.ts`
 
 | Method | Path | Auth | Description | Used by |
 |--------|------|------|-------------|---------|
-| POST | /events | Required | Create event (fan-created events go through approval workflow) | create-fan-event, team-hub |
+| POST | /events | Verified + onboarded + rate-limited | Create event (fan-created events go through approval workflow) | create-fan-event, team-hub |
 | GET | /events | Optional | Filter events (status, approval_status, event_type, q) | team-hub, feed |
 | GET | /events/my-rsvps | Required | Events user has RSVP'd to | rsvp-history |
 | GET | /events/:id | Optional | Get single event | event-detail, team-hub |
@@ -578,6 +582,7 @@ Server entry: `server/src/index.ts` → `server/src/app.ts`
 | POST | /organizations/invites/:id/decline | Required | Decline org invite | org invites |
 | POST | /organizations/join-requests/:id/approve | Required | Approve join request (admin) | org admin |
 | POST | /organizations/join-requests/:id/reject | Required | Reject join request (admin) | org admin |
+| POST | /organizations/:id/transfer-ownership | Required (owner) | Transfer org ownership to another member | settings |
 
 ### Ads Routes — `routes/ads.ts`
 
@@ -597,12 +602,17 @@ Server entry: `server/src/index.ts` → `server/src/app.ts`
 | Method | Path | Auth | Description | Used by |
 |--------|------|------|-------------|---------|
 | GET | /payments/config | No | Stripe publishable key + plan definitions | onboarding step-3, paywall |
-| POST | /payments/checkout | Required + verified | Create Stripe checkout session (plan or ad) | onboarding step-3, ad booking |
-| POST | /payments/finalize-session | Required | Finalize Stripe session after redirect | payment-success |
-| POST | /payments/subscription/cancel | Required | Cancel subscription | billing screen |
-| POST | /payments/update-subscription-quantity | Required | Update team count on subscription | billing |
+| POST | /payments/checkout | Required + verified + rate-limited | Create Stripe checkout session (plan or ad). Holds ad slots during checkout. | onboarding step-3, ad booking |
+| POST | /payments/create-payment-sheet | Required + verified + rate-limited | Create PaymentIntent for mobile in-app PaymentSheet (subscriptions + ads) | subscription-paywall, ad-calendar |
+| POST | /payments/cancel-intent | Required + verified | Cancel abandoned PaymentIntent, release ad holds, cancel incomplete subscriptions | subscription-paywall, ad-calendar |
+| POST | /payments/subscribe | Required + verified | Alias for checkout (subscriptions only) | legacy |
+| POST | /payments/finalize-session | Required + rate-limited | Finalize Stripe session after redirect | payment-success |
+| POST | /payments/subscription/cancel | Required + verified | Cancel subscription | billing screen |
+| POST | /payments/update-subscription-quantity | Required + verified | Update team count on subscription (validates actual team ownership) | billing |
 | GET | /payments/subscription/summary | Required | Current subscription status | billing, profile |
-| POST | /payments/webhook | No (Stripe sig) | Stripe webhook handler | Stripe → server |
+| POST | /payments/webhook | No (Stripe sig) | Stripe webhook: handles checkout.session.completed, subscription events, payment_intent.succeeded/failed, ad slot hold releases | Stripe → server |
+| POST | /payments/apple/verify-receipt | Required | Apple in-app purchase receipt validation | iOS IAP |
+| POST | /payments/google/verify-purchase | Required | Google Play purchase validation | Android IAP |
 
 ### Search Route — `routes/search.ts`
 
@@ -620,7 +630,9 @@ Server entry: `server/src/index.ts` → `server/src/app.ts`
 
 | Method | Path | Auth | Description | Used by |
 |--------|------|------|-------------|---------|
-| POST | /uploads | Required | Upload file (multipart) → Cloudinary or local disk | create-post, edit-profile, submit-ad |
+| GET | /uploads/cloudinary-signature | Required | Get signed params for direct-to-Cloudinary upload | upload.ts (client) |
+| POST | /uploads | Required | Upload file (multipart) → Cloudinary or local disk (fallback) | create-post, edit-profile, submit-ad |
+| GET | /uploads/sign | Required | Sign a local media path for access | media display |
 | POST | /upload | Required | Alternate upload endpoint | some screens |
 
 ### Admin Routes — `routes/admin.ts`
@@ -739,7 +751,7 @@ Composite primary keys `(post_id, user_id)`.
 Unique on `(event_id, user_id)`.
 
 ### Ad / AdReservation
-`Ad`: contact info, `banner_url`, `target_url`, `target_zip_code`, `radius`, `status` (draft|active|archived|pending), `payment_status` (unpaid|paid|refunded).
+`Ad`: contact info, `banner_url`, `target_url`, `target_zip_code`, `radius`, `status` (draft|active|archived|pending), `payment_status` (unpaid|hold|paid|refunded). `hold` is a temporary state during checkout to prevent slot race conditions — released on expiry/failure.
 `AdReservation`: `ad_id`, `date`. Unique on `(ad_id, date)`.
 
 ### Category / CategoryFollow / CategoryAssignment
@@ -948,6 +960,7 @@ Single source of truth for subscription plans used by both frontend and server.
 ### Payments
 | Package | Version | Use |
 |---------|---------|-----|
+| `@stripe/stripe-react-native` | 0.50.3 | In-app PaymentSheet for subscriptions + ads |
 | `expo-web-browser` | ~15.0.9 | Opens Stripe Checkout in browser |
 | (Server) `stripe` | ~17.x | Stripe SDK for payment processing |
 
@@ -1030,13 +1043,18 @@ The following features have been confirmed stable and should not be modified wit
 
 ### Cloudinary File Uploads (`server/src/routes/uploads.ts`)
 - Production uses Cloudinary (required; throws on startup if not configured)
-- Fallback to local disk only in development
+- **Direct upload path (fast):** Client gets signature via `GET /uploads/cloudinary-signature`, then uploads straight to Cloudinary CDN — server never touches the file
+- **Fallback path:** If signature fails, client proxies through server (`POST /uploads` → memory buffer → Cloudinary)
+- Local disk storage only in development
 
 ### Stripe Subscription Flow
 - Rookie plan = free (no Stripe call)
-- Veteran/Legend → `POST /payments/checkout` → opens Stripe Checkout in WebBrowser
+- Veteran/Legend → `POST /payments/checkout` → opens Stripe Checkout in WebBrowser (or `POST /payments/create-payment-sheet` for in-app PaymentSheet)
 - `POST /payments/finalize-session` called after return redirect
-- Webhook at `POST /payments/webhook` handles subscription events
+- Webhook at `POST /payments/webhook` handles: subscription lifecycle events, ad slot hold releases on checkout expiry/payment failure, promo code redemption with retry
+- `getUserPlan()` in `middleware/subscription.ts` auto-downgrades expired subscriptions (checks `subscription_end_date` / `plan_expiry_date`)
+- Ad slot race prevention: slots are held (`payment_status: 'hold'`) during checkout and released on failure/expiry/cancel
+- Incomplete subscriptions from abandoned PaymentSheet are cleaned up via `cancel-intent` endpoint
 
 ### COPPA Age Gating (`server/src/routes/auth.ts`)
 - `isUnder13(dob)` check on registration; under-13 users are blocked

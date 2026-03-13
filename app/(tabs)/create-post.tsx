@@ -603,32 +603,6 @@ export default function CreatePostScreen() {
     setError(null);
 
     try {
-      // Quick network connectivity check
-      if (__DEV__) console.warn('[CreatePost] Checking network...');
-      try {
-        const { getApiBaseUrl } = await import('@/api/http');
-        // Use AbortController instead of AbortSignal.timeout (not supported in React Native)
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000);
-        const healthCheck = await fetch(`${getApiBaseUrl()}/health`, {
-          method: 'GET',
-          signal: controller.signal
-        });
-        clearTimeout(timeoutId);
-        if (!healthCheck.ok) {
-          throw new Error('Server unavailable');
-        }
-        if (__DEV__) console.warn('[CreatePost] Network OK');
-      } catch (netErr: any) {
-        if (__DEV__) console.error('[CreatePost] Network check failed:', netErr?.message);
-        throw new Error('Unable to connect to server. Please check your internet connection and try again.');
-      }
-
-      // Ensure user is authenticated
-      if (__DEV__) console.warn('[CreatePost] Checking authentication...');
-      try { await User.me(); } catch { throw new Error('Please sign in to create a post.'); }
-      if (__DEV__) console.warn('[CreatePost] Auth OK');
-
       let finalMediaUrl = '';
       let finalThumbnailUrl = '';
       if (picked?.uri) {
@@ -648,8 +622,11 @@ export default function CreatePostScreen() {
           : Promise.resolve(null);
 
         const [res, thumbRes] = await Promise.all([mainUpload, thumbUpload]);
-        finalMediaUrl = res?.url || res?.path;
-        if (thumbRes) finalThumbnailUrl = thumbRes?.url || thumbRes?.path || '';
+        finalMediaUrl = res?.url || '';
+        if (!finalMediaUrl) {
+          throw new Error('Media upload succeeded but returned no URL. Please try again.');
+        }
+        if (thumbRes) finalThumbnailUrl = thumbRes?.url || '';
         if (__DEV__) console.warn('[CreatePost] Upload complete:', finalMediaUrl);
         // Clean up temp files (trimmed video, thumbnail) after successful upload
         try {
@@ -1019,13 +996,13 @@ export default function CreatePostScreen() {
         {/* Geofence / Time Window Warning */}
         {geofenceWarning && (
           <View style={[styles.warningBanner, {
-            backgroundColor: colorScheme === 'dark' ? Colors[colorScheme].surface : '#FEF3C7',
-            borderColor: colorScheme === 'dark' ? Colors[colorScheme].border : '#F59E0B',
+            backgroundColor: colorScheme === 'dark' ? Colors[colorScheme].surface : '#1B3A6B',
+            borderColor: colorScheme === 'dark' ? Colors[colorScheme].border : '#1B3A6B',
             marginBottom: 12,
           }]}>
-            <Ionicons name="warning-outline" size={16} color={colorScheme === 'dark' ? '#FBBF24' : '#B45309'} />
+            <Ionicons name="warning-outline" size={16} color={colorScheme === 'dark' ? '#FBBF24' : '#FFFFFF'} />
             <Text style={[styles.warningText, {
-              color: colorScheme === 'dark' ? '#FBBF24' : '#92400E',
+              color: colorScheme === 'dark' ? '#FBBF24' : '#FFFFFF',
             }]}>{geofenceWarning}</Text>
           </View>
         )}
@@ -1035,14 +1012,14 @@ export default function CreatePostScreen() {
           <Text style={[styles.footerLink, { color: Colors[colorScheme].tint }]}>Respect all the players on the field.</Text>
           {showPrecisionWarning ? (
             <View style={[styles.warningBanner, { 
-              backgroundColor: colorScheme === 'dark' ? Colors[colorScheme].surface : '#FEF9C3', 
-              borderColor: colorScheme === 'dark' ? Colors[colorScheme].border : '#FACC15', 
-              marginTop: 12 
+              backgroundColor: colorScheme === 'dark' ? Colors[colorScheme].surface : '#1B3A6B',
+              borderColor: colorScheme === 'dark' ? Colors[colorScheme].border : '#1B3A6B',
+              marginTop: 12
             }]}>
-              <Ionicons name="navigate-outline" size={16} color={colorScheme === 'dark' ? Colors[colorScheme].tint : '#B45309'} />
+              <Ionicons name="navigate-outline" size={16} color={colorScheme === 'dark' ? Colors[colorScheme].tint : '#FFFFFF'} />
               <View style={{ flex: 1 }}>
-                <Text style={[styles.warningText, { 
-                  color: colorScheme === 'dark' ? Colors[colorScheme].text : '#92400E', 
+                <Text style={[styles.warningText, {
+                  color: colorScheme === 'dark' ? Colors[colorScheme].text : '#FFFFFF', 
                   marginBottom: 4 
                 }]}>
                   Precise location is off. Nearby event suggestions may be less accurate on Android.
@@ -1050,7 +1027,7 @@ export default function CreatePostScreen() {
                 <View style={styles.warningActionsRow}>
                   <Pressable onPress={() => setPrecisionBannerDismissed(true)}>
                     <Text style={[styles.warningActionLink, { 
-                      color: colorScheme === 'dark' ? Colors[colorScheme].tint : '#92400E' 
+                      color: colorScheme === 'dark' ? Colors[colorScheme].tint : '#FFFFFF'
                     }]}>Maybe later</Text>
                   </Pressable>
                   <Pressable
@@ -1721,7 +1698,7 @@ const styles = StyleSheet.create({
     paddingTop: 12
   },
   footerLink: { 
-    color: '#2563EB', 
+    color: '#1B3A6B', 
     textAlign: 'center',
     fontSize: 14,
     fontWeight: '500'
@@ -1848,7 +1825,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   changeEventButton: {
-    color: '#2563EB',
+    color: '#1B3A6B',
     fontSize: 14,
     fontWeight: '600',
   },
@@ -2109,7 +2086,7 @@ const styles = StyleSheet.create({
     borderColor: '#E5E7EB',
   },
   confirmButton: {
-    backgroundColor: '#2563EB',
+    backgroundColor: '#1B3A6B',
   },
   previewButtonText: {
     fontSize: 16,
@@ -2170,11 +2147,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#F59E0B',
+    backgroundColor: '#1B3A6B',
     paddingHorizontal: 18,
     paddingVertical: 10,
     borderRadius: 999,
-    shadowColor: '#F59E0B',
+    shadowColor: '#1B3A6B',
     shadowOpacity: 0.3,
     shadowOffset: { width: 0, height: 2 },
     shadowRadius: 6,

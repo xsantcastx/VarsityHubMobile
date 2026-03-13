@@ -1,8 +1,15 @@
 /**
- * Onboarding State Machine
- * 
- * Single source of truth for onboarding flow with deterministic step calculation.
- * Prevents race conditions and ensures coaches complete steps 2-6 before step 7.
+ * Onboarding State Machine (Simplified)
+ *
+ * 3-step onboarding:
+ *   Step 1: Role selection (Fan / Coach)
+ *   Step 2: Basic info (username, DOB, zip)
+ *   Step 3: League (join or create) — coaches only
+ *
+ * After step 3:
+ *   - Fan → mark complete, go to feed
+ *   - Coach joining league → pending-approval (locked)
+ *   - Coach creating league → league-pending-approval (locked)
  */
 
 import { OnboardingState } from './OnboardingContext';
@@ -11,27 +18,13 @@ import { OnboardingState } from './OnboardingContext';
 export const ONBOARDING_STEPS = {
   STEP_1_ROLE: { id: 1, route: '/onboarding/step-1-role', index: 0 },
   STEP_2_BASIC: { id: 2, route: '/onboarding/step-2-basic', index: 1 },
-  STEP_3_PLAN: { id: 3, route: '/onboarding/step-3-plan', index: 2 },
-  STEP_4_ORGANIZATION: { id: 4, route: '/onboarding/step-4-organization', index: 3 },
-  STEP_5_TEAM: { id: 5, route: '/onboarding/step-5-team', index: 4 },
-  STEP_6_AUTHORIZED_USERS: { id: 6, route: '/onboarding/step-6-authorized-users', index: 5 },
-  STEP_7_PROFILE: { id: 7, route: '/onboarding/step-7-profile', index: 6 },
-  STEP_8_INTERESTS: { id: 8, route: '/onboarding/step-8-interests', index: 7 },
-  STEP_9_FEATURES: { id: 9, route: '/onboarding/step-9-features', index: 8 },
-  STEP_10_CONFIRMATION: { id: 10, route: '/onboarding/step-10-confirmation', index: 9 },
+  STEP_3_LEAGUE: { id: 3, route: '/onboarding/step-3-league', index: 2 },
 } as const;
 
 export const STEP_ROUTES = [
   ONBOARDING_STEPS.STEP_1_ROLE.route,
   ONBOARDING_STEPS.STEP_2_BASIC.route,
-  ONBOARDING_STEPS.STEP_3_PLAN.route,
-  ONBOARDING_STEPS.STEP_4_ORGANIZATION.route,
-  ONBOARDING_STEPS.STEP_5_TEAM.route,
-  ONBOARDING_STEPS.STEP_6_AUTHORIZED_USERS.route,
-  ONBOARDING_STEPS.STEP_7_PROFILE.route,
-  ONBOARDING_STEPS.STEP_8_INTERESTS.route,
-  ONBOARDING_STEPS.STEP_9_FEATURES.route,
-  ONBOARDING_STEPS.STEP_10_CONFIRMATION.route,
+  ONBOARDING_STEPS.STEP_3_LEAGUE.route,
 ] as const;
 
 export type OnboardingReducerState = {
@@ -67,96 +60,44 @@ function isStepComplete(stepId: number, state: OnboardingState, role?: 'fan' | '
   switch (stepId) {
     case 1: // Role selection
       return !!state.role;
-    case 2: // Basic info - must be explicitly visited
+    case 2: // Basic info
       return !!state.step_2_visited;
-    case 3: // Plan selection (coaches only) - must be explicitly visited
+    case 3: // League (coaches only)
       if (role !== 'coach') return true; // Fans skip this
       return !!state.step_3_visited;
-    case 4: // Organization (coaches only) - must be explicitly visited
-      if (role !== 'coach') return true; // Fans skip this
-      return !!state.step_4_visited;
-    case 5: // Team creation (coaches only) - need a team before authorized users
-      if (role !== 'coach') return true; // Fans skip this
-      return !!state.team_id;
-    case 6: // Authorized users (optional for coaches, but must be visited)
-      if (role !== 'coach') return true; // Fans skip this step entirely
-      return !!state.step_6_visited;
-    case 7: // Profile - must be explicitly visited
-      return !!state.step_7_visited;
-    case 8: // Interests - must be explicitly visited
-      return !!state.step_8_visited;
-    case 9: // Features - must be explicitly visited
-      return !!state.step_9_visited;
-    case 10: // Confirmation
-      return false; // Final step, not "complete" until onboarding is done
     default:
       return false;
   }
 }
 
 /**
- * Calculates the next incomplete step for a coach
- * NEVER jumps ahead - always returns the first incomplete required step
+ * Calculates the next incomplete step
+ * Fans: step 1 → step 2 → done
+ * Coaches: step 1 → step 2 → step 3 → pending screen
  */
 export function nextIncompleteStep(
   state: OnboardingState,
   role?: 'fan' | 'coach'
 ): number {
-  const isCoach = role === 'coach';
-  
   // Step 1: Role (always required)
   if (!isStepComplete(1, state, role)) {
     return ONBOARDING_STEPS.STEP_1_ROLE.index;
   }
-  
+
   // Step 2: Basic info (always required)
   if (!isStepComplete(2, state, role)) {
     return ONBOARDING_STEPS.STEP_2_BASIC.index;
   }
-  
-  // For coaches, steps 3-6 are required before step 7
-  if (isCoach) {
-    // Step 3: Plan (coaches only)
+
+  // Step 3: League (coaches only)
+  if (role === 'coach') {
     if (!isStepComplete(3, state, role)) {
-      return ONBOARDING_STEPS.STEP_3_PLAN.index;
+      return ONBOARDING_STEPS.STEP_3_LEAGUE.index;
     }
-    
-    // Step 4: Organization (coaches only)
-    if (!isStepComplete(4, state, role)) {
-      return ONBOARDING_STEPS.STEP_4_ORGANIZATION.index;
-    }
+  }
 
-    // Step 5: Team creation (coaches only) - must create team before authorized users
-    if (!isStepComplete(5, state, role)) {
-      return ONBOARDING_STEPS.STEP_5_TEAM.index;
-    }
-
-    // Step 6: Authorized users (optional, but MUST be visited/skipped before step 7)
-    // Check if step 6 has been visited
-    if (!isStepComplete(6, state, role)) {
-      return ONBOARDING_STEPS.STEP_6_AUTHORIZED_USERS.index;
-    }
-  }
-  
-  // Step 7: Profile (after required steps for coaches)
-  // Only reachable if coach has completed steps 2-4 and visited step 6
-  // OR if fan (fans skip steps 3-6)
-  if (!isStepComplete(7, state, role)) {
-    return ONBOARDING_STEPS.STEP_7_PROFILE.index;
-  }
-  
-  // Step 8: Interests (optional)
-  if (!isStepComplete(8, state, role)) {
-    return ONBOARDING_STEPS.STEP_8_INTERESTS.index;
-  }
-  
-  // Step 9: Features (optional)
-  if (!isStepComplete(9, state, role)) {
-    return ONBOARDING_STEPS.STEP_9_FEATURES.index;
-  }
-  
-  // Step 10: Confirmation (final)
-  return ONBOARDING_STEPS.STEP_10_CONFIRMATION.index;
+  // All steps complete — return last step index (will be handled by caller)
+  return role === 'coach' ? ONBOARDING_STEPS.STEP_3_LEAGUE.index : ONBOARDING_STEPS.STEP_2_BASIC.index;
 }
 
 /**
@@ -168,14 +109,7 @@ export function onboardingReducer(
 ): OnboardingReducerState {
   const logTransition = (fromStep: number, toStep: number, reason: string) => {
     if (__DEV__) {
-      if (__DEV__) console.log(`[ONBOARDING REDUCER] Transition: ${fromStep} → ${toStep} (${reason})`);
-      if (__DEV__) console.log(`[ONBOARDING REDUCER] State:`, {
-        role: state.draftData.role,
-        hasStep2: !!(state.draftData.username && state.draftData.dob),
-        hasStep3: !!state.draftData.plan,
-        hasStep4: !!(state.draftData.team_id || state.draftData.organization_id),
-        isSaving: state.isSaving,
-      });
+      console.log(`[ONBOARDING REDUCER] Transition: ${fromStep} → ${toStep} (${reason})`);
     }
   };
 
@@ -185,16 +119,12 @@ export function onboardingReducer(
     }
 
     case 'INIT_FROM_PROFILE': {
-      if (state.initialized) {
-        // Prevent double initialization
-        return state;
-      }
-      
+      if (state.initialized) return state;
+
       const profile = event.profile;
       const nextStep = nextIncompleteStep(profile, profile.role);
-      
       logTransition(state.currentStepIndex, nextStep, 'INIT_FROM_PROFILE');
-      
+
       return {
         ...state,
         draftData: { ...state.draftData, ...profile },
@@ -210,30 +140,15 @@ export function onboardingReducer(
     }
 
     case 'NEXT': {
-      if (state.isSaving) {
-        // Prevent navigation during save
-        return state;
-      }
+      if (state.isSaving) return state;
 
-      const currentStepId = STEP_ROUTES[state.currentStepIndex]
-        ? Object.values(ONBOARDING_STEPS).find(s => s.index === state.currentStepIndex)?.id || 0
-        : 0;
-
-      // Calculate next step deterministically based on first incomplete step
       const nextStep = nextIncompleteStep(state.draftData, state.draftData.role);
-
-      // FIXED: Use the calculated next incomplete step directly
-      // If all prior steps are complete, nextStep will be >= currentStepIndex + 1
-      // If a prior step is incomplete, nextStep will point to that step (go back to fix it)
-      // This ensures coaches can never skip required steps
       const clampedNextStep = Math.min(nextStep, STEP_ROUTES.length - 1);
-
       logTransition(state.currentStepIndex, clampedNextStep, 'NEXT');
-      
+
       return {
         ...state,
         currentStepIndex: clampedNextStep,
-        completedStepIds: new Set([...state.completedStepIds, currentStepId]),
         lastTransition: {
           fromStep: state.currentStepIndex,
           toStep: clampedNextStep,
@@ -244,14 +159,10 @@ export function onboardingReducer(
     }
 
     case 'BACK': {
-      if (state.isSaving) {
-        return state;
-      }
-      
+      if (state.isSaving) return state;
       const prevStep = Math.max(0, state.currentStepIndex - 1);
-      
       logTransition(state.currentStepIndex, prevStep, 'BACK');
-      
+
       return {
         ...state,
         currentStepIndex: prevStep,
@@ -265,47 +176,37 @@ export function onboardingReducer(
     }
 
     case 'SKIP': {
-      if (state.isSaving) {
-        return state;
-      }
-      
-      const skippedStepId = event.stepId;
+      if (state.isSaving) return state;
       const nextStep = nextIncompleteStep(state.draftData, state.draftData.role);
-      
-      logTransition(state.currentStepIndex, nextStep, `SKIP_${skippedStepId}`);
-      
+      logTransition(state.currentStepIndex, nextStep, `SKIP_${event.stepId}`);
+
       return {
         ...state,
         currentStepIndex: nextStep,
-        completedStepIds: new Set([...state.completedStepIds, skippedStepId]),
+        completedStepIds: new Set([...state.completedStepIds, event.stepId]),
         lastTransition: {
           fromStep: state.currentStepIndex,
           toStep: nextStep,
-          reason: `SKIP_${skippedStepId}`,
+          reason: `SKIP_${event.stepId}`,
           timestamp: Date.now(),
         },
       };
     }
 
     case 'SAVE_START': {
-      return {
-        ...state,
-        isSaving: true,
-      };
+      return { ...state, isSaving: true };
     }
 
     case 'SAVE_SUCCESS': {
       const updatedData = { ...state.draftData, ...event.data };
       const nextStep = nextIncompleteStep(updatedData, updatedData.role);
-      
       logTransition(state.currentStepIndex, nextStep, 'SAVE_SUCCESS');
-      
+
       return {
         ...state,
         draftData: updatedData,
         currentStepIndex: nextStep,
         isSaving: false,
-        completedStepIds: new Set([...state.completedStepIds]),
         lastTransition: {
           fromStep: state.currentStepIndex,
           toStep: nextStep,
@@ -316,29 +217,21 @@ export function onboardingReducer(
     }
 
     case 'SAVE_FAIL': {
-      return {
-        ...state,
-        isSaving: false,
-      };
+      return { ...state, isSaving: false };
     }
 
     case 'SET_STEP': {
-      if (state.isSaving) {
-        return state;
-      }
-      
+      if (state.isSaving) return state;
       const targetStep = Math.max(0, Math.min(event.stepIndex, STEP_ROUTES.length - 1));
-      const reason = event.reason || 'SET_STEP';
-      
-      logTransition(state.currentStepIndex, targetStep, reason);
-      
+      logTransition(state.currentStepIndex, targetStep, event.reason || 'SET_STEP');
+
       return {
         ...state,
         currentStepIndex: targetStep,
         lastTransition: {
           fromStep: state.currentStepIndex,
           toStep: targetStep,
-          reason,
+          reason: event.reason || 'SET_STEP',
           timestamp: Date.now(),
         },
       };

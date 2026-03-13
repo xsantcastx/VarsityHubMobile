@@ -1262,17 +1262,11 @@ authRouter.post('/me/complete-onboarding', requireAuth as any, async (req: Authe
   // If role is undefined in payload, use existing role from preferences (set during step-1)
   const finalRole = data.role !== undefined ? data.role : (currentPrefs.role || 'fan');
   
-  // CRITICAL: For coaches, validate required steps are completed
+  // For coaches, only username is required at onboarding completion.
+  // Organization and team are set up post-approval, not during initial onboarding.
   if (finalRole === 'coach') {
-    // Coaches MUST have: username and team/org (plan is set via Stripe payment)
     if (!data.username) {
       return res.status(400).json({ error: 'Username required for coach onboarding' });
-    }
-    if (!data.organization_id) {
-      return res.status(400).json({ error: 'Organization required for coach onboarding' });
-    }
-    if (!data.team_id) {
-      return res.status(400).json({ error: 'Team required for coach onboarding. Every coach must be assigned a team.' });
     }
   }
 

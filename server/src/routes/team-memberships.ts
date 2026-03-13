@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
+import { requireOnboarded } from '../middleware/requireOnboarded.js';
 import { requirePlan } from '../middleware/subscription.js';
 
 export const teamMembershipsRouter = Router();
@@ -21,7 +22,7 @@ async function canManageTeam(req: AuthedRequest, teamId: string): Promise<boolea
 
 // POST /team-memberships { team_id, user_id, role }
 // CRITICAL: Only team owners/managers/coaches can add members to their teams
-teamMembershipsRouter.post('/', requireAuth as any, requirePlan('rookie') as any, async (req: AuthedRequest, res) => {
+teamMembershipsRouter.post('/', requireAuth as any, requireOnboarded as any, requirePlan('rookie') as any, async (req: AuthedRequest, res) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const { team_id, user_id, role } = (req.body || {}) as any;
@@ -61,7 +62,7 @@ teamMembershipsRouter.post('/', requireAuth as any, requirePlan('rookie') as any
 });
 
 // PATCH /team-memberships/:id { role? }
-teamMembershipsRouter.patch('/:id', requireAuth as any, async (req: AuthedRequest, res) => {
+teamMembershipsRouter.patch('/:id', requireAuth as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const id = String(req.params.id || '');
@@ -97,7 +98,7 @@ teamMembershipsRouter.patch('/:id', requireAuth as any, async (req: AuthedReques
 });
 
 // DELETE /team-memberships/:id
-teamMembershipsRouter.delete('/:id', requireAuth as any, async (req: AuthedRequest, res) => {
+teamMembershipsRouter.delete('/:id', requireAuth as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const id = String(req.params.id || '');

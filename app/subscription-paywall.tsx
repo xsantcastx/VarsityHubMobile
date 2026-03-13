@@ -1,6 +1,7 @@
 /**
- * Coach Subscription Paywall
+ * League Subscription Paywall
  *
+ * Only shown to league owners — coaches are covered by their league owner's plan.
  * iOS: Uses Apple IAP (react-native-iap) for veteran_vhub / Legend_vhub
  * Android: Uses Google Play Billing (react-native-iap) for veteran_vhub / Legend_vhub
  * Web/fallback: Uses Stripe Payment Sheets
@@ -40,8 +41,10 @@ export default function SubscriptionPaywallScreen() {
   const [loading, setLoading] = useState(false);
   const [promoCode, setPromoCode] = useState('');
   const availableTiers: CoachTier[] = ['rookie', 'veteran', 'legend'];
+  const [isNonOwnerCoach, setIsNonOwnerCoach] = useState(false);
+  const [checkingAccess, setCheckingAccess] = useState(true);
 
-  // Rule A: Pre-select the coach's pending_plan if they were sent here after admin approval
+  // Check if user is a league owner — non-owners cannot purchase
   useEffect(() => {
     void (async () => {
       try {
@@ -50,7 +53,12 @@ export default function SubscriptionPaywallScreen() {
         if (pp === 'veteran' || pp === 'legend') {
           setSelectedTier(pp);
         }
+        // Check if coach is covered by league owner
+        if (me?.paid_by_owner === true) {
+          setIsNonOwnerCoach(true);
+        }
       } catch { /* ignore */ }
+      setCheckingAccess(false);
     })();
   }, []);
   const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
@@ -179,6 +187,49 @@ export default function SubscriptionPaywallScreen() {
 
   const isProcessing = loading || iapPurchasing;
 
+  // Non-owner coaches cannot purchase — league owner manages subscription
+  if (checkingAccess) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
+        <Stack.Screen options={{ title: 'Choose Your Plan', headerShown: true }} />
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (isNonOwnerCoach) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
+        <Stack.Screen options={{
+          title: 'Subscription',
+          headerLeft: () => (
+            <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={{ paddingLeft: 8 }}>
+              <MaterialIcons name="chevron-left" size={24} color="#3B82F6" />
+            </Pressable>
+          ),
+          headerShown: true,
+        }} />
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 }}>
+          <MaterialIcons name="verified-user" size={64} color={Colors[colorScheme].tint} />
+          <Text style={[styles.title, { color: Colors[colorScheme].text, marginTop: 16 }]}>
+            You&apos;re Covered
+          </Text>
+          <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText, marginTop: 8, textAlign: 'center' }]}>
+            Your league owner manages the subscription. Contact them if you need access to additional features.
+          </Text>
+          <Pressable
+            style={[styles.ctaButton, { backgroundColor: Colors[colorScheme].tint, marginTop: 24, width: '80%' }]}
+            onPress={() => { if (router.canGoBack()) router.back(); else router.push('/(tabs)' as any); }}
+          >
+            <Text style={styles.ctaButtonText}>Go Back</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
       <Stack.Screen options={{
@@ -194,10 +245,10 @@ export default function SubscriptionPaywallScreen() {
         {/* Header */}
         <View style={styles.header}>
           <Text style={[styles.title, { color: Colors[colorScheme].text }]}>
-            Choose Your Coaching Plan
+            Choose Your League Plan
           </Text>
-          <Text style={[styles.subtitle, { color: '#6B7280' }]}>
-            Select the plan that fits your program's needs
+          <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>
+            Select the plan that fits your league&apos;s needs
           </Text>
         </View>
 
@@ -246,9 +297,9 @@ export default function SubscriptionPaywallScreen() {
             Compare Plans
           </Text>
 
-          <View style={styles.comparisonTable}>
+          <View style={[styles.comparisonTable, { borderColor: Colors[colorScheme].border }]}>
             {/* Header Row */}
-            <View style={[styles.comparisonRow, styles.comparisonHeader]}>
+            <View style={[styles.comparisonRow, { borderBottomColor: Colors[colorScheme].border, backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.05)' : '#F3F4F6' }]}>
               <View style={styles.comparisonFeature}>
                 <Text style={[styles.comparisonHeaderText, { color: Colors[colorScheme].mutedText }]}>Feature</Text>
               </View>
@@ -267,7 +318,7 @@ export default function SubscriptionPaywallScreen() {
             {comparisonFeatures.map((feature, index) => (
               <View
                 key={index}
-                style={[styles.comparisonRow, index % 2 === 0 && styles.comparisonRowAlt]}
+                style={[styles.comparisonRow, { borderBottomColor: Colors[colorScheme].border }, index % 2 === 0 && { backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.02)' : '#F9FAFB' }]}
               >
                 <View style={styles.comparisonFeature}>
                   <Text style={[styles.comparisonFeatureText, { color: Colors[colorScheme].text }]}>{feature.name}</Text>
@@ -288,7 +339,7 @@ export default function SubscriptionPaywallScreen() {
 
         {/* Promo Code Section — web/fallback only (Apple/Google don't allow promo codes through IAP) */}
         {!isIOS && Platform.OS !== 'android' && selectedTier !== 'rookie' && (
-          <View style={styles.promoSection}>
+          <View style={[styles.promoSection, { backgroundColor: Colors[colorScheme].surface || Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
             <Text style={[styles.promoLabel, { color: Colors[colorScheme].text }]}>
               Have a promo code?
             </Text>
@@ -299,7 +350,7 @@ export default function SubscriptionPaywallScreen() {
                   {
                     backgroundColor: Colors[colorScheme].background,
                     color: Colors[colorScheme].text,
-                    borderColor: '#D1D5DB',
+                    borderColor: Colors[colorScheme].border,
                   },
                 ]}
                 placeholder="Enter code"
@@ -406,12 +457,12 @@ function renderFeatureValue(value: string | boolean, scheme: 'light' | 'dark' = 
 // Comparison table data
 const comparisonFeatures = [
   { name: 'Teams', rookie: '2', veteran: 'Unlimited', legend: 'Unlimited' },
-  { name: 'Priority Support', rookie: false, veteran: false, legend: true },
+  { name: 'Priority Support (Coming Soon)', rookie: false, veteran: false, legend: true },
   { name: 'Dedicated Admin', rookie: false, veteran: true, legend: true },
   { name: 'Profile Badge', rookie: false, veteran: true, legend: true },
-  { name: 'Advanced Analytics', rookie: false, veteran: false, legend: true },
-  { name: 'Custom Branding', rookie: false, veteran: false, legend: true },
-  { name: 'Import/Export', rookie: false, veteran: false, legend: true },
+  { name: 'Advanced Analytics (Coming Soon)', rookie: false, veteran: false, legend: true },
+  { name: 'Custom Branding (Coming Soon)', rookie: false, veteran: false, legend: true },
+  { name: 'Import/Export (Coming Soon)', rookie: false, veteran: false, legend: true },
 ];
 
 const styles = StyleSheet.create({
@@ -502,19 +553,13 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
   },
   comparisonRow: {
     flexDirection: 'row',
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
   },
-  comparisonRowAlt: {
-    backgroundColor: '#F9FAFB',
-  },
-  comparisonHeader: {
-    backgroundColor: '#F3F4F6',
-  },
+  comparisonRowAlt: {},
+  comparisonHeader: {},
   comparisonFeature: {
     flex: 2,
     padding: 12,
@@ -522,28 +567,26 @@ const styles = StyleSheet.create({
   },
   comparisonTier: {
     flex: 1,
-    padding: 12,
+    padding: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },
   comparisonHeaderText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700',
   },
   comparisonFeatureText: {
-    fontSize: 13,
+    fontSize: 14,
   },
   comparisonValueText: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
   },
   promoSection: {
     marginBottom: 24,
     padding: 16,
-    backgroundColor: '#F9FAFB',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
   },
   promoLabel: {
     fontSize: 14,

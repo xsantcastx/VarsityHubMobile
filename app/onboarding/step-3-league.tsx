@@ -4,7 +4,7 @@ import { Colors } from '@/constants/Colors';
 import { Type } from '@/ui/tokens';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useColorScheme, View } from 'react-native';
 // @ts-ignore
@@ -17,12 +17,10 @@ import { useOnboarding } from '@/context/OnboardingContext';
 import { useOrganizationSearch } from '@/hooks/useOrganizationSearch';
 import OnboardingLayout from './components/OnboardingLayout';
 
-export default function Step4Organization() {
+export default function Step3League() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
-  const params = useLocalSearchParams<{ returnToConfirmation?: string }>();
-  const returnToConfirmation = params.returnToConfirmation === 'true';
   const { state: ob, setState: setOB, setProgress } = useOnboarding();
   
   // Form state
@@ -88,16 +86,12 @@ export default function Step4Organization() {
           // They can still review/update organization info
           // Only skip in E2E tests
           if (e2e) {
-            setOB((prev) => ({ ...prev, step_4_visited: true }));
-            setProgress(4); // step-5 is index 4
-            if (returnToConfirmation) {
-              router.replace('/onboarding/step-10-confirmation');
-            } else {
-              router.replace('/onboarding/step-5-team');
-            }
+            setOB((prev) => ({ ...prev, step_3_visited: true }));
+            // E2E: skip to feed
+            router.replace('/(tabs)' as any);
             return;
           }
-        } else if ((ob.pending_plan || ob.plan) === 'veteran' || (ob.pending_plan || ob.plan) === 'legend') {
+        } else {
           // Check for existing organizations that the user can manage
           const orgs = await Organization.mine();
           if (orgs && orgs.length > 0) {
@@ -105,26 +99,17 @@ export default function Step4Organization() {
             setExistingOrg(firstOrg);
             setOrgName(firstOrg.name || '');
             setAlreadyExists(true);
-            // Update onboarding state with existing org
-            setOB((prev) => ({ 
-              ...prev, 
-              organization_id: firstOrg.id, 
-              organization_name: firstOrg.name 
+            setOB((prev) => ({
+              ...prev,
+              organization_id: firstOrg.id,
+              organization_name: firstOrg.name
             }));
-            
-            // DON'T auto-skip - let user see step 4 even if org exists
-            // They can still review/update organization info
-            // Only skip in E2E tests
+
             if (e2e) {
-              setOB((prev) => ({ ...prev, step_4_visited: true }));
-              setProgress(4); // step-5 is index 4
-              if (returnToConfirmation) {
-                router.replace('/onboarding/step-10-confirmation');
-              } else {
-                router.replace('/onboarding/step-5-team');
-              }
+              setOB((prev) => ({ ...prev, step_3_visited: true }));
+              router.replace('/(tabs)' as any);
               return;
-          }
+            }
           }
         }
       } catch {
@@ -134,7 +119,7 @@ export default function Step4Organization() {
       }
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps -- ob.pending_plan is intentionally excluded; only ob.plan should trigger re-run
-  }, [ob.plan, returnToConfirmation, router, setOB, setProgress]);
+  }, [ob.plan, router, setOB, setProgress]);
 
   useEffect(() => {
     if (ob.organization_name && !existingOrg) setOrgName(ob.organization_name);
@@ -324,33 +309,23 @@ export default function Step4Organization() {
         message: joinMessage.trim() || undefined
       });
       
-      Alert.alert(
-        'Request Sent!',
-        `Your request to join "${selectedOrg.name}" has been sent to the organization administrator. You'll receive an email notification when it's reviewed.`,
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              // Save pending status and continue
-              setOB((prev) => ({
-                ...prev,
-                organization_id: selectedOrg.id,
-                organization_name: selectedOrg.name,
-                join_request_pending: true,
-                step_4_visited: true,
-              }));
-              
-              if (returnToConfirmation) {
-                setProgress(9);
-                router.replace('/onboarding/step-10-confirmation');
-              } else {
-                setProgress(4); // step-5 is index 4 (NOT step 7)
-                router.replace('/onboarding/step-5-team');
-              }
-            }
-          }
-        ]
-      );
+      // Save pending status
+      setOB((prev) => ({
+        ...prev,
+        organization_id: selectedOrg.id,
+        organization_name: selectedOrg.name,
+        join_request_pending: true,
+        step_3_visited: true,
+      }));
+
+      // Navigate to pending approval screen (coach waits for league owner approval)
+      router.replace({
+        pathname: '/onboarding/pending-approval',
+        params: {
+          leagueName: selectedOrg.name,
+          ownerName: 'the league admin',
+        },
+      } as any);
     } catch (error: any) {
       Alert.alert('Request Failed', error?.data?.error || error?.message || 'Failed to send join request');
     } finally {
@@ -366,15 +341,19 @@ export default function Step4Organization() {
 
     setSaving(true);
     try {
-      // If team/org already exists or join request pending, proceed to next step
+      // If team/org already exists or join request pending, navigate to appropriate pending screen
       if (alreadyExists || ob.join_request_pending) {
-        setOB((prev) => ({ ...prev, step_4_visited: true }));
-        if (returnToConfirmation) {
-          setProgress(9);
-          router.replace('/onboarding/step-10-confirmation');
+        setOB((prev) => ({ ...prev, step_3_visited: true }));
+        if (ob.join_request_pending) {
+          router.replace({
+            pathname: '/onboarding/pending-approval',
+            params: { leagueName: ob.organization_name || 'the league', ownerName: 'the league admin' },
+          } as any);
         } else {
-          setProgress(4); // step-5 is index 4
-          router.replace('/onboarding/step-5-team');
+          router.replace({
+            pathname: '/onboarding/league-pending-approval',
+            params: { leagueName: ob.organization_name || 'your league', orgId: ob.organization_id || '' },
+          } as any);
         }
         return;
       }
@@ -406,7 +385,7 @@ export default function Step4Organization() {
         organization_name: orgName.trim(),
         organization_place_id: selectedPlace?.place_id ?? null,
         organization_location: locationLabel || null,
-        step_4_visited: true,
+        step_3_visited: true,
       }));
 
       // Persist organization_id to backend user preferences immediately
@@ -417,21 +396,15 @@ export default function Step4Organization() {
         if (__DEV__) console.warn('Failed to persist organization_id to backend:', err);
       }
 
-      // Show success toast
-      Alert.alert(
-        'Organization Created!',
-        `"${orgName.trim()}" has been created successfully.`,
-        [{ text: 'Continue', onPress: () => {
-            // Navigate to next step
-            if (returnToConfirmation) {
-              setProgress(9);
-              router.replace('/onboarding/step-10-confirmation');
-            } else {
-              setProgress(4); // step-5 is index 4
-              router.replace('/onboarding/step-5-team');
-            }
-        }}]
-      );
+      // Navigate to league pending approval screen
+      // Super admin (emancero@varsityhub.app) must approve the league before it goes live
+      router.replace({
+        pathname: '/onboarding/league-pending-approval',
+        params: {
+          leagueName: orgName.trim(),
+          orgId: orgId,
+        },
+      } as any);
     } catch (e: any) { 
       // Check if duplicate organization error
       if (e?.message?.includes('DUPLICATE_ORGANIZATION') || e?.message?.toLowerCase().includes('duplicate')) {
@@ -459,7 +432,7 @@ export default function Step4Organization() {
 
   return (
     <OnboardingLayout
-      step={4}
+      step={3}
       title={pageConfig.title}
       subtitle={pageConfig.subtitle}
     >

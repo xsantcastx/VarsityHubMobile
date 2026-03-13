@@ -1,7 +1,7 @@
 import { Game, Organization, Team, User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -61,6 +61,7 @@ export default function OrganizationScreen() {
   const [games, setGames] = useState<GameItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isOrgAdmin, setIsOrgAdmin] = useState(false);
+  const [pendingCoachCount, setPendingCoachCount] = useState(0);
   const [isFollowing, setIsFollowing] = useState(false);
   const [followBusy, setFollowBusy] = useState(false);
   const [isRequestingJoin, setIsRequestingJoin] = useState(false);
@@ -109,6 +110,12 @@ export default function OrganizationScreen() {
             return ['owner', 'manager', 'administrator', 'admin'].includes(String(m.role || '').toLowerCase());
           });
           if (mounted.current) setIsOrgAdmin(!!membership);
+          // Fetch pending coach count for league owners
+          if (membership) {
+            Organization.pendingCoaches(params.id!).then((pending: any) => {
+              if (mounted.current && Array.isArray(pending)) setPendingCoachCount(pending.length);
+            }).catch(() => {});
+          }
         } else {
           if (mounted.current) setIsOrgAdmin(false);
         }
@@ -426,6 +433,23 @@ export default function OrganizationScreen() {
             </>
           )}
         </View>
+
+        {/* Pending Coaches Quick Action */}
+        {isOrgAdmin && pendingCoachCount > 0 && organization?.id && (
+          <Pressable
+            style={[styles.card, styles.sectionCard, { backgroundColor: '#FEF9C3', borderColor: '#DAA520', flexDirection: 'row', alignItems: 'center', gap: 12 }]}
+            onPress={() => router.push('/(tabs)/approvals')}
+          >
+            <MaterialIcons name="group-add" size={24} color="#DAA520" />
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 15, fontWeight: '700', color: '#92400E' }}>
+                {pendingCoachCount} coach{pendingCoachCount !== 1 ? 'es' : ''} pending approval
+              </Text>
+              <Text style={{ fontSize: 12, color: '#A16207', marginTop: 2 }}>Tap to review requests</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#DAA520" />
+          </Pressable>
+        )}
 
         {/* About */}
         <View style={[styles.card, styles.sectionCard, { backgroundColor: theme.card, borderColor: theme.border }]}>

@@ -548,7 +548,7 @@ export default function SettingsScreen() {
                               if (setOB) {
                                 setOB((prev) => ({ ...prev, role: 'coach', plan: undefined, step_3_visited: false, step_4_visited: false }));
                               }
-                              router.push('/onboarding/step-3-plan');
+                              router.push('/onboarding/step-3-league');
                             } catch (e: any) {
                               Alert.alert('Error', e?.data?.error || e?.message || 'Failed to upgrade. Please try again.');
                             }

@@ -531,7 +531,7 @@ const updateSchema = z.object({
   venue_lng: z.number().optional(),
   venue_address: z.string().optional(),
 });
-teamsRouter.put('/:id', requireVerified as any, async (req: AuthedRequest, res) => {
+teamsRouter.put('/:id', requireVerified as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
   debugLog('[Teams PUT] Received update request:', JSON.stringify(req.body));
   // req.user is guaranteed by requireVerified middleware
   const parsed = updateSchema.safeParse(req.body);
@@ -638,7 +638,7 @@ teamsRouter.put('/:id', requireVerified as any, async (req: AuthedRequest, res) 
 });
 
 // Delete team (auth required). Only owners/admins can delete.
-teamsRouter.delete('/:id', requireVerified as any, async (req: AuthedRequest, res) => {
+teamsRouter.delete('/:id', requireVerified as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
   // req.user is guaranteed by requireVerified middleware
   
   const teamId = String(req.params.id);
@@ -728,7 +728,7 @@ teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, req
   
   const data = parsed.data;
   const userId = req.user!.id;
-  const me = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, preferences: true } });
+  const me = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, preferences: true, approval_status: true } });
   if (!me) return res.status(401).json({ error: 'Unauthorized' });
 
   // SECURITY: Enforce coach role — allow if user has any coach-related DB membership,
@@ -759,6 +759,23 @@ teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, req
         error: 'COACH_ROLE_REQUIRED',
         message: 'Only coach accounts can create teams.',
         code: 'COACH_ROLE_REQUIRED'
+      });
+    }
+  }
+
+  // Guard: Coach must be approved before creating teams
+  // Exception: League owners creating during their own onboarding (onboarding: true flag + they are an org owner)
+  if (isCoachByPrefs && me.approval_status !== 'APPROVED') {
+    // Allow league owners during onboarding — they have org owner role
+    const isOnboarding = data.onboarding === true;
+    const isOrgOwner = await prisma.organizationMembership.findFirst({
+      where: { user_id: userId, role: 'owner', status: 'active' },
+    });
+    if (!(isOnboarding && isOrgOwner)) {
+      return res.status(403).json({
+        error: 'APPROVAL_REQUIRED',
+        message: 'Your coach account must be approved by a league admin before creating teams.',
+        code: 'APPROVAL_REQUIRED',
       });
     }
   }

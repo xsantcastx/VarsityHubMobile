@@ -1,5 +1,10 @@
 /**
  * Unit tests for onboarding reducer and step calculation
+ *
+ * Simplified 3-step flow:
+ *   Step 1: Role (fan/coach)
+ *   Step 2: Basic info (username, DOB, zip)
+ *   Step 3: League (coaches only — join or create)
  */
 
 import { nextIncompleteStep, onboardingReducer, createInitialState, OnboardingReducerState } from '../context/onboardingReducer';
@@ -27,58 +32,10 @@ describe('nextIncompleteStep', () => {
       step_2_visited: true,
     };
     const result = nextIncompleteStep(state, 'coach');
-    expect(result).toBe(2); // STEP_3_PLAN.index
+    expect(result).toBe(2); // STEP_3_LEAGUE.index
   });
 
-  it('should return step 4 for coach if step 3 visited but step 4 not visited', () => {
-    const state: OnboardingState = {
-      role: 'coach',
-      username: 'testuser',
-      dob: '2000-01-01',
-      zip: '12345',
-      plan: 'rookie',
-      step_2_visited: true,
-      step_3_visited: true,
-    };
-    const result = nextIncompleteStep(state, 'coach');
-    expect(result).toBe(3); // STEP_4_ORGANIZATION.index
-  });
-
-  it('should return step 6 for coach if steps 2-5 are complete', () => {
-    const state: OnboardingState = {
-      role: 'coach',
-      username: 'testuser',
-      dob: '2000-01-01',
-      zip: '12345',
-      plan: 'rookie',
-      team_id: 'team-123',
-      step_2_visited: true,
-      step_3_visited: true,
-      step_4_visited: true,
-    };
-    const result = nextIncompleteStep(state, 'coach');
-    expect(result).toBe(5); // STEP_6_AUTHORIZED_USERS.index
-  });
-
-  it('should NOT skip to step 7 if step 6 has not been visited', () => {
-    const state: OnboardingState = {
-      role: 'coach',
-      username: 'testuser',
-      dob: '2000-01-01',
-      zip: '12345',
-      plan: 'rookie',
-      team_id: 'team-123',
-      step_2_visited: true,
-      step_3_visited: true,
-      step_4_visited: true,
-    };
-    const result = nextIncompleteStep(state, 'coach');
-    // Should be step 6, not step 7
-    expect(result).toBe(5); // STEP_6_AUTHORIZED_USERS.index
-    expect(result).not.toBe(6); // STEP_7_PROFILE.index
-  });
-
-  it('should skip coach steps for fans and go to profile then confirmation', () => {
+  it('should return step 2 (done) for fan after step 2 visited', () => {
     const state: OnboardingState = {
       role: 'fan',
       username: 'testuser',
@@ -87,8 +44,21 @@ describe('nextIncompleteStep', () => {
       step_2_visited: true,
     };
     const result = nextIncompleteStep(state, 'fan');
-    // Fans skip steps 3-6, so next incomplete is step 7 (profile)
-    expect(result).toBe(6); // STEP_7_PROFILE.index
+    // Fans are done after step 2
+    expect(result).toBe(1); // STEP_2_BASIC.index (last completed step)
+  });
+
+  it('should return step 3 (done) for coach after all steps visited', () => {
+    const state: OnboardingState = {
+      role: 'coach',
+      username: 'testuser',
+      dob: '2000-01-01',
+      zip: '12345',
+      step_2_visited: true,
+      step_3_visited: true,
+    };
+    const result = nextIncompleteStep(state, 'coach');
+    expect(result).toBe(2); // STEP_3_LEAGUE.index (last completed step)
   });
 
   it('should enforce step order for coaches - never jump ahead', () => {
@@ -106,12 +76,10 @@ describe('onboardingReducer', () => {
   it('should reset reducer state', () => {
     const state: OnboardingReducerState = {
       ...createInitialState(),
-      currentStepIndex: 4,
+      currentStepIndex: 2,
       draftData: {
         role: 'coach',
         username: 'testuser',
-        plan: 'rookie',
-        team_id: 'team-123',
       },
       initialized: true,
       isSaving: true,
@@ -147,11 +115,10 @@ describe('onboardingReducer', () => {
       currentStepIndex: 1,
     };
     const newState = onboardingReducer(state, { type: 'NEXT' });
-    // Should not change step if saving
     expect(newState.currentStepIndex).toBe(1);
   });
 
-  it('should handle SAVE_START and SAVE_SUCCESS', async () => {
+  it('should handle SAVE_START and SAVE_SUCCESS', () => {
     const state = createInitialState();
     let currentState = onboardingReducer(state, { type: 'SAVE_START' });
     expect(currentState.isSaving).toBe(true);
@@ -191,20 +158,33 @@ describe('Step order integration', () => {
     steps.push(nextIncompleteStep(state, 'coach'));
     state = { ...state, username: 'test', dob: '2000-01-01', zip: '12345', step_2_visited: true };
 
-    // Step 3: Basic info complete, need plan
+    // Step 3: Basic info complete, need league
     steps.push(nextIncompleteStep(state, 'coach'));
-    state = { ...state, plan: 'rookie', step_3_visited: true };
+    state = { ...state, step_3_visited: true };
 
-    // Step 4: Plan selected, need organization
-    steps.push(nextIncompleteStep(state, 'coach'));
-    state = { ...state, step_4_visited: true, team_id: 'team-123' };
-
-    // Step 6: Team created, need to visit authorized users
+    // Done: All steps complete
     steps.push(nextIncompleteStep(state, 'coach'));
 
-    // Verify steps are in order
-    expect(steps).toEqual([0, 1, 2, 3, 5]); // no_role->role, role->basic, basic->plan, plan->org, org->auth_users
-    // Verify step 7 (index 6) is NOT in the sequence yet
-    expect(steps).not.toContain(6);
+    // Verify steps are: role(0) → basic(1) → league(2) → done(2)
+    expect(steps).toEqual([0, 1, 2, 2]);
+  });
+
+  it('should maintain correct step order for fan onboarding', () => {
+    const steps: number[] = [];
+    let state: OnboardingState = {};
+
+    // Step 1: No role yet
+    steps.push(nextIncompleteStep(state, 'fan'));
+    state = { ...state, role: 'fan' };
+
+    // Step 2: Role selected, need basic info
+    steps.push(nextIncompleteStep(state, 'fan'));
+    state = { ...state, username: 'test', dob: '2000-01-01', zip: '12345', step_2_visited: true };
+
+    // Done: Fans are done after step 2
+    steps.push(nextIncompleteStep(state, 'fan'));
+
+    // Verify steps are: role(0) → basic(1) → done(1)
+    expect(steps).toEqual([0, 1, 1]);
   });
 });

@@ -6,7 +6,7 @@ import { User } from '@/api/entities';
 import { Ionicons } from '@expo/vector-icons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useFocusEffect } from '@react-navigation/native';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TouchableOpacity, View, useColorScheme } from 'react-native';
 import OnboardingLayout from './components/OnboardingLayout';
@@ -129,7 +129,6 @@ export default function Step1Role() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const { user } = useAuth();
-  const params = useLocalSearchParams<{ returnToConfirmation?: string }>();
   const { state: ob, setState: setOB, setProgress, clearOnboarding, dispatch, canNavigate } = useOnboarding();
   const [role, setRole] = useState<UserRole | null>(null);
   const [saving, setSaving] = useState(false);
@@ -191,8 +190,6 @@ export default function Step1Role() {
     }, [])
   );
 
-  const returnToConfirmation = params.returnToConfirmation === 'true';
-
   // Reset coach age confirmation when switching away from coach
   useEffect(() => {
     if (role !== 'coach') {
@@ -249,38 +246,19 @@ export default function Step1Role() {
         }
       }
       
-      // If we came from confirmation, go back there
-      if (returnToConfirmation) {
-        dispatch({ type: 'SET_STEP', stepIndex: 9, reason: 'RETURN_TO_CONFIRMATION' });
-        setProgress(9);
-        router.replace('/onboarding/step-10-confirmation');
-      } else {
-        // Use reducer to calculate next step deterministically
-        const updatedState = (role === 'coach' && !wasCoachBefore) || (role === 'fan' && wasCoachBefore)
-          ? { role }
-          : { ...ob, role };
-        const nextStepIndex = nextIncompleteStep(updatedState, role);
-        const nextRoute = STEP_ROUTES[nextStepIndex] || STEP_ROUTES[0];
-        
-        if (__DEV__) {
-          // eslint-disable-next-line no-console
-          if (__DEV__) console.log('[STEP-1] Navigation after role selection:', {
-            role,
-            wasCoachBefore,
-            nextStepIndex,
-            nextRoute,
-            calculatedNext: nextIncompleteStep(updatedState, role),
-          });
-        }
-        
-        // Save role and navigate to calculated next step
-        dispatch({ 
-          type: 'SAVE_SUCCESS', 
-          data: { role } 
-        });
-        setProgress(nextStepIndex);
-        router.replace(nextRoute as any);
-      }
+      // Always go to step 2 (basic info) after role selection
+      const updatedState = (role === 'coach' && !wasCoachBefore) || (role === 'fan' && wasCoachBefore)
+        ? { role }
+        : { ...ob, role };
+      const nextStepIndex = nextIncompleteStep(updatedState, role);
+      const nextRoute = STEP_ROUTES[nextStepIndex] || STEP_ROUTES[0];
+
+      dispatch({
+        type: 'SAVE_SUCCESS',
+        data: { role }
+      });
+      setProgress(nextStepIndex);
+      router.replace(nextRoute as any);
     } catch (error) {
       if (__DEV__) {
         if (__DEV__) console.error('[STEP-1] Error during continue:', error);
@@ -312,7 +290,7 @@ export default function Step1Role() {
       emailVerified={emailVerified === null ? undefined : emailVerified}
       onVerifyEmail={() => void router.push('/(tabs)/verify-email')}
     >
-      <Stack.Screen options={{ title: 'Step 1/10', headerShown: false }} />
+      <Stack.Screen options={{ title: 'Step 1', headerShown: false }} />
       
       <RoleCard
         title="Fan"

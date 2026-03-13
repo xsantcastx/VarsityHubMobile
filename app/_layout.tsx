@@ -181,6 +181,16 @@ export default function RootLayout() {
             }
             break;
 
+          case 'coach_request':
+            devLog('[Notifications] Navigating to approvals');
+            router.push('/(tabs)/approvals' as any);
+            break;
+
+          case 'coach_approved':
+            devLog('[Notifications] Coach approved — navigating to main app');
+            router.push('/(tabs)' as any);
+            break;
+
           default:
             devLog('[Notifications] Unknown notification type:', data.type);
         }

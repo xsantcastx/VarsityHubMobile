@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from 'express';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
+import { requireOnboarded } from '../middleware/requireOnboarded.js';
 
 export const tournamentsRouter = Router();
 
@@ -15,7 +16,7 @@ const toOptionalNumber = (value: unknown) => {
  * POST /tournaments
  * Create a new tournament organization
  */
-tournamentsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res: Response) => {
+tournamentsRouter.post('/', requireAuth as any, requireOnboarded as any, async (req: AuthedRequest, res: Response) => {
   try {
     const {
       name,
@@ -120,7 +121,7 @@ tournamentsRouter.get('/:id', async (req: Request, res: Response) => {
  * PATCH /tournaments/:id
  * Update tournament
  */
-tournamentsRouter.patch('/:id', requireAuth as any, async (req: AuthedRequest, res: Response) => {
+tournamentsRouter.patch('/:id', requireAuth as any, requireOnboarded as any, async (req: AuthedRequest, res: Response) => {
   try {
     const { id } = req.params;
 
@@ -162,7 +163,7 @@ tournamentsRouter.patch('/:id', requireAuth as any, async (req: AuthedRequest, r
  * POST /tournaments/:id/teams
  * Add team to tournament
  */
-tournamentsRouter.post('/:id/teams', requireAuth as any, async (req: AuthedRequest, res: Response) => {
+tournamentsRouter.post('/:id/teams', requireAuth as any, requireOnboarded as any, async (req: AuthedRequest, res: Response) => {
   try {
     const { id } = req.params;
     const { team_id } = req.body;
@@ -194,7 +195,7 @@ tournamentsRouter.post('/:id/teams', requireAuth as any, async (req: AuthedReque
  * POST /tournaments/:id/games
  * Create a tournament game/match
  */
-tournamentsRouter.post('/:id/games', requireAuth as any, async (req: AuthedRequest, res: Response) => {
+tournamentsRouter.post('/:id/games', requireAuth as any, requireOnboarded as any, async (req: AuthedRequest, res: Response) => {
   try {
     const { id } = req.params;
     const {

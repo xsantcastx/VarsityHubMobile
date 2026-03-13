@@ -21,7 +21,7 @@ type Notif = {
   comment?: { id: string; content?: string | null; post_id?: string | null } | null;
   message?: { id: string; content?: string | null; conversation_id?: string | null } | null;
   event?: { id: string; title?: string | null } | null;
-  meta?: { event_id?: string; event_title?: string } | null;
+  meta?: { event_id?: string; event_title?: string; [key: string]: any } | null;
 };
 
 export default function NotificationsScreen() {
@@ -114,6 +114,10 @@ export default function NotificationsScreen() {
       ? `${actorName} commented on your post`
       : item.type === 'MESSAGE'
       ? `${actorName} sent you a message`
+      : item.type === 'TEAM_INVITE' && item.meta?.coach_approved
+      ? `${item.meta?.organization_name || 'A league'} approved your coach application`
+      : item.type === 'TEAM_INVITE' && item.meta?.coach_request
+      ? `${item.meta?.coach_name || actorName} wants to join ${item.meta?.organization_name || 'your league'}`
       : item.type === 'TEAM_INVITE'
       ? `${actorName} invited you to a team`
       : item.type === 'MENTION'
@@ -135,6 +139,10 @@ export default function NotificationsScreen() {
         router.push(`/(tabs)/post-detail${q}` as any);
       } else if (item.type === 'MESSAGE' && item.message?.conversation_id) {
         router.push(`/(tabs)/message-thread?conversation_id=${encodeURIComponent(item.message.conversation_id)}` as any);
+      } else if (item.type === 'TEAM_INVITE' && item.meta?.coach_request) {
+        router.push('/(tabs)/approvals' as any);
+      } else if (item.type === 'TEAM_INVITE' && item.meta?.coach_approved) {
+        router.push('/(tabs)' as any);
       } else if (item.type === 'TEAM_INVITE') {
         router.push('/team-invites');
       } else if (item.type === 'GAME_REMINDER' && (item.event?.id || item.meta?.event_id)) {

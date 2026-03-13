@@ -8,6 +8,16 @@ datasource db {
 }
 
 // ===========================
+// Approval Status Enum
+// ===========================
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// ===========================
 // Core Models
 // ===========================
 
@@ -34,13 +44,17 @@ model User {
   ban_reason                 String?   @db.Text
   banned_until               DateTime?
   preferences                Json      @default("{}")
-  
+
+  // Coach approval status — APPROVED for fans, PENDING for new coaches until league owner approves
+  approval_status            ApprovalStatus @default(APPROVED)
+
   // Subscription/Premium fields
   subscription_tier          String    @default("free") // free | premium | pro
   subscription_status        String    @default("active") // active | cancelled | expired
   subscription_expires_at    DateTime?
   stripe_customer_id         String?   @unique
   max_teams                  Int       @default(2) // Free users get 2 teams
+  paid_by_owner              Boolean   @default(false) // true if coach's plan is covered by league owner
 
   // Relations
   memberships TeamMembership[]
@@ -86,7 +100,10 @@ model User {
   // Games (approval workflow)
   createdGames    Game[] @relation("created_games")
   approvedGames   Game[] @relation("approved_games")
-  
+
+  // League ownership (organizations this user owns)
+  ownedOrganizations Organization[] @relation("league_owner")
+
   // Abuse Reports
   abuseReports    AbuseReport[]
 
@@ -275,6 +292,10 @@ model Event {
   approved_at     DateTime?
   rejected_reason String?
 
+  // Team association — fan pitches must be tied to a team
+  team_id         String?
+  team            Team?     @relation(fields: [team_id], references: [id], onDelete: SetNull)
+
   game    Game?       @relation(fields: [game_id], references: [id], onDelete: SetNull)
   creator User?       @relation(fields: [creator_id], references: [id], onDelete: SetNull)
   rsvps   EventRsvp[]
@@ -286,6 +307,7 @@ model Event {
   @@index([approval_status])
   @@index([event_type])
   @@index([status])
+  @@index([team_id])
 }
 
 model Message {
@@ -641,7 +663,10 @@ model Team {
   // Game relations
   homeGames   Game[] @relation("home_games")
   awayGames   Game[] @relation("away_games")
-  
+
+  // Event relations (fan pitches tied to team)
+  events      Event[]
+
   @@index([name])
   @@index([city, state])
   @@index([sport])
@@ -662,16 +687,26 @@ model Organization {
   created_at  DateTime @default(now())
   updated_at  DateTime @default(now()) @updatedAt
 
+  // Super admin approval — every league page owner must be approved by emancero@varsityhub.app
+  admin_approved Boolean   @default(false)
+  approved_by    String?   // super admin user ID who approved
+  approved_at    DateTime?
+
+  // League owner — the user who owns/pays for this league page
+  league_owner_id String?
+  leagueOwner     User?    @relation("league_owner", fields: [league_owner_id], references: [id], onDelete: SetNull)
+
   teams       Team[]
   memberships OrganizationMembership[]
   invites     OrganizationInvite[]
   joinRequests OrganizationJoinRequest[]
   followers   OrganizationFollow[]
-  
+
   @@unique([name, zip_code])
   @@index([name])
   @@index([zip_code])
   @@index([location])
+  @@index([league_owner_id])
 }
 
 model OrganizationJoinRequest {

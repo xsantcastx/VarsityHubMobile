@@ -2,12 +2,13 @@ import DateField from '@/components/ui/DateField';
 import { Input } from '@/components/ui/input';
 import PrimaryButton from '@/components/ui/PrimaryButton';
 import { Type } from '@/ui/tokens';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
+import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding, type Affiliation } from '@/context/OnboardingContext';
 import { STEP_ROUTES, nextIncompleteStep } from '@/context/onboardingReducer';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -79,7 +80,7 @@ function SportBallRow() {
 export default function Step2Basic() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
-  const params = useLocalSearchParams<{ returnToConfirmation?: string }>();
+  const { markOnboardingCompleteLocally } = useAuth();
   const { state: ob, setState: setOB, setProgress, dispatch, canNavigate } = useOnboarding();
   const [username, setUsername] = useState('');
   const [affiliation, setAffiliation] = useState<Affiliation>('none');
@@ -89,8 +90,6 @@ export default function Step2Basic() {
   const [available, setAvailable] = useState<boolean | null>(null);
   const [saving, setSaving] = useState(false);
   const [emailVerified, setEmailVerified] = useState<boolean | null>(null);
-
-  const returnToConfirmation = params.returnToConfirmation === 'true';
 
   const styles = useMemo(() => createStyles(colorScheme), [colorScheme]);
 
@@ -208,12 +207,8 @@ export default function Step2Basic() {
     (ob.role === 'fan' || affiliation); // Affiliation required for coaches only
 
   const onBack = () => {
-    if (returnToConfirmation) {
-      router.replace('/onboarding/step-10-confirmation');
-    } else {
-      setProgress(0);
-      if (router.canGoBack()) router.back();
-    }
+    setProgress(0);
+    if (router.canGoBack()) router.back();
   };
 
   const onContinue = async () => {
@@ -265,42 +260,31 @@ export default function Step2Basic() {
         return;
       }
 
-      // Navigate back to confirmation if we came from there, otherwise use reducer to calculate next step
-      if (returnToConfirmation) {
-        dispatch({ type: 'SET_STEP', stepIndex: 9, reason: 'RETURN_TO_CONFIRMATION' });
-        setProgress(9);
-        router.replace('/onboarding/step-10-confirmation');
+      const currentRole = ob.role;
+      const updatedDataWithRole = { ...updatedData, role: currentRole };
+
+      if (currentRole === 'coach') {
+        // Coaches go to step 3 (league)
+        dispatch({ type: 'SAVE_SUCCESS', data: updatedDataWithRole });
+        setProgress(2);
+        router.replace('/onboarding/step-3-league' as any);
       } else {
-        // Preserve role in updated data to prevent it from being lost
-        const currentRole = ob.role;
-        const updatedDataWithRole = { ...updatedData, role: currentRole };
-        const updatedState = { ...ob, ...updatedDataWithRole };
-        const isCoach = currentRole === 'coach';
-        const nextStepIndex = isCoach
-          ? 2 // Step 3 (Plan) for coaches, always sequential from Step 2
-          : nextIncompleteStep(updatedState, currentRole);
-        const nextRoute = isCoach
-          ? '/onboarding/step-3-plan'
-          : (STEP_ROUTES[nextStepIndex] || STEP_ROUTES[0]);
-        
-        if (__DEV__) {
-          // eslint-disable-next-line no-console
-          if (__DEV__) console.log('[STEP-2] Navigation after save:', {
-            role: currentRole,
-            isCoach,
-            nextStepIndex,
-            nextRoute,
-            calculatedNext: nextIncompleteStep(updatedState, currentRole),
+        // Fans are DONE — complete onboarding right here
+        try {
+          await User.completeOnboarding({
+            role: 'fan',
+            username: finalUsername,
+            dob,
+            zip_code: zip || undefined,
+            affiliation,
           });
+          await markOnboardingCompleteLocally();
+        } catch (completeErr: any) {
+          if (__DEV__) console.error('[step-2] Failed to complete fan onboarding:', completeErr);
+          // Still navigate — server may have completed it
         }
-        
-        // Save and navigate - include role to ensure reducer state is consistent
-        dispatch({ 
-          type: 'SAVE_SUCCESS', 
-          data: updatedDataWithRole 
-        });
-        setProgress(nextStepIndex);
-        router.replace(nextRoute as any);
+        dispatch({ type: 'SAVE_SUCCESS', data: updatedDataWithRole });
+        router.replace('/(tabs)' as any);
       }
     } catch (e: any) { 
       if (__DEV__) console.error('[step-2-basic] Failed to save:', e);
