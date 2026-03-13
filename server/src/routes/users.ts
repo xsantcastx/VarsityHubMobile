@@ -480,35 +480,15 @@ usersRouter.get('/:id/teams', async (req: AuthedRequest, res) => {
   }
 });
 
-// Delete own account (soft-delete with anonymization)
+// Delete own account (hard-delete user and all their data)
 usersRouter.delete('/me', requireAuth as any, async (req: AuthedRequest, res) => {
   const id = req.user!.id;
-  const ts = Date.now();
-  const deletedEmail = `deleted+${id}+${ts}@example.com`;
   try {
-    // Use transaction to ensure atomicity
     await prisma.$transaction(async (tx) => {
-      // Anonymize user data
-      await tx.user.update({
-        where: { id },
-        data: {
-          banned: true,
-          email: deletedEmail,
-          password_hash: `deleted:${ts}:${Math.random().toString(36).slice(2)}`,
-          display_name: null,
-          username: null,
-          avatar_url: null,
-          bio: null,
-          preferences: {}, // Clear preferences
-        },
-      });
-      
-      // Anonymize posts (set author to null or keep but mark as deleted)
-      // Note: We keep posts but remove author reference for privacy
-      // If you want to delete posts, uncomment:
-      // await tx.post.deleteMany({ where: { author_id: id } });
-      
-      // Remove follows (both directions)
+      // Delete user's interactions
+      await tx.postUpvote.deleteMany({ where: { user_id: id } });
+      await tx.postBookmark.deleteMany({ where: { user_id: id } });
+      await tx.comment.deleteMany({ where: { author_id: id } as any });
       await tx.follows.deleteMany({
         where: {
           OR: [
@@ -517,18 +497,14 @@ usersRouter.delete('/me', requireAuth as any, async (req: AuthedRequest, res) =>
           ]
         }
       });
-      
-      // Remove upvotes and bookmarks (user's interactions)
-      await tx.postUpvote.deleteMany({ where: { user_id: id } });
-      await tx.postBookmark.deleteMany({ where: { user_id: id } });
-      
-      // Anonymize comments (or delete them)
-      // Option 1: Delete comments
-      await tx.comment.deleteMany({ where: { author_id: id } as any });
-      // Option 2: Keep comments but anonymize (if you want to preserve discussion)
-      // await tx.comment.updateMany({ where: { author_id: id }, data: { author_id: null } });
+
+      // Delete user's posts
+      await tx.post.deleteMany({ where: { author_id: id } });
+
+      // Delete the user record entirely so they can re-register
+      await tx.user.delete({ where: { id } });
     });
-    
+
     return res.json({ deleted: true, message: 'Account deleted successfully' });
   } catch (e: any) {
     console.error('Account deletion error:', e);
