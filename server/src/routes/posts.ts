@@ -1540,7 +1540,7 @@ postsRouter.patch('/:postId/comments/:commentId', requireAuth as any, async (req
 });
 
 // New route handler for creating a collage post
-postsRouter.post('/collage', requireVerified as any, async (req: AuthedRequest, res) => {
+postsRouter.post('/collage', requireVerified as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
   const { title, postIds } = req.body;
 
   if (!Array.isArray(postIds) || postIds.length === 0) {
