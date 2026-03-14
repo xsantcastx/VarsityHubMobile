@@ -9,6 +9,7 @@ import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
+import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 
 type ParamValue = string | string[] | undefined;
@@ -23,6 +24,7 @@ const toSingleValue = (value: ParamValue): string | undefined => {
 export default function VerifyScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
+  const { checkAuth } = useAuth();
   const params = useLocalSearchParams<{ devCode?: ParamValue }>();
   
   const [code, setCode] = useState('');
@@ -59,6 +61,7 @@ export default function VerifyScreen() {
     setLoading(true); setError(null); setInfo(null);
     try {
       await User.verifyEmail(code.trim());
+      await checkAuth().catch(() => {});
       setInfo('✅ Email verified successfully!');
 
       setCode(''); // Clear the code input

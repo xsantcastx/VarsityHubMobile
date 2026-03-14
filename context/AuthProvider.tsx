@@ -14,7 +14,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import { useRouter, useSegments } from 'expo-router';
-import { AppState } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 // @ts-ignore JS exports
 import auth from '@/api/auth';
@@ -276,11 +276,13 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
 
         return me;
       } catch (err: any) {
-        setUser(null);
-        // Don't clear onboarding flag on auth error - keep it for when user logs back in
-        // Only throw if it's not a 401 (unauthorized) - 401 is expected when not logged in
-        if (err?.status !== 401) {
-          if (__DEV__) console.error('[AuthProvider] checkAuth error:', err);
+        // Only clear auth state on explicit unauthorized responses.
+        // For transient network/server errors, preserve the existing session.
+        if (err?.status === 401) {
+          setUser(null);
+          setPendingVerificationEmail(null);
+        } else {
+          if (__DEV__) console.error('[AuthProvider] checkAuth transient error (session preserved):', err);
         }
         throw err;
       }
@@ -521,12 +523,13 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         && user.preferences?.payment_pending === true
         && (pendingPlan === 'veteran' || pendingPlan === 'legend')
         && (user.preferences?.payment_approved === true || user.preferences?.join_request_pending !== true);
+      const isWebRuntime = Platform.OS === 'web';
       const isOnPaymentPath = currentPath.includes('settings/manage-subscription')
         || currentPath.includes('subscription-paywall')
         || currentPath.includes('payment-success')
         || currentPath.includes('billing');
 
-      if (!needsOnboarding && coachNeedsCheckout && !isOnPaymentPath) {
+      if (!needsOnboarding && coachNeedsCheckout && !isOnPaymentPath && !isWebRuntime) {
         if (__DEV__) console.log('[AuthProvider] Approved coach must complete checkout before tools');
         if (lastRedirectRef.current !== '/settings/manage-subscription') {
           lastRedirectRef.current = '/settings/manage-subscription';
@@ -585,7 +588,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         router.replace('/sign-in');
       }
     }
-  }, [user, pendingVerificationEmail, initializing, healthOk, router, hasCompletedOnboarding]);
+  }, [user, pendingVerificationEmail, initializing, healthOk, router, hasCompletedOnboarding, segments]);
 
   const value = useMemo<AuthContextType>(() => ({
     user,

@@ -1221,7 +1221,7 @@ authRouter.post('/upgrade-to-coach', requireAuth as any, async (req: AuthedReque
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
   const schema = z.object({
-    plan: z.enum(['rookie', 'veteran', 'legend']),
+    plan: z.enum(['rookie', 'veteran', 'legend']).optional(),
   });
   const parsed = schema.safeParse(req.body || {});
   if (!parsed.success) {
@@ -1235,10 +1235,14 @@ authRouter.post('/upgrade-to-coach', requireAuth as any, async (req: AuthedReque
     return res.status(400).json({ error: 'Account is already a coach account.' });
   }
 
+  const selectedPlan = parsed.data.plan || 'rookie';
+  const isPaidPlan = selectedPlan === 'veteran' || selectedPlan === 'legend';
   const merged = {
     ...currentPrefs,
     role: 'coach',
-    plan: parsed.data.plan,
+    plan: 'rookie',
+    pending_plan: isPaidPlan ? selectedPlan : null,
+    payment_pending: isPaidPlan,
     onboarding_completed: false,
   };
 

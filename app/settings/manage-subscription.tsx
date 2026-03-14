@@ -124,7 +124,15 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
       return;
     }
 
-    // Web/fallback: Use Stripe
+    if (Platform.OS === 'web') {
+      Alert.alert(
+        'Web checkout unavailable',
+        'Subscription checkout is currently supported in the mobile app only. Please continue on iOS or Android.'
+      );
+      return;
+    }
+
+    // Non-mobile fallback: Use Stripe PaymentSheet
     setLoading(true);
     try {
       const res = await httpPost('/payments/create-payment-sheet', { plan: targetPlan }) as PaymentSheetResponse;

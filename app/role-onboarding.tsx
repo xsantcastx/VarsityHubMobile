@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, useColorScheme, View } from 'react-native';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
-import { useOnboarding } from '@/context/OnboardingContext';
+import { OBProvider, useOnboarding } from '@/context/OnboardingContext';
 
 type OnboardingAction = {
   icon: keyof typeof Ionicons.glyphMap;
@@ -20,7 +20,7 @@ type OnboardingAction = {
 type AccountType = 'fan' | 'coach';
 type CoachTier = 'rookie' | 'veteran' | 'legend';
 
-export default function RoleOnboardingScreen() {
+function RoleOnboardingScreenInner() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const { setState: setOB } = useOnboarding();
@@ -152,7 +152,14 @@ export default function RoleOnboardingScreen() {
       setCoachTier(tier);
       setShowCoachTierSelection(false);
       // Sync role and plan to onboarding context so main flow has correct state
-      setOB((prev) => ({ ...prev, role: 'coach', pending_plan: tier, plan: tier }));
+      const isPaidPlan = tier === 'veteran' || tier === 'legend';
+      setOB((prev) => ({
+        ...prev,
+        role: 'coach',
+        plan: 'rookie',
+        pending_plan: isPaidPlan ? tier : null,
+        payment_pending: isPaidPlan,
+      }));
       logTelemetry('coach-tier-success', { tier });
 
       // Redirect to coach onboarding (plan selection) with fan steps skipped
@@ -235,7 +242,7 @@ export default function RoleOnboardingScreen() {
     {
       icon: 'trophy',
       title: 'Unlimited Teams',
-      description: Platform.OS === 'ios' ? 'Add as many teams as you need' : 'Add as many teams as you need - $1.00/month each',
+      description: 'First 2 teams free, then $1.00/month per additional team',
       route: '/(tabs)/manage-teams',
       gradient: ['#f59e0b', '#d97706'],
     },
@@ -490,7 +497,7 @@ export default function RoleOnboardingScreen() {
     } else if (coachTier === 'veteran') {
       actions = veteranActions;
       welcomeTitle = 'Welcome, Veteran Coach! 🏆';
-      welcomeSubtitle = Platform.OS === 'ios' ? 'Unlimited teams' : 'Unlimited teams at $1.00/month each (first 2 free)';
+      welcomeSubtitle = 'Unlimited teams at $1.00/month per additional team (first 2 free)';
     } else if (coachTier === 'legend') {
       actions = legendActions;
       welcomeTitle = 'Welcome, Legend Coach! ⚡';
@@ -591,6 +598,14 @@ export default function RoleOnboardingScreen() {
         )}
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+export default function RoleOnboardingScreen() {
+  return (
+    <OBProvider>
+      <RoleOnboardingScreenInner />
+    </OBProvider>
   );
 }
 

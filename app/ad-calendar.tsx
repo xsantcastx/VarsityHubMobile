@@ -461,6 +461,14 @@ export default function AdCalendarScreen() {
       return;
     }
 
+    if (Platform.OS === 'web') {
+      Alert.alert(
+        'Web checkout unavailable',
+        'Ad payment checkout is currently supported in the mobile app only. Please continue on iOS or Android.'
+      );
+      return;
+    }
+
     // Guard against local-only ad IDs that were never persisted to the server
     if (adId.startsWith('local-')) {
       Alert.alert('Ad Not Saved', 'This ad was not saved to the server. Please go back and re-submit your ad.');
