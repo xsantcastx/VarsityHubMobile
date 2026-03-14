@@ -21,6 +21,7 @@ export default function LeaguePendingApproval() {
   const orgId = params.orgId || '';
   const [approved, setApproved] = useState(false);
   const [checking, setChecking] = useState(false);
+  const [completionError, setCompletionError] = useState<string | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Poll organization status every 30 seconds
@@ -28,6 +29,7 @@ export default function LeaguePendingApproval() {
     if (!orgId) return;
     try {
       setChecking(true);
+      setCompletionError(null);
       const org: any = await httpGet(`/organizations/${orgId}`);
       if (org?.admin_approved === true) {
         setApproved(true);
@@ -35,7 +37,9 @@ export default function LeaguePendingApproval() {
           clearInterval(intervalRef.current);
           intervalRef.current = null;
         }
-        // Complete onboarding on server, then go to main app
+        // Complete onboarding on server, then go to main app.
+        // If completion fails, stay here and surface a retry action.
+        let completed = false;
         try {
           const me: any = await User.me().catch(() => null);
           await User.completeOnboarding({
@@ -48,8 +52,24 @@ export default function LeaguePendingApproval() {
             organization_name: leagueName || ob.organization_name,
           });
           await markOnboardingCompleteLocally();
+          completed = true;
         } catch (err) {
           if (__DEV__) console.warn('[league-pending-approval] Failed to complete onboarding:', err);
+        }
+        if (!completed) {
+          try {
+            const refreshed: any = await User.me();
+            if (refreshed?.preferences?.onboarding_completed === true) {
+              await markOnboardingCompleteLocally();
+              completed = true;
+            }
+          } catch {
+            // ignore follow-up check failures
+          }
+        }
+        if (!completed) {
+          setCompletionError('League is approved, but final account setup failed. Tap retry below.');
+          return;
         }
         setTimeout(() => {
           router.replace('/(tabs)' as any);
@@ -60,7 +80,7 @@ export default function LeaguePendingApproval() {
     } finally {
       setChecking(false);
     }
-  }, [orgId, router]);
+  }, [leagueName, markOnboardingCompleteLocally, ob.dob, ob.organization_id, ob.organization_name, ob.username, ob.zip, ob.zip_code, orgId, router]);
 
   useEffect(() => {
     checkApproval();
@@ -147,7 +167,19 @@ export default function LeaguePendingApproval() {
         )}
 
         {approved && (
-          <ActivityIndicator size="large" color="#16A34A" style={{ marginTop: 24 }} />
+          <>
+            <ActivityIndicator size="large" color="#16A34A" style={{ marginTop: 24 }} />
+            {completionError ? (
+              <>
+                <Text style={[styles.supportText, { color: '#EF4444', marginTop: 16, marginBottom: 8 }]}>
+                  {completionError}
+                </Text>
+                <Pressable style={[styles.secondaryButton, { borderColor: isDark ? '#374151' : '#D1D5DB' }]} onPress={() => { void checkApproval(); }}>
+                  <Text style={[styles.secondaryButtonText, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Retry Setup</Text>
+                </Pressable>
+              </>
+            ) : null}
+          </>
         )}
       </View>
     </SafeAreaView>

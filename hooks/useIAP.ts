@@ -23,7 +23,12 @@ export const IAP_PRODUCT_IDS = {
   legend: 'Legend_vhub',
 } as const;
 
-const ALL_SKUS = [IAP_PRODUCT_IDS.veteran, IAP_PRODUCT_IDS.legend];
+// Keep aliases for resilience across historical casing differences.
+const PLAN_SKUS: Record<'veteran' | 'legend', string[]> = {
+  veteran: [IAP_PRODUCT_IDS.veteran],
+  legend: [IAP_PRODUCT_IDS.legend, 'legend_vhub'],
+};
+const ALL_SKUS = Array.from(new Set([...PLAN_SKUS.veteran, ...PLAN_SKUS.legend]));
 
 export function useVHubIAP() {
   const [purchasing, setPurchasing] = useState(false);
@@ -116,11 +121,14 @@ export function useVHubIAP() {
 
   const purchase = useCallback(
     async (plan: 'veteran' | 'legend'): Promise<boolean> => {
-      const sku = IAP_PRODUCT_IDS[plan];
-      if (!sku) {
+      const planSkus = PLAN_SKUS[plan];
+      if (!planSkus || planSkus.length === 0) {
         setError(`Unknown plan: ${plan}`);
         return false;
       }
+      // Prefer the SKU currently returned from the store, fall back to primary configured SKU.
+      const availableSku = subscriptions.find((p) => planSkus.includes((p as any).productId)) as any;
+      const sku = availableSku?.productId || planSkus[0];
 
       setPurchasing(true);
       setError(null);
@@ -153,8 +161,8 @@ export function useVHubIAP() {
 
   const getProduct = useCallback(
     (plan: 'veteran' | 'legend') => {
-      const sku = IAP_PRODUCT_IDS[plan];
-      return subscriptions.find((p) => (p as any).productId === sku);
+      const planSkus = PLAN_SKUS[plan];
+      return subscriptions.find((p) => planSkus.includes((p as any).productId));
     },
     [subscriptions]
   );
