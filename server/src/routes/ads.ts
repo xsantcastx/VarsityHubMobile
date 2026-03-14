@@ -264,7 +264,6 @@ adsRouter.get('/for-feed', async (req, res) => {
         status: ad.status,
         payment_status: ad.payment_status,
         created_at: ad.created_at,
-        updated_at: ad.updated_at,
       })),
     });
   } catch (err) {

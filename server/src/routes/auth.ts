@@ -1330,36 +1330,29 @@ authRouter.post('/me/complete-onboarding', requireAuth as any, async (req: Authe
     });
   }
   
-  // Get current preferences FIRST to preserve role if not in payload
-  const current = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true } });
-  const currentPrefs = current?.preferences as any || {};
-  
-  // CRITICAL: Role MUST be preserved from onboarding step-1 or provided in payload
-  // If role is undefined in payload, use existing role from preferences (set during step-1)
+  // Single DB fetch to prevent race conditions between concurrent requests
+  const currentUser = await prisma.user.findUnique({
+    where: { id: req.user.id },
+    select: { preferences: true, username: true, bio: true },
+  });
+  const currentPrefs = currentUser?.preferences as any || {};
+
   const finalRole = data.role !== undefined ? data.role : (currentPrefs.role || 'fan');
-  
-  // For coaches, only username is required at onboarding completion.
-  // Organization and team are set up post-approval, not during initial onboarding.
-  if (finalRole === 'coach') {
-    if (!data.username) {
-      return res.status(400).json({ error: 'Username required for coach onboarding' });
-    }
+
+  if (finalRole === 'coach' && !data.username) {
+    return res.status(400).json({ error: 'Username required for coach onboarding' });
   }
 
-  // Username is required for ALL roles — check payload OR existing DB value
-  const existingUser = await prisma.user.findUnique({ where: { id: req.user.id }, select: { username: true } });
-  if (!data.username && !existingUser?.username) {
+  if (!data.username && !currentUser?.username) {
     return res.status(400).json({ error: 'Username is required to complete onboarding' });
   }
 
-  // Update user with direct fields
   const updateData: any = {};
   if (data.username) updateData.username = data.username;
   if (data.display_name) updateData.display_name = data.display_name;
   if (data.avatar_url) updateData.avatar_url = data.avatar_url;
   if (data.bio) updateData.bio = data.bio;
-  
-  const currentUser = await prisma.user.findUnique({ where: { id: req.user.id } });
+
   if (data.role === 'fan' && !currentUser?.bio && !data.bio) {
     updateData.bio = "Sports enthusiast following local teams and supporting young athletes 🏆";
   }
@@ -1408,7 +1401,7 @@ authRouter.post('/me/complete-onboarding', requireAuth as any, async (req: Authe
     }
   });
   // Normalize any legacy 'rookie' role values to 'coach' during merge
-  const basePreferences = current?.preferences;
+  const basePreferences = currentUser?.preferences;
   const normalizedCurrent =
     basePreferences && typeof basePreferences === 'object' && !Array.isArray(basePreferences)
       ? ({ ...(basePreferences as Record<string, any>) } as any)
