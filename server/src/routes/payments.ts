@@ -171,24 +171,36 @@ function membershipError(status: number, message: string) {
   return error;
 }
 
-async function createMembershipCheckoutSession(req: AuthedRequest, planValue: unknown, promoCode?: string, teamCount?: number) {
+async function createMembershipCheckoutSession(req: AuthedRequest, planValue: unknown, promoCode?: string, teamCount?: number, organizationId?: string) {
   if (!process.env.STRIPE_SECRET_KEY) throw membershipError(500, 'Stripe not configured');
   if (typeof planValue !== 'string' || !planValue.trim()) throw membershipError(400, 'plan is required');
   const raw = planValue.trim().toLowerCase();
   if (raw !== 'veteran' && raw !== 'legend') throw membershipError(400, 'Invalid plan for subscription');
   const chosen = raw as MembershipPlan;
-  
+
+  // Verify org ownership if organization_id provided
+  if (organizationId) {
+    const orgMembership = await prisma.organizationMembership.findUnique({
+      where: { organization_id_user_id: { organization_id: organizationId, user_id: req.user!.id } },
+    });
+    if (!orgMembership || orgMembership.role !== 'owner') {
+      throw membershipError(403, 'Only the organization owner can purchase a subscription for the organization');
+    }
+  }
+
   // Validate team count for Veteran plan (total teams including the first two free)
   if (chosen === 'veteran') {
     if (typeof teamCount !== 'number' || teamCount < 3) {
       throw membershipError(400, 'Veteran plan requires at least 3 total teams (first 2 are free)');
     }
-    // Verify the claimed team count matches actual ownership
-    const actualTeamCount = await prisma.teamMembership.count({
-      where: { user_id: req.user!.id, role: 'owner', status: 'active' },
-    });
+    // Verify the claimed team count matches actual count — org teams if org provided, else user-owned
+    const actualTeamCount = organizationId
+      ? await prisma.team.count({ where: { organization_id: organizationId } })
+      : await prisma.teamMembership.count({
+          where: { user_id: req.user!.id, role: 'owner', status: 'active' },
+        });
     if (teamCount > actualTeamCount) {
-      throw membershipError(400, `Team count mismatch: you own ${actualTeamCount} teams but requested billing for ${teamCount}`);
+      throw membershipError(400, `Team count mismatch: ${organizationId ? 'organization has' : 'you own'} ${actualTeamCount} teams but requested billing for ${teamCount}`);
     }
   }
 
@@ -293,6 +305,7 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
       promo_code: promoCode || '',
       team_count_total: chosen === 'veteran' && teamCount ? String(teamCount) : '',
       team_count_billable: chosen === 'veteran' ? String(billableQuantity) : '',
+      organization_id: organizationId || '',
     },
   };
 
@@ -336,6 +349,7 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
       plan: chosen,
       team_count_total: chosen === 'veteran' ? teamCount : undefined,
       team_count_billable: chosen === 'veteran' ? billableQuantity : undefined,
+      organization_id: organizationId || undefined,
     },
     ipAddress: req.ip,
     userAgent: req.get('user-agent'),
@@ -347,10 +361,10 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
 // Create a Stripe Checkout Session for ad reservations
 paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paymentLimiter, async (req: AuthedRequest, res) => {
   if (!process.env.STRIPE_SECRET_KEY) return res.status(500).json({ error: 'Stripe not configured' });
-  const { ad_id, dates, promo_code, plan, team_count } = req.body || {};
+  const { ad_id, dates, promo_code, plan, team_count, organization_id } = req.body || {};
   if (typeof plan === 'string' && plan.trim()) {
     try {
-      const { url, sessionId } = await createMembershipCheckoutSession(req, plan, promo_code, team_count);
+      const { url, sessionId } = await createMembershipCheckoutSession(req, plan, promo_code, team_count, organization_id);
       return res.json({ url, session_id: sessionId });
     } catch (err: any) {
       const status = typeof err?.statusCode === 'number' ? err.statusCode : 500;
@@ -641,7 +655,7 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
   if (!process.env.STRIPE_SECRET_KEY) return res.status(500).json({ error: 'Stripe not configured' });
   const publishableKey = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || process.env.STRIPE_PUBLISHABLE_KEY || '';
   const userId = req.user!.id;
-  const { ad_id, dates, promo_code, plan, team_count } = req.body || {};
+  const { ad_id, dates, promo_code, plan, team_count, organization_id: orgIdBody } = req.body || {};
 
   // ── Get or create Stripe Customer ──
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, stripe_customer_id: true, preferences: true } });
@@ -668,6 +682,16 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
     if (resolvedPlan !== 'veteran' && resolvedPlan !== 'legend') return res.status(400).json({ error: 'Invalid plan for subscription' });
     const chosen = resolvedPlan as MembershipPlan;
 
+    // Verify org ownership if organization_id provided
+    if (orgIdBody) {
+      const orgMem = await prisma.organizationMembership.findUnique({
+        where: { organization_id_user_id: { organization_id: orgIdBody, user_id: userId } },
+      });
+      if (!orgMem || orgMem.role !== 'owner') {
+        return res.status(403).json({ error: 'Only the organization owner can purchase a subscription for the organization' });
+      }
+    }
+
     // Rule A: Block checkout if coach hasn't been approved yet
     const approvalCheck = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { approval_status: true } });
     if (prefs.role === 'coach' && approvalCheck?.approval_status !== 'APPROVED') {
@@ -683,12 +707,14 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
       if (effectiveTeamCount < 3) {
         return res.status(400).json({ error: 'Veteran plan requires at least 3 total teams (first 2 are free)' });
       }
-      // Verify the claimed team count matches actual ownership
-      const actualTeamCount = await prisma.teamMembership.count({
-        where: { user_id: userId, role: 'owner', status: 'active' },
-      });
+      // Verify the claimed team count — org teams if org provided, else user-owned
+      const actualTeamCount = orgIdBody
+        ? await prisma.team.count({ where: { organization_id: orgIdBody } })
+        : await prisma.teamMembership.count({
+            where: { user_id: userId, role: 'owner', status: 'active' },
+          });
       if (effectiveTeamCount > actualTeamCount) {
-        return res.status(400).json({ error: `Team count mismatch: you own ${actualTeamCount} teams but requested billing for ${effectiveTeamCount}` });
+        return res.status(400).json({ error: `Team count mismatch: ${orgIdBody ? 'organization has' : 'you own'} ${actualTeamCount} teams but requested billing for ${effectiveTeamCount}` });
       }
     }
 
@@ -741,6 +767,7 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
           promo_code: promo_code || '',
           team_count_total: chosen === 'veteran' && effectiveTeamCount ? String(effectiveTeamCount) : '',
           team_count_billable: chosen === 'veteran' ? String(billableQuantity) : '',
+          organization_id: orgIdBody || '',
         },
       });
 
