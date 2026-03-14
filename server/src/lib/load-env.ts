@@ -7,6 +7,7 @@ const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 const candidatePaths = [
   path.resolve(process.cwd(), '.env'),
   path.resolve(moduleDir, '../../.env'),
+  path.resolve(moduleDir, '../../../.env'),
 ];
 
 for (const envPath of candidatePaths) {
