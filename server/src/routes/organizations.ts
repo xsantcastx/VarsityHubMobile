@@ -376,7 +376,13 @@ organizationsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res
       orgType: data.org_type,
       approveToken,
       rejectToken,
-    }).catch(() => {});
+    }).then((sent) => {
+      if (!sent) {
+        console.warn('[organizations] League approval request email reported unsent (/). Check mail provider config.');
+      }
+    }).catch((err) => {
+      console.warn('[organizations] Failed sending league approval request email (/):', err);
+    });
 
     return res.status(201).json(organization);
   } catch (err) {
@@ -468,7 +474,13 @@ organizationsRouter.post('/create', requireAuth as any, async (req: AuthedReques
       orgType: data.org_type,
       approveToken,
       rejectToken,
-    }).catch(() => {});
+    }).then((sent) => {
+      if (!sent) {
+        console.warn('[organizations] League approval request email reported unsent (/create). Check mail provider config.');
+      }
+    }).catch((err) => {
+      console.warn('[organizations] Failed sending league approval request email (/create):', err);
+    });
 
     // Send invites to authorized users
     if (data.authorized_users && data.authorized_users.length > 0) {
@@ -501,7 +513,15 @@ organizationsRouter.post('/create', requireAuth as any, async (req: AuthedReques
             role: inv.role,
             inviterName: inviter?.display_name || 'An organizer',
             inviteToken: tokenByEmail[inv.email],
-          }).catch(() => false)
+          }).then((sent) => {
+            if (!sent) {
+              console.warn(`[organizations] Invite email reported unsent for ${inv.email}.`);
+            }
+            return sent;
+          }).catch((err) => {
+            console.warn(`[organizations] Failed sending invite email to ${inv.email}:`, err);
+            return false;
+          })
         ));
       }
     }
@@ -595,7 +615,15 @@ organizationsRouter.post('/:id/invite', requireAuth as any, requireOnboarded as 
       role: role || 'member',
       inviterName: inviter?.display_name || 'An organizer',
       inviteToken: invite.id,
-    }).catch(() => false);
+    }).then((sent) => {
+      if (!sent) {
+        console.warn(`[organizations] Direct invite email reported unsent for ${email}.`);
+      }
+      return sent;
+    }).catch((err) => {
+      console.warn(`[organizations] Failed sending direct invite email to ${email}:`, err);
+      return false;
+    });
   }
   
   return res.status(201).json(invite);

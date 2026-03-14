@@ -12,7 +12,7 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
 
   const u = await prisma.user.findUnique({
     where: { id: req.user.id },
-    select: { preferences: true, approval_status: true },
+    select: { preferences: true, approval_status: true, paid_by_owner: true },
   });
   const prefs = u?.preferences as Record<string, unknown> | null;
 
@@ -26,6 +26,27 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
       error: 'Your coach account is pending approval.',
       code: 'APPROVAL_REQUIRED',
     });
+  }
+
+  // Approved coach accounts that selected a paid tier must complete checkout
+  // before accessing coach tools, unless their league owner covers billing.
+  if (prefs?.role === 'coach' && u?.approval_status === 'APPROVED' && u?.paid_by_owner !== true) {
+    const pendingPlan = String((prefs?.pending_plan as string | undefined) || '').toLowerCase();
+    const currentPlan = String((prefs?.plan as string | undefined) || '').toLowerCase();
+    const selectedPlan = pendingPlan || currentPlan;
+    const requiresPayment = selectedPlan === 'veteran' || selectedPlan === 'legend';
+    const paymentPending = prefs?.payment_pending === true;
+    const paymentApproved = prefs?.payment_approved === true;
+    const joinRequestPending = prefs?.join_request_pending === true;
+    const canCheckoutNow = paymentApproved || !joinRequestPending;
+
+    if (requiresPayment && paymentPending && canCheckoutNow) {
+      return res.status(403).json({
+        error: 'Checkout required before accessing coach tools.',
+        code: 'PAYMENT_REQUIRED',
+        pending_plan: selectedPlan,
+      });
+    }
   }
 
   return next();
