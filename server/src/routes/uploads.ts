@@ -102,6 +102,7 @@ uploadsRouter.use((req, res, next) => {
 // The file never touches this server — goes straight from phone to CDN.
 // -----------------------------------------------
 uploadsRouter.get('/cloudinary-signature', requireAuth as any, uploadLimiter as any, (_req: Request, res: Response) => {
+  res.setHeader('Cache-Control', 'no-store');
   if (!useCloudinary) {
     return res.status(503).json({ error: 'Direct upload not available — Cloudinary not configured' });
   }
@@ -135,6 +136,7 @@ uploadsRouter.get('/cloudinary-signature', requireAuth as any, uploadLimiter as 
 });
 
 uploadsRouter.get('/sign', requireAuth as any, (req: MulterRequest, res) => {
+  res.setHeader('Cache-Control', 'no-store');
   const rawPath = String((req.query as any).path || '').trim();
   if (!rawPath) {
     return res.status(400).json({ error: 'path is required' });

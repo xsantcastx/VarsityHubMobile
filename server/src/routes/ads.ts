@@ -250,7 +250,23 @@ adsRouter.get('/for-feed', async (req, res) => {
       }))
     });
 
-    return res.json({ date: dateISO, ads: result.map(ad => ({ ...ad, reservations: undefined })) });
+    return res.json({
+      date: dateISO,
+      ads: result.map((ad) => ({
+        id: ad.id,
+        business_name: ad.business_name,
+        banner_url: ad.banner_url,
+        banner_fit_mode: ad.banner_fit_mode,
+        target_url: ad.target_url,
+        target_zip_code: ad.target_zip_code,
+        radius: ad.radius,
+        description: ad.description,
+        status: ad.status,
+        payment_status: ad.payment_status,
+        created_at: ad.created_at,
+        updated_at: ad.updated_at,
+      })),
+    });
   } catch (err) {
     console.error('[ads] GET /for-feed error:', err);
     return res.status(500).json({ error: 'Internal server error' });

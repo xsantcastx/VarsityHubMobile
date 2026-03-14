@@ -913,8 +913,42 @@ const updateMeSchema = z.object({
     .optional()
     .nullable(),
   bio: z.string().max(1000).transform((val) => val === '' ? null : val).optional().nullable(),
-  preferences: z.any().optional(),
+  preferences: z.record(z.any()).optional(),
 });
+
+const RESTRICTED_PROFILE_PREF_KEYS = new Set([
+  'role',
+  'plan',
+  'pending_plan',
+  'payment_pending',
+  'payment_approved',
+  'onboarding_completed',
+  'join_request_pending',
+  'subscription_id',
+  'subscription_status',
+  'subscription_end_date',
+  'plan_expiry_date',
+  'google_purchase_token',
+  'google_product_id',
+  'apple_transaction_id',
+  'apple_original_transaction_id',
+  'apple_product_id',
+]);
+
+function collectRestrictedPreferenceKeys(input: any, path = 'preferences'): string[] {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return [];
+  const found: string[] = [];
+  for (const [key, value] of Object.entries(input)) {
+    const nextPath = `${path}.${key}`;
+    if (RESTRICTED_PROFILE_PREF_KEYS.has(key)) {
+      found.push(nextPath);
+    }
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      found.push(...collectRestrictedPreferenceKeys(value, nextPath));
+    }
+  }
+  return found;
+}
 
 authRouter.put('/me', requireAuth as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
@@ -956,6 +990,14 @@ authRouter.put('/me', requireAuth as any, async (req: AuthedRequest, res) => {
   }
   
   if (data.preferences) {
+    const restrictedKeys = collectRestrictedPreferenceKeys(data.preferences);
+    if (restrictedKeys.length > 0) {
+      return res.status(400).json({
+        error: 'Restricted preference keys',
+        message: 'Use dedicated onboarding/billing endpoints for role and payment state updates.',
+        keys: restrictedKeys,
+      });
+    }
     // COPPA: Reject if DOB in preferences indicates under 13
     const dobToCheck = data.preferences?.dob;
     if (dobToCheck !== undefined && isUnder13(dobToCheck)) {
@@ -1014,6 +1056,14 @@ authRouter.patch('/me', requireAuth as any, async (req: AuthedRequest, res) => {
   }
   
   if (data.preferences) {
+    const restrictedKeys = collectRestrictedPreferenceKeys(data.preferences);
+    if (restrictedKeys.length > 0) {
+      return res.status(400).json({
+        error: 'Restricted preference keys',
+        message: 'Use dedicated onboarding/billing endpoints for role and payment state updates.',
+        keys: restrictedKeys,
+      });
+    }
     // COPPA: Reject if DOB in preferences indicates under 13
     const dobToCheck = data.preferences?.dob;
     if (dobToCheck !== undefined && isUnder13(dobToCheck)) {
@@ -1221,7 +1271,14 @@ const completeOnboardingSchema = z.object({
   // The real plan field is set by Stripe webhook after payment succeeds.
   plan: z.enum(['rookie']).optional(),
   pending_plan: z.enum(['veteran', 'legend']).optional().nullable(),
-  payment_pending: z.union([z.boolean(), z.string()]).optional(),
+  payment_pending: z.preprocess((value) => {
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      if (normalized === 'true') return true;
+      if (normalized === 'false') return false;
+    }
+    return value;
+  }, z.boolean()).optional(),
   team_count_total: z.number().int().min(0).optional(),
   
   // Team/Organization

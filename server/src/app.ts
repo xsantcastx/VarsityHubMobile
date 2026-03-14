@@ -163,9 +163,16 @@ app.use((req, res, next) => {
 
 app.use(authMiddleware);
 // Serve uploaded files
+const isUploadsApiRequest = (req: Request) =>
+  req.path === '/cloudinary-signature' ||
+  req.path === '/sign' ||
+  req.path === '/files' ||
+  (req.path === '/' && req.method === 'POST');
+
 app.use(
   '/uploads',
   (req, res, next) => {
+    if (isUploadsApiRequest(req)) return next();
     const allowPublic = process.env.UPLOADS_PUBLIC === '1';
     if (allowPublic) return next();
     const authed = Boolean((req as any).user?.id);
@@ -180,6 +187,7 @@ app.use(
     return res.status(401).json({ error: 'Unauthorized' });
   },
   (req, res, next) => {
+    if (isUploadsApiRequest(req)) return next();
     res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
     next();
   },

@@ -5,9 +5,14 @@ import { prisma } from '../lib/prisma.js';
 export async function requireVerified(req: AuthedRequest, res: Response, next: NextFunction) {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
-  // Allow team creation during onboarding (step 5) before email is verified.
-  // Email verification is enforced at step 10 completion instead.
-  if (req.body?.onboarding === true && req.path?.includes('/create')) {
+  // Allow only onboarding team creation routes to bypass email verification.
+  // This must stay narrowly scoped to teams router endpoints.
+  const isTeamsCreateRoute =
+    req.baseUrl === '/teams' &&
+    req.method === 'POST' &&
+    (req.path === '/' || req.path === '/create');
+
+  if (req.body?.onboarding === true && isTeamsCreateRoute) {
     return next();
   }
 

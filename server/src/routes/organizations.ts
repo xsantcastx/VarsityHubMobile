@@ -417,11 +417,10 @@ organizationsRouter.post('/create', requireAuth as any, async (req: AuthedReques
     const data = parsed.data;
     // Duplicate guard (same logic as simple create)
     const nm = normalizeOrganizationName(data.name);
+    const duplicateWhere: any = { status: 'active' };
+    if (data.zip_code) duplicateWhere.zip_code = data.zip_code;
     const possibleDuplicates = await prisma.organization.findMany({
-      where: {
-        zip_code: data.zip_code || undefined,
-        status: 'active'
-      },
+      where: duplicateWhere,
       select: { id: true, name: true, zip_code: true },
       take: 100,
     });
