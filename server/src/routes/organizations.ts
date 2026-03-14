@@ -1063,16 +1063,7 @@ organizationsRouter.post('/join-requests/:requestId/approve', requireAuth as any
     return res.status(400).json({ error: 'This request has already been reviewed' });
   }
   
-  // Update join request, create membership, and flag coach for payment
-  const coachUser = await prisma.user.findUnique({
-    where: { id: joinRequest.user_id },
-    select: { preferences: true }
-  });
-  const coachPrefs = (coachUser?.preferences as Record<string, any>) || {};
-  // Rule A: Check pending_plan (the plan selected during onboarding but not yet paid)
-  const hasPendingPayment = coachPrefs.payment_pending === true &&
-    (coachPrefs.pending_plan === 'veteran' || coachPrefs.pending_plan === 'legend');
-
+  // Update join request and create membership — approved coaches get free access
   await prisma.$transaction([
     prisma.organizationJoinRequest.update({
       where: { id: requestId },
@@ -1090,18 +1081,6 @@ organizationsRouter.post('/join-requests/:requestId/approve', requireAuth as any
         status: 'active'
       }
     }),
-    // If the coach has a pending paid plan, mark them as approved to pay
-    ...(hasPendingPayment ? [
-      prisma.user.update({
-        where: { id: joinRequest.user_id },
-        data: {
-          preferences: {
-            ...coachPrefs,
-            payment_approved: true
-          }
-        }
-      })
-    ] : [])
   ]);
   
   // Send approval email to user
@@ -1121,17 +1100,13 @@ organizationsRouter.post('/join-requests/:requestId/approve', requireAuth as any
     console.error('Failed to send join request approved email:', err);
   }
 
-  // Push notification so coach knows they can now proceed to payment
+  // Push notification so coach knows they were approved
   try {
-    const hasPaymentPending = coachPrefs?.payment_pending === true;
-    const pushBody = hasPaymentPending
-      ? `Your request to join ${joinRequest.organization.name} was approved! You can now complete your subscription.`
-      : `Your request to join ${joinRequest.organization.name} was approved!`;
     await sendPushNotification(
       joinRequest.user_id,
       'Join Request Approved',
-      pushBody,
-      { type: 'join_request_approved', organization_id: joinRequest.organization_id, payment_pending: hasPaymentPending }
+      `Your request to join ${joinRequest.organization.name} was approved!`,
+      { type: 'join_request_approved', organization_id: joinRequest.organization_id }
     );
   } catch (err) {
     console.error('Failed to send join request approved push notification:', err);

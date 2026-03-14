@@ -1604,7 +1604,7 @@ const styles = StyleSheet.create({
   // Profile Details Below Banner — paddingTop clears the overlapping avatar
   profileDetailsContainer: {
     backgroundColor: 'transparent',
-    paddingTop: 48,
+    paddingTop: 40,
     marginBottom: 0,
     paddingBottom: 0,
     gap: 0,

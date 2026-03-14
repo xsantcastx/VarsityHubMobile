@@ -1197,14 +1197,7 @@ const completeOnboardingSchema = z.object({
   dob: z.string().optional(),
   zip: z.string().optional(),
   zip_code: z.string().optional(),
-  
-  // Rule A: Client sends pending_plan for paid plans, plan only for rookie (free).
-  // The real plan field is set by Stripe webhook after payment succeeds.
-  plan: z.enum(['rookie']).optional(),
-  pending_plan: z.enum(['veteran', 'legend']).optional().nullable(),
-  payment_pending: z.union([z.boolean(), z.string()]).optional(),
-  team_count_total: z.number().int().min(0).optional(),
-  
+
   // Team/Organization
   team_id: z.string().optional(),
   team_name: z.string().optional(),
@@ -1293,10 +1286,6 @@ authRouter.post('/me/complete-onboarding', requireAuth as any, async (req: Authe
   const preferencesUpdate: any = {
     onboarding_completed: true,
     role: finalRole, // Always set role explicitly - never leave undefined
-    // Rule A: plan is 'rookie' for free, or set by Stripe webhook for paid plans.
-    // pending_plan holds the coach's selected paid plan until payment completes.
-    plan: data.plan, // only 'rookie' allowed from client
-    pending_plan: data.pending_plan,
     affiliation: data.affiliation,
     dob: data.dob,
     zip_code: data.zip_code || data.zip,
@@ -1315,8 +1304,6 @@ authRouter.post('/me/complete-onboarding', requireAuth as any, async (req: Authe
     location_enabled: data.location_enabled,
     notifications_enabled: data.notifications_enabled,
     messaging_policy_accepted: data.messaging_policy_accepted,
-    payment_pending: data.payment_pending,
-    team_count_total: data.team_count_total,
   };
   
   // CRITICAL: Role must NEVER be undefined - preserve from current preferences if not in payload

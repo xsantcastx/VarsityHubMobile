@@ -135,7 +135,6 @@ export default function OnboardingLayout({
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
-          automaticallyAdjustKeyboardInsets
         >
           <View style={styles.titleSection}>
             {aboveTitle}

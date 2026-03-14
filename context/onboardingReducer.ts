@@ -64,7 +64,7 @@ function isStepComplete(stepId: number, state: OnboardingState, role?: 'fan' | '
       return !!state.step_2_visited;
     case 3: // League (coaches only)
       if (role !== 'coach') return true; // Fans skip this
-      return !!state.step_3_visited;
+      return !!(state.join_request_pending || state.organization_id);
     default:
       return false;
   }

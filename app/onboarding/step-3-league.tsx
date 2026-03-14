@@ -3,7 +3,6 @@ import PrimaryButton from '@/components/ui/PrimaryButton';
 import { Colors } from '@/constants/Colors';
 import { Type } from '@/ui/tokens';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useColorScheme, View } from 'react-native';
@@ -118,8 +117,8 @@ export default function Step3League() {
         setChecking(false);
       }
     })();
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- ob.pending_plan is intentionally excluded; only ob.plan should trigger re-run
-  }, [ob.plan, router, setOB, setProgress]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount
+  }, [router, setOB, setProgress]);
 
   useEffect(() => {
     if (ob.organization_name && !existingOrg) setOrgName(ob.organization_name);
@@ -370,8 +369,6 @@ export default function Step3League() {
         location: locationLabel || undefined,
         zip_code: (selectedPlaceZip || searchZip.trim()) || undefined,
       };
-      // include plan if present in onboarding state
-      if (ob.plan) payload.plan = ob.plan;
 
       const org = await Organization.createOrganization(payload);
       const orgId = org?.id;
@@ -769,54 +766,6 @@ export default function Step3League() {
           </View>
         )}
         
-        {/* Plan Benefits Reminder - only show if not searching */}
-        {!showSearch && (
-          ob.plan === 'rookie' ? (
-            <LinearGradient
-              colors={colorScheme === 'dark'
-                ? ['#8B4513','#CD7F32','#8B4513']
-                : ['#CD7F32','#8B4513']}
-              locations={colorScheme === 'dark' ? [0, 0.5, 1] : [0, 1]}
-              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-              style={styles.planReminderRookie}
-            >
-              <View style={styles.planReminderRookieInner}>
-                <View style={styles.planReminderHeaderRow}>
-                  <View style={styles.planBadge}><MaterialIcons name="workspace-premium" size={18} color="#FFFFFF" /></View>
-                  <Text style={[styles.planReminderTitle, styles.rookieTitle]}>Rookie Plan Benefits</Text>
-                </View>
-                <View style={styles.benefitsList}>
-                  <View style={styles.benefitRow}><MaterialIcons name="check-circle" size={16} color="#FFFFFF" /><Text style={[styles.benefitItem, styles.rookieBenefitItem]}>First two teams free</Text></View>
-                  <View style={styles.benefitRow}><MaterialIcons name="check-circle" size={16} color="#FFFFFF" /><Text style={[styles.benefitItem, styles.rookieBenefitItem]}>Invite athletes</Text></View>
-                  <View style={styles.benefitRow}><MaterialIcons name="check-circle" size={16} color="#FFFFFF" /><Text style={[styles.benefitItem, styles.rookieBenefitItem]}>One administrator per team</Text></View>
-                </View>
-              </View>
-            </LinearGradient>
-          ) : (
-            <View style={styles.planReminder}>
-              <Text style={styles.planReminderTitle}>
-                {(ob.pending_plan || ob.plan) === 'veteran' ? 'Veteran Plan Benefits' : 'Legend Plan Benefits'}
-              </Text>
-              <View style={styles.benefitsList}>
-                {((ob.pending_plan || ob.plan) === 'veteran') && (
-                  <>
-                    <View style={styles.benefitRow}><MaterialIcons name="payments" size={14} color="#C0C0C0" /><Text style={styles.benefitItem}>$1.00/month per team</Text></View>
-                    <View style={styles.benefitRow}><MaterialIcons name="group" size={14} color="#C0C0C0" /><Text style={styles.benefitItem}>Up to 12 authorized users</Text></View>
-                    <View style={styles.benefitRow}><MaterialIcons name="settings" size={14} color="#C0C0C0" /><Text style={styles.benefitItem}>Advanced features</Text></View>
-                  </>
-                )}
-                {((ob.pending_plan || ob.plan) === 'legend') && (
-                  <>
-                    <View style={styles.benefitRow}><MaterialIcons name="emoji-events" size={14} color="#FFD700" /><Text style={styles.benefitItem}>$20/year unlimited teams</Text></View>
-                    <View style={styles.benefitRow}><MaterialIcons name="all-inclusive" size={14} color="#FFD700" /><Text style={styles.benefitItem}>Unlimited authorized users</Text></View>
-                    <View style={styles.benefitRow}><MaterialIcons name="star" size={14} color="#FFD700" /><Text style={styles.benefitItem}>Premium features</Text></View>
-                  </>
-                )}
-              </View>
-            </View>
-          )
-        )}
-        
         {!showSearch && (
           <PrimaryButton 
             label={saving ? 'Creating...' : 'Continue'} 
@@ -1150,70 +1099,6 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     color: Colors[colorScheme].mutedText
-  },
-  planReminder: {
-    marginTop: 24,
-    marginBottom: 24,
-    padding: 20,
-    backgroundColor: colorScheme === 'dark' ? 'rgba(30,64,175,0.18)' : '#DBEAFE',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colorScheme === 'dark' ? 'rgba(96,165,250,0.3)' : '#93C5FD'
-  },
-  planReminderRookie: {
-    marginTop: 24,
-    marginBottom: 24,
-    borderRadius: 18,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: colorScheme === 'dark' ? '#6B7280' : '#9CA3AF',
-    shadowColor: '#000',
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
-  },
-  planReminderRookieInner: {
-    paddingHorizontal: 24,
-    paddingVertical: 22,
-  },
-  rookieTitle: {
-    color: '#FFFFFF'
-  },
-  rookieBenefitItem: {
-    color: '#FFFFFF'
-  },
-  planReminderHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  planBadge: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 10,
-  },
-  planReminderTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colorScheme === 'dark' ? '#93C5FD' : '#1E3A8A',
-    marginBottom: 12
-  },
-  benefitsList: { marginTop: 4 },
-  benefitItem: {
-    fontSize: 14,
-    lineHeight: 20,
-    color: colorScheme === 'dark' ? '#BFDBFE' : '#1E3A8A',
-    marginBottom: 4
-  },
-  benefitRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 6,
   },
   selectField: {
     flexDirection: 'row',
