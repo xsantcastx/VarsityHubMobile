@@ -373,10 +373,12 @@ gamesRouter.post('/', requireVerified as any, requireOnboarded as any, gameCreat
         date: game.date,
         location: game.location || null,
         game_id: game.id,
+        team_id: game.home_team_id || null,
         status: 'approved',
         approval_status: 'approved',
         creator_id: req.user!.id,
         creator_role: 'coach',
+        event_type: parsed.data.event_type || 'game',
         capacity: null,
       } as any,
     });
