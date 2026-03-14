@@ -52,7 +52,7 @@ FROM_EMAIL=its.sc05@gmail.com
 ADMIN_EMAILS=xsancastrillonx@hotmail.com
 
 # CORS
-ALLOWED_ORIGINS=*
+ALLOWED_ORIGINS=https://varsityhub.app,https://app.varsityhub.app
 
 # Application URLs
 APP_SCHEME=varsityhubmobile

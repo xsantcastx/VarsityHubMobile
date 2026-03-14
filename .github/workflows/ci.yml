@@ -64,14 +64,15 @@ jobs:
   all-checks:
     name: All Checks Passed
     runs-on: ubuntu-latest
-    needs: [repo-health, lint, typecheck]
+    needs: [repo-health, lint, typecheck, test]
     if: always()
     steps:
       - name: Verify all checks passed
         run: |
           if [ "${{ needs.repo-health.result }}" != "success" ] || \
              [ "${{ needs.lint.result }}" != "success" ] || \
-             [ "${{ needs.typecheck.result }}" != "success" ]; then
+             [ "${{ needs.typecheck.result }}" != "success" ] || \
+             [ "${{ needs.test.result }}" != "success" ]; then
             echo "❌ One or more checks failed"
             exit 1
           fi
@@ -120,4 +121,3 @@ jobs:
 
       - name: Run tests
         run: npm test
-        continue-on-error: true
