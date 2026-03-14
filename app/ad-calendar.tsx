@@ -487,7 +487,7 @@ export default function AdCalendarScreen() {
       const hrsRemaining = Math.max(0, Math.round((lastEnd.getTime() - Date.now()) / 3600000));
 
       if (data?.free) {
-        // Show success animation, then navigate to confirmation receipt
+        setSubmitting(false);
         setShowFreeSuccess(true);
         freeSuccessOpacity.setValue(0);
         Animated.timing(freeSuccessOpacity, { toValue: 1, duration: 300, useNativeDriver: true }).start(() => {

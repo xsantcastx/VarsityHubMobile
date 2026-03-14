@@ -477,10 +477,12 @@ teamsRouter.post('/', requireVerified as any, requireOnboarded as any, requirePl
     }
   });
 
-  const maxTeams = (me as any).max_teams ?? 2; // Default to 2 for free users
-  
+  const userPrefs = (me.preferences && typeof me.preferences === 'object') ? (me.preferences as any) : {};
+  const userPlan = userPrefs.plan || 'rookie';
+  const maxTeams = getMaxTeamsForPlan(userPlan) ?? Infinity;
+
   if (ownedTeamsCount >= maxTeams) {
-    return res.status(403).json({ 
+    return res.status(403).json({
       error: 'Team limit reached',
       message: `You've reached your limit of ${maxTeams} team${maxTeams > 1 ? 's' : ''}. Upgrade to create more teams.`,
       owned_teams: ownedTeamsCount,

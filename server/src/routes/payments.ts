@@ -657,13 +657,19 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
   const userId = req.user!.id;
   const { ad_id, dates, promo_code, plan, team_count, organization_id: orgIdBody } = req.body || {};
 
-  // ── Get or create Stripe Customer ──
+  // ── Get or create Stripe Customer (atomic to prevent duplicates) ──
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, stripe_customer_id: true, preferences: true } });
   let customerId = user?.stripe_customer_id;
   if (!customerId) {
     const customer = await stripe.customers.create({ email: user?.email || undefined, metadata: { user_id: userId } });
     customerId = customer.id;
-    await prisma.user.update({ where: { id: userId }, data: { stripe_customer_id: customerId } });
+    try {
+      await prisma.user.update({ where: { id: userId, stripe_customer_id: undefined }, data: { stripe_customer_id: customerId } });
+    } catch {
+      // Another request may have set it — re-fetch
+      const refreshed = await prisma.user.findUnique({ where: { id: userId }, select: { stripe_customer_id: true } });
+      if (refreshed?.stripe_customer_id) customerId = refreshed.stripe_customer_id;
+    }
   }
 
   // Create ephemeral key
