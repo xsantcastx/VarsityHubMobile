@@ -567,6 +567,7 @@ authRouter.post('/apple', authLimiter, async (req, res) => {
           algorithms: ['RS256'],
           issuer: 'https://appleid.apple.com',
           audience: APPLE_CLIENT_ID,
+          clockTolerance: 30, // 30 seconds tolerance for clock skew
         }) as JwtPayload;
 
         appleId = jwtPayload.sub as string;
@@ -577,8 +578,22 @@ authRouter.post('/apple', authLimiter, async (req, res) => {
         }
         debugLog('[auth/apple] Apple token verified');
       } catch (err: any) {
-        console.error('[auth/apple] Token verification failed:', err?.message || err);
-        return res.status(400).json({ error: 'Failed to verify Apple token' });
+        const msg = err?.message || String(err);
+        console.error('[auth/apple] Token verification failed:', msg);
+        // Return specific error so we can debug
+        if (msg.includes('expired')) {
+          return res.status(400).json({ error: 'Apple token expired. Please try again.' });
+        }
+        if (msg.includes('audience')) {
+          return res.status(400).json({ error: `Apple token audience mismatch. Expected: ${APPLE_CLIENT_ID}` });
+        }
+        if (msg.includes('issuer')) {
+          return res.status(400).json({ error: 'Apple token issuer invalid.' });
+        }
+        if (msg.includes('JWKS')) {
+          return res.status(400).json({ error: 'Unable to fetch Apple signing keys. Please try again.' });
+        }
+        return res.status(400).json({ error: 'Failed to verify Apple token', detail: msg });
       }
     }
 
