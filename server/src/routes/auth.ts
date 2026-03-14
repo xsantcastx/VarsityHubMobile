@@ -1085,7 +1085,17 @@ authRouter.patch('/me/preferences', requireAuth as any, async (req: AuthedReques
 
     // Rookie is not a role
     role: z.enum(['fan', 'coach']).optional(),
-    affiliation: z.enum(['school', 'independent']).optional(),
+    // Keep this aligned with mobile onboarding role options while supporting legacy values.
+    affiliation: z.enum([
+      'none',
+      'university',
+      'high_school',
+      'club',
+      'youth',
+      'professional',
+      'school',
+      'independent',
+    ]).optional(),
     dob: z.string().optional(),
     sports_interests: z.array(z.string()).optional(),
     personalization_goals: z.array(z.string()).optional(),
@@ -1193,7 +1203,16 @@ const completeOnboardingSchema = z.object({
   role: z.enum(['fan', 'coach']).optional(),
   username: z.string().min(3).max(20).optional(),
   display_name: z.string().optional(),
-  affiliation: z.enum(['none', 'university', 'high_school', 'club', 'youth', 'school', 'independent']).optional(),
+  affiliation: z.enum([
+    'none',
+    'university',
+    'high_school',
+    'club',
+    'youth',
+    'professional',
+    'school',
+    'independent',
+  ]).optional(),
   dob: z.string().optional(),
   zip: z.string().optional(),
   zip_code: z.string().optional(),
