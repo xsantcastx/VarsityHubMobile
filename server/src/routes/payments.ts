@@ -771,8 +771,11 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
         },
       });
 
-      const invoice = subscription.latest_invoice as Stripe.Invoice;
-      const paymentIntent = invoice.payment_intent as Stripe.PaymentIntent;
+      const invoice = subscription.latest_invoice as Stripe.Invoice | null;
+      const paymentIntent = invoice?.payment_intent as Stripe.PaymentIntent | null;
+      if (!invoice || !paymentIntent) {
+        return res.status(500).json({ error: 'Subscription created but payment could not be initialized. Please contact support.' });
+      }
 
       // Log transaction (must match actual Stripe charge: $1.00/team veteran, $20.00/year legend)
       const amount = chosen === 'veteran' ? 100 * billableQuantity : 2000;
@@ -919,7 +922,7 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
       idempotencyKey: `ad_pi_${userId}_${ad_id}_${Math.floor(Date.now() / 120000)}`,
     });
 
-    // Hold slots to prevent race conditions
+    // Hold slots to prevent race conditions — fail if slots can't be held
     try {
       await prisma.$transaction([
         prisma.ad.update({ where: { id: String(ad_id) }, data: { payment_status: 'hold' } }),
@@ -929,7 +932,10 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
         }),
       ]);
     } catch (holdErr) {
-      console.warn('[payments] Failed to create slot hold (PaymentSheet), continuing:', (holdErr as any)?.message);
+      // Cancel the payment intent since we can't hold the slots
+      try { await stripe.paymentIntents.cancel(paymentIntent.id); } catch {}
+      console.error('[payments] Failed to hold ad slots, cancelled payment:', (holdErr as any)?.message);
+      return res.status(409).json({ error: 'Ad slots are no longer available. Please try different dates.' });
     }
 
     // Log transaction
@@ -1294,7 +1300,7 @@ paymentsRouter.post('/webhook', async (req, res) => {
           }).catch((err) => captureException(err as Error, { context: 'ad_pending_review_email_pi' }));
 
           // Redeem promo code if one was used — retry up to 3 times to prevent reuse
-          if (meta.promo_code) {
+          if (meta.promo_code && meta.user_id) {
             const promoSubtotal = Number(meta.subtotal_cents || 0) || 0;
             let promoRedeemed = false;
             for (let attempt = 1; attempt <= 3; attempt++) {
@@ -2050,6 +2056,7 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
     } else {
       try {
         const current = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } });
+        if (!current) { console.error('[payments] finalizeFromSession: user not found', userId); return; }
         const existingPrefs = (current?.preferences && typeof current.preferences === 'object') ? (current.preferences as any) : {};
         // Rule A: Clear pending_plan and payment flags on successful payment
         const { pending_plan: _pp, payment_approved: _pa, join_request_pending: _jrp, ...cleanPrefs } = existingPrefs;
