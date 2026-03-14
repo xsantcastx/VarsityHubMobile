@@ -835,9 +835,18 @@ export default function ProfileScreen() {
 
       {/* Content Below Banner */}
       <View style={styles.profileDetailsContainer}>
-        {/* Username + Role Badge + Edit Button - single row */}
+        {/* Edit button row (right aligned above username) */}
+        {!viewingUserId || viewingUserId === currentUserId ? (
+          <View style={styles.profileActionRow}>
+            <Pressable style={[styles.editButtonBelowBanner, { backgroundColor: theme.surface || theme.background, borderColor: theme.border }]} onPress={() => void router.push('/(tabs)/edit-profile')} accessibilityRole="button" accessibilityLabel="Edit profile">
+              <Text style={[styles.editButtonBelowBannerText, { color: theme.text }]}>Edit profile</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
+        {/* Username + Role Badge */}
         <View style={styles.profileNameRow}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+          <View style={styles.profileNameContent}>
             <Text style={[styles.profileName, { color: theme.text }]}>{displayUsername}</Text>
             {roleLabel && (
               <View style={[styles.roleBadge,
@@ -849,11 +858,6 @@ export default function ProfileScreen() {
               </View>
             )}
           </View>
-          {!viewingUserId || viewingUserId === currentUserId ? (
-            <Pressable style={[styles.editButtonBelowBanner, { backgroundColor: theme.surface || theme.background, borderColor: theme.border }]} onPress={() => void router.push('/(tabs)/edit-profile')} accessibilityRole="button" accessibilityLabel="Edit profile">
-              <Text style={[styles.editButtonBelowBannerText, { color: theme.text }]}>Edit profile</Text>
-            </Pressable>
-          ) : null}
         </View>
 
         {/* User Details - Left aligned with avatar */}
@@ -1604,17 +1608,28 @@ const styles = StyleSheet.create({
   // Profile Details Below Banner — paddingTop clears the overlapping avatar
   profileDetailsContainer: {
     backgroundColor: 'transparent',
-    paddingTop: 48,
+    paddingTop: 42,
     marginBottom: 0,
     paddingBottom: 0,
     gap: 0,
   },
+  profileActionRow: {
+    paddingHorizontal: 16,
+    marginBottom: 4,
+    alignItems: 'flex-end',
+  },
   profileNameRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 16,
     marginBottom: 0,
+  },
+  profileNameContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+    flexWrap: 'wrap',
   },
   profileName: {
     fontSize: 22,
@@ -1636,7 +1651,7 @@ const styles = StyleSheet.create({
   },
   userDetails: {
     paddingHorizontal: 16,
-    paddingTop: 4,
+    paddingTop: 2,
     paddingBottom: 0,
   },
   userHandle: {
