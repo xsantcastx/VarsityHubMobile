@@ -188,7 +188,7 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
     const actualTeamCount = await prisma.teamMembership.count({
       where: { user_id: req.user!.id, role: 'owner', status: 'active' },
     });
-    if (teamCount > actualTeamCount) {
+    if (teamCount !== actualTeamCount) {
       throw membershipError(400, `Team count mismatch: you own ${actualTeamCount} teams but requested billing for ${teamCount}`);
     }
   }
@@ -688,7 +688,7 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
       const actualTeamCount = await prisma.teamMembership.count({
         where: { user_id: userId, role: 'owner', status: 'active' },
       });
-      if (effectiveTeamCount > actualTeamCount) {
+      if (effectiveTeamCount !== actualTeamCount) {
         return res.status(400).json({ error: `Team count mismatch: you own ${actualTeamCount} teams but requested billing for ${effectiveTeamCount}` });
       }
     }
@@ -986,6 +986,7 @@ paymentsRouter.post('/webhook', async (req, res) => {
     console.warn('[webhook] Failed to record event for dedup, proceeding anyway:', dedupErr?.message || dedupErr);
   }
 
+  try {
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as Stripe.Checkout.Session;
     try {
@@ -1331,9 +1332,11 @@ paymentsRouter.post('/webhook', async (req, res) => {
               // Refund failed — this is critical, requires manual intervention
               console.error('[payments] CRITICAL: Auto-refund FAILED for SLOT_FULL', { ad_id: adId, pi_id: pi.id, error: refundErr?.message });
               captureException(refundErr as Error, { context: 'slot_full_auto_refund_failed', adId, piId: pi.id, amount: pi.amount });
-              await updateTransactionStatus(pi.id, 'REFUNDED', {
-                metadata: { reason: 'slot_full', overbooked_dates: e.dates, refund_failed: true },
+              await updateTransactionStatus(pi.id, 'FAILED', {
+                metadata: { reason: 'slot_full_refund_failed', overbooked_dates: e.dates, refund_failed: true },
               }).catch(err => { console.error('[transaction-log] PI slot-full status update failed:', err); captureException(err as Error, { context: 'transaction_log_slot_full_pi' }); });
+              await releaseWebhookDedup();
+              return res.status(500).json({ error: 'Auto-refund failed; retrying webhook' });
             }
           } else {
             await releaseWebhookDedup();
@@ -1344,6 +1347,13 @@ paymentsRouter.post('/webhook', async (req, res) => {
         }
       }
     }
+  }
+
+  } catch (eventErr: any) {
+    await releaseWebhookDedup();
+    console.error('[webhook] CRITICAL: Unhandled webhook processing failure:', eventErr?.message || eventErr);
+    captureException(eventErr as Error, { context: 'stripe_webhook_unhandled_processing_error', eventType: event.type, eventId: event.id });
+    return res.status(500).json({ error: 'Webhook processing failed' });
   }
 
   return res.json({ received: true });
@@ -1546,7 +1556,7 @@ paymentsRouter.post('/update-subscription-quantity', expressPkg.json(), requireV
         subscription_id: subscriptionId,
         total_teams: team_count,
         billable_teams: billable,
-        monthly_cost: billable * 1.50
+        monthly_cost: billable * 1.00
       });
     } catch (err: any) {
       console.warn('Failed to update Stripe subscription quantity:', err?.message || err);
@@ -1631,7 +1641,7 @@ paymentsRouter.get('/subscription/summary', requireVerified as any, async (req: 
         if (sub.current_period_end) current_period_end = new Date(sub.current_period_end * 1000).toISOString();
         const item = sub.items.data[0];
         quantity = item?.quantity ?? null;
-        if (typeof quantity === 'number') monthly_cost = Number((quantity * 1.5).toFixed(2));
+        if (typeof quantity === 'number') monthly_cost = Number((quantity * 1.0).toFixed(2));
       } catch (err) {
         console.warn('[payments] Failed to retrieve summary subscription:', (err as any)?.message || err);
       }
@@ -1985,16 +1995,18 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
             // No payment_intent to refund from session — mark for manual refund
             console.error('[payments] CRITICAL: No payment_intent on session for auto-refund', { session_id: session.id });
             captureException(new Error('SLOT_FULL: no payment_intent for refund'), { context: 'slot_full_no_pi', sessionId: session.id });
-            await updateTransactionStatus(session.id, 'REFUNDED', {
-              metadata: { reason: 'slot_full', overbooked_dates: e.dates, refund_failed: true },
+            await updateTransactionStatus(session.id, 'FAILED', {
+              metadata: { reason: 'slot_full_refund_missing_payment_intent', overbooked_dates: e.dates, refund_failed: true },
             }).catch(err => { console.error('[transaction-log] slot-full status update failed:', err); captureException(err as Error, { context: 'transaction_log_slot_full' }); });
+            throw new Error('SLOT_FULL_REFUND_MISSING_PAYMENT_INTENT');
           }
         } catch (refundErr: any) {
           console.error('[payments] CRITICAL: Auto-refund FAILED for SLOT_FULL', { session_id: session.id, error: refundErr?.message });
           captureException(refundErr as Error, { context: 'slot_full_auto_refund_failed_session', sessionId: session.id });
-          await updateTransactionStatus(session.id, 'REFUNDED', {
-            metadata: { reason: 'slot_full', overbooked_dates: e.dates, refund_failed: true },
+          await updateTransactionStatus(session.id, 'FAILED', {
+            metadata: { reason: 'slot_full_refund_failed', overbooked_dates: e.dates, refund_failed: true },
           }).catch(err => { console.error('[transaction-log] slot-full status update failed:', err); captureException(err as Error, { context: 'transaction_log_slot_full' }); });
+          throw refundErr;
         }
         return;
       }
@@ -2274,35 +2286,33 @@ paymentsRouter.post('/apple/verify-receipt', expressPkg.json(), requireAuth as a
     // Rule A: Clear pending_plan, payment_pending, payment_approved after successful payment
     const { payment_pending, payment_approved, pending_plan, join_request_pending, ...restPrefs } = currentPrefs;
 
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        subscription_tier: plan === 'legend' ? 'pro' : 'premium',
-        subscription_status: 'active',
-        preferences: {
-          ...restPrefs,
-          plan,
-          pending_plan: null,
-          payment_pending: false,
-          apple_product_id: productId,
-          apple_original_transaction_id: matchingReceipt.original_transaction_id,
-          apple_expires_date: new Date(expiresMs).toISOString(),
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: userId },
+        data: {
+          subscription_tier: plan === 'legend' ? 'pro' : 'premium',
+          subscription_status: 'active',
+          preferences: {
+            ...restPrefs,
+            plan,
+            pending_plan: null,
+            payment_pending: false,
+            apple_product_id: productId,
+            apple_original_transaction_id: matchingReceipt.original_transaction_id,
+            apple_expires_date: new Date(expiresMs).toISOString(),
+          } as any,
+        },
+      }),
+      prisma.transactionLog.create({
+        data: {
+          transaction_type: 'SUBSCRIPTION_PURCHASE',
+          status: 'COMPLETED',
+          user_id: userId,
+          order_id: orderId,
+          metadata: { source: 'apple_iap', productId, plan },
         } as any,
-      },
-    });
-
-    // Log the transaction
-    try {
-      await logTransaction({
-        transactionType: 'SUBSCRIPTION_PURCHASE',
-        status: 'COMPLETED',
-        userId,
-        orderId,
-        metadata: { source: 'apple_iap', productId, plan },
-      });
-    } catch (logErr) {
-      console.warn('[apple-iap] Failed to log transaction:', logErr);
-    }
+      }),
+    ]);
 
     // Send confirmation email
     if (user?.email) {
@@ -2505,35 +2515,33 @@ paymentsRouter.post('/google/verify-purchase', expressPkg.json(), requireAuth as
     // Clear pending flags after successful payment (same as Apple flow)
     const { payment_pending, payment_approved, pending_plan, join_request_pending, ...restPrefs } = currentPrefs;
 
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        subscription_tier: plan === 'legend' ? 'pro' : 'premium',
-        subscription_status: 'active',
-        preferences: {
-          ...restPrefs,
-          plan,
-          pending_plan: null,
-          payment_pending: false,
-          google_purchase_token: purchase_token,
-          google_product_id: product_id,
-          subscription_platform: 'google',
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: userId },
+        data: {
+          subscription_tier: plan === 'legend' ? 'pro' : 'premium',
+          subscription_status: 'active',
+          preferences: {
+            ...restPrefs,
+            plan,
+            pending_plan: null,
+            payment_pending: false,
+            google_purchase_token: purchase_token,
+            google_product_id: product_id,
+            subscription_platform: 'google',
+          } as any,
+        },
+      }),
+      prisma.transactionLog.create({
+        data: {
+          transaction_type: 'SUBSCRIPTION_PURCHASE',
+          status: 'COMPLETED',
+          user_id: userId,
+          order_id: orderId,
+          metadata: { source: 'google_play', product_id, plan, package_name, verified_by_store: verifiedByStore, verification_mode: verificationMode },
         } as any,
-      },
-    });
-
-    // Log the transaction
-    try {
-      await logTransaction({
-        transactionType: 'SUBSCRIPTION_PURCHASE',
-        status: 'COMPLETED',
-        userId,
-        orderId,
-        metadata: { source: 'google_play', product_id, plan, package_name, verified_by_store: verifiedByStore, verification_mode: verificationMode },
-      });
-    } catch (logErr) {
-      console.warn('[google-iap] Failed to log transaction:', logErr);
-    }
+      }),
+    ]);
 
     // Send confirmation email
     if (user?.email) {

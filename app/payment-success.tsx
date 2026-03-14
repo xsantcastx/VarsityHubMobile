@@ -71,6 +71,7 @@ export default function PaymentSuccessScreen() {
         }
 
         if (isAdPayment) {
+          let finalized = true;
           try {
             const result = await httpPost('/payments/finalize-session', { session_id: sessionId });
             if (result?.ad) {
@@ -79,8 +80,14 @@ export default function PaymentSuccessScreen() {
             }
           } catch (err: any) {
             if (__DEV__) console.warn('[payment-success] finalize failed:', err?.message);
+            finalized = false;
           }
-          // Show confirmation (even if finalize was already done by webhook)
+          if (!finalized) {
+            setError('Payment is processing. Please check My Ads in a moment.');
+            setLoading(false);
+            return;
+          }
+          // Show confirmation when finalize succeeds or already completed.
           showSuccessState();
         } else {
           // Subscription flow — poll for plan upgrade (Rule A: plan set = payment done)
