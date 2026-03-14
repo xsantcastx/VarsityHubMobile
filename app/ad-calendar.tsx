@@ -527,6 +527,7 @@ export default function AdCalendarScreen() {
         if (initError) {
           if (__DEV__) console.error('[AdCalendar] PaymentSheet init failed:', initError);
           Alert.alert('Payment Error', initError.message || 'Unable to initialize payment. Please try again.');
+          setSubmitting(false);
           return;
         }
         const { error } = await presentPaymentSheet();

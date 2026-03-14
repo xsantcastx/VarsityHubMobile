@@ -489,7 +489,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       // This prevents unverified users from accessing protected features (e.g. creating posts)
       // that the server's requireVerified middleware would reject with 403
       const verifyRoutes = new Set(['verify', 'verify-email', 'verify-identity']);
-      if (user.email_verified === false && !verifyRoutes.has(firstSegment)) {
+      if (user.email_verified !== true && !verifyRoutes.has(firstSegment)) {
         if (__DEV__) console.log('[AuthProvider] User email not verified, redirecting to verify');
         if (lastRedirectRef.current !== '/verify') {
           lastRedirectRef.current = '/verify';

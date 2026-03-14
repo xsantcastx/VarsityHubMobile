@@ -107,11 +107,12 @@ async function uploadDirectToCloudinary(
       if (xhr.status >= 200 && xhr.status < 300) {
         try {
           const data = JSON.parse(xhr.responseText);
-          resolve({
-            url: data.secure_url || data.url,
-            type: resourceType,
-            mime: mimeType,
-          });
+          const url = data.secure_url || data.url;
+          if (!url) {
+            reject(new Error('Cloudinary returned no URL'));
+            return;
+          }
+          resolve({ url, type: resourceType, mime: mimeType });
         } catch {
           reject(new Error('Cloudinary returned invalid response'));
         }
