@@ -73,6 +73,8 @@ export default function Step3League() {
         const teams = await Team.managed();
         if (teams && teams.length > 0) {
           const firstTeam = teams[0];
+          const teamOrgId = firstTeam?.organization_id || firstTeam?.organization?.id || null;
+          const teamOrgName = firstTeam?.organization_name || firstTeam?.organization?.name || null;
           setExistingTeam(firstTeam);
           setAlreadyExists(true);
           // Update onboarding state with existing team
@@ -80,6 +82,8 @@ export default function Step3League() {
             ...prev,
             team_id: firstTeam.id,
             team_name: firstTeam.name,
+            ...(teamOrgId ? { organization_id: teamOrgId } : {}),
+            ...(teamOrgName ? { organization_name: teamOrgName } : {}),
           }));
 
           // DON'T auto-skip - let user see step 4 even if team exists
@@ -350,9 +354,27 @@ export default function Step3League() {
             params: { leagueName: ob.organization_name || 'the league', ownerName: 'the league admin' },
           } as any);
         } else {
+          const resolvedOrgId = String(
+            ob.organization_id ||
+            existingTeam?.organization_id ||
+            existingTeam?.organization?.id ||
+            existingOrg?.id ||
+            ''
+          );
+          if (!resolvedOrgId) {
+            Alert.alert(
+              'Organization setup needed',
+              'We found your team, but not its league page. Please choose or create an organization to continue.'
+            );
+            setAlreadyExists(false);
+            return;
+          }
           router.replace({
             pathname: '/onboarding/league-pending-approval',
-            params: { leagueName: ob.organization_name || 'your league', orgId: ob.organization_id || '' },
+            params: {
+              leagueName: ob.organization_name || existingTeam?.organization_name || existingOrg?.name || 'your league',
+              orgId: resolvedOrgId,
+            },
           } as any);
         }
         return;
