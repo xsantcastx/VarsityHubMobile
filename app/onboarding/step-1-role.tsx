@@ -128,7 +128,7 @@ function RoleCard({
 export default function Step1Role() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const { state: ob, setState: setOB, setProgress, clearOnboarding, dispatch, canNavigate } = useOnboarding();
   const [role, setRole] = useState<UserRole | null>(null);
   const [saving, setSaving] = useState(false);
@@ -272,8 +272,7 @@ export default function Step1Role() {
   const handleBack = async () => {
     // Log out and return to sign-in
     try {
-      await User.logout();
-      router.replace('/sign-in');
+      await signOut();
     } catch (error) {
       if (__DEV__) console.error('Failed to logout:', error);
       router.replace('/sign-in');

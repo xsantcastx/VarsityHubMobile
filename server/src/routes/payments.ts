@@ -960,11 +960,23 @@ paymentsRouter.post('/webhook', async (req, res) => {
     return res.status(400).send('Webhook Error: Invalid signature');
   }
 
+  let dedupRecorded = false;
+  const releaseWebhookDedup = async () => {
+    if (!dedupRecorded) return;
+    try {
+      await prisma.processedStripeEvent.deleteMany({ where: { event_id: event.id } });
+      dedupRecorded = false;
+    } catch (rollbackErr) {
+      console.warn('[webhook] Failed to release dedup lock after processing error:', (rollbackErr as any)?.message || rollbackErr);
+    }
+  };
+
   // Event-level deduplication: reject replayed webhook events
   try {
     await prisma.processedStripeEvent.create({
       data: { event_id: event.id, event_type: event.type },
     });
+    dedupRecorded = true;
   } catch (dedupErr: any) {
     if (dedupErr instanceof Prisma.PrismaClientKnownRequestError && dedupErr.code === 'P2002') {
       debugLog('[webhook] Duplicate event skipped', { event_id: event.id, event_type: event.type });
@@ -979,6 +991,7 @@ paymentsRouter.post('/webhook', async (req, res) => {
     try {
       await finalizeFromSession(session);
     } catch (e) {
+      await releaseWebhookDedup();
       console.error('[webhook] CRITICAL: Error finalizing session — returning 500 for Stripe retry:', (e as any)?.message || e);
       captureException(e as Error, { context: 'stripe_webhook_finalize_failed', sessionId: session.id });
       return res.status(500).json({ error: 'Finalization failed' });
@@ -1323,6 +1336,7 @@ paymentsRouter.post('/webhook', async (req, res) => {
               }).catch(err => { console.error('[transaction-log] PI slot-full status update failed:', err); captureException(err as Error, { context: 'transaction_log_slot_full_pi' }); });
             }
           } else {
+            await releaseWebhookDedup();
             console.error('[payments] CRITICAL: Error processing ad PI succeeded — returning 500 for Stripe retry', { ad_id: adId, pi_id: pi.id, error: e });
             captureException(e as Error, { context: 'payment_intent_succeeded_ad', adId, piId: pi.id });
             return res.status(500).json({ error: 'Ad processing failed' });
@@ -2229,6 +2243,30 @@ paymentsRouter.post('/apple/verify-receipt', expressPkg.json(), requireAuth as a
       return res.status(400).json({ error: 'Subscription has expired' });
     }
 
+    const orderId = String(matchingReceipt.original_transaction_id || '');
+    if (!orderId) {
+      return res.status(400).json({ error: 'Missing original transaction id' });
+    }
+    const existingApplePurchase = await prisma.transactionLog.findFirst({
+      where: {
+        order_id: orderId,
+        transaction_type: 'SUBSCRIPTION_PURCHASE',
+        status: 'COMPLETED',
+      } as any,
+      select: { user_id: true },
+    });
+    if (existingApplePurchase?.user_id && existingApplePurchase.user_id !== userId) {
+      return res.status(409).json({ error: 'Receipt already used by another account' });
+    }
+    if (existingApplePurchase?.user_id === userId) {
+      return res.json({
+        ok: true,
+        plan,
+        expires: new Date(expiresMs).toISOString(),
+        idempotent: true,
+      });
+    }
+
     // Update user's plan in database
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true, email: true } });
     const currentPrefs = (user?.preferences && typeof user.preferences === 'object') ? user.preferences as any : {};
@@ -2259,7 +2297,7 @@ paymentsRouter.post('/apple/verify-receipt', expressPkg.json(), requireAuth as a
         transactionType: 'SUBSCRIPTION_PURCHASE',
         status: 'COMPLETED',
         userId,
-        orderId: matchingReceipt.original_transaction_id,
+        orderId,
         metadata: { source: 'apple_iap', productId, plan },
       });
     } catch (logErr) {
@@ -2309,6 +2347,7 @@ const GOOGLE_PLAY_SERVICE_ACCOUNT_PRIVATE_KEY = (process.env.GOOGLE_PLAY_SERVICE
   .replace(/\\n/g, '\n')
   .trim();
 const GOOGLE_PLAY_STRICT_VERIFY = process.env.GOOGLE_PLAY_STRICT_VERIFY === '1';
+const GOOGLE_PLAY_ALLOW_UNVERIFIED_FALLBACK = process.env.GOOGLE_PLAY_ALLOW_UNVERIFIED_FALLBACK === '1';
 
 function hasGooglePlayVerifierConfig() {
   return Boolean(GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL && GOOGLE_PLAY_SERVICE_ACCOUNT_PRIVATE_KEY);
@@ -2427,7 +2466,7 @@ paymentsRouter.post('/google/verify-purchase', expressPkg.json(), requireAuth as
         transaction_type: 'SUBSCRIPTION_PURCHASE',
         status: 'COMPLETED',
       } as any,
-      select: { id: true, user_id: true, metadata: true },
+      select: { id: true, user_id: true },
     });
     if (existingCompletedPurchase) {
       if (existingCompletedPurchase.user_id === userId) {
@@ -2453,7 +2492,7 @@ paymentsRouter.post('/google/verify-purchase', expressPkg.json(), requireAuth as
       }
       verifiedByStore = true;
       verificationMode = 'google_play_api';
-    } else if (GOOGLE_PLAY_STRICT_VERIFY) {
+    } else if (GOOGLE_PLAY_STRICT_VERIFY || (process.env.NODE_ENV === 'production' && !GOOGLE_PLAY_ALLOW_UNVERIFIED_FALLBACK)) {
       return res.status(503).json({ error: 'Google Play verification not configured on server' });
     } else {
       console.warn('[google-iap] Proceeding without Play API verification (fallback mode enabled)');

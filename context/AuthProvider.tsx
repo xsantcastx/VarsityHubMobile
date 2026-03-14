@@ -276,11 +276,13 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
 
         return me;
       } catch (err: any) {
-        setUser(null);
-        // Don't clear onboarding flag on auth error - keep it for when user logs back in
-        // Only throw if it's not a 401 (unauthorized) - 401 is expected when not logged in
-        if (err?.status !== 401) {
-          if (__DEV__) console.error('[AuthProvider] checkAuth error:', err);
+        // Only clear auth state on explicit unauthorized responses.
+        // For transient network/server errors, preserve the existing session.
+        if (err?.status === 401) {
+          setUser(null);
+          setPendingVerificationEmail(null);
+        } else {
+          if (__DEV__) console.error('[AuthProvider] checkAuth transient error (session preserved):', err);
         }
         throw err;
       }

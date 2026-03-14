@@ -4,7 +4,8 @@
  * Only shown to league owners — coaches are covered by their league owner's plan.
  * iOS: Uses Apple IAP (react-native-iap) for veteran_vhub / Legend_vhub
  * Android: Uses Google Play Billing (react-native-iap) for veteran_vhub / Legend_vhub
- * Web/fallback: Uses Stripe Payment Sheets
+ * Web: checkout is disabled (mobile app only)
+ * Other fallback: Uses Stripe Payment Sheets
  */
 
 import { httpPost } from '@/api/http';
@@ -121,7 +122,17 @@ export default function SubscriptionPaywallScreen() {
       return;
     }
 
-    // Web/fallback: Use Stripe PaymentSheet
+    if (Platform.OS === 'web') {
+      setModal({
+        visible: true,
+        title: 'Web checkout unavailable',
+        message: 'Subscription checkout is currently supported in the mobile app only. Please continue on iOS or Android.',
+        options: [{ label: 'OK', onPress: () => setModal(null), color: '#2563EB' }],
+      });
+      return;
+    }
+
+    // Non-mobile fallback: Use Stripe PaymentSheet
     setLoading(true);
     try {
       const data: any = await httpPost('/payments/create-payment-sheet', {

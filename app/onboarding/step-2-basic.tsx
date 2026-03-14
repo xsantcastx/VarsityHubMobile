@@ -199,7 +199,7 @@ export default function Step2Basic() {
   // - Zip code: optional for all users
   // - Coaches must be 18+
   const canContinue = usernameRe.test(username) &&
-    available === true &&
+    available !== false &&
     dob &&
     !dobError &&
     !isUnder13 &&
