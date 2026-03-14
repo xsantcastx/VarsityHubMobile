@@ -37,9 +37,15 @@ interface AuthUser {
   role?: string;
   is_admin?: boolean;
   approval_status?: string;
+  paid_by_owner?: boolean;
   preferences?: {
     onboarding_completed?: boolean;
     role?: string;
+    plan?: string;
+    pending_plan?: string;
+    payment_pending?: boolean;
+    payment_approved?: boolean;
+    join_request_pending?: boolean;
   };
 }
 
@@ -508,6 +514,26 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       // SERVER IS SOURCE OF TRUTH for onboarding completion
       const serverSaysIncomplete = user.preferences?.onboarding_completed === false;
       const needsOnboarding = serverSaysIncomplete && !hasCompletedOnboarding;
+      const pendingPlan = String(user.preferences?.pending_plan || user.preferences?.plan || '').toLowerCase();
+      const coachNeedsCheckout = user.preferences?.role === 'coach'
+        && user.approval_status === 'APPROVED'
+        && user.paid_by_owner !== true
+        && user.preferences?.payment_pending === true
+        && (pendingPlan === 'veteran' || pendingPlan === 'legend')
+        && (user.preferences?.payment_approved === true || user.preferences?.join_request_pending !== true);
+      const isOnPaymentPath = currentPath.includes('settings/manage-subscription')
+        || currentPath.includes('subscription-paywall')
+        || currentPath.includes('payment-success')
+        || currentPath.includes('billing');
+
+      if (!needsOnboarding && coachNeedsCheckout && !isOnPaymentPath) {
+        if (__DEV__) console.log('[AuthProvider] Approved coach must complete checkout before tools');
+        if (lastRedirectRef.current !== '/settings/manage-subscription') {
+          lastRedirectRef.current = '/settings/manage-subscription';
+          router.replace('/settings/manage-subscription');
+        }
+        return;
+      }
 
       // Approved coach with incomplete onboarding (approved while app was closed) — complete onboarding
       if (needsOnboarding && user.approval_status === 'APPROVED' && user.preferences?.role === 'coach' && firstSegment !== 'onboarding') {
