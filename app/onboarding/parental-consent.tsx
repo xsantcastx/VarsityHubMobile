@@ -1,8 +1,8 @@
 import { Input } from '@/components/ui/input';
 import PrimaryButton from '@/components/ui/PrimaryButton';
 import { Colors } from '@/constants/Colors';
+import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding } from '@/context/OnboardingContext';
-import { STEP_ROUTES, nextIncompleteStep } from '@/context/onboardingReducer';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -15,6 +15,7 @@ import OnboardingLayout from './components/OnboardingLayout';
 export default function ParentalConsent() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
+  const { markOnboardingCompleteLocally } = useAuth();
   const { state: ob, setState: setOB, setProgress, dispatch, canNavigate } = useOnboarding();
   const [consentChecked, setConsentChecked] = useState(ob.parental_consent_given ?? false);
   const [parentEmail, setParentEmail] = useState(ob.parent_guardian_email ?? '');
@@ -47,23 +48,34 @@ export default function ParentalConsent() {
         parent_guardian_email: parentEmail.trim() || undefined,
       }));
 
-      // Navigate to the next step after step 2 (same logic step-2 would use)
+      // Navigate to the next step after parental consent
       const currentRole = ob.role;
       const isCoach = currentRole === 'coach';
-      const updatedState = { ...ob, parental_consent_given: true, step_2_visited: true };
-      const nextStepIndex = isCoach
-        ? 2 // Step 3 (League) for coaches
-        : nextIncompleteStep(updatedState, currentRole);
-      const nextRoute = isCoach
-        ? '/onboarding/step-3-league'
-        : (STEP_ROUTES[nextStepIndex] || STEP_ROUTES[0]);
 
       dispatch({
         type: 'SAVE_SUCCESS',
         data: { parental_consent_given: true, parent_guardian_email: parentEmail.trim() || undefined },
       });
-      setProgress(nextStepIndex);
-      router.replace(nextRoute as any);
+
+      if (isCoach) {
+        // Coaches go to step 3 (league setup)
+        setProgress(2);
+        router.replace('/onboarding/step-3-league' as any);
+      } else {
+        // Fans are done — complete onboarding
+        try {
+          await User.completeOnboarding({
+            role: 'fan',
+            username: ob.username,
+            dob: ob.dob,
+            zip_code: ob.zip_code || ob.zip,
+          });
+          await markOnboardingCompleteLocally();
+        } catch (err) {
+          if (__DEV__) console.warn('[parental-consent] Failed to complete onboarding:', err);
+        }
+        router.replace('/(tabs)' as any);
+      }
     } catch (e: any) {
       if (__DEV__) console.error('[parental-consent] Failed to save:', e);
       dispatch({ type: 'SAVE_FAIL', error: e });

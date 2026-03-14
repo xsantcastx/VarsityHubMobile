@@ -19,6 +19,13 @@ import { calculateAdPriceCents } from '../utils/adPricing.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', { apiVersion: '2024-06-20' });
 
+// Startup warnings for critical payment config
+if (process.env.NODE_ENV === 'production') {
+  if (!process.env.STRIPE_WEBHOOK_SECRET) console.error('[payments] WARNING: STRIPE_WEBHOOK_SECRET is not set — webhooks will fail silently');
+  if (!process.env.STRIPE_SECRET_KEY) console.error('[payments] WARNING: STRIPE_SECRET_KEY is not set — all payments will fail');
+  if (!process.env.APPLE_IAP_SHARED_SECRET) console.warn('[payments] Apple IAP shared secret not set — iOS IAP verification disabled');
+}
+
 // Admin notification email — falls back to first ADMIN_EMAILS entry
 const ADMIN_NOTIFY_EMAIL = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim()).filter(Boolean)[0] || 'emancero@varsityhub.app';
 

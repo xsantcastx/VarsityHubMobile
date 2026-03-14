@@ -492,9 +492,11 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         return;
       }
 
-      // Block pending coaches from ALL screens — must stay on pending-approval until approved
+      // Block pending coaches — must stay on pending-approval until approved
       const isPendingCoach = user.approval_status === 'PENDING' && user.preferences?.role === 'coach';
-      if (isPendingCoach && firstSegment !== 'onboarding' && firstSegment !== 'sign-in' && firstSegment !== 'sign-up') {
+      const currentPath = Array.isArray(segmentsRef.current) ? segmentsRef.current.join('/') : '';
+      const isOnPendingScreen = currentPath.includes('pending-approval') || currentPath.includes('league-pending-approval');
+      if (isPendingCoach && !isOnPendingScreen && firstSegment !== 'sign-in' && firstSegment !== 'sign-up') {
         if (__DEV__) console.log('[AuthProvider] Pending coach blocked — must wait for approval');
         if (lastRedirectRef.current !== '/onboarding/pending-approval') {
           lastRedirectRef.current = '/onboarding/pending-approval';
@@ -504,14 +506,18 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       }
 
       // SERVER IS SOURCE OF TRUTH for onboarding completion
-      // Admin accounts always have onboarding_completed=true on server, so they bypass onboarding
-      // Regular users are marked false if they haven't completed onboarding
       const serverSaysIncomplete = user.preferences?.onboarding_completed === false;
-
-      // Both conditions must be true: server says incomplete AND local flag not set
-      // hasCompletedOnboarding is a fallback for the window between onboarding completion and
-      // the next checkAuth() call - prevents a re-render from sending user back to onboarding
       const needsOnboarding = serverSaysIncomplete && !hasCompletedOnboarding;
+
+      // Approved coach with incomplete onboarding (approved while app was closed) — complete onboarding
+      if (needsOnboarding && user.approval_status === 'APPROVED' && user.preferences?.role === 'coach' && firstSegment !== 'onboarding') {
+        if (__DEV__) console.log('[AuthProvider] Approved coach needs to complete onboarding');
+        if (lastRedirectRef.current !== '/onboarding/pending-approval') {
+          lastRedirectRef.current = '/onboarding/pending-approval';
+          router.replace('/onboarding/pending-approval');
+        }
+        return;
+      }
 
       // If needs onboarding and not already there, redirect to start onboarding
       if (needsOnboarding && firstSegment !== 'onboarding') {
