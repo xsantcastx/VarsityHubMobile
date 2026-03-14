@@ -7,12 +7,24 @@
 
 import { useEffect, useCallback, useState, useRef } from 'react';
 import { Platform } from 'react-native';
-import {
-  useIAP as useRNIAP,
-  getReceiptIOS,
-} from 'react-native-iap';
-import type { Purchase, PurchaseError } from 'react-native-iap';
+import Constants from 'expo-constants';
 import { httpPost } from '@/api/http';
+
+// Only import react-native-iap in standalone builds (not Expo Go)
+const isExpoGo = Constants.executionEnvironment === 'storeClient';
+let useRNIAP: any = () => ({});
+let getReceiptIOS: any = async () => '';
+if (!isExpoGo) {
+  try {
+    const iap = require('react-native-iap');
+    useRNIAP = iap.useIAP;
+    getReceiptIOS = iap.getReceiptIOS;
+  } catch {
+    // react-native-iap not available
+  }
+}
+type Purchase = any;
+type PurchaseError = any;
 
 const isIOS = Platform.OS === 'ios';
 const isAndroid = Platform.OS === 'android';
