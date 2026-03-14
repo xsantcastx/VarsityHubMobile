@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import expressPkg, { Router } from 'express';
+import jwt from 'jsonwebtoken';
 import Stripe from 'stripe';
 import { Prisma } from '@prisma/client';
 import { debugLog } from '../lib/debugLog.js';
@@ -1037,97 +1038,98 @@ paymentsRouter.post('/webhook', async (req, res) => {
   if (event.type === 'customer.subscription.deleted') {
     const subscription = event.data.object as Stripe.Subscription;
     const customer = await stripe.customers.retrieve(subscription.customer as string).catch(() => null);
-    if (customer && !customer.deleted && customer.email) {
+    const customerEmail = customer && !customer.deleted ? customer.email : null;
+    if (customerEmail) {
       await sendBillingNoticeEmail({
-        to: customer.email,
+        to: customerEmail,
         type: 'subscription_canceled',
         planName: subscription.items.data[0]?.price?.nickname || 'VarsityHub Subscription',
       }).catch(err => console.warn('[billing-email] subscription_canceled failed:', err));
+    }
 
-      // Downgrade user to rookie plan now that subscription period has ended
-      const canceledUser = await prisma.user.findFirst({ where: { stripe_customer_id: subscription.customer as string } });
-      if (canceledUser) {
-        const prefs = (canceledUser.preferences && typeof canceledUser.preferences === 'object') ? (canceledUser.preferences as any) : {};
-        const previousPlan = prefs.plan || 'rookie';
-        delete prefs.subscription_id;
-        delete prefs.subscription_period_end;
-        prefs.plan = 'rookie';
-        // ATOMIC: downgrade + cancellation log must succeed or fail together
-        await prisma.$transaction([
-          prisma.user.update({
-            where: { id: canceledUser.id },
-            data: { preferences: prefs, subscription_tier: 'free', subscription_status: 'canceled' },
-          }),
-          prisma.transactionLog.create({
-            data: {
-              transaction_type: 'SUBSCRIPTION_CANCEL',
-              status: 'COMPLETED',
-              stripe_subscription_id: subscription.id,
-              user_id: canceledUser.id,
-              metadata: { reason: 'subscription_deleted', previous_plan: previousPlan },
-              subtotal_cents: 0,
-              tax_cents: 0,
-              stripe_fee_cents: 0,
-              discount_cents: 0,
-              total_cents: 0,
-              net_cents: 0,
-              promo_discount_cents: 0,
-              currency: 'usd',
-            },
-          }),
-        ]);
-      }
+    // Downgrade user to rookie plan now that subscription period has ended
+    const canceledUser = await prisma.user.findFirst({ where: { stripe_customer_id: subscription.customer as string } });
+    if (canceledUser) {
+      const prefs = (canceledUser.preferences && typeof canceledUser.preferences === 'object') ? (canceledUser.preferences as any) : {};
+      const previousPlan = prefs.plan || 'rookie';
+      delete prefs.subscription_id;
+      delete prefs.subscription_period_end;
+      prefs.plan = 'rookie';
+      // ATOMIC: downgrade + cancellation log must succeed or fail together
+      await prisma.$transaction([
+        prisma.user.update({
+          where: { id: canceledUser.id },
+          data: { preferences: prefs, subscription_tier: 'free', subscription_status: 'canceled' },
+        }),
+        prisma.transactionLog.create({
+          data: {
+            transaction_type: 'SUBSCRIPTION_CANCEL',
+            status: 'COMPLETED',
+            stripe_subscription_id: subscription.id,
+            user_id: canceledUser.id,
+            metadata: { reason: 'subscription_deleted', previous_plan: previousPlan },
+            subtotal_cents: 0,
+            tax_cents: 0,
+            stripe_fee_cents: 0,
+            discount_cents: 0,
+            total_cents: 0,
+            net_cents: 0,
+            promo_discount_cents: 0,
+            currency: 'usd',
+          },
+        }),
+      ]);
     }
   }
   
   if (event.type === 'customer.subscription.updated') {
     const subscription = event.data.object as Stripe.Subscription;
     const customer = await stripe.customers.retrieve(subscription.customer as string).catch(() => null);
-    if (customer && !customer.deleted && customer.email) {
-      // Sync subscription state to database
-      const subUser = await prisma.user.findFirst({ where: { stripe_customer_id: subscription.customer as string } });
-      if (subUser) {
-        const priceId = subscription.items.data[0]?.price?.id;
-        // Map Stripe price ID back to plan tier
-        let newTier: string = subUser.subscription_tier || 'free';
-        if (priceId === process.env.STRIPE_PRICE_VETERAN) newTier = 'veteran';
-        else if (priceId === process.env.STRIPE_PRICE_LEGEND) newTier = 'legend';
+    const customerEmail = customer && !customer.deleted ? customer.email : null;
 
-        const statusMap: Record<string, string> = {
-          active: 'active', past_due: 'past_due', unpaid: 'unpaid',
-          canceled: 'canceled', incomplete: 'incomplete', incomplete_expired: 'canceled',
-          trialing: 'active', paused: 'paused',
-        };
-        const newStatus = statusMap[subscription.status] || subscription.status;
+    // Sync subscription state to database (independent of email availability)
+    const subUser = await prisma.user.findFirst({ where: { stripe_customer_id: subscription.customer as string } });
+    if (subUser) {
+      const priceId = subscription.items.data[0]?.price?.id;
+      // Map Stripe price ID back to plan tier
+      let newTier: string = subUser.subscription_tier || 'free';
+      if (priceId === process.env.STRIPE_PRICE_VETERAN) newTier = 'veteran';
+      else if (priceId === process.env.STRIPE_PRICE_LEGEND) newTier = 'legend';
 
-        // Also update preferences.plan to keep it in sync with subscription_tier
-        const planFromTier = newTier === 'veteran' ? 'veteran' : newTier === 'legend' ? 'legend' : undefined;
-        const updateData: any = { subscription_tier: newTier, subscription_status: newStatus };
-        if (planFromTier && (newStatus === 'active')) {
-          const existingPrefs = (subUser.preferences && typeof subUser.preferences === 'object') ? (subUser.preferences as any) : {};
-          updateData.preferences = { ...existingPrefs, plan: planFromTier, pending_plan: null, payment_pending: false };
-        }
+      const statusMap: Record<string, string> = {
+        active: 'active', past_due: 'past_due', unpaid: 'unpaid',
+        canceled: 'canceled', incomplete: 'incomplete', incomplete_expired: 'canceled',
+        trialing: 'active', paused: 'paused',
+      };
+      const newStatus = statusMap[subscription.status] || subscription.status;
 
-        await prisma.user.update({
-          where: { id: subUser.id },
-          data: updateData,
-        });
-        console.log(`[webhook] subscription.updated: user ${subUser.id} -> tier=${newTier} status=${newStatus} plan=${planFromTier || 'unchanged'}`);
-
-        // Update any PENDING transaction log created by PaymentSheet flow
-        updateTransactionStatus(subscription.id, 'COMPLETED', {
-          metadata: { event: 'subscription.updated', status: subscription.status },
-        }).catch(err => captureException(err as Error, { context: 'sub_paymentsheet_transaction_update' }));
+      // Also update preferences.plan to keep it in sync with subscription_tier
+      const planFromTier = newTier === 'veteran' ? 'veteran' : newTier === 'legend' ? 'legend' : undefined;
+      const updateData: any = { subscription_tier: newTier, subscription_status: newStatus };
+      if (planFromTier && (newStatus === 'active')) {
+        const existingPrefs = (subUser.preferences && typeof subUser.preferences === 'object') ? (subUser.preferences as any) : {};
+        updateData.preferences = { ...existingPrefs, plan: planFromTier, pending_plan: null, payment_pending: false };
       }
 
-      if (subscription.status === 'active') {
-        await sendBillingNoticeEmail({
-          to: customer.email,
-          type: 'subscription_renewed',
-          amount: `$${((subscription.items.data[0]?.price?.unit_amount || 0) / 100).toFixed(2)}`,
-          planName: subscription.items.data[0]?.price?.nickname || 'VarsityHub Subscription',
-        }).catch(err => console.warn('[billing-email] subscription_renewed failed:', err));
-      }
+      await prisma.user.update({
+        where: { id: subUser.id },
+        data: updateData,
+      });
+      console.log(`[webhook] subscription.updated: user ${subUser.id} -> tier=${newTier} status=${newStatus} plan=${planFromTier || 'unchanged'}`);
+
+      // Update any PENDING transaction log created by PaymentSheet flow
+      updateTransactionStatus(subscription.id, 'COMPLETED', {
+        metadata: { event: 'subscription.updated', status: subscription.status },
+      }).catch(err => captureException(err as Error, { context: 'sub_paymentsheet_transaction_update' }));
+    }
+
+    if (subscription.status === 'active' && customerEmail) {
+      await sendBillingNoticeEmail({
+        to: customerEmail,
+        type: 'subscription_renewed',
+        amount: `$${((subscription.items.data[0]?.price?.unit_amount || 0) / 100).toFixed(2)}`,
+        planName: subscription.items.data[0]?.price?.nickname || 'VarsityHub Subscription',
+      }).catch(err => console.warn('[billing-email] subscription_renewed failed:', err));
     }
   }
 
@@ -2086,7 +2088,9 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
           totalCents,
         }).catch(err => console.warn('[payments] subscription email failed:', (err as any)?.message || err));
       } catch (err) {
-        console.warn('Failed to finalize membership from session:', (err as any)?.message || err);
+        console.error('[payments] Failed to finalize membership from session:', (err as any)?.message || err);
+        captureException(err as Error, { context: 'finalize_membership_from_session', sessionId: session.id, userId, plan });
+        throw err;
       }
     }
   }
@@ -2297,6 +2301,94 @@ const GOOGLE_ALLOWED_PACKAGES = (process.env.GOOGLE_PLAY_PACKAGE_NAMES || 'com.v
   .split(',')
   .map((value) => value.trim())
   .filter(Boolean);
+const GOOGLE_PLAY_TOKEN_URL = 'https://oauth2.googleapis.com/token';
+const GOOGLE_PLAY_SCOPE = 'https://www.googleapis.com/auth/androidpublisher';
+const GOOGLE_PLAY_API_BASE = 'https://androidpublisher.googleapis.com/androidpublisher/v3';
+const GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL = (process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL || '').trim();
+const GOOGLE_PLAY_SERVICE_ACCOUNT_PRIVATE_KEY = (process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_PRIVATE_KEY || '')
+  .replace(/\\n/g, '\n')
+  .trim();
+const GOOGLE_PLAY_STRICT_VERIFY = process.env.GOOGLE_PLAY_STRICT_VERIFY === '1';
+
+function hasGooglePlayVerifierConfig() {
+  return Boolean(GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL && GOOGLE_PLAY_SERVICE_ACCOUNT_PRIVATE_KEY);
+}
+
+async function getGooglePlayAccessToken(): Promise<string | null> {
+  if (!hasGooglePlayVerifierConfig()) return null;
+  const now = Math.floor(Date.now() / 1000);
+  const assertion = jwt.sign(
+    {
+      iss: GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL,
+      scope: GOOGLE_PLAY_SCOPE,
+      aud: GOOGLE_PLAY_TOKEN_URL,
+      iat: now,
+      exp: now + 3600,
+    },
+    GOOGLE_PLAY_SERVICE_ACCOUNT_PRIVATE_KEY,
+    { algorithm: 'RS256' }
+  );
+
+  const body = new URLSearchParams({
+    grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+    assertion,
+  });
+  const response = await fetch(GOOGLE_PLAY_TOKEN_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body.toString(),
+  });
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw new Error(`Google token exchange failed (${response.status}): ${text || 'no response body'}`);
+  }
+  const payload: any = await response.json();
+  return typeof payload?.access_token === 'string' ? payload.access_token : null;
+}
+
+async function verifyGooglePurchaseWithPlayApi(params: {
+  packageName: string;
+  productId: string;
+  purchaseToken: string;
+}) {
+  const accessToken = await getGooglePlayAccessToken();
+  if (!accessToken) {
+    return { verified: false as const, reason: 'google_verifier_not_configured' };
+  }
+
+  const { packageName, productId, purchaseToken } = params;
+  const url = `${GOOGLE_PLAY_API_BASE}/applications/${encodeURIComponent(packageName)}/purchases/subscriptions/${encodeURIComponent(productId)}/tokens/${encodeURIComponent(purchaseToken)}`;
+  const response = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    return {
+      verified: false as const,
+      reason: `google_play_api_${response.status}`,
+      details: text || null,
+    };
+  }
+
+  const payload: any = await response.json();
+  const expiryTimeMillis = Number(payload?.expiryTimeMillis || 0);
+  const cancelReason = payload?.cancelReason;
+  const isExpired = !expiryTimeMillis || expiryTimeMillis <= Date.now();
+  const isCanceled = cancelReason !== undefined && cancelReason !== null;
+  if (isExpired || isCanceled) {
+    return {
+      verified: false as const,
+      reason: isExpired ? 'google_subscription_expired' : 'google_subscription_canceled',
+      details: payload,
+    };
+  }
+
+  return {
+    verified: true as const,
+    expiresAt: new Date(expiryTimeMillis).toISOString(),
+    details: payload,
+  };
+}
 
 // Google Play purchase verification — uses requireAuth (not requireVerified) because Google
 // already charged the user; blocking on email verification would leave them in a broken state.
@@ -2334,17 +2426,40 @@ paymentsRouter.post('/google/verify-purchase', expressPkg.json(), requireAuth as
         order_id: orderId,
         transaction_type: 'SUBSCRIPTION_PURCHASE',
         status: 'COMPLETED',
-        user_id: { not: userId },
       } as any,
-      select: { id: true, user_id: true },
+      select: { id: true, user_id: true, metadata: true },
     });
     if (existingCompletedPurchase) {
+      if (existingCompletedPurchase.user_id === userId) {
+        return res.json({ ok: true, plan, idempotent: true, verified: false });
+      }
       return res.status(409).json({ error: 'Purchase token already used by another account' });
     }
 
+    const packageForVerification = String(package_name || GOOGLE_ALLOWED_PACKAGES[0] || '').trim();
+    let verifiedByStore = false;
+    let verificationMode: 'google_play_api' | 'client_fallback' = 'client_fallback';
+    if (hasGooglePlayVerifierConfig()) {
+      const verifyResult = await verifyGooglePurchaseWithPlayApi({
+        packageName: packageForVerification,
+        productId: String(product_id),
+        purchaseToken: String(purchase_token),
+      });
+      if (!verifyResult.verified) {
+        return res.status(400).json({
+          error: 'Google Play purchase verification failed',
+          reason: verifyResult.reason,
+        });
+      }
+      verifiedByStore = true;
+      verificationMode = 'google_play_api';
+    } else if (GOOGLE_PLAY_STRICT_VERIFY) {
+      return res.status(503).json({ error: 'Google Play verification not configured on server' });
+    } else {
+      console.warn('[google-iap] Proceeding without Play API verification (fallback mode enabled)');
+    }
+
     // Update user's plan in database
-    // Note: Full Google Play Developer API verification should be added for production hardening.
-    // For now, we trust the purchase token from the client (same pattern as Apple verify-receipt).
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true, email: true } });
     const currentPrefs = (user?.preferences && typeof user.preferences === 'object') ? user.preferences as any : {};
 
@@ -2375,7 +2490,7 @@ paymentsRouter.post('/google/verify-purchase', expressPkg.json(), requireAuth as
         status: 'COMPLETED',
         userId,
         orderId,
-        metadata: { source: 'google_play', product_id, plan, package_name },
+        metadata: { source: 'google_play', product_id, plan, package_name, verified_by_store: verifiedByStore, verification_mode: verificationMode },
       });
     } catch (logErr) {
       console.warn('[google-iap] Failed to log transaction:', logErr);
@@ -2394,7 +2509,7 @@ paymentsRouter.post('/google/verify-purchase', expressPkg.json(), requireAuth as
 
     debugLog('google-iap', `User ${userId} subscribed to ${plan} via Google Play Billing`);
 
-    return res.json({ ok: true, plan });
+    return res.json({ ok: true, plan, verified: verifiedByStore });
   } catch (err: any) {
     console.error('[google-iap] verify-purchase error:', err);
     captureException(err, { tags: { context: 'google-iap-verify' } });
