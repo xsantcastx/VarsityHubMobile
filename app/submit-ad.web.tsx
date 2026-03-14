@@ -13,6 +13,7 @@ import { Advertisement as AdsApi, User } from '@/api/entities';
 // Web version: ReachMapPreview removed (maps not supported on web)
 
 type BannerFitValue = 'rotate' | 'fill' | 'stretch' | `rotate:${number}`;
+type ServerBannerFitMode = 'cover' | 'contain' | 'fill';
 
 type DraftAd = {
   id: string;
@@ -51,9 +52,16 @@ export default function SubmitAdScreen() {
     return `https://${trimmed}`;
   };
 
+  const normalizeBannerFitMode = (mode: BannerFitValue): ServerBannerFitMode => {
+    if (String(mode).startsWith('rotate')) return 'contain';
+    if (mode === 'stretch') return 'fill';
+    return 'fill';
+  };
+
   const canSubmit = useMemo(() => {
     // Website link is required; description is optional
-    if (!name.trim() || !email.trim() || !business.trim() || !zip.trim()) return false;
+    if (!name.trim() || !email.trim() || !business.trim()) return false;
+    if (!/^\d{5}$/.test(zip.trim())) return false;
     if (!bannerUrl) return false; // Banner is mandatory
     if (!targetUrl.trim()) return false; // Website link mandatory
     return true;
@@ -90,7 +98,7 @@ export default function SubmitAdScreen() {
           contact_email: email.trim(),
           business_name: business.trim(),
           banner_url: bannerUrl || undefined,
-          banner_fit_mode: bannerFitMode,
+          banner_fit_mode: normalizeBannerFitMode(bannerFitMode),
           target_url: normalizeUrl(targetUrl) || undefined,
           target_zip_code: zip.trim(),
           radius: 45,
@@ -225,12 +233,12 @@ export default function SubmitAdScreen() {
             <Text style={[styles.label, { color: theme.text }]}>Target Zip Code *</Text>
             <TextInput 
               value={zip} 
-              onChangeText={setZip} 
+              onChangeText={(value) => setZip(value.replace(/[^\d]/g, '').slice(0, 5))} 
               placeholder="90210" 
               style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]} 
               placeholderTextColor={theme.mutedText}
               keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'} 
-              maxLength={10} 
+              maxLength={5} 
             />
 
             {/* Map preview not available on web */}

@@ -13,6 +13,7 @@ import { httpGet } from '@/api/http';
 import { Advertisement as AdsApi } from '@/api/entities';
 
 type BannerFitValue = 'rotate' | 'fill' | 'stretch' | `rotate:${number}`;
+type ServerBannerFitMode = 'cover' | 'contain' | 'fill';
 
 type DraftAd = {
   id: string;
@@ -51,6 +52,12 @@ export default function SubmitAdScreen() {
     if (!trimmed) return '';
     if (/^https?:\/\//i.test(trimmed)) return trimmed;
     return `https://${trimmed}`;
+  };
+
+  const normalizeBannerFitMode = (mode: BannerFitValue): ServerBannerFitMode => {
+    if (String(mode).startsWith('rotate')) return 'contain';
+    if (mode === 'stretch') return 'fill';
+    return 'fill';
   };
 
   const canSubmit = useMemo(() => {
@@ -96,7 +103,7 @@ export default function SubmitAdScreen() {
           contact_email: email.trim(),
           business_name: business.trim(),
           banner_url: bannerUrl || undefined,
-          banner_fit_mode: bannerFitMode,
+          banner_fit_mode: normalizeBannerFitMode(bannerFitMode),
           target_url: normalizeUrl(targetUrl) || undefined,
           target_zip_code: zip.trim(),
           radius: 9,
