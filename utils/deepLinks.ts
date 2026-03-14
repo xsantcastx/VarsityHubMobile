@@ -41,7 +41,7 @@ const ROUTE_MAP: Record<string, string> = {
   posts: '/(tabs)/post-detail', // /posts/:id (web URL format)
   game: '/(tabs)/game-detail',
   event: '/(tabs)/event-detail',
-  team: '/team-page',
+  team: '/(tabs)/team-profile',
   profile: '/(tabs)/user-profile',
   user: '/(tabs)/user-profile',
   // Auth-related routes

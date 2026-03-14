@@ -841,7 +841,7 @@ export default function HighlightsScreen() {
                   <Pressable
                     key={team.id}
                     style={[styles.searchResultItem, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
-                    onPress={() => { void router.push(`/team-page?id=${team.id}`); }}
+                    onPress={() => { void router.push(`/(tabs)/team-profile?id=${team.id}`); }}
                   >
                     <Text style={[styles.searchResultTitle, { color: Colors[colorScheme].text }]}>{team.name}</Text>
                     <Text style={[styles.searchResultSubtitle, { color: Colors[colorScheme].tabIconDefault }]}>

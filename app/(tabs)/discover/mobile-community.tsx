@@ -695,7 +695,7 @@ export default function CommunityDiscoverScreen() {
                 <Pressable
                   key={t.id}
                   style={[styles.searchResultRow, { borderBottomColor: Colors[colorScheme].border }]}
-                  onPress={() => { setQuery(''); setUnifiedSearchResults(null); void router.push(`/team-page?id=${t.id}`); }}
+                  onPress={() => { setQuery(''); setUnifiedSearchResults(null); void router.push(`/(tabs)/team-profile?id=${t.id}`); }}
                   accessibilityRole="button"
                   accessibilityLabel={`View team ${t.name}`}
                 >

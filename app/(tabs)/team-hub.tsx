@@ -12,7 +12,7 @@ import { Radius, Type } from '@/components/ui/tokens';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 // @ts-ignore api exports
-import { Event } from '@/api/entities';
+import { Event, Team } from '@/api/entities';
 
 const PLACEHOLDER = ['#0f172a', '#1e3a8a'] as const;
 
@@ -38,28 +38,49 @@ export default function TeamHubScreen() {
   const S = useMemo(() => createStyles(palette, colorScheme), [palette, colorScheme]);
   const [_activeTab, _setActiveTab] = useState<'team' | 'create' | 'approvals'>('team');
   const [query, setQuery] = useState('');
+  const [managedTeams, setManagedTeams] = useState<any[]>([]);
+  const [teamsLoading, setTeamsLoading] = useState(true);
   const [events, setEvents] = useState<any[]>([]);
   const [eventsLoading, setEventsLoading] = useState(true);
   const [eventsError, setEventsError] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
-    const loadEvents = async () => {
+    const load = async () => {
+      setTeamsLoading(true);
       setEventsLoading(true);
       setEventsError(null);
       try {
+        // Load managed teams first so we can filter events
+        const teamsRaw: any = await Team.managed();
+        const teams = Array.isArray(teamsRaw) ? teamsRaw : teamsRaw?.items || [];
+        if (!mounted) return;
+        setManagedTeams(teams);
+        setTeamsLoading(false);
+
+        // Load events filtered to coach's teams
+        const teamIds = new Set(teams.map((t: any) => String(t.id)));
         const list: any = await Event.filter({ status: 'approved' }, 'date');
         if (!mounted) return;
-        const items = Array.isArray(list) ? list : list?.items || [];
-        setEvents(items);
+        const allItems = Array.isArray(list) ? list : list?.items || [];
+        const filtered = teamIds.size > 0
+          ? allItems.filter((evt: any) => {
+              const eid = evt.team_id ? String(evt.team_id) : evt.team?.id ? String(evt.team.id) : null;
+              return eid && teamIds.has(eid);
+            })
+          : [];
+        setEvents(filtered);
       } catch (err) {
-        if (__DEV__) console.error('Failed to load events', err);
+        if (__DEV__) console.error('Failed to load team hub data', err);
         if (mounted) setEventsError('Unable to load events right now.');
       } finally {
-        if (mounted) setEventsLoading(false);
+        if (mounted) {
+          setTeamsLoading(false);
+          setEventsLoading(false);
+        }
       }
     };
-    void loadEvents();
+    void load();
     return () => { mounted = false; };
   }, []);
 
@@ -146,14 +167,41 @@ export default function TeamHubScreen() {
           </View>
         </View>
 
-        <View style={S.dashedBox}>
-          <Text style={{ fontWeight: '800', color: palette.text, marginBottom: 4 }}>You are not managing any teams yet.</Text>
-          <Text style={[Type.sub as any, { textAlign: 'center', marginBottom: 12 }]}>Create a team to get started.</Text>
-          <PrimaryButton
-            label="Create New Team"
-            onPress={() => void router.push('/(tabs)/create-team')}
-          />
-        </View>
+        {teamsLoading ? (
+          <View style={[S.dashedBox, { borderStyle: undefined, borderWidth: 0 }]}>
+            <ActivityIndicator color={palette.primary} />
+          </View>
+        ) : managedTeams.length === 0 ? (
+          <View style={S.dashedBox}>
+            <Text style={{ fontWeight: '800', color: palette.text, marginBottom: 4 }}>You are not managing any teams yet.</Text>
+            <Text style={[Type.sub as any, { textAlign: 'center', marginBottom: 12 }]}>Create a team to get started.</Text>
+            <PrimaryButton
+              label="Create New Team"
+              onPress={() => void router.push('/(tabs)/create-team')}
+            />
+          </View>
+        ) : (
+          <View style={{ marginTop: 8, gap: 8 }}>
+            <Text style={[Type.sub as any]}>
+              {managedTeams.length} {managedTeams.length === 1 ? 'team' : 'teams'}
+            </Text>
+            {managedTeams.map((team: any) => (
+              <Pressable
+                key={String(team.id)}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, paddingHorizontal: 12, borderRadius: Radius.md, backgroundColor: palette.infoTile }}
+                onPress={() => router.push({ pathname: '/team-page', params: { id: String(team.id) } })}
+              >
+                <MaterialIcons name="groups" size={20} color={palette.primary} />
+                <Text style={{ color: palette.text, fontWeight: '700', flex: 1 }} numberOfLines={1}>{team.name}</Text>
+                <MaterialIcons name="chevron-right" size={20} color={palette.placeholder} />
+              </Pressable>
+            ))}
+            <PrimaryButton
+              label="Create New Team"
+              onPress={() => void router.push('/(tabs)/create-team')}
+            />
+          </View>
+        )}
       </View>
 
       {/* Section header */}

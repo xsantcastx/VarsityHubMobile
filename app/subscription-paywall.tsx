@@ -15,6 +15,7 @@ import { CoachTier, CoachTierBadge, CoachTierBenefits } from '@/components/Coach
 import CustomActionModal from '@/components/CustomActionModal';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useAuth } from '@/context/AuthProvider';
 import { useVHubIAP } from '@/hooks/useIAP';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
@@ -62,6 +63,7 @@ export default function SubscriptionPaywallScreen() {
       setCheckingAccess(false);
     })();
   }, []);
+  const { checkAuth } = useAuth();
   const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
   const { connected: iapConnected, purchasing: iapPurchasing, purchase: iapPurchase, getProduct, error: iapError } = useVHubIAP();
   const [modal, setModal] = useState<{
@@ -102,6 +104,8 @@ export default function SubscriptionPaywallScreen() {
       try {
         const success = await iapPurchase(selectedTier as 'veteran' | 'legend');
         if (success) {
+          // Refresh auth state so the user's plan is updated in the UI immediately
+          checkAuth().catch(() => {});
           Alert.alert('Success', 'Your subscription is now active!', [
             { text: 'OK', onPress: () => {
               if (router.canGoBack()) router.back();

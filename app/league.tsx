@@ -355,7 +355,7 @@ export default function LeagueScreen() {
   const handleTeamPress = (team: LeagueTeam) => {
     // Navigate to team page (with Feed/Schedule/Roster)
     router.push({
-      pathname: '/team-page',
+      pathname: '/(tabs)/team-profile',
       params: { 
         id: team.id,
         name: team.name,

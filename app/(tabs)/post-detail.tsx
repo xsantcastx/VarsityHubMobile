@@ -814,7 +814,7 @@ export default function PostDetailScreen() {
             <Pressable 
               style={[styles.teamInfo, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
               onPress={() => { const teamId = postData.team_id || postData.team?.id;
-                if (teamId) { void router.push(`/team-page?id=${teamId}`);
+                if (teamId) { void router.push(`/(tabs)/team-profile?id=${teamId}`);
                 }
               }}
             >

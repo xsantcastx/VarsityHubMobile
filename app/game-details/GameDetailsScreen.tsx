@@ -716,7 +716,7 @@ const GameDetailsScreen = () => {
   const replaceToCanonicalGame = useCallback(
     (gameIdValue: string) => {
       const routeBase = '/(tabs)/feed/game/[id]';
-      void router.replace({ pathname: routeBase, params: { id: gameIdValue } });
+      void router.push({ pathname: routeBase, params: { id: gameIdValue } });
     },
     [router],
   );
@@ -1891,13 +1891,13 @@ const renderBanner = () => {
         onLeftPress={() => {
           // Navigate to home team profile if team object exists
           if (homeTeamObj?.id) {
-            void router.push(`/team-page?id=${homeTeamObj.id}`);
+            void router.push(`/(tabs)/team-profile?id=${homeTeamObj.id}`);
           }
         }}
         onRightPress={() => {
           // Navigate to away team profile if team object exists
           if (awayTeamObj?.id) {
-            void router.push(`/team-page?id=${awayTeamObj.id}`);
+            void router.push(`/(tabs)/team-profile?id=${awayTeamObj.id}`);
           }
         }}
         leftColor={(homeTeamObj as any)?.color}
@@ -2083,7 +2083,7 @@ const renderBanner = () => {
                   borderColor: Colors[colorScheme].border,
                 }
               ]}
-              onPress={() => void router.push({ pathname: '/team-page', params: { id: team.id, name: team.name } } as any)}
+              onPress={() => void router.push({ pathname: '/(tabs)/team-profile', params: { id: team.id, name: team.name } } as any)}
             >
               {team.avatarUrl ? (
                 <Image source={{ uri: team.avatarUrl }} style={styles.teamLinkAvatar} contentFit="cover" />
@@ -2137,7 +2137,7 @@ const renderBanner = () => {
                   transform: pressed ? [{ scale: 0.95 }] : [{ scale: 1 }],
                 }
               ]}
-              onPress={() => void router.push({ pathname: '/team-page', params: { name: teamName } } as any)}
+              onPress={() => void router.push({ pathname: '/(tabs)/team-profile', params: { name: teamName } } as any)}
               accessibilityRole="button"
               accessibilityLabel={`View ${teamName} team`}
             >

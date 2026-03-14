@@ -632,7 +632,7 @@ export async function sendStaffInvitationEmail(params: any): Promise<boolean> {
 export async function sendVerificationEmail(email: string, token: string, userName?: string): Promise<boolean> {
   const displayName = userName || 'VarsityHub User';
 
-  return sendTemplateEmail(
+  const templateResult = await sendTemplateEmail(
     TEMPLATE_IDS.VERIFICATION,
     email,
     `${token} is your VarsityHub verification code`,
@@ -647,6 +647,17 @@ export async function sendVerificationEmail(email: string, token: string, userNa
     },
     `Verification email sent to ${email}`
   );
+
+  if (templateResult) return true;
+
+  // Fallback: send plain HTML email if template send failed or template ID is missing
+  debugLog(`[email] Verification template failed, falling back to plain HTML for ${email}`);
+  return sendEmail({
+    to: email,
+    subject: `${token} is your VarsityHub verification code`,
+    html: `<p>Your VarsityHub verification code is: <strong>${token}</strong>. It expires in 30 minutes.</p>`,
+    text: `Your VarsityHub verification code is: ${token}. It expires in 30 minutes.`,
+  });
 }
 
 /**
@@ -703,49 +714,57 @@ export async function sendTeamInviteEmail(params: {
   primaryColor?: string;
   inviteToken?: string;
 }): Promise<boolean> {
-  if (!TEMPLATE_IDS.TEAM_INVITE) {
-    console.warn('[email] SendGrid team invite template not configured');
-    return false;
-  }
-
-  const service = await getEmailService();
-  if (!service || !service.isConfigured()) {
-    console.warn('[email] Email service not configured');
-    return false;
-  }
-
   const prettyRole = params.role?.replace(/_/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase()) || 'member';
+  const inviterName = params.inviterName || 'VarsityHub Coach';
+  const subject = `You've been invited to join ${params.teamName}`;
 
-  try {
-    const result = await service.send({
-      to: params.to,
-      subject: `You've been invited to join ${params.teamName}`,
-      templateId: TEMPLATE_IDS.TEAM_INVITE,
-      templateData: {
-        ...getCommonTemplateData(),
-        recipient_name: params.recipientName || '',
-        team_name: params.teamName,
-        org_name: params.organizationName || '',
-        role: prettyRole,
-        inviter_name: params.inviterName || 'VarsityHub Coach',
-        invite_url: params.inviteToken ? `${APP_BASE_URL}/invites?token=${params.inviteToken}` : `${APP_BASE_URL}/invites`,
-        team_hero_url: params.teamHeroUrl || `${APP_BASE_URL}/default-team-hero.jpg`,
-        team_logo_url: params.teamLogoUrl || '',
-        primary_color: params.primaryColor || '#2563EB',
-      },
-    });
+  let templateSuccess = false;
 
-    if (result.success) {
-      debugLog(`✅ Team invite sent to ${params.to} for ${params.teamName}`);
-      return true;
-    } else {
-      console.error('❌ Failed to send team invite:', result.error);
-      return false;
+  if (TEMPLATE_IDS.TEAM_INVITE) {
+    const service = await getEmailService();
+    if (service && service.isConfigured()) {
+      try {
+        const result = await service.send({
+          to: params.to,
+          subject,
+          templateId: TEMPLATE_IDS.TEAM_INVITE,
+          templateData: {
+            ...getCommonTemplateData(),
+            recipient_name: params.recipientName || '',
+            team_name: params.teamName,
+            org_name: params.organizationName || '',
+            role: prettyRole,
+            inviter_name: inviterName,
+            invite_url: params.inviteToken ? `${APP_BASE_URL}/invites?token=${params.inviteToken}` : `${APP_BASE_URL}/invites`,
+            team_hero_url: params.teamHeroUrl || `${APP_BASE_URL}/default-team-hero.jpg`,
+            team_logo_url: params.teamLogoUrl || '',
+            primary_color: params.primaryColor || '#2563EB',
+          },
+        });
+
+        if (result.success) {
+          debugLog(`✅ Team invite sent to ${params.to} for ${params.teamName}`);
+          templateSuccess = true;
+        } else {
+          console.error('❌ Failed to send team invite:', result.error);
+        }
+      } catch (error: any) {
+        console.error('❌ Failed to send team invite:', error);
+      }
     }
-  } catch (error: any) {
-    console.error('❌ Failed to send team invite:', error);
-    return false;
   }
+
+  if (templateSuccess) return true;
+
+  // Fallback: send plain HTML email if template send failed or template ID is missing
+  debugLog(`[email] Team invite template failed, falling back to plain HTML for ${params.to}`);
+  const inviteUrl = params.inviteToken ? `${APP_BASE_URL}/invites?token=${params.inviteToken}` : `${APP_BASE_URL}/invites`;
+  return sendEmail({
+    to: params.to,
+    subject,
+    html: `<p>${inviterName} has invited you to join <strong>${params.teamName}</strong> as a <strong>${prettyRole}</strong>.</p><p><a href="${inviteUrl}">Accept Invite</a></p>`,
+    text: `${inviterName} has invited you to join ${params.teamName} as a ${prettyRole}. Accept your invite here: ${inviteUrl}`,
+  });
 }
 
 /**

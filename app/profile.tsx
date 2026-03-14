@@ -900,7 +900,7 @@ export default function ProfileScreen() {
                       styles.teamChip,
                       { borderColor: theme.border, backgroundColor: pressed ? theme.background : theme.card },
                     ]}
-                    onPress={() => void router.push({ pathname: '/team-page', params: { id: t.id, name: t.name } } as any)}
+                    onPress={() => void router.push({ pathname: '/(tabs)/team-profile', params: { id: t.id, name: t.name } } as any)}
                   >
                     {t.logo_url || t.avatar_url ? (
                       <Image source={{ uri: t.logo_url || t.avatar_url || '' }} style={styles.teamChipAvatar} contentFit="cover" />

@@ -417,7 +417,7 @@ export default function ManageTeamsSimpleScreen() {
                   member_count: team.members,
                   role: team.my_role as any,
                 }}
-                onPress={() => void router.push(`/team-page?id=${team.id}`)}
+                onPress={() => void router.push(`/(tabs)/team-profile?id=${team.id}`)}
                 showRole={true}
                 style={{ marginBottom: 12 }}
               />

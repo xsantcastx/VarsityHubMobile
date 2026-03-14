@@ -467,7 +467,7 @@ export default function EditProfileScreen() {
       // Redirect based on role
       if (userRole === 'coach' || userRole === 'admin') {
         // Coaches and admins go to team profile
-        router.replace('/(tabs)/team-profile');
+        router.back();
       } else {
         // Fans go back to previous screen
         if (router.canGoBack()) {
