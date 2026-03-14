@@ -10,7 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Advertisement as AdsApi, User } from '@/api/entities';
 
-type AdStatus = 'draft' | 'pending' | 'approved' | 'rejected';
+type AdStatus = 'draft' | 'pending' | 'active' | 'paused';
 
 export default function AdminAdsScreen() {
   const colorScheme = useColorScheme() ?? 'light';
@@ -158,9 +158,9 @@ export default function AdminAdsScreen() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'approved': return '#22c55e';
+      case 'active': return '#22c55e';
       case 'pending': return '#f59e0b';
-      case 'rejected': return '#dc2626';
+      case 'paused': return '#dc2626';
       default: return '#6b7280';
     }
   };
@@ -358,7 +358,7 @@ export default function AdminAdsScreen() {
       
       {/* Filter Tabs */}
       <View style={{ flexDirection: 'row', padding: 12, gap: 8, backgroundColor: theme.surface }}>
-        {(['all', 'pending', 'approved', 'rejected', 'draft'] as const).map((status) => (
+        {(['all', 'pending', 'active', 'paused', 'draft'] as const).map((status) => (
           <Pressable
             key={status}
             onPress={() => setFilterStatus(status)}

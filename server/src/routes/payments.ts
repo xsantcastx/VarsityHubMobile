@@ -2164,6 +2164,7 @@ const APPLE_VERIFY_URL_SANDBOX = 'https://sandbox.itunes.apple.com/verifyReceipt
 const APPLE_PRODUCT_TO_PLAN: Record<string, string> = {
   veteran_vhub: 'veteran',
   Legend_vhub: 'legend',
+  legend_vhub: 'legend',
 };
 
 async function verifyAppleReceipt(receiptData: string, useSandbox = false): Promise<any> {
@@ -2290,6 +2291,7 @@ paymentsRouter.post('/apple/verify-receipt', expressPkg.json(), requireAuth as a
 const GOOGLE_PRODUCT_TO_PLAN: Record<string, string> = {
   veteran_vhub: 'veteran',
   Legend_vhub: 'legend',
+  legend_vhub: 'legend',
 };
 
 // Google Play purchase verification — uses requireAuth (not requireVerified) because Google
