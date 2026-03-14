@@ -373,8 +373,11 @@ gamesRouter.post('/', requireVerified as any, requireOnboarded as any, gameCreat
         date: game.date,
         location: game.location || null,
         game_id: game.id,
-        status: 'approved', // Auto-approve game events
-        capacity: null, // No capacity limit by default
+        status: 'approved',
+        approval_status: 'approved',
+        creator_id: req.user!.id,
+        creator_role: 'coach',
+        capacity: null,
       } as any,
     });
     
