@@ -89,7 +89,7 @@ RUN chmod +x ./start.sh
 # Note: start-period is 90s to account for cold starts + Prisma client init + migration time
 # Interval 30s with 5 retries = 150s total window for recovery from temporary issues
 HEALTHCHECK --interval=30s --timeout=5s --start-period=90s --retries=5 \
-  CMD node -e "require('http').get('http://localhost:4000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})" || exit 1
+  CMD node -e "const http=require('http');const port=process.env.PORT||4000;http.get('http://localhost:'+port+'/health',(r)=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))" || exit 1
 
 # Start the server (with migrations)
 CMD ["./start.sh"]

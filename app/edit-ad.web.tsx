@@ -37,8 +37,11 @@ export default function EditAdScreen() {
   const [bookedDates, setBookedDates] = useState<string[]>([]);
 
   const canSave = useMemo(() => {
-    return !!id && business.trim().length > 0 && contactEmail.trim().length > 0;
-  }, [id, business, contactEmail]);
+    return !!id &&
+      business.trim().length > 0 &&
+      contactEmail.trim().length > 0 &&
+      /^\d{5}$/.test(zip.trim());
+  }, [id, business, contactEmail, zip]);
 
   const load = useCallback(async () => {
     if (!id) { setLoading(false); return; }
@@ -104,6 +107,11 @@ export default function EditAdScreen() {
     if (!id || !canSave || saving) return;
     setSaving(true);
     try {
+      const zipCode = zip.trim();
+      if (!/^\d{5}$/.test(zipCode)) {
+        Alert.alert('Invalid ZIP code', 'Please enter a valid 5-digit ZIP code.');
+        return;
+      }
       try {
         await AdsApi.update(String(id), {
           contact_name: contactName.trim(),
@@ -111,10 +119,22 @@ export default function EditAdScreen() {
           business_name: business.trim(),
           banner_url: bannerUrl || undefined,
           target_url: targetUrl.trim() || undefined,
-          target_zip_code: zip.trim(),
+          target_zip_code: zipCode,
           description: desc.trim() || undefined,
         });
-      } catch {
+      } catch (err: any) {
+        const status = Number(err?.status || 0);
+        const message = String(err?.message || err?.data?.error || '');
+        const looksNetworkRelated =
+          err?.isNetworkError === true ||
+          status === 0 ||
+          /network|timeout|fetch|offline/i.test(message);
+
+        if (!looksNetworkRelated) {
+          Alert.alert('Update failed', message || 'Unable to update this ad on the server.');
+          return;
+        }
+
         // If not permitted or offline, update local draft copy
         const list = await settings.getJson<any[]>(settings.SETTINGS_KEYS.LOCAL_ADS, []);
         const idx = list.findIndex((a) => String(a.id) === String(id));
@@ -125,7 +145,7 @@ export default function EditAdScreen() {
           business_name: business.trim(),
           banner_url: bannerUrl || undefined,
           target_url: targetUrl.trim() || undefined,
-          zip_code: zip.trim(),
+          zip_code: zipCode,
           description: desc.trim() || undefined,
           status,
           payment_status: payment,
@@ -200,10 +220,10 @@ export default function EditAdScreen() {
               <TextInput 
                 style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]} 
                 value={zip} 
-                onChangeText={setZip} 
+                onChangeText={(value) => setZip(value.replace(/[^\d]/g, '').slice(0, 5))} 
                 keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
                 placeholder="12345"
-                maxLength={10}
+                maxLength={5}
                 placeholderTextColor={theme.mutedText}
               />
 

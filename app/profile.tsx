@@ -1,16 +1,16 @@
-import { Organization, Team, User } from '@/api/entities';
+import { Organization, Report, Team, User } from '@/api/entities';
 import uploadFile from '@/api/upload';
 import { Sport } from '@/components/JerseyBadge';
 import { Button } from '@/components/ui/button';
+import { PostCardSkeleton, ProfileHeaderSkeleton } from '@/components/ui/SkeletonCard';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { useUser } from '@/hooks/useUser';
-import { calculateContrastRatio } from '@/utils/accessibility';
 import events from '@/utils/events';
 import { pickerMediaTypesProp } from '@/utils/picker';
 import { getGradientForColor } from '@/utils/theme';
-import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useFocusEffect } from '@react-navigation/native';
 import { Image } from 'expo-image';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -18,7 +18,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Dimensions, FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Dimensions, FlatList, Linking, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import GameVerticalFeedScreen, { FeedPost } from './game-details/GameVerticalFeedScreen';
 
@@ -116,7 +116,7 @@ export default function ProfileScreen() {
   const lastUsernameRef = useRef<string | null>(null);
   const meRef = useRef<CurrentUser | null>(null);
   const [activeTab, setActiveTab] = useState<'posts' | 'replies' | 'upvotes'>(() => {
-    try { return (globalThis?.localStorage?.getItem('profile.activeTab') as any) || 'posts'; } catch (error) { console.warn('[profile] Failed to read activeTab from localStorage:', error); return 'posts'; }
+    try { return (globalThis?.localStorage?.getItem('profile.activeTab') as any) || 'posts'; } catch (error) { if (__DEV__) console.warn('[profile] Failed to read activeTab from localStorage:', error); return 'posts'; }
   });
   const [posts, setPosts] = useState<any[]>([]);
   const [postsCursor, setPostsCursor] = useState<string | null>(null);
@@ -143,11 +143,16 @@ export default function ProfileScreen() {
   const [userThemeColor, setUserThemeColor] = useState<string>('#3B82F6'); // Default color
   const profileRequestInFlight = useRef(false);
   const params = useLocalSearchParams<{ id?: string }>();
-  const viewingUserId = params.id;
+  const rawId = params.id?.trim();
+  const invalidId = !!rawId && !(rawId !== 'undefined' && rawId !== 'null' && /^[a-zA-Z0-9_-]{1,128}$/.test(rawId));
+  const viewingUserId = rawId && !invalidId ? rawId : undefined;
   const [isFollowing, setIsFollowing] = useState(false);
+  const [followStatus, setFollowStatus] = useState<'accepted' | 'pending' | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [userTeams, setUserTeams] = useState<Array<{ id: string; name: string; logo_url?: string | null; avatar_url?: string | null; role?: string; position?: string | null; jersey_number?: string | number | null }>>([]);
+  const [userTeams, _setUserTeams] = useState<Array<{ id: string; name: string; logo_url?: string | null; avatar_url?: string | null; role?: string; position?: string | null; jersey_number?: string | number | null }>>([]);
   const [avatarViewerVisible, setAvatarViewerVisible] = useState(false);
+  const [showReportMenu, setShowReportMenu] = useState(false);
+  const [reportSubmitting, setReportSubmitting] = useState(false);
 
   const isOwnProfile = !viewingUserId || viewingUserId === currentUserId;
 
@@ -165,37 +170,74 @@ export default function ProfileScreen() {
 
   const handleFollowToggle = useCallback(async () => {
     if (!viewingUserId) return;
-    
-    const previousState = isFollowing;
-    setIsFollowing(!isFollowing); // Optimistic update
-    
+
+    const previousFollowing = isFollowing;
+    const previousStatus = followStatus;
+
     try {
-      if (isFollowing) {
+      if (isFollowing || followStatus === 'pending') {
+        // Unfollow or cancel pending request
+        setIsFollowing(false);
+        setFollowStatus(null);
         await User.unfollow(viewingUserId);
-        // Update follower count
-        setMe(prev => prev ? {
-          ...prev,
-          _count: {
-            ...prev._count,
-            followers: Math.max(0, (prev._count?.followers || 0) - 1)
-          }
-        } : null);
+        // Only decrement follower count if was actually accepted (not pending)
+        if (previousFollowing) {
+          setMe(prev => prev ? {
+            ...prev,
+            _count: {
+              ...prev._count,
+              followers: Math.max(0, (prev._count?.followers || 0) - 1)
+            }
+          } : null);
+        }
       } else {
-        await User.follow(viewingUserId);
-        // Update follower count
-        setMe(prev => prev ? {
-          ...prev,
-          _count: {
-            ...prev._count,
-            followers: (prev._count?.followers || 0) + 1
-          }
-        } : null);
+        const result: any = await User.follow(viewingUserId);
+        const newStatus = result?.follow_status || 'accepted';
+        setFollowStatus(newStatus);
+        setIsFollowing(newStatus === 'accepted');
+        // Only increment follower count if actually accepted (not pending)
+        if (newStatus === 'accepted') {
+          setMe(prev => prev ? {
+            ...prev,
+            _count: {
+              ...prev._count,
+              followers: (prev._count?.followers || 0) + 1
+            }
+          } : null);
+        }
       }
     } catch (error) {
-      console.error('[profile] Follow toggle failed:', error);
-      setIsFollowing(previousState); // Revert on error
+      if (__DEV__) console.error('[profile] Follow toggle failed:', error);
+      setIsFollowing(previousFollowing);
+      setFollowStatus(previousStatus);
     }
-  }, [viewingUserId, isFollowing]);
+  }, [viewingUserId, isFollowing, followStatus]);
+
+  const REPORT_REASONS = [
+    { value: 'harassment', label: 'Harassment or bullying' },
+    { value: 'spam', label: 'Spam or fake account' },
+    { value: 'inappropriate', label: 'Inappropriate content' },
+    { value: 'impersonation', label: 'Impersonation' },
+    { value: 'other', label: 'Other' },
+  ];
+
+  const handleReportUser = async (reason: string) => {
+    if (!viewingUserId) return;
+    setReportSubmitting(true);
+    try {
+      await Report.create({ target_type: 'user', target_id: viewingUserId, reason });
+      Alert.alert('Report Submitted', 'Thank you for helping keep our community safe.');
+    } catch (error: any) {
+      if (error?.status === 409) {
+        Alert.alert('Already Reported', 'You have already reported this user.');
+      } else {
+        Alert.alert('Error', error?.message || 'Failed to submit report. Please try again.');
+      }
+    } finally {
+      setReportSubmitting(false);
+      setShowReportMenu(false);
+    }
+  };
 
   const refreshPosts = useCallback(async (userId: string) => {
     if (postsRequestInFlight.current) return;
@@ -259,7 +301,10 @@ export default function ProfileScreen() {
     try {
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (permissionResult.granted === false) {
-        Alert.alert("Permission required", "You've refused to allow this app to access your photos.");
+        Alert.alert("Permission required", "You've refused to allow this app to access your photos.", [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => Linking.openSettings() },
+        ]);
         return;
       }
 
@@ -276,6 +321,7 @@ export default function ProfileScreen() {
         return;
       }
 
+      if (!pickerResult.assets || pickerResult.assets.length === 0) return;
       const { uri, fileName, _mimeType } = pickerResult.assets[0] as any;
       const manipulated = await ImageManipulator.manipulateAsync(uri, [{ resize: { width: 800 } }], { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG });
       const name = (fileName && String(fileName).includes('.')) ? String(fileName) : `avatar_${Date.now()}.jpg`;
@@ -286,7 +332,7 @@ export default function ProfileScreen() {
       setMe((prev) => (prev ? { ...prev, avatar_url: url } : null));
 
   } catch (error) {
-    console.error('[profile] Avatar upload failed:', error);
+    if (__DEV__) console.error('[profile] Avatar upload failed:', error);
     // Avatar upload failed - error handled via Alert below
     Alert.alert("Upload failed", "Could not upload your new profile picture. Please try again.");
   } finally {
@@ -299,7 +345,10 @@ export default function ProfileScreen() {
     try {
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (permissionResult.granted === false) {
-        Alert.alert("Permission required", "You've refused to allow this app to access your photos.");
+        Alert.alert("Permission required", "You've refused to allow this app to access your photos.", [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => Linking.openSettings() },
+        ]);
         return;
       }
 
@@ -316,6 +365,7 @@ export default function ProfileScreen() {
         return;
       }
 
+      if (!pickerResult.assets || pickerResult.assets.length === 0) return;
       const { uri, fileName, _mimeType } = pickerResult.assets[0] as any;
       const manipulated = await ImageManipulator.manipulateAsync(uri, [{ resize: { width: 1200 } }], { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG });
       const name = (fileName && String(fileName).includes('.')) ? String(fileName) : `background_${Date.now()}.jpg`;
@@ -327,7 +377,7 @@ export default function ProfileScreen() {
       setMe((prev) => (prev ? { ...prev, preferences: updatedPreferences } : null));
 
   } catch (error) {
-    console.error('[profile] Background image upload failed:', error);
+    if (__DEV__) console.error('[profile] Background image upload failed:', error);
     Alert.alert("Upload failed", "Could not upload your background image. Please try again.");
   } finally {
       setIsUploadingAvatar(false);
@@ -360,6 +410,15 @@ export default function ProfileScreen() {
         u = await User.getPublic(viewingUserId);
         if (u) {
           setIsFollowing(u.is_following || false);
+          setFollowStatus(u.follow_status || null);
+          // Normalize flat count fields from public endpoint into _count structure
+          if (u.followers_count !== undefined || u.following_count !== undefined || u.posts_count !== undefined) {
+            u._count = {
+              posts: u.posts_count ?? 0,
+              followers: u.followers_count ?? 0,
+              following: u.following_count ?? 0,
+            };
+          }
         }
       } else {
         // Viewing own profile
@@ -370,7 +429,7 @@ export default function ProfileScreen() {
         meRef.current = u ?? null;
         setMe(u ?? null);
       }
-      if (!u?.id) { 
+      if (!u?.id) {
         setError(viewingUserId ? 'User not found.' : 'You need to sign in to view your profile.');
         setLoading(false);
         return;
@@ -386,6 +445,12 @@ export default function ProfileScreen() {
       const themeColor = isCoachOrOrg ? (u?.preferences?.theme_color || '#3B82F6') : '#6B7280'; // Default gray for fans
       setUserThemeColor(themeColor);
 
+      // Private profile: skip loading content for non-followers
+      if (u.profile_private) {
+        setLoading(false);
+        return;
+      }
+
       // Load first page for active tab (only if initial load or tab changed)
       if (isInitialLoad || !options?.silent) {
         if (activeTab === 'posts') {
@@ -398,7 +463,7 @@ export default function ProfileScreen() {
       }
     } catch (e: any) {
       if (e?.status !== 404) {
-        console.error('[Profile] Failed to load profile:', e);
+        if (__DEV__) console.error('[Profile] Failed to load profile:', e);
       }
       // Only show error if not silent refresh
       if (!options?.silent) {
@@ -518,7 +583,7 @@ export default function ProfileScreen() {
           }
         }
       } catch (err) {
-        console.error('Failed to load organizations', err);
+        if (__DEV__) console.error('Failed to load organizations', err);
       }
     };
     
@@ -626,42 +691,10 @@ export default function ProfileScreen() {
   const _primarySport = (preferences?.primary_sport || preferences?.sport || 'other') as Sport;
   const headerBackgroundImage = preferences?.header_image_url || null;
   const headerImageFocusY = clampValue(typeof preferences?.header_image_focus_y === 'number' ? preferences.header_image_focus_y : 0, -1, 1);
+  // Default gradient — theme color only affects the coach badge, not the banner
   const heroGradientColors: [string, string, ...string[]] = headerBackgroundImage
     ? ['rgba(4,7,20,0.85)', 'rgba(15,23,42,0.45)']
-    : (getGradientForColor(userThemeColor) as [string, string, ...string[]]);
-  
-  // Helper function to determine text color based on background contrast
-  // White is default, but switches to black if white has insufficient contrast
-  const getTextColorForBackground = (bgColor: string): string => {
-    // Convert rgba to hex if needed
-    let hexColor = bgColor;
-    if (bgColor.startsWith('rgba')) {
-      const match = bgColor.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
-      if (match) {
-        const r = parseInt(match[1], 10);
-        const g = parseInt(match[2], 10);
-        const b = parseInt(match[3], 10);
-        hexColor = `#${[r, g, b].map(x => {
-          const hex = x.toString(16);
-          return hex.length === 1 ? '0' + hex : hex;
-        }).join('')}`;
-      }
-    }
-    
-    // Calculate contrast ratio for white text (default)
-    const whiteContrast = calculateContrastRatio('#FFFFFF', hexColor);
-    
-    // If white has sufficient contrast (>= 3.0 for large text), use white
-    // Otherwise, use black
-    if (whiteContrast && whiteContrast >= 3.0) {
-      return '#FFFFFF';
-    }
-    return '#000000';
-  };
-  
-  // Get the first gradient color to determine text color
-  const firstGradientColor = heroGradientColors[0] || userThemeColor;
-  const userNameTextColor = getTextColorForBackground(firstGradientColor);
+    : (getGradientForColor('#3B82F6') as [string, string, ...string[]]);
   
   const _stats = [
     { label: 'posts', value: me?._count?.posts ?? 0 },
@@ -674,10 +707,12 @@ export default function ProfileScreen() {
       {/* Banner Header - Exact Match to Reference */}
       <View style={[styles.headerContainer, { backgroundColor: theme.background }]}>
         {/* Background Image / Gradient */}
-        <Pressable 
-          onPress={handleBackgroundImagePress} 
+        <Pressable
+          onPress={handleBackgroundImagePress}
           style={styles.headerBackgroundPressable}
           disabled={isUploadingAvatar}
+          accessibilityRole="button"
+          accessibilityLabel="Change background image"
         >
           {headerBackgroundImage ? (
             <Image
@@ -712,11 +747,13 @@ export default function ProfileScreen() {
         {/* Back Button - Only when viewing another user's profile */}
         {viewingUserId && viewingUserId !== currentUserId ? (
           <Pressable
-            onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)}
+            onPress={() => { if (router.canGoBack()) router.back(); }}
             hitSlop={12}
             style={[styles.controlButton, { position: 'absolute', left: 16, top: 12, zIndex: 200, elevation: 200, backgroundColor: colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)' }]}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
           >
-            <Ionicons name="chevron-back" size={18} color={colorScheme === 'dark' ? '#FFFFFF' : '#333'} />
+            <MaterialIcons name="chevron-left" size={18} color={colorScheme === 'dark' ? '#FFFFFF' : '#333'} />
           </Pressable>
         ) : null}
 
@@ -727,47 +764,63 @@ export default function ProfileScreen() {
             <Pressable
               style={[
                 styles.headerFollowButton,
-                isFollowing
-                  ? { backgroundColor: 'transparent', borderColor: '#FFB800', borderWidth: 1.5 }
-                  : { backgroundColor: 'transparent', borderColor: '#FFFFFF', borderWidth: 1.5 }
+                {
+                  backgroundColor: followStatus === 'pending' ? '#E5E7EB' : '#FFD600',
+                  borderWidth: 0, width: 36, height: 36, borderRadius: 18,
+                }
               ]}
               onPress={handleFollowToggle}
+              accessibilityRole="button"
+              accessibilityLabel={followStatus === 'pending' ? 'Cancel follow request' : isFollowing ? 'Unfollow user' : 'Follow user'}
             >
-              {isFollowing ? (
-                <Ionicons name="checkmark-circle" size={18} color="#FFB800" />
+              {followStatus === 'pending' ? (
+                <MaterialIcons name="hourglass-top" size={16} color="#666" />
+              ) : isFollowing ? (
+                <MaterialIcons name="check" size={18} color="#000" />
               ) : (
-                <>
-                  <Ionicons name="person-add-outline" size={15} color="#FFFFFF" />
-                  <Text style={[styles.headerFollowButtonText, { color: '#FFFFFF' }]}>Follow</Text>
-                </>
+                <MaterialIcons name="person-add" size={16} color="#000" />
               )}
             </Pressable>
           ) : null}
-          
+
+          {/* More Options Button - Only for viewing other users */}
+          {viewingUserId && viewingUserId !== currentUserId ? (
+            <Pressable
+              onPress={() => setShowReportMenu(true)}
+              hitSlop={12}
+              style={[styles.controlButton, { backgroundColor: colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)' }]}
+              accessibilityRole="button"
+              accessibilityLabel="More options"
+            >
+              <MaterialIcons name="more-vert" size={18} color={colorScheme === 'dark' ? '#FFFFFF' : '#333'} />
+            </Pressable>
+          ) : null}
+
           {/* Settings Button - Only when viewing own profile */}
           {!viewingUserId || viewingUserId === currentUserId ? (
-            <Pressable onPress={() => router.push('/settings')} hitSlop={12} style={[styles.controlButton, { backgroundColor: colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)' }]}>
-              <Ionicons name="settings-outline" size={18} color={colorScheme === 'dark' ? '#FFFFFF' : '#333'} />
+            <Pressable onPress={() => router.push('/settings')} hitSlop={12} style={[styles.controlButton, { backgroundColor: colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)' }]} accessibilityRole="button" accessibilityLabel="Settings">
+              <MaterialIcons name="settings" size={18} color={colorScheme === 'dark' ? '#FFFFFF' : '#333'} />
             </Pressable>
           ) : null}
         </View>
         
-        {/* Profile Content - Avatar on Bottom-Left of Banner */}
+        {/* Profile Content - Avatar centered at banner bottom edge */}
         <View style={styles.profileContent}>
-          {/* Large Avatar - Overlapping Banner */}
           <Pressable
             onPress={me?.avatar_url
               ? () => setAvatarViewerVisible(true)
               : (isOwnProfile ? handleAvatarPress : undefined)}
             disabled={isOwnProfile && isUploadingAvatar}
             style={styles.avatarSection}
+            accessibilityRole="button"
+            accessibilityLabel={me?.avatar_url ? 'View profile picture' : 'Change profile picture'}
           >
             <View style={styles.avatarContainer}>
               {me?.avatar_url ? (
                 <Image source={{ uri: String(me?.avatar_url) }} style={styles.avatarImage} contentFit="cover" />
               ) : (
                 <View style={[styles.avatarPlaceholder, { backgroundColor: colorScheme === 'dark' ? theme.surface || '#374151' : '#E5E7EB' }]}>
-                  <Ionicons name="person" size={48} color={theme.mutedText} />
+                  <MaterialIcons name="person" size={48} color={theme.mutedText} />
                 </View>
               )}
               {isUploadingAvatar && (
@@ -777,35 +830,35 @@ export default function ProfileScreen() {
               )}
             </View>
           </Pressable>
-
-          {/* User Info - Next to Avatar ON BANNER */}
-          <View style={styles.userInfo}>
-            <View style={styles.nameRow}>
-              <Text style={[styles.userName, { color: '#FFFFFF' }]}>{displayUsername}</Text>
-              {roleLabel && (
-                <View style={[styles.roleBadge, 
-                  roleRaw === 'coach' && styles.coachBadge,
-                  roleRaw === 'player' && styles.playerBadge,
-                  roleRaw === 'fan' && styles.fanBadge
-                ]}>
-                  <Text style={styles.roleText}>{roleRaw === 'coach' ? 'COACH' : roleRaw.toUpperCase()}</Text>
-                </View>
-              )}
-            </View>
-          </View>
         </View>
       </View>
 
       {/* Content Below Banner */}
       <View style={styles.profileDetailsContainer}>
-        {/* Edit Profile Button Row - Only shown when viewing own profile */}
+        {/* Edit button row (right aligned above username) */}
         {!viewingUserId || viewingUserId === currentUserId ? (
-          <View style={styles.usernameRow}>
-            <Pressable style={[styles.editButtonBelowBanner, { backgroundColor: theme.surface || theme.background, borderColor: theme.border }]} onPress={() => void router.push('/edit-profile')}>
+          <View style={styles.profileActionRow}>
+            <Pressable style={[styles.editButtonBelowBanner, { backgroundColor: theme.surface || theme.background, borderColor: theme.border }]} onPress={() => void router.push('/(tabs)/edit-profile')} accessibilityRole="button" accessibilityLabel="Edit profile">
               <Text style={[styles.editButtonBelowBannerText, { color: theme.text }]}>Edit profile</Text>
             </Pressable>
           </View>
         ) : null}
+
+        {/* Username + Role Badge */}
+        <View style={styles.profileNameRow}>
+          <View style={styles.profileNameContent}>
+            <Text style={[styles.profileName, { color: theme.text }]}>{displayUsername}</Text>
+            {roleLabel && (
+              <View style={[styles.roleBadge,
+                roleRaw === 'coach' && { backgroundColor: userThemeColor },
+                roleRaw === 'player' && styles.playerBadge,
+                roleRaw === 'fan' && styles.fanBadge
+              ]}>
+                <Text style={styles.roleText}>{roleRaw === 'coach' ? 'COACH' : roleRaw.toUpperCase()}</Text>
+              </View>
+            )}
+          </View>
+        </View>
 
         {/* User Details - Left aligned with avatar */}
         <View style={styles.userDetails}>
@@ -816,7 +869,7 @@ export default function ProfileScreen() {
           {/* Joined Date */}
           {me?.created_at && (
             <View style={styles.metaItem}>
-              <Ionicons name="calendar-outline" size={14} color={colorScheme === 'dark' ? theme.mutedText : '#4B5563'} />
+              <MaterialIcons name="event" size={14} color={colorScheme === 'dark' ? theme.mutedText : '#4B5563'} />
               <Text style={[styles.metaText, { color: colorScheme === 'dark' ? theme.mutedText : '#4B5563' }]}>
                 Joined {new Date(me.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
               </Text>
@@ -853,14 +906,14 @@ export default function ProfileScreen() {
                       <Image source={{ uri: t.logo_url || t.avatar_url || '' }} style={styles.teamChipAvatar} contentFit="cover" />
                     ) : (
                       <View style={[styles.teamChipPlaceholder, { backgroundColor: theme.tint + '30' }]}>
-                        <Ionicons name="people" size={14} color={theme.tint} />
+                        <MaterialIcons name="group" size={14} color={theme.tint} />
                       </View>
                     )}
                     <Text style={[styles.teamChipName, { color: theme.text }]} numberOfLines={1}>{t.name}</Text>
                     {t.role && (
                       <Text style={[styles.teamChipRole, { color: theme.mutedText }]}>{String(t.role).replace(/_/g, ' ')}</Text>
                     )}
-                    <Ionicons name="chevron-forward" size={12} color={theme.mutedText} />
+                    <MaterialIcons name="chevron-right" size={12} color={theme.mutedText} />
                   </Pressable>
                 ))}
               </View>
@@ -869,27 +922,43 @@ export default function ProfileScreen() {
         </View>
       </View>
 
-      {/* Tabs */}
-      <View style={[styles.tabsContainer, { borderBottomColor: theme.border }]}>
-        <Pressable
-          onPress={() => { setActiveTab('posts'); try { globalThis?.localStorage?.setItem('profile.activeTab','posts'); } catch (error) { if (__DEV__) console.warn('[profile] localStorage error:', error); } }}
-          style={[styles.tab, activeTab === 'posts' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
-        >
-          <Text style={[styles.tabText, { color: activeTab === 'posts' ? theme.tint : theme.mutedText }]}>Posts</Text>
-        </Pressable>
-        <Pressable
-          onPress={() => { setActiveTab('replies'); try { globalThis?.localStorage?.setItem('profile.activeTab','replies'); } catch (error) { if (__DEV__) console.warn('[profile] localStorage error:', error); } }}
-          style={[styles.tab, activeTab === 'replies' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
-        >
-          <Text style={[styles.tabText, { color: activeTab === 'replies' ? theme.tint : theme.mutedText }]}>Replies</Text>
-        </Pressable>
-        <Pressable
-          onPress={() => { setActiveTab('upvotes'); try { globalThis?.localStorage?.setItem('profile.activeTab','upvotes'); } catch (error) { if (__DEV__) console.warn('[profile] localStorage error:', error); } }}
-          style={[styles.tab, activeTab === 'upvotes' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
-        >
-          <Text style={[styles.tabText, { color: activeTab === 'upvotes' ? theme.tint : theme.mutedText }]}>Upvotes</Text>
-        </Pressable>
-      </View>
+      {/* Private account message — or tabs for public/own profiles */}
+      {me?.profile_private ? (
+        <View style={{ alignItems: 'center', paddingVertical: 40, paddingHorizontal: 24 }}>
+          <MaterialIcons name="lock-outline" size={48} color={theme.mutedText} />
+          <Text style={{ fontSize: 18, fontWeight: '700', color: theme.text, marginTop: 12 }}>This account is private</Text>
+          <Text style={{ fontSize: 14, color: theme.mutedText, textAlign: 'center', marginTop: 6, lineHeight: 20 }}>
+            Follow this account to see their posts, replies, and activity.
+          </Text>
+        </View>
+      ) : (
+        <View style={[styles.tabsContainer, { borderBottomColor: theme.border }]}>
+          <Pressable
+            onPress={() => { setActiveTab('posts'); try { globalThis?.localStorage?.setItem('profile.activeTab','posts'); } catch (error) { if (__DEV__) console.warn('[profile] localStorage error:', error); } }}
+            style={[styles.tab, activeTab === 'posts' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
+            accessibilityRole="tab"
+            accessibilityLabel="Posts"
+          >
+            <Text style={[styles.tabText, { color: activeTab === 'posts' ? theme.tint : theme.mutedText }]}>Posts</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => { setActiveTab('replies'); try { globalThis?.localStorage?.setItem('profile.activeTab','replies'); } catch (error) { if (__DEV__) console.warn('[profile] localStorage error:', error); } }}
+            style={[styles.tab, activeTab === 'replies' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
+            accessibilityRole="tab"
+            accessibilityLabel="Replies"
+          >
+            <Text style={[styles.tabText, { color: activeTab === 'replies' ? theme.tint : theme.mutedText }]}>Replies</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => { setActiveTab('upvotes'); try { globalThis?.localStorage?.setItem('profile.activeTab','upvotes'); } catch (error) { if (__DEV__) console.warn('[profile] localStorage error:', error); } }}
+            style={[styles.tab, activeTab === 'upvotes' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
+            accessibilityRole="tab"
+            accessibilityLabel="Upvotes"
+          >
+            <Text style={[styles.tabText, { color: activeTab === 'upvotes' ? theme.tint : theme.mutedText }]}>Upvotes</Text>
+          </Pressable>
+        </View>
+      )}
     </>
   );
 
@@ -899,16 +968,18 @@ export default function ProfileScreen() {
       <Text style={[styles.emptySubtitle, { 
         color: colorScheme === 'dark' ? theme.mutedText : '#4B5563' // Darker grey for better contrast in light mode
       }]}>Share your first moment with the community!</Text>
-      <Pressable 
-        onPress={() => void router.push('/create-post')} 
+      <Pressable
+        onPress={() => void router.push('/(tabs)/create-post')}
         style={({ pressed }) => [
-          styles.createPostButton, 
-          { 
+          styles.createPostButton,
+          {
             backgroundColor: theme.tint,
             borderColor: theme.tint,
             opacity: pressed ? 0.9 : 1,
           }
         ]}
+        accessibilityRole="button"
+        accessibilityLabel="Create your first post"
       >
         <Text style={[styles.createPostButtonText, { color: '#FFFFFF', fontWeight: '700' }]}>Create Your First Post</Text>
       </Pressable>
@@ -936,11 +1007,13 @@ export default function ProfileScreen() {
     return item?.post || item?.target?.post || item?.target || item;
   }, []);
 
-  const SkeletonList = ({ count = 8 }: { count?: number }) => (
-    <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
-      {Array.from({ length: count }).map((_, i) => (
-        <View key={i} style={{ height: 100, backgroundColor: theme.surface || '#F3F4F6', borderRadius: 12, marginBottom: 12 }} />
-      ))}
+  const SkeletonList = () => (
+    <View>
+      <ProfileHeaderSkeleton />
+      <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
+        <PostCardSkeleton />
+        <PostCardSkeleton />
+      </View>
     </View>
   );
 
@@ -949,7 +1022,23 @@ export default function ProfileScreen() {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
         <Stack.Screen options={{ title: 'Profile' }} />
-        <SkeletonList count={8} />
+        <SkeletonList />
+      </SafeAreaView>
+    );
+  }
+
+  if (invalidId) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+        <Stack.Screen options={{ title: 'Not Found' }} />
+        <View style={[styles.center, { flex: 1, justifyContent: 'center', padding: 24 }]}>
+          <MaterialIcons name="person-outline" size={48} color={theme.mutedText} style={{ marginBottom: 16 }} />
+          <Text style={[styles.error, { color: theme.text, textAlign: 'center', marginBottom: 8 }]}>User not found</Text>
+          <Text style={{ color: theme.mutedText, textAlign: 'center', marginBottom: 16 }}>This profile doesn't exist or the link is invalid.</Text>
+          <Button onPress={() => { if (router.canGoBack()) router.back(); }}>
+            <Text style={{ color: '#fff' }}>Go Back</Text>
+          </Button>
+        </View>
       </SafeAreaView>
     );
   }
@@ -959,7 +1048,7 @@ export default function ProfileScreen() {
       <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
         <Stack.Screen options={{ title: 'Profile' }} />
         <View style={[styles.center, { flex: 1, justifyContent: 'center', padding: 24 }]}>
-          <Ionicons name="alert-circle-outline" size={48} color={theme.mutedText} style={{ marginBottom: 16 }} />
+          <MaterialIcons name="error-outline" size={48} color={theme.mutedText} style={{ marginBottom: 16 }} />
           <Text style={[styles.error, { color: theme.text, textAlign: 'center', marginBottom: 8 }]}>{error}</Text>
           <View style={{ height: 16 }} />
           {error.includes('sign in') ? (
@@ -982,7 +1071,7 @@ export default function ProfileScreen() {
       <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
         <Stack.Screen options={{ title: 'Profile' }} />
         <View style={[styles.center, { flex: 1, justifyContent: 'center', padding: 24 }]}>
-          <Ionicons name="person-outline" size={48} color={theme.mutedText} style={{ marginBottom: 16 }} />
+          <MaterialIcons name="person-outline" size={48} color={theme.mutedText} style={{ marginBottom: 16 }} />
           <Text style={[styles.error, { color: theme.text, textAlign: 'center', marginBottom: 8 }]}>
             Unable to load profile
           </Text>
@@ -1018,6 +1107,8 @@ export default function ProfileScreen() {
             return (
               <Pressable
                 style={styles.gridItem}
+                accessibilityRole="button"
+                accessibilityLabel={`View post`}
                 onPress={() => {
                   const mapped = (posts || []).map(toFeedPost);
                   const items = mapped.filter(Boolean) as FeedPost[];
@@ -1035,33 +1126,50 @@ export default function ProfileScreen() {
                     <View style={styles.gridImageOverlay} />
                   </View>
                 ) : (
-                  <View style={[styles.gridImage, styles.gridImageFallback]}>
-                    <LinearGradient 
-                      colors={["#667eea", "#764ba2", "#f093fb"]} 
-                      style={StyleSheet.absoluteFillObject as any} 
-                      start={{ x: 0, y: 0 }} 
-                      end={{ x: 1, y: 1 }}
-                    />
-                    <View style={styles.textPostOverlay}>
-                      <Text numberOfLines={4} style={styles.gridTextOnly}>{String(item.caption || item.content || '').trim() || 'Post'}</Text>
+                  <View style={[styles.gridImage, styles.textPostCard]}>
+                    <View style={styles.textPostCardHeader}>
+                      {item.author?.avatar_url ? (
+                        <Image source={{ uri: item.author.avatar_url }} style={styles.textPostAvatar} />
+                      ) : (
+                        <View style={[styles.textPostAvatar, styles.textPostAvatarFallback]}>
+                          <MaterialIcons name="person" size={12} color="#9CA3AF" />
+                        </View>
+                      )}
+                      <View style={{ flex: 1 }}>
+                        <Text numberOfLines={1} style={styles.textPostUsername}>@{item.author?.username || 'user'}</Text>
+                        {item.created_at && <Text style={styles.textPostDate}>{new Date(item.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' })}</Text>}
+                      </View>
+                    </View>
+                    <Text numberOfLines={4} style={styles.textPostContent}>{String(item.caption || item.content || '').trim() || 'Post'}</Text>
+                    <View style={styles.textPostCounts}>
+                      <View style={styles.gridCountItem}>
+                        <MaterialIcons name="arrow-upward" size={11} color="#9CA3AF" />
+                        <Text style={styles.textPostCountText}>{likes}</Text>
+                      </View>
+                      <View style={styles.gridCountItem}>
+                        <MaterialIcons name="chat-bubble" size={11} color="#9CA3AF" />
+                        <Text style={styles.textPostCountText}>{comments}</Text>
+                      </View>
                     </View>
                   </View>
                 )}
-                {/* Counts overlay (shown for both media and text tiles) */}
-                <View style={styles.gridCounts}>
-                  <View style={styles.gridCountItem}>
-                    <Ionicons name="arrow-up" size={12} color="#fff" />
-                    <Text style={styles.gridCountText}>{likes}</Text>
-                  </View>
-                  <View style={styles.gridCountItem}>
-                    <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
-                    <Text style={styles.gridCountText}>{comments}</Text>
-                  </View>
-                </View>
-                {/* Bottom-right badge: camera for media, text icon for text-only */}
-                <View style={styles.gridIconBadge}>
-                  <Ionicons name={thumb ? 'camera-outline' : 'text'} size={14} color="#fff" />
-                </View>
+                {thumb && (
+                  <>
+                    <View style={styles.gridCounts}>
+                      <View style={styles.gridCountItem}>
+                        <MaterialIcons name="arrow-upward" size={12} color="#fff" />
+                        <Text style={styles.gridCountText}>{likes}</Text>
+                      </View>
+                      <View style={styles.gridCountItem}>
+                        <MaterialIcons name="chat-bubble" size={12} color="#fff" />
+                        <Text style={styles.gridCountText}>{comments}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.gridIconBadge}>
+                      <MaterialIcons name="camera-alt" size={14} color="#fff" />
+                    </View>
+                  </>
+                )}
               </Pressable>
             );
           }}
@@ -1091,6 +1199,8 @@ export default function ProfileScreen() {
             return (
               <Pressable
                 style={styles.gridItem}
+                accessibilityRole="button"
+                accessibilityLabel="View reply"
                 onPress={() => {
                   const mapped = (replies || []).map(unwrapPost).map(toFeedPost);
                   const items = mapped.filter(Boolean) as FeedPost[];
@@ -1107,33 +1217,50 @@ export default function ProfileScreen() {
                     <View style={styles.gridImageOverlay} />
                   </View>
                 ) : (
-                  <View style={[styles.gridImage, styles.gridImageFallback]}>
-                    <LinearGradient 
-                      colors={["#667eea", "#764ba2", "#f093fb"]} 
-                      style={StyleSheet.absoluteFillObject as any} 
-                      start={{ x: 0, y: 0 }} 
-                      end={{ x: 1, y: 1 }}
-                    />
-                    <View style={styles.textPostOverlay}>
-                      <Text numberOfLines={4} style={styles.gridTextOnly}>{String(postItem?.caption || postItem?.content || '').trim() || 'Post'}</Text>
+                  <View style={[styles.gridImage, styles.textPostCard]}>
+                    <View style={styles.textPostCardHeader}>
+                      {postItem?.author?.avatar_url ? (
+                        <Image source={{ uri: postItem.author.avatar_url }} style={styles.textPostAvatar} />
+                      ) : (
+                        <View style={[styles.textPostAvatar, styles.textPostAvatarFallback]}>
+                          <MaterialIcons name="person" size={12} color="#9CA3AF" />
+                        </View>
+                      )}
+                      <View style={{ flex: 1 }}>
+                        <Text numberOfLines={1} style={styles.textPostUsername}>@{postItem?.author?.username || 'user'}</Text>
+                        {postItem?.created_at && <Text style={styles.textPostDate}>{new Date(postItem.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' })}</Text>}
+                      </View>
+                    </View>
+                    <Text numberOfLines={4} style={styles.textPostContent}>{String(postItem?.caption || postItem?.content || '').trim() || 'Post'}</Text>
+                    <View style={styles.textPostCounts}>
+                      <View style={styles.gridCountItem}>
+                        <MaterialIcons name="arrow-upward" size={11} color="#9CA3AF" />
+                        <Text style={styles.textPostCountText}>{likes}</Text>
+                      </View>
+                      <View style={styles.gridCountItem}>
+                        <MaterialIcons name="chat-bubble" size={11} color="#9CA3AF" />
+                        <Text style={styles.textPostCountText}>{comments}</Text>
+                      </View>
                     </View>
                   </View>
                 )}
-                {/* Counts overlay (shown for both media and text tiles) */}
-                <View style={styles.gridCounts}>
-                  <View style={styles.gridCountItem}>
-                    <Ionicons name="arrow-up" size={12} color="#fff" />
-                    <Text style={styles.gridCountText}>{likes}</Text>
-                  </View>
-                  <View style={styles.gridCountItem}>
-                    <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
-                    <Text style={styles.gridCountText}>{comments}</Text>
-                  </View>
-                </View>
-                {/* Bottom-right badge: camera for media, text icon for text-only */}
-                <View style={styles.gridIconBadge}>
-                  <Ionicons name={thumb ? 'camera-outline' : 'text'} size={14} color="#fff" />
-                </View>
+                {thumb && (
+                  <>
+                    <View style={styles.gridCounts}>
+                      <View style={styles.gridCountItem}>
+                        <MaterialIcons name="arrow-upward" size={12} color="#fff" />
+                        <Text style={styles.gridCountText}>{likes}</Text>
+                      </View>
+                      <View style={styles.gridCountItem}>
+                        <MaterialIcons name="chat-bubble" size={12} color="#fff" />
+                        <Text style={styles.gridCountText}>{comments}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.gridIconBadge}>
+                      <MaterialIcons name="camera-alt" size={14} color="#fff" />
+                    </View>
+                  </>
+                )}
               </Pressable>
             );
           }}
@@ -1163,6 +1290,8 @@ export default function ProfileScreen() {
             return (
               <Pressable
                 style={styles.gridItem}
+                accessibilityRole="button"
+                accessibilityLabel="View upvoted post"
                 onPress={() => {
                   const mapped = (upvotes || []).map(unwrapPost).map(toFeedPost);
                   const items = mapped.filter(Boolean) as FeedPost[];
@@ -1179,33 +1308,50 @@ export default function ProfileScreen() {
                     <View style={styles.gridImageOverlay} />
                   </View>
                 ) : (
-                  <View style={[styles.gridImage, styles.gridImageFallback]}>
-                    <LinearGradient 
-                      colors={["#667eea", "#764ba2", "#f093fb"]} 
-                      style={StyleSheet.absoluteFillObject as any} 
-                      start={{ x: 0, y: 0 }} 
-                      end={{ x: 1, y: 1 }}
-                    />
-                    <View style={styles.textPostOverlay}>
-                      <Text numberOfLines={4} style={styles.gridTextOnly}>{String(postItem?.caption || postItem?.content || '').trim() || 'Post'}</Text>
+                  <View style={[styles.gridImage, styles.textPostCard]}>
+                    <View style={styles.textPostCardHeader}>
+                      {postItem?.author?.avatar_url ? (
+                        <Image source={{ uri: postItem.author.avatar_url }} style={styles.textPostAvatar} />
+                      ) : (
+                        <View style={[styles.textPostAvatar, styles.textPostAvatarFallback]}>
+                          <MaterialIcons name="person" size={12} color="#9CA3AF" />
+                        </View>
+                      )}
+                      <View style={{ flex: 1 }}>
+                        <Text numberOfLines={1} style={styles.textPostUsername}>@{postItem?.author?.username || 'user'}</Text>
+                        {postItem?.created_at && <Text style={styles.textPostDate}>{new Date(postItem.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' })}</Text>}
+                      </View>
+                    </View>
+                    <Text numberOfLines={4} style={styles.textPostContent}>{String(postItem?.caption || postItem?.content || '').trim() || 'Post'}</Text>
+                    <View style={styles.textPostCounts}>
+                      <View style={styles.gridCountItem}>
+                        <MaterialIcons name="arrow-upward" size={11} color="#9CA3AF" />
+                        <Text style={styles.textPostCountText}>{likes}</Text>
+                      </View>
+                      <View style={styles.gridCountItem}>
+                        <MaterialIcons name="chat-bubble" size={11} color="#9CA3AF" />
+                        <Text style={styles.textPostCountText}>{comments}</Text>
+                      </View>
                     </View>
                   </View>
                 )}
-                {/* Counts overlay (shown for both media and text tiles) */}
-                <View style={styles.gridCounts}>
-                  <View style={styles.gridCountItem}>
-                    <Ionicons name="arrow-up" size={12} color="#fff" />
-                    <Text style={styles.gridCountText}>{likes}</Text>
-                  </View>
-                  <View style={styles.gridCountItem}>
-                    <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
-                    <Text style={styles.gridCountText}>{comments}</Text>
-                  </View>
-                </View>
-                {/* Bottom-right badge: camera for media, text icon for text-only */}
-                <View style={styles.gridIconBadge}>
-                  <Ionicons name={thumb ? 'camera-outline' : 'text'} size={14} color="#fff" />
-                </View>
+                {thumb && (
+                  <>
+                    <View style={styles.gridCounts}>
+                      <View style={styles.gridCountItem}>
+                        <MaterialIcons name="arrow-upward" size={12} color="#fff" />
+                        <Text style={styles.gridCountText}>{likes}</Text>
+                      </View>
+                      <View style={styles.gridCountItem}>
+                        <MaterialIcons name="chat-bubble" size={12} color="#fff" />
+                        <Text style={styles.gridCountText}>{comments}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.gridIconBadge}>
+                      <MaterialIcons name="camera-alt" size={14} color="#fff" />
+                    </View>
+                  </>
+                )}
               </Pressable>
             );
           }}
@@ -1236,7 +1382,7 @@ export default function ProfileScreen() {
             onPress={() => setAvatarViewerVisible(false)}
             style={{ position: 'absolute', top: insets.top + 12, right: 16, padding: 8, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 20 }}
           >
-            <Ionicons name="close" size={24} color="white" />
+            <MaterialIcons name="close" size={24} color="white" />
           </Pressable>
         </Pressable>
       </Modal>
@@ -1249,6 +1395,36 @@ export default function ProfileScreen() {
           startIndex={viewerIndex}
           title={activeTab === 'posts' ? 'Your posts' : activeTab === 'replies' ? 'Your replies' : 'Your upvotes'}
         />
+      </Modal>
+
+      {/* Report User Modal */}
+      <Modal
+        visible={showReportMenu}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowReportMenu(false)}
+      >
+        <Pressable
+          style={styles.reportModalOverlay}
+          onPress={() => !reportSubmitting && setShowReportMenu(false)}
+        >
+          <View style={[styles.reportActionsMenu, { backgroundColor: theme.card }]}>
+            <Text style={[styles.reportMenuTitle, { color: theme.text }]}>Report this user</Text>
+            <View style={[styles.reportSeparator, { backgroundColor: theme.border }]} />
+            {REPORT_REASONS.map((r) => (
+              <Pressable
+                key={r.value}
+                style={styles.reportActionItem}
+                disabled={reportSubmitting}
+                onPress={() => void handleReportUser(r.value)}
+                accessibilityRole="button"
+                accessibilityLabel={`Report for ${r.label}`}
+              >
+                <Text style={[styles.reportActionText, { color: theme.text, opacity: reportSubmitting ? 0.5 : 1 }]}>{r.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </Pressable>
       </Modal>
     </SafeAreaView>
   );
@@ -1324,24 +1500,16 @@ const styles = StyleSheet.create({
   },
   profileContent: {
     position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 12,
-    zIndex: 100, // Ensure profile content is above banner but below avatar
-    elevation: 100, // For Android
+    bottom: -50,
+    left: 16,
+    zIndex: 100,
+    elevation: 100,
   },
   avatarSection: {
-    marginBottom: -40, // Overlap into content area to close gap
-    zIndex: 99999, // Highest z-index to ensure avatar is always on top
-    elevation: 99999, // Highest elevation for Android
+    zIndex: 99999,
+    elevation: 99999,
     position: 'relative',
-    marginRight: 0, // Ensure no right margin pushes text
-    flexShrink: 0, // Prevent avatar from shrinking
+    flexShrink: 0,
   },
   avatarContainer: {
     position: 'relative',
@@ -1389,20 +1557,18 @@ const styles = StyleSheet.create({
   },
   userInfo: {
     flex: 1,
-    paddingBottom: 0, // Removed padding to close gap
-    minWidth: 0, // Allow flex to work properly
-    marginLeft: 8, // Ensure spacing from avatar
-    paddingRight: 8, // Prevent text from touching screen edge
+    minWidth: 0,
+    marginLeft: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
   },
   userName: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#ffffff', // Default, will be overridden dynamically
-    textShadowColor: 'rgba(0, 0, 0, 0.6)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
-    flexShrink: 1, // Allow text to shrink if needed
-    maxWidth: '100%', // Prevent overflow
+    flexShrink: 1,
+    maxWidth: '100%',
   },
   editButtonBelowBanner: {
     paddingHorizontal: 16,
@@ -1419,16 +1585,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   followButtonBelowBanner: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    minWidth: 100,
+    backgroundColor: '#FFD600',
   },
   followButtonBelowBannerText: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#000',
   },
   followingIndicator: {
     width: 28,
@@ -1438,12 +1605,35 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  // Profile Details Below Banner - Tight spacing to match reference
+  // Profile Details Below Banner — paddingTop clears the overlapping avatar
   profileDetailsContainer: {
     backgroundColor: 'transparent',
-    paddingTop: 8, // Reduced space for overlapping avatar - close the gap
-    marginBottom: 0, // No gap before tabs
-    paddingBottom: 0, // No padding at bottom
+    paddingTop: 42,
+    marginBottom: 0,
+    paddingBottom: 0,
+    gap: 0,
+  },
+  profileActionRow: {
+    paddingHorizontal: 16,
+    marginBottom: 4,
+    alignItems: 'flex-end',
+  },
+  profileNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    marginBottom: 0,
+  },
+  profileNameContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+    flexWrap: 'wrap',
+  },
+  profileName: {
+    fontSize: 22,
+    fontWeight: '700',
   },
   editButton: {
     paddingHorizontal: 20,
@@ -1461,17 +1651,8 @@ const styles = StyleSheet.create({
   },
   userDetails: {
     paddingHorizontal: 16,
-    paddingTop: 4, // Reduced top padding to close gap
-    paddingBottom: 4,
-  },
-  usernameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    paddingHorizontal: 16,
-    paddingTop: 0,
+    paddingTop: 2,
     paddingBottom: 0,
-    gap: 12,
   },
   userHandle: {
     fontSize: 15,
@@ -1481,16 +1662,15 @@ const styles = StyleSheet.create({
   userBio: {
     fontSize: 15,
     fontWeight: '400',
-    marginBottom: 2, // Reduced margin to close gap
+    marginBottom: 0,
     lineHeight: 20,
-    // Color will be set inline with theme.text
   },
   metaItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 0, // Removed margin to close gap
-    marginTop: 2, // Small top margin instead
+    marginBottom: 0,
+    marginTop: 0,
   },
   metaText: {
     fontSize: 14,
@@ -1499,8 +1679,8 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    marginTop: 2,
-    gap: 0, // No gap between number and label
+    marginTop: 0,
+    gap: 0,
   },
   statNumber: {
     fontSize: 15,
@@ -1571,7 +1751,6 @@ const styles = StyleSheet.create({
   userBioCompact: {
     fontSize: 14,
     fontWeight: '400',
-    color: '#374151',
     lineHeight: 20,
   },
   badgesRow: { 
@@ -1634,7 +1813,7 @@ const styles = StyleSheet.create({
   
   // Legacy styles kept for existing components
   statValue: { fontSize: 20, fontWeight: '800', color: '#1f2937' },
-  name: { fontSize: 18, fontWeight: '800', marginBottom: 4, color: '#111827' },
+  name: { fontSize: 18, fontWeight: '800', marginBottom: 4 },
   bio: { fontSize: 15, color: '#4B5563', lineHeight: 20, marginTop: 8 },
   editProfileButton: { 
     flex: 1,
@@ -1672,7 +1851,7 @@ const styles = StyleSheet.create({
   tab: { flex: 1, paddingVertical: 12, alignItems: 'center' }, // Reduced padding
   activeTab: { borderBottomWidth: 2, borderBottomColor: 'black' },
   tabText: { color: '#6B7280', fontWeight: '600', fontSize: 15 },
-  activeTabText: { color: 'black' },
+  activeTabText: {},
   filtersBar: { paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, gap: 12, backgroundColor: 'transparent' },
   segmentedRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   segment: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20 },
@@ -1744,24 +1923,50 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.05)',
   },
   gridImageFallback: { alignItems: 'center', justifyContent: 'center', padding: 12, position: 'relative' },
-  textPostOverlay: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 12,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    borderRadius: 8,
-    margin: 8,
+  textPostCard: {
+    backgroundColor: '#111827',
+    padding: 10,
+    justifyContent: 'flex-start',
   },
-  gridTextOnly: { 
-    textAlign: 'center', 
-    color: '#ffffff', 
-    fontWeight: '700', 
-    fontSize: 12, 
+  textPostCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 6,
+  },
+  textPostAvatar: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+  },
+  textPostAvatarFallback: {
+    backgroundColor: '#374151',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  textPostUsername: {
+    color: '#D1D5DB',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  textPostDate: {
+    color: '#6B7280',
+    fontSize: 10,
+  },
+  textPostContent: {
+    color: '#F3F4F6',
+    fontSize: 12,
     lineHeight: 16,
-    textShadowColor: 'rgba(0,0,0,0.3)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2
+    flex: 1,
+  },
+  textPostCounts: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 6,
+  },
+  textPostCountText: {
+    color: '#9CA3AF',
+    fontSize: 11,
   },
   gridIconBadge: { 
     position: 'absolute', 
@@ -1845,4 +2050,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center',
   },
+
+  // Report modal styles
+  reportModalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'center', alignItems: 'center' },
+  reportActionsMenu: { backgroundColor: 'white', borderRadius: 12, minWidth: 220, paddingVertical: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4, elevation: 5 },
+  reportActionItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, gap: 12 },
+  reportActionText: { fontSize: 16, fontWeight: '500', color: '#374151' },
+  reportSeparator: { height: 1, backgroundColor: '#E5E7EB', marginHorizontal: 8 },
+  reportMenuTitle: { fontSize: 16, fontWeight: '700', paddingHorizontal: 16, paddingVertical: 12 },
 });

@@ -27,18 +27,12 @@ jobs:
       - name: Run ESLint
         id: eslint
         run: npm run lint 2>&1 | tee eslint-output.txt
-        continue-on-error: true
 
-      - name: Parse ESLint results
+      - name: Summarize ESLint warnings
         if: always()
         run: |
-          if grep -q "error" eslint-output.txt; then
-            echo "❌ ESLint found errors"
-            exit 1
-          else
-            WARNINGS=$(grep -c "warning" eslint-output.txt || echo 0)
-            echo "⚠️  ESLint warnings: $WARNINGS"
-          fi
+          WARNINGS=$(grep -ci "warning" eslint-output.txt || echo 0)
+          echo "⚠️  ESLint warnings: $WARNINGS"
 
       - name: Run TypeScript check
         run: npm run typecheck
@@ -150,7 +144,7 @@ jobs:
         run: npm ci
 
       - name: Verify production build (no actual build, just check syntax)
-        run: npm run build:production 2>&1 || echo "ℹ️  Build check complete (may require native tools)"
+        run: npm run build:production 2>&1
 
   summary:
     name: CI Summary

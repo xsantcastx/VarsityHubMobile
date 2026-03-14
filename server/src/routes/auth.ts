@@ -913,8 +913,42 @@ const updateMeSchema = z.object({
     .optional()
     .nullable(),
   bio: z.string().max(1000).transform((val) => val === '' ? null : val).optional().nullable(),
-  preferences: z.any().optional(),
+  preferences: z.record(z.any()).optional(),
 });
+
+const RESTRICTED_PROFILE_PREF_KEYS = new Set([
+  'role',
+  'plan',
+  'pending_plan',
+  'payment_pending',
+  'payment_approved',
+  'onboarding_completed',
+  'join_request_pending',
+  'subscription_id',
+  'subscription_status',
+  'subscription_end_date',
+  'plan_expiry_date',
+  'google_purchase_token',
+  'google_product_id',
+  'apple_transaction_id',
+  'apple_original_transaction_id',
+  'apple_product_id',
+]);
+
+function collectRestrictedPreferenceKeys(input: any, path = 'preferences'): string[] {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return [];
+  const found: string[] = [];
+  for (const [key, value] of Object.entries(input)) {
+    const nextPath = `${path}.${key}`;
+    if (RESTRICTED_PROFILE_PREF_KEYS.has(key)) {
+      found.push(nextPath);
+    }
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      found.push(...collectRestrictedPreferenceKeys(value, nextPath));
+    }
+  }
+  return found;
+}
 
 authRouter.put('/me', requireAuth as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
@@ -956,6 +990,14 @@ authRouter.put('/me', requireAuth as any, async (req: AuthedRequest, res) => {
   }
   
   if (data.preferences) {
+    const restrictedKeys = collectRestrictedPreferenceKeys(data.preferences);
+    if (restrictedKeys.length > 0) {
+      return res.status(400).json({
+        error: 'Restricted preference keys',
+        message: 'Use dedicated onboarding/billing endpoints for role and payment state updates.',
+        keys: restrictedKeys,
+      });
+    }
     // COPPA: Reject if DOB in preferences indicates under 13
     const dobToCheck = data.preferences?.dob;
     if (dobToCheck !== undefined && isUnder13(dobToCheck)) {
@@ -1014,6 +1056,14 @@ authRouter.patch('/me', requireAuth as any, async (req: AuthedRequest, res) => {
   }
   
   if (data.preferences) {
+    const restrictedKeys = collectRestrictedPreferenceKeys(data.preferences);
+    if (restrictedKeys.length > 0) {
+      return res.status(400).json({
+        error: 'Restricted preference keys',
+        message: 'Use dedicated onboarding/billing endpoints for role and payment state updates.',
+        keys: restrictedKeys,
+      });
+    }
     // COPPA: Reject if DOB in preferences indicates under 13
     const dobToCheck = data.preferences?.dob;
     if (dobToCheck !== undefined && isUnder13(dobToCheck)) {
@@ -1216,7 +1266,21 @@ const completeOnboardingSchema = z.object({
   dob: z.string().optional(),
   zip: z.string().optional(),
   zip_code: z.string().optional(),
-
+  
+  // Rule A: Client sends pending_plan for paid plans, plan only for rookie (free).
+  // The real plan field is set by Stripe webhook after payment succeeds.
+  plan: z.enum(['rookie']).optional(),
+  pending_plan: z.enum(['veteran', 'legend']).optional().nullable(),
+  payment_pending: z.preprocess((value) => {
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      if (normalized === 'true') return true;
+      if (normalized === 'false') return false;
+    }
+    return value;
+  }, z.boolean()).optional(),
+  team_count_total: z.number().int().min(0).optional(),
+  
   // Team/Organization
   team_id: z.string().optional(),
   team_name: z.string().optional(),
@@ -1266,30 +1330,36 @@ authRouter.post('/me/complete-onboarding', requireAuth as any, async (req: Authe
     });
   }
   
-  // Single DB fetch for all needed fields — prevents race conditions
-  const currentUser = await prisma.user.findUnique({
-    where: { id: req.user.id },
-    select: { preferences: true, username: true, bio: true },
-  });
-  const currentPrefs = currentUser?.preferences as any || {};
-
-  // Role MUST be preserved from onboarding step-1 or provided in payload
+  // Get current preferences FIRST to preserve role if not in payload
+  const current = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true } });
+  const currentPrefs = current?.preferences as any || {};
+  
+  // CRITICAL: Role MUST be preserved from onboarding step-1 or provided in payload
+  // If role is undefined in payload, use existing role from preferences (set during step-1)
   const finalRole = data.role !== undefined ? data.role : (currentPrefs.role || 'fan');
-
-  if (finalRole === 'coach' && !data.username) {
-    return res.status(400).json({ error: 'Username required for coach onboarding' });
+  
+  // For coaches, only username is required at onboarding completion.
+  // Organization and team are set up post-approval, not during initial onboarding.
+  if (finalRole === 'coach') {
+    if (!data.username) {
+      return res.status(400).json({ error: 'Username required for coach onboarding' });
+    }
   }
 
-  if (!data.username && !currentUser?.username) {
+  // Username is required for ALL roles — check payload OR existing DB value
+  const existingUser = await prisma.user.findUnique({ where: { id: req.user.id }, select: { username: true } });
+  if (!data.username && !existingUser?.username) {
     return res.status(400).json({ error: 'Username is required to complete onboarding' });
   }
 
+  // Update user with direct fields
   const updateData: any = {};
   if (data.username) updateData.username = data.username;
   if (data.display_name) updateData.display_name = data.display_name;
   if (data.avatar_url) updateData.avatar_url = data.avatar_url;
   if (data.bio) updateData.bio = data.bio;
-
+  
+  const currentUser = await prisma.user.findUnique({ where: { id: req.user.id } });
   if (data.role === 'fan' && !currentUser?.bio && !data.bio) {
     updateData.bio = "Sports enthusiast following local teams and supporting young athletes 🏆";
   }
@@ -1299,6 +1369,10 @@ authRouter.post('/me/complete-onboarding', requireAuth as any, async (req: Authe
   const preferencesUpdate: any = {
     onboarding_completed: true,
     role: finalRole, // Always set role explicitly - never leave undefined
+    // Rule A: plan is 'rookie' for free, or set by Stripe webhook for paid plans.
+    // pending_plan holds the coach's selected paid plan until payment completes.
+    plan: data.plan, // only 'rookie' allowed from client
+    pending_plan: data.pending_plan,
     affiliation: data.affiliation,
     dob: data.dob,
     zip_code: data.zip_code || data.zip,
@@ -1317,6 +1391,8 @@ authRouter.post('/me/complete-onboarding', requireAuth as any, async (req: Authe
     location_enabled: data.location_enabled,
     notifications_enabled: data.notifications_enabled,
     messaging_policy_accepted: data.messaging_policy_accepted,
+    payment_pending: data.payment_pending,
+    team_count_total: data.team_count_total,
   };
   
   // CRITICAL: Role must NEVER be undefined - preserve from current preferences if not in payload
@@ -1332,7 +1408,7 @@ authRouter.post('/me/complete-onboarding', requireAuth as any, async (req: Authe
     }
   });
   // Normalize any legacy 'rookie' role values to 'coach' during merge
-  const basePreferences = currentUser?.preferences;
+  const basePreferences = current?.preferences;
   const normalizedCurrent =
     basePreferences && typeof basePreferences === 'object' && !Array.isArray(basePreferences)
       ? ({ ...(basePreferences as Record<string, any>) } as any)

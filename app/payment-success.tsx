@@ -44,6 +44,17 @@ export default function PaymentSuccessScreen() {
     }
   };
 
+  const showSuccessState = () => {
+    setError(null);
+    setLoading(false);
+    checkOpacity.setValue(0);
+    contentOpacity.setValue(0);
+    Animated.sequence([
+      Animated.timing(checkOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
+      Animated.timing(contentOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
+    ]).start();
+  };
+
   useEffect(() => {
     const verify = async () => {
       try {
@@ -70,12 +81,7 @@ export default function PaymentSuccessScreen() {
             if (__DEV__) console.warn('[payment-success] finalize failed:', err?.message);
           }
           // Show confirmation (even if finalize was already done by webhook)
-          setLoading(false);
-          // Animate in
-          Animated.sequence([
-            Animated.timing(checkOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
-            Animated.timing(contentOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
-          ]).start();
+          showSuccessState();
         } else {
           // Subscription flow — poll for plan upgrade (Rule A: plan set = payment done)
           try {
@@ -84,11 +90,7 @@ export default function PaymentSuccessScreen() {
             const pending = me?.preferences?.payment_pending;
             const pendingPlan = me?.preferences?.pending_plan;
             if ((plan === 'veteran' || plan === 'legend') && pending === false && !pendingPlan) {
-              setLoading(false);
-              Animated.sequence([
-                Animated.timing(checkOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
-                Animated.timing(contentOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
-              ]).start();
+              showSuccessState();
             } else if (verificationAttempt < maxAttempts - 1) {
               // Midway fallback: try finalize-session to nudge the server
               if (verificationAttempt === 4) {
@@ -106,7 +108,7 @@ export default function PaymentSuccessScreen() {
                 await httpPost('/payments/finalize-session', { session_id: sessionId });
                 const meAfter = await User.me();
                 if ((meAfter?.preferences?.plan === 'veteran' || meAfter?.preferences?.plan === 'legend') && meAfter?.preferences?.payment_pending === false && !meAfter?.preferences?.pending_plan) {
-                  setLoading(false);
+                  showSuccessState();
                   return;
                 }
               } catch { /* ignore */ }

@@ -2333,6 +2333,10 @@ const GOOGLE_PRODUCT_TO_PLAN: Record<string, string> = {
   Legend_vhub: 'legend',
   legend_vhub: 'legend',
 };
+const GOOGLE_ALLOWED_PACKAGES = (process.env.GOOGLE_PLAY_PACKAGE_NAMES || 'com.varsityhub.varsityhub')
+  .split(',')
+  .map((value) => value.trim())
+  .filter(Boolean);
 
 // Google Play purchase verification — uses requireAuth (not requireVerified) because Google
 // already charged the user; blocking on email verification would leave them in a broken state.
@@ -2346,10 +2350,36 @@ paymentsRouter.post('/google/verify-purchase', expressPkg.json(), requireAuth as
     if (!purchase_token || !product_id) {
       return res.status(400).json({ error: 'Missing purchase_token or product_id' });
     }
+    if (String(purchase_token).trim().length < 16) {
+      return res.status(400).json({ error: 'Invalid purchase_token' });
+    }
 
     const plan = GOOGLE_PRODUCT_TO_PLAN[product_id];
     if (!plan) {
       return res.status(400).json({ error: `Unknown product: ${product_id}` });
+    }
+
+    if (process.env.NODE_ENV === 'production') {
+      if (!package_name) {
+        return res.status(400).json({ error: 'Missing package_name' });
+      }
+      if (GOOGLE_ALLOWED_PACKAGES.length > 0 && !GOOGLE_ALLOWED_PACKAGES.includes(String(package_name))) {
+        return res.status(400).json({ error: 'Package mismatch for Google Play purchase' });
+      }
+    }
+
+    const orderId = String(purchase_token).substring(0, 40);
+    const existingCompletedPurchase = await prisma.transactionLog.findFirst({
+      where: {
+        order_id: orderId,
+        transaction_type: 'SUBSCRIPTION_PURCHASE',
+        status: 'COMPLETED',
+        user_id: { not: userId },
+      } as any,
+      select: { id: true, user_id: true },
+    });
+    if (existingCompletedPurchase) {
+      return res.status(409).json({ error: 'Purchase token already used by another account' });
     }
 
     // Update user's plan in database
@@ -2384,7 +2414,7 @@ paymentsRouter.post('/google/verify-purchase', expressPkg.json(), requireAuth as
         transactionType: 'SUBSCRIPTION_PURCHASE',
         status: 'COMPLETED',
         userId,
-        orderId: purchase_token.substring(0, 40),
+        orderId,
         metadata: { source: 'google_play', product_id, plan, package_name },
       });
     } catch (logErr) {

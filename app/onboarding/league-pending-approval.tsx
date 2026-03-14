@@ -18,7 +18,7 @@ export default function LeaguePendingApproval() {
   const isDark = colorScheme === 'dark';
   const params = useLocalSearchParams<{ leagueName?: string; orgId?: string }>();
   const leagueName = params.leagueName || 'your league';
-  const orgId = params.orgId || '';
+  const orgId = String(params.orgId || ob.organization_id || '').trim();
   const [approved, setApproved] = useState(false);
   const [checking, setChecking] = useState(false);
   const [completionError, setCompletionError] = useState<string | null>(null);
@@ -26,7 +26,10 @@ export default function LeaguePendingApproval() {
 
   // Poll organization status every 30 seconds
   const checkApproval = useCallback(async () => {
-    if (!orgId) return;
+    if (!orgId) {
+      setCompletionError('Organization setup is incomplete. Go back to league setup and select or create your organization.');
+      return;
+    }
     try {
       setChecking(true);
       setCompletionError(null);
@@ -83,6 +86,7 @@ export default function LeaguePendingApproval() {
   }, [leagueName, markOnboardingCompleteLocally, ob.dob, ob.organization_id, ob.organization_name, ob.username, ob.zip, ob.zip_code, orgId, router]);
 
   useEffect(() => {
+    if (!orgId) return;
     checkApproval();
     intervalRef.current = setInterval(checkApproval, 30000);
     return () => {
@@ -130,7 +134,21 @@ export default function LeaguePendingApproval() {
           }
         </Text>
 
-        {!approved && (
+        {!orgId ? (
+          <>
+            <Text style={[styles.supportText, { color: '#EF4444', marginTop: 0, marginBottom: 12 }]}>
+              Organization ID is missing for this account. Please return to league setup.
+            </Text>
+            <Pressable
+              style={[styles.secondaryButton, { borderColor: isDark ? '#374151' : '#D1D5DB' }]}
+              onPress={() => router.replace('/onboarding/step-3-league' as any)}
+            >
+              <Text style={[styles.secondaryButtonText, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Back to League Setup</Text>
+            </Pressable>
+          </>
+        ) : null}
+
+        {!approved && orgId && (
           <>
             {/* Info card */}
             <View style={[styles.infoCard, { backgroundColor: isDark ? '#1F2937' : '#FFFFFF', borderColor: isDark ? '#374151' : '#E5E7EB' }]}>
