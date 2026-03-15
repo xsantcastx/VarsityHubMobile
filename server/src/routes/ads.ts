@@ -724,7 +724,7 @@ adsRouter.get('/alternative-zips', async (req: AuthedRequest, res) => {
 
 // Admin: Approve a pending ad — sets status to 'approved' (user must pay before ad goes live)
 // No one is charged until approved by emancero@varsityhub.app
-adsRouter.post('/:id([a-z0-9-]{20,40})/approve', requireAdmin as any, async (req: AuthedRequest, res) => {
+adsRouter.post('/:id([a-z0-9]{15,50})/approve', requireAdmin as any, async (req: AuthedRequest, res) => {
   try {
     const id = String(req.params.id);
     const ad = await prisma.ad.findUnique({ where: { id } });
