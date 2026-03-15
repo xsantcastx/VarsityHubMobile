@@ -1144,7 +1144,7 @@ teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, req
 
 // Invite user by email to a team
 const inviteSchema = z.object({ email: z.string().email(), role: z.string().optional() });
-teamsRouter.post('/:id/invite', requireAuth as any, requireOnboarded as any, inviteLimiter, async (req: AuthedRequest, res) => {
+teamsRouter.post('/:id/invite', requireAuth as any, requireVerified as any, requireOnboarded as any, inviteLimiter, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const id = String(req.params.id);
   const parsed = inviteSchema.safeParse(req.body);

@@ -7,7 +7,6 @@ import { getIsAdmin, requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { debugLog } from '../lib/debugLog.js';
-import { calculateAdPriceDollars } from '../utils/adPricing.js';
 import { adCreationLimiter } from '../middleware/rateLimiters.js';
 import { sendAdApprovedEmail, sendAdPendingReviewEmail, sendAdRejectedEmail } from '../lib/email.js';
 import { z } from 'zod';
@@ -500,38 +499,14 @@ adsRouter.get('/availability', async (req, res) => {
 });
 
 // Create reservation for a set of dates (yyyy-MM-dd strings)
-adsRouter.post('/reservations', requireVerified as any, async (req: AuthedRequest, res) => {
-  try {
-    const { ad_id, dates } = req.body || {};
-    if (!ad_id || !Array.isArray(dates) || dates.length === 0) {
-      return res.status(400).json({ error: 'ad_id and dates[] are required' });
-    }
-
-    // Guard: ad must belong to the requesting user and must be paid.
-    const ad = await prisma.ad.findUnique({ where: { id: String(ad_id) } });
-    if (!ad) return res.status(404).json({ error: 'Ad not found' });
-    if (ad.user_id !== req.user?.id) return res.status(403).json({ error: 'Forbidden' });
-    if (ad.payment_status !== 'paid') return res.status(403).json({ error: 'Ad is not paid' });
-
-    const isoDates: string[] = Array.from(new Set(dates.map((d: any) => String(d))));
-    // No global conflicts: allow multiple ads on the same date.
-    // Enforce only one reservation per ad per date via DB unique constraint.
-    // Create (skip duplicates for idempotency)
-    const createdMany = await prisma.adReservation.createMany({
-      data: isoDates.map((s) => ({ ad_id: String(ad_id), date: new Date(s + 'T00:00:00.000Z') })),
-      skipDuplicates: true,
-    });
-
-    // Use shared ad pricing helper for consistent calculation
-    // Mon-Thu = $5.00 per week block, Fri-Sun = $8.00 per week block
-    // Properly groups dates into week blocks (multiple dates in same week = single charge)
-    const totalPrice = calculateAdPriceDollars(isoDates);
-
-    return res.status(201).json({ ok: true, reserved: createdMany.count, dates: isoDates, price: totalPrice });
-  } catch (err) {
-    console.error('[ads] POST /reservations error:', err);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
+// SECURITY: Reservations must be created via payment flow (checkout/webhook). This endpoint
+// previously allowed adding free dates to paid ads. Use 403 (not 410) so clients don't cache
+// a permanent "gone" — endpoint may be repurposed; test-email-queue.sh previously used it.
+adsRouter.post('/reservations', requireVerified as any, async (_req: AuthedRequest, res) => {
+  return res.status(403).json({
+    error: 'RESERVATIONS_VIA_CHECKOUT_ONLY',
+    message: 'Ad reservations must be created through the payment checkout flow. Use the Ad Calendar to select dates and pay.',
+  });
 });
 
 /**
