@@ -53,6 +53,8 @@ export default function LocationPicker({
             backgroundColor: theme.surface,
             borderColor: error ? '#EF4444' : theme.border,
             color: theme.text,
+            minHeight: 52,
+            paddingVertical: 14,
           }]}
           placeholder={placeholder}
           placeholderTextColor={theme.mutedText}
@@ -88,8 +90,8 @@ export default function LocationPicker({
         textInputProps={{
           placeholderTextColor: theme.mutedText,
           onChangeText: (text: string) => {
-            // Clear stored coordinates when user clears the field
-            if (!text) onLocationSelect({ address: '' });
+            // Keep parent in sync so canContinue works for typed addresses
+            onLocationSelect({ address: text });
           },
         }}
         styles={{
@@ -98,7 +100,8 @@ export default function LocationPicker({
             backgroundColor: 'transparent',
           },
           textInput: {
-            height: 50,
+            minHeight: 52,
+            paddingVertical: 14,
             color: theme.text,
             fontSize: 16,
             fontWeight: '500',

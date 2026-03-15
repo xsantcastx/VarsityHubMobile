@@ -89,12 +89,13 @@ export default function SubscriptionPaywallScreen() {
     // iOS and Android: Use native IAP (Apple IAP / Google Play Billing)
     if (isIOS || Platform.OS === 'android') {
       if (!iapConnected) {
+        const msg = isIOS
+          ? 'Unable to connect to the App Store. Ensure you are using an EAS build (not Expo Go), have a Sandbox Apple ID for testing, and products are "Ready to Submit" in App Store Connect.'
+          : 'Unable to connect to Google Play. Ensure you are using an EAS build (not Expo Go) and products are configured in Play Console.';
         setModal({
           visible: true,
           title: 'Store Unavailable',
-          message: isIOS
-            ? 'Unable to connect to the App Store. Please try again later.'
-            : 'Unable to connect to Google Play. Please try again later.',
+          message: msg,
           options: [{ label: 'OK', onPress: () => setModal(null), color: '#2563EB' }],
         });
         return;

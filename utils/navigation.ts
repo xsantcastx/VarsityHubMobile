@@ -8,8 +8,8 @@ export function safeGoBack(router: ReturnType<typeof useRouter>) {
   if (router.canGoBack()) {
     router.back();
   } else {
-    // Use push so we don't destroy the back stack
-    router.push('/(tabs)' as any);
+    // No history (e.g. deep link) — replace to home so back doesn't loop
+    router.replace('/(tabs)' as any);
   }
 }
 
@@ -23,8 +23,8 @@ export function useSafeNavigation() {
     if (router.canGoBack()) {
       router.back();
     } else {
-      // Fallback to main tabs if no navigation stack exists
-      router.push('/(tabs)' as any);
+      // No history — replace to home so back doesn't loop
+      router.replace('/(tabs)' as any);
     }
   };
 
@@ -42,7 +42,7 @@ export function createSafeBack(router: ReturnType<typeof useRouter>) {
     if (router.canGoBack()) {
       router.back();
     } else {
-      router.push('/(tabs)' as any);
+      router.replace('/(tabs)' as any);
     }
   };
 }

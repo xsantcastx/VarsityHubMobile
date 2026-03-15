@@ -294,6 +294,7 @@ export const Event = {
 };
 
 export const Message = {
+  unreadCount: () => httpGet('/messages/unread-count'),
   list: (sort: string = '-created_at', limit: number = 50) => {
     const q = [`sort=${encodeURIComponent(sort)}`, `limit=${limit}`];
     const options = {

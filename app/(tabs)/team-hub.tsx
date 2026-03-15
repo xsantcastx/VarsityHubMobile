@@ -123,7 +123,7 @@ export default function TeamHubScreen() {
     if (!evt) return;
     if (evt.game_id || evt.game?.id) {
       const targetId = String(evt.game_id || evt.game.id);
-      router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: targetId } });
+      router.push({ pathname: '/game/[id]', params: { id: targetId } });
       return;
     }
     if (evt.id) {

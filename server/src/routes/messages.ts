@@ -40,6 +40,19 @@ const u = await prisma.user.findUnique({ where: { email: withParam } });
 return u?.id;
 }
 
+messagesRouter.get('/unread-count', requireAuth as any, async (req: AuthedRequest, res) => {
+  try {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    const count = await prisma.message.count({
+      where: { recipient_id: req.user.id, read: false },
+    });
+    return res.json({ count });
+  } catch (err) {
+    console.error('[messages] GET /unread-count error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 messagesRouter.get('/', requireAuth as any, async (req: AuthedRequest, res) => {
 try {
 if (!req.user) return res.status(401).json({ error: 'Unauthorized' });

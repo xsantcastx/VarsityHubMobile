@@ -188,7 +188,7 @@ export default function SubmitAdScreen() {
       <KeyboardAvoidingView 
         style={{ flex: 1 }} 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 20 : 0}
       >
         <ScrollView 
           scrollEnabled={scrollEnabled}

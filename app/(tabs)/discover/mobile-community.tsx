@@ -339,6 +339,25 @@ export default function CommunityDiscoverScreen() {
     }
   }, [router]);
 
+  const handleTeamSchedule = useCallback(async () => {
+    try {
+      const teams = await Team.managed();
+      const arr = Array.isArray(teams) ? teams : (Array.isArray((teams as any)?.items) ? (teams as any).items : []);
+      if (arr.length === 1) {
+        router.push(`/manage-season?teamId=${arr[0].id}` as any);
+      } else if (arr.length > 1) {
+        router.push('/manage-season' as any);
+      } else {
+        Alert.alert('No Teams', 'Create a team first to manage your schedule.', [
+          { text: 'Create Team', onPress: () => router.push('/(tabs)/create-team') },
+          { text: 'Close', style: 'cancel' },
+        ]);
+      }
+    } catch {
+      Alert.alert('Error', 'Could not load teams. Please try again.');
+    }
+  }, [router]);
+
   const handleQuickGameSave = useCallback(async (data: QuickGameData) => {
     if (isCreatingGame) return; // Prevent duplicate submissions
     setIsCreatingGame(true);
@@ -844,7 +863,7 @@ export default function CommunityDiscoverScreen() {
                 <Pressable
                   key={game.id}
                   style={[styles.dateGameCard, { backgroundColor: Colors[colorScheme].background, borderColor: Colors[colorScheme].border }]}
-                  onPress={() => void router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(game.id) } })}
+                  onPress={() => void router.push({ pathname: '/game/[id]', params: { id: String(game.id) } })}
                   accessibilityRole="button"
                   accessibilityLabel={`${game.title || `${labels.teamA} vs ${labels.teamB}`} at ${time}`}
                 >
@@ -891,7 +910,7 @@ export default function CommunityDiscoverScreen() {
               </Pressable>
               <Pressable
                 style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: 12 }]}
-                onPress={() => void router.push('/manage-season')}
+                onPress={() => void handleTeamSchedule()}
                 accessibilityRole="button"
                 accessibilityLabel="Team Schedule"
               >
@@ -1204,7 +1223,7 @@ export default function CommunityDiscoverScreen() {
           renderItem={({ item }) => (
             <Pressable
               style={[styles.card, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
-              onPress={() => void router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(item.id) } })}
+              onPress={() => void router.push({ pathname: '/game/[id]', params: { id: String(item.id) } })}
             >
               <View style={styles.hero}>
                 {(() => {

@@ -876,10 +876,13 @@ authRouter.get('/me', requireAuth as any, async (req: AuthedRequest, res) => {
     notifications: { game_event_reminders: false, team_updates: false, comments_upvotes: false, follows_notifications: true, messages_notifications: true },
     is_parent: false,
     zip_code: null,
+    onboarding_completed: false,
   };
   // Defaults fill in missing keys; user preferences override defaults
   const userPrefs = (user as any).preferences || {};
   const prefs = mergePreferences(defaults, userPrefs);
+  // Admins always skip onboarding (override DB value)
+  if (is_admin) prefs.onboarding_completed = true;
   const { password_hash, refresh_token, stripe_customer_id, ...rest } = user as any;
   return res.json({ ...rest, ...(is_admin ? { role: 'admin' } : {}), preferences: prefs, is_admin });
 });
@@ -1174,6 +1177,7 @@ authRouter.patch('/me/preferences', requireAuth as any, async (req: AuthedReques
     profile_private: z.boolean().optional(),
     comment_permission: z.enum(['everyone', 'following', 'none']).optional(),
     dm_policy: z.enum(['everyone', 'following', 'no_one']).optional(),
+    proceeding_as_fan: z.boolean().optional(),
   }).partial();
   
   const parsed = schema.safeParse(req.body || {});

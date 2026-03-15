@@ -12,7 +12,7 @@ export default function PendingApproval() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
-  const { signOut, markOnboardingCompleteLocally } = useAuth();
+  const { signOut, markOnboardingCompleteLocally, checkAuth } = useAuth();
   const { state: ob } = useOnboarding();
   const params = useLocalSearchParams<{ leagueName?: string; ownerName?: string }>();
   const leagueName = params.leagueName || 'the league';
@@ -95,6 +95,17 @@ export default function PendingApproval() {
     router.replace('/sign-in');
   };
 
+  const handleProceedAsFan = async () => {
+    try {
+      await User.updatePreferences({ onboarding_completed: true, proceeding_as_fan: true });
+      await markOnboardingCompleteLocally();
+      await checkAuth();
+      router.replace('/(tabs)' as any);
+    } catch (err) {
+      if (__DEV__) console.warn('[pending-approval] Failed to proceed as fan:', err);
+    }
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#0B1120' : '#F8FAFC' }]}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -131,6 +142,12 @@ export default function PendingApproval() {
         {!approved && (
           <>
             {/* Buttons */}
+            <Pressable
+              style={[styles.primaryButton, { marginBottom: 12 }]}
+              onPress={handleProceedAsFan}
+            >
+              <Text style={styles.primaryButtonText}>Continue as Fan</Text>
+            </Pressable>
             <Pressable style={[styles.secondaryButton, { borderColor: isDark ? '#374151' : '#D1D5DB' }]} onPress={handleLogout}>
               <Text style={[styles.secondaryButtonText, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Log Out</Text>
             </Pressable>

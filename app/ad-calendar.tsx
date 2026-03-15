@@ -275,6 +275,7 @@ export default function AdCalendarScreen() {
   const showPaymentsWarning = (!paymentsStatusLoading && paymentsTemporarilyDisabled) || (!!paymentsStatusError && !paymentsTemporarilyDisabled);
   const payButtonDisabled = submitting || selected.size === 0 || paymentsTemporarilyDisabled;
 
+  const theme = Colors[colorScheme];
   const marked = useMemo(() => {
     const obj: Record<string, { selected: boolean; selectedColor?: string } | { disabled: boolean } | any> = {};
     
@@ -285,15 +286,15 @@ export default function AdCalendarScreen() {
         obj[d] = { 
           disabled: true, 
           disableTouchEvent: true,
-          textColor: '#9CA3AF',
+          textColor: theme.mutedText,
           customStyles: {
             container: {
-              backgroundColor: '#E5E7EB',
+              backgroundColor: theme.surface,
               borderWidth: 2,
-              borderColor: '#9CA3AF',
+              borderColor: theme.border,
             },
             text: {
-              color: '#6B7280',
+              color: theme.mutedText,
               textDecorationLine: 'line-through',
               fontWeight: '600',
             },
@@ -310,17 +311,17 @@ export default function AdCalendarScreen() {
         obj[d] = { 
           disabled: true, 
           disableTouchEvent: true,
-          textColor: '#9CA3AF',
-          dotColor: '#9CA3AF',
+          textColor: theme.mutedText,
+          dotColor: theme.mutedText,
           marked: true,
           customStyles: {
             container: {
-              backgroundColor: '#F9FAFB',
+              backgroundColor: theme.surface,
               borderWidth: 1,
-              borderColor: '#D1D5DB',
+              borderColor: theme.border,
             },
             text: {
-              color: '#9CA3AF',
+              color: theme.mutedText,
             },
           },
         };
@@ -353,7 +354,7 @@ export default function AdCalendarScreen() {
     }
     
     return obj;
-  }, [selected, reserved, fullDates]);
+  }, [selected, reserved, fullDates, colorScheme]);
 
   const onDayPress = (day: DateData) => {
     const iso = day.dateString; // yyyy-MM-dd
@@ -617,24 +618,24 @@ export default function AdCalendarScreen() {
           </View>
         )}
         {zipCode && (
-          <View style={[styles.card, { backgroundColor: colorScheme === 'dark' ? '#1E3A8A' : '#EFF6FF', borderColor: colorScheme === 'dark' ? '#3B82F6' : '#BFDBFE' }]}>
+          <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Text style={{ fontSize: 20 }}>📍</Text>
-              <Text style={[styles.cardTitle, { color: colorScheme === 'dark' ? '#BFDBFE' : '#1E40AF' }]}>Coverage Area</Text>
+              <Text style={[styles.cardTitle, { color: theme.text }]}>Coverage Area</Text>
             </View>
-            <Text style={{ color: colorScheme === 'dark' ? '#BFDBFE' : '#1E40AF', fontSize: 14 }}>
+            <Text style={{ color: theme.text, fontSize: 14 }}>
               Your ad will reach approximately <Text style={{ fontWeight: '700' }}>6 miles</Text> around zip code <Text style={{ fontWeight: '700' }}>{zipCode}</Text>
             </Text>
           </View>
         )}
         
         {showingAlternatives && alternatives.length > 0 && (
-          <View style={[styles.card, { backgroundColor: '#FEF3C7', borderColor: '#FCD34D' }]}>
+          <View style={[styles.card, { backgroundColor: colorScheme === 'dark' ? '#422006' : '#FEF3C7', borderColor: colorScheme === 'dark' ? '#92400E' : '#FCD34D' }]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Text style={{ fontSize: 20 }}>⚠️</Text>
-              <Text style={[styles.cardTitle, { color: '#92400E' }]}>Date Unavailable - Try Nearby Zips</Text>
+              <Text style={[styles.cardTitle, { color: colorScheme === 'dark' ? '#FDE68A' : '#92400E' }]}>Date Unavailable - Try Nearby Zips</Text>
             </View>
-            <Text style={{ color: '#92400E', fontSize: 13, marginBottom: 8 }}>
+            <Text style={{ color: colorScheme === 'dark' ? '#FDE68A' : '#92400E', fontSize: 13, marginBottom: 8 }}>
               The selected date is booked for zip code {zipCode}. Here are nearby alternatives:
             </Text>
             {alternatives.map((alt, idx) => (
@@ -646,11 +647,11 @@ export default function AdCalendarScreen() {
                   justifyContent: 'space-between',
                   paddingVertical: 8,
                   paddingHorizontal: 12,
-                  backgroundColor: '#FFFFFF',
+                  backgroundColor: theme.card,
                   borderRadius: 8,
                   marginBottom: 6,
                   borderWidth: 1,
-                  borderColor: '#E5E7EB',
+                  borderColor: theme.border,
                 }}
                 onPress={() => {
                   Alert.alert(
@@ -669,10 +670,10 @@ export default function AdCalendarScreen() {
                 }}
               >
                 <View>
-                  <Text style={{ fontWeight: '600', fontSize: 15 }}>{alt.zip}</Text>
-                  <Text style={{ fontSize: 12, color: '#6B7280' }}>{alt.distance} miles away</Text>
+                  <Text style={{ fontWeight: '600', fontSize: 15, color: theme.text }}>{alt.zip}</Text>
+                  <Text style={{ fontSize: 12, color: theme.mutedText }}>{alt.distance} miles away</Text>
                 </View>
-                <Text style={{ color: '#2563EB', fontSize: 13 }}>View →</Text>
+                <Text style={{ color: theme.tint, fontSize: 13 }}>View →</Text>
               </Pressable>
             ))}
           </View>
@@ -724,18 +725,18 @@ export default function AdCalendarScreen() {
 
           {/* Ad Space Sharing Notice - Prominent */}
           <View style={[styles.noticeBox, { 
-            backgroundColor: colorScheme === 'dark' ? '#1E293B' : '#DBEAFE',
-            borderColor: colorScheme === 'dark' ? '#3B82F6' : '#2563EB',
+            backgroundColor: theme.surface,
+            borderColor: theme.tint,
             borderWidth: 2,
             borderLeftWidth: 6,
           }]}>
             <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
               <Text style={{ fontSize: 24 }}>👥</Text>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.noticeTitle, { color: colorScheme === 'dark' ? '#93C5FD' : '#1E40AF', fontSize: 16, marginBottom: 6 }]}>
+                <Text style={[styles.noticeTitle, { color: theme.text, fontSize: 16, marginBottom: 6 }]}>
                   Ad Space Shared with 1 Company
                 </Text>
-                <Text style={[styles.noticeText, { color: colorScheme === 'dark' ? '#BFDBFE' : '#1E40AF', lineHeight: 20 }]}>
+                <Text style={[styles.noticeText, { color: theme.mutedText, lineHeight: 20 }]}>
                   Your ad will rotate with up to <Text style={{ fontWeight: '800', fontSize: 15 }}>1 other company</Text> on selected dates.
                 </Text>
               </View>
@@ -840,15 +841,15 @@ export default function AdCalendarScreen() {
                           style={[
                             styles.dateBadge, 
                             { 
-                              backgroundColor: isWeekend ? '#FED7AA' : '#BFDBFE',
+                              backgroundColor: colorScheme === 'dark' ? (isWeekend ? '#422006' : '#1E3A8A') : (isWeekend ? '#FED7AA' : '#BFDBFE'),
                               borderColor: isWeekend ? '#EA580C' : '#2563EB',
                             }
                           ]}
                         >
-                          <Text style={[styles.dateBadgeText, { color: isWeekend ? '#7C2D12' : '#1E40AF' }]}>
+                          <Text style={[styles.dateBadgeText, { color: colorScheme === 'dark' ? (isWeekend ? '#FDE68A' : '#93C5FD') : (isWeekend ? '#7C2D12' : '#1E40AF') }]}>
                             {dateRange} ({slotLabel})
                           </Text>
-                          <Text style={[styles.dateBadgeRate, { color: isWeekend ? '#9A3412' : '#1E3A8A' }]}>
+                          <Text style={[styles.dateBadgeRate, { color: colorScheme === 'dark' ? (isWeekend ? '#FDE68A' : '#93C5FD') : (isWeekend ? '#9A3412' : '#1E3A8A') }]}>
                             ${rate.toFixed(2)} total
                           </Text>
                         </View>

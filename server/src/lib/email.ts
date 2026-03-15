@@ -104,14 +104,21 @@ const TEMPLATE_IDS = {
 };
 
 type TemplateKey = keyof typeof TEMPLATE_IDS;
+
+// Critical for launch — health check requires these
 const REQUIRED_TEMPLATE_KEYS: TemplateKey[] = [
-  // Auth & security
   'VERIFICATION',
   'PASSWORD_RESET',
+  'TEAM_INVITE',
+  'ORG_INVITE',
+  'BILLING_NOTICE',
+];
+
+// Nice-to-have — health check warns but doesn't block on these
+const RECOMMENDED_TEMPLATE_KEYS: TemplateKey[] = [
   'PASSWORD_CHANGED',
   'ACCOUNT_RECOVERY',
   'LOGIN_NEW_DEVICE',
-  // Trust & safety
   'ACCOUNT_WARNING',
   'CONTENT_REMOVED',
   'ACCOUNT_SUSPENSION_7_DAYS',
@@ -121,9 +128,6 @@ const REQUIRED_TEMPLATE_KEYS: TemplateKey[] = [
   'REPORT_DISMISSED',
   'CONTENT_MODERATION',
   'ABUSE_REPORT',
-  // Teams & orgs
-  'TEAM_INVITE',
-  'ORG_INVITE',
   'JOIN_REQUEST_ADMIN',
   'JOIN_REQUEST_APPROVED',
   'JOIN_REQUEST_DENIED',
@@ -131,7 +135,6 @@ const REQUIRED_TEMPLATE_KEYS: TemplateKey[] = [
   'ORG_DENIAL',
   'STAFF_MEMBER_JOINED',
   'ROSTER_THRESHOLD',
-  // Events
   'EVENT_SUBMISSION_RECEIVED',
   'EVENT_APPROVED',
   'EVENT_DENIED',
@@ -139,17 +142,13 @@ const REQUIRED_TEMPLATE_KEYS: TemplateKey[] = [
   'EVENT_UPDATED',
   'EVENT_CANCELED',
   'EVENT_RSVP_CONFIRMED',
-  // Billing
-  'BILLING_NOTICE',
   'PAYMENT_FAILED',
   'SUBSCRIPTION_EXPIRING',
-  // Ads
   'AD_GOES_LIVE',
   'AD_PAYMENT_CONFIRMED',
   'AD_PENDING_REVIEW',
   'AD_APPROVED',
   'AD_REJECTED',
-  // Cron job reports
   'DAILY_TRANSACTION_REPORT',
   'FOUNDER_METRICS',
 ];
@@ -160,6 +159,12 @@ export function isSendGridConfigured(): boolean {
 
 export function getMissingEmailTemplates(required: TemplateKey[] = REQUIRED_TEMPLATE_KEYS): string[] {
   return required
+    .filter((key) => !TEMPLATE_IDS[key])
+    .map((key) => key.toLowerCase());
+}
+
+export function getMissingRecommendedTemplates(): string[] {
+  return RECOMMENDED_TEMPLATE_KEYS
     .filter((key) => !TEMPLATE_IDS[key])
     .map((key) => key.toLowerCase());
 }

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { isCloudinaryConfigured } from '../lib/cloudinary.js';
-import { getMissingEmailTemplates, isSendGridConfigured } from '../lib/email.js';
+import { getMissingEmailTemplates, getMissingRecommendedTemplates, isSendGridConfigured } from '../lib/email.js';
 import { getAllPlanDefinitions } from '../lib/planLimits.js';
 import { prisma } from '../lib/prisma.js';
 import { getEmailService } from '../services/email/service.js';
@@ -37,6 +37,7 @@ healthRouter.get('/', async (req: AuthedRequest, res) => {
 
   // Admin-only detailed health check
   const missingEmailTemplates = getMissingEmailTemplates();
+  const missingRecommendedTemplates = getMissingRecommendedTemplates();
   const emailService = getEmailService();
   const emailServiceReady = emailService.isConfigured() && emailService.validateConfig().valid;
   const sendgridReady = isSendGridConfigured() && missingEmailTemplates.length === 0 && emailServiceReady;
@@ -85,15 +86,19 @@ healthRouter.get('/', async (req: AuthedRequest, res) => {
       ...(!sendgridReady
         ? [
             missingEmailTemplates.length
-              ? `SendGrid templates missing: ${missingEmailTemplates.join(', ')}`
+              ? `SendGrid critical templates missing: ${missingEmailTemplates.join(', ')}`
               : 'SendGrid API key missing - transactional email disabled',
           ]
+        : []),
+      ...(missingRecommendedTemplates.length
+        ? [`SendGrid recommended templates missing (non-blocking): ${missingRecommendedTemplates.join(', ')}`]
         : []),
       ...(!integrations.sentry ? ['Sentry not configured - error tracking disabled'] : []),
       ...(!integrations.redis ? ['Redis not configured - background jobs will use fallback mode'] : []),
     ],
     metadata: {
       missingEmailTemplates,
+      missingRecommendedTemplates,
     },
   };
   if (includePayments) {

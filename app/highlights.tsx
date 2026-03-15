@@ -584,13 +584,13 @@ export default function HighlightsScreen() {
   const handleEventPress = useCallback((event: any) => {
     const gameId = event?.game_id || event?.gameId;
     if (gameId) {
-      void router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(gameId) } });
+      void router.push({ pathname: '/game/[id]', params: { id: String(gameId) } });
       return;
     }
 
     const eventId = event?.id || event?.event_id;
     if (eventId) {
-      void router.push({ pathname: '/(tabs)/feed/game', params: { eventId: String(eventId) } } as any);
+      void router.push({ pathname: '/game', params: { eventId: String(eventId) } } as any);
       return;
     }
 

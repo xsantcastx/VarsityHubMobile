@@ -125,9 +125,17 @@ export function useVHubIAP() {
 
   // Fetch subscription products on mount (iOS and Android)
   useEffect(() => {
-    if (!connected || (!isIOS && !isAndroid)) return;
+    if (isExpoGo) {
+      if (__DEV__) console.warn('[useVHubIAP] IAP disabled in Expo Go — use EAS build to test');
+      return;
+    }
+    if (!isIOS && !isAndroid) return;
+    if (!connected) {
+      if (__DEV__) console.warn('[useVHubIAP] Store not connected yet — IAP will not work until connected');
+      return;
+    }
     fetchProducts({ skus: ALL_SKUS, type: 'subs' }).catch((err: unknown) => {
-      if (__DEV__) console.warn('[useVHubIAP] fetchProducts error:', err);
+      if (__DEV__) console.warn('[useVHubIAP] fetchProducts failed:', err);
     });
   }, [connected, fetchProducts]);
 

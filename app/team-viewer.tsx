@@ -127,7 +127,7 @@ export default function TeamViewerScreen() {
 
   const handleGamePress = (game: Game) => {
     router.push({
-      pathname: '/game-detail',
+      pathname: '/game/[id]',
       params: { id: game.id }
     });
   };

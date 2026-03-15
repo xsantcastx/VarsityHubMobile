@@ -524,7 +524,7 @@ const styles = StyleSheet.create({
   mediaWrap: { position: 'relative', borderRadius: 0, overflow: 'hidden', marginBottom: 10 },
   media: { width: '100%', height: 220 },
   mediaGradient: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 90 },
-  captionOverlay: { position: 'absolute', left: 10, right: 10, bottom: 10, color: 'white', fontWeight: '700' },
+  captionOverlay: { position: 'absolute', left: 10, right: 10, bottom: 36, color: 'white', fontWeight: '700' },
   mediaStatsRow: { position: 'absolute', left: 10, bottom: 10, flexDirection: 'row', alignItems: 'center', gap: 8 },
   statPill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(17,24,39,0.55)', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4 },
   statPillText: { color: 'white', fontWeight: '800', fontSize: 12 },

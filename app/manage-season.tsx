@@ -485,7 +485,7 @@ export default function ManageSeasonScreen() {
 
   const handleGamePress = (game: GameCardGame) => {
     router.push({
-      pathname: '/(tabs)/feed/game/[id]',
+      pathname: '/game/[id]',
       params: { id: game.id }
     });
   };

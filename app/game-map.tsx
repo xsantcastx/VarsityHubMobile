@@ -134,7 +134,7 @@ export default function GameMapScreen() {
       router.push(`/(tabs)/event-detail?id=${String(eventId)}`);
     } else {
       // Navigate to game detail page for games (or posts)
-      router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(eventId) } });
+      router.push({ pathname: '/game/[id]', params: { id: String(eventId) } });
     }
   };
 

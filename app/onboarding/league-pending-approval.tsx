@@ -11,7 +11,7 @@ import { httpGet } from '@/api/http';
 
 export default function LeaguePendingApproval() {
   const router = useRouter();
-  const { signOut, markOnboardingCompleteLocally } = useAuth();
+  const { signOut, markOnboardingCompleteLocally, checkAuth } = useAuth();
   const { state: ob } = useOnboarding();
   const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
@@ -70,7 +70,7 @@ export default function LeaguePendingApproval() {
           }
         }
         if (!completed) {
-          setCompletionError('League is approved, but final account setup failed. Tap retry below.');
+          setCompletionError('VarsityHub has approved your organization, but account setup failed. Tap retry below.');
           return;
         }
         setTimeout(() => {
@@ -100,6 +100,17 @@ export default function LeaguePendingApproval() {
     router.replace('/sign-in');
   };
 
+  const handleProceedAsFan = async () => {
+    try {
+      await User.updatePreferences({ onboarding_completed: true, proceeding_as_fan: true });
+      await markOnboardingCompleteLocally();
+      await checkAuth();
+      router.replace('/(tabs)' as any);
+    } catch (err) {
+      if (__DEV__) console.warn('[league-pending-approval] Failed to proceed as fan:', err);
+    }
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#0B1120' : '#F8FAFC' }]}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -122,7 +133,7 @@ export default function LeaguePendingApproval() {
 
         {/* Heading */}
         <Text style={[styles.heading, { color: isDark ? '#F9FAFB' : '#111827' }]}>
-          {approved ? 'League Approved!' : 'League Submitted for Review'}
+          {approved ? 'Approved by VarsityHub!' : 'Submitted to VarsityHub for Review'}
         </Text>
 
         {/* Subheading */}
@@ -153,7 +164,7 @@ export default function LeaguePendingApproval() {
             <View style={[styles.infoCard, { backgroundColor: isDark ? '#1F2937' : '#FFFFFF', borderColor: isDark ? '#374151' : '#E5E7EB' }]}>
               <View style={styles.infoRow}>
                 <MaterialIcons name="business" size={18} color={isDark ? '#60A5FA' : '#2563EB'} />
-                <Text style={[styles.infoLabel, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>League:</Text>
+                <Text style={[styles.infoLabel, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Organization:</Text>
                 <Text style={[styles.infoValue, { color: isDark ? '#F9FAFB' : '#111827' }]}>{leagueName}</Text>
               </View>
               <View style={styles.infoRow}>
@@ -164,6 +175,12 @@ export default function LeaguePendingApproval() {
             </View>
 
             {/* Buttons */}
+            <Pressable
+              style={[styles.primaryButton, { marginBottom: 12 }]}
+              onPress={handleProceedAsFan}
+            >
+              <Text style={styles.primaryButtonText}>Continue as Fan</Text>
+            </Pressable>
             <Pressable style={[styles.secondaryButton, { borderColor: isDark ? '#374151' : '#D1D5DB' }]} onPress={handleLogout}>
               <Text style={[styles.secondaryButtonText, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Log Out</Text>
             </Pressable>

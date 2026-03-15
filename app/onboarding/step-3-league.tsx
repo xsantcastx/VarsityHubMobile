@@ -543,7 +543,7 @@ export default function Step3League() {
               value={orgName}
               onChangeText={handleOrgNameChange}
               placeholder="Westhill High School"
-              style={{ marginBottom: 12 }}
+              style={{ marginBottom: 12, minHeight: 52, paddingVertical: 14 }}
             />
             
             <Text style={styles.label}>Organization Type</Text>
@@ -584,7 +584,7 @@ export default function Step3League() {
                       value={searchZip} 
                       onChangeText={handleSearchInput} 
                       placeholder="e.g., Westhill or 06902" 
-                      style={{ flex: 1 }} 
+                      style={{ flex: 1, minHeight: 52, paddingVertical: 14 }} 
                     />
                     <TouchableOpacity
                       style={styles.searchActionButton}
@@ -1128,7 +1128,8 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     justifyContent: 'space-between',
     borderWidth: 1,
     borderRadius: 12,
-    paddingVertical: 14,
+    paddingVertical: 16,
+    minHeight: 52,
     paddingHorizontal: 16,
     marginBottom: 12,
   },

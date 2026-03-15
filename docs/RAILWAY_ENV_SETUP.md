@@ -180,7 +180,7 @@ ADMIN_EMAILS=admin@varsityhub.com,owner@varsityhub.com
 ```bash
 APP_BASE_URL=https://api-production-8ac3.up.railway.app
 APP_SCHEME=varsityhubmobile
-ALLOWED_ORIGINS=*
+ALLOWED_ORIGINS=https://varsityhub.app,https://www.varsityhub.app
 ```
 
 ---
@@ -225,5 +225,5 @@ EXPO_PUBLIC_APP_SCHEME=varsityhubmobile
 | Google sign-in 401 | `GOOGLE_OAUTH_CLIENT_IDS` missing | Add OAuth client IDs |
 | No errors in Sentry | `SENTRY_DSN` / `EXPO_PUBLIC_SENTRY_DSN` missing | Add DSN for server/client |
 | Webhook not processing | `STRIPE_WEBHOOK_SECRET` missing or wrong endpoint | Verify webhook URL: `/payments/webhook` |
-ALLOWED_ORIGINS=*
+ALLOWED_ORIGINS=https://varsityhub.app,https://www.varsityhub.app
 ```

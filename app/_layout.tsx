@@ -230,6 +230,8 @@ export default function RootLayout() {
                     <Stack screenOptions={{ headerShown: false }}>
                     <Stack.Screen name="index" options={{ headerShown: false }} />
                     <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                    {/* Game detail at root so back returns to previous screen (Spotify-like nav) */}
+                    <Stack.Screen name="game" options={{ headerShown: false }} />
                     {/* Auth screens - lazy loaded */}
                     <Stack.Screen name="sign-in" options={{ headerShown: false }} />
                     <Stack.Screen name="sign-up" options={{ headerShown: false }} />

@@ -202,7 +202,7 @@ export default function OrganizationScreen() {
   };
 
   const handleGamePress = (game: GameItem) => {
-    router.push({ pathname: '/game-detail', params: { id: game.id } });
+    router.push({ pathname: '/game/[id]', params: { id: game.id } });
   };
 
   const formatEventDate = (dateValue?: string | Date | null): string => {

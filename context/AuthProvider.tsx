@@ -46,6 +46,7 @@ interface AuthUser {
     payment_pending?: boolean;
     payment_approved?: boolean;
     join_request_pending?: boolean;
+    proceeding_as_fan?: boolean;
   };
 }
 
@@ -501,10 +502,12 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       }
 
       // Block pending coaches — must stay on pending-approval until approved
+      // Unless they chose "Continue as Fan" to use the app while waiting
       const isPendingCoach = user.approval_status === 'PENDING' && user.preferences?.role === 'coach';
+      const proceedingAsFan = user.preferences?.proceeding_as_fan === true;
       const currentPath = Array.isArray(segmentsRef.current) ? segmentsRef.current.join('/') : '';
       const isOnPendingScreen = currentPath.includes('pending-approval') || currentPath.includes('league-pending-approval');
-      if (isPendingCoach && !isOnPendingScreen && firstSegment !== 'sign-in' && firstSegment !== 'sign-up') {
+      if (isPendingCoach && !proceedingAsFan && !isOnPendingScreen && firstSegment !== 'sign-in' && firstSegment !== 'sign-up') {
         if (__DEV__) console.log('[AuthProvider] Pending coach blocked — must wait for approval');
         if (lastRedirectRef.current !== '/onboarding/pending-approval') {
           lastRedirectRef.current = '/onboarding/pending-approval';
@@ -514,7 +517,8 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       }
 
       // SERVER IS SOURCE OF TRUTH for onboarding completion
-      const serverSaysIncomplete = user.preferences?.onboarding_completed === false;
+      // Treat undefined/null as incomplete (prevents bypass when flag is missing)
+      const serverSaysIncomplete = user.preferences?.onboarding_completed !== true;
       const needsOnboarding = serverSaysIncomplete && !hasCompletedOnboarding;
       const pendingPlan = String(user.preferences?.pending_plan || user.preferences?.plan || '').toLowerCase();
       const coachNeedsCheckout = user.preferences?.role === 'coach'

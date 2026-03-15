@@ -715,7 +715,7 @@ const GameDetailsScreen = () => {
 
   const replaceToCanonicalGame = useCallback(
     (gameIdValue: string) => {
-      const routeBase = '/(tabs)/feed/game/[id]';
+      const routeBase = '/game/[id]';
       void router.push({ pathname: routeBase, params: { id: gameIdValue } });
     },
     [router],
@@ -2083,7 +2083,7 @@ const renderBanner = () => {
                   borderColor: Colors[colorScheme].border,
                 }
               ]}
-              onPress={() => void router.push({ pathname: '/(tabs)/team-profile', params: { id: team.id, name: team.name } } as any)}
+              onPress={() => void router.push({ pathname: '/team-page', params: { id: team.id, name: team.name } } as any)}
             >
               {team.avatarUrl ? (
                 <Image source={{ uri: team.avatarUrl }} style={styles.teamLinkAvatar} contentFit="cover" />
@@ -2137,7 +2137,7 @@ const renderBanner = () => {
                   transform: pressed ? [{ scale: 0.95 }] : [{ scale: 1 }],
                 }
               ]}
-              onPress={() => void router.push({ pathname: '/(tabs)/team-profile', params: { name: teamName } } as any)}
+              onPress={() => void router.push({ pathname: '/team-page', params: { name: teamName } } as any)}
               accessibilityRole="button"
               accessibilityLabel={`View ${teamName} team`}
             >
@@ -3406,8 +3406,6 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     borderRadius: 16, 
     overflow: 'hidden', 
     backgroundColor: '#0f172a',
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
   storyItemSeen: { opacity: 0.5, transform: [{ scale: 0.95 }] },
   storyTileCountdown: { alignItems: 'center', justifyContent: 'center', padding: 8, backgroundColor: '#0f172a' },

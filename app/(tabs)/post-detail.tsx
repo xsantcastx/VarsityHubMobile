@@ -788,9 +788,7 @@ export default function PostDetailScreen() {
           {postData.game && (
             <Pressable 
               style={[styles.gameInfo, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
-              onPress={() => { if (postData.game?.id) { void router.push(`/(tabs)/game-detail?id=${postData.game.id}`);
-                }
-              }}
+              onPress={() => { if (postData.game?.id) { void router.push({ pathname: '/game/[id]', params: { id: postData.game.id } }); } }}
             >
               <Ionicons name="basketball-outline" size={20} color={Colors[colorScheme].tint} />
               <View style={styles.gameDetails}>

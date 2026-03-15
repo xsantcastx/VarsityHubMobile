@@ -5,7 +5,7 @@ import { ActivityIndicator, Alert, FlatList, Modal, Pressable, RefreshControl, S
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
-import { Advertisement, Event, Game, Highlights, Notification as NotificationApi, Post as PostApi, User } from '@/api/entities';
+import { Advertisement, Event, Game, Highlights, Message, Notification as NotificationApi, Post as PostApi, User } from '@/api/entities';
 import { BannerAd } from '@/components/BannerAd';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -206,6 +206,7 @@ export default function FeedScreen() {
   const voteSummariesRef = useRef<Record<string, VotePreviewEntry>>({});
   const [voteSummaries, setVoteSummaries] = useState<Record<string, VotePreviewEntry>>({});
   const [hasUnreadAlerts, setHasUnreadAlerts] = useState(false);
+  const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
   const [notificationsMenuOpen, setNotificationsMenuOpen] = useState(false);
   
   // State for notifications in modal
@@ -446,17 +447,18 @@ export default function FeedScreen() {
   useFocusEffect(
     useCallback(() => {
       void load({ silent: true });
-      // Check for unread notifications when feed gains focus
+      // Check for unread notifications and messages when feed gains focus
       void (async () => {
         try {
           const timeoutPromise = new Promise((_, reject) => 
             setTimeout(() => reject(new Error('Notification check timeout')), 10000)
           );
-          const page = await Promise.race([
-            NotificationApi.listPage(null, 1, true),
-            timeoutPromise
-          ]) as any;
-          setHasUnreadAlerts(Array.isArray(page.items) && page.items.length > 0);
+          const [page, unreadRes] = await Promise.all([
+            Promise.race([NotificationApi.listPage(null, 1, true), timeoutPromise]) as Promise<any>,
+            Message.unreadCount().catch(() => ({ count: 0 })),
+          ]);
+          setHasUnreadAlerts(Array.isArray(page?.items) && page.items.length > 0);
+          setUnreadMessagesCount(typeof unreadRes?.count === 'number' ? unreadRes.count : 0);
         } catch (err: any) {
           // ignore notification poll errors, but log in dev
           if (__DEV__ && err?.message !== 'Notification check timeout') {
@@ -476,12 +478,13 @@ export default function FeedScreen() {
         const timeoutPromise = new Promise((_, reject) => 
           setTimeout(() => reject(new Error('Notification poll timeout')), 10000)
         );
-        const page = await Promise.race([
-          NotificationApi.listPage(null, 1, true),
-          timeoutPromise
-        ]) as any;
+        const [page, unreadRes] = await Promise.all([
+          Promise.race([NotificationApi.listPage(null, 1, true), timeoutPromise]) as Promise<any>,
+          Message.unreadCount().catch(() => ({ count: 0 })),
+        ]);
         if (!mounted) return;
-        setHasUnreadAlerts(Array.isArray(page.items) && page.items.length > 0);
+        setHasUnreadAlerts(Array.isArray(page?.items) && page.items.length > 0);
+        setUnreadMessagesCount(typeof unreadRes?.count === 'number' ? unreadRes.count : 0);
       } catch (err: any) {
         // ignore notification poll errors, but log in dev
         if (__DEV__ && err?.message !== 'Notification poll timeout') {
@@ -736,9 +739,14 @@ export default function FeedScreen() {
               onPress={() => void router.push('/(tabs)/messages' as any)}
               style={styles.iconButton} 
               accessibilityRole="button" 
-              accessibilityLabel="Open messages"
+              accessibilityLabel={unreadMessagesCount > 0 ? `Open messages (${unreadMessagesCount} unread)` : 'Open messages'}
             >
-              <MaterialIcons name="chat-bubble-outline" size={24} color={Colors[colorScheme].text} />
+              <View>
+                <MaterialIcons name="chat-bubble-outline" size={24} color={Colors[colorScheme].text} />
+                {unreadMessagesCount > 0 ? (
+                  <View style={[styles.alertDot, { right: -4, top: -2 }]} />
+                ) : null}
+              </View>
             </Pressable>
           </View>
         </View>
@@ -981,7 +989,7 @@ export default function FeedScreen() {
                 <Pressable
                   key={String(gameItem.id)}
                   style={styles.singleEventCard}
-                  onPress={() => void router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(gameItem.id) } })}
+                  onPress={() => void router.push({ pathname: '/game/[id]', params: { id: String(gameItem.id) } })}
                   accessibilityRole="button"
                   accessibilityLabel={`${gameItem.title || 'Game'} on ${eventDate}${eventTime ? ` at ${eventTime}` : ''}`}
                 >
@@ -1215,7 +1223,7 @@ export default function FeedScreen() {
                   <Pressable
                     key={String(item.id)}
                     style={styles.singleEventCard}
-                    onPress={() => void router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(item.id) } })}
+                    onPress={() => void router.push({ pathname: '/game/[id]', params: { id: String(item.id) } })}
                     accessibilityRole="button"
                     accessibilityLabel={`${item.title || 'Game'} on ${eventDate}${eventTime ? ` at ${eventTime}` : ''}`}
                   >
