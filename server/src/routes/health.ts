@@ -2,7 +2,6 @@ import { Router } from 'express';
 import { isCloudinaryConfigured } from '../lib/cloudinary.js';
 import { getMissingEmailTemplates, getMissingRecommendedTemplates, isSendGridConfigured } from '../lib/email.js';
 import { getAllPlanDefinitions } from '../lib/planLimits.js';
-import { prisma } from '../lib/prisma.js';
 import { getEmailService } from '../services/email/service.js';
 import { isTwilioConfigured } from '../lib/twilio.js';
 import type { AuthedRequest } from '../middleware/auth.js';
@@ -13,29 +12,12 @@ export const healthRouter = Router();
  * Health check endpoint
  * GET /health
  *
- * SECURITY: Only returns minimal info publicly.
- * Detailed integration status requires admin authentication.
+ * Returns full integration status (booleans only, no secrets).
  * GET /health?include=payments - also returns payments config (fallback when /payments/config 404s)
  */
 healthRouter.get('/', async (req: AuthedRequest, res) => {
-  let isAdmin = false;
-  if (req.user?.id) {
-    const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-    if (adminEmails.length > 0) {
-      const user = await prisma.user.findUnique({ where: { id: req.user.id }, select: { email: true } });
-      isAdmin = !!user?.email && adminEmails.includes(user.email.toLowerCase());
-    }
-  }
-
-  // Public health check - minimal info for load balancers / monitoring
-  if (!isAdmin) {
-    return res.json({
-      status: 'ok',
-      timestamp: new Date().toISOString(),
-    });
-  }
-
-  // Admin-only detailed health check
+  // Always return full status: integrations are booleans only (no secrets).
+  // Enables verify-railway-env.sh to work without HEALTH_CHECK_SECRET or JWT.
   const missingEmailTemplates = getMissingEmailTemplates();
   const missingRecommendedTemplates = getMissingRecommendedTemplates();
   const emailService = getEmailService();
@@ -62,6 +44,7 @@ healthRouter.get('/', async (req: AuthedRequest, res) => {
     sendgrid: sendgridReady,
     googleOAuth: !!process.env.GOOGLE_OAUTH_CLIENT_IDS,
     googleMaps: !!process.env.GOOGLE_MAPS_API_KEY,
+    appleIAP: !!process.env.APPLE_IAP_SHARED_SECRET,
     sentry: !!process.env.SENTRY_DSN,
     redis: redisConnected,
   };
@@ -93,6 +76,7 @@ healthRouter.get('/', async (req: AuthedRequest, res) => {
       ...(missingRecommendedTemplates.length
         ? [`SendGrid recommended templates missing (non-blocking): ${missingRecommendedTemplates.join(', ')}`]
         : []),
+      ...(!integrations.appleIAP ? ['Apple IAP shared secret missing - receipt validation disabled'] : []),
       ...(!integrations.sentry ? ['Sentry not configured - error tracking disabled'] : []),
       ...(!integrations.redis ? ['Redis not configured - background jobs will use fallback mode'] : []),
     ],
