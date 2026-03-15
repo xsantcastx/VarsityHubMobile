@@ -189,7 +189,7 @@ export default function TeamHubScreen() {
               <Pressable
                 key={String(team.id)}
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, paddingHorizontal: 12, borderRadius: Radius.md, backgroundColor: palette.infoTile }}
-                onPress={() => router.push({ pathname: '/team-page', params: { id: String(team.id) } })}
+                onPress={() => router.push({ pathname: '/(tabs)/team-page', params: { id: String(team.id) } })}
               >
                 <MaterialIcons name="groups" size={20} color={palette.primary} />
                 <Text style={{ color: palette.text, fontWeight: '700', flex: 1 }} numberOfLines={1}>{team.name}</Text>

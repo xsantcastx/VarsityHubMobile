@@ -107,6 +107,7 @@ export default function TabLayout() {
   <Tabs.Screen name="post-detail" options={hiddenTab} />
   <Tabs.Screen name="user-profile" options={hiddenTab} />
   <Tabs.Screen name="team-profile" options={hiddenTab} />
+  <Tabs.Screen name="team-page" options={hiddenTab} />
   <Tabs.Screen name="team-hub" options={hiddenTab} />
   <Tabs.Screen name="team-contacts" options={hiddenTab} />
   <Tabs.Screen name="edit-profile" options={hiddenTab} />

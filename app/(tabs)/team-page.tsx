@@ -5,11 +5,12 @@ import { getGradientForColor } from '@/utils/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useNavigation } from '@react-navigation/native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import GameVerticalFeedScreen, { FeedPost } from './game-details/GameVerticalFeedScreen';
+import GameVerticalFeedScreen, { FeedPost } from '../game-details/GameVerticalFeedScreen';
 
 type LeagueTeam = {
   id: string;
@@ -104,7 +105,9 @@ export default function TeamScreen() {
   const theme = Colors[colorScheme];
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ id?: string; name?: string }>();
+  const params = useLocalSearchParams<{ id?: string; name?: string; from?: string; gameId?: string }>();
+  const { from, gameId } = params;
+  const navigation = useNavigation();
   
   const [loading, setLoading] = useState(true);
   const [team, setTeam] = useState<LeagueTeam | null>(null);
@@ -142,6 +145,18 @@ export default function TeamScreen() {
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
   const [viewerItems, setViewerItems] = useState<FeedPost[]>([]);
+
+  const handleBack = useCallback(() => {
+    if (from === 'game-details' && gameId) {
+      if (navigation.canGoBack()) {
+        router.back();
+      } else {
+        router.push({ pathname: '/game/[id]', params: { id: gameId } } as any);
+      }
+    } else {
+      router.back();
+    }
+  }, [from, gameId, navigation, router]);
 
   // Mounted guard to prevent state updates after unmount
   const mounted = useRef(true);
@@ -557,7 +572,7 @@ export default function TeamScreen() {
 
         {/* Back Button - Top Left */}
         <View style={[styles.headerControls, { top: Math.max(12, insets.top), left: 16 }]}>
-          <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={[styles.controlButton, { backgroundColor: colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)' }]}>
+          <Pressable onPress={handleBack} style={[styles.controlButton, { backgroundColor: colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)' }]}>
             <Ionicons name="arrow-back" size={18} color={colorScheme === 'dark' ? '#FFFFFF' : '#333'} />
           </Pressable>
         </View>

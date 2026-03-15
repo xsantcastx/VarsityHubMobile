@@ -250,6 +250,7 @@ function StoriesViewer({ visible, items, index, onClose, onSeen, onDelete, gameI
           </View>
         </View>
 
+        <View style={{ flex: 1, flexDirection: 'column' }}>
         <View
           style={styles.storyStage}
           needsOffscreenAlphaCompositing
@@ -271,13 +272,21 @@ function StoriesViewer({ visible, items, index, onClose, onSeen, onDelete, gameI
             ) : (
               <Image
                 source={{ uri: item.url }}
-                style={{ width: w, aspectRatio: 9 / 16, backgroundColor: Colors[colorScheme].surface }}
+                style={{ width: w, aspectRatio: 9 / 16, backgroundColor: Colors[colorScheme].surface, borderWidth: 0 }}
                 contentFit="cover"
                 transition={0}
                 cachePolicy="memory-disk"
                 recyclingKey={item.url}
               />
             )}
+        </View>
+
+        {/* Caption below media - separate section to avoid overlap */}
+        {item?.caption?.trim() ? (
+          <View style={[styles.storyCaptionWrap, { paddingBottom: insets.bottom + 12 }]}>
+            <Text style={styles.storyCaptionText} numberOfLines={3}>{item.caption.trim()}</Text>
+          </View>
+        ) : null}
         </View>
 
         {/* Preload next photo to minimize flicker on advance */}
@@ -1865,7 +1874,31 @@ const renderBanner = () => {
   // attempt to pull team color accents from vm.teams if present
   const homeTeamObj = vm?.teams?.find((t: any) => t.name === vm?.homeTeam)
   const awayTeamObj = vm?.teams?.find((t: any) => t.name === vm?.awayTeam)
-  
+
+  // Navigate to team profile: use team ID if available, else search by name (for sample games or when teams array is empty)
+  const handleTeamPress = useCallback(
+    async (teamObj: { id: string } | undefined, teamName: string | null) => {
+      if (teamObj?.id) {
+        void router.push(`/(tabs)/team-profile?id=${teamObj.id}`);
+        return;
+      }
+      if (!teamName?.trim()) return;
+      try {
+        const raw = await Team.list(teamName.trim(), false, { limit: 15 });
+        const list: any[] = Array.isArray(raw) ? raw : [];
+        const lower = teamName.trim().toLowerCase();
+        const match = list.find((t: any) => (t?.name || '').toLowerCase() === lower || (t?.name || '').toLowerCase().includes(lower));
+        if (match?.id) void router.push(`/(tabs)/team-profile?id=${match.id}`);
+      } catch {
+        // Team search failed; no navigation
+      }
+    },
+    [router],
+  );
+
+  const onLeftTeamPress = useCallback(() => void handleTeamPress(homeTeamObj, vm?.homeTeam ?? null), [handleTeamPress, homeTeamObj, vm?.homeTeam]);
+  const onRightTeamPress = useCallback(() => void handleTeamPress(awayTeamObj, vm?.awayTeam ?? null), [handleTeamPress, awayTeamObj, vm?.awayTeam]);
+
   const heroBanner = bannerImageUrl && !isHero ? (
     <Image
       key={bannerImageKey}
@@ -1888,18 +1921,8 @@ const renderBanner = () => {
         appearance={(vm as any)?.appearance || 'classic'}
         headerFade={headerOpacity}
         onVsPress={() => setVsModalOpen(true)}
-        onLeftPress={() => {
-          // Navigate to home team profile if team object exists
-          if (homeTeamObj?.id) {
-            void router.push(`/(tabs)/team-profile?id=${homeTeamObj.id}`);
-          }
-        }}
-        onRightPress={() => {
-          // Navigate to away team profile if team object exists
-          if (awayTeamObj?.id) {
-            void router.push(`/(tabs)/team-profile?id=${awayTeamObj.id}`);
-          }
-        }}
+        onLeftPress={onLeftTeamPress}
+        onRightPress={onRightTeamPress}
         leftColor={(homeTeamObj as any)?.color}
         rightColor={(awayTeamObj as any)?.color}
         goingCount={goingCount}
@@ -2083,7 +2106,7 @@ const renderBanner = () => {
                   borderColor: Colors[colorScheme].border,
                 }
               ]}
-              onPress={() => void router.push({ pathname: '/team-page', params: { id: team.id, name: team.name } } as any)}
+              onPress={() => void router.push({ pathname: '/(tabs)/team-page', params: { id: team.id, name: team.name, from: 'game-details', gameId: id } } as any)}
             >
               {team.avatarUrl ? (
                 <Image source={{ uri: team.avatarUrl }} style={styles.teamLinkAvatar} contentFit="cover" />
@@ -2137,7 +2160,7 @@ const renderBanner = () => {
                   transform: pressed ? [{ scale: 0.95 }] : [{ scale: 1 }],
                 }
               ]}
-              onPress={() => void router.push({ pathname: '/team-page', params: { name: teamName } } as any)}
+              onPress={() => void router.push({ pathname: '/(tabs)/team-page', params: { name: teamName, from: 'game-details', gameId: id } } as any)}
               accessibilityRole="button"
               accessibilityLabel={`View ${teamName} team`}
             >
@@ -3406,6 +3429,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     borderRadius: 16, 
     overflow: 'hidden', 
     backgroundColor: '#0f172a',
+    borderWidth: 0,
   },
   storyItemSeen: { opacity: 0.5, transform: [{ scale: 0.95 }] },
   storyTileCountdown: { alignItems: 'center', justifyContent: 'center', padding: 8, backgroundColor: '#0f172a' },
@@ -3442,6 +3466,8 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     borderRadius: 8,
   },
   storyCountdownText: { color: '#fff', fontSize: 10, fontWeight: '700' },
+  storyCaptionWrap: { paddingHorizontal: 16, paddingVertical: 12, backgroundColor: 'rgba(15,23,42,0.95)', borderTopWidth: 0 },
+  storyCaptionText: { color: '#e2e8f0', fontSize: 14, fontWeight: '600' },
   verticalFeedPreview: {
     marginTop: 16,
     borderRadius: 20,
