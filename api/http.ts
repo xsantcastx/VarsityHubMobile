@@ -97,11 +97,14 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
            /[A-Z0-9]{27}/.test(data) // Match any 27-char alphanumeric (likely correlation key)
          )));
       
+      const isHtmlError = ct.includes('text/html') && typeof data === 'string';
       const msg = ct.includes('application/json') 
         ? (data && (data.error || data.message)) 
         : isRailwayErrorPage 
           ? 'Server temporarily unavailable' 
-          : (typeof data === 'string' ? data : null);
+          : isHtmlError
+            ? (res.status === 404 ? 'Endpoint not found. Please update the app.' : `Request failed (${res.status}). Please try again.`)
+            : (typeof data === 'string' ? data : null);
       
       const err: any = new Error(msg || `HTTP ${res.status}`);
       err.status = res.status;

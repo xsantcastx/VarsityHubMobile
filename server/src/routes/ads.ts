@@ -273,7 +273,7 @@ adsRouter.get('/for-feed', async (req, res) => {
 });
 
 // Get a single Ad with its reservations (dates)
-adsRouter.get('/:id([a-z0-9-]{20,40})', requireAuth as any, async (req: AuthedRequest, res) => {
+adsRouter.get('/:id([a-z0-9]{15,50})', requireAuth as any, async (req: AuthedRequest, res) => {
   try {
     const id = String(req.params.id);
     const ad = await prisma.ad.findUnique({ where: { id } });
@@ -290,7 +290,7 @@ adsRouter.get('/:id([a-z0-9-]{20,40})', requireAuth as any, async (req: AuthedRe
 });
 
 // Update an Ad (owner-only if authenticated)
-adsRouter.put('/:id([a-z0-9-]{20,40})', requireAuth as any, async (req: AuthedRequest, res) => {
+adsRouter.put('/:id([a-z0-9]{15,50})', requireAuth as any, async (req: AuthedRequest, res) => {
   try {
     const id = String(req.params.id);
     const ad = await prisma.ad.findUnique({ where: { id } });
@@ -336,7 +336,7 @@ adsRouter.put('/:id([a-z0-9-]{20,40})', requireAuth as any, async (req: AuthedRe
 });
 
 // Delete an Ad (owner-only if authenticated)
-adsRouter.delete('/:id([a-z0-9-]{20,40})', requireVerified as any, async (req: AuthedRequest, res) => {
+adsRouter.delete('/:id([a-z0-9]{15,50})', requireVerified as any, async (req: AuthedRequest, res) => {
   try {
     const id = String(req.params.id);
     debugLog('[ads] DELETE /:id request', { id, userId: req.user?.id });
@@ -433,11 +433,11 @@ adsRouter.get('/availability', async (req, res) => {
       return res.status(400).json({ error: 'Invalid date format' });
     }
 
-    // Get all ads for this zip code
+    // Get all ads for this zip code (paid, hold, pending_approval all hold slots)
     const adsInZip = await prisma.ad.findMany({
       where: {
         target_zip_code: zipCode,
-        payment_status: 'paid', // Only count paid ads
+        payment_status: { in: ['paid', 'hold', 'pending_approval'] },
       },
       select: { id: true },
       take: 100,
@@ -495,6 +495,81 @@ adsRouter.get('/availability', async (req, res) => {
     });
   } catch (err) {
     console.error('[ads] GET /availability error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Submit ad for approval (no charge). Admin must approve before user can pay.
+// Creates reservations and holds slots. No payment until emancero@varsityhub.app approves.
+// CUID format: 25 chars, [a-z0-9]. Broader regex for compatibility with Prisma cuid/cuid2.
+adsRouter.post('/:id([a-z0-9]{15,50})/submit-for-approval', requireVerified as any, async (req: AuthedRequest, res) => {
+  try {
+    const id = String(req.params.id);
+    const { dates } = req.body || {};
+    if (!Array.isArray(dates) || dates.length === 0) {
+      return res.status(400).json({ error: 'dates[] is required' });
+    }
+    const isoDates = Array.from(new Set(dates.map((d: any) => String(d))));
+    const ad = await prisma.ad.findUnique({ where: { id } });
+    if (!ad) return res.status(404).json({ error: 'Ad not found' });
+    if (ad.user_id !== req.user!.id) return res.status(403).json({ error: 'Not authorized' });
+    if (ad.status !== 'draft') {
+      return res.status(400).json({ error: `Ad status is '${ad.status}'. Submit for approval only from draft.` });
+    }
+
+    const MAX_AD_SLOTS = 2;
+    if (ad.target_zip_code) {
+      const reservedAdsInZip = await prisma.ad.findMany({
+        where: {
+          target_zip_code: ad.target_zip_code,
+          payment_status: { in: ['paid', 'hold', 'pending_approval'] },
+          NOT: { id },
+        },
+        select: { id: true },
+        take: 100,
+      });
+      if (reservedAdsInZip.length > 0) {
+        const dateObjects = isoDates.map((s) => new Date(s + 'T00:00:00.000Z'));
+        const bookedSlots = await prisma.adReservation.groupBy({
+          by: ['date'],
+          where: { ad_id: { in: reservedAdsInZip.map((a) => a.id) }, date: { in: dateObjects } },
+          _count: { date: true },
+        });
+        const fullDates = bookedSlots.filter((s) => s._count.date >= MAX_AD_SLOTS);
+        if (fullDates.length > 0) {
+          return res.status(409).json({
+            error: 'One or more selected dates are fully booked',
+            dates: fullDates.map((s) => s.date.toISOString().slice(0, 10)),
+          });
+        }
+      }
+    }
+
+    await prisma.$transaction([
+      prisma.ad.update({
+        where: { id },
+        data: { status: 'pending', payment_status: 'pending_approval' },
+      }),
+      prisma.adReservation.createMany({
+        data: isoDates.map((s) => ({ ad_id: id, date: new Date(s + 'T00:00:00.000Z') })),
+        skipDuplicates: true,
+      }),
+    ]);
+
+    sendAdPendingReviewEmail({
+      to: process.env.ADMIN_EMAILS?.split(',')[0]?.trim() || 'emancero@varsityhub.app',
+      businessName: ad.business_name || undefined,
+      contactName: ad.contact_name || undefined,
+      contactEmail: ad.contact_email || undefined,
+      zipCode: ad.target_zip_code || undefined,
+      bannerUrl: ad.banner_url || undefined,
+      adId: id,
+    }).catch((err) => console.warn('[ads] submit-for-approval email failed:', (err as any)?.message || err));
+
+    const updated = await prisma.ad.findUnique({ where: { id }, include: { reservations: true } });
+    return res.status(201).json(updated);
+  } catch (err) {
+    console.error('[ads] POST /:id/submit-for-approval error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -647,7 +722,8 @@ adsRouter.get('/alternative-zips', async (req: AuthedRequest, res) => {
   }
 });
 
-// Admin: Approve a pending ad (sets status to 'active')
+// Admin: Approve a pending ad — sets status to 'approved' (user must pay before ad goes live)
+// No one is charged until approved by emancero@varsityhub.app
 adsRouter.post('/:id([a-z0-9-]{20,40})/approve', requireAdmin as any, async (req: AuthedRequest, res) => {
   try {
     const id = String(req.params.id);
@@ -657,8 +733,15 @@ adsRouter.post('/:id([a-z0-9-]{20,40})/approve', requireAdmin as any, async (req
 
     const updated = await prisma.ad.update({
       where: { id },
-      data: { status: 'active' },
+      data: { status: 'approved' },
     });
+
+    if (ad.contact_email) {
+      sendAdApprovedEmail({
+        to: ad.contact_email,
+        businessName: ad.business_name || undefined,
+      }).catch((err) => console.warn('[ads] approve email failed:', (err as any)?.message || err));
+    }
     return res.json(updated);
   } catch (err) {
     console.error('[ads] POST /:id/approve error:', err);
@@ -666,17 +749,27 @@ adsRouter.post('/:id([a-z0-9-]{20,40})/approve', requireAdmin as any, async (req
   }
 });
 
-// Admin: Reject a pending ad (sets status back to 'draft')
-adsRouter.post('/:id([a-z0-9-]{20,40})/reject', requireAdmin as any, async (req: AuthedRequest, res) => {
+// Admin: Reject a pending ad — clears reservations, back to draft
+adsRouter.post('/:id([a-z0-9]{15,50})/reject', requireAdmin as any, async (req: AuthedRequest, res) => {
   try {
     const id = String(req.params.id);
     const ad = await prisma.ad.findUnique({ where: { id } });
     if (!ad) return res.status(404).json({ error: 'Ad not found' });
 
-    const updated = await prisma.ad.update({
-      where: { id },
-      data: { status: 'draft' },
-    });
+    await prisma.$transaction([
+      prisma.adReservation.deleteMany({ where: { ad_id: id } }),
+      prisma.ad.update({
+        where: { id },
+        data: { status: 'draft', payment_status: 'unpaid' },
+      }),
+    ]);
+
+    if (ad.contact_email) {
+      sendAdRejectedEmail({ to: ad.contact_email, businessName: ad.business_name || undefined }).catch((err) =>
+        console.warn('[ads] reject email failed:', (err as any)?.message || err)
+      );
+    }
+    const updated = await prisma.ad.findUnique({ where: { id } });
     return res.json(updated);
   } catch (err) {
     console.error('[ads] POST /:id/reject error:', err);
@@ -685,7 +778,7 @@ adsRouter.post('/:id([a-z0-9-]{20,40})/reject', requireAdmin as any, async (req:
 });
 
 // Admin: Review an ad (approve or reject) — used by admin-ads screen
-adsRouter.post('/:id([a-z0-9-]{20,40})/review', requireAdmin as any, async (req: AuthedRequest, res) => {
+adsRouter.post('/:id([a-z0-9]{15,50})/review', requireAdmin as any, async (req: AuthedRequest, res) => {
   try {
     const id = String(req.params.id);
     const action = req.body?.action;
@@ -694,24 +787,29 @@ adsRouter.post('/:id([a-z0-9-]{20,40})/review', requireAdmin as any, async (req:
     }
     const ad = await prisma.ad.findUnique({ where: { id } });
     if (!ad) return res.status(404).json({ error: 'Ad not found' });
+    if (ad.status !== 'pending') return res.status(400).json({ error: `Ad status is '${ad.status}', not 'pending'` });
 
-    const newStatus = action === 'approve' ? 'active' : 'draft';
-    const updated = await prisma.ad.update({ where: { id }, data: { status: newStatus } });
-
-    // Send notification email to ad owner
-    if (ad.contact_email) {
-      try {
-        if (action === 'approve') {
-          await sendAdApprovedEmail({ to: ad.contact_email, businessName: ad.business_name || undefined });
-        } else {
-          await sendAdRejectedEmail({ to: ad.contact_email, businessName: ad.business_name || undefined });
-        }
-      } catch (emailErr) {
-        console.warn('[ads] Failed to send review notification email:', (emailErr as any)?.message || emailErr);
+    if (action === 'approve') {
+      const updated = await prisma.ad.update({ where: { id }, data: { status: 'approved' } });
+      if (ad.contact_email) {
+        sendAdApprovedEmail({ to: ad.contact_email, businessName: ad.business_name || undefined }).catch((err) =>
+          console.warn('[ads] approve email failed:', (err as any)?.message || err)
+        );
       }
+      return res.json(updated);
+    } else {
+      await prisma.$transaction([
+        prisma.adReservation.deleteMany({ where: { ad_id: id } }),
+        prisma.ad.update({ where: { id }, data: { status: 'draft', payment_status: 'unpaid' } }),
+      ]);
+      if (ad.contact_email) {
+        sendAdRejectedEmail({ to: ad.contact_email, businessName: ad.business_name || undefined }).catch((err) =>
+          console.warn('[ads] reject email failed:', (err as any)?.message || err)
+        );
+      }
+      const updated = await prisma.ad.findUnique({ where: { id } });
+      return res.json(updated);
     }
-
-    return res.json(updated);
   } catch (err) {
     console.error('[ads] POST /:id/review error:', err);
     return res.status(500).json({ error: 'Internal server error' });
