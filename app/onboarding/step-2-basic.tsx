@@ -10,7 +10,6 @@ import { User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding, type Affiliation } from '@/context/OnboardingContext';
-import { STEP_ROUTES, nextIncompleteStep } from '@/context/onboardingReducer';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { ZipCodeMapPreview } from '@/components/ZipCodeMapPreview';
 import { useFocusEffect } from '@react-navigation/native';

@@ -1,4 +1,3 @@
-import { Colors } from '@/constants/Colors';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -83,16 +82,16 @@ export default function LeaguePendingApproval() {
     } finally {
       setChecking(false);
     }
-  }, [leagueName, markOnboardingCompleteLocally, ob.dob, ob.organization_id, ob.organization_name, ob.username, ob.zip, ob.zip_code, orgId, router]);
+  }, [leagueName, markOnboardingCompleteLocally, ob.affiliation, ob.dob, ob.organization_id, ob.organization_name, ob.username, ob.zip, ob.zip_code, orgId, router]);
 
   useEffect(() => {
     if (!orgId) return;
-    checkApproval();
-    intervalRef.current = setInterval(checkApproval, 30000);
+    void checkApproval();
+    intervalRef.current = setInterval(() => void checkApproval(), 30000);
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [checkApproval]);
+  }, [checkApproval, orgId]);
 
   const handleLogout = async () => {
     try {

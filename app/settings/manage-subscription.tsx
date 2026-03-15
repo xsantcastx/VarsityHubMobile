@@ -11,10 +11,6 @@ import { Alert, Linking, Platform, ScrollView, StyleSheet, Text, useColorScheme,
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/Colors';
 
-interface UserMeResponse {
-  preferences?: { plan?: string };
-}
-
 interface PaymentSheetResponse {
   paymentIntent?: string;
   ephemeralKey?: string;

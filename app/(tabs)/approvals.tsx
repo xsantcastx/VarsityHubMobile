@@ -53,7 +53,7 @@ export default function ApprovalsScreen() {
   const C = Colors[colorScheme];
   const isDark = colorScheme === 'dark';
   const router = useRouter();
-  const { user } = useAuth();
+  useAuth();
 
   const [orgs, setOrgs] = useState<OwnedOrg[]>([]);
   const [coaches, setCoaches] = useState<PendingCoach[]>([]);

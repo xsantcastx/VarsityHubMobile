@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, useColorScheme, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, useColorScheme, View } from 'react-native';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
 import { OBProvider, useOnboarding } from '@/context/OnboardingContext';
@@ -157,7 +157,7 @@ function RoleOnboardingScreenInner() {
         ...prev,
         role: 'coach',
         plan: 'rookie',
-        pending_plan: isPaidPlan ? tier : null,
+        pending_plan: isPaidPlan ? tier : undefined,
         payment_pending: isPaidPlan,
       }));
       logTelemetry('coach-tier-success', { tier });

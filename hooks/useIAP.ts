@@ -126,7 +126,7 @@ export function useVHubIAP() {
   // Fetch subscription products on mount (iOS and Android)
   useEffect(() => {
     if (!connected || (!isIOS && !isAndroid)) return;
-    fetchProducts({ skus: ALL_SKUS, type: 'subs' }).catch((err) => {
+    fetchProducts({ skus: ALL_SKUS, type: 'subs' }).catch((err: unknown) => {
       if (__DEV__) console.warn('[useVHubIAP] fetchProducts error:', err);
     });
   }, [connected, fetchProducts]);
@@ -139,7 +139,7 @@ export function useVHubIAP() {
         return false;
       }
       // Prefer the SKU currently returned from the store, fall back to primary configured SKU.
-      const availableSku = subscriptions.find((p) => planSkus.includes((p as any).productId)) as any;
+      const availableSku = subscriptions.find((p: { productId?: string }) => planSkus.includes(p.productId ?? '')) as { productId?: string } | undefined;
       const sku = availableSku?.productId || planSkus[0];
 
       setPurchasing(true);
@@ -174,7 +174,7 @@ export function useVHubIAP() {
   const getProduct = useCallback(
     (plan: 'veteran' | 'legend') => {
       const planSkus = PLAN_SKUS[plan];
-      return subscriptions.find((p) => planSkus.includes((p as any).productId));
+      return subscriptions.find((p: { productId?: string }) => planSkus.includes(p.productId ?? ''));
     },
     [subscriptions]
   );

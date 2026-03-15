@@ -1,4 +1,3 @@
-import { Colors } from '@/constants/Colors';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -77,13 +76,13 @@ export default function PendingApproval() {
     } finally {
       setChecking(false);
     }
-  }, [markOnboardingCompleteLocally, ob.dob, ob.organization_id, ob.organization_name, ob.username, ob.zip, ob.zip_code, router]);
+  }, [markOnboardingCompleteLocally, ob.affiliation, ob.dob, ob.organization_id, ob.organization_name, ob.username, ob.zip, ob.zip_code, router]);
 
   useEffect(() => {
     // Initial check
-    checkApproval();
+    void checkApproval();
     // Poll every 30 seconds
-    intervalRef.current = setInterval(checkApproval, 30000);
+    intervalRef.current = setInterval(() => void checkApproval(), 30000);
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
