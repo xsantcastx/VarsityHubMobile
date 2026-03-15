@@ -115,6 +115,18 @@ describe('API Authentication Endpoints', () => {
       expect(response.body).toHaveProperty('error');
     });
 
+    it('should reject password without letter and number', async () => {
+      const response = await request(app)
+        .post('/auth/register')
+        .send({
+          email: `test-weak-pwd-${Date.now()}@example.com`,
+          password: 'passwordonly', // No digit
+        })
+        .expect(400);
+
+      expect(response.body).toHaveProperty('error');
+    });
+
     it('should sanitize email (trim and lowercase)', async () => {
       const emailWithSpaces = `  ${TEST_EMAIL.toUpperCase()}  `;
       const response = await request(app)

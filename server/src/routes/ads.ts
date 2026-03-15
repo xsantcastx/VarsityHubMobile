@@ -33,7 +33,8 @@ const adUpdateSchema = z.object({
   target_zip_code: z.string().regex(/^\d{5}$/, 'Must be a 5-digit US zip code').optional(),
   radius: z.number().optional(),
   description: z.string().max(1000).nullish(),
-  status: z.enum(['draft', 'pending', 'active', 'paused']).optional(),
+  // status intentionally excluded — owners cannot set status directly.
+  // Status transitions: banner change → 'pending' (auto), admin approve → 'active', admin reject → 'rejected'.
 });
 
 /**
@@ -295,7 +296,7 @@ adsRouter.put('/:id([a-z0-9-]{20,40})', requireAuth as any, async (req: AuthedRe
     const ad = await prisma.ad.findUnique({ where: { id } });
     if (!ad) return res.status(404).json({ error: 'Ad not found' });
     if (ad.user_id !== req.user!.id) return res.status(403).json({ error: 'Not authorized' });
-    const { payment_status, ...safeBody } = req.body || {};
+    const { payment_status, status: _status, ...safeBody } = req.body || {};
     const parsed = adUpdateSchema.safeParse(safeBody);
     if (!parsed.success) {
       return res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten().fieldErrors });

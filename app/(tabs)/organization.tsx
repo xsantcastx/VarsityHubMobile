@@ -5,7 +5,7 @@ import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Linking, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 type OrganizationData = {
@@ -19,6 +19,8 @@ type OrganizationData = {
   avatar_url?: string;
   created_at?: string;
   contact_info?: string;
+  location?: string;
+  formatted_address?: string;
   followers_count?: number;
   is_following?: boolean;
   memberships?: Array<{
@@ -267,6 +269,19 @@ export default function OrganizationScreen() {
   const handle = orgName.replace(/\s+/g, '').toLowerCase();
   const orgBio = organization?.bio || organization?.description || null;
   const contactText = organization?.contact_info?.trim() || null;
+  const locationText = organization?.formatted_address || organization?.location || null;
+
+  const handleLocationPress = () => {
+    if (!locationText) return;
+    const query = encodeURIComponent(locationText);
+    const url = Platform.select({
+      ios: `maps:0,0?q=${query}`,
+      default: `https://maps.google.com/?q=${query}`,
+    });
+    void Linking.openURL(url).catch(() => {
+      void Linking.openURL(`https://maps.google.com/?q=${query}`);
+    });
+  };
   const upcomingGames = games
     .filter((g) => {
       const d = g.scheduled_date || g.date;
@@ -474,6 +489,17 @@ export default function OrganizationScreen() {
             </View>
           )}
         </View>
+
+        {/* Location */}
+        {locationText ? (
+          <View style={[styles.card, styles.sectionCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>Location</Text>
+            <Pressable onPress={handleLocationPress} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Ionicons name="location-outline" size={16} color={theme.tint} />
+              <Text style={{ color: theme.tint }}>{locationText}</Text>
+            </Pressable>
+          </View>
+        ) : null}
 
         {/* Teams */}
         <View style={[styles.card, styles.sectionCard, { backgroundColor: theme.card, borderColor: theme.border }]}>

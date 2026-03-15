@@ -558,52 +558,49 @@ organizationsRouter.post('/:id/invite', requireAuth as any, requireOnboarded as 
   }
   // PLAN LIMITS: Enforce authorized user caps based on ORG OWNER's plan (Rule B).
   // Authorized users are covered by the coach's plan — never charged individually.
-  try {
-    const ownerMembership = await prisma.organizationMembership.findFirst({
-      where: { organization_id: id, role: 'owner', status: 'active' },
-      select: { user_id: true },
-    });
-    const ownerId = ownerMembership?.user_id || req.user!.id;
-    const owner = await prisma.user.findUnique({ where: { id: ownerId } });
-    if (!owner) {
-      return res.status(404).json({ error: 'Organization owner not found. Please contact support.' });
-    }
-    const ownerPrefs = (owner.preferences || {}) as any;
-    const plan = ownerPrefs.pending_plan || ownerPrefs.plan || 'rookie';
+  const ownerMembership = await prisma.organizationMembership.findFirst({
+    where: { organization_id: id, role: 'owner', status: 'active' },
+    select: { user_id: true },
+  });
+  const ownerId = ownerMembership?.user_id || req.user!.id;
+  const owner = await prisma.user.findUnique({ where: { id: ownerId } });
+  if (!owner) {
+    return res.status(404).json({ error: 'Organization owner not found. Please contact support.' });
+  }
+  const ownerPrefs = (owner.preferences || {}) as any;
+  const plan = ownerPrefs.pending_plan || ownerPrefs.plan || 'rookie';
 
-    // Get team count for org-level limit calculation (from org owner's profile)
-    const teamCountTotal = ownerPrefs.team_count_total || await prisma.teamMembership.count({
-      where: { user_id: ownerId, role: 'owner' }
-    });
+  // Get team count for org-level limit calculation (from org owner's profile)
+  const teamCountTotal = ownerPrefs.team_count_total || await prisma.teamMembership.count({
+    where: { user_id: ownerId, role: 'owner' }
+  });
 
-    // Get organization-level limit from the owner's plan definitions
-    const limit = getAuthorizedUsersOrgLimit(plan, teamCountTotal);
-    
+  // Get organization-level limit from the owner's plan definitions
+  const limit = getAuthorizedUsersOrgLimit(plan, teamCountTotal);
+
+  // Atomic limit check + create to prevent race condition on concurrent invites
+  const invite = await prisma.$transaction(async (tx) => {
     if (limit !== null) {
-      const inviteCount = await prisma.organizationInvite.count({ where: { organization_id: id, status: 'pending' } });
-      const memberCount = await prisma.organizationMembership.count({ where: { organization_id: id, status: 'active', role: { in: ['manager','member'] } } });
+      const inviteCount = await tx.organizationInvite.count({ where: { organization_id: id, status: 'pending' } });
+      const memberCount = await tx.organizationMembership.count({ where: { organization_id: id, status: 'active', role: { in: ['manager','member'] } } });
       const totalAuthorized = inviteCount + memberCount;
       if (totalAuthorized >= limit) {
-        return res.status(403).json({
-          error: 'USER_LIMIT_REACHED',
-          message: `Plan limit reached. ${plan} plan allows ${limit} authorized user${limit === 1 ? '' : 's'} for your organization.`,
-          limit,
-          current: totalAuthorized
+        throw Object.assign(new Error('USER_LIMIT_REACHED'), {
+          status: 403,
+          body: {
+            error: 'USER_LIMIT_REACHED',
+            message: `Plan limit reached. ${plan} plan allows ${limit} authorized user${limit === 1 ? '' : 's'} for your organization.`,
+            limit,
+            current: totalAuthorized,
+          },
         });
       }
     }
-    // If limit is null, plan has unlimited authorized users (Legend tier)
-  } catch (e) {
-    console.warn('[organizations][invite-limit] check failed', e);
-  }
-  
-  const invite = await prisma.organizationInvite.create({ 
-    data: { 
-      organization_id: id, 
-      email, 
-      role: role || 'member' 
-    } 
+    return tx.organizationInvite.create({
+      data: { organization_id: id, email, role: role || 'member' },
+    });
   });
+
   // Send email (best effort)
   const org = await prisma.organization.findUnique({ where: { id }, select: { name: true } });
   const inviter = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { display_name: true } });
@@ -624,9 +621,12 @@ organizationsRouter.post('/:id/invite', requireAuth as any, requireOnboarded as 
       return false;
     });
   }
-  
+
   return res.status(201).json(invite);
-  } catch (err) {
+  } catch (err: any) {
+    if (err?.status && err?.body) {
+      return res.status(err.status).json(err.body);
+    }
     console.error('[organizations] POST /:id/invite error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }

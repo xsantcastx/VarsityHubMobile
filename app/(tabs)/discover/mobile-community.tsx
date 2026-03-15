@@ -1242,9 +1242,9 @@ export default function CommunityDiscoverScreen() {
                   const labels = deriveTeamLabels(item);
                   return (
                     <View style={styles.teamRow}>
-                      <View style={styles.teamPill}><Text style={styles.teamPillText}>{labels.teamA}</Text></View>
+                      <View style={[styles.teamPill, { backgroundColor: colorScheme === 'dark' ? 'rgba(99,102,241,0.15)' : '#EEF2FF', borderColor: colorScheme === 'dark' ? 'rgba(99,102,241,0.3)' : '#C7D2FE' }]}><Text style={[styles.teamPillText, { color: colorScheme === 'dark' ? '#A5B4FC' : '#1E3A8A' }]}>{labels.teamA}</Text></View>
                       <Text style={[styles.vsText, { color: Colors[colorScheme].mutedText }]}>vs</Text>
-                      <View style={styles.teamPillAlt}><Text style={styles.teamPillAltText}>{labels.teamB}</Text></View>
+                      <View style={[styles.teamPillAlt, { backgroundColor: colorScheme === 'dark' ? 'rgba(239,68,68,0.15)' : undefined, borderColor: colorScheme === 'dark' ? 'rgba(239,68,68,0.3)' : undefined }]}><Text style={[styles.teamPillAltText, { color: colorScheme === 'dark' ? '#FCA5A5' : undefined }]}>{labels.teamB}</Text></View>
                     </View>
                   );
                 })()}

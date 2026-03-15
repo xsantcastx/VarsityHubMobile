@@ -217,9 +217,13 @@ authRouter.post('/refresh', refreshTokenLimiter, asyncHandler(async (req, res) =
   return res.json({ access_token, refresh_token: newRefreshToken });
 }));
 
+// Password strength: min 8 chars, at least one letter and one digit
+const passwordStrength = (s: string) => /[a-zA-Z]/.test(s) && /\d/.test(s);
+const passwordSchema = z.string().min(8, 'Password must be at least 8 characters').refine(passwordStrength, 'Password must contain at least one letter and one number');
+
 const registerSchema = z.object({
   email: z.string().trim().email(),
-  password: z.string().min(8),
+  password: passwordSchema,
   display_name: z.string().optional(),
   // Rookie is a coach plan, not a role
   role: z.enum(['fan', 'coach']).optional(),
@@ -759,7 +763,7 @@ authRouter.post('/password/forgot', passwordResetLimiter, async (req, res) => {
 const passwordResetSchema = z.object({
   email: z.string().email(),
   code: z.string().min(4).max(10),
-  password: z.string().min(8),
+  password: passwordSchema,
 });
 
 authRouter.post('/password/reset', passwordResetLimiter, async (req, res) => {
@@ -812,7 +816,7 @@ authRouter.post('/password/reset', passwordResetLimiter, async (req, res) => {
 
 const passwordChangeSchema = z.object({
   current_password: z.string().min(1),
-  new_password: z.string().min(8),
+  new_password: passwordSchema,
 });
 
 authRouter.post('/password/change', requireAuth as any, async (req: AuthedRequest, res) => {

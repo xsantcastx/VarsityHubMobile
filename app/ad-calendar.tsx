@@ -354,7 +354,7 @@ export default function AdCalendarScreen() {
     }
     
     return obj;
-  }, [selected, reserved, fullDates, colorScheme]);
+  }, [selected, reserved, fullDates, theme]);
 
   const onDayPress = (day: DateData) => {
     const iso = day.dateString; // yyyy-MM-dd

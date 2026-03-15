@@ -89,6 +89,9 @@ const envAllowedOrigins = (process.env.ALLOWED_ORIGINS || '')
   .split(',')
   .map((s) => s.trim())
   .filter(Boolean);
+if (isProd && envAllowedOrigins.length === 0) {
+  console.warn('[cors] ALLOWED_ORIGINS not set in production. Using defaults. Set explicit domains in Railway for full control.');
+}
 const hasWildcardOrigin = envAllowedOrigins.some((origin) => origin === '*');
 if (hasWildcardOrigin) {
   const message = '[cors] ALLOWED_ORIGINS includes "*"; configure explicit origins instead.';

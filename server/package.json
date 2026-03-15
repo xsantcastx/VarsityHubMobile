@@ -19,7 +19,8 @@
     "test:coverage": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --coverage",
     "verify:email": "tsx scripts/verify-email-config.ts",
     "android": "expo run:android",
-    "ios": "expo run:ios"
+    "ios": "expo run:ios",
+    "lint": "expo lint"
   },
   "dependencies": {
     "@googlemaps/google-maps-services-js": "^3.4.2",

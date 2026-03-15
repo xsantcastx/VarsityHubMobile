@@ -2399,6 +2399,18 @@ const GOOGLE_PLAY_SERVICE_ACCOUNT_PRIVATE_KEY = (process.env.GOOGLE_PLAY_SERVICE
 const GOOGLE_PLAY_STRICT_VERIFY = process.env.GOOGLE_PLAY_STRICT_VERIFY === '1';
 const GOOGLE_PLAY_ALLOW_UNVERIFIED_FALLBACK = process.env.GOOGLE_PLAY_ALLOW_UNVERIFIED_FALLBACK === '1';
 
+// M3: Fail loud in production if Google Play verification is not configured and fallback is enabled.
+// A missing env var + fallback flag = anyone can claim a purchase without store verification.
+if (process.env.NODE_ENV === 'production' && GOOGLE_PLAY_ALLOW_UNVERIFIED_FALLBACK) {
+  console.error('[SECURITY] GOOGLE_PLAY_ALLOW_UNVERIFIED_FALLBACK=1 is set in production. ' +
+    'This allows unverified purchase claims. Remove this env var or set GOOGLE_PLAY_STRICT_VERIFY=1.');
+  if (!GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL || !GOOGLE_PLAY_SERVICE_ACCOUNT_PRIVATE_KEY) {
+    throw new Error('[FATAL] Google Play fallback mode enabled in production without service account credentials. ' +
+      'Either configure GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL + GOOGLE_PLAY_SERVICE_ACCOUNT_PRIVATE_KEY, ' +
+      'or remove GOOGLE_PLAY_ALLOW_UNVERIFIED_FALLBACK.');
+  }
+}
+
 function hasGooglePlayVerifierConfig() {
   return Boolean(GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL && GOOGLE_PLAY_SERVICE_ACCOUNT_PRIVATE_KEY);
 }

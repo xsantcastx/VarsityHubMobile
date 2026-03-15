@@ -468,48 +468,54 @@ teamsRouter.post('/', requireVerified as any, requireOnboarded as any, requirePl
     }
   }
 
-  // Check team ownership limit
-  const ownedTeamsCount = await prisma.teamMembership.count({
-    where: {
-      user_id: userId,
-      role: 'owner',
-      status: 'active'
-    }
-  });
-
-  const userPrefs = (me.preferences && typeof me.preferences === 'object') ? (me.preferences as any) : {};
-  const userPlan = userPrefs.plan || 'rookie';
-  const maxTeams = getMaxTeamsForPlan(userPlan) ?? Infinity;
-
-  if (ownedTeamsCount >= maxTeams) {
-    return res.status(403).json({
-      error: 'Team limit reached',
-      message: `You've reached your limit of ${maxTeams} team${maxTeams > 1 ? 's' : ''}. Upgrade to create more teams.`,
-      owned_teams: ownedTeamsCount,
-      max_teams: maxTeams,
-      upgrade_required: true
-    });
-  }
-
   const filterResult = validateContent({ title: parsed.data.name, content: parsed.data.description ?? undefined });
   if (!filterResult.valid) {
     return res.status(400).json({ error: filterResult.error, code: filterResult.code });
   }
-  
+
   // Validate organization exists
   const org = await prisma.organization.findUnique({ where: { id: parsed.data.organization_id } });
   if (!org) return res.status(400).json({ error: 'Organization not found' });
 
-  const t = await prisma.team.create({ data: {
-    name: parsed.data.name,
-    description: parsed.data.description,
-    organization_id: parsed.data.organization_id,
-    season_start: parsed.data.season_start ? new Date(parsed.data.season_start) : null,
-    season_end: parsed.data.season_end ? new Date(parsed.data.season_end) : null,
-  } });
-  await prisma.teamMembership.create({ data: { team_id: t.id, user_id: me.id, role: 'owner' } });
+  // Atomic limit check + create to prevent race condition on concurrent requests
+  const userPrefs = (me.preferences && typeof me.preferences === 'object') ? (me.preferences as any) : {};
+  const userPlan = userPrefs.plan || 'rookie';
+  const maxTeams = getMaxTeamsForPlan(userPlan) ?? Infinity;
+
+  const t = await prisma.$transaction(async (tx) => {
+    const ownedTeamsCount = await tx.teamMembership.count({
+      where: { user_id: userId, role: 'owner', status: 'active' },
+    });
+
+    if (ownedTeamsCount >= maxTeams) {
+      throw Object.assign(new Error('Team limit reached'), {
+        status: 403,
+        body: {
+          error: 'Team limit reached',
+          message: `You've reached your limit of ${maxTeams} team${maxTeams > 1 ? 's' : ''}. Upgrade to create more teams.`,
+          owned_teams: ownedTeamsCount,
+          max_teams: maxTeams,
+          upgrade_required: true,
+        },
+      });
+    }
+
+    const team = await tx.team.create({ data: {
+      name: parsed.data.name,
+      description: parsed.data.description,
+      organization_id: parsed.data.organization_id,
+      season_start: parsed.data.season_start ? new Date(parsed.data.season_start) : null,
+      season_end: parsed.data.season_end ? new Date(parsed.data.season_end) : null,
+    } });
+    await tx.teamMembership.create({ data: { team_id: team.id, user_id: me.id, role: 'owner' } });
+    return team;
+  });
+
   return res.status(201).json(t);
-  } catch (err) {
+  } catch (err: any) {
+    if (err?.status && err?.body) {
+      return res.status(err.status).json(err.body);
+    }
     console.error('[teams] create error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
