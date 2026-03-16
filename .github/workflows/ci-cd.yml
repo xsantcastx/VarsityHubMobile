@@ -118,6 +118,19 @@ jobs:
           cd server
           npm test 2>&1 | tee ../server-test-output.txt
 
+      - name: Verify sensitive endpoint rate limits
+        run: npm --prefix server run verify:rate-limits
+
+      - name: Run payment foundation confidence tests
+        env:
+          SKIP_SERVER_DB_TESTS: '1'
+        run: npm --prefix server run test:payments:confidence
+
+      - name: Audit production dependencies (root + server)
+        run: |
+          npm audit --omit=dev
+          npm --prefix server audit --omit=dev
+
       - name: Upload server test results
         if: always()
         uses: actions/upload-artifact@v4

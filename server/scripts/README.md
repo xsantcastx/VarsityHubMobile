@@ -42,6 +42,9 @@ node scripts/stripe/create_stripe_prices.js
 - **`verify-rate-limit-coverage.ts`** - validates sensitive endpoints have rate limiter middleware
   - Usage: `npm run verify:rate-limits`
 
+- **`verify-production-health.ts`** - validates health endpoint reports production integrations and payment config ready
+  - Usage: `BASE_URL=https://api-production-8ac3.up.railway.app npm run verify:production-health`
+
 - **`load/p0-load-smoke.ts`** - runs baseline load smoke checks for auth/feed/upload/messages/payments
   - Usage: `npm run load:smoke`
 

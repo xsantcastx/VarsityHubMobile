@@ -48,6 +48,7 @@
     "test:api": "npm run test:server",
     "test:e2e": "npm run test:smoke",
     "test:server": "npm --prefix server test",
+    "verify:p0:foundation": "npm audit --omit=dev && npm --prefix server audit --omit=dev && npm --prefix server run verify:rate-limits && npm --prefix server run test:payments:confidence",
     "test:smoke": "playwright test",
     "test:cloudinary": "bash scripts/test-cloudinary-uploads.sh",
     "test:smoke:ui": "playwright test --ui",
