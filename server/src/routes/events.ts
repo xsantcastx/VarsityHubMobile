@@ -571,20 +571,22 @@ eventsRouter.put('/:id/approve', requireVerified as any, requireOnboarded as any
   // Scope approval: must be admin, or coach/admin of the event's team/org
   if (!isAdmin) {
     let canApprove = false;
+    // Events without a team_id cannot be approved by non-admins
     if (event.team_id) {
       const membership = await prisma.teamMembership.findFirst({
         where: { team_id: event.team_id, user_id: userId, role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] }, status: 'active' },
       });
       canApprove = !!membership;
-    }
-    if (!canApprove && event.team_id) {
-      // Check if user is org admin of the team's organization
-      const team = await prisma.team.findUnique({ where: { id: event.team_id }, select: { organization_id: true } });
-      if (team?.organization_id) {
-        const orgMembership = await prisma.organizationMembership.findFirst({
-          where: { organization_id: team.organization_id, user_id: userId, role: { in: ['owner', 'manager', 'administrator'] }, status: 'active' },
-        });
-        canApprove = !!orgMembership;
+
+      // Fall back to org-level check, scoped to the team's own organization
+      if (!canApprove) {
+        const team = await prisma.team.findUnique({ where: { id: event.team_id }, select: { organization_id: true } });
+        if (team?.organization_id) {
+          const orgMembership = await prisma.organizationMembership.findFirst({
+            where: { organization_id: team.organization_id, user_id: userId, role: { in: ['owner', 'manager', 'administrator'] }, status: 'active' },
+          });
+          canApprove = !!orgMembership;
+        }
       }
     }
     if (!canApprove) {
@@ -686,19 +688,22 @@ eventsRouter.put('/:id/reject', requireVerified as any, requireOnboarded as any,
   // Scope rejection: must be admin, or coach/admin of the event's team/org
   if (!isAdmin) {
     let canReject = false;
+    // Events without a team_id cannot be rejected by non-admins
     if (event.team_id) {
       const membership = await prisma.teamMembership.findFirst({
         where: { team_id: event.team_id, user_id: userId, role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] }, status: 'active' },
       });
       canReject = !!membership;
-    }
-    if (!canReject && event.team_id) {
-      const team = await prisma.team.findUnique({ where: { id: event.team_id }, select: { organization_id: true } });
-      if (team?.organization_id) {
-        const orgMembership = await prisma.organizationMembership.findFirst({
-          where: { organization_id: team.organization_id, user_id: userId, role: { in: ['owner', 'manager', 'administrator'] }, status: 'active' },
-        });
-        canReject = !!orgMembership;
+
+      // Fall back to org-level check, scoped to the team's own organization
+      if (!canReject) {
+        const team = await prisma.team.findUnique({ where: { id: event.team_id }, select: { organization_id: true } });
+        if (team?.organization_id) {
+          const orgMembership = await prisma.organizationMembership.findFirst({
+            where: { organization_id: team.organization_id, user_id: userId, role: { in: ['owner', 'manager', 'administrator'] }, status: 'active' },
+          });
+          canReject = !!orgMembership;
+        }
       }
     }
     if (!canReject) {

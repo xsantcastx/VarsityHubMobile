@@ -127,9 +127,12 @@ export default function Step3League() {
 
   useEffect(() => {
     if (ob.organization_name && !existingOrg) setOrgName(ob.organization_name);
-    if ((ob.affiliation as string) === 'school') setOrgType('school');
-    else if ((ob.affiliation as string) === 'club') setOrgType('club');
-    else if ((ob.affiliation as string) === 'league') setOrgType('league');
+    const aff = ob.affiliation as string;
+    if (aff === 'high_school') setOrgType('school');
+    else if (aff === 'university') setOrgType('university');
+    else if (aff === 'professional') setOrgType('professional');
+    else if (aff === 'club' || aff === 'youth') setOrgType('club');
+    else if (aff === 'league') setOrgType('league');
     // Check if team or organization already exists in onboarding state
     if (!alreadyExists && (ob.team_id || ob.organization_id)) {
       setAlreadyExists(true);

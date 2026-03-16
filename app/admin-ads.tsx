@@ -62,14 +62,15 @@ export default function AdminAdsScreen() {
     if (pendingIds.length === 0) return;
     setUpdating(true);
     try {
-      for (const adId of pendingIds) {
-        try {
-          await AdsApi.review(adId, 'approve');
-        } catch (e) {
-          if (__DEV__) console.error('Failed to approve ad:', adId, e);
-        }
+      const results = await Promise.allSettled(
+        pendingIds.map((adId) => AdsApi.review(adId, 'approve'))
+      );
+      const failed = results.filter((r) => r.status === 'rejected').length;
+      if (failed > 0) {
+        Alert.alert('Partial Success', `Approved ${pendingIds.length - failed} ad(s), ${failed} failed`);
+      } else {
+        Alert.alert('Success', `Approved ${pendingIds.length} ad${pendingIds.length > 1 ? 's' : ''}`);
       }
-      Alert.alert('Success', `Approved ${pendingIds.length} ad${pendingIds.length > 1 ? 's' : ''}`);
       setSelectedAds(new Set());
       setBulkMode(false);
       await load();
@@ -95,14 +96,15 @@ export default function AdminAdsScreen() {
           onPress: async () => {
             setUpdating(true);
             try {
-              for (const adId of pendingIds) {
-                try {
-                  await AdsApi.review(adId, 'reject');
-                } catch (e) {
-                  if (__DEV__) console.error('Failed to reject ad:', adId, e);
-                }
+              const results = await Promise.allSettled(
+                pendingIds.map((adId) => AdsApi.review(adId, 'reject'))
+              );
+              const failed = results.filter((r) => r.status === 'rejected').length;
+              if (failed > 0) {
+                Alert.alert('Partial Success', `Rejected ${pendingIds.length - failed} ad(s), ${failed} failed`);
+              } else {
+                Alert.alert('Success', `Rejected ${pendingIds.length} ad${pendingIds.length > 1 ? 's' : ''}`);
               }
-              Alert.alert('Success', `Rejected ${pendingIds.length} ad${pendingIds.length > 1 ? 's' : ''}`);
               setSelectedAds(new Set());
               setBulkMode(false);
               await load();
@@ -131,14 +133,16 @@ export default function AdminAdsScreen() {
           onPress: async () => {
             setUpdating(true);
             try {
-              for (const adId of Array.from(selectedAds)) {
-                try {
-                  await AdsApi.delete(adId);
-                } catch (e) {
-                  if (__DEV__) console.error('Failed to delete ad:', adId, e);
-                }
+              const adIds = Array.from(selectedAds);
+              const results = await Promise.allSettled(
+                adIds.map((adId) => AdsApi.delete(adId))
+              );
+              const failed = results.filter((r) => r.status === 'rejected').length;
+              if (failed > 0) {
+                Alert.alert('Partial Success', `Deleted ${adIds.length - failed} ad(s), ${failed} failed`);
+              } else {
+                Alert.alert('Success', `Deleted ${adIds.length} ad${adIds.length > 1 ? 's' : ''}`);
               }
-              Alert.alert('Success', `Deleted ${selectedAds.size} ad${selectedAds.size > 1 ? 's' : ''}`);
               setSelectedAds(new Set());
               setBulkMode(false);
               await load();

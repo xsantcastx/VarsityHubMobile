@@ -216,22 +216,22 @@ export default function Step1Role() {
       const wasCoachBefore = ob.role === 'coach';
 
       if (role === 'coach' && !wasCoachBefore) {
-        // User is switching TO coach - clear state to ensure full onboarding
-        if (__DEV__) console.warn('[COACH ONBOARDING] 🔄 SWITCHING TO COACH - CLEARING STATE');
-        await clearOnboarding();
-        dispatch({ type: 'INIT_FROM_PROFILE', profile: { role: 'coach' } });
-        setOB({ role: 'coach' });
+        // Switching TO coach - clear only coach-specific fields, preserve shared data (username, dob, zip)
+        if (__DEV__) console.warn('[COACH ONBOARDING] 🔄 SWITCHING TO COACH - clearing coach-specific fields');
+        const preserved = { username: ob.username, dob: ob.dob, zip: ob.zip, zip_code: ob.zip_code };
+        dispatch({ type: 'INIT_FROM_PROFILE', profile: { ...preserved, role: 'coach' } });
+        setOB({ ...preserved, role: 'coach' });
       } else if (role === 'coach') {
         // Already a coach - just continue where they left off
         if (__DEV__) console.warn('[COACH ONBOARDING] ✅ Continuing as coach (preserving state)');
         dispatch({ type: 'UPDATE_DRAFT', data: { role: 'coach' } });
         setOB((prev) => ({ ...prev, role: 'coach' }));
       } else if (role === 'fan' && wasCoachBefore) {
-        // Stale coach data in context — clear before starting fan onboarding
-        if (__DEV__) console.warn('[FAN ONBOARDING] 🔄 Clearing stale coach data');
-        await clearOnboarding();
-        dispatch({ type: 'INIT_FROM_PROFILE', profile: { role: 'fan' } });
-        setOB({ role: 'fan' });
+        // Switching TO fan - clear coach-specific fields, preserve shared data
+        if (__DEV__) console.warn('[FAN ONBOARDING] 🔄 Clearing coach-specific data');
+        const preserved = { username: ob.username, dob: ob.dob, zip: ob.zip, zip_code: ob.zip_code };
+        dispatch({ type: 'INIT_FROM_PROFILE', profile: { ...preserved, role: 'fan' } });
+        setOB({ ...preserved, role: 'fan' });
       } else {
         dispatch({ type: 'UPDATE_DRAFT', data: { role } });
         setOB((prev) => ({ ...prev, role }));

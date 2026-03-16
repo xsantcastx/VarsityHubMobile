@@ -1315,14 +1315,19 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
     if (!org) return res.status(404).json({ error: 'Organization not found' });
     if (org.admin_approved) return res.json({ message: 'Already approved' });
 
-    await prisma.organization.update({
-      where: { id: orgId },
+    // Atomic approval: WHERE admin_approved=false prevents race condition
+    // if two admins approve simultaneously
+    const updated = await prisma.organization.updateMany({
+      where: { id: orgId, admin_approved: false },
       data: {
         admin_approved: true,
         approved_by: adminUserId || 'email-token',
         approved_at: new Date(),
       },
     });
+
+    // If no rows updated, another request already approved it
+    if (updated.count === 0) return res.json({ message: 'Already approved' });
 
     // Approve the league owner so they get coach tools
     if (org.leagueOwner?.id) {
