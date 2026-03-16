@@ -74,3 +74,14 @@ This is the single entry point for VarsityHub docs. Use the sections below to fi
 - [Production Readiness](./release/PRODUCTION_READINESS.md)
 - [Production Readiness Audit](./release/PRODUCTION_READINESS_AUDIT.md)
 - [Ready for Production](./release/READY_FOR_PRODUCTION.md)
+- [Go-Live Foundation Checklist](./GO_LIVE_CHECKLIST.md)
+- [P0 Observability Alerts + SLOs](./release/P0_OBSERVABILITY_ALERTS_SLOS.md)
+- [P0 Security Hardening Pass](./release/P0_SECURITY_HARDENING_PASS.md)
+
+## Testing
+- [P0 Payment Confidence Suite](./testing/P0_PAYMENT_CONFIDENCE_SUITE.md)
+- [P0 Load and Concurrency Validation](./testing/P0_LOAD_AND_CONCURRENCY_VALIDATION.md)
+
+## Runbooks
+- [P0 Break-Glass: Payments + Webhooks](./runbooks/P0_BREAK_GLASS_PAYMENTS_AND_WEBHOOKS.md)
+- [P0 Database Backup + Restore Drill](./runbooks/P0_DATABASE_BACKUP_AND_RESTORE_DRILL.md)

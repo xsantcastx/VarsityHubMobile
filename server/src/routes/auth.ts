@@ -1391,7 +1391,7 @@ authRouter.post('/me/complete-onboarding', requireAuth as any, async (req: Authe
 });
 
 // Request a new email verification code (authenticated)
-authRouter.post('/verify/request', requireAuth as any, async (req: AuthedRequest, res) => {
+authRouter.post('/verify/request', requireAuth as any, verificationLimiter, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const user = await prisma.user.findUnique({ where: { id: req.user.id } });
   if (!user) return res.status(404).json({ error: 'Not found' });
@@ -1427,7 +1427,7 @@ authRouter.post('/verify/request', requireAuth as any, async (req: AuthedRequest
 });
 
 // Alias: /auth/verify/send
-authRouter.post('/verify/send', requireAuth as any, async (req: AuthedRequest, res) => {
+authRouter.post('/verify/send', requireAuth as any, verificationLimiter, async (req: AuthedRequest, res) => {
   (authRouter as any).handle({ ...req, url: '/verify/request' }, res);
 });
 

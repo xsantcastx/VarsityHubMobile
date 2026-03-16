@@ -17,7 +17,12 @@
     "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js",
     "test:watch": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --watch",
     "test:coverage": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --coverage",
+    "test:payments:confidence": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --runTestsByPath src/__tests__/distributedLock.test.ts src/__tests__/transaction-logger-update.test.ts src/__tests__/payments-finalization.test.ts",
     "verify:email": "tsx scripts/verify-email-config.ts",
+    "verify:rate-limits": "tsx scripts/verify-rate-limit-coverage.ts",
+    "audit:prod": "npm audit --omit=dev",
+    "load:smoke": "tsx scripts/load/p0-load-smoke.ts",
+    "load:validate-lock": "tsx scripts/load/validate-distributed-lock.ts",
     "android": "expo run:android",
     "ios": "expo run:ios",
     "lint": "expo lint"
@@ -86,5 +91,8 @@
   "prisma": {
     "schema": "prisma/schema.prisma",
     "seed": "tsx prisma/seed.ts"
+  },
+  "overrides": {
+    "undici": "^6.24.0"
   }
 }

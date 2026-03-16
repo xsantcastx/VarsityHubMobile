@@ -37,6 +37,17 @@ node scripts/database/reset_unpaid_simple.mjs
 node scripts/stripe/create_stripe_prices.js
 ```
 
+## P0 Foundation scripts
+
+- **`verify-rate-limit-coverage.ts`** - validates sensitive endpoints have rate limiter middleware
+  - Usage: `npm run verify:rate-limits`
+
+- **`load/p0-load-smoke.ts`** - runs baseline load smoke checks for auth/feed/upload/messages/payments
+  - Usage: `npm run load:smoke`
+
+- **`load/validate-distributed-lock.ts`** - validates distributed lock behavior across multiple worker processes (requires `REDIS_URL`)
+  - Usage: `npm run load:validate-lock`
+
 ## Security Notes
 
 - Stripe scripts contain live API keys

@@ -1409,7 +1409,7 @@ paymentsRouter.post('/webhook', async (req, res) => {
 
 
 // Cancel an abandoned PaymentIntent and mark transaction as FAILED
-paymentsRouter.post('/cancel-intent', expressPkg.json(), requireVerified as any, async (req: AuthedRequest, res) => {
+paymentsRouter.post('/cancel-intent', expressPkg.json(), requireVerified as any, paymentLimiter, async (req: AuthedRequest, res) => {
   const { payment_intent_id } = req.body || {};
   if (!payment_intent_id || typeof payment_intent_id !== 'string') {
     return res.status(400).json({ error: 'Missing payment_intent_id' });
@@ -1465,7 +1465,7 @@ paymentsRouter.post('/cancel-intent', expressPkg.json(), requireVerified as any,
 });
 
 // Create a subscription Checkout Session for recurring membership plans
-paymentsRouter.post('/subscribe', expressPkg.json(), requireVerified as any, async (req: AuthedRequest, res) => {
+paymentsRouter.post('/subscribe', expressPkg.json(), requireVerified as any, paymentLimiter, async (req: AuthedRequest, res) => {
   try {
     const { plan, promo_code } = req.body || {};
     const { url, sessionId } = await createMembershipCheckoutSession(req, plan, promo_code);
@@ -1477,7 +1477,7 @@ paymentsRouter.post('/subscribe', expressPkg.json(), requireVerified as any, asy
 });
 
 // Cancel an active membership subscription
-paymentsRouter.post('/subscription/cancel', expressPkg.json(), requireVerified as any, async (req: AuthedRequest, res) => {
+paymentsRouter.post('/subscription/cancel', expressPkg.json(), requireVerified as any, paymentLimiter, async (req: AuthedRequest, res) => {
   try {
     const userId = req.user!.id;
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } });
@@ -1526,7 +1526,7 @@ paymentsRouter.post('/subscription/cancel', expressPkg.json(), requireVerified a
 });
 
 // Update subscription quantity for Veteran plan
-paymentsRouter.post('/update-subscription-quantity', expressPkg.json(), requireVerified as any, async (req: AuthedRequest, res) => {
+paymentsRouter.post('/update-subscription-quantity', expressPkg.json(), requireVerified as any, paymentLimiter, async (req: AuthedRequest, res) => {
   try {
     if (!process.env.STRIPE_SECRET_KEY) return res.status(500).json({ error: 'Stripe not configured' });
     
@@ -2289,7 +2289,7 @@ async function verifyAppleReceipt(receiptData: string, useSandbox = false): Prom
 
 // Apple IAP receipt validation — uses requireAuth (not requireVerified) because Apple
 // already charged the user; blocking on email verification would leave them in a broken state.
-paymentsRouter.post('/apple/verify-receipt', expressPkg.json(), requireAuth as any, async (req: AuthedRequest, res) => {
+paymentsRouter.post('/apple/verify-receipt', expressPkg.json(), requireAuth as any, paymentLimiter, async (req: AuthedRequest, res) => {
   try {
     if (!APPLE_SHARED_SECRET) {
       console.warn('[apple-iap] APPLE_IAP_SHARED_SECRET not configured — cannot verify receipts');
@@ -2419,7 +2419,7 @@ paymentsRouter.post('/apple/verify-receipt', expressPkg.json(), requireAuth as a
 });
 
 // Apple IAP ad receipt verification (consumable products: ad_weekday_vhub, ad_weekend_vhub)
-paymentsRouter.post('/apple/verify-ad-receipt', expressPkg.json(), requireAuth as any, async (req: AuthedRequest, res) => {
+paymentsRouter.post('/apple/verify-ad-receipt', expressPkg.json(), requireAuth as any, paymentLimiter, async (req: AuthedRequest, res) => {
   try {
     if (!APPLE_SHARED_SECRET) {
       return res.status(503).json({ error: 'IAP verification not configured. Please contact support.' });
@@ -2656,7 +2656,7 @@ async function verifyGooglePurchaseWithPlayApi(params: {
 
 // Google Play purchase verification — uses requireAuth (not requireVerified) because Google
 // already charged the user; blocking on email verification would leave them in a broken state.
-paymentsRouter.post('/google/verify-purchase', expressPkg.json(), requireAuth as any, async (req: AuthedRequest, res) => {
+paymentsRouter.post('/google/verify-purchase', expressPkg.json(), requireAuth as any, paymentLimiter, async (req: AuthedRequest, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'AUTH_REQUIRED' });

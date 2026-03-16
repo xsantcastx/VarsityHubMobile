@@ -147,7 +147,7 @@ uploadsRouter.get('/cloudinary-signature', requireAuth as any, uploadLimiter as 
   }
 });
 
-uploadsRouter.get('/sign', requireAuth as any, (req: MulterRequest, res) => {
+uploadsRouter.get('/sign', requireAuth as any, uploadLimiter as any, (req: MulterRequest, res) => {
   res.setHeader('Cache-Control', 'no-store');
   const rawPath = String((req.query as any).path || '').trim();
   if (!rawPath) {

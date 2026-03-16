@@ -55,7 +55,8 @@ Status legend: `PASS` / `FAIL` / `N/A`
 | Stripe checkout finalize | Payments Owner | Checkout success results in single finalized record and correct DB state (idempotent under retries) | test run + DB row sample | ☐ PASS / ☐ FAIL |
 | Webhook resilience | Payments Owner | Duplicate/replayed webhook does not double-apply side effects | replay test output | ☐ PASS / ☐ FAIL |
 | Webhook endpoint configured | DevOps Owner | Stripe webhook points to production URL and signs with `STRIPE_WEBHOOK_SECRET` | Stripe dashboard screenshot | ☐ PASS / ☐ FAIL |
-| Apple Pay purchase smoke | Mobile Lead | One successful Apple Pay purchase on physical iOS device (not simulator) | test recording + receipt id | ☐ PASS / ☐ FAIL |
+| Apple Pay purchase smoke (every build) | Mobile Lead | One successful Apple Pay purchase on physical iOS device (not simulator) for the candidate build | test recording + receipt id | ☐ PASS / ☐ FAIL |
+| Google Play purchase smoke (every build) | Mobile Lead | One successful Google Play purchase on physical Android device for the candidate build | test recording + order/transaction id | ☐ PASS / ☐ FAIL |
 | Refund/failure path | Payments Owner | Failed or slot-full payments resolve to expected status (`FAILED`/`REFUNDED`) and user is notified | logs + transaction record | ☐ PASS / ☐ FAIL |
 
 ### P0.3 Data integrity and transactions
@@ -81,6 +82,7 @@ Status legend: `PASS` / `FAIL` / `N/A`
 | --- | --- | --- | --- | --- |
 | Sentry enabled client + server | DevOps Owner | Errors from app + API appear in Sentry with env tags | test issue links | ☐ PASS / ☐ FAIL |
 | Alerting configured | DevOps Owner | Alerts exist for crash spike, API 5xx spike, webhook failures | alert policy screenshot | ☐ PASS / ☐ FAIL |
+| SLOs defined and adopted | DevOps Owner | Team has agreed SLOs and dashboard targets: API p95 < 500ms, 5xx < 1%, crash-free sessions > 99.5% | SLO dashboard or policy doc link | ☐ PASS / ☐ FAIL |
 | Runbook available | Backend Lead | On-call steps documented for payment outage, webhook backlog, and rollback | docs link | ☐ PASS / ☐ FAIL |
 
 ### P0.6 Critical user journeys
