@@ -223,7 +223,7 @@ All onboarding screens share `OnboardingContext` for state. Steps progress in se
 **Navigation:** Next → depends on role (coaches go to step-3-plan, fans skip to step-7-profile)
 
 #### `app/onboarding/step-3-plan.tsx` — Plan Selection (Coach only)
-**Purpose:** Coach selects Rookie (free), Veteran ($1.50/mo per team), or Legend ($20/yr). Veteran/Legend trigger Stripe checkout.
+**Purpose:** Coach selects Rookie (free), Veteran ($1.00/mo per team over 2), or Legend ($20/yr). Veteran/Legend trigger Stripe checkout.
 **API calls:**
 - `Payments.getConfig()` → `GET /payments/config`
 - `User.me()` → `GET /me`
@@ -240,7 +240,7 @@ All onboarding screens share `OnboardingContext` for state. Steps progress in se
 
 ### Main Tabs
 
-The tab bar has **4 visible tabs**: Feed, Highlights, Create (center), Discover, Profile.
+The tab bar has **5 visible tabs**: Feed, Highlights, Create (center), Discover, Profile.
 
 #### `app/feed.tsx` — Feed (Main Tab)
 **Purpose:** Displays a scrollable list of upcoming and past games/events (NOT a social posts feed). Also shows highlights reel at top, banner ads, and notification indicator. Requests location for nearby event filtering.
@@ -615,15 +615,15 @@ Server entry: `server/src/index.ts` → `server/src/app.ts`
 | GET | /payments/config | No | Stripe publishable key + plan definitions | onboarding step-3, paywall |
 | POST | /payments/checkout | Required + verified + rate-limited | Create Stripe checkout session (plan or ad). Holds ad slots during checkout. | onboarding step-3, ad booking |
 | POST | /payments/create-payment-sheet | Required + verified + rate-limited | Create PaymentIntent for mobile in-app PaymentSheet (subscriptions + ads) | subscription-paywall, ad-calendar |
-| POST | /payments/cancel-intent | Required + verified | Cancel abandoned PaymentIntent, release ad holds, cancel incomplete subscriptions | subscription-paywall, ad-calendar |
-| POST | /payments/subscribe | Required + verified | Alias for checkout (subscriptions only) | legacy |
+| POST | /payments/cancel-intent | Required + verified + rate-limited | Cancel abandoned PaymentIntent, release ad holds, cancel incomplete subscriptions | subscription-paywall, ad-calendar |
+| POST | /payments/subscribe | Required + verified + rate-limited | Alias for checkout (subscriptions only) | legacy |
 | POST | /payments/finalize-session | Required + rate-limited | Finalize Stripe session after redirect | payment-success |
-| POST | /payments/subscription/cancel | Required + verified | Cancel subscription | billing screen |
-| POST | /payments/update-subscription-quantity | Required + verified | Update team count on subscription (validates actual team ownership) | billing |
+| POST | /payments/subscription/cancel | Required + verified + rate-limited | Cancel subscription | billing screen |
+| POST | /payments/update-subscription-quantity | Required + verified + rate-limited | Update team count on subscription (validates actual team ownership) | billing |
 | GET | /payments/subscription/summary | Required | Current subscription status | billing, profile |
 | POST | /payments/webhook | No (Stripe sig) | Stripe webhook: handles checkout.session.completed, subscription events, payment_intent.succeeded/failed, ad slot hold releases | Stripe → server |
-| POST | /payments/apple/verify-receipt | Required | Apple in-app purchase receipt validation | iOS IAP |
-| POST | /payments/google/verify-purchase | Required | Google Play purchase validation | Android IAP |
+| POST | /payments/apple/verify-receipt | Required + rate-limited | Apple in-app purchase receipt validation | iOS IAP |
+| POST | /payments/google/verify-purchase | Required + rate-limited | Google Play purchase validation | Android IAP |
 
 ### Search Route — `routes/search.ts`
 
@@ -643,7 +643,7 @@ Server entry: `server/src/index.ts` → `server/src/app.ts`
 |--------|------|------|-------------|---------|
 | GET | /uploads/cloudinary-signature | Required | Get signed params for direct-to-Cloudinary upload | upload.ts (client) |
 | POST | /uploads | Required | Upload file (multipart) → Cloudinary or local disk (fallback) | create-post, edit-profile, submit-ad |
-| GET | /uploads/sign | Required | Sign a local media path for access | media display |
+| GET | /uploads/sign | Required + rate-limited | Sign a local media path for access | media display |
 | POST | /upload | Required | Alternate upload endpoint | some screens |
 
 ### Admin Routes — `routes/admin.ts`
@@ -929,7 +929,7 @@ SecureStore/localStorage key-value store for app settings. Key prefix: `vh_setti
 #### `plan-definitions.json`
 Single source of truth for subscription plans used by both frontend and server.
 - **rookie**: Free, max 2 teams, 1 staff/team, 50 athletes/team
-- **veteran**: $1.50/mo per additional team (3+), 5 staff/team, 100 athletes/team. Stripe priceId: `prod_RNLc2l1BdUdSn9`
+- **veteran**: $1.00/mo per additional team (3+), 5 staff/team, 100 athletes/team. Stripe priceId: `price_1SVco4GJt8CsPE1EBNNlHYPB`
 - **legend**: $20/yr flat, unlimited teams/staff/roster, extracurricular support. Stripe priceId: `prod_RNLdYADy7i6dB5`
 
 ---
@@ -1080,14 +1080,38 @@ The following features have been confirmed stable and should not be modified wit
 - Sample events (IDs starting with "sample-") bypass all geofencing
 
 ### Rate Limiting (`server/src/middleware/rateLimiters.ts`)
-- Auth: 10 attempts/15min per IP
+- Auth: 20 attempts/15min per IP
 - Posts: 20/hour per user
 - Messages: 60/minute per user
 - Uploads: 30/hour per user
 - Redis store in production; memory store fallback
 
 ### Tab Navigation
-- 4 visible tabs: Feed, Highlights, Create (center `+`), Discover, Profile
+- 5 visible tabs: Feed, Highlights, Create (center `+`), Discover, Profile
+
+---
+
+## 10. HIGH-CONFIDENCE VERIFICATION COMMANDS
+
+Run these from repo root to verify core P0 setup repeatedly:
+
+```bash
+# Consolidated foundation verification (security audit + limiter coverage + payment confidence tests)
+npm run verify:p0:foundation
+
+# Validate production health + payment config readiness
+BASE_URL="https://api-production-8ac3.up.railway.app" \
+npm --prefix server run verify:production-health
+
+# Load smoke against target API (set token for auth-required scenarios)
+BASE_URL="https://api-production-8ac3.up.railway.app" \
+LOAD_CONCURRENCY=2 \
+LOAD_REQUESTS=10 \
+npm --prefix server run load:smoke
+
+# Distributed lock multi-process validation (requires REDIS_URL in environment)
+npm --prefix server run load:validate-lock
+```
 - Many screens are hidden tabs (no tab bar icon) navigated via `router.push`
 
 ---
