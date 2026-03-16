@@ -1,5 +1,5 @@
 # VarsityHub Mobile — Codebase Map
-**Last updated:** 2026-03-12
+**Last updated:** 2026-03-16
 **Purpose:** Session briefing document for AI assistants. Read this before making any changes.
 
 ---
@@ -69,7 +69,17 @@ VarsityHubMobile/
 ├── api/                        # Frontend API client layer
 │   ├── http.ts                 # Core fetch wrapper (auth headers, retry, 502 handling)
 │   ├── auth.ts                 # Auth functions (login, register, token storage)
-│   ├── entities.ts             # All entity API objects (User, Post, Game, Team, etc.)
+│   ├── entities.ts             # Re-exports from domain-specific modules (teams.ts, organizations.ts, posts.ts, etc.)
+│   ├── teams.ts                # Team, TeamMemberships, TeamInvites API
+│   ├── organizations.ts        # Organization API (CRUD, invites, join requests, coaches)
+│   ├── posts.ts                # Post API (CRUD, comments, upvotes, bookmarks)
+│   ├── games.ts                # Game API (CRUD, votes, stories, scores)
+│   ├── events.ts               # Event API (CRUD, RSVP, approval)
+│   ├── payments.ts             # Payments + Subscriptions API
+│   ├── notifications.ts        # Notification API
+│   ├── messages.ts             # Message/DM API
+│   ├── user.ts                 # User API (profile, follow, block, search)
+│   ├── misc.ts                 # Advertisement, Report, Support, Search, Highlights
 │   ├── settings.ts             # SecureStore/localStorage wrapper for app settings
 │   └── upload.ts               # File upload (tries direct-to-Cloudinary first, falls back to server proxy)
 │
@@ -407,9 +417,10 @@ The tab bar has **4 visible tabs**: Feed, Highlights, Create (center), Discover,
 **Access:** Only shown if `EXPO_PUBLIC_ADMIN_EMAILS` includes current user's email.
 
 #### `app/admin-ads.tsx` — Admin Ads
-**Purpose:** Admin-only. Review, approve, and manage all ads.
+**Purpose:** Admin-only. Review, approve/reject (with optional note), and manage all ads.
 **API calls:**
 - `Advertisement.listAll()` → `GET /ads?all=1`
+- `Advertisement.review(id, action, note?)` → `POST /ads/:id/review` (approve/reject with optional admin_note)
 - `Advertisement.update(id, data)` → `PUT /ads/:id`
 - `Advertisement.delete(id)` → `DELETE /ads/:id`
 
