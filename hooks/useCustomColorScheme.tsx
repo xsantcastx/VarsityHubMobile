@@ -1,5 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
-import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useColorScheme as useSystemColorScheme } from 'react-native';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
@@ -61,7 +61,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       : themePreference;
 
   // Save theme preference to storage when changed
-  const setThemePreference = async (theme: ColorScheme) => {
+  const setThemePreference = useCallback(async (theme: ColorScheme) => {
     try {
       // Save to the scoped key (per-user when possible)
       const key = currentStorageKey.current || storageKeyForUser(null);
@@ -72,10 +72,14 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       // Still update state even if storage fails
       setThemePreferenceState(theme);
     }
-  };
+  }, []);
+
+  const value = useMemo(() => ({
+    colorScheme, themePreference, setThemePreference,
+  }), [colorScheme, themePreference, setThemePreference]);
 
   return (
-    <ThemeContext.Provider value={{ colorScheme, themePreference, setThemePreference }}>
+    <ThemeContext.Provider value={value}>
       {children}
     </ThemeContext.Provider>
   );

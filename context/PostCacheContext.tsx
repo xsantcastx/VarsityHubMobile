@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useCallback, useRef, useEffect } from 'react';
+import React, { createContext, useContext, useCallback, useMemo, useRef, useEffect } from 'react';
 
 const MAX_CACHE_SIZE = 500;
 
@@ -73,13 +73,13 @@ export const PostCacheProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     cache.clear();
   }, [cache]);
 
-  const value: PostCacheContextType = {
+  const value = useMemo<PostCacheContextType>(() => ({
     cache,
     get,
     set,
     setBatch,
     clear,
-  };
+  }), [cache, get, set, setBatch, clear]);
 
   return (
     <PostCacheContext.Provider value={value}>

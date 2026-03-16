@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import React, { createContext, PropsWithChildren, useCallback, useContext, useEffect, useReducer, useRef, useState } from 'react';
+import React, { createContext, PropsWithChildren, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import {
   createInitialState,
   nextIncompleteStep,
@@ -200,22 +200,22 @@ export function OBProvider({ children }: PropsWithChildren) {
   }, [reducerState.draftData]);
 
   const canNavigate = !reducerState.isSaving;
-  
+
+  const value = useMemo(() => ({
+    state,
+    setState: setAndPersistState,
+    clearOnboarding,
+    progress,
+    setProgress: setAndPersistProgress,
+    isLoaded,
+    reducerState,
+    dispatch,
+    nextStep,
+    canNavigate,
+  }), [state, setAndPersistState, clearOnboarding, progress, setAndPersistProgress, isLoaded, reducerState, dispatch, nextStep, canNavigate]);
+
   return (
-    <OBContext.Provider
-      value={{
-        state,
-        setState: setAndPersistState,
-        clearOnboarding,
-        progress,
-        setProgress: setAndPersistProgress,
-        isLoaded,
-        reducerState,
-        dispatch,
-        nextStep,
-        canNavigate,
-      }}
-    >
+    <OBContext.Provider value={value}>
       {children}
     </OBContext.Provider>
   );
