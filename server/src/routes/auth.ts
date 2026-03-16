@@ -286,7 +286,7 @@ authRouter.post('/register', authLimiter, asyncHandler(async (req, res) => {
       errorCode: 'EMAIL_ALREADY_REGISTERED',
     });
   }
-  const password_hash = await bcrypt.hash(password, 10);
+  const password_hash = await bcrypt.hash(password, 12);
   const code = String(crypto.randomInt(100000, 1000000));
   debugLog(`[verify-code] [register] Verification code generated for ${sanitizedEmail}`);
   const exp = new Date(Date.now() + 30 * 60 * 1000);
@@ -466,7 +466,7 @@ authRouter.post('/google', authLimiter, async (req, res) => {
         user = await prisma.user.update({ where: { id: existingByEmail.id }, data: updates });
       } else {
         const randomSecret = crypto.randomBytes(32).toString('hex');
-        const password_hash = await bcrypt.hash(randomSecret, 10);
+        const password_hash = await bcrypt.hash(randomSecret, 12);
         user = await prisma.user.create({
           data: {
             email,
@@ -640,7 +640,7 @@ authRouter.post('/apple', authLimiter, async (req, res) => {
       } else {
         // Create new user
         const randomSecret = crypto.randomBytes(32).toString('hex');
-        const password_hash = await bcrypt.hash(randomSecret, 10);
+        const password_hash = await bcrypt.hash(randomSecret, 12);
         const userEmail = email || `apple_${appleId.substring(0, 16)}@appleid.local`;
 
         try {
@@ -792,7 +792,9 @@ authRouter.post('/password/reset', passwordResetLimiter, async (req, res) => {
     recordResetFailure(sanitizedEmail);
     return res.status(400).json({ error: 'Invalid or expired reset code' });
   }
-  if (String(code).trim() !== String(user.password_reset_code)) {
+  const codeA = Buffer.from(String(code).trim());
+  const codeB = Buffer.from(String(user.password_reset_code));
+  if (codeA.length !== codeB.length || !crypto.timingSafeEqual(codeA, codeB)) {
     recordResetFailure(sanitizedEmail);
     return res.status(400).json({ error: 'Invalid or expired reset code' });
   }
@@ -800,7 +802,7 @@ authRouter.post('/password/reset', passwordResetLimiter, async (req, res) => {
   // Success — clear failure tracking and reset the code
   clearResetFailures(sanitizedEmail);
 
-  const password_hash = await bcrypt.hash(password, 10);
+  const password_hash = await bcrypt.hash(password, 12);
   await prisma.user.update({
     where: { id: user.id },
     data: {
@@ -839,7 +841,7 @@ authRouter.post('/password/change', requireAuth as any, async (req: AuthedReques
   if (!isValid) return res.status(401).json({ error: 'Current password is incorrect' });
   
   // Hash new password
-  const password_hash = await bcrypt.hash(new_password, 10);
+  const password_hash = await bcrypt.hash(new_password, 12);
   
   // Update password
   await prisma.user.update({
@@ -1429,8 +1431,8 @@ authRouter.post('/verify/send', requireAuth as any, async (req: AuthedRequest, r
   (authRouter as any).handle({ ...req, url: '/verify/request' }, res);
 });
 
-// Verify code (authenticated)
-authRouter.post('/verify/confirm', requireAuth as any, async (req: AuthedRequest, res) => {
+// Verify code (authenticated) — rate limited to prevent brute-force on 6-digit codes
+authRouter.post('/verify/confirm', requireAuth as any, verificationLimiter, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const schema = z.object({ code: z.string().min(4).max(8) });
   const parsed = schema.safeParse(req.body);
@@ -1441,7 +1443,9 @@ authRouter.post('/verify/confirm', requireAuth as any, async (req: AuthedRequest
   if (user.email_verified) return res.json({ ok: true, already_verified: true });
   if (!user.email_verification_code || !user.email_verification_expires) return res.status(400).json({ error: 'No verification in progress' });
   if (new Date() > user.email_verification_expires) return res.status(400).json({ error: 'Code expired' });
-  if (String(code) !== String(user.email_verification_code)) return res.status(400).json({ error: 'Invalid code' });
+  const verifA = Buffer.from(String(code));
+  const verifB = Buffer.from(String(user.email_verification_code));
+  if (verifA.length !== verifB.length || !crypto.timingSafeEqual(verifA, verifB)) return res.status(400).json({ error: 'Invalid code' });
   const updated = await prisma.user.update({ where: { id: user.id }, data: { email_verified: true, email_verification_code: null, email_verification_expires: null } });
   return res.json({ ok: true, user: sanitizeUser(updated) });
 });

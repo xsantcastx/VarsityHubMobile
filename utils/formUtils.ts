@@ -66,27 +66,24 @@ export function validatePassword(password: string, minLength = 8, requireStrong 
   if (password.length < minLength) {
     return { valid: false, error: `Password must be at least ${minLength} characters` };
   }
-  
+
   if (requireStrong) {
-    const hasUppercase = /[A-Z]/.test(password);
-    const hasLowercase = /[a-z]/.test(password);
+    // Must match backend: at least one letter and one number
+    const hasLetter = /[a-zA-Z]/.test(password);
     const hasNumber = /\d/.test(password);
-    const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password);
-    
+
     const requirements: string[] = [];
-    if (!hasUppercase) requirements.push('one uppercase letter');
-    if (!hasLowercase) requirements.push('one lowercase letter');
+    if (!hasLetter) requirements.push('one letter');
     if (!hasNumber) requirements.push('one number');
-    if (!hasSpecialChar) requirements.push('one special character');
-    
+
     if (requirements.length > 0) {
       return {
         valid: false,
-        error: `Password must contain ${requirements.join(', ')}`,
+        error: `Password must contain ${requirements.join(' and ')}`,
       };
     }
   }
-  
+
   return { valid: true };
 }
 
@@ -162,9 +159,9 @@ export function validateTextField(
  */
 export function validateZipCode(zip: string): ValidationResult {
   if (!zip) return { valid: true }; // Optional field
-  const zipRegex = /^\d{5}(-\d{4})?$/;
+  const zipRegex = /^\d{5}$/;
   if (!zipRegex.test(zip)) {
-    return { valid: false, error: 'Please enter a valid ZIP code (e.g., 12345 or 12345-6789)' };
+    return { valid: false, error: 'Please enter a valid 5-digit ZIP code (e.g., 12345)' };
   }
   return { valid: true };
 }

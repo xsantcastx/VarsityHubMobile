@@ -564,13 +564,33 @@ eventsRouter.put('/:id/approve', requireVerified as any, requireOnboarded as any
   const userId = req.user.id;
   const isAdmin = await getIsAdmin(req as any);
 
-  if (!isAdmin && !(await isTeamCoach(userId)) && !(await isOrgAdmin(userId))) {
-    return res.status(403).json({ error: 'Only coaches and admins can approve events' });
-  }
-
   const eventId = String(req.params.id);
   const event = await prisma.event.findUnique({ where: { id: eventId } });
   if (!event) return res.status(404).json({ error: 'Event not found' });
+
+  // Scope approval: must be admin, or coach/admin of the event's team/org
+  if (!isAdmin) {
+    let canApprove = false;
+    if (event.team_id) {
+      const membership = await prisma.teamMembership.findFirst({
+        where: { team_id: event.team_id, user_id: userId, role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] }, status: 'active' },
+      });
+      canApprove = !!membership;
+    }
+    if (!canApprove && event.team_id) {
+      // Check if user is org admin of the team's organization
+      const team = await prisma.team.findUnique({ where: { id: event.team_id }, select: { organization_id: true } });
+      if (team?.organization_id) {
+        const orgMembership = await prisma.organizationMembership.findFirst({
+          where: { organization_id: team.organization_id, user_id: userId, role: { in: ['owner', 'manager', 'administrator'] }, status: 'active' },
+        });
+        canApprove = !!orgMembership;
+      }
+    }
+    if (!canApprove) {
+      return res.status(403).json({ error: 'Only coaches of this team or organization admins can approve events' });
+    }
+  }
 
   // Validate event is in pending state
   if (event.approval_status === 'approved') {
@@ -659,13 +679,32 @@ eventsRouter.put('/:id/reject', requireVerified as any, requireOnboarded as any,
   const userId = req.user.id;
   const isAdmin = await getIsAdmin(req as any);
 
-  if (!isAdmin && !(await isTeamCoach(userId)) && !(await isOrgAdmin(userId))) {
-    return res.status(403).json({ error: 'Only coaches and admins can reject events' });
-  }
-
   const eventId = String(req.params.id);
   const event = await prisma.event.findUnique({ where: { id: eventId } });
   if (!event) return res.status(404).json({ error: 'Event not found' });
+
+  // Scope rejection: must be admin, or coach/admin of the event's team/org
+  if (!isAdmin) {
+    let canReject = false;
+    if (event.team_id) {
+      const membership = await prisma.teamMembership.findFirst({
+        where: { team_id: event.team_id, user_id: userId, role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] }, status: 'active' },
+      });
+      canReject = !!membership;
+    }
+    if (!canReject && event.team_id) {
+      const team = await prisma.team.findUnique({ where: { id: event.team_id }, select: { organization_id: true } });
+      if (team?.organization_id) {
+        const orgMembership = await prisma.organizationMembership.findFirst({
+          where: { organization_id: team.organization_id, user_id: userId, role: { in: ['owner', 'manager', 'administrator'] }, status: 'active' },
+        });
+        canReject = !!orgMembership;
+      }
+    }
+    if (!canReject) {
+      return res.status(403).json({ error: 'Only coaches of this team or organization admins can reject events' });
+    }
+  }
   
   // Validate event is in pending state
   if (event.approval_status === 'approved') {
