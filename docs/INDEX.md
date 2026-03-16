@@ -77,6 +77,7 @@ This is the single entry point for VarsityHub docs. Use the sections below to fi
 - [Go-Live Foundation Checklist](./GO_LIVE_CHECKLIST.md)
 - [P0 Observability Alerts + SLOs](./release/P0_OBSERVABILITY_ALERTS_SLOS.md)
 - [P0 Security Hardening Pass](./release/P0_SECURITY_HARDENING_PASS.md)
+- [P0 Foundation Verification (2026-03-16)](./release/P0_FOUNDATION_VERIFICATION_2026-03-16.md)
 
 ## Testing
 - [P0 Payment Confidence Suite](./testing/P0_PAYMENT_CONFIDENCE_SUITE.md)
