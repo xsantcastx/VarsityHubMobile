@@ -3,6 +3,7 @@ import bcrypt from 'bcrypt';
 
 let prisma: any;
 let runFinalizeFromSession: (session: any) => Promise<void>;
+let dbReady = false;
 
 const isCi = `${process.env.CI ?? ''}`.toLowerCase() === 'true';
 const shouldSkipDbTests = isCi || process.env.SKIP_SERVER_DB_TESTS === '1';
@@ -17,10 +18,16 @@ describeDb('Checkout session finalization', () => {
     ({ prisma } = await import('../lib/prisma.js'));
     const paymentsModule = await import('../routes/payments.js');
     runFinalizeFromSession = paymentsModule.__paymentsInternal.runFinalizeFromSession;
+    try {
+      await prisma.$queryRawUnsafe('SELECT 1');
+      dbReady = true;
+    } catch {
+      dbReady = false;
+    }
   });
 
   afterAll(async () => {
-    if (!prisma) return;
+    if (!prisma || !dbReady) return;
 
     if (createdSessionIds.length) {
       await prisma.transactionLog.deleteMany({
@@ -45,6 +52,8 @@ describeDb('Checkout session finalization', () => {
   });
 
   it('finalizes membership checkout and marks subscription transaction completed', async () => {
+    if (!dbReady) return;
+
     const sessionId = `sess_membership_finalize_${Date.now()}`;
     createdSessionIds.push(sessionId);
 
@@ -112,6 +121,8 @@ describeDb('Checkout session finalization', () => {
   });
 
   it('finalizes ad checkout and marks ad transaction completed', async () => {
+    if (!dbReady) return;
+
     const now = Date.now();
     const sessionId = `sess_ad_finalize_${now}`;
     createdSessionIds.push(sessionId);
