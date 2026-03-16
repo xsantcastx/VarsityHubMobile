@@ -262,7 +262,7 @@ export default function AdCalendarScreen() {
   const marked = useMemo(() => {
     const obj: Record<string, { selected: boolean; selectedColor?: string } | { disabled: boolean } | any> = {};
     
-    // PRIORITY 1: Mark fully booked dates (3/3 slots filled) - GREYED OUT
+    // PRIORITY 1: Mark fully booked dates (3/3 slots filled) - grey X so user is aware
     for (const d of fullDates) {
       // Don't override if user has already selected this date
       if (!selected.has(d)) {
@@ -283,7 +283,6 @@ export default function AdCalendarScreen() {
             },
           },
           marked: true,
-          dotColor: '#EF4444',
         };
       }
     }
@@ -455,7 +454,7 @@ export default function AdCalendarScreen() {
       setSelected(new Set(dates));
       Alert.alert(
         'Submitted for Approval',
-        'Your ad has been submitted. emancero@varsityhub.app will review it. You\'ll be notified when approved — no charge until then.'
+        'Your ad has been submitted for review. You\'ll be notified when approved — no charge until then.'
       );
     } catch (err: any) {
       if (__DEV__) console.error('Submit for approval failed:', err);
@@ -606,7 +605,7 @@ export default function AdCalendarScreen() {
         msg = 'Please verify your email before paying. Check your inbox for the verification link.';
       } else if (status === 403 && (raw === 'APPROVAL_REQUIRED' || /approval.*required|must be approved/i.test(raw))) {
         title = 'Approval Required';
-        msg = 'Your ad must be approved by emancero@varsityhub.app before payment. You\'ll be notified when you can pay.';
+        msg = 'Your ad must be approved before payment. You\'ll be notified when you can pay.';
       } else if (status === 401) {
         title = 'Session Expired';
         msg = 'Please sign in again to continue.';
@@ -761,11 +760,18 @@ export default function AdCalendarScreen() {
               <View style={[styles.legendDot, { backgroundColor: '#EA580C' }]} />
               <Text style={[styles.legendText, { color: Colors[colorScheme].text }]}>Weekend (Fri-Sun) - <Text style={{ fontWeight: '700' }}>${weekendRate.toFixed(2)} total</Text></Text>
             </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: theme.mutedText, width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center' }]}>
+                <MaterialIcons name="close" size={12} color={theme.surface} />
+              </View>
+              <Text style={[styles.legendText, { color: Colors[colorScheme].text }]}>Sold out (grey X)</Text>
+            </View>
           </View>
 
           <Calendar
             onDayPress={onDayPress}
             markedDates={marked}
+            markingType="custom"
             enableSwipeMonths
             minDate={todayISO()}
             maxDate={maxDateISO()}
@@ -995,7 +1001,7 @@ export default function AdCalendarScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={[styles.pendingBannerTitle, { color: colorScheme === 'dark' ? '#FDE68A' : '#92400E' }]}>Pending Approval</Text>
                 <Text style={[styles.pendingBannerText, { color: colorScheme === 'dark' ? '#FDE68A' : '#92400E' }]}>
-                  Your ad has been submitted. emancero@varsityhub.app will review it. You'll be notified when approved — no charge until then.
+                  Your ad has been submitted for review. You'll be notified when approved — no charge until then.
                 </Text>
               </View>
             </View>
@@ -1046,7 +1052,7 @@ export default function AdCalendarScreen() {
                 )}
               </Pressable>
               <Text style={[styles.paymentBannerHelp, { color: Colors[colorScheme].mutedText }]}>
-                No charge until emancero@varsityhub.app approves your ad.
+                No charge until your ad is approved.
               </Text>
             </>
           )}

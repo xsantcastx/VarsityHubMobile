@@ -411,7 +411,7 @@ export default function EditProfileScreen() {
       // Prepare data for server - split into direct fields and preferences
       // Username is edited separately via /settings/edit-username
       const directFields: any = {
-        bio: bio.trim() || undefined,
+        bio: bio.trim() || null, // Explicitly send null when blank so backend clears it
       };
 
       // Include avatar URL only if the user actually uploaded a new one

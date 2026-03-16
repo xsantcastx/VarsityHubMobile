@@ -265,6 +265,7 @@ export default function EventApprovalsScreen() {
     icon: keyof typeof Ionicons.glyphMap,
     count: number,
     color: string,
+    onAddPress?: () => void,
   ) => (
     <View style={styles.sectionHeader}>
       <View style={[styles.sectionIconWrap, { backgroundColor: color + '22' }]}>
@@ -276,6 +277,11 @@ export default function EventApprovalsScreen() {
           <Text style={styles.badgeText}>{count}</Text>
         </View>
       )}
+      {onAddPress ? (
+        <Pressable onPress={onAddPress} style={[styles.addButton, { backgroundColor: color + '22' }]} hitSlop={8}>
+          <Ionicons name="add" size={20} color={color} />
+        </Pressable>
+      ) : null}
     </View>
   );
 
@@ -477,7 +483,7 @@ export default function EventApprovalsScreen() {
           }
 
           {/* ── Section 2: Roster Invites ── */}
-          {renderSectionHeader('Roster Invites', 'people-outline', teamInvites.length, '#3B82F6')}
+          {renderSectionHeader('Roster Invites', 'people-outline', teamInvites.length, '#3B82F6', () => router.push('/(tabs)/my-team' as any))}
           {invitesLoading
             ? <ActivityIndicator style={styles.sectionLoader} color={C.tint} />
             : teamInvites.length === 0
@@ -486,7 +492,7 @@ export default function EventApprovalsScreen() {
           }
 
           {/* ── Section 3: Authorized User Requests ── */}
-          {renderSectionHeader('Authorized User Requests', 'shield-checkmark-outline', orgRequests.length, '#8B5CF6')}
+          {renderSectionHeader('Authorized User Requests', 'shield-checkmark-outline', orgRequests.length, '#8B5CF6', () => router.push('/(tabs)/team-hub' as any))}
           {orgRequestsLoading
             ? <ActivityIndicator style={styles.sectionLoader} color={C.tint} />
             : orgRequests.length === 0
@@ -535,6 +541,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   badgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  addButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   sectionLoader: { marginVertical: 12 },
 
   // Cards

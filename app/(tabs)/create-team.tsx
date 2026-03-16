@@ -486,7 +486,7 @@ export default function CreateTeamScreen() {
       
       const team = await Team.create(teamData);
       Alert.alert('Success!', 'Your team has been created successfully.', [
-        { text: 'View Team', onPress: () => router.push(`/(tabs)/team-profile?id=${team.id}`) }
+        { text: 'View Team', onPress: () => router.push({ pathname: '/(tabs)/team-page', params: { id: String(team.id) } } as any) }
       ]);
     } catch (e: any) {
       if (__DEV__) console.error('Team creation error in proceedWithTeamCreation:', e);

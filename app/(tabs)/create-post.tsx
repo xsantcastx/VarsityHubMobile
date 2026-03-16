@@ -1,6 +1,6 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Animated, Easing, Linking, Modal, Platform, Pressable, Image as RNImage, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Linking, Modal, Platform, Pressable, Image as RNImage, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Game, Post, User } from '@/api/entities';
@@ -92,10 +92,6 @@ export default function CreatePostScreen() {
   const [postSuccess, setPostSuccess] = useState(false);
   const [trimmedUri, setTrimmedUri] = useState<string | null>(null);
   const [videoThumbnailUri, setVideoThumbnailUri] = useState<string | null>(null);
-  // Celebration overlay animations
-  const celebrationScale = useRef(new Animated.Value(0)).current;
-  const celebrationOpacity = useRef(new Animated.Value(0)).current;
-  const confettiAnim = useRef(new Animated.Value(0)).current;
   const showPrecisionWarning = Platform.OS === 'android' && permissionGranted && needsPreciseAccuracy && !precisionBannerDismissed;
   const locationReady = typeof location?.latitude === 'number' && typeof location?.longitude === 'number';
   const [draftReady, setDraftReady] = useState(false);
@@ -715,38 +711,14 @@ export default function CreatePostScreen() {
       setPreviewVisible(false);
       setPostSuccess(true);
 
-      // Full-screen celebration animation
-      celebrationOpacity.setValue(0);
-      celebrationScale.setValue(0.3);
-      confettiAnim.setValue(0);
-
-      Animated.parallel([
-        Animated.timing(celebrationOpacity, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.spring(celebrationScale, {
-          toValue: 1,
-          friction: 4,
-          tension: 60,
-          useNativeDriver: true,
-        }),
-        Animated.timing(confettiAnim, {
-          toValue: 1,
-          duration: 2800,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
-        }),
-      ]).start();
-
+      // Keep checkmark state briefly, then navigate — no full-screen popup
       setTimeout(() => {
         setPostSuccess(false);
         setContent('');
         setPicked(null);
         setError(null);
         router.replace('/(tabs)');
-      }, 3500);
+      }, 800);
     } catch (e: any) {
       if (__DEV__) console.error('[CreatePost] Error creating post:', {
         message: e?.message,
@@ -1318,60 +1290,7 @@ export default function CreatePostScreen() {
         </SafeAreaView>
       </Modal>
 
-      {/* Full-screen celebration overlay */}
-      {postSuccess && (
-        <Animated.View style={[styles.celebrationOverlay, { opacity: celebrationOpacity }]}>
-          <Animated.View style={[styles.celebrationContent, { transform: [{ scale: celebrationScale }] }]}>
-            {/* Confetti particles */}
-            {[...Array(16)].map((_, i) => {
-              const angle = (i / 16) * 2 * Math.PI;
-              const radius = 120;
-              return (
-                <Animated.View
-                  key={i}
-                  style={[
-                    styles.confettiDot,
-                    {
-                      backgroundColor: ['#F59E0B', '#10B981', '#3B82F6', '#EF4444', '#8B5CF6', '#EC4899', '#FFD700', '#F97316'][i % 8],
-                      transform: [
-                        {
-                          translateX: confettiAnim.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [0, Math.cos(angle) * radius],
-                          }),
-                        },
-                        {
-                          translateY: confettiAnim.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [0, Math.sin(angle) * radius + 50],
-                          }),
-                        },
-                        {
-                          scale: confettiAnim.interpolate({
-                            inputRange: [0, 0.5, 1],
-                            outputRange: [0, 1.5, 0],
-                          }),
-                        },
-                      ],
-                      opacity: confettiAnim.interpolate({
-                        inputRange: [0, 0.3, 0.8, 1],
-                        outputRange: [0, 1, 1, 0],
-                      }),
-                    },
-                  ]}
-                />
-              );
-            })}
-            <Animated.View style={{ transform: [{ scale: celebrationScale }] }}>
-              <Ionicons name="checkmark-circle" size={140} color="#FFD700" />
-            </Animated.View>
-            <Text style={styles.celebrationTitle}>Posted!</Text>
-            <Text style={styles.celebrationSubtitle}>
-              {postType === 'highlight' ? 'Your highlight is live' : 'Your post is live'}
-            </Text>
-          </Animated.View>
-        </Animated.View>
-      )}
+      {/* No popup — checkmark stays on Confirm button; brief success state then navigate */}
     </SafeAreaView>
     </SwipeBackContainer>
   );

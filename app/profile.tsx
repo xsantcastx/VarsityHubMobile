@@ -677,7 +677,10 @@ export default function ProfileScreen() {
   const preferences = me?.preferences ? (me.preferences as ProfilePreferences) : null;
   const rawRole = preferences?.role ?? (me as any)?.role ?? '';
   const roleRaw = typeof rawRole === 'string' ? rawRole.toLowerCase() : '';
-  const roleLabel = roleRaw === 'coach' ? 'Coach / Organizer' : roleRaw === 'fan' ? 'Fan' : null;
+  // Coach badge only when approved — pending coaches should not see coach badge/features
+  const approvalStatus = (me as any)?.approval_status;
+  const isApprovedCoach = roleRaw === 'coach' && (approvalStatus === 'APPROVED' || approvalStatus === undefined);
+  const roleLabel = isApprovedCoach ? 'Coach / Organizer' : roleRaw === 'fan' ? 'Fan' : roleRaw === 'coach' ? null : null;
   // Use ONLY username (with @) - no display_name
   const displayUsername = me?.username ? `@${me.username}` : 'User';
   
@@ -850,11 +853,11 @@ export default function ProfileScreen() {
             <Text style={[styles.profileName, { color: theme.text }]}>{displayUsername}</Text>
             {roleLabel && (
               <View style={[styles.roleBadge,
-                roleRaw === 'coach' && { backgroundColor: userThemeColor },
+                isApprovedCoach && { backgroundColor: userThemeColor },
                 roleRaw === 'player' && styles.playerBadge,
                 roleRaw === 'fan' && styles.fanBadge
               ]}>
-                <Text style={styles.roleText}>{roleRaw === 'coach' ? 'COACH' : roleRaw.toUpperCase()}</Text>
+                <Text style={styles.roleText}>{isApprovedCoach ? 'COACH' : roleRaw.toUpperCase()}</Text>
               </View>
             )}
           </View>
@@ -1605,17 +1608,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  // Profile Details Below Banner — paddingTop clears the overlapping avatar
+  // Profile Details Below Banner — paddingTop clears the overlapping avatar (reduced for tighter layout)
   profileDetailsContainer: {
     backgroundColor: 'transparent',
-    paddingTop: 42,
+    paddingTop: 28,
     marginBottom: 0,
     paddingBottom: 0,
     gap: 0,
   },
   profileActionRow: {
     paddingHorizontal: 16,
-    marginBottom: 4,
+    marginBottom: 2,
     alignItems: 'flex-end',
   },
   profileNameRow: {
@@ -1623,6 +1626,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     marginBottom: 0,
+    marginTop: 2,
   },
   profileNameContent: {
     flexDirection: 'row',

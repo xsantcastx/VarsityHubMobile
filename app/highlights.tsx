@@ -568,12 +568,14 @@ export default function HighlightsScreen() {
     
   }, [highlights, activeTab]);
 
-  const handleHighlightPress = useCallback((item: HighlightItem, _index?: number) => {
-    // Navigate to post-detail with the tapped post's ID.
-    // Previously passed all filtered IDs + index, but re-computing the filtered
-    // list at tap-time could yield a different sort order (e.g. after an upvote),
-    // causing the index to point to the wrong post.
-    router.push(`/(tabs)/post-detail?id=${item.id}&from=highlights`);
+  const handleHighlightPress = useCallback((item: HighlightItem, index?: number, filtered?: HighlightItem[]) => {
+    const ids = filtered?.map((h) => h.id).filter(Boolean) ?? [item.id];
+    const postIds = ids.join(',');
+    if (postIds && ids.length > 1) {
+      router.push(`/(tabs)/post-detail?id=${item.id}&postIds=${encodeURIComponent(postIds)}&index=${index ?? 0}&from=highlights`);
+    } else {
+      router.push(`/(tabs)/post-detail?id=${item.id}&from=highlights`);
+    }
   }, [router]);
 
   const handleAuthorPress = useCallback((authorId: string) => {
@@ -654,7 +656,7 @@ export default function HighlightsScreen() {
         nationalTop={nationalTop}
         ranked={ranked}
         userLocation={userLocation}
-        onPress={() => handleHighlightPress(item, index)}
+        onPress={() => handleHighlightPress(item, index, getFilteredHighlights())}
         // onAuthorPress intentionally omitted to disable profile navigation from highlights feed
         colorScheme={colorScheme}
         onUpvote={handleUpvote}
@@ -922,7 +924,7 @@ export default function HighlightsScreen() {
                     nationalTop={nationalTop}
                     ranked={ranked}
                     userLocation={userLocation}
-                    onPress={handleHighlightPress}
+                    onPress={(it) => handleHighlightPress(it, idx, searchResults.posts)}
                     onAuthorPress={handleAuthorPress}
                     colorScheme={colorScheme}
                     onUpvote={handleUpvote}

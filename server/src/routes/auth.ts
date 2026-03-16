@@ -1318,9 +1318,7 @@ authRouter.post('/me/complete-onboarding', requireAuth as any, async (req: Authe
   if (data.avatar_url) updateData.avatar_url = data.avatar_url;
   if (data.bio) updateData.bio = data.bio;
 
-  if (data.role === 'fan' && !currentUser?.bio && !data.bio) {
-    updateData.bio = "Sports enthusiast following local teams and supporting young athletes 🏆";
-  }
+  // Do not auto-set default bio — if user leaves bio blank, keep it blank
   
   // Prepare preferences update
   
