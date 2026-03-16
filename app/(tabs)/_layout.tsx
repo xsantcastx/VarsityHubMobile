@@ -1,4 +1,5 @@
 import { Tabs } from 'expo-router';
+import React, { useMemo } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HapticTab } from '@/components/HapticTab';
@@ -11,34 +12,42 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const insets = useSafeAreaInsets();
-  const hiddenTab = {
-    href: null,
-  } as const;
-  
+  const hiddenTab = useMemo(
+    () =>
+      ({
+        href: null,
+      }) as const,
+    []
+  );
+
+  const screenOptions = useMemo(() => {
+    const palette = Colors[colorScheme ?? 'light'];
+
+    return {
+      tabBarActiveTintColor: palette.tint,
+      tabBarInactiveTintColor: colorScheme === 'dark' ? '#D1D5DB' : palette.tabIconDefault,
+      headerShown: false,
+      tabBarShowLabel: true,
+      tabBarLabelStyle: {
+        fontSize: 12,
+      },
+      tabBarBackground: TabBarBackground,
+      tabBarStyle: {
+        height: Math.max(64, 56 + insets.bottom),
+        paddingBottom: Math.max(10, insets.bottom),
+        paddingTop: 6,
+        backgroundColor: colorScheme === 'dark' ? '#0f172a' : palette.card,
+        overflow: 'visible',
+        shadowOpacity: 0,
+        shadowRadius: 0,
+        elevation: 0,
+        borderTopWidth: 0,
+      },
+    };
+  }, [colorScheme, insets.bottom]);
 
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        tabBarInactiveTintColor: colorScheme === 'dark' ? '#D1D5DB' : Colors[colorScheme ?? 'light'].tabIconDefault,
-        headerShown: false,
-        tabBarShowLabel: true,
-        tabBarLabelStyle: { 
-          fontSize: 12,
-        },
-        tabBarBackground: TabBarBackground,
-        tabBarStyle: {
-          height: Math.max(64, 56 + insets.bottom),
-          paddingBottom: Math.max(10, insets.bottom),
-          paddingTop: 6,
-          backgroundColor: colorScheme === 'dark' ? '#0f172a' : Colors[colorScheme ?? 'light'].card,
-          overflow: 'visible',
-          shadowOpacity: 0,
-          shadowRadius: 0,
-          elevation: 0,
-          borderTopWidth: 0,
-        },
-      }}>
+    <Tabs screenOptions={screenOptions}>
       <Tabs.Screen
         name="feed/index"
         options={{
