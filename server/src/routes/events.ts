@@ -455,56 +455,61 @@ eventsRouter.post('/', requireVerified as any, requireOnboarded as any, eventCre
   const userIsCoach = await isTeamCoach(userId);
   const userIsOrgAdmin = await isOrgAdmin(userId);
 
-  // Check event limit for non-coach/non-org-admin free tier users
-  if (!userIsCoach && !userIsOrgAdmin) {
-    const pendingCount = await prisma.event.count({
-      where: {
-        creator_id: userId,
-        approval_status: 'pending',
-      },
-    });
-
-    if (pendingCount >= 3) {
-      return res.status(403).json({
-        error: 'Event limit reached',
-        message: "You've reached your limit of 3 pending events. Upgrade to Veteran to create unlimited community events.",
-        code: 'EVENT_LIMIT_EXCEEDED',
-        limit: 3,
-        current: pendingCount,
-      });
-    }
-  }
-
   // Coaches/organizers/org admins get auto-approval, fans need approval
   const autoApprove = userIsCoach || userIsOrgAdmin;
-  
+
   // Use capacity if provided, otherwise max_attendees (for backward compatibility)
   const capacity = data.max_attendees ?? null;
-  
-  const event = await prisma.event.create({
-    data: {
-      title: data.title,
-      date: new Date(data.date),
-      location: data.location,
-      latitude: data.latitude,
-      longitude: data.longitude,
-      description: data.description,
-      event_type: data.event_type,
-      linked_league: data.linked_league,
-      capacity: capacity,
-      max_attendees: data.max_attendees, // Keep for backward compatibility
-      contact_info: data.contact_info,
-      banner_url: data.banner_url,
-      game_id: data.game_id,
-      team_id: data.home_team_id || null,
-      creator_id: userId,
-      creator_role: userIsCoach ? 'coach' : userIsOrgAdmin ? 'organizer' : 'fan',
-      approval_status: autoApprove ? 'approved' : 'pending',
-      status: autoApprove ? 'approved' : 'draft',
-      approved_at: autoApprove ? new Date() : null,
-    },
+
+  let event;
+  try {
+  // Atomic limit check + create to prevent race condition (fans: 3 pending max)
+  event = await prisma.$transaction(async (tx) => {
+    if (!userIsCoach && !userIsOrgAdmin) {
+      const pendingCount = await tx.event.count({
+        where: {
+          creator_id: userId,
+          approval_status: 'pending',
+        },
+      });
+      if (pendingCount >= 3) {
+        throw Object.assign(new Error('EVENT_LIMIT_EXCEEDED'), {
+          status: 403,
+          body: {
+            error: 'Event limit reached',
+            message: "You've reached your limit of 3 pending events. Upgrade to Veteran to create unlimited community events.",
+            code: 'EVENT_LIMIT_EXCEEDED',
+            limit: 3,
+            current: pendingCount,
+          },
+        });
+      }
+    }
+    return tx.event.create({
+      data: {
+        title: data.title,
+        date: new Date(data.date),
+        location: data.location,
+        latitude: data.latitude,
+        longitude: data.longitude,
+        description: data.description,
+        event_type: data.event_type,
+        linked_league: data.linked_league,
+        capacity: capacity,
+        max_attendees: data.max_attendees, // Keep for backward compatibility
+        contact_info: data.contact_info,
+        banner_url: data.banner_url,
+        game_id: data.game_id,
+        team_id: data.home_team_id || null,
+        creator_id: userId,
+        creator_role: userIsCoach ? 'coach' : userIsOrgAdmin ? 'organizer' : 'fan',
+        approval_status: autoApprove ? 'approved' : 'pending',
+        status: autoApprove ? 'approved' : 'draft',
+        approved_at: autoApprove ? new Date() : null,
+      },
+    });
   });
-  
+
   // Send submission-received confirmation email to the creator
   try {
     const creator = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, display_name: true } });
@@ -542,6 +547,13 @@ eventsRouter.post('/', requireVerified as any, requireOnboarded as any, eventCre
     pending_count: pendingCount,
     limit: !autoApprove ? 3 : null,
   });
+  } catch (err: any) {
+    if (err?.status && err?.body) {
+      return res.status(err.status).json(err.body);
+    }
+    console.error('[events] create error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Approve event

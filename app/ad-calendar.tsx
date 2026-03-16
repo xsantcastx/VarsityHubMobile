@@ -3,6 +3,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { usePaymentSheet } from '@stripe/stripe-react-native';
 import React, { useMemo, useRef, useState } from 'react';
+import { useAdIAP } from '@/hooks/useAdIAP';
 import { ActivityIndicator, Alert, Animated, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useUnsavedChanges } from '@/hooks/useUnsavedChanges';
@@ -13,6 +14,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { Calendar, DateData } from 'react-native-calendars';
 // @ts-ignore JS exports
 import { Advertisement, Payments } from '@/api/entities';
+import { getConfig } from '@/config/env';
 
 const weekdayRate = 5.00;   // Per week (Mon-Thu slot)
 const weekendRate = 8.00;   // Per week (Fri-Sun slot)
@@ -31,46 +33,36 @@ function getDayOfWeek(dateISO: string): number {
 }
 
 function getWeekSlotDates(dateISO: string): string[] {
-  // Returns all dates in the same week slot (Mon-Thu or Fri-Sun)
-  const date = new Date(dateISO + 'T00:00:00');
-  const dow = date.getDay();
+  // Returns all dates in the same week slot (Mon-Thu or Fri-Sun). Use UTC to match server adPricing.
+  const date = new Date(dateISO + 'T00:00:00.000Z');
+  const dow = date.getUTCDay();
   const dates: string[] = [];
   
   if (dow >= 1 && dow <= 4) {
     // Weekday slot: Mon-Thu
-    // Find Monday of this week
     const daysFromMonday = dow - 1;
     const monday = new Date(date);
-    monday.setDate(date.getDate() - daysFromMonday);
+    monday.setUTCDate(date.getUTCDate() - daysFromMonday);
     
-    // Add Mon, Tue, Wed, Thu
     for (let i = 0; i < 4; i++) {
       const day = new Date(monday);
-      day.setDate(monday.getDate() + i);
-      dates.push(format(day, 'yyyy-MM-dd'));
+      day.setUTCDate(monday.getUTCDate() + i);
+      dates.push(day.toISOString().slice(0, 10));
     }
   } else {
-    // Weekend slot: Fri-Sun
     let friday: Date;
-    
-    if (dow === 5) {
-      // Already Friday
+    if (dow === 5) friday = new Date(date);
+    else if (dow === 6) {
       friday = new Date(date);
-    } else if (dow === 6) {
-      // Saturday - go back 1 day to Friday
-      friday = new Date(date);
-      friday.setDate(date.getDate() - 1);
+      friday.setUTCDate(date.getUTCDate() - 1);
     } else {
-      // Sunday (dow === 0) - go back 2 days to Friday
       friday = new Date(date);
-      friday.setDate(date.getDate() - 2);
+      friday.setUTCDate(date.getUTCDate() - 2);
     }
-    
-    // Add Fri, Sat, Sun
     for (let i = 0; i < 3; i++) {
       const day = new Date(friday);
-      day.setDate(friday.getDate() + i);
-      dates.push(format(day, 'yyyy-MM-dd'));
+      day.setUTCDate(friday.getUTCDate() + i);
+      dates.push(day.toISOString().slice(0, 10));
     }
   }
   
@@ -78,54 +70,37 @@ function getWeekSlotDates(dateISO: string): string[] {
 }
 
 function getWeekIdentifier(dateISO: string): string {
-  // Returns a unique identifier for the week slot
-  // For weekdays (Mon-Thu): use the Monday's date
-  // For weekends (Fri-Sun): use the Friday's date
-  const date = new Date(dateISO + 'T00:00:00');
-  const dow = date.getDay();
-  
+  // Use UTC to match server adPricing.calculateAdPriceCents
+  const date = new Date(dateISO + 'T00:00:00.000Z');
+  const dow = date.getUTCDay();
   if (dow >= 1 && dow <= 4) {
-    // Weekday (Mon-Thu): find this week's Monday
     const monday = new Date(date);
-    monday.setDate(date.getDate() - (dow - 1));
-    return `${format(monday, 'yyyy-MM-dd')}-weekday`;
-  } else {
-    // Weekend (Fri, Sat, Sun): find this week's Friday
-    let friday = new Date(date);
-    if (dow === 5) {
-      // Already Friday
-    } else if (dow === 6) {
-      // Saturday - go back 1 day
-      friday.setDate(date.getDate() - 1);
-    } else {
-      // Sunday (dow === 0) - go back 2 days
-      friday.setDate(date.getDate() - 2);
-    }
-    return `${format(friday, 'yyyy-MM-dd')}-weekend`;
+    monday.setUTCDate(date.getUTCDate() - (dow - 1));
+    return `${monday.toISOString().slice(0, 10)}-weekday`;
   }
+  let friday = new Date(date);
+  if (dow === 5) { /* already Friday */ }
+  else if (dow === 6) friday.setUTCDate(date.getUTCDate() - 1);
+  else friday.setUTCDate(date.getUTCDate() - 2);
+  return `${friday.toISOString().slice(0, 10)}-weekend`;
 }
 
 function calculatePrice(selectedISO: Set<string>): number {
-  if (selectedISO.size === 0) return 0;
-  
-  // Group dates by their week slot (weekday vs weekend)
+  const { weekdayBlocks, weekendBlocks } = getAdBlocks(selectedISO);
+  return weekdayBlocks * weekdayRate + weekendBlocks * weekendRate;
+}
+
+function getAdBlocks(selectedISO: Set<string>): { weekdayBlocks: number; weekendBlocks: number } {
+  if (selectedISO.size === 0) return { weekdayBlocks: 0, weekendBlocks: 0 };
   const weekSlots = new Set<string>();
-  
-  for (const d of selectedISO) {
-    weekSlots.add(getWeekIdentifier(d));
-  }
-  
-  // Calculate price: $8 per weekday week slot, $10 per weekend week slot
-  let total = 0;
+  for (const d of selectedISO) weekSlots.add(getWeekIdentifier(d));
+  let weekdayBlocks = 0;
+  let weekendBlocks = 0;
   for (const slot of weekSlots) {
-    if (slot.endsWith('-weekday')) {
-      total += weekdayRate; // $5.00 TOTAL for entire Mon-Thu week
-    } else {
-      total += weekendRate; // $8.00 TOTAL for entire Fri-Sun weekend
-    }
+    if (slot.endsWith('-weekday')) weekdayBlocks++;
+    else weekendBlocks++;
   }
-  
-  return total;
+  return { weekdayBlocks, weekendBlocks };
 }
 
 export default function AdCalendarScreen() {
@@ -162,8 +137,10 @@ export default function AdCalendarScreen() {
   const [paymentsStatusLoading, setPaymentsStatusLoading] = useState(true);
   const [paymentsStatusError, setPaymentsStatusError] = useState<string | null>(null);
   const [showFreeSuccess, setShowFreeSuccess] = useState(false);
+  const [adStatus, setAdStatus] = useState<string | null>(null);
   const freeSuccessOpacity = useRef(new Animated.Value(0)).current;
   const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
+  const { purchaseAd } = useAdIAP();
   
   // Load reserved dates for THIS ad only (allow other ads to share dates)
   // AND load date availability to block fully booked dates
@@ -182,16 +159,16 @@ export default function AdCalendarScreen() {
         setReserved(new Set<string>(dates));
         
         // Get zip code from ad details and load availability
-        // reservationsForAd returns { ad_id, dates } — need separate call for ad details
         if (adId) {
           try {
             const adDetails: any = await Advertisement.get(String(adId));
+            if (mounted && adDetails?.status) setAdStatus(adDetails.status);
             if (adDetails?.target_zip_code) {
-              const zip = adDetails.target_zip_code;
-              setZipCode(zip);
-
-              // Load availability for next 8 weeks
-              await loadAvailability(zip);
+              setZipCode(adDetails.target_zip_code);
+              await loadAvailability(adDetails.target_zip_code);
+            }
+            if (mounted && adDetails?.status === 'approved' && dates.length > 0) {
+              setSelected(new Set(dates));
             }
           } catch {
             // Non-critical — calendar still works without availability
@@ -274,6 +251,12 @@ export default function AdCalendarScreen() {
   const paymentsTemporarilyDisabled = paymentsStatus?.stripe_configured === false;
   const showPaymentsWarning = (!paymentsStatusLoading && paymentsTemporarilyDisabled) || (!!paymentsStatusError && !paymentsTemporarilyDisabled);
   const payButtonDisabled = submitting || selected.size === 0 || paymentsTemporarilyDisabled;
+  const submitForApprovalDisabled = submitting || selected.size === 0;
+  const isPending = adStatus === 'pending';
+  const isApproved = adStatus === 'approved';
+  const isDraft = adStatus === 'draft' || adStatus === null;
+  const isActive = adStatus === 'active';
+  const canPay = isApproved || isActive; // Once approved, no re-approval for future runs
 
   const theme = Colors[colorScheme];
   const marked = useMemo(() => {
@@ -448,6 +431,41 @@ export default function AdCalendarScreen() {
     }
   };
 
+  const handleSubmitForApproval = async () => {
+    if (!adId || selected.size === 0) {
+      Alert.alert('Select at least one date');
+      return;
+    }
+    if (adId.startsWith('local-')) {
+      Alert.alert('Ad Not Saved', 'This ad was not saved to the server. Please go back and re-submit your ad.');
+      return;
+    }
+    const maxDate = maxDateISO();
+    const invalidDates = Array.from(selected).filter((date) => date > maxDate);
+    if (invalidDates.length > 0) {
+      Alert.alert('Booking Limit Exceeded', 'Some selected dates are beyond the 8-week booking window. Please remove them and try again.');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const dates = Array.from(selected).sort((a, b) => (a < b ? -1 : 1));
+      await Advertisement.submitForApproval(String(adId), dates);
+      setAdStatus('pending');
+      setReserved(new Set(dates));
+      setSelected(new Set(dates));
+      Alert.alert(
+        'Submitted for Approval',
+        'Your ad has been submitted. emancero@varsityhub.app will review it. You\'ll be notified when approved — no charge until then.'
+      );
+    } catch (err: any) {
+      if (__DEV__) console.error('Submit for approval failed:', err);
+      const msg = err?.data?.error || err?.message || 'Failed to submit for approval. Please try again.';
+      Alert.alert('Error', msg);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handlePayment = async () => {
     if (paymentsTemporarilyDisabled) {
       Alert.alert(
@@ -486,7 +504,17 @@ export default function AdCalendarScreen() {
       );
       return;
     }
-    
+
+    // Stripe must be configured (backend, reconciliation, etc.)
+    const stripeKey = getConfig().stripePublishableKey;
+    if (!stripeKey || !stripeKey.startsWith('pk_')) {
+      Alert.alert(
+        'Payments Not Ready',
+        'Payment configuration is missing. Please update the app or try again later.'
+      );
+      return;
+    }
+
     setSubmitting(true);
     try {
       const dates = Array.from(selected).sort((a, b) => (a < b ? -1 : 1));
@@ -506,23 +534,38 @@ export default function AdCalendarScreen() {
         });
         return;
       }
+      if (Platform.OS === 'ios') {
+        // iOS: use Apple IAP
+        const { weekdayBlocks, weekendBlocks } = getAdBlocks(selected);
+        if (weekdayBlocks <= 0 && weekendBlocks <= 0) {
+          throw new Error('No ad blocks to purchase');
+        }
+        const result = await purchaseAd({ adId: String(adId), dates, weekdayBlocks, weekendBlocks });
+        setSubmitting(false);
+        if (!result.ok) {
+          if (result.error) Alert.alert('Payment Error', result.error);
+          return;
+        }
+        const paidAmount = data?.amount_cents ? `$${(data.amount_cents / 100).toFixed(2)}` : `$${calculatePrice(selected).toFixed(2)}`;
+        router.replace({ pathname: '/ad-confirmation', params: { ad_id: String(adId), selectedDates: dates.join(', '), hoursRemaining: String(hrsRemaining), totalAmount: paidAmount } });
+        return;
+      }
+
       if (data?.paymentIntent) {
-        // Try with Apple/Google Pay first, fall back to card-only if it fails
+        // Android: Stripe PaymentSheet
         let initError: any = null;
         const { error: err1 } = await initPaymentSheet({
           paymentIntentClientSecret: data.paymentIntent,
           customerEphemeralKeySecret: data.ephemeralKey,
           customerId: data.customer,
           merchantDisplayName: 'Varsity Hub',
-          applePay: Platform.OS === 'ios' ? { merchantCountryCode: 'US' } : undefined,
-          googlePay: Platform.OS === 'android' ? { merchantCountryCode: 'US', testEnv: __DEV__ } : undefined,
+          googlePay: { merchantCountryCode: 'US', testEnv: __DEV__ },
           allowsDelayedPaymentMethods: false,
         });
         initError = err1;
 
-        // If Apple/Google Pay setup failed, retry with card-only
         if (initError) {
-          if (__DEV__) console.warn('[AdCalendar] PaymentSheet init failed with native pay, retrying card-only:', initError.message);
+          if (__DEV__) console.warn('[AdCalendar] PaymentSheet init failed with Google Pay, retrying card-only:', initError.message);
           const { error: err2 } = await initPaymentSheet({
             paymentIntentClientSecret: data.paymentIntent,
             customerEphemeralKeySecret: data.ephemeralKey,
@@ -542,23 +585,48 @@ export default function AdCalendarScreen() {
         const { error } = await presentPaymentSheet();
         if (error) {
           if (error.code !== 'Canceled') Alert.alert('Payment Failed', error.message);
-          // Notify server of abandoned/failed payment so transaction is marked FAILED
           if (data.payment_intent_id) {
             httpPost('/payments/cancel-intent', { payment_intent_id: data.payment_intent_id }).catch(() => {});
           }
           return;
         }
-        // Payment succeeded — navigate to confirmation receipt
         const paidAmount = data.amount_cents ? `$${(data.amount_cents / 100).toFixed(2)}` : undefined;
         router.replace({ pathname: '/ad-confirmation', params: { ad_id: String(adId), selectedDates: dates.join(', '), hoursRemaining: String(hrsRemaining), ...(paidAmount ? { totalAmount: paidAmount } : {}) } });
         return;
       }
       throw new Error('Unexpected checkout response');
-    } catch (err) {
+    } catch (err: any) {
       if (__DEV__) console.error('Failed to start checkout:', err);
-      const raw = (err as any)?.data?.error || (err as any)?.message || '';
-      const msg = /prod_|price_/i.test(raw) ? 'An error occurred starting checkout. Please try again or contact support.' : (raw || 'An error occurred starting checkout.');
-      Alert.alert('Error', msg);
+      const status = err?.status;
+      const raw = err?.data?.error || err?.message || '';
+      let title = 'Error';
+      let msg: string;
+      if (status === 403 && (raw === 'Email verification required' || /verification/i.test(raw))) {
+        title = 'Verify Your Email';
+        msg = 'Please verify your email before paying. Check your inbox for the verification link.';
+      } else if (status === 403 && (raw === 'APPROVAL_REQUIRED' || /approval.*required|must be approved/i.test(raw))) {
+        title = 'Approval Required';
+        msg = 'Your ad must be approved by emancero@varsityhub.app before payment. You\'ll be notified when you can pay.';
+      } else if (status === 401) {
+        title = 'Session Expired';
+        msg = 'Please sign in again to continue.';
+      } else if (status === 500 && (raw === 'Stripe not configured' || /stripe.*config/i.test(raw))) {
+        title = 'Payments Unavailable';
+        msg = 'Payments are being configured. Please try again later.';
+      } else if (status === 408 || err?.name === 'AbortError') {
+        title = 'Connection Timeout';
+        msg = 'The request timed out. Check your connection and try again.';
+      } else if (!status && (raw?.includes('fetch') || raw?.includes('network') || raw?.includes('Network'))) {
+        title = 'Connection Error';
+        msg = 'Check your internet connection and try again.';
+      } else if (/prod_|price_/i.test(raw)) {
+        msg = 'An error occurred starting checkout. Please try again or contact support.';
+      } else if (raw) {
+        msg = raw;
+      } else {
+        msg = 'An error occurred starting checkout. Please try again.';
+      }
+      Alert.alert(title, msg);
     } finally {
       setSubmitting(false);
     }
@@ -921,32 +989,80 @@ export default function AdCalendarScreen() {
             <Text style={{ fontSize: 22, fontWeight: '800', color: Colors[colorScheme].text }}>${effective.toFixed(2)}</Text>
           </View>
 
-          <Pressable
-            disabled={payButtonDisabled}
-            onPress={handlePayment}
-            style={[
-              styles.payBtn,
-              { backgroundColor: Colors[colorScheme].tint },
-              payButtonDisabled && styles.payBtnDisabled,
-            ]}
-          >
-            {submitting ? (
-              <ActivityIndicator />
-            ) : (
-              <Text style={styles.payBtnText}>
-                {paymentsTemporarilyDisabled ? 'Checkout unavailable' : `Pay $${effective.toFixed(2)}`}
+          {isPending && (
+            <View style={[styles.pendingBanner, { backgroundColor: colorScheme === 'dark' ? '#422006' : '#FEF3C7', borderColor: colorScheme === 'dark' ? '#92400E' : '#FCD34D' }]}>
+              <MaterialIcons name="schedule" size={24} color="#92400E" />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.pendingBannerTitle, { color: colorScheme === 'dark' ? '#FDE68A' : '#92400E' }]}>Pending Approval</Text>
+                <Text style={[styles.pendingBannerText, { color: colorScheme === 'dark' ? '#FDE68A' : '#92400E' }]}>
+                  Your ad has been submitted. emancero@varsityhub.app will review it. You'll be notified when approved — no charge until then.
+                </Text>
+              </View>
+            </View>
+          )}
+          {canPay && (
+            <>
+              <Pressable
+                disabled={payButtonDisabled}
+                onPress={handlePayment}
+                style={[
+                  styles.payBtn,
+                  { backgroundColor: Colors[colorScheme].tint },
+                  payButtonDisabled && styles.payBtnDisabled,
+                ]}
+              >
+                {submitting ? (
+                  <ActivityIndicator />
+                ) : (
+                  <Text style={styles.payBtnText}>
+                    {paymentsTemporarilyDisabled ? 'Checkout unavailable' : `Pay $${effective.toFixed(2)}`}
+                  </Text>
+                )}
+              </Pressable>
+              {paymentsTemporarilyDisabled && (
+                <Text style={[styles.paymentBannerHelp, { color: colorScheme === 'dark' ? '#FCA5A5' : '#B91C1C' }]}>
+                  Payments are temporarily disabled while Stripe is configured. Please try again later.
+                </Text>
+              )}
+            </>
+          )}
+          {isDraft && (
+            <>
+              <Pressable
+                disabled={submitForApprovalDisabled}
+                onPress={handleSubmitForApproval}
+                style={[
+                  styles.payBtn,
+                  { backgroundColor: Colors[colorScheme].tint },
+                  submitForApprovalDisabled && styles.payBtnDisabled,
+                ]}
+              >
+                {submitting ? (
+                  <ActivityIndicator />
+                ) : (
+                  <Text style={styles.payBtnText}>
+                    Submit for Approval
+                  </Text>
+                )}
+              </Pressable>
+              <Text style={[styles.paymentBannerHelp, { color: Colors[colorScheme].mutedText }]}>
+                No charge until emancero@varsityhub.app approves your ad.
               </Text>
-            )}
-          </Pressable>
-          {paymentsTemporarilyDisabled && (
-            <Text
-              style={[
-                styles.paymentBannerHelp,
-                { color: colorScheme === 'dark' ? '#FCA5A5' : '#B91C1C' },
-              ]}
-            >
-              Payments are temporarily disabled while Stripe is configured. Please try again later.
-            </Text>
+            </>
+          )}
+          {isActive && selected.size === 0 && (
+            <View style={[styles.pendingBanner, { backgroundColor: colorScheme === 'dark' ? '#064E3B' : '#D1FAE5', borderColor: colorScheme === 'dark' ? '#047857' : '#10B981' }]}>
+              <MaterialIcons name="check-circle" size={24} color="#10B981" />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.pendingBannerTitle, { color: colorScheme === 'dark' ? '#6EE7B7' : '#047857' }]}>Your ad is live</Text>
+                <Text style={[styles.pendingBannerText, { color: colorScheme === 'dark' ? '#6EE7B7' : '#047857' }]}>
+                  Select new dates above to run this ad again — no re-approval needed.
+                </Text>
+                <Pressable onPress={() => router.push('/(tabs)/my-ads')} style={{ marginTop: 8 }}>
+                  <Text style={{ color: Colors[colorScheme].tint, fontWeight: '600' }}>View My Ads →</Text>
+                </Pressable>
+              </View>
+            </View>
           )}
         </View>
       </ScrollView>
@@ -1032,6 +1148,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#B91C1C',
     textAlign: 'center',
+  },
+  pendingBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  pendingBannerTitle: {
+    fontWeight: '700',
+    fontSize: 16,
+    marginBottom: 4,
+  },
+  pendingBannerText: {
+    fontSize: 14,
+    lineHeight: 20,
   },
   card: {
     borderRadius: 16,

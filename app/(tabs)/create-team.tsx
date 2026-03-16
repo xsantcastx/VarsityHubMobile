@@ -374,11 +374,33 @@ export default function CreateTeamScreen() {
                     }
                   } catch (err: any) {
                     if (__DEV__) console.error('Upgrade to Veteran failed:', err);
-                    const rawMsg = (err?.data?.error || err?.message || '') as string;
-                    const safeMsg = /prod_|price_/i.test(rawMsg)
-                      ? 'Failed to start upgrade. Please try again or contact support.'
-                      : (rawMsg || 'Failed to start upgrade checkout. Please try again.');
-                    Alert.alert('Error', safeMsg);
+                    const status = err?.status;
+                    const raw = (err?.data?.error || err?.message || '') as string;
+                    let title = 'Error';
+                    let msg: string;
+                    if (status === 403 && (raw === 'Email verification required' || /verification/i.test(raw))) {
+                      title = 'Verify Your Email';
+                      msg = 'Please verify your email before upgrading. Check your inbox for the verification link.';
+                    } else if (status === 401) {
+                      title = 'Session Expired';
+                      msg = 'Please sign in again to continue.';
+                    } else if (status === 500 && (raw === 'Stripe not configured' || /stripe.*config/i.test(raw))) {
+                      title = 'Payments Unavailable';
+                      msg = 'Payments are being configured. Please try again later.';
+                    } else if (status === 408 || err?.name === 'AbortError') {
+                      title = 'Connection Timeout';
+                      msg = 'The request timed out. Check your connection and try again.';
+                    } else if (!status && (raw?.includes('fetch') || raw?.includes('network') || raw?.includes('Network'))) {
+                      title = 'Connection Error';
+                      msg = 'Check your internet connection and try again.';
+                    } else if (/prod_|price_/i.test(raw)) {
+                      msg = 'Failed to start upgrade. Please try again or contact support.';
+                    } else if (raw) {
+                      msg = raw;
+                    } else {
+                      msg = 'Failed to start upgrade checkout. Please try again.';
+                    }
+                    Alert.alert(title, msg);
                     setSubmitting(false);
                   }
                 }

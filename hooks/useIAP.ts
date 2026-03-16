@@ -131,11 +131,12 @@ export function useVHubIAP() {
     }
     if (!isIOS && !isAndroid) return;
     if (!connected) {
-      if (__DEV__) console.warn('[useVHubIAP] Store not connected yet — IAP will not work until connected');
+      if (__DEV__) console.warn('[useVHubIAP] Store not connected yet — IAP will not work until connected. Use EAS build (not Expo Go).');
       return;
     }
     fetchProducts({ skus: ALL_SKUS, type: 'subs' }).catch((err: unknown) => {
       if (__DEV__) console.warn('[useVHubIAP] fetchProducts failed:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load subscription products');
     });
   }, [connected, fetchProducts]);
 
@@ -148,6 +149,9 @@ export function useVHubIAP() {
       }
       // Prefer the SKU currently returned from the store, fall back to primary configured SKU.
       const availableSku = subscriptions.find((p: { productId?: string }) => planSkus.includes(p.productId ?? '')) as { productId?: string } | undefined;
+      if (__DEV__ && !availableSku) {
+        console.warn('[useVHubIAP] Plan SKU not in store response:', { plan, planSkus, subscriptionIds: subscriptions.map((s: { productId?: string }) => s.productId) });
+      }
       const sku = availableSku?.productId || planSkus[0];
 
       setPurchasing(true);

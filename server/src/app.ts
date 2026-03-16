@@ -13,9 +13,11 @@ import { verifyMediaSignature } from './lib/mediaAccess.js';
 import { addSentryErrorHandler, initSentry } from './lib/sentry.js';
 import { swaggerSpec } from './lib/swagger.js';
 import { authMiddleware } from './middleware/auth.js';
+import { requireAuth } from './middleware/requireAuth.js';
+import { requireVerified } from './middleware/requireVerified.js';
 import adminRouter from './routes/admin.js';
 import { adminReportsRouter } from './routes/adminReports.js';
-import { adsRouter } from './routes/ads.js';
+import { adsRouter, handleAdSubmitForApproval } from './routes/ads.js';
 import { authRouter } from './routes/auth.js';
 import { eventsRouter } from './routes/events.js';
 import { followsRouter } from './routes/follows.js';
@@ -39,7 +41,6 @@ import { teamMembershipsRouter } from './routes/team-memberships.js';
 import { teamsRouter } from './routes/teams.js';
 import { testEmailsRouter } from './routes/test-emails.js';
 import { testNotificationsRouter } from './routes/test-notifications.js';
-import { uploadRouter } from './routes/upload.js';
 import { uploadsRouter } from './routes/uploads.js';
 import { usersRouter } from './routes/users.js';
 import { wellKnownRouter } from './routes/well-known.js';
@@ -241,6 +242,8 @@ app.use('/messages', noStore, apiLimiter, messagesRouter);
 app.use('/group-chats', noStore, apiLimiter, groupChatsRouter);
 app.use('/uploads', uploadsRouter);
 
+// App-level route for submit-for-approval (guarantees it's registered before any router)
+app.post('/ads/:id/submit-for-approval', requireAuth as any, requireVerified as any, handleAdSubmitForApproval as any);
 app.use('/ads', adsRouter);
 app.use('/payments', paymentsRouter);
 app.use('/admin', noStore, apiLimiter, adminRouter);
@@ -256,7 +259,7 @@ app.use('/support', noStore, apiLimiter, supportRouter);
 app.use('/admin/reports', noStore, apiLimiter, adminReportsRouter);
 app.use('/team-memberships', noStore, apiLimiter, teamMembershipsRouter);
 app.use('/team-invites', noStore, apiLimiter, teamInvitesRouter);
-app.use('/upload', noStore, apiLimiter, uploadRouter);
+// Legacy /upload/avatar consolidated into /uploads/avatar (see uploads.ts)
 app.use('/highlights', noStore, apiLimiter, highlightsRouter);
 app.use('/promos', noStore, apiLimiter, promosRouter);
 

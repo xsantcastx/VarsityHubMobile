@@ -815,7 +815,7 @@ export default function CommunityDiscoverScreen() {
             calendarBackground: colorScheme === 'light' ? '#FFFFFF' : Colors[colorScheme].background,
             textSectionTitleColor: Colors[colorScheme].text,
             selectedDayBackgroundColor: Colors[colorScheme].tint,
-            selectedDayTextColor: Colors[colorScheme].background,
+            selectedDayTextColor: '#FFFFFF',
             todayTextColor: Colors[colorScheme].tint,
             dayTextColor: Colors[colorScheme].text,
             textDisabledColor: Colors[colorScheme].mutedText,

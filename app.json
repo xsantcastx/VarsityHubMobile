@@ -21,6 +21,7 @@
       "url": "https://u.expo.dev/64489ed7-a8c0-41de-91ec-5846ea79a27f"
     },
     "ios": {
+      "buildNumber": "49",
       "supportsTablet": true,
       "appleTeamId": "B5H8F69RW5",
       "bundleIdentifier": "com.varsithub.varsityhub-ios",
@@ -135,6 +136,7 @@
       [
         "@sentry/react-native/expo",
         {
+          "url": "https://sentry.io/",
           "organization": "varsity-hub",
           "project": "varsity-hub-mobile",
           "uploadSourcemaps": false

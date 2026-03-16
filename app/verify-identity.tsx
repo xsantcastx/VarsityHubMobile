@@ -70,7 +70,7 @@ export default function VerifyScreen() {
       // After successful verification, check if user needs onboarding
       try {
         const userInfo = await User.me();
-        const needsOnboarding = userInfo?.preferences?.onboarding_completed === false;
+        const needsOnboarding = userInfo?.preferences?.onboarding_completed !== true;
 
         // Auto-redirect after 3 seconds
         redirectTimerRef.current = setTimeout(() => {
@@ -110,7 +110,7 @@ export default function VerifyScreen() {
   const onContinue = async () => {
     try {
       const userInfo = await User.me();
-      const needsOnboarding = userInfo?.preferences?.onboarding_completed === false;
+      const needsOnboarding = userInfo?.preferences?.onboarding_completed !== true;
 
       if (needsOnboarding) {
         router.replace('/onboarding/step-1-role');

@@ -357,7 +357,9 @@ export default function SignUpScreen() {
           {/* Email Form */}
           <Input placeholder="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" style={{ marginBottom: 10 }} />
           <Input placeholder="Password" value={password} onChangeText={handlePasswordChange} secureTextEntry />
-          
+          <Text style={{ fontSize: 11, color: Colors[colorScheme].mutedText, marginTop: 4 }}>
+            Password must be at least 8 characters
+          </Text>
           {/* Password Strength Indicator */}
           {password.length > 0 && (
             <View style={{ marginTop: 8, marginBottom: 4 }}>
@@ -383,7 +385,7 @@ export default function SignUpScreen() {
                 Password strength: {passwordStrength.feedback}
               </Text>
               <Text style={{ fontSize: 11, color: Colors[colorScheme].text + '77', marginTop: 2 }}>
-                Must contain: uppercase, lowercase, number, special character
+                Min 8 characters. Must contain: uppercase, lowercase, number, special character
               </Text>
             </View>
           )}

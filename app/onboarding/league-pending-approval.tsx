@@ -153,7 +153,7 @@ export default function LeaguePendingApproval() {
               style={[styles.secondaryButton, { borderColor: isDark ? '#374151' : '#D1D5DB' }]}
               onPress={() => router.replace('/onboarding/step-3-league' as any)}
             >
-              <Text style={[styles.secondaryButtonText, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Back to League Setup</Text>
+              <Text style={[styles.secondaryButtonText, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Back to Organization Setup</Text>
             </Pressable>
           </>
         ) : null}

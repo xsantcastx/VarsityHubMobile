@@ -251,7 +251,7 @@ test.describe('Upload Page Tests', () => {
     const imageBuffer = createTestImageFile('avatar.jpg');
     
     // Upload avatar via API
-    const response = await request.post(`${API_URL}/upload/avatar`, {
+    const response = await request.post(`${API_URL}/uploads/avatar`, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },
@@ -286,7 +286,7 @@ test.describe('Upload Page Tests', () => {
     const largeBuffer = Buffer.alloc(6 * 1024 * 1024); // 6MB
     largeBuffer.fill(0xFF);
     
-    const response = await request.post(`${API_URL}/upload/avatar`, {
+    const response = await request.post(`${API_URL}/uploads/avatar`, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },
@@ -318,7 +318,7 @@ test.describe('Upload Page Tests', () => {
     });
     
     // Should return 401 Unauthorized (if auth is required) or 400 (if file is missing)
-    // Note: /uploads endpoint might not require auth, but /upload/avatar does
+    // Note: /uploads endpoint might not require auth, but /uploads/avatar does
     expect([400, 401]).toContain(response.status());
   });
 

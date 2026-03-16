@@ -112,13 +112,14 @@ organizationsRouter.get('/mine', requireAuth as any, async (req: AuthedRequest, 
 });
 
 // Update organization (admin only)
+// H3: zip_code aligned with ads — 5-digit US format when provided
 const updateOrgSchema = z.object({
   name: z.string().min(1).max(200).optional(),
   description: z.string().max(2000).optional().nullable(),
   sport: z.string().max(100).optional().nullable(),
   org_type: z.string().max(50).optional().nullable(),
   location: z.string().max(500).optional().nullable(),
-  zip_code: z.string().max(20).optional().nullable(),
+  zip_code: z.string().regex(/^\d{5}$/, 'Must be a 5-digit US zip code').optional().nullable(),
   contact_info: z.string().max(500).optional().nullable(),
 });
 
@@ -297,13 +298,14 @@ organizationsRouter.get('/:id/members', async (req, res) => {
   }
 });
 
+// H3: zip_code aligned with ads — 5-digit US format when provided
 const createOrganizationSchema = z.object({
   name: z.string().min(1).max(255),
   description: z.string().max(1000).optional(),
   sport: z.string().max(100).optional(),
   org_type: z.string().max(100).optional(),
   location: z.string().max(255).optional(),
-  zip_code: z.string().max(10).optional(),
+  zip_code: z.string().regex(/^\d{5}$/, 'Must be a 5-digit US zip code').optional(),
   season_start: z.string().optional(),
   season_end: z.string().optional(),
 });
@@ -391,13 +393,14 @@ organizationsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res
   }
 });
 
+// H3: zip_code aligned with ads — 5-digit US format when provided
 const createOrganizationWithTeamsSchema = z.object({
   name: z.string().min(1).max(255),
   description: z.string().max(1000).optional(),
   sport: z.string().max(100).optional(),
   org_type: z.string().max(100).optional(),
   location: z.string().max(255).optional(),
-  zip_code: z.string().max(10).optional(),
+  zip_code: z.string().regex(/^\d{5}$/, 'Must be a 5-digit US zip code').optional(),
   season_start: z.string().optional(),
   season_end: z.string().optional(),
   authorized_users: z.array(z.object({
@@ -1344,9 +1347,10 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
       text: `League "${org.name}" owned by ${org.leagueOwner?.display_name || 'Unknown'} (${org.leagueOwner?.email || ''}) has been approved.`,
     }).catch(() => {});
 
-    // If accessed via browser link, show a simple HTML confirmation
+    // If accessed via browser link, show a simple HTML confirmation (escape org.name to prevent XSS)
     if (token) {
-      return res.send(`<html><body style="font-family:Arial;text-align:center;padding:60px"><h1 style="color:#16A34A">League Approved</h1><p>"${org.name}" is now live on VarsityHub.</p></body></html>`);
+      const safeName = String(org.name || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      return res.send(`<html><body style="font-family:Arial;text-align:center;padding:60px"><h1 style="color:#16A34A">League Approved</h1><p>"${safeName}" is now live on VarsityHub.</p></body></html>`);
     }
 
     return res.json({ message: 'League approved', organization_id: orgId });
@@ -1415,7 +1419,8 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
     }).catch(() => {});
 
     if (token) {
-      return res.send(`<html><body style="font-family:Arial;text-align:center;padding:60px"><h1 style="color:#DC2626">League Rejected</h1><p>"${org.name}" has been declined.</p></body></html>`);
+      const safeName = String(org.name || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      return res.send(`<html><body style="font-family:Arial;text-align:center;padding:60px"><h1 style="color:#DC2626">League Rejected</h1><p>"${safeName}" has been declined.</p></body></html>`);
     }
 
     return res.json({ message: 'League rejected', organization_id: orgId });

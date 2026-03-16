@@ -1861,6 +1861,34 @@ const renderVoteSection = () => {
   );
 };
 
+// Navigate to team profile: use team ID if available, else search by name (for sample games or when teams array is empty)
+const handleTeamPress = useCallback(
+  async (teamObj: { id: string } | undefined, teamName: string | null) => {
+    if (teamObj?.id) {
+      void router.push(`/(tabs)/team-profile?id=${teamObj.id}`);
+      return;
+    }
+    if (!teamName?.trim()) return;
+    try {
+      const raw = await Team.list(teamName.trim(), false, { limit: 15 });
+      const list: any[] = Array.isArray(raw) ? raw : [];
+      const lower = teamName.trim().toLowerCase();
+      const match = list.find((t: any) => (t?.name || '').toLowerCase() === lower || (t?.name || '').toLowerCase().includes(lower));
+      if (match?.id) void router.push(`/(tabs)/team-profile?id=${match.id}`);
+    } catch {
+      // Team search failed; no navigation
+    }
+  },
+  [],
+);
+
+// attempt to pull team color accents from vm.teams if present
+const homeTeamObj = vm?.teams?.find((t: any) => t.name === vm?.homeTeam);
+const awayTeamObj = vm?.teams?.find((t: any) => t.name === vm?.awayTeam);
+
+const onLeftTeamPress = useCallback(() => void handleTeamPress(homeTeamObj, vm?.homeTeam ?? null), [handleTeamPress]);
+const onRightTeamPress = useCallback(() => void handleTeamPress(awayTeamObj, vm?.awayTeam ?? null), [handleTeamPress]);
+
 const renderBanner = () => {
   // Prefer a full MatchBanner hero if both teams have logos available
   const leftLogo = vm?.homeTeam ? getTeamLogo(vm.homeTeam) : null;
@@ -1870,34 +1898,6 @@ const renderBanner = () => {
   const bannerImageKey = bannerImageUrl ? `${bannerImageUrl}-${vm?.gameId || vm?.id || vm?.title || ''}` : 'banner-fallback';
   const isHero = Boolean(leftLogo && rightLogo) && !finalsBanner;
   const bannerHeight = isHero ? 320 : 240;
-
-  // attempt to pull team color accents from vm.teams if present
-  const homeTeamObj = vm?.teams?.find((t: any) => t.name === vm?.homeTeam)
-  const awayTeamObj = vm?.teams?.find((t: any) => t.name === vm?.awayTeam)
-
-  // Navigate to team profile: use team ID if available, else search by name (for sample games or when teams array is empty)
-  const handleTeamPress = useCallback(
-    async (teamObj: { id: string } | undefined, teamName: string | null) => {
-      if (teamObj?.id) {
-        void router.push(`/(tabs)/team-profile?id=${teamObj.id}`);
-        return;
-      }
-      if (!teamName?.trim()) return;
-      try {
-        const raw = await Team.list(teamName.trim(), false, { limit: 15 });
-        const list: any[] = Array.isArray(raw) ? raw : [];
-        const lower = teamName.trim().toLowerCase();
-        const match = list.find((t: any) => (t?.name || '').toLowerCase() === lower || (t?.name || '').toLowerCase().includes(lower));
-        if (match?.id) void router.push(`/(tabs)/team-profile?id=${match.id}`);
-      } catch {
-        // Team search failed; no navigation
-      }
-    },
-    [router],
-  );
-
-  const onLeftTeamPress = useCallback(() => void handleTeamPress(homeTeamObj, vm?.homeTeam ?? null), [handleTeamPress, homeTeamObj, vm?.homeTeam]);
-  const onRightTeamPress = useCallback(() => void handleTeamPress(awayTeamObj, vm?.awayTeam ?? null), [handleTeamPress, awayTeamObj, vm?.awayTeam]);
 
   const heroBanner = bannerImageUrl && !isHero ? (
     <Image

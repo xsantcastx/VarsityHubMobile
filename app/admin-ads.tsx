@@ -10,7 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Advertisement as AdsApi, User } from '@/api/entities';
 
-type AdStatus = 'draft' | 'pending' | 'active' | 'paused';
+type AdStatus = 'draft' | 'pending' | 'approved' | 'active' | 'paused';
 
 export default function AdminAdsScreen() {
   const colorScheme = useColorScheme() ?? 'light';
@@ -58,17 +58,18 @@ export default function AdminAdsScreen() {
   };
 
   const bulkApprove = async () => {
-    if (selectedAds.size === 0) return;
+    const pendingIds = Array.from(selectedAds).filter((id) => items.find((a) => String(a.id) === id)?.status === 'pending');
+    if (pendingIds.length === 0) return;
     setUpdating(true);
     try {
-      for (const adId of Array.from(selectedAds)) {
+      for (const adId of pendingIds) {
         try {
           await AdsApi.review(adId, 'approve');
         } catch (e) {
           if (__DEV__) console.error('Failed to approve ad:', adId, e);
         }
       }
-      Alert.alert('Success', `Approved ${selectedAds.size} ad${selectedAds.size > 1 ? 's' : ''}`);
+      Alert.alert('Success', `Approved ${pendingIds.length} ad${pendingIds.length > 1 ? 's' : ''}`);
       setSelectedAds(new Set());
       setBulkMode(false);
       await load();
@@ -80,11 +81,12 @@ export default function AdminAdsScreen() {
   };
 
   const bulkReject = async () => {
-    if (selectedAds.size === 0) return;
+    const pendingIds = Array.from(selectedAds).filter((id) => items.find((a) => String(a.id) === id)?.status === 'pending');
+    if (pendingIds.length === 0) return;
     
     Alert.alert(
       'Reject Ads',
-      `Reject ${selectedAds.size} ad${selectedAds.size > 1 ? 's' : ''}?`,
+      `Reject ${pendingIds.length} ad${pendingIds.length > 1 ? 's' : ''}?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -93,14 +95,14 @@ export default function AdminAdsScreen() {
           onPress: async () => {
             setUpdating(true);
             try {
-              for (const adId of Array.from(selectedAds)) {
+              for (const adId of pendingIds) {
                 try {
                   await AdsApi.review(adId, 'reject');
                 } catch (e) {
                   if (__DEV__) console.error('Failed to reject ad:', adId, e);
                 }
               }
-              Alert.alert('Success', `Rejected ${selectedAds.size} ad${selectedAds.size > 1 ? 's' : ''}`);
+              Alert.alert('Success', `Rejected ${pendingIds.length} ad${pendingIds.length > 1 ? 's' : ''}`);
               setSelectedAds(new Set());
               setBulkMode(false);
               await load();
@@ -159,6 +161,7 @@ export default function AdminAdsScreen() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'active': return '#22c55e';
+      case 'approved': return '#3b82f6';
       case 'pending': return '#f59e0b';
       case 'paused': return '#dc2626';
       default: return '#6b7280';
@@ -244,6 +247,11 @@ export default function AdminAdsScreen() {
           <>
             <View style={{ height: 12 }} />
             <View style={{ flexDirection: 'row', gap: 8 }}>
+              {item.status === 'approved' && (
+                <View style={[styles.badgeSmall, { backgroundColor: '#3b82f620', borderColor: '#3b82f6', paddingHorizontal: 12, paddingVertical: 6 }]}>
+                  <Text style={{ color: '#3b82f6', fontWeight: '600', fontSize: 13 }}>Awaiting payment</Text>
+                </View>
+              )}
               {item.status === 'pending' && (
                 <>
                   <Pressable
@@ -279,11 +287,11 @@ export default function AdminAdsScreen() {
                 </>
               )}
               <Pressable 
-                style={[styles.btn, styles.btnSecondary, item.status === 'pending' ? { flex: 0, paddingHorizontal: 16 } : { flex: 1 }]} 
+                style={[styles.btn, styles.btnSecondary, (item.status === 'pending' || item.status === 'approved') ? { flex: 0, paddingHorizontal: 16 } : { flex: 1 }]} 
                 onPress={() => void router.push({ pathname: '/edit-ad', params: { id: item.id } })}
               >
                 <Ionicons name="pencil" size={16} color={theme.text} />
-                {item.status !== 'pending' && <Text style={[styles.btnText, { color: theme.text }]}>Edit</Text>}
+                {item.status !== 'pending' && item.status !== 'approved' && <Text style={[styles.btnText, { color: theme.text }]}>Edit</Text>}
               </Pressable>
             </View>
           </>
@@ -358,7 +366,7 @@ export default function AdminAdsScreen() {
       
       {/* Filter Tabs */}
       <View style={{ flexDirection: 'row', padding: 12, gap: 8, backgroundColor: theme.surface }}>
-        {(['all', 'pending', 'active', 'paused', 'draft'] as const).map((status) => (
+        {(['all', 'pending', 'approved', 'active', 'paused', 'draft'] as const).map((status) => (
           <Pressable
             key={status}
             onPress={() => setFilterStatus(status)}

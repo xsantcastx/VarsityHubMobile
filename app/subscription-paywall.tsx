@@ -186,14 +186,38 @@ export default function SubscriptionPaywallScreen() {
       } else {
         throw new Error('No payment sheet data received');
       }
-    } catch (error) {
+    } catch (error: any) {
       if (__DEV__) console.error('Subscription error:', error);
-      const raw = (error as any)?.data?.error || (error as any)?.message || '';
-      const safeMsg = /prod_|price_/i.test(raw) ? 'Unable to process subscription. Please try again or contact support.' : (raw || 'Unable to process subscription. Please try again.');
+      const status = error?.status;
+      const raw = error?.data?.error || error?.message || '';
+      let title = 'Error';
+      let msg: string;
+      if (status === 403 && (raw === 'Email verification required' || /verification/i.test(raw))) {
+        title = 'Verify Your Email';
+        msg = 'Please verify your email before subscribing. Check your inbox for the verification link.';
+      } else if (status === 401) {
+        title = 'Session Expired';
+        msg = 'Please sign in again to continue.';
+      } else if (status === 500 && (raw === 'Stripe not configured' || /stripe.*config/i.test(raw))) {
+        title = 'Payments Unavailable';
+        msg = 'Payments are being configured. Please try again later.';
+      } else if (status === 408 || error?.name === 'AbortError') {
+        title = 'Connection Timeout';
+        msg = 'The request timed out. Check your connection and try again.';
+      } else if (!status && (raw?.includes('fetch') || raw?.includes('network') || raw?.includes('Network'))) {
+        title = 'Connection Error';
+        msg = 'Check your internet connection and try again.';
+      } else if (/prod_|price_/i.test(raw)) {
+        msg = 'Unable to process subscription. Please try again or contact support.';
+      } else if (raw) {
+        msg = raw;
+      } else {
+        msg = 'Unable to process subscription. Please try again.';
+      }
       setModal({
         visible: true,
-        title: 'Error',
-        message: safeMsg,
+        title,
+        message: msg,
         options: [{ label: 'OK', onPress: () => setModal(null), color: '#DC2626' }],
       });
     } finally {

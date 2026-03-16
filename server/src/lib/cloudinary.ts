@@ -1,13 +1,29 @@
 import crypto from 'node:crypto';
 import { FormData, File, fetch } from 'undici';
 
-// Check if Cloudinary is properly configured
+// Placeholder values from .env.example — treat as "not configured" so local dev fails fast
+// instead of silently failing uploads. Use real Cloudinary test credentials in local .env.
+const CLOUDINARY_PLACEHOLDERS = {
+  cloudName: ['your-cloud-name', ''],
+  apiKey: ['your-api-key', '123456789012345', ''],
+  apiSecret: ['your-api-secret', 'your-cloudinary-secret', 'abcdefghijklmnopqrstuvwxyz', ''],
+};
+
+function isPlaceholder(value: string | undefined, key: keyof typeof CLOUDINARY_PLACEHOLDERS): boolean {
+  if (!value) return true;
+  return CLOUDINARY_PLACEHOLDERS[key].some((p) => p && value.trim() === p);
+}
+
+// Check if Cloudinary is properly configured with real credentials (not placeholders)
 export const isCloudinaryConfigured = (): boolean => {
-  return !!(
-    process.env.CLOUDINARY_CLOUD_NAME &&
-    process.env.CLOUDINARY_API_KEY &&
-    process.env.CLOUDINARY_API_SECRET
-  );
+  const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+  const apiKey = process.env.CLOUDINARY_API_KEY;
+  const apiSecret = process.env.CLOUDINARY_API_SECRET;
+  if (!cloudName || !apiKey || !apiSecret) return false;
+  if (isPlaceholder(cloudName, 'cloudName') || isPlaceholder(apiKey, 'apiKey') || isPlaceholder(apiSecret, 'apiSecret')) {
+    return false;
+  }
+  return true;
 };
 
 // Get folder name based on environment

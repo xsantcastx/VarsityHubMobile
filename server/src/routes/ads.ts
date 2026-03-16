@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, type Response } from 'express';
 import { getZipCoordinates, haversineDistance } from '../lib/geoUtils.js';
 import { geocodeLocation } from '../lib/geocoding.js';
 import { prisma } from '../lib/prisma.js';
@@ -91,6 +91,84 @@ adsRouter.post('/', requireVerified as any, adCreationLimiter, async (req: Authe
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+// Submit ad for approval — handler exported for app-level registration (guarantees route is hit)
+export async function handleAdSubmitForApproval(req: AuthedRequest, res: Response) {
+  try {
+    const id = String(req.params.id).trim();
+    if (!id || id.length < 10 || !/^[a-zA-Z0-9_-]+$/.test(id)) {
+      return res.status(400).json({ error: 'Invalid ad ID' });
+    }
+    const { dates } = req.body || {};
+    if (!Array.isArray(dates) || dates.length === 0) {
+      return res.status(400).json({ error: 'dates[] is required' });
+    }
+    const isoDates = Array.from(new Set(dates.map((d: any) => String(d))));
+    const ad = await prisma.ad.findUnique({ where: { id } });
+    if (!ad) return res.status(404).json({ error: 'Ad not found' });
+    if (ad.user_id !== req.user!.id) return res.status(403).json({ error: 'Not authorized' });
+    if (ad.status !== 'draft') {
+      return res.status(400).json({ error: `Ad status is '${ad.status}'. Submit for approval only from draft.` });
+    }
+
+    const MAX_AD_SLOTS = 2;
+    if (ad.target_zip_code) {
+      const reservedAdsInZip = await prisma.ad.findMany({
+        where: {
+          target_zip_code: ad.target_zip_code,
+          payment_status: { in: ['paid', 'hold', 'pending_approval'] },
+          NOT: { id },
+        },
+        select: { id: true },
+        take: 100,
+      });
+      if (reservedAdsInZip.length > 0) {
+        const dateObjects = isoDates.map((s) => new Date(s + 'T00:00:00.000Z'));
+        const bookedSlots = await prisma.adReservation.groupBy({
+          by: ['date'],
+          where: { ad_id: { in: reservedAdsInZip.map((a) => a.id) }, date: { in: dateObjects } },
+          _count: { date: true },
+        });
+        const fullDates = bookedSlots.filter((s) => s._count.date >= MAX_AD_SLOTS);
+        if (fullDates.length > 0) {
+          return res.status(409).json({
+            error: 'One or more selected dates are fully booked',
+            dates: fullDates.map((s) => s.date.toISOString().slice(0, 10)),
+          });
+        }
+      }
+    }
+
+    await prisma.$transaction([
+      prisma.ad.update({
+        where: { id },
+        data: { status: 'pending', payment_status: 'pending_approval' },
+      }),
+      prisma.adReservation.createMany({
+        data: isoDates.map((s) => ({ ad_id: id, date: new Date(s + 'T00:00:00.000Z') })),
+        skipDuplicates: true,
+      }),
+    ]);
+
+    sendAdPendingReviewEmail({
+      to: process.env.ADMIN_EMAILS?.split(',')[0]?.trim() || 'emancero@varsityhub.app',
+      businessName: ad.business_name || undefined,
+      contactName: ad.contact_name || undefined,
+      contactEmail: ad.contact_email || undefined,
+      zipCode: ad.target_zip_code || undefined,
+      bannerUrl: ad.banner_url || undefined,
+      adId: id,
+    }).catch((err) => console.warn('[ads] submit-for-approval email failed:', (err as any)?.message || err));
+
+    const updated = await prisma.ad.findUnique({ where: { id }, include: { reservations: true } });
+    return res.status(201).json(updated);
+  } catch (err) {
+    console.error('[ads] POST /:id/submit-for-approval error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+adsRouter.post('/:id/submit-for-approval', requireVerified as any, handleAdSubmitForApproval);
 
 // List Ads. If mine=1, returns ads for the authenticated user. If contact_email is provided, returns by email.
 adsRouter.get('/', requireAuth as any, async (req: AuthedRequest, res) => {
@@ -495,81 +573,6 @@ adsRouter.get('/availability', async (req, res) => {
     });
   } catch (err) {
     console.error('[ads] GET /availability error:', err);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// Submit ad for approval (no charge). Admin must approve before user can pay.
-// Creates reservations and holds slots. No payment until emancero@varsityhub.app approves.
-// CUID format: 25 chars, [a-z0-9]. Broader regex for compatibility with Prisma cuid/cuid2.
-adsRouter.post('/:id([a-z0-9]{15,50})/submit-for-approval', requireVerified as any, async (req: AuthedRequest, res) => {
-  try {
-    const id = String(req.params.id);
-    const { dates } = req.body || {};
-    if (!Array.isArray(dates) || dates.length === 0) {
-      return res.status(400).json({ error: 'dates[] is required' });
-    }
-    const isoDates = Array.from(new Set(dates.map((d: any) => String(d))));
-    const ad = await prisma.ad.findUnique({ where: { id } });
-    if (!ad) return res.status(404).json({ error: 'Ad not found' });
-    if (ad.user_id !== req.user!.id) return res.status(403).json({ error: 'Not authorized' });
-    if (ad.status !== 'draft') {
-      return res.status(400).json({ error: `Ad status is '${ad.status}'. Submit for approval only from draft.` });
-    }
-
-    const MAX_AD_SLOTS = 2;
-    if (ad.target_zip_code) {
-      const reservedAdsInZip = await prisma.ad.findMany({
-        where: {
-          target_zip_code: ad.target_zip_code,
-          payment_status: { in: ['paid', 'hold', 'pending_approval'] },
-          NOT: { id },
-        },
-        select: { id: true },
-        take: 100,
-      });
-      if (reservedAdsInZip.length > 0) {
-        const dateObjects = isoDates.map((s) => new Date(s + 'T00:00:00.000Z'));
-        const bookedSlots = await prisma.adReservation.groupBy({
-          by: ['date'],
-          where: { ad_id: { in: reservedAdsInZip.map((a) => a.id) }, date: { in: dateObjects } },
-          _count: { date: true },
-        });
-        const fullDates = bookedSlots.filter((s) => s._count.date >= MAX_AD_SLOTS);
-        if (fullDates.length > 0) {
-          return res.status(409).json({
-            error: 'One or more selected dates are fully booked',
-            dates: fullDates.map((s) => s.date.toISOString().slice(0, 10)),
-          });
-        }
-      }
-    }
-
-    await prisma.$transaction([
-      prisma.ad.update({
-        where: { id },
-        data: { status: 'pending', payment_status: 'pending_approval' },
-      }),
-      prisma.adReservation.createMany({
-        data: isoDates.map((s) => ({ ad_id: id, date: new Date(s + 'T00:00:00.000Z') })),
-        skipDuplicates: true,
-      }),
-    ]);
-
-    sendAdPendingReviewEmail({
-      to: process.env.ADMIN_EMAILS?.split(',')[0]?.trim() || 'emancero@varsityhub.app',
-      businessName: ad.business_name || undefined,
-      contactName: ad.contact_name || undefined,
-      contactEmail: ad.contact_email || undefined,
-      zipCode: ad.target_zip_code || undefined,
-      bannerUrl: ad.banner_url || undefined,
-      adId: id,
-    }).catch((err) => console.warn('[ads] submit-for-approval email failed:', (err as any)?.message || err));
-
-    const updated = await prisma.ad.findUnique({ where: { id }, include: { reservations: true } });
-    return res.status(201).json(updated);
-  } catch (err) {
-    console.error('[ads] POST /:id/submit-for-approval error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });

@@ -119,6 +119,8 @@ export default function LocationPicker({
             borderRadius: 12,
             marginTop: 4,
             maxHeight: 200,
+            zIndex: 1000,
+            elevation: 10,
           },
           row: {
             backgroundColor: theme.surface,

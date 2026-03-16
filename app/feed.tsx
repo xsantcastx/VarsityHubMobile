@@ -744,7 +744,9 @@ export default function FeedScreen() {
               <View>
                 <MaterialIcons name="chat-bubble-outline" size={24} color={Colors[colorScheme].text} />
                 {unreadMessagesCount > 0 ? (
-                  <View style={[styles.alertDot, { right: -4, top: -2 }]} />
+                  <View style={[styles.unreadBadge, { position: 'absolute', right: -6, top: -4 }]}>
+                    <Text style={styles.unreadBadgeText}>{unreadMessagesCount > 99 ? '99+' : String(unreadMessagesCount)}</Text>
+                  </View>
                 ) : null}
               </View>
             </Pressable>

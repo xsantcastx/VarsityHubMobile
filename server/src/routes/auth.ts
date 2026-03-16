@@ -1,6 +1,6 @@
 import bcrypt from 'bcrypt';
 import crypto, { createPublicKey, type KeyObject } from 'crypto';
-import { Router } from 'express';
+import { Router, type Response } from 'express';
 import jwt, { type JwtPayload } from 'jsonwebtoken';
 import { z } from 'zod';
 import { sendPasswordChangedEmail, sendPasswordResetEmail, sendVerificationEmail, sendWelcomeEmail } from '../lib/email.js';
@@ -972,7 +972,8 @@ function collectRestrictedPreferenceKeys(input: any, path = 'preferences'): stri
   return found;
 }
 
-authRouter.put('/me', requireAuth as any, async (req: AuthedRequest, res) => {
+// Shared handler for PUT/PATCH /me — consolidates logic to avoid drift (H1)
+async function handleUpdateMe(req: AuthedRequest, res: Response) {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const parsed = updateMeSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -983,73 +984,7 @@ authRouter.put('/me', requireAuth as any, async (req: AuthedRequest, res) => {
   }
   const data = parsed.data as any;
   let patch: any = { ...data };
-  
-  // Validate username availability if provided
-  if (data.username) {
-    const exists = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { username: { equals: data.username, mode: 'insensitive' } },
-          { display_name: { equals: data.username, mode: 'insensitive' } }
-        ],
-        NOT: { id: req.user.id }
-      },
-      select: { id: true }
-    });
-    if (exists) {
-      return res.status(400).json({ 
-        error: 'Username taken',
-        message: 'This username is already in use.',
-      });
-    }
-    patch.username = data.username;
-  }
-  if (data.bio != null && data.bio !== '') {
-    const filterResult = validateContent({ content: data.bio });
-    if (!filterResult.valid) {
-      return res.status(400).json({ error: filterResult.error, code: filterResult.code });
-    }
-  }
-  
-  if (data.preferences) {
-    const restrictedKeys = collectRestrictedPreferenceKeys(data.preferences);
-    if (restrictedKeys.length > 0) {
-      return res.status(400).json({
-        error: 'Restricted preference keys',
-        message: 'Use dedicated onboarding/billing endpoints for role and payment state updates.',
-        keys: restrictedKeys,
-      });
-    }
-    // COPPA: Reject if DOB in preferences indicates under 13
-    const dobToCheck = data.preferences?.dob;
-    if (dobToCheck !== undefined && isUnder13(dobToCheck)) {
-      return res.status(403).json({
-        error: 'COPPA_UNDER_13',
-        message: 'VarsityHub is not available for users under 13. Please have a parent or guardian contact support@varsityhub.app.',
-      });
-    }
-    const current = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true } });
-    const mergedPrefs = mergePreferences(current?.preferences || {}, data.preferences);
-    patch.preferences = mergedPrefs;
-  }
-  const { preferences, ...rest } = patch;
-  const user = await prisma.user.update({ where: { id: req.user.id }, data: { ...rest, ...(preferences ? { preferences } : {}) } });
-  return res.json(sanitizeUser(user));
-});
 
-// PATCH /me (alias) to support partial updates including preferences
-authRouter.patch('/me', requireAuth as any, async (req: AuthedRequest, res) => {
-  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  const parsed = updateMeSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({
-      error: 'Invalid payload',
-      issues: parsed.error.issues.map((i) => ({ path: i.path, message: i.message })),
-    });
-  }
-  const data = parsed.data as any;
-  let patch: any = { ...data };
-  
   // Validate username availability if provided
   if (data.username) {
     const exists = await prisma.user.findFirst({
@@ -1063,7 +998,7 @@ authRouter.patch('/me', requireAuth as any, async (req: AuthedRequest, res) => {
       select: { id: true }
     });
     if (exists) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Username taken',
         message: 'This username is already in use.',
       });
@@ -1076,7 +1011,7 @@ authRouter.patch('/me', requireAuth as any, async (req: AuthedRequest, res) => {
       return res.status(400).json({ error: filterResult.error, code: filterResult.code });
     }
   }
-  
+
   if (data.preferences) {
     const restrictedKeys = collectRestrictedPreferenceKeys(data.preferences);
     if (restrictedKeys.length > 0) {
@@ -1101,7 +1036,10 @@ authRouter.patch('/me', requireAuth as any, async (req: AuthedRequest, res) => {
   const { preferences, ...rest } = patch;
   const user = await prisma.user.update({ where: { id: req.user.id }, data: { ...rest, ...(preferences ? { preferences } : {}) } });
   return res.json(sanitizeUser(user));
-});
+}
+
+authRouter.put('/me', requireAuth as any, handleUpdateMe);
+authRouter.patch('/me', requireAuth as any, handleUpdateMe);
 
 // Fields that must never be deleted by a null merge — they are identity/billing critical.
 const PROTECTED_PREF_KEYS = new Set(['role', 'plan', 'onboarding_completed']);

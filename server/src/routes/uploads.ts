@@ -17,7 +17,7 @@ const debugLog = (...args: Parameters<typeof console.log>) => {
 
 // Force Cloudinary in production, otherwise uploads will be lost on deploy
 if (process.env.NODE_ENV === 'production' && !isCloudinaryConfigured()) {
-  const errorMessage = 'CRITICAL: Cloudinary is not configured for production. File uploads will fail. Set CLOUDINARY_URL environment variable.';
+  const errorMessage = 'CRITICAL: Cloudinary is not configured for production. File uploads will fail. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET in Railway.';
   console.error(errorMessage);
   throw new Error(errorMessage);
 }
@@ -53,13 +53,25 @@ const diskStorage = multer.diskStorage({
 // Choose storage based on configuration. In production, we MUST use memoryStorage for Cloudinary.
 const storage = useCloudinary ? multer.memoryStorage() : diskStorage;
 
+// Image/video whitelist — block SVG (image/svg+xml) to prevent XSS; require extension cross-check (M7)
+// Include HEIC/HEIF — iPhone default format; create-post.tsx explicitly supports it
+const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic', '.heif']);
+const IMAGE_MIMETYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif']);
+const VIDEO_EXTENSIONS = new Set(['.mp4', '.mov']);
+const VIDEO_MIMETYPES = new Set(['video/mp4', 'video/quicktime']);
+
 const upload = multer({
   storage,
   limits: { fileSize: 100 * 1024 * 1024 }, // 100MB limit for videos/images
   fileFilter: (_req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
-    const ok = file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/');
-    if (!ok) return cb(new Error('Only image or video files are allowed'));
-    cb(null, true);
+    const ext = (file.originalname.match(/\.[^.]+$/) || [''])[0].toLowerCase();
+    if (IMAGE_MIMETYPES.has(file.mimetype) && IMAGE_EXTENSIONS.has(ext)) {
+      return cb(null, true);
+    }
+    if (VIDEO_MIMETYPES.has(file.mimetype) && VIDEO_EXTENSIONS.has(ext)) {
+      return cb(null, true);
+    }
+    return cb(new Error('Only image (jpg, png, gif, webp, heic) or video (mp4, mov) files are allowed'));
   },
 });
 
@@ -280,6 +292,43 @@ uploadsRouter.post('/files', requireAuth as any, uploadLimiter as any, fileUploa
   } catch (error) {
     captureException(error as Error, { context: 'file_upload_error', path: req.path });
     next(error);
+  }
+});
+
+// Avatar upload endpoint (images only, 5MB limit, stricter rate limiting)
+const avatarMemory = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+
+const AVATAR_DIR = path.resolve(process.cwd(), 'uploads', 'avatars');
+if (!fs.existsSync(AVATAR_DIR)) fs.mkdirSync(AVATAR_DIR, { recursive: true });
+
+uploadsRouter.post('/avatar', requireAuth as any, uploadLimiter as any, avatarMemory.single('file'), async (req: MulterRequest, res) => {
+  if (!(req as any).user) return res.status(401).json({ error: 'Unauthorized' });
+  if (!req.file) return res.status(400).json({ error: 'Missing file' });
+
+  const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
+  if (!allowedMimes.includes(req.file.mimetype)) {
+    return res.status(400).json({ error: 'Invalid file type. Only images are allowed.' });
+  }
+
+  try {
+    if (useCloudinary) {
+      const cloudResult = await uploadBufferToCloudinary(req.file, { resourceType: 'image' });
+      const url = cloudResult.secure_url || cloudResult.url || '';
+      res.set('Cache-Control', 'no-store, private');
+      return res.json({ url });
+    }
+    // Local disk fallback
+    const ext = req.file.mimetype === 'image/png' ? '.png' : '.jpg';
+    const name = `${(req as any).user.id}_${Date.now()}${ext}`;
+    const full = path.join(AVATAR_DIR, name);
+    await fs.promises.writeFile(full, req.file.buffer);
+    const base = `${req.protocol}://${req.get('host')}`;
+    const url = `${base}/uploads/avatars/${name}`;
+    res.set('Cache-Control', 'no-store, private');
+    return res.json({ url });
+  } catch (e: any) {
+    console.error('[uploads] POST /avatar error:', e);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 

@@ -84,7 +84,7 @@ This audit maps major systems (Auth, Payments, Teams/Orgs, Ads, Uploads), identi
 
 **Evidence:** `Advertisement.reserve()` exists in `api/entities.ts` but is never called in the codebase. The ad-calendar uses `create-payment-sheet` → payment → webhook.
 
-**Fix:** Endpoint now returns 403 (not 410 — test-email-queue.sh and potential repurposing). Reservations must go through payment checkout.
+**Fix:** Endpoint returns **403 Forbidden** (not 410 Gone). Rationale: 410 signals "gone permanently" and clients may cache it; 403 allows future repurposing. test-email-queue.sh previously used this endpoint. Code: `ads.ts` line 581.
 
 **Severity:** CRITICAL — FIXED
 
@@ -113,9 +113,9 @@ This audit maps major systems (Auth, Payments, Teams/Orgs, Ads, Uploads), identi
 
 **Issue:** Both handlers share identical logic; maintenance burden and risk of drift.
 
-**Fix:** Consolidate into a single handler; use `router.put('/me', handler)` and `router.patch('/me', handler)` pointing to the same function.
+**Fix:** Consolidate into a single handler; use `router.put('/me', handler)` and `router.patch('/me', handler)` pointing to the same function. — FIXED
 
-**Severity:** HIGH (architectural)
+**Severity:** HIGH — FIXED
 
 ---
 
@@ -125,9 +125,9 @@ This audit maps major systems (Auth, Payments, Teams/Orgs, Ads, Uploads), identi
 
 **Issue:** `POST /finalize-session` is a fallback when webhooks are unavailable. Client can call it with a session_id. The handler validates `session.metadata.user_id === req.user.id` and `payment_status === 'paid'`. Idempotency exists in `finalizeFromSession` via `processedStripeEvent`. However, a client could call it before the webhook, causing double-processing risk if both run concurrently. The `transactionLog?.status === 'COMPLETED'` check mitigates this.
 
-**Status:** Mitigated by idempotency in `finalizeFromSession`. Consider adding a short lock or unique constraint to prevent concurrent finalization.
+**Status:** FIXED. Added per-session lock (`finalizeSessionLocks`) to prevent concurrent finalization by client and webhook.
 
-**Severity:** HIGH (mitigated)
+**Severity:** HIGH — FIXED
 
 ---
 
@@ -137,9 +137,9 @@ This audit maps major systems (Auth, Payments, Teams/Orgs, Ads, Uploads), identi
 
 **Issue:** Org schemas use `zip_code: z.string().max(10)` — no format validation. Ads use `target_zip_code: z.string().regex(/^\d{5}$/)` — strict 5-digit US zip. Inconsistent validation across systems.
 
-**Fix:** Align org zip_code to `regex(/^\d{5}$/)` if US-only, or document why org allows broader format.
+**Fix:** Align org zip_code to `regex(/^\d{5}$/)` if US-only, or document why org allows broader format. — FIXED
 
-**Severity:** HIGH (data integrity)
+**Severity:** HIGH — FIXED
 
 ---
 
@@ -211,7 +211,7 @@ This audit maps major systems (Auth, Payments, Teams/Orgs, Ads, Uploads), identi
 
 **Issue:** Backend: `z.string().min(8)`. Frontend may not enforce 8 chars before submit. User gets 400 after submit.
 
-**Fix:** Add `minLength={8}` and validation message on sign-up password field.
+**Fix:** Add validation message on sign-up password field. — FIXED (hint + validatePassword on submit)
 
 **Severity:** MEDIUM
 
@@ -223,7 +223,7 @@ This audit maps major systems (Auth, Payments, Teams/Orgs, Ads, Uploads), identi
 
 **Issue:** Backend: `regex(/^[a-z0-9_.]+$/)`. Frontend may not enforce; user gets 400 after submit.
 
-**Fix:** Add client-side regex validation and error message.
+**Fix:** Add client-side regex validation and error message. — FIXED (edit-username.tsx has regex + Alert)
 
 **Severity:** MEDIUM
 
@@ -283,21 +283,22 @@ This audit maps major systems (Auth, Payments, Teams/Orgs, Ads, Uploads), identi
 
 ### Completed
 
-1. **C1:** `POST /ads/reservations` now returns 403 with clear message. Reservations via checkout only. (410 avoided — test-email-queue.sh and repurposing.)
+1. **C1:** `POST /ads/reservations` returns 403 Forbidden (not 410). Reservations via checkout only. Code and doc aligned.
 2. **C2:** Resolved by design. Org create during onboarding is intentional; invite/team create require onboarded.
 3. **H4:** Added `requireVerified` to team invite.
 
 ### Short-Term (HIGH)
 
-3. **H1:** Consolidate PUT/PATCH /me into single handler.
-4. **H3:** Align org zip_code validation with ads (or document).
-5. **H4:** Add `requireVerified` to team invite.
+3. **H1:** Consolidate PUT/PATCH /me into single handler. — FIXED
+4. **H2:** Add lock for finalize-session race. — FIXED
+5. **H3:** Align org zip_code validation with ads (or document). — FIXED
+6. **H4:** Add `requireVerified` to team invite. — FIXED
 
 ### Medium-Term (MEDIUM)
 
-6. **M2:** Add submitting guard to request-join-organization.
+6. **M2:** Add submitting guard to request-join-organization. — Already has `canSubmit = selectedOrg && !submitting`
 7. **M3:** Migrate avatar upload to Cloudinary.
-8. **M5, M6:** Add frontend validation for password min length and username regex.
+8. **M5, M6:** Add frontend validation for password min length and username regex. — FIXED
 
 ### Long-Term
 
@@ -307,7 +308,69 @@ This audit maps major systems (Auth, Payments, Teams/Orgs, Ads, Uploads), identi
 
 ---
 
-## 5. Related Documents
+## 5. Pre-Launch Security Checklist
+
+### Snyk Findings (organizations.ts, uploads.ts)
+
+Before launch, assign tickets and verify reachability:
+
+| Finding | Severity | Location | Action |
+|---------|----------|----------|--------|
+| FormatString (CWE-134) | Medium | organizations.ts ~524, ~623 | Confirm no unauthenticated/low-privilege path reaches affected code |
+| XSS (CWE-79) | High | organizations.ts ~1352, ~1421 | Verify file serving path; sanitize or restrict user input |
+| Improper Type Validation | Low | organizations.ts ~779 | Add explicit type checks |
+| Insecure Hash (CWE-916) | Low | uploads.ts ~123 | Review MD5/SHA1 usage; consider stronger hash if for security |
+
+**XSS in uploads** — If the finding is in a path that serves user-uploaded content to browsers, prioritize. Ensure Content-Disposition, CSP, or sanitization prevents script execution.
+
+### Critical List Status (March 2026 Audit)
+
+| ID | Item | Status |
+|----|------|--------|
+| **C1** | Ad reservations bypass (POST /ads/reservations) | **FIXED** — Returns **403** (not 410); code matches doc |
+| **C2** | Org create without requireOnboarded | **By design** — Onboarding flow; mitigated by admin_approved gate |
+| **C3** | Race conditions (team/event/invite limits) | See below |
+| **C4** | CUID tokens (invite/ID predictability) | **Open** — See below |
+| **C5** | Double-booking (ad slots) | **Mitigated** — Serializable transaction + slot check; H2 lock |
+
+### Race Conditions — Actual Status
+
+| Location | Issue | Status |
+|----------|-------|--------|
+| `teams.ts:471-492` | Team creation limit | **FIXED** — Atomic `$transaction` (count + create) |
+| `organizations.ts:582-594` | Org invite limit | **FIXED** — Atomic `$transaction` (count + create) |
+| `events.ts:458-476` | Event creation limit (3 pending for fans) | **FIXED** — Wrapped in `$transaction` (launch-night) |
+| `events.ts:336` | Event RSVP capacity | **FIXED** — Atomic `$transaction` |
+
+**Launch decision:** FIXED (launch-night). Event limit now uses atomic `$transaction`.
+
+### C4 — CUID Token Predictability
+
+The L1 "25 chars acceptable" addressed ad ID regex length only. **Separate concern:** CUIDs are time-based and semi-sequential. Invite tokens (`OrganizationInvite.id`, `TeamInvite.id`) are CUIDs in email links. An attacker with one valid token can narrow the search space for nearby tokens. **Action:** Documented risk for launch. Post-launch: consider signed JWT tokens for invites, or rate-limit invite acceptance by IP.
+
+### Snyk XSS — Launch Reachability Check
+
+| Finding | Location | Reachability | Action |
+|---------|----------|--------------|--------|
+| **organizations.ts** | `res.send()` with `org.name` in approve/reject HTML | **FIXED** — `org.name` escaped before HTML insert |
+| **Upload SVG** | `uploads.ts` fileFilter allowed `image/*` (incl. SVG) | **FIXED** — Whitelist: jpg/png/gif/webp + mp4/mov only; extension cross-check (M7) |
+
+**Launch-night:** Both XSS vectors fixed.
+
+---
+
+### Launch Date Pressure — Fix vs Risk Acceptance
+
+| Item | Status |
+|------|--------|
+| Event limit race | **FIXED** (launch-night) |
+| C4 CUID invites | **Accepted risk** — documented; post-launch fix |
+| Org approve/reject XSS | **FIXED** (launch-night) |
+| Upload SVG block | **FIXED** (launch-night) |
+
+---
+
+## 6. Related Documents
 
 - `docs/COMPREHENSIVE_SECURITY_ARCHITECTURE_AUDIT_2026.md` — Prior audit (Jan 2026)
 - `docs/EXTERNAL_SETUP_GUIDE.md` — External services config

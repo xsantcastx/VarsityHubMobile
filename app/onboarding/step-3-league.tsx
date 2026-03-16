@@ -41,6 +41,7 @@ export default function Step3League() {
   const [joinMessage, setJoinMessage] = useState('');
   const [selectedOrg, setSelectedOrg] = useState<any>(null);
   const [showTypePicker, setShowTypePicker] = useState(false);
+  const [showOrgDropdown, setShowOrgDropdown] = useState(false);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [selectedPlace, setSelectedPlace] = useState<PlaceSuggestion | null>(null);
   const [selectedPlaceZip, setSelectedPlaceZip] = useState<string | null>(null);
@@ -543,7 +544,7 @@ export default function Step3League() {
               value={orgName}
               onChangeText={handleOrgNameChange}
               placeholder="Westhill High School"
-              style={{ marginBottom: 12, minHeight: 52, paddingVertical: 14 }}
+              style={{ marginBottom: 12, minHeight: 64, paddingVertical: 18, fontSize: 16 }}
             />
             
             <Text style={styles.label}>Organization Type</Text>
@@ -572,6 +573,8 @@ export default function Step3League() {
                     onPress={() => {
                       setShowSearch(false);
                       clearOrganizations();
+                      setSelectedOrg(null);
+                      setShowOrgDropdown(false);
                     }}
                   >
                     <MaterialIcons name="arrow-back" size={20} color={Colors[colorScheme].tint} />
@@ -584,7 +587,7 @@ export default function Step3League() {
                       value={searchZip} 
                       onChangeText={handleSearchInput} 
                       placeholder="e.g., Westhill or 06902" 
-                      style={{ flex: 1, minHeight: 52, paddingVertical: 14 }} 
+                      style={{ flex: 1, minHeight: 56, paddingVertical: 16, fontSize: 16 }} 
                     />
                     <TouchableOpacity
                       style={styles.searchActionButton}
@@ -602,35 +605,63 @@ export default function Step3League() {
                   <ZipCodeMapPreview zipCode={searchZip} title="Search Area" subtitle="Searching for organizations near ZIP {zip}" showCircle={false} />
 
                   {nearbyOrgs.length > 0 && (
-                    <ScrollView style={styles.orgList} showsVerticalScrollIndicator={false}>
-                      <Text style={styles.resultsHeader}>
-                        {nearbyOrgs.length} organization{nearbyOrgs.length !== 1 ? 's' : ''} found
-                      </Text>
-                      {nearbyOrgs.map((org) => (
-                        <View key={org.id} style={styles.orgCard}>
-                          <View style={styles.orgCardContent}>
-                            <Text style={styles.orgCardName}>{org.name}</Text>
-                            {org.location && (
-                              <Text style={styles.orgCardLocation}>
-                                <MaterialIcons name="location-on" size={14} /> {org.location}
-                              </Text>
-                            )}
-                            {(org.org_type || org.type) && (
-                              <Text style={styles.orgCardSport}>{formatOrgType(org.org_type || org.type)}</Text>
-                            )}
-                            <Text style={styles.orgCardMeta}>
-                              {org._count.teams} team{org._count.teams !== 1 ? 's' : ''} • {org._count.memberships} member{org._count.memberships !== 1 ? 's' : ''}
-                            </Text>
-                          </View>
-                          <TouchableOpacity
-                            style={styles.joinButton}
-                            onPress={() => requestToJoin(org)}
-                          >
-                            <Text style={styles.joinButtonText}>Request to Join</Text>
-                          </TouchableOpacity>
-                        </View>
-                      ))}
-                    </ScrollView>
+                    <>
+                      <Text style={styles.label}>Select organization to join</Text>
+                      <Pressable
+                        style={[
+                          styles.selectField,
+                          { borderColor: isDark ? '#374151' : '#E2E8F0', backgroundColor: isDark ? '#1F2937' : '#F9FAFB', marginBottom: 8 }
+                        ]}
+                        onPress={() => setShowOrgDropdown((v) => !v)}
+                        accessibilityRole="button"
+                        accessibilityLabel="Select organization to join"
+                      >
+                        <Text style={styles.selectFieldText}>
+                          {selectedOrg ? selectedOrg.name : `${nearbyOrgs.length} organization${nearbyOrgs.length !== 1 ? 's' : ''} found — tap to select`}
+                        </Text>
+                        <MaterialIcons name={showOrgDropdown ? 'expand-less' : 'expand-more'} size={18} color={isDark ? '#CBD5E1' : '#475569'} />
+                      </Pressable>
+                      {showOrgDropdown && (
+                        <ScrollView style={styles.orgList} showsVerticalScrollIndicator={false}>
+                          {nearbyOrgs.map((org) => (
+                            <Pressable
+                              key={org.id}
+                              style={[styles.orgCard, selectedOrg?.id === org.id && { borderWidth: 2, borderColor: Colors[colorScheme].tint }]}
+                              onPress={() => {
+                                setSelectedOrg(org);
+                                setShowOrgDropdown(false);
+                                void requestToJoin(org);
+                              }}
+                            >
+                              <View style={styles.orgCardContent}>
+                                <Text style={styles.orgCardName}>{org.name}</Text>
+                                {org.location && (
+                                  <Text style={styles.orgCardLocation}>
+                                    <MaterialIcons name="location-on" size={14} /> {org.location}
+                                  </Text>
+                                )}
+                                {(org.org_type || org.type) && (
+                                  <Text style={styles.orgCardSport}>{formatOrgType(org.org_type || org.type)}</Text>
+                                )}
+                                <Text style={styles.orgCardMeta}>
+                                  {org._count?.teams ?? 0} team{(org._count?.teams ?? 0) !== 1 ? 's' : ''} • {org._count?.memberships ?? 0} member{(org._count?.memberships ?? 0) !== 1 ? 's' : ''}
+                                </Text>
+                              </View>
+                              <TouchableOpacity
+                                style={styles.joinButton}
+                                onPress={() => {
+                                  setSelectedOrg(org);
+                                  setShowOrgDropdown(false);
+                                  void requestToJoin(org);
+                                }}
+                              >
+                                <Text style={styles.joinButtonText}>Request to Join</Text>
+                              </TouchableOpacity>
+                            </Pressable>
+                          ))}
+                        </ScrollView>
+                      )}
+                    </>
                   )}
                 </View>
               </>
@@ -656,7 +687,7 @@ export default function Step3League() {
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 }}>
                   <TouchableOpacity
                     style={styles.duplicateJoinButton}
-                    onPress={() => requestToJoin(duplicateOrg)}
+                    onPress={() => void requestToJoin(duplicateOrg)}
                     accessibilityRole="button"
                     accessibilityLabel={`Join ${duplicateOrg.name}`}
                   >

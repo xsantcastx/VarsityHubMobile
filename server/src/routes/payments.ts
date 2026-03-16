@@ -826,11 +826,19 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
   const ad = await prisma.ad.findUnique({ where: { id: String(ad_id) } });
   if (!ad) return res.status(404).json({ error: 'Ad not found' });
 
-  // Slot availability check — include 'hold' ads to prevent race conditions
+  // No charge until approved by emancero@varsityhub.app. Once approved, no re-approval needed for future runs.
+  if (ad.status !== 'approved' && ad.status !== 'active') {
+    return res.status(403).json({
+      error: 'APPROVAL_REQUIRED',
+      message: 'Your ad must be approved before payment. An admin will review it and notify you when you can pay.',
+    });
+  }
+
+  // Slot availability check — include 'hold' and 'pending_approval' ads
   const MAX_AD_SLOTS = 2;
   if (ad.target_zip_code) {
     const reservedAdsInZip = await prisma.ad.findMany({
-      where: { target_zip_code: ad.target_zip_code, payment_status: { in: ['paid', 'hold'] }, NOT: { id: String(ad_id) } },
+      where: { target_zip_code: ad.target_zip_code, payment_status: { in: ['paid', 'hold', 'pending_approval'] }, NOT: { id: String(ad_id) } },
       select: { id: true },
       take: 100,
     });
@@ -866,13 +874,13 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
   const total = Math.max(0, subtotal - discount + taxCents);
   const isFullyComped = discount >= subtotal;
   if (total === 0 || isFullyComped) {
-    // Free via promo — same logic as /checkout free path
+    // Free via promo — only if already approved (approval required before any charge/activation)
     if (appliedCode) {
       await redeemPromo({ code: appliedCode, subtotalCents: subtotal, userId, service: 'booking', orderId: `FREE-${crypto.randomUUID()}` });
     }
     try {
       await prisma.$transaction([
-        prisma.ad.update({ where: { id: String(ad_id) }, data: { payment_status: 'paid', status: 'pending' } }),
+        prisma.ad.update({ where: { id: String(ad_id) }, data: { payment_status: 'paid', status: 'active' } }),
         prisma.adReservation.createMany({ data: isoDates.map((s) => ({ ad_id: String(ad_id), date: new Date(s + 'T00:00:00.000Z') })), skipDuplicates: true }),
       ]);
     } catch (e) {
@@ -1272,7 +1280,7 @@ paymentsRouter.post('/webhook', async (req, res) => {
             if (adRecord?.target_zip_code) {
               // Count paid and held ads (excluding this one) to check slot availability
               const reservedAdsInZip = await tx.ad.findMany({
-                where: { target_zip_code: adRecord.target_zip_code, payment_status: { in: ['paid', 'hold'] }, NOT: { id: adId } },
+                where: { target_zip_code: adRecord.target_zip_code, payment_status: { in: ['paid', 'hold', 'pending_approval'] }, NOT: { id: adId } },
                 select: { id: true },
                 take: 100,
               });
@@ -1292,7 +1300,7 @@ paymentsRouter.post('/webhook', async (req, res) => {
                 }
               }
             }
-            await tx.ad.update({ where: { id: adId }, data: { payment_status: 'paid', status: 'pending' } });
+            await tx.ad.update({ where: { id: adId }, data: { payment_status: 'paid', status: 'active' } });
             await tx.adReservation.createMany({
               data: piDates.map((s) => ({ ad_id: adId, date: new Date(s + 'T00:00:00.000Z') })),
               skipDuplicates: true,
@@ -1894,15 +1902,36 @@ paymentsRouter.post('/finalize-session', expressPkg.json(), requireVerified as a
   }
 });
 
+// Per-session lock to prevent concurrent finalization (H2 — client/webhook race).
+// In-memory Map: works for single-server deploy. If you scale horizontally (multiple Railway
+// instances), replace with a Redis-backed distributed lock to prevent races across instances.
+const finalizeSessionLocks = new Map<string, Promise<void>>();
+
 // Optional helper to finalize payment based on a Checkout Session's metadata (fallback if webhook is not configured)
 async function finalizeFromSession(session: Stripe.Checkout.Session) {
+  const sessionId = session.id;
+  const existing = finalizeSessionLocks.get(sessionId);
+  if (existing) {
+    await existing;
+    return; // Idempotent: concurrent caller already processed
+  }
+  const lockPromise = runFinalizeFromSession(session);
+  finalizeSessionLocks.set(sessionId, lockPromise);
+  try {
+    await lockPromise;
+  } finally {
+    finalizeSessionLocks.delete(sessionId);
+  }
+}
+
+async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
   debugLog('[payments] finalizeFromSession called', {
     session_id: session.id,
     payment_status: session.payment_status,
     status: session.status,
     metadata: session.metadata
   });
-  
+
   const meta = session.metadata || {};
   const transactionLog = await getTransactionBySession(session.id);
   if (transactionLog?.status === 'COMPLETED') {
@@ -1936,7 +1965,7 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
         const adRecord = await tx.ad.findUnique({ where: { id: ad_id }, select: { target_zip_code: true } });
         if (adRecord?.target_zip_code) {
           const reservedAdsInZip = await tx.ad.findMany({
-            where: { target_zip_code: adRecord.target_zip_code, payment_status: { in: ['paid', 'hold'] }, NOT: { id: ad_id } },
+            where: { target_zip_code: adRecord.target_zip_code, payment_status: { in: ['paid', 'hold', 'pending_approval'] }, NOT: { id: ad_id } },
             select: { id: true },
             take: 100,
           });
@@ -2237,6 +2266,12 @@ const APPLE_PRODUCT_TO_PLAN: Record<string, string> = {
   legend_vhub: 'legend',
 };
 
+const APPLE_AD_PRODUCTS = ['ad_weekday_vhub', 'ad_weekend_vhub'] as const;
+const AD_PRODUCT_CENTS: Record<string, number> = {
+  ad_weekday_vhub: 500,
+  ad_weekend_vhub: 800,
+};
+
 async function verifyAppleReceipt(receiptData: string, useSandbox = false): Promise<any> {
   const url = useSandbox ? APPLE_VERIFY_URL_SANDBOX : APPLE_VERIFY_URL_PRODUCTION;
   const body = JSON.stringify({
@@ -2256,6 +2291,10 @@ async function verifyAppleReceipt(receiptData: string, useSandbox = false): Prom
 // already charged the user; blocking on email verification would leave them in a broken state.
 paymentsRouter.post('/apple/verify-receipt', expressPkg.json(), requireAuth as any, async (req: AuthedRequest, res) => {
   try {
+    if (!APPLE_SHARED_SECRET) {
+      console.warn('[apple-iap] APPLE_IAP_SHARED_SECRET not configured — cannot verify receipts');
+      return res.status(503).json({ error: 'IAP verification not configured. Please contact support.' });
+    }
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'AUTH_REQUIRED' });
 
@@ -2375,6 +2414,130 @@ paymentsRouter.post('/apple/verify-receipt', expressPkg.json(), requireAuth as a
   } catch (err: any) {
     console.error('[apple-iap] verify-receipt error:', err);
     captureException(err, { tags: { context: 'apple-iap-verify' } });
+    return res.status(500).json({ error: 'Receipt verification failed' });
+  }
+});
+
+// Apple IAP ad receipt verification (consumable products: ad_weekday_vhub, ad_weekend_vhub)
+paymentsRouter.post('/apple/verify-ad-receipt', expressPkg.json(), requireAuth as any, async (req: AuthedRequest, res) => {
+  try {
+    if (!APPLE_SHARED_SECRET) {
+      return res.status(503).json({ error: 'IAP verification not configured. Please contact support.' });
+    }
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'AUTH_REQUIRED' });
+
+    const { ad_id, dates, receipts } = req.body;
+    if (!ad_id || !Array.isArray(dates) || dates.length === 0 || !Array.isArray(receipts) || receipts.length === 0) {
+      return res.status(400).json({ error: 'Missing ad_id, dates[], or receipts[]' });
+    }
+
+    const ad = await prisma.ad.findUnique({ where: { id: String(ad_id) } });
+    if (!ad) return res.status(404).json({ error: 'Ad not found' });
+    if (ad.user_id !== userId) return res.status(403).json({ error: 'Not authorized' });
+    if (ad.status !== 'approved' && ad.status !== 'active') {
+      return res.status(403).json({ error: 'Ad must be approved before payment' });
+    }
+
+    const expectedPricing = calculateAdPriceCents(dates);
+    let verifiedCents = 0;
+    const orderIds: string[] = [];
+
+    for (const r of receipts) {
+      const { receipt, productId, quantity } = r;
+      if (!receipt || !productId || !APPLE_AD_PRODUCTS.includes(productId)) {
+        return res.status(400).json({ error: `Invalid receipt: unknown product ${productId}` });
+      }
+      const unitCents = AD_PRODUCT_CENTS[productId];
+      if (!unitCents) return res.status(400).json({ error: `Unknown ad product: ${productId}` });
+
+      let result = await verifyAppleReceipt(receipt, false);
+      if (result.status === 21007) result = await verifyAppleReceipt(receipt, true);
+      if (result.status !== 0) {
+        return res.status(400).json({ error: 'Receipt verification failed', appleStatus: result.status });
+      }
+
+      const inApp = result.receipt?.in_app || [];
+      const matching = inApp.filter((t: any) => t.product_id === productId);
+      const qty = matching.length || quantity || 1;
+      verifiedCents += unitCents * qty;
+
+      const txId = matching[0]?.transaction_id || matching[0]?.original_transaction_id;
+      if (txId) orderIds.push(String(txId));
+    }
+
+    if (verifiedCents < expectedPricing.totalCents) {
+      return res.status(400).json({ error: 'Receipt total does not match expected amount' });
+    }
+
+    const orderId = orderIds.join('_') || `ad_iap_${ad_id}_${Date.now()}`;
+    const existing = await prisma.transactionLog.findFirst({
+      where: { order_id: orderId, transaction_type: 'AD_PURCHASE', status: 'COMPLETED' } as any,
+    });
+    if (existing) {
+      return res.json({ ok: true, idempotent: true });
+    }
+
+    const MAX_AD_SLOTS = 2;
+    if (ad.target_zip_code) {
+      const reservedAdsInZip = await prisma.ad.findMany({
+        where: {
+          target_zip_code: ad.target_zip_code,
+          payment_status: { in: ['paid', 'hold', 'pending_approval'] },
+          NOT: { id: String(ad_id) },
+        },
+        select: { id: true },
+        take: 100,
+      });
+      if (reservedAdsInZip.length > 0) {
+        const dateObjects = dates.map((s: string) => new Date(s + 'T00:00:00.000Z'));
+        const bookedSlots = await prisma.adReservation.groupBy({
+          by: ['date'],
+          where: { ad_id: { in: reservedAdsInZip.map((a) => a.id) }, date: { in: dateObjects } },
+          _count: { date: true },
+        });
+        const fullDates = bookedSlots.filter((s) => s._count.date >= MAX_AD_SLOTS);
+        if (fullDates.length > 0) {
+          return res.status(409).json({ error: 'One or more dates are fully booked', dates: fullDates.map((s) => s.date.toISOString().slice(0, 10)) });
+        }
+      }
+    }
+
+    await prisma.$transaction([
+      prisma.ad.update({
+        where: { id: String(ad_id) },
+        data: { payment_status: 'paid', status: 'active' },
+      }),
+      prisma.adReservation.createMany({
+        data: dates.map((s: string) => ({ ad_id: String(ad_id), date: new Date(s + 'T00:00:00.000Z') })),
+        skipDuplicates: true,
+      }),
+      prisma.transactionLog.create({
+        data: {
+          transaction_type: 'AD_PURCHASE',
+          status: 'COMPLETED',
+          user_id: userId,
+          order_id: orderId,
+          metadata: { source: 'apple_iap', ad_id: String(ad_id), dates, receipts_count: receipts.length },
+        } as any,
+      }),
+    ]);
+
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
+    sendAdPaymentEmail({
+      userId,
+      adId: String(ad_id),
+      dates,
+      totalCents: verifiedCents,
+      businessName: ad.business_name,
+      zipCode: ad.target_zip_code,
+    }).catch((err) => console.warn('[payments] ad IAP confirmation email failed:', (err as any)?.message || err));
+
+    debugLog('apple-iap-ad', `User ${userId} paid for ad ${ad_id} via Apple IAP`);
+    return res.json({ ok: true });
+  } catch (err: any) {
+    console.error('[apple-iap] verify-ad-receipt error:', err);
+    captureException(err, { tags: { context: 'apple-iap-verify-ad' } });
     return res.status(500).json({ error: 'Receipt verification failed' });
   }
 });
