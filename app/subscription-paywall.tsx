@@ -65,7 +65,7 @@ export default function SubscriptionPaywallScreen() {
   }, []);
   const { checkAuth } = useAuth();
   const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
-  const { connected: iapConnected, purchasing: iapPurchasing, purchase: iapPurchase, getProduct, error: iapError } = useVHubIAP();
+  const { connected: iapConnected, purchasing: iapPurchasing, purchase: iapPurchase, restore: iapRestore, getProduct, error: iapError } = useVHubIAP();
   const [modal, setModal] = useState<{
     visible: boolean;
     title: string;
@@ -145,7 +145,7 @@ export default function SubscriptionPaywallScreen() {
         promo_code: promoCode.trim() || undefined
       });
 
-      if (data?.paymentIntent) {
+      if (data?.paymentIntent && typeof data.paymentIntent === 'string') {
         const { error: initError } = await initPaymentSheet({
           paymentIntentClientSecret: data.paymentIntent,
           customerEphemeralKeySecret: data.ephemeralKey,
@@ -449,6 +449,35 @@ export default function SubscriptionPaywallScreen() {
               Payment will be charged to your Google Play account. Subscription automatically renews unless canceled at least 24 hours before the end of the current period. Manage subscriptions in Google Play.
             </Text>
           )}
+
+          {/* Restore Purchases — required by Apple for IAP apps */}
+          {(isIOS || Platform.OS === 'android') && selectedTier !== 'rookie' && (
+            <Pressable
+              style={[styles.restoreButton, { marginTop: 16 }]}
+              onPress={async () => {
+                if (isProcessing) return;
+                setLoading(true);
+                try {
+                  const hadPurchases = await iapRestore();
+                  checkAuth().catch(() => {});
+                  if (hadPurchases) {
+                    Alert.alert('Restore Complete', 'Your subscription has been restored.', [
+                      { text: 'OK', onPress: () => { if (router.canGoBack()) router.back(); else router.push('/(tabs)' as any); } },
+                    ]);
+                  } else {
+                    Alert.alert('No Purchases Found', 'No previous subscription was found for this account.');
+                  }
+                } catch {
+                  Alert.alert('Restore Failed', 'Unable to restore purchases. Please try again.');
+                } finally {
+                  setLoading(false);
+                }
+              }}
+              disabled={isProcessing}
+            >
+              <Text style={[styles.restoreButtonText, { color: Colors[colorScheme].tint }]}>Restore Purchases</Text>
+            </Pressable>
+          )}
         </View>
       </ScrollView>
 
@@ -675,5 +704,14 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 12,
     textAlign: 'center',
+  },
+  restoreButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    alignSelf: 'center',
+  },
+  restoreButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
   },
 });

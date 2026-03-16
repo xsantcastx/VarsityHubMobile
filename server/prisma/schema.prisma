@@ -489,6 +489,7 @@ model Ad {
   description     String?
   status          String   @default("draft") // draft | pending | active | rejected | archived
   payment_status  String   @default("unpaid") // unpaid | paid | refunded
+  admin_note      String?  // Note from admin when approving/rejecting
   created_at      DateTime @default(now())
 
   reservations AdReservation[]
@@ -634,6 +635,8 @@ model Team {
   sport       String?
   club_type   String   @default("sport") // "sport" or "extracurricular"
   extracurricular_category String? // theater | chess | debate | robotics | band | student_government | academic_decathlon | etc.
+  season       String?  // "Fall" | "Spring" | "Winter" | "Summer"
+  primary_color String? // hex color for team branding
   season_start DateTime?
   season_end  DateTime?
   organization_id String?
@@ -677,6 +680,7 @@ model Organization {
   id          String   @id @default(cuid())
   name        String
   description String?
+  logo_url    String?
   sport       String?
   org_type    String?  // school | club | league | other
   location    String?  // City, State format

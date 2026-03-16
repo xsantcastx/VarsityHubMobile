@@ -2394,7 +2394,12 @@ const renderBanner = () => {
                              <Pressable
                                key={post.id || index}
                                style={[styles.masonryItem, { height: itemHeight }]}
-                               onPress={() => { void router.push(`/(tabs)/post-detail?id=${post.id}`); }}
+                               onPress={() => {
+                                 const allPosts = vm?.posts || [];
+                                 const postIds = allPosts.map((p: any) => String(p.id)).join(',');
+                                 const idx = allPosts.findIndex((p: any) => String(p.id) === String(post.id));
+                                 void router.push(`/(tabs)/post-detail?id=${post.id}&postIds=${encodeURIComponent(postIds)}&index=${Math.max(0, idx)}`);
+                               }}
                              >
                                {thumb ? (
                                  <View style={styles.gridImageContainer}>
@@ -2462,7 +2467,12 @@ const renderBanner = () => {
                              <Pressable
                                key={post.id || index}
                                style={[styles.masonryItem, { height: itemHeight }]}
-                               onPress={() => { void router.push(`/(tabs)/post-detail?id=${post.id}`); }}
+                               onPress={() => {
+                                 const allPosts = vm?.posts || [];
+                                 const postIds = allPosts.map((p: any) => String(p.id)).join(',');
+                                 const idx = allPosts.findIndex((p: any) => String(p.id) === String(post.id));
+                                 void router.push(`/(tabs)/post-detail?id=${post.id}&postIds=${encodeURIComponent(postIds)}&index=${Math.max(0, idx)}`);
+                               }}
                              >
                                {thumb ? (
                                  <View style={styles.gridImageContainer}>

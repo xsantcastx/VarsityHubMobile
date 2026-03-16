@@ -1,12 +1,15 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Organization } from '@/api/entities';
+import { uploadFile } from '@/api/upload';
+import { getApiBaseUrl } from '@/api/http';
 
 const ORG_TYPES = [
   { label: 'School', value: 'school' },
@@ -29,6 +32,8 @@ export default function EditOrganizationScreen() {
   const [orgType, setOrgType] = useState('');
   const [location, setLocation] = useState('');
   const [zipCode, setZipCode] = useState('');
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
 
   const loadOrg = useCallback(async () => {
     if (!params.id) return;
@@ -41,6 +46,7 @@ export default function EditOrganizationScreen() {
       setOrgType(org.org_type || '');
       setLocation(org.location || '');
       setZipCode(org.zip_code || '');
+      setLogoUrl(org.logo_url || null);
     } catch {
       Alert.alert('Error', 'Failed to load organization.');
       if (router.canGoBack()) router.back();
@@ -50,6 +56,31 @@ export default function EditOrganizationScreen() {
   }, [params.id, router]);
 
   useEffect(() => { void loadOrg(); }, [loadOrg]);
+
+  const pickLogo = async () => {
+    try {
+      const r = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'] as any,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+      if (!r.canceled && r.assets?.[0]) {
+        setUploadingLogo(true);
+        try {
+          const res = await uploadFile(getApiBaseUrl(), r.assets[0].uri, 'org-logo.jpg', 'image/jpeg');
+          const url = res?.url || res?.path;
+          if (url) setLogoUrl(url);
+        } catch (e: any) {
+          Alert.alert('Upload Failed', e?.message || 'Could not upload logo.');
+        } finally {
+          setUploadingLogo(false);
+        }
+      }
+    } catch {
+      Alert.alert('Error', 'Failed to open image picker.');
+    }
+  };
 
   const handleSave = async () => {
     if (!name.trim()) {
@@ -62,6 +93,7 @@ export default function EditOrganizationScreen() {
       await Organization.update(params.id, {
         name: name.trim(),
         description: description.trim() || null,
+        logo_url: logoUrl || null,
         sport: sport.trim() || null,
         org_type: orgType || null,
         location: location.trim() || null,
@@ -108,6 +140,31 @@ export default function EditOrganizationScreen() {
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        {/* Logo */}
+        <Text style={[styles.label, { color: theme.text }]}>Organization Logo</Text>
+        <Pressable style={[styles.logoSection, { borderColor: theme.border, backgroundColor: theme.card }]} onPress={pickLogo} disabled={uploadingLogo}>
+          {uploadingLogo ? (
+            <ActivityIndicator size="small" color={theme.tint} />
+          ) : logoUrl ? (
+            <Image source={{ uri: logoUrl }} style={styles.logoImage} />
+          ) : (
+            <View style={styles.logoPlaceholder}>
+              <Ionicons name="camera-outline" size={32} color={theme.mutedText} />
+              <Text style={[styles.logoPlaceholderText, { color: theme.mutedText }]}>Tap to add logo</Text>
+            </View>
+          )}
+        </Pressable>
+        {logoUrl && (
+          <View style={styles.logoActions}>
+            <Pressable onPress={pickLogo} style={[styles.logoActionBtn, { backgroundColor: theme.tint }]}>
+              <Text style={{ color: '#fff', fontWeight: '600', fontSize: 14 }}>Change</Text>
+            </Pressable>
+            <Pressable onPress={() => setLogoUrl(null)} style={[styles.logoActionBtn, { backgroundColor: '#EF4444' }]}>
+              <Text style={{ color: '#fff', fontWeight: '600', fontSize: 14 }}>Remove</Text>
+            </Pressable>
+          </View>
+        )}
+
         {/* Name */}
         <Text style={[styles.label, { color: theme.text }]}>Organization Name *</Text>
         <TextInput
@@ -207,7 +264,7 @@ const styles = StyleSheet.create({
   scrollContent: { padding: 16, paddingBottom: 40 },
   label: { fontSize: 14, fontWeight: '600', marginTop: 16, marginBottom: 6 },
   input: {
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 12,
@@ -219,6 +276,39 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
+  },
+  logoSection: {
+    width: 100,
+    height: 100,
+    borderRadius: 12,
+    borderWidth: 1,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 12,
+  },
+  logoPlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  logoPlaceholderText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  logoActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+  },
+  logoActionBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 8,
   },
 });

@@ -703,6 +703,8 @@ const createTeamSchema = z.object({
   sport: z.string().max(100).optional(),
   club_type: z.enum(['sport', 'extracurricular']).optional(),
   extracurricular_category: z.string().max(100).optional(),
+  season: z.string().max(50).optional(),
+  primary_color: z.string().max(20).optional(),
   season_start: z.string().optional(),
   season_end: z.string().optional(),
   organization_id: z.string().optional(),
@@ -935,7 +937,7 @@ teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, req
         const newOrg = await prisma.organization.create({
           data: {
             name: normalizedOrgName,
-            description: data.description || undefined,
+            // Don't copy team description to org — they are separate entities
             sport: data.sport || undefined,
             org_type: 'club',
             location: data.city || data.venue_address || undefined,
@@ -1007,8 +1009,10 @@ teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, req
       }
     } catch (orgError: any) {
       console.error('[Teams] Failed to validate organization:', orgError);
+      // Surface the real error for debugging
+      const detail = orgError?.code === 'P2002' ? 'Organization membership already exists' : (orgError?.message || 'Unknown error');
       return res.status(500).json({
-        error: 'Internal server error',
+        error: `Organization validation failed: ${detail}`,
       });
     }
   }
@@ -1040,6 +1044,8 @@ teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, req
           sport: data.sport?.trim() || null,
           club_type: data.club_type || 'sport',
           extracurricular_category: data.extracurricular_category?.trim() || null,
+          season: data.season?.trim() || null,
+          primary_color: data.primary_color?.trim() || null,
           season_start: data.season_start ? new Date(data.season_start) : null,
           season_end: data.season_end ? new Date(data.season_end) : null,
           organization_id: organizationId, // Now guaranteed to exist
@@ -1142,8 +1148,10 @@ teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, req
       });
     }
 
+    // Surface the real error for debugging
+    const detail = teamError?.message || 'Unknown error';
     return res.status(500).json({
-      error: 'Internal server error',
+      error: `Team creation failed: ${detail}`,
     });
   }
 });

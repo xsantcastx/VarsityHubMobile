@@ -1340,7 +1340,7 @@ const styles = StyleSheet.create({
   teamHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 58, // 50px avatar overlap + 8px clearance
+    minHeight: 52, // 50px avatar overlap + 2px clearance
     paddingRight: 16,
   },
   teamHeaderSpacer: {
@@ -1372,9 +1372,6 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     marginBottom: 4,
     lineHeight: 20,
-    textShadowColor: 'rgba(0, 0, 0, 0.15)',
-    textShadowOffset: { width: 0, height: 0.5 },
-    textShadowRadius: 2,
   },
   metaItem: {
     flexDirection: 'row',

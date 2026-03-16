@@ -24,7 +24,7 @@ export const Advertisement = {
   get: (id: string) => httpGet('/ads/' + encodeURIComponent(id)),
   update: (id: string, data: any) => httpPut('/ads/' + encodeURIComponent(id), data),
   submitForApproval: (id: string, dates: string[]) => httpPost('/ads/' + encodeURIComponent(id) + '/submit-for-approval', { dates }),
-  review: (id: string, action: 'approve' | 'reject') => httpPost('/ads/' + encodeURIComponent(id) + '/review', { action }),
+  review: (id: string, action: 'approve' | 'reject', note?: string) => httpPost('/ads/' + encodeURIComponent(id) + '/review', { action, ...(note ? { note } : {}) }),
   delete: (id: string) => httpDelete('/ads/' + encodeURIComponent(id)),
   forFeed: (dateISO?: string, zip?: string, limit: number = 1, lat?: number, lng?: number) => {
     const q: string[] = [];

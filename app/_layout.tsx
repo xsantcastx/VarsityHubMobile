@@ -109,85 +109,78 @@ export default function RootLayout() {
     if (isExpoGo || !Notifications) return;
 
     const subscription = Notifications.addNotificationResponseReceivedListener((response: any) => {
-      const data = response.notification.request.content.data;
+      const data = response?.notification?.request?.content?.data;
 
-      if (!data || !data.type) {
+      if (!data || typeof data.type !== 'string') {
         devLog('[Notifications] Received notification with no data');
         return;
       }
 
+      const str = (v: unknown): string | null => (v != null && typeof v === 'string' ? v : null);
+
       devLog('[Notifications] User tapped notification:', data.type);
 
-      // Navigate based on notification type.
-      // Use /(tabs)/ prefix so the tab bar stays visible.
       try {
         switch (data.type) {
-          case 'new_message':
-            if (data.conversation_id) {
-              devLog('[Notifications] Navigating to message thread:', data.conversation_id);
-              router.push(`/(tabs)/message-thread?conversation_id=${data.conversation_id}` as any);
-            } else if (data.sender_id) {
-              devLog('[Notifications] Navigating to message thread with sender:', data.sender_id);
-              router.push(`/(tabs)/message-thread?with=${data.sender_id}` as any);
+          case 'new_message': {
+            const convId = str(data.conversation_id);
+            const senderId = str(data.sender_id);
+            if (convId) {
+              router.push(`/(tabs)/message-thread?conversation_id=${encodeURIComponent(convId)}` as any);
+            } else if (senderId) {
+              router.push(`/(tabs)/message-thread?with=${encodeURIComponent(senderId)}` as any);
             } else {
-              devLog('[Notifications] Navigating to messages');
               router.push('/(tabs)/messages' as any);
             }
             break;
+          }
 
-          case 'post_interaction':
-            if (data.post_id) {
-              devLog('[Notifications] Navigating to post:', data.post_id);
-              router.push({
-                pathname: '/(tabs)/post-detail',
-                params: { id: data.post_id },
-              } as any);
+          case 'post_interaction': {
+            const postId = str(data.post_id);
+            if (postId) {
+              router.push({ pathname: '/(tabs)/post-detail', params: { id: postId } } as any);
             }
             break;
+          }
 
           case 'mention':
-          case 'comment_reply':
-            if (data.post_id) {
-              devLog('[Notifications] Navigating to post/comment:', data.post_id, data.comment_id);
+          case 'comment_reply': {
+            const postId = str(data.post_id);
+            const commentId = str(data.comment_id);
+            if (postId) {
               router.push({
                 pathname: '/(tabs)/post-detail',
-                params: { id: data.post_id, ...(data.comment_id ? { commentId: data.comment_id } : {}) },
+                params: { id: postId, ...(commentId ? { commentId } : {}) },
               } as any);
             }
             break;
+          }
 
-          case 'new_follower':
-            if (data.follower_id) {
-              devLog('[Notifications] Navigating to profile:', data.follower_id);
-              router.push({
-                pathname: '/(tabs)/user-profile',
-                params: { userId: data.follower_id },
-              } as any);
+          case 'new_follower': {
+            const followerId = str(data.follower_id);
+            if (followerId) {
+              router.push({ pathname: '/(tabs)/user-profile', params: { userId: followerId } } as any);
             }
             break;
+          }
 
           case 'team_invite':
-            devLog('[Notifications] Navigating to team invites');
             router.push('/team-invites' as any);
             break;
 
-          case 'game_reminder':
-            if (data.event_id) {
-              devLog('[Notifications] Navigating to event:', data.event_id);
-              router.push({
-                pathname: '/(tabs)/event-detail',
-                params: { id: data.event_id },
-              } as any);
+          case 'game_reminder': {
+            const eventId = str(data.event_id);
+            if (eventId) {
+              router.push({ pathname: '/(tabs)/event-detail', params: { id: eventId } } as any);
             }
             break;
+          }
 
           case 'coach_request':
-            devLog('[Notifications] Navigating to approvals');
             router.push('/(tabs)/approvals' as any);
             break;
 
           case 'coach_approved':
-            devLog('[Notifications] Coach approved — navigating to main app');
             router.push('/(tabs)' as any);
             break;
 
@@ -195,10 +188,7 @@ export default function RootLayout() {
             devLog('[Notifications] Unknown notification type:', data.type);
         }
       } catch (error) {
-        if (__DEV__) {
-          // eslint-disable-next-line no-console
-          if (__DEV__) console.error('[Notifications] Navigation error:', error);
-        }
+        if (__DEV__) console.error('[Notifications] Navigation error:', error);
       }
     });
 

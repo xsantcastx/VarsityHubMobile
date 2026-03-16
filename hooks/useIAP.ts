@@ -14,11 +14,15 @@ import { httpPost } from '@/api/http';
 const isExpoGo = Constants.executionEnvironment === 'storeClient';
 let useRNIAP: any = () => ({});
 let getReceiptIOS: any = async () => '';
+let getAvailablePurchasesFn: any = async () => [];
+let restorePurchasesFn: any = async () => {};
 if (!isExpoGo) {
   try {
     const iap = require('react-native-iap');
     useRNIAP = iap.useIAP;
     getReceiptIOS = iap.getReceiptIOS;
+    getAvailablePurchasesFn = iap.getAvailablePurchases;
+    restorePurchasesFn = iap.restorePurchases;
   } catch {
     // react-native-iap not available
   }
@@ -29,16 +33,16 @@ type PurchaseError = any;
 const isIOS = Platform.OS === 'ios';
 const isAndroid = Platform.OS === 'android';
 
-// IAP product IDs — must match App Store Connect / Google Play Console exactly
+// IAP product IDs — must match App Store Connect / Google Play Console exactly (use lowercase)
 export const IAP_PRODUCT_IDS = {
   veteran: 'veteran_vhub',
-  legend: 'Legend_vhub',
+  legend: 'legend_vhub',
 } as const;
 
-// Keep aliases for resilience across historical casing differences.
+// Aliases for resilience across historical casing (App Store Connect may use Legend_vhub)
 const PLAN_SKUS: Record<'veteran' | 'legend', string[]> = {
   veteran: [IAP_PRODUCT_IDS.veteran],
-  legend: [IAP_PRODUCT_IDS.legend, 'legend_vhub'],
+  legend: [IAP_PRODUCT_IDS.legend, 'Legend_vhub'],
 };
 const ALL_SKUS = Array.from(new Set([...PLAN_SKUS.veteran, ...PLAN_SKUS.legend]));
 
@@ -191,6 +195,49 @@ export function useVHubIAP() {
     [subscriptions]
   );
 
+  const restore = useCallback(async (): Promise<boolean> => {
+    if (isExpoGo || (!isIOS && !isAndroid)) return false;
+    setPurchasing(true);
+    setError(null);
+    try {
+      await restorePurchasesFn();
+      const purchases = await getAvailablePurchasesFn({ onlyIncludeActiveItemsIOS: true });
+      const subs = Array.isArray(purchases) ? purchases : [];
+      const ourSubs = subs.filter((p: { productId?: string }) =>
+        PLAN_SKUS.veteran.includes(p.productId ?? '') || PLAN_SKUS.legend.includes(p.productId ?? '')
+      );
+      for (const p of ourSubs) {
+        try {
+          if (isIOS) {
+            let receipt: string | undefined;
+            try { receipt = await getReceiptIOS(); } catch { receipt = (p as any).transactionReceipt; }
+            if (receipt) {
+              await httpPost('/payments/apple/verify-receipt', { receipt, productId: p.productId });
+            }
+          } else if (isAndroid) {
+            const token = (p as any).purchaseToken;
+            if (token) {
+              await httpPost('/payments/google/verify-purchase', {
+                purchase_token: token,
+                product_id: p.productId,
+                package_name: (p as any).packageNameAndroid || 'com.varsityhub.varsityhub',
+              });
+            }
+          }
+        } catch (e) {
+          if (__DEV__) console.warn('[useVHubIAP] Restore verify failed for', p.productId, e);
+        }
+      }
+      setPurchasing(false);
+      return ourSubs.length > 0;
+    } catch (err: unknown) {
+      if (__DEV__) console.warn('[useVHubIAP] restorePurchases failed:', err);
+      setError(err instanceof Error ? err.message : 'Restore failed');
+      setPurchasing(false);
+      return false;
+    }
+  }, []);
+
   return {
     connected,
     products: subscriptions,
@@ -198,5 +245,6 @@ export function useVHubIAP() {
     error,
     purchase,
     getProduct,
+    restore,
   };
 }

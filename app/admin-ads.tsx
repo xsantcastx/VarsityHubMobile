@@ -256,14 +256,29 @@ export default function AdminAdsScreen() {
                 <>
                   <Pressable
                     style={[styles.btn, { backgroundColor: '#22c55e', flex: 1 }]}
-                    onPress={async () => {
-                      try {
-                        await AdsApi.review(item.id, 'approve');
-                        Alert.alert('Success', 'Ad approved');
-                        await load();
-                      } catch (e: any) {
-                        Alert.alert('Error', e?.message || 'Failed to approve');
-                      }
+                    onPress={() => {
+                      Alert.prompt(
+                        'Approve Ad',
+                        'Add an optional note for the advertiser:',
+                        [
+                          { text: 'Cancel', style: 'cancel' },
+                          {
+                            text: 'Approve',
+                            onPress: async (note?: string) => {
+                              try {
+                                await AdsApi.review(item.id, 'approve', note?.trim() || undefined);
+                                Alert.alert('Success', 'Ad approved');
+                                await load();
+                              } catch (e: any) {
+                                Alert.alert('Error', e?.message || 'Failed to approve');
+                              }
+                            },
+                          },
+                        ],
+                        'plain-text',
+                        '',
+                        'default'
+                      );
                     }}
                   >
                     <Ionicons name="checkmark-circle" size={16} color="#fff" />
@@ -271,14 +286,30 @@ export default function AdminAdsScreen() {
                   </Pressable>
                   <Pressable
                     style={[styles.btn, { backgroundColor: '#dc2626', flex: 1 }]}
-                    onPress={async () => {
-                      try {
-                        await AdsApi.review(item.id, 'reject');
-                        Alert.alert('Success', 'Ad rejected');
-                        await load();
-                      } catch (e: any) {
-                        Alert.alert('Error', e?.message || 'Failed to reject');
-                      }
+                    onPress={() => {
+                      Alert.prompt(
+                        'Reject Ad',
+                        'Add a reason for the advertiser (optional):',
+                        [
+                          { text: 'Cancel', style: 'cancel' },
+                          {
+                            text: 'Reject',
+                            style: 'destructive',
+                            onPress: async (note?: string) => {
+                              try {
+                                await AdsApi.review(item.id, 'reject', note?.trim() || undefined);
+                                Alert.alert('Success', 'Ad rejected');
+                                await load();
+                              } catch (e: any) {
+                                Alert.alert('Error', e?.message || 'Failed to reject');
+                              }
+                            },
+                          },
+                        ],
+                        'plain-text',
+                        '',
+                        'default'
+                      );
                     }}
                   >
                     <Ionicons name="close-circle" size={16} color="#fff" />

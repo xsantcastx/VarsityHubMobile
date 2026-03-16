@@ -441,7 +441,7 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paym
     }
     try {
       await prisma.$transaction([
-        prisma.ad.update({ where: { id: String(ad_id) }, data: { payment_status: 'paid', status: 'pending' } }),
+        prisma.ad.update({ where: { id: String(ad_id) }, data: { payment_status: 'paid', status: 'active' } }),
         prisma.adReservation.createMany({ data: isoDates.map((s) => ({ ad_id: String(ad_id), date: new Date(s + 'T00:00:00.000Z') })), skipDuplicates: true }),
       ]);
     } catch (e) {
@@ -1988,7 +1988,7 @@ async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
 
         await tx.ad.update({
           where: { id: ad_id },
-          data: { payment_status: 'paid', status: 'pending' },
+          data: { payment_status: 'paid', status: 'active' },
         });
         await tx.adReservation.createMany({
           data: dates.map((s) => ({ ad_id, date: new Date(s + 'T00:00:00.000Z') })),

@@ -107,8 +107,8 @@ export default function SignUpScreen() {
     try {
       const res: any = await attemptRegistration();
       // After successful signup, redirect to email verification screen
-      // Pass dev code if available for easier testing
-      if (res?.dev_verification_code) {
+      // Pass dev code only in __DEV__ for easier testing (never in production)
+      if (__DEV__ && res?.dev_verification_code) {
         router.replace(`/verify?devCode=${res.dev_verification_code}`);
       } else {
         router.replace('/verify');

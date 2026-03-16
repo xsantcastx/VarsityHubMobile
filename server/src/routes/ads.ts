@@ -792,8 +792,10 @@ adsRouter.post('/:id([a-z0-9]{15,50})/review', requireAdmin as any, async (req: 
     if (!ad) return res.status(404).json({ error: 'Ad not found' });
     if (ad.status !== 'pending') return res.status(400).json({ error: `Ad status is '${ad.status}', not 'pending'` });
 
+    const note = typeof req.body?.note === 'string' ? req.body.note.trim() : null;
+
     if (action === 'approve') {
-      const updated = await prisma.ad.update({ where: { id }, data: { status: 'approved' } });
+      const updated = await prisma.ad.update({ where: { id }, data: { status: 'approved', ...(note ? { admin_note: note } : {}) } });
       if (ad.contact_email) {
         sendAdApprovedEmail({ to: ad.contact_email, businessName: ad.business_name || undefined }).catch((err) =>
           console.warn('[ads] approve email failed:', (err as any)?.message || err)
@@ -803,7 +805,7 @@ adsRouter.post('/:id([a-z0-9]{15,50})/review', requireAdmin as any, async (req: 
     } else {
       await prisma.$transaction([
         prisma.adReservation.deleteMany({ where: { ad_id: id } }),
-        prisma.ad.update({ where: { id }, data: { status: 'draft', payment_status: 'unpaid' } }),
+        prisma.ad.update({ where: { id }, data: { status: 'draft', payment_status: 'unpaid', ...(note ? { admin_note: note } : {}) } }),
       ]);
       if (ad.contact_email) {
         sendAdRejectedEmail({ to: ad.contact_email, businessName: ad.business_name || undefined }).catch((err) =>

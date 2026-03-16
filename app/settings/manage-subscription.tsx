@@ -91,7 +91,7 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
   );
 
   const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
-  const { connected: iapConnected, purchase: iapPurchase, purchasing: _iapPurchasing } = useVHubIAP();
+  const { connected: iapConnected, purchase: iapPurchase, restore: iapRestore, purchasing: _iapPurchasing } = useVHubIAP();
 
   const onSubscribe = async (targetPlan: 'veteran' | 'legend') => {
     // iOS and Android: Use native IAP (Apple IAP / Google Play Billing)
@@ -132,7 +132,7 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
     setLoading(true);
     try {
       const res = await httpPost('/payments/create-payment-sheet', { plan: targetPlan }) as PaymentSheetResponse;
-      if (res?.paymentIntent) {
+      if (res?.paymentIntent && typeof res.paymentIntent === 'string') {
         const { error: initError } = await initPaymentSheet({
           paymentIntentClientSecret: res.paymentIntent,
           customerEphemeralKeySecret: res.ephemeralKey,

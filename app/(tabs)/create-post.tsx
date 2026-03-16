@@ -432,24 +432,7 @@ export default function CreatePostScreen() {
   };
 
   const pickFromLibrary = (media: 'image' | 'video') => {
-    if (contentConsent) {
-      void pickFromLibraryRaw(media);
-      return;
-    }
-    Alert.alert(
-      'Content Upload Agreement',
-      'By uploading, you confirm you personally filmed or own this content. Broadcast footage, TV clips, and copyrighted highlights are strictly prohibited. Violations may result in account suspension.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'I Agree',
-          onPress: () => {
-            setContentConsent(true);
-            void pickFromLibraryRaw(media);
-          },
-        },
-      ]
-    );
+    void pickFromLibraryRaw(media);
   };
 
   const captureWithCamera = async () => {

@@ -930,6 +930,7 @@ usersRouter.get('/:id', async (req: AuthedRequest, res) => {
       bio: true,
       created_at: true,
       preferences: true,
+      approval_status: true,
     },
   });
   if (!user) return res.status(404).json({ error: 'Not found' });
@@ -983,6 +984,7 @@ usersRouter.get('/:id', async (req: AuthedRequest, res) => {
     avatar_url: user.avatar_url,
     bio: user.bio,
     created_at: user.created_at,
+    approval_status: (user as any).approval_status || null,
     posts_count,
     followers_count,
     following_count,

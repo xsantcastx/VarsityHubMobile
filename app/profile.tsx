@@ -679,8 +679,8 @@ export default function ProfileScreen() {
   const roleRaw = typeof rawRole === 'string' ? rawRole.toLowerCase() : '';
   // Coach badge only when approved — pending coaches should not see coach badge/features
   const approvalStatus = (me as any)?.approval_status;
-  const isApprovedCoach = roleRaw === 'coach' && (approvalStatus === 'APPROVED' || approvalStatus === undefined);
-  const roleLabel = isApprovedCoach ? 'Coach / Organizer' : roleRaw === 'fan' ? 'Fan' : roleRaw === 'coach' ? null : null;
+  const isApprovedCoach = roleRaw === 'coach' && approvalStatus === 'APPROVED';
+  const roleLabel = isApprovedCoach ? 'Coach / Organizer' : roleRaw === 'fan' ? 'Fan' : roleRaw === 'player' ? 'Player' : roleRaw === 'coach' ? null : null;
   // Use ONLY username (with @) - no display_name
   const displayUsername = me?.username ? `@${me.username}` : 'User';
   
@@ -1611,14 +1611,14 @@ const styles = StyleSheet.create({
   // Profile Details Below Banner — paddingTop clears the overlapping avatar (reduced for tighter layout)
   profileDetailsContainer: {
     backgroundColor: 'transparent',
-    paddingTop: 28,
+    paddingTop: 16,
     marginBottom: 0,
     paddingBottom: 0,
     gap: 0,
   },
   profileActionRow: {
     paddingHorizontal: 16,
-    marginBottom: 2,
+    marginBottom: 0,
     alignItems: 'flex-end',
   },
   profileNameRow: {
@@ -1626,7 +1626,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     marginBottom: 0,
-    marginTop: 2,
+    marginTop: 0,
   },
   profileNameContent: {
     flexDirection: 'row',

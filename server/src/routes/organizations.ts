@@ -116,6 +116,7 @@ organizationsRouter.get('/mine', requireAuth as any, async (req: AuthedRequest, 
 const updateOrgSchema = z.object({
   name: z.string().min(1).max(200).optional(),
   description: z.string().max(2000).optional().nullable(),
+  logo_url: z.string().max(2000).optional().nullable(),
   sport: z.string().max(100).optional().nullable(),
   org_type: z.string().max(50).optional().nullable(),
   location: z.string().max(500).optional().nullable(),

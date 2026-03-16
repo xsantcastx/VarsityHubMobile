@@ -896,7 +896,7 @@ export default function CommunityDiscoverScreen() {
         <Text style={[styles.coachTitle, { color: Colors[colorScheme].text }]}>Quick Actions</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12 }}>
           {/* Role-based actions */}
-          {me?.preferences?.role === 'coach' ? (
+          {me?.preferences?.role === 'coach' && (me as any)?.approval_status === 'APPROVED' ? (
             <>
               <Pressable
                 style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30' }]}
@@ -1087,7 +1087,12 @@ export default function CommunityDiscoverScreen() {
                 </View>
                 <PostCard
                   post={p}
-                  onPress={() => void router.push(`/(tabs)/post-detail?id=${p.id}`)}
+                  onPress={() => {
+                    const posts = tab === 'following' ? followingPosts : discoverPosts;
+                    const postIds = posts.map((post: any) => String(post.id)).join(',');
+                    const index = posts.findIndex((post: any) => String(post.id) === String(p.id));
+                    void router.push(`/(tabs)/post-detail?id=${p.id}&postIds=${encodeURIComponent(postIds)}&index=${Math.max(0, index)}`);
+                  }}
                   showAuthorHeader={false}
                   onDeleted={(postId) => {
                     // Remove deleted post from both arrays

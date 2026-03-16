@@ -65,7 +65,10 @@ async function getCloudinarySignature(baseUrl: string): Promise<{
     const res = await fetch(`${baseUrl}/uploads/cloudinary-signature`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      if (__DEV__) console.warn('[upload] Cloudinary signature failed:', res.status, res.statusText);
+      return null;
+    }
     const sig = await res.json() as any;
     _sigCache = { sig, fetchedAt: Date.now() };
     return sig;
@@ -151,7 +154,11 @@ export async function uploadFile(
       return await uploadDirectToCloudinary(uri, finalFilename, finalMimeType, sig, options);
     }
   } catch (directErr: any) {
-    if (__DEV__) console.warn('[upload] Direct upload failed, falling back to server proxy:', directErr?.message);
+    if (__DEV__) {
+      console.warn('[upload] Direct upload failed, falling back to server proxy:', directErr?.message);
+      if (directErr?.status) console.warn('[upload] Error status:', directErr.status);
+      if (directErr?.response) console.warn('[upload] Response:', directErr.response);
+    }
   }
 
   // Fallback: proxy through server (works when Cloudinary signature endpoint unavailable)
@@ -181,7 +188,10 @@ export async function uploadFileWithProgress(
       return await uploadDirectToCloudinary(uri, finalFilename, finalMimeType, sig, options);
     }
   } catch (directErr: any) {
-    if (__DEV__) console.warn('[upload] Direct upload failed, falling back to server proxy:', directErr?.message);
+    if (__DEV__) {
+      console.warn('[upload] Direct upload failed (with progress), falling back to server proxy:', directErr?.message);
+      if (directErr?.status) console.warn('[upload] Error status:', directErr.status);
+    }
   }
 
   // Fallback: XHR to server

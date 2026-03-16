@@ -291,34 +291,18 @@ export default function CreateTeamScreen() {
       // Only enforce limits for coaches
       if (userRole === 'coach') {
         if (!canCreateMore) {
-          if (Platform.OS === 'ios') {
-            Alert.alert(
-              'Limit Reached',
-              "You've reached the maximum number of teams.",
-              [{ text: 'OK', onPress: () => setSubmitting(false) }]
-            );
-          } else {
-            Alert.alert(
-              'Limit Reached',
-              `Your ${userPlan === 'rookie' ? 'Rookie' : userPlan === 'veteran' ? 'Veteran' : 'current'} plan has reached its team limit. Upgrade to add more teams.`,
-              [
-                { text: 'Cancel', style: 'cancel', onPress: () => setSubmitting(false) },
-                { text: 'View Plans', onPress: () => { setSubmitting(false); router.push('/subscription-paywall'); } }
-              ]
-            );
-          }
+          Alert.alert(
+            'Upgrade Required',
+            `Your ${userPlan === 'rookie' ? 'Rookie (free)' : userPlan === 'veteran' ? 'Veteran' : 'current'} plan has reached its team limit. Upgrade to add more teams.`,
+            [
+              { text: 'Cancel', style: 'cancel', onPress: () => setSubmitting(false) },
+              { text: 'Upgrade', onPress: () => { setSubmitting(false); router.push('/subscription-paywall'); } }
+            ]
+          );
           return;
         }
 
         if (userPlan === 'rookie' && teamCount >= 2) {
-          if (Platform.OS === 'ios') {
-            Alert.alert(
-              'Limit Reached',
-              "You've reached the maximum number of teams.",
-              [{ text: 'OK', onPress: () => setSubmitting(false) }]
-            );
-            return;
-          }
           const newTeamCount = teamCount + 1;
           Alert.alert(
             'Upgrade Required',
@@ -680,25 +664,18 @@ export default function CreateTeamScreen() {
                 onPress={async () => {
                   const userPlan = (teamLimits?.subscription_tier || 'rookie').toLowerCase();
                   if (userPlan !== 'legend') {
-                    if (Platform.OS === 'ios') {
-                      Alert.alert(
-                        'Not Available',
-                        'Extracurricular clubs are not available on your current plan.'
-                      );
-                    } else {
-                      Alert.alert(
-                        'Legend Plan Required',
-                        'Extracurricular clubs (Theater, Chess, Debate, etc.) require the Legend plan ($19.99/year). Upgrade to create clubs beyond sports teams.',
-                        [
-                          { text: 'Cancel', style: 'cancel' },
-                          {
-                            text: 'View Plans',
-                            onPress: () => router.push('/subscription-paywall'),
-                            style: 'default'
-                          }
-                        ]
-                      );
-                    }
+                    Alert.alert(
+                      'Legend Plan Required',
+                      'Extracurricular clubs (Theater, Chess, Debate, etc.) require the Legend plan ($20/year). Upgrade to create clubs beyond sports teams.',
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        {
+                          text: 'Upgrade to Legend',
+                          onPress: () => router.push('/subscription-paywall'),
+                          style: 'default'
+                        }
+                      ]
+                    );
                     return;
                   }
                   setClubType('extracurricular');
