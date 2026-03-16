@@ -77,8 +77,11 @@ function ErrorBoundaryFallback({ error, onReset }: { error: Error | null; onRese
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.content}>
         <Text style={[styles.title, { color: colors.text }]}>Oops! Something went wrong</Text>
+        {__DEV__ && !!error?.message ? (
+          <Text style={[styles.debugMessage, { color: colors.mutedText }]}>{error.message}</Text>
+        ) : null}
         <Text style={[styles.message, { color: colors.mutedText }]}>
-          {error?.message || 'An unexpected error occurred'}
+          Please restart the app or try again.
         </Text>
         <TouchableOpacity 
           style={[styles.button, { backgroundColor: colors.tint }]} 
@@ -113,6 +116,12 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     textAlign: 'center',
     lineHeight: 24,
+  },
+  debugMessage: {
+    fontSize: 14,
+    marginBottom: 8,
+    textAlign: 'center',
+    lineHeight: 20,
   },
   button: {
     paddingHorizontal: 24,
