@@ -190,7 +190,9 @@ export function OBProvider({ children }: PropsWithChildren) {
         if (__DEV__) console.error('Failed to persist reducer state', e);
       });
     }
-  }, [reducerState, isLoaded]);
+    // Use specific primitives to avoid re-triggering on object reference changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reducerState.currentStepIndex, reducerState.isSaving, reducerState.initialized, isLoaded]);
 
   // Calculate next step deterministically
   const nextStep = useCallback(() => {

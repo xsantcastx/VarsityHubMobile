@@ -204,7 +204,8 @@ export function BannerUpload({
         Animated.timing(hintOpacity, { toValue: 0, duration: 250, useNativeDriver: true }),
       ]).start(() => setShowHint(false));
     }
-  }, [value, fitMode, hintOpacity]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value, fitMode]);
 
   useEffect(() => {
     return () => {

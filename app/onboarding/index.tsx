@@ -22,19 +22,19 @@ export default function OnboardingIndex() {
     }
   }, [user, isLoaded, router]);
   
-  useEffect(() => { 
+  useEffect(() => {
     // Don't navigate until AsyncStorage has loaded and user is authenticated
     if (!isLoaded || hasNavigated || !user) {
       return;
     }
-    
+
     // Use reducer-based deterministic step calculation
     const calculatedStepIndex = nextIncompleteStep(state, state?.role);
     const targetRoute = STEP_ROUTES[calculatedStepIndex] || STEP_ROUTES[0];
-    
+
     if (__DEV__) {
       // eslint-disable-next-line no-console
-      if (__DEV__) console.log('[ONBOARDING INDEX] Navigation decision:', {
+      console.log('[ONBOARDING INDEX] Navigation decision:', {
         role: state?.role,
         progress,
         calculatedStepIndex,
@@ -42,23 +42,21 @@ export default function OnboardingIndex() {
         hasStep2: !!(state?.username && state?.dob && (state?.zip || state?.zip_code)),
         hasStep3: !!state?.plan,
         hasStep4: !!(state?.team_id || state?.organization_id),
-        reducerState: {
-          currentStepIndex: reducerState.currentStepIndex,
-          isSaving: reducerState.isSaving,
-          initialized: reducerState.initialized,
-        },
       });
     }
-    
+
     // Sync progress with calculated step
     if (calculatedStepIndex !== progress) {
       setProgress(calculatedStepIndex);
       dispatch({ type: 'SET_STEP', stepIndex: calculatedStepIndex, reason: 'INDEX_ROUTER' });
     }
-    
+
     setHasNavigated(true);
     router.replace(targetRoute as any);
-  }, [hasNavigated, isLoaded, progress, router, state, user, setProgress, dispatch, reducerState, nextStep]);
+    // Only re-run when loading completes, user changes, or onboarding state changes
+    // Exclude progress/setProgress/dispatch to avoid infinite re-render loop
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasNavigated, isLoaded, state, user, router]);
   
   // Show loading indicator while waiting for state to load
   return (
