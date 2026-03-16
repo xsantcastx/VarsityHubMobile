@@ -93,7 +93,7 @@ export async function logTransaction(data: TransactionLogData) {
  * Update transaction status
  */
 export async function updateTransactionStatus(
-  stripeSessionId: string,
+  transactionReferenceId: string,
   status: TransactionStatus,
   additionalData?: Partial<TransactionLogData>
 ) {
@@ -114,8 +114,27 @@ export async function updateTransactionStatus(
       if (additionalData.metadata) updateData.metadata = JSON.parse(JSON.stringify(additionalData.metadata));
     }
     
+    // Accept session IDs, payment-intent IDs, and subscription IDs so callers
+    // can update transaction status regardless of Stripe flow type.
+    const matchingLog = await prisma.transactionLog.findFirst({
+      where: {
+        OR: [
+          { stripe_session_id: transactionReferenceId },
+          { stripe_payment_intent_id: transactionReferenceId },
+          { stripe_subscription_id: transactionReferenceId },
+        ],
+      },
+      orderBy: { created_at: 'desc' },
+      select: { id: true },
+    });
+
+    if (!matchingLog) {
+      debugLog(`[transaction-log] No transaction found for reference ${transactionReferenceId}`);
+      return null;
+    }
+
     const log = await prisma.transactionLog.update({
-      where: { stripe_session_id: stripeSessionId },
+      where: { id: matchingLog.id },
       data: updateData,
     });
     

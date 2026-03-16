@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import Stripe from 'stripe';
 import { Prisma } from '@prisma/client';
 import { debugLog } from '../lib/debugLog.js';
+import { withDistributedLock } from '../lib/distributedLock.js';
 import { sendAdPaymentConfirmedEmail, sendAdPendingReviewEmail, sendBillingNoticeEmail } from '../lib/email.js';
 import { getAllPlanDefinitions, getMaxTeamsForPlan } from '../lib/planLimits.js';
 import { prisma } from '../lib/prisma.js';
@@ -1903,25 +1904,24 @@ paymentsRouter.post('/finalize-session', expressPkg.json(), requireVerified as a
 });
 
 // Per-session lock to prevent concurrent finalization (H2 — client/webhook race).
-// In-memory Map: works for single-server deploy. If you scale horizontally (multiple Railway
-// instances), replace with a Redis-backed distributed lock to prevent races across instances.
+// Uses local promise dedupe + Redis distributed lock (when REDIS_URL is configured).
 const finalizeSessionLocks = new Map<string, Promise<void>>();
 
 // Optional helper to finalize payment based on a Checkout Session's metadata (fallback if webhook is not configured)
 async function finalizeFromSession(session: Stripe.Checkout.Session) {
-  const sessionId = session.id;
-  const existing = finalizeSessionLocks.get(sessionId);
-  if (existing) {
-    await existing;
-    return; // Idempotent: concurrent caller already processed
-  }
-  const lockPromise = runFinalizeFromSession(session);
-  finalizeSessionLocks.set(sessionId, lockPromise);
-  try {
-    await lockPromise;
-  } finally {
-    finalizeSessionLocks.delete(sessionId);
-  }
+  await withDistributedLock(
+    {
+      namespace: 'payments:finalize-session',
+      key: session.id,
+      ttlMs: 10 * 60 * 1000,
+      acquireTimeoutMs: 45 * 1000,
+      retryDelayMs: 150,
+      localLocks: finalizeSessionLocks,
+    },
+    async () => {
+      await runFinalizeFromSession(session);
+    }
+  );
 }
 
 async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
@@ -2812,3 +2812,9 @@ paymentsRouter.get('/cancel', (_req, res) => {
   </body>
 </html>`);
 });
+
+// Test-only internals for finalize-session verification.
+export const __paymentsInternal = {
+  finalizeFromSession,
+  runFinalizeFromSession,
+};
