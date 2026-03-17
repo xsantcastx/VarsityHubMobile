@@ -91,7 +91,7 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
   );
 
   const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
-  const { connected: iapConnected, purchase: iapPurchase, restore: iapRestore, purchasing: _iapPurchasing } = useVHubIAP();
+  const { connected: iapConnected, purchase: iapPurchase, restore: _iapRestore, purchasing: _iapPurchasing } = useVHubIAP();
 
   const onSubscribe = async (targetPlan: 'veteran' | 'legend') => {
     // iOS and Android: Use native IAP (Apple IAP / Google Play Billing)

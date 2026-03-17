@@ -1,0 +1,2304 @@
+{
+  "timestamp": "2026-03-17T18:24:22.078Z",
+  "summary": {
+    "total": 107,
+    "bySeverity": {
+      "CRITICAL": [
+        {
+          "severity": "CRITICAL",
+          "category": "Security - SQL Injection Risk",
+          "file": "server/src/routes/gameStories.ts",
+          "line": 105,
+          "issue": "Raw SQL query detected - potential SQL injection vulnerability",
+          "recommendation": "Use Prisma parameterized queries or validate all inputs before using raw queries",
+          "code": "        const items = await prisma.$queryRaw<Array<{"
+        },
+        {
+          "severity": "CRITICAL",
+          "category": "Security - SQL Injection Risk",
+          "file": "server/src/routes/admin.ts",
+          "line": 58,
+          "issue": "Raw SQL query detected - potential SQL injection vulnerability",
+          "recommendation": "Use Prisma parameterized queries or validate all inputs before using raw queries",
+          "code": "      prisma.$queryRaw`"
+        },
+        {
+          "severity": "CRITICAL",
+          "category": "Permissions - Missing Ownership Check",
+          "file": "server/src/routes/plays.ts",
+          "issue": "Update/delete operations may not verify ownership",
+          "recommendation": "Add ownership verification before allowing data modifications"
+        },
+        {
+          "severity": "CRITICAL",
+          "category": "Permissions - Missing Ownership Check",
+          "file": "server/src/routes/notifications.ts",
+          "issue": "Update/delete operations may not verify ownership",
+          "recommendation": "Add ownership verification before allowing data modifications"
+        },
+        {
+          "severity": "CRITICAL",
+          "category": "Permissions - Missing Ownership Check",
+          "file": "server/src/routes/highlights.ts",
+          "issue": "Update/delete operations may not verify ownership",
+          "recommendation": "Add ownership verification before allowing data modifications"
+        }
+      ],
+      "HIGH": [
+        {
+          "severity": "HIGH",
+          "category": "Security - Missing Input Validation",
+          "file": "server/src/routes/uploads.ts",
+          "issue": "Route / accepts input without Zod validation",
+          "recommendation": "Add Zod schema validation for all request inputs"
+        },
+        {
+          "severity": "HIGH",
+          "category": "Security - Missing Input Validation",
+          "file": "server/src/routes/test-notifications.ts",
+          "issue": "Route /test/push accepts input without Zod validation",
+          "recommendation": "Add Zod schema validation for all request inputs"
+        },
+        {
+          "severity": "HIGH",
+          "category": "Security - Missing Authentication",
+          "file": "server/src/routes/test-emails.ts",
+          "issue": "Route /VERIFICATION may be missing authentication middleware",
+          "recommendation": "Add requireAuth or requireVerified middleware to protect this endpoint",
+          "code": "post('/verification'"
+        },
+        {
+          "severity": "HIGH",
+          "category": "Security - Missing Input Validation",
+          "file": "server/src/routes/test-emails.ts",
+          "issue": "Route /verification accepts input without Zod validation",
+          "recommendation": "Add Zod schema validation for all request inputs"
+        },
+        {
+          "severity": "HIGH",
+          "category": "Security - Missing Input Validation",
+          "file": "server/src/routes/team-memberships.ts",
+          "issue": "Route / accepts input without Zod validation",
+          "recommendation": "Add Zod schema validation for all request inputs"
+        },
+        {
+          "severity": "HIGH",
+          "category": "Security - Missing Input Validation",
+          "file": "server/src/routes/team-invites.ts",
+          "issue": "Route / accepts input without Zod validation",
+          "recommendation": "Add Zod schema validation for all request inputs"
+        },
+        {
+          "severity": "HIGH",
+          "category": "Security - Missing Input Validation",
+          "file": "server/src/routes/notifications.ts",
+          "issue": "Route /:id/read accepts input without Zod validation",
+          "recommendation": "Add Zod schema validation for all request inputs"
+        },
+        {
+          "severity": "HIGH",
+          "category": "Security - Missing Input Validation",
+          "file": "server/src/routes/group-chats.ts",
+          "issue": "Route /:chatId/messages accepts input without Zod validation",
+          "recommendation": "Add Zod schema validation for all request inputs"
+        },
+        {
+          "severity": "HIGH",
+          "category": "Security - Missing Authentication",
+          "file": "server/src/routes/adminReports.ts",
+          "issue": "Route /:ID may be missing authentication middleware",
+          "recommendation": "Add requireAuth or requireVerified middleware to protect this endpoint",
+          "code": "patch('/:id'"
+        },
+        {
+          "severity": "HIGH",
+          "category": "Security - Missing Input Validation",
+          "file": "server/src/routes/adminReports.ts",
+          "issue": "Route /:id accepts input without Zod validation",
+          "recommendation": "Add Zod schema validation for all request inputs"
+        },
+        {
+          "severity": "HIGH",
+          "category": "Validation - Missing Email Validation",
+          "file": "server/src/routes/users.ts",
+          "issue": "Schema deleteAccountSchema has email field without proper validation",
+          "recommendation": "Add z.string().email() validation for email fields"
+        },
+        {
+          "severity": "HIGH",
+          "category": "Validation - Missing Email Validation",
+          "file": "server/src/routes/support.ts",
+          "issue": "Schema feedbackSchema has email field without proper validation",
+          "recommendation": "Add z.string().email() validation for email fields"
+        },
+        {
+          "severity": "HIGH",
+          "category": "Validation - Missing Email Validation",
+          "file": "server/src/routes/reports.ts",
+          "issue": "Schema createReportSchema has email field without proper validation",
+          "recommendation": "Add z.string().email() validation for email fields"
+        },
+        {
+          "severity": "HIGH",
+          "category": "Validation - Missing Email Validation",
+          "file": "server/src/routes/organizations.ts",
+          "issue": "Schema createJoinRequestSchema has email field without proper validation",
+          "recommendation": "Add z.string().email() validation for email fields"
+        },
+        {
+          "severity": "HIGH",
+          "category": "Validation - Missing Email Validation",
+          "file": "server/src/routes/organizations.ts",
+          "issue": "Schema denyJoinRequestSchema has email field without proper validation",
+          "recommendation": "Add z.string().email() validation for email fields"
+        },
+        {
+          "severity": "HIGH",
+          "category": "Validation - Missing Email Validation",
+          "file": "server/src/routes/events.ts",
+          "issue": "Schema rsvpSchema has email field without proper validation",
+          "recommendation": "Add z.string().email() validation for email fields"
+        },
+        {
+          "severity": "HIGH",
+          "category": "Validation - Missing Email Validation",
+          "file": "server/src/routes/events.ts",
+          "issue": "Schema createEventSchema has email field without proper validation",
+          "recommendation": "Add z.string().email() validation for email fields"
+        },
+        {
+          "severity": "HIGH",
+          "category": "Validation - Missing Email Validation",
+          "file": "server/src/routes/events.ts",
+          "issue": "Schema rejectEventSchema has email field without proper validation",
+          "recommendation": "Add z.string().email() validation for email fields"
+        },
+        {
+          "severity": "HIGH",
+          "category": "Validation - Missing Email Validation",
+          "file": "server/src/routes/events.ts",
+          "issue": "Schema updateEventSchema has email field without proper validation",
+          "recommendation": "Add z.string().email() validation for email fields"
+        },
+        {
+          "severity": "HIGH",
+          "category": "Validation - Missing Email Validation",
+          "file": "server/src/routes/auth.ts",
+          "issue": "Schema passwordChangeSchema has email field without proper validation",
+          "recommendation": "Add z.string().email() validation for email fields"
+        },
+        {
+          "severity": "HIGH",
+          "category": "Validation - Missing Email Validation",
+          "file": "server/src/routes/auth.ts",
+          "issue": "Schema updateMeSchema has email field without proper validation",
+          "recommendation": "Add z.string().email() validation for email fields"
+        },
+        {
+          "severity": "HIGH",
+          "category": "Validation - Missing Email Validation",
+          "file": "server/src/routes/auth.ts",
+          "issue": "Schema completeOnboardingSchema has email field without proper validation",
+          "recommendation": "Add z.string().email() validation for email fields"
+        }
+      ],
+      "MEDIUM": [
+        {
+          "severity": "MEDIUM",
+          "category": "Security - Potential Authorization Gap",
+          "file": "server/src/routes/tournaments.ts",
+          "issue": "User data access may not be properly authorized",
+          "recommendation": "Verify that ownership/role checks are enforced before data access"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Security - Potential Authorization Gap",
+          "file": "server/src/routes/test-notifications.ts",
+          "issue": "User data access may not be properly authorized",
+          "recommendation": "Verify that ownership/role checks are enforced before data access"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Security - Potential Authorization Gap",
+          "file": "server/src/routes/notifications.ts",
+          "issue": "User data access may not be properly authorized",
+          "recommendation": "Verify that ownership/role checks are enforced before data access"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/verify.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/verify-identity.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/team-viewer.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/subscription-paywall.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/submit-ad.web.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/submit-ad.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/role-onboarding.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/request-join-organization.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/report-abuse.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/profile.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/organization-join-requests.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/messages.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/highlights.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/edit-ad.web.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/edit-ad.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/admin-users.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/admin-user-detail.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/admin-teams.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/admin-reports.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/admin-messages.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/admin-create-event.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/ad-calendar.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/_layout.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/game-details/GameVerticalFeedScreen.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/game-details/GameDetailsScreen.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/onboarding/step-3-league.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/onboarding/step-2-basic.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/settings/request-host-event.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/settings/privacy-policy.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/settings/manage-subscription.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/settings/index.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/settings/contact.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/(tabs)/team-contacts.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/(tabs)/message-thread.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/(tabs)/event-detail.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/(tabs)/edit-team.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/(tabs)/edit-profile.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/(tabs)/edit-organization.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/(tabs)/create-team.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/(tabs)/create-post.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/(tabs)/create-fan-event.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/(tabs)/approvals.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/(tabs)/discover/mobile-community.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Missing Input Sanitization",
+          "file": "server/src/routes/teams.ts",
+          "issue": "Schema inviteSchema may not sanitize string inputs",
+          "recommendation": "Consider adding .trim() to string validations to prevent whitespace issues"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Missing Input Sanitization",
+          "file": "server/src/routes/support.ts",
+          "issue": "Schema contactSchema may not sanitize string inputs",
+          "recommendation": "Consider adding .trim() to string validations to prevent whitespace issues"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Missing Input Sanitization",
+          "file": "server/src/routes/support.ts",
+          "issue": "Schema feedbackSchema may not sanitize string inputs",
+          "recommendation": "Consider adding .trim() to string validations to prevent whitespace issues"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Missing Input Sanitization",
+          "file": "server/src/routes/reports.ts",
+          "issue": "Schema createReportSchema may not sanitize string inputs",
+          "recommendation": "Consider adding .trim() to string validations to prevent whitespace issues"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Missing Input Sanitization",
+          "file": "server/src/routes/promos.ts",
+          "issue": "Schema previewSchema may not sanitize string inputs",
+          "recommendation": "Consider adding .trim() to string validations to prevent whitespace issues"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Missing Input Sanitization",
+          "file": "server/src/routes/promos.ts",
+          "issue": "Schema redeemSchema may not sanitize string inputs",
+          "recommendation": "Consider adding .trim() to string validations to prevent whitespace issues"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Missing Input Sanitization",
+          "file": "server/src/routes/organizations.ts",
+          "issue": "Schema createJoinRequestSchema may not sanitize string inputs",
+          "recommendation": "Consider adding .trim() to string validations to prevent whitespace issues"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Missing Input Sanitization",
+          "file": "server/src/routes/organizations.ts",
+          "issue": "Schema denyJoinRequestSchema may not sanitize string inputs",
+          "recommendation": "Consider adding .trim() to string validations to prevent whitespace issues"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Missing Input Sanitization",
+          "file": "server/src/routes/messages.ts",
+          "issue": "Schema sendSchema may not sanitize string inputs",
+          "recommendation": "Consider adding .trim() to string validations to prevent whitespace issues"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Missing Input Sanitization",
+          "file": "server/src/routes/geocoding.ts",
+          "issue": "Schema geocodeSchema may not sanitize string inputs",
+          "recommendation": "Consider adding .trim() to string validations to prevent whitespace issues"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Missing Input Sanitization",
+          "file": "server/src/routes/geocoding.ts",
+          "issue": "Schema autocompleteSchema may not sanitize string inputs",
+          "recommendation": "Consider adding .trim() to string validations to prevent whitespace issues"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Missing Input Sanitization",
+          "file": "server/src/routes/gameStories.ts",
+          "issue": "Schema locationSchema may not sanitize string inputs",
+          "recommendation": "Consider adding .trim() to string validations to prevent whitespace issues"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Missing Input Sanitization",
+          "file": "server/src/routes/gameStories.ts",
+          "issue": "Schema storySchema may not sanitize string inputs",
+          "recommendation": "Consider adding .trim() to string validations to prevent whitespace issues"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Architecture - Missing Database Transactions",
+          "file": "server/src/routes/tournaments.ts",
+          "issue": "Multiple database writes without transaction - potential data inconsistency",
+          "recommendation": "Wrap multiple related database operations in a transaction"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Architecture - Missing Database Transactions",
+          "file": "server/src/routes/messages.ts",
+          "issue": "Multiple database writes without transaction - potential data inconsistency",
+          "recommendation": "Wrap multiple related database operations in a transaction"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Architecture - Missing Database Transactions",
+          "file": "server/src/routes/group-chats.ts",
+          "issue": "Multiple database writes without transaction - potential data inconsistency",
+          "recommendation": "Wrap multiple related database operations in a transaction"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Architecture - Missing Database Transactions",
+          "file": "server/src/routes/games.ts",
+          "issue": "Multiple database writes without transaction - potential data inconsistency",
+          "recommendation": "Wrap multiple related database operations in a transaction"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Architecture - Missing Database Transactions",
+          "file": "server/src/routes/gameStories.ts",
+          "issue": "Multiple database writes without transaction - potential data inconsistency",
+          "recommendation": "Wrap multiple related database operations in a transaction"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Architecture - Missing Database Transactions",
+          "file": "server/src/routes/auth.ts",
+          "issue": "Multiple database writes without transaction - potential data inconsistency",
+          "recommendation": "Wrap multiple related database operations in a transaction"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Architecture - Missing Database Transactions",
+          "file": "server/src/routes/adminReports.ts",
+          "issue": "Multiple database writes without transaction - potential data inconsistency",
+          "recommendation": "Wrap multiple related database operations in a transaction"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Permissions - Subscription Limit Not Enforced",
+          "file": "server/src/routes/payments.ts",
+          "issue": "Subscription tier limits may not be properly enforced",
+          "recommendation": "Add explicit checks to enforce subscription tier limits"
+        }
+      ],
+      "LOW": [
+        {
+          "severity": "LOW",
+          "category": "Architecture - Inconsistent Error Response Format",
+          "file": "server/src/routes/well-known.ts",
+          "issue": "Error responses may not include both error and message fields",
+          "recommendation": "Standardize error responses to include both error code and message"
+        },
+        {
+          "severity": "LOW",
+          "category": "Architecture - Inconsistent Error Response Format",
+          "file": "server/src/routes/uploads.ts",
+          "issue": "Error responses may not include both error and message fields",
+          "recommendation": "Standardize error responses to include both error code and message"
+        },
+        {
+          "severity": "LOW",
+          "category": "Architecture - Inconsistent Error Response Format",
+          "file": "server/src/routes/upload.ts",
+          "issue": "Error responses may not include both error and message fields",
+          "recommendation": "Standardize error responses to include both error code and message"
+        },
+        {
+          "severity": "LOW",
+          "category": "Architecture - Inconsistent Error Response Format",
+          "file": "server/src/routes/tournaments.ts",
+          "issue": "Error responses may not include both error and message fields",
+          "recommendation": "Standardize error responses to include both error code and message"
+        },
+        {
+          "severity": "LOW",
+          "category": "Architecture - Inconsistent Error Response Format",
+          "file": "server/src/routes/test-emails.ts",
+          "issue": "Error responses may not include both error and message fields",
+          "recommendation": "Standardize error responses to include both error code and message"
+        },
+        {
+          "severity": "LOW",
+          "category": "Architecture - Inconsistent Error Response Format",
+          "file": "server/src/routes/support.ts",
+          "issue": "Error responses may not include both error and message fields",
+          "recommendation": "Standardize error responses to include both error code and message"
+        },
+        {
+          "severity": "LOW",
+          "category": "Architecture - Inconsistent Error Response Format",
+          "file": "server/src/routes/search.ts",
+          "issue": "Error responses may not include both error and message fields",
+          "recommendation": "Standardize error responses to include both error code and message"
+        },
+        {
+          "severity": "LOW",
+          "category": "Architecture - Inconsistent Error Response Format",
+          "file": "server/src/routes/promos.ts",
+          "issue": "Error responses may not include both error and message fields",
+          "recommendation": "Standardize error responses to include both error code and message"
+        },
+        {
+          "severity": "LOW",
+          "category": "Architecture - Inconsistent Error Response Format",
+          "file": "server/src/routes/plays.ts",
+          "issue": "Error responses may not include both error and message fields",
+          "recommendation": "Standardize error responses to include both error code and message"
+        },
+        {
+          "severity": "LOW",
+          "category": "Architecture - Inconsistent Error Response Format",
+          "file": "server/src/routes/highlights.ts",
+          "issue": "Error responses may not include both error and message fields",
+          "recommendation": "Standardize error responses to include both error code and message"
+        },
+        {
+          "severity": "LOW",
+          "category": "Architecture - Inconsistent Error Response Format",
+          "file": "server/src/routes/gameStories.ts",
+          "issue": "Error responses may not include both error and message fields",
+          "recommendation": "Standardize error responses to include both error code and message"
+        },
+        {
+          "severity": "LOW",
+          "category": "Architecture - Inconsistent Error Response Format",
+          "file": "server/src/routes/follows.ts",
+          "issue": "Error responses may not include both error and message fields",
+          "recommendation": "Standardize error responses to include both error code and message"
+        },
+        {
+          "severity": "LOW",
+          "category": "Architecture - Inconsistent Error Response Format",
+          "file": "server/src/routes/adminReports.ts",
+          "issue": "Error responses may not include both error and message fields",
+          "recommendation": "Standardize error responses to include both error code and message"
+        }
+      ],
+      "INFO": []
+    },
+    "byCategory": {
+      "Security - Missing Input Validation": [
+        {
+          "severity": "HIGH",
+          "category": "Security - Missing Input Validation",
+          "file": "server/src/routes/uploads.ts",
+          "issue": "Route / accepts input without Zod validation",
+          "recommendation": "Add Zod schema validation for all request inputs"
+        },
+        {
+          "severity": "HIGH",
+          "category": "Security - Missing Input Validation",
+          "file": "server/src/routes/test-notifications.ts",
+          "issue": "Route /test/push accepts input without Zod validation",
+          "recommendation": "Add Zod schema validation for all request inputs"
+        },
+        {
+          "severity": "HIGH",
+          "category": "Security - Missing Input Validation",
+          "file": "server/src/routes/test-emails.ts",
+          "issue": "Route /verification accepts input without Zod validation",
+          "recommendation": "Add Zod schema validation for all request inputs"
+        },
+        {
+          "severity": "HIGH",
+          "category": "Security - Missing Input Validation",
+          "file": "server/src/routes/team-memberships.ts",
+          "issue": "Route / accepts input without Zod validation",
+          "recommendation": "Add Zod schema validation for all request inputs"
+        },
+        {
+          "severity": "HIGH",
+          "category": "Security - Missing Input Validation",
+          "file": "server/src/routes/team-invites.ts",
+          "issue": "Route / accepts input without Zod validation",
+          "recommendation": "Add Zod schema validation for all request inputs"
+        },
+        {
+          "severity": "HIGH",
+          "category": "Security - Missing Input Validation",
+          "file": "server/src/routes/notifications.ts",
+          "issue": "Route /:id/read accepts input without Zod validation",
+          "recommendation": "Add Zod schema validation for all request inputs"
+        },
+        {
+          "severity": "HIGH",
+          "category": "Security - Missing Input Validation",
+          "file": "server/src/routes/group-chats.ts",
+          "issue": "Route /:chatId/messages accepts input without Zod validation",
+          "recommendation": "Add Zod schema validation for all request inputs"
+        },
+        {
+          "severity": "HIGH",
+          "category": "Security - Missing Input Validation",
+          "file": "server/src/routes/adminReports.ts",
+          "issue": "Route /:id accepts input without Zod validation",
+          "recommendation": "Add Zod schema validation for all request inputs"
+        }
+      ],
+      "Security - Potential Authorization Gap": [
+        {
+          "severity": "MEDIUM",
+          "category": "Security - Potential Authorization Gap",
+          "file": "server/src/routes/tournaments.ts",
+          "issue": "User data access may not be properly authorized",
+          "recommendation": "Verify that ownership/role checks are enforced before data access"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Security - Potential Authorization Gap",
+          "file": "server/src/routes/test-notifications.ts",
+          "issue": "User data access may not be properly authorized",
+          "recommendation": "Verify that ownership/role checks are enforced before data access"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Security - Potential Authorization Gap",
+          "file": "server/src/routes/notifications.ts",
+          "issue": "User data access may not be properly authorized",
+          "recommendation": "Verify that ownership/role checks are enforced before data access"
+        }
+      ],
+      "Security - Missing Authentication": [
+        {
+          "severity": "HIGH",
+          "category": "Security - Missing Authentication",
+          "file": "server/src/routes/test-emails.ts",
+          "issue": "Route /VERIFICATION may be missing authentication middleware",
+          "recommendation": "Add requireAuth or requireVerified middleware to protect this endpoint",
+          "code": "post('/verification'"
+        },
+        {
+          "severity": "HIGH",
+          "category": "Security - Missing Authentication",
+          "file": "server/src/routes/adminReports.ts",
+          "issue": "Route /:ID may be missing authentication middleware",
+          "recommendation": "Add requireAuth or requireVerified middleware to protect this endpoint",
+          "code": "patch('/:id'"
+        }
+      ],
+      "Security - SQL Injection Risk": [
+        {
+          "severity": "CRITICAL",
+          "category": "Security - SQL Injection Risk",
+          "file": "server/src/routes/gameStories.ts",
+          "line": 105,
+          "issue": "Raw SQL query detected - potential SQL injection vulnerability",
+          "recommendation": "Use Prisma parameterized queries or validate all inputs before using raw queries",
+          "code": "        const items = await prisma.$queryRaw<Array<{"
+        },
+        {
+          "severity": "CRITICAL",
+          "category": "Security - SQL Injection Risk",
+          "file": "server/src/routes/admin.ts",
+          "line": 58,
+          "issue": "Raw SQL query detected - potential SQL injection vulnerability",
+          "recommendation": "Use Prisma parameterized queries or validate all inputs before using raw queries",
+          "code": "      prisma.$queryRaw`"
+        }
+      ],
+      "Validation - Potential Frontend/Backend Mismatch": [
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/verify.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/verify-identity.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/team-viewer.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/subscription-paywall.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/submit-ad.web.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/submit-ad.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/role-onboarding.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/request-join-organization.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/report-abuse.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/profile.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/organization-join-requests.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/messages.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/highlights.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/edit-ad.web.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/edit-ad.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/admin-users.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/admin-user-detail.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/admin-teams.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/admin-reports.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/admin-messages.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/admin-create-event.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/ad-calendar.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/_layout.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/game-details/GameVerticalFeedScreen.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/game-details/GameDetailsScreen.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/onboarding/step-3-league.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/onboarding/step-2-basic.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/settings/request-host-event.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/settings/privacy-policy.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/settings/manage-subscription.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/settings/index.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/settings/contact.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/(tabs)/team-contacts.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/(tabs)/message-thread.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/(tabs)/event-detail.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/(tabs)/edit-team.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/(tabs)/edit-profile.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/(tabs)/edit-organization.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/(tabs)/create-team.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/(tabs)/create-post.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/(tabs)/create-fan-event.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/(tabs)/approvals.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Potential Frontend/Backend Mismatch",
+          "file": "app/(tabs)/discover/mobile-community.tsx",
+          "issue": "Frontend validation may not match backend schema",
+          "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+        }
+      ],
+      "Validation - Missing Email Validation": [
+        {
+          "severity": "HIGH",
+          "category": "Validation - Missing Email Validation",
+          "file": "server/src/routes/users.ts",
+          "issue": "Schema deleteAccountSchema has email field without proper validation",
+          "recommendation": "Add z.string().email() validation for email fields"
+        },
+        {
+          "severity": "HIGH",
+          "category": "Validation - Missing Email Validation",
+          "file": "server/src/routes/support.ts",
+          "issue": "Schema feedbackSchema has email field without proper validation",
+          "recommendation": "Add z.string().email() validation for email fields"
+        },
+        {
+          "severity": "HIGH",
+          "category": "Validation - Missing Email Validation",
+          "file": "server/src/routes/reports.ts",
+          "issue": "Schema createReportSchema has email field without proper validation",
+          "recommendation": "Add z.string().email() validation for email fields"
+        },
+        {
+          "severity": "HIGH",
+          "category": "Validation - Missing Email Validation",
+          "file": "server/src/routes/organizations.ts",
+          "issue": "Schema createJoinRequestSchema has email field without proper validation",
+          "recommendation": "Add z.string().email() validation for email fields"
+        },
+        {
+          "severity": "HIGH",
+          "category": "Validation - Missing Email Validation",
+          "file": "server/src/routes/organizations.ts",
+          "issue": "Schema denyJoinRequestSchema has email field without proper validation",
+          "recommendation": "Add z.string().email() validation for email fields"
+        },
+        {
+          "severity": "HIGH",
+          "category": "Validation - Missing Email Validation",
+          "file": "server/src/routes/events.ts",
+          "issue": "Schema rsvpSchema has email field without proper validation",
+          "recommendation": "Add z.string().email() validation for email fields"
+        },
+        {
+          "severity": "HIGH",
+          "category": "Validation - Missing Email Validation",
+          "file": "server/src/routes/events.ts",
+          "issue": "Schema createEventSchema has email field without proper validation",
+          "recommendation": "Add z.string().email() validation for email fields"
+        },
+        {
+          "severity": "HIGH",
+          "category": "Validation - Missing Email Validation",
+          "file": "server/src/routes/events.ts",
+          "issue": "Schema rejectEventSchema has email field without proper validation",
+          "recommendation": "Add z.string().email() validation for email fields"
+        },
+        {
+          "severity": "HIGH",
+          "category": "Validation - Missing Email Validation",
+          "file": "server/src/routes/events.ts",
+          "issue": "Schema updateEventSchema has email field without proper validation",
+          "recommendation": "Add z.string().email() validation for email fields"
+        },
+        {
+          "severity": "HIGH",
+          "category": "Validation - Missing Email Validation",
+          "file": "server/src/routes/auth.ts",
+          "issue": "Schema passwordChangeSchema has email field without proper validation",
+          "recommendation": "Add z.string().email() validation for email fields"
+        },
+        {
+          "severity": "HIGH",
+          "category": "Validation - Missing Email Validation",
+          "file": "server/src/routes/auth.ts",
+          "issue": "Schema updateMeSchema has email field without proper validation",
+          "recommendation": "Add z.string().email() validation for email fields"
+        },
+        {
+          "severity": "HIGH",
+          "category": "Validation - Missing Email Validation",
+          "file": "server/src/routes/auth.ts",
+          "issue": "Schema completeOnboardingSchema has email field without proper validation",
+          "recommendation": "Add z.string().email() validation for email fields"
+        }
+      ],
+      "Validation - Missing Input Sanitization": [
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Missing Input Sanitization",
+          "file": "server/src/routes/teams.ts",
+          "issue": "Schema inviteSchema may not sanitize string inputs",
+          "recommendation": "Consider adding .trim() to string validations to prevent whitespace issues"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Missing Input Sanitization",
+          "file": "server/src/routes/support.ts",
+          "issue": "Schema contactSchema may not sanitize string inputs",
+          "recommendation": "Consider adding .trim() to string validations to prevent whitespace issues"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Missing Input Sanitization",
+          "file": "server/src/routes/support.ts",
+          "issue": "Schema feedbackSchema may not sanitize string inputs",
+          "recommendation": "Consider adding .trim() to string validations to prevent whitespace issues"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Missing Input Sanitization",
+          "file": "server/src/routes/reports.ts",
+          "issue": "Schema createReportSchema may not sanitize string inputs",
+          "recommendation": "Consider adding .trim() to string validations to prevent whitespace issues"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Missing Input Sanitization",
+          "file": "server/src/routes/promos.ts",
+          "issue": "Schema previewSchema may not sanitize string inputs",
+          "recommendation": "Consider adding .trim() to string validations to prevent whitespace issues"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Missing Input Sanitization",
+          "file": "server/src/routes/promos.ts",
+          "issue": "Schema redeemSchema may not sanitize string inputs",
+          "recommendation": "Consider adding .trim() to string validations to prevent whitespace issues"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Missing Input Sanitization",
+          "file": "server/src/routes/organizations.ts",
+          "issue": "Schema createJoinRequestSchema may not sanitize string inputs",
+          "recommendation": "Consider adding .trim() to string validations to prevent whitespace issues"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Missing Input Sanitization",
+          "file": "server/src/routes/organizations.ts",
+          "issue": "Schema denyJoinRequestSchema may not sanitize string inputs",
+          "recommendation": "Consider adding .trim() to string validations to prevent whitespace issues"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Missing Input Sanitization",
+          "file": "server/src/routes/messages.ts",
+          "issue": "Schema sendSchema may not sanitize string inputs",
+          "recommendation": "Consider adding .trim() to string validations to prevent whitespace issues"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Missing Input Sanitization",
+          "file": "server/src/routes/geocoding.ts",
+          "issue": "Schema geocodeSchema may not sanitize string inputs",
+          "recommendation": "Consider adding .trim() to string validations to prevent whitespace issues"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Missing Input Sanitization",
+          "file": "server/src/routes/geocoding.ts",
+          "issue": "Schema autocompleteSchema may not sanitize string inputs",
+          "recommendation": "Consider adding .trim() to string validations to prevent whitespace issues"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Missing Input Sanitization",
+          "file": "server/src/routes/gameStories.ts",
+          "issue": "Schema locationSchema may not sanitize string inputs",
+          "recommendation": "Consider adding .trim() to string validations to prevent whitespace issues"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Validation - Missing Input Sanitization",
+          "file": "server/src/routes/gameStories.ts",
+          "issue": "Schema storySchema may not sanitize string inputs",
+          "recommendation": "Consider adding .trim() to string validations to prevent whitespace issues"
+        }
+      ],
+      "Architecture - Inconsistent Error Response Format": [
+        {
+          "severity": "LOW",
+          "category": "Architecture - Inconsistent Error Response Format",
+          "file": "server/src/routes/well-known.ts",
+          "issue": "Error responses may not include both error and message fields",
+          "recommendation": "Standardize error responses to include both error code and message"
+        },
+        {
+          "severity": "LOW",
+          "category": "Architecture - Inconsistent Error Response Format",
+          "file": "server/src/routes/uploads.ts",
+          "issue": "Error responses may not include both error and message fields",
+          "recommendation": "Standardize error responses to include both error code and message"
+        },
+        {
+          "severity": "LOW",
+          "category": "Architecture - Inconsistent Error Response Format",
+          "file": "server/src/routes/upload.ts",
+          "issue": "Error responses may not include both error and message fields",
+          "recommendation": "Standardize error responses to include both error code and message"
+        },
+        {
+          "severity": "LOW",
+          "category": "Architecture - Inconsistent Error Response Format",
+          "file": "server/src/routes/tournaments.ts",
+          "issue": "Error responses may not include both error and message fields",
+          "recommendation": "Standardize error responses to include both error code and message"
+        },
+        {
+          "severity": "LOW",
+          "category": "Architecture - Inconsistent Error Response Format",
+          "file": "server/src/routes/test-emails.ts",
+          "issue": "Error responses may not include both error and message fields",
+          "recommendation": "Standardize error responses to include both error code and message"
+        },
+        {
+          "severity": "LOW",
+          "category": "Architecture - Inconsistent Error Response Format",
+          "file": "server/src/routes/support.ts",
+          "issue": "Error responses may not include both error and message fields",
+          "recommendation": "Standardize error responses to include both error code and message"
+        },
+        {
+          "severity": "LOW",
+          "category": "Architecture - Inconsistent Error Response Format",
+          "file": "server/src/routes/search.ts",
+          "issue": "Error responses may not include both error and message fields",
+          "recommendation": "Standardize error responses to include both error code and message"
+        },
+        {
+          "severity": "LOW",
+          "category": "Architecture - Inconsistent Error Response Format",
+          "file": "server/src/routes/promos.ts",
+          "issue": "Error responses may not include both error and message fields",
+          "recommendation": "Standardize error responses to include both error code and message"
+        },
+        {
+          "severity": "LOW",
+          "category": "Architecture - Inconsistent Error Response Format",
+          "file": "server/src/routes/plays.ts",
+          "issue": "Error responses may not include both error and message fields",
+          "recommendation": "Standardize error responses to include both error code and message"
+        },
+        {
+          "severity": "LOW",
+          "category": "Architecture - Inconsistent Error Response Format",
+          "file": "server/src/routes/highlights.ts",
+          "issue": "Error responses may not include both error and message fields",
+          "recommendation": "Standardize error responses to include both error code and message"
+        },
+        {
+          "severity": "LOW",
+          "category": "Architecture - Inconsistent Error Response Format",
+          "file": "server/src/routes/gameStories.ts",
+          "issue": "Error responses may not include both error and message fields",
+          "recommendation": "Standardize error responses to include both error code and message"
+        },
+        {
+          "severity": "LOW",
+          "category": "Architecture - Inconsistent Error Response Format",
+          "file": "server/src/routes/follows.ts",
+          "issue": "Error responses may not include both error and message fields",
+          "recommendation": "Standardize error responses to include both error code and message"
+        },
+        {
+          "severity": "LOW",
+          "category": "Architecture - Inconsistent Error Response Format",
+          "file": "server/src/routes/adminReports.ts",
+          "issue": "Error responses may not include both error and message fields",
+          "recommendation": "Standardize error responses to include both error code and message"
+        }
+      ],
+      "Architecture - Missing Database Transactions": [
+        {
+          "severity": "MEDIUM",
+          "category": "Architecture - Missing Database Transactions",
+          "file": "server/src/routes/tournaments.ts",
+          "issue": "Multiple database writes without transaction - potential data inconsistency",
+          "recommendation": "Wrap multiple related database operations in a transaction"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Architecture - Missing Database Transactions",
+          "file": "server/src/routes/messages.ts",
+          "issue": "Multiple database writes without transaction - potential data inconsistency",
+          "recommendation": "Wrap multiple related database operations in a transaction"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Architecture - Missing Database Transactions",
+          "file": "server/src/routes/group-chats.ts",
+          "issue": "Multiple database writes without transaction - potential data inconsistency",
+          "recommendation": "Wrap multiple related database operations in a transaction"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Architecture - Missing Database Transactions",
+          "file": "server/src/routes/games.ts",
+          "issue": "Multiple database writes without transaction - potential data inconsistency",
+          "recommendation": "Wrap multiple related database operations in a transaction"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Architecture - Missing Database Transactions",
+          "file": "server/src/routes/gameStories.ts",
+          "issue": "Multiple database writes without transaction - potential data inconsistency",
+          "recommendation": "Wrap multiple related database operations in a transaction"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Architecture - Missing Database Transactions",
+          "file": "server/src/routes/auth.ts",
+          "issue": "Multiple database writes without transaction - potential data inconsistency",
+          "recommendation": "Wrap multiple related database operations in a transaction"
+        },
+        {
+          "severity": "MEDIUM",
+          "category": "Architecture - Missing Database Transactions",
+          "file": "server/src/routes/adminReports.ts",
+          "issue": "Multiple database writes without transaction - potential data inconsistency",
+          "recommendation": "Wrap multiple related database operations in a transaction"
+        }
+      ],
+      "Permissions - Missing Ownership Check": [
+        {
+          "severity": "CRITICAL",
+          "category": "Permissions - Missing Ownership Check",
+          "file": "server/src/routes/plays.ts",
+          "issue": "Update/delete operations may not verify ownership",
+          "recommendation": "Add ownership verification before allowing data modifications"
+        },
+        {
+          "severity": "CRITICAL",
+          "category": "Permissions - Missing Ownership Check",
+          "file": "server/src/routes/notifications.ts",
+          "issue": "Update/delete operations may not verify ownership",
+          "recommendation": "Add ownership verification before allowing data modifications"
+        },
+        {
+          "severity": "CRITICAL",
+          "category": "Permissions - Missing Ownership Check",
+          "file": "server/src/routes/highlights.ts",
+          "issue": "Update/delete operations may not verify ownership",
+          "recommendation": "Add ownership verification before allowing data modifications"
+        }
+      ],
+      "Permissions - Subscription Limit Not Enforced": [
+        {
+          "severity": "MEDIUM",
+          "category": "Permissions - Subscription Limit Not Enforced",
+          "file": "server/src/routes/payments.ts",
+          "issue": "Subscription tier limits may not be properly enforced",
+          "recommendation": "Add explicit checks to enforce subscription tier limits"
+        }
+      ]
+    }
+  },
+  "findings": [
+    {
+      "severity": "HIGH",
+      "category": "Security - Missing Input Validation",
+      "file": "server/src/routes/uploads.ts",
+      "issue": "Route / accepts input without Zod validation",
+      "recommendation": "Add Zod schema validation for all request inputs"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Security - Potential Authorization Gap",
+      "file": "server/src/routes/tournaments.ts",
+      "issue": "User data access may not be properly authorized",
+      "recommendation": "Verify that ownership/role checks are enforced before data access"
+    },
+    {
+      "severity": "HIGH",
+      "category": "Security - Missing Input Validation",
+      "file": "server/src/routes/test-notifications.ts",
+      "issue": "Route /test/push accepts input without Zod validation",
+      "recommendation": "Add Zod schema validation for all request inputs"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Security - Potential Authorization Gap",
+      "file": "server/src/routes/test-notifications.ts",
+      "issue": "User data access may not be properly authorized",
+      "recommendation": "Verify that ownership/role checks are enforced before data access"
+    },
+    {
+      "severity": "HIGH",
+      "category": "Security - Missing Authentication",
+      "file": "server/src/routes/test-emails.ts",
+      "issue": "Route /VERIFICATION may be missing authentication middleware",
+      "recommendation": "Add requireAuth or requireVerified middleware to protect this endpoint"
+    },
+    {
+      "severity": "HIGH",
+      "category": "Security - Missing Input Validation",
+      "file": "server/src/routes/test-emails.ts",
+      "issue": "Route /verification accepts input without Zod validation",
+      "recommendation": "Add Zod schema validation for all request inputs"
+    },
+    {
+      "severity": "HIGH",
+      "category": "Security - Missing Input Validation",
+      "file": "server/src/routes/team-memberships.ts",
+      "issue": "Route / accepts input without Zod validation",
+      "recommendation": "Add Zod schema validation for all request inputs"
+    },
+    {
+      "severity": "HIGH",
+      "category": "Security - Missing Input Validation",
+      "file": "server/src/routes/team-invites.ts",
+      "issue": "Route / accepts input without Zod validation",
+      "recommendation": "Add Zod schema validation for all request inputs"
+    },
+    {
+      "severity": "HIGH",
+      "category": "Security - Missing Input Validation",
+      "file": "server/src/routes/notifications.ts",
+      "issue": "Route /:id/read accepts input without Zod validation",
+      "recommendation": "Add Zod schema validation for all request inputs"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Security - Potential Authorization Gap",
+      "file": "server/src/routes/notifications.ts",
+      "issue": "User data access may not be properly authorized",
+      "recommendation": "Verify that ownership/role checks are enforced before data access"
+    },
+    {
+      "severity": "HIGH",
+      "category": "Security - Missing Input Validation",
+      "file": "server/src/routes/group-chats.ts",
+      "issue": "Route /:chatId/messages accepts input without Zod validation",
+      "recommendation": "Add Zod schema validation for all request inputs"
+    },
+    {
+      "severity": "CRITICAL",
+      "category": "Security - SQL Injection Risk",
+      "file": "server/src/routes/gameStories.ts",
+      "line": 105,
+      "issue": "Raw SQL query detected - potential SQL injection vulnerability",
+      "recommendation": "Use Prisma parameterized queries or validate all inputs before using raw queries"
+    },
+    {
+      "severity": "HIGH",
+      "category": "Security - Missing Authentication",
+      "file": "server/src/routes/adminReports.ts",
+      "issue": "Route /:ID may be missing authentication middleware",
+      "recommendation": "Add requireAuth or requireVerified middleware to protect this endpoint"
+    },
+    {
+      "severity": "HIGH",
+      "category": "Security - Missing Input Validation",
+      "file": "server/src/routes/adminReports.ts",
+      "issue": "Route /:id accepts input without Zod validation",
+      "recommendation": "Add Zod schema validation for all request inputs"
+    },
+    {
+      "severity": "CRITICAL",
+      "category": "Security - SQL Injection Risk",
+      "file": "server/src/routes/admin.ts",
+      "line": 58,
+      "issue": "Raw SQL query detected - potential SQL injection vulnerability",
+      "recommendation": "Use Prisma parameterized queries or validate all inputs before using raw queries"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Potential Frontend/Backend Mismatch",
+      "file": "app/verify.tsx",
+      "issue": "Frontend validation may not match backend schema",
+      "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Potential Frontend/Backend Mismatch",
+      "file": "app/verify-identity.tsx",
+      "issue": "Frontend validation may not match backend schema",
+      "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Potential Frontend/Backend Mismatch",
+      "file": "app/team-viewer.tsx",
+      "issue": "Frontend validation may not match backend schema",
+      "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Potential Frontend/Backend Mismatch",
+      "file": "app/subscription-paywall.tsx",
+      "issue": "Frontend validation may not match backend schema",
+      "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Potential Frontend/Backend Mismatch",
+      "file": "app/submit-ad.web.tsx",
+      "issue": "Frontend validation may not match backend schema",
+      "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Potential Frontend/Backend Mismatch",
+      "file": "app/submit-ad.tsx",
+      "issue": "Frontend validation may not match backend schema",
+      "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Potential Frontend/Backend Mismatch",
+      "file": "app/role-onboarding.tsx",
+      "issue": "Frontend validation may not match backend schema",
+      "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Potential Frontend/Backend Mismatch",
+      "file": "app/request-join-organization.tsx",
+      "issue": "Frontend validation may not match backend schema",
+      "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Potential Frontend/Backend Mismatch",
+      "file": "app/report-abuse.tsx",
+      "issue": "Frontend validation may not match backend schema",
+      "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Potential Frontend/Backend Mismatch",
+      "file": "app/profile.tsx",
+      "issue": "Frontend validation may not match backend schema",
+      "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Potential Frontend/Backend Mismatch",
+      "file": "app/organization-join-requests.tsx",
+      "issue": "Frontend validation may not match backend schema",
+      "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Potential Frontend/Backend Mismatch",
+      "file": "app/messages.tsx",
+      "issue": "Frontend validation may not match backend schema",
+      "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Potential Frontend/Backend Mismatch",
+      "file": "app/highlights.tsx",
+      "issue": "Frontend validation may not match backend schema",
+      "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Potential Frontend/Backend Mismatch",
+      "file": "app/edit-ad.web.tsx",
+      "issue": "Frontend validation may not match backend schema",
+      "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Potential Frontend/Backend Mismatch",
+      "file": "app/edit-ad.tsx",
+      "issue": "Frontend validation may not match backend schema",
+      "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Potential Frontend/Backend Mismatch",
+      "file": "app/admin-users.tsx",
+      "issue": "Frontend validation may not match backend schema",
+      "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Potential Frontend/Backend Mismatch",
+      "file": "app/admin-user-detail.tsx",
+      "issue": "Frontend validation may not match backend schema",
+      "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Potential Frontend/Backend Mismatch",
+      "file": "app/admin-teams.tsx",
+      "issue": "Frontend validation may not match backend schema",
+      "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Potential Frontend/Backend Mismatch",
+      "file": "app/admin-reports.tsx",
+      "issue": "Frontend validation may not match backend schema",
+      "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Potential Frontend/Backend Mismatch",
+      "file": "app/admin-messages.tsx",
+      "issue": "Frontend validation may not match backend schema",
+      "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Potential Frontend/Backend Mismatch",
+      "file": "app/admin-create-event.tsx",
+      "issue": "Frontend validation may not match backend schema",
+      "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Potential Frontend/Backend Mismatch",
+      "file": "app/ad-calendar.tsx",
+      "issue": "Frontend validation may not match backend schema",
+      "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Potential Frontend/Backend Mismatch",
+      "file": "app/_layout.tsx",
+      "issue": "Frontend validation may not match backend schema",
+      "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Potential Frontend/Backend Mismatch",
+      "file": "app/game-details/GameVerticalFeedScreen.tsx",
+      "issue": "Frontend validation may not match backend schema",
+      "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Potential Frontend/Backend Mismatch",
+      "file": "app/game-details/GameDetailsScreen.tsx",
+      "issue": "Frontend validation may not match backend schema",
+      "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Potential Frontend/Backend Mismatch",
+      "file": "app/onboarding/step-3-league.tsx",
+      "issue": "Frontend validation may not match backend schema",
+      "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Potential Frontend/Backend Mismatch",
+      "file": "app/onboarding/step-2-basic.tsx",
+      "issue": "Frontend validation may not match backend schema",
+      "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Potential Frontend/Backend Mismatch",
+      "file": "app/settings/request-host-event.tsx",
+      "issue": "Frontend validation may not match backend schema",
+      "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Potential Frontend/Backend Mismatch",
+      "file": "app/settings/privacy-policy.tsx",
+      "issue": "Frontend validation may not match backend schema",
+      "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Potential Frontend/Backend Mismatch",
+      "file": "app/settings/manage-subscription.tsx",
+      "issue": "Frontend validation may not match backend schema",
+      "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Potential Frontend/Backend Mismatch",
+      "file": "app/settings/index.tsx",
+      "issue": "Frontend validation may not match backend schema",
+      "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Potential Frontend/Backend Mismatch",
+      "file": "app/settings/contact.tsx",
+      "issue": "Frontend validation may not match backend schema",
+      "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Potential Frontend/Backend Mismatch",
+      "file": "app/(tabs)/team-contacts.tsx",
+      "issue": "Frontend validation may not match backend schema",
+      "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Potential Frontend/Backend Mismatch",
+      "file": "app/(tabs)/message-thread.tsx",
+      "issue": "Frontend validation may not match backend schema",
+      "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Potential Frontend/Backend Mismatch",
+      "file": "app/(tabs)/event-detail.tsx",
+      "issue": "Frontend validation may not match backend schema",
+      "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Potential Frontend/Backend Mismatch",
+      "file": "app/(tabs)/edit-team.tsx",
+      "issue": "Frontend validation may not match backend schema",
+      "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Potential Frontend/Backend Mismatch",
+      "file": "app/(tabs)/edit-profile.tsx",
+      "issue": "Frontend validation may not match backend schema",
+      "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Potential Frontend/Backend Mismatch",
+      "file": "app/(tabs)/edit-organization.tsx",
+      "issue": "Frontend validation may not match backend schema",
+      "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Potential Frontend/Backend Mismatch",
+      "file": "app/(tabs)/create-team.tsx",
+      "issue": "Frontend validation may not match backend schema",
+      "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Potential Frontend/Backend Mismatch",
+      "file": "app/(tabs)/create-post.tsx",
+      "issue": "Frontend validation may not match backend schema",
+      "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Potential Frontend/Backend Mismatch",
+      "file": "app/(tabs)/create-fan-event.tsx",
+      "issue": "Frontend validation may not match backend schema",
+      "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Potential Frontend/Backend Mismatch",
+      "file": "app/(tabs)/approvals.tsx",
+      "issue": "Frontend validation may not match backend schema",
+      "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Potential Frontend/Backend Mismatch",
+      "file": "app/(tabs)/discover/mobile-community.tsx",
+      "issue": "Frontend validation may not match backend schema",
+      "recommendation": "Ensure frontend validation limits match backend Zod schemas"
+    },
+    {
+      "severity": "HIGH",
+      "category": "Validation - Missing Email Validation",
+      "file": "server/src/routes/users.ts",
+      "issue": "Schema deleteAccountSchema has email field without proper validation",
+      "recommendation": "Add z.string().email() validation for email fields"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Missing Input Sanitization",
+      "file": "server/src/routes/teams.ts",
+      "issue": "Schema inviteSchema may not sanitize string inputs",
+      "recommendation": "Consider adding .trim() to string validations to prevent whitespace issues"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Missing Input Sanitization",
+      "file": "server/src/routes/support.ts",
+      "issue": "Schema contactSchema may not sanitize string inputs",
+      "recommendation": "Consider adding .trim() to string validations to prevent whitespace issues"
+    },
+    {
+      "severity": "HIGH",
+      "category": "Validation - Missing Email Validation",
+      "file": "server/src/routes/support.ts",
+      "issue": "Schema feedbackSchema has email field without proper validation",
+      "recommendation": "Add z.string().email() validation for email fields"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Missing Input Sanitization",
+      "file": "server/src/routes/support.ts",
+      "issue": "Schema feedbackSchema may not sanitize string inputs",
+      "recommendation": "Consider adding .trim() to string validations to prevent whitespace issues"
+    },
+    {
+      "severity": "HIGH",
+      "category": "Validation - Missing Email Validation",
+      "file": "server/src/routes/reports.ts",
+      "issue": "Schema createReportSchema has email field without proper validation",
+      "recommendation": "Add z.string().email() validation for email fields"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Missing Input Sanitization",
+      "file": "server/src/routes/reports.ts",
+      "issue": "Schema createReportSchema may not sanitize string inputs",
+      "recommendation": "Consider adding .trim() to string validations to prevent whitespace issues"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Missing Input Sanitization",
+      "file": "server/src/routes/promos.ts",
+      "issue": "Schema previewSchema may not sanitize string inputs",
+      "recommendation": "Consider adding .trim() to string validations to prevent whitespace issues"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Missing Input Sanitization",
+      "file": "server/src/routes/promos.ts",
+      "issue": "Schema redeemSchema may not sanitize string inputs",
+      "recommendation": "Consider adding .trim() to string validations to prevent whitespace issues"
+    },
+    {
+      "severity": "HIGH",
+      "category": "Validation - Missing Email Validation",
+      "file": "server/src/routes/organizations.ts",
+      "issue": "Schema createJoinRequestSchema has email field without proper validation",
+      "recommendation": "Add z.string().email() validation for email fields"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Missing Input Sanitization",
+      "file": "server/src/routes/organizations.ts",
+      "issue": "Schema createJoinRequestSchema may not sanitize string inputs",
+      "recommendation": "Consider adding .trim() to string validations to prevent whitespace issues"
+    },
+    {
+      "severity": "HIGH",
+      "category": "Validation - Missing Email Validation",
+      "file": "server/src/routes/organizations.ts",
+      "issue": "Schema denyJoinRequestSchema has email field without proper validation",
+      "recommendation": "Add z.string().email() validation for email fields"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Missing Input Sanitization",
+      "file": "server/src/routes/organizations.ts",
+      "issue": "Schema denyJoinRequestSchema may not sanitize string inputs",
+      "recommendation": "Consider adding .trim() to string validations to prevent whitespace issues"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Missing Input Sanitization",
+      "file": "server/src/routes/messages.ts",
+      "issue": "Schema sendSchema may not sanitize string inputs",
+      "recommendation": "Consider adding .trim() to string validations to prevent whitespace issues"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Missing Input Sanitization",
+      "file": "server/src/routes/geocoding.ts",
+      "issue": "Schema geocodeSchema may not sanitize string inputs",
+      "recommendation": "Consider adding .trim() to string validations to prevent whitespace issues"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Missing Input Sanitization",
+      "file": "server/src/routes/geocoding.ts",
+      "issue": "Schema autocompleteSchema may not sanitize string inputs",
+      "recommendation": "Consider adding .trim() to string validations to prevent whitespace issues"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Missing Input Sanitization",
+      "file": "server/src/routes/gameStories.ts",
+      "issue": "Schema locationSchema may not sanitize string inputs",
+      "recommendation": "Consider adding .trim() to string validations to prevent whitespace issues"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Validation - Missing Input Sanitization",
+      "file": "server/src/routes/gameStories.ts",
+      "issue": "Schema storySchema may not sanitize string inputs",
+      "recommendation": "Consider adding .trim() to string validations to prevent whitespace issues"
+    },
+    {
+      "severity": "HIGH",
+      "category": "Validation - Missing Email Validation",
+      "file": "server/src/routes/events.ts",
+      "issue": "Schema rsvpSchema has email field without proper validation",
+      "recommendation": "Add z.string().email() validation for email fields"
+    },
+    {
+      "severity": "HIGH",
+      "category": "Validation - Missing Email Validation",
+      "file": "server/src/routes/events.ts",
+      "issue": "Schema createEventSchema has email field without proper validation",
+      "recommendation": "Add z.string().email() validation for email fields"
+    },
+    {
+      "severity": "HIGH",
+      "category": "Validation - Missing Email Validation",
+      "file": "server/src/routes/events.ts",
+      "issue": "Schema rejectEventSchema has email field without proper validation",
+      "recommendation": "Add z.string().email() validation for email fields"
+    },
+    {
+      "severity": "HIGH",
+      "category": "Validation - Missing Email Validation",
+      "file": "server/src/routes/events.ts",
+      "issue": "Schema updateEventSchema has email field without proper validation",
+      "recommendation": "Add z.string().email() validation for email fields"
+    },
+    {
+      "severity": "HIGH",
+      "category": "Validation - Missing Email Validation",
+      "file": "server/src/routes/auth.ts",
+      "issue": "Schema passwordChangeSchema has email field without proper validation",
+      "recommendation": "Add z.string().email() validation for email fields"
+    },
+    {
+      "severity": "HIGH",
+      "category": "Validation - Missing Email Validation",
+      "file": "server/src/routes/auth.ts",
+      "issue": "Schema updateMeSchema has email field without proper validation",
+      "recommendation": "Add z.string().email() validation for email fields"
+    },
+    {
+      "severity": "HIGH",
+      "category": "Validation - Missing Email Validation",
+      "file": "server/src/routes/auth.ts",
+      "issue": "Schema completeOnboardingSchema has email field without proper validation",
+      "recommendation": "Add z.string().email() validation for email fields"
+    },
+    {
+      "severity": "LOW",
+      "category": "Architecture - Inconsistent Error Response Format",
+      "file": "server/src/routes/well-known.ts",
+      "issue": "Error responses may not include both error and message fields",
+      "recommendation": "Standardize error responses to include both error code and message"
+    },
+    {
+      "severity": "LOW",
+      "category": "Architecture - Inconsistent Error Response Format",
+      "file": "server/src/routes/uploads.ts",
+      "issue": "Error responses may not include both error and message fields",
+      "recommendation": "Standardize error responses to include both error code and message"
+    },
+    {
+      "severity": "LOW",
+      "category": "Architecture - Inconsistent Error Response Format",
+      "file": "server/src/routes/upload.ts",
+      "issue": "Error responses may not include both error and message fields",
+      "recommendation": "Standardize error responses to include both error code and message"
+    },
+    {
+      "severity": "LOW",
+      "category": "Architecture - Inconsistent Error Response Format",
+      "file": "server/src/routes/tournaments.ts",
+      "issue": "Error responses may not include both error and message fields",
+      "recommendation": "Standardize error responses to include both error code and message"
+    },
+    {
+      "severity": "LOW",
+      "category": "Architecture - Inconsistent Error Response Format",
+      "file": "server/src/routes/test-emails.ts",
+      "issue": "Error responses may not include both error and message fields",
+      "recommendation": "Standardize error responses to include both error code and message"
+    },
+    {
+      "severity": "LOW",
+      "category": "Architecture - Inconsistent Error Response Format",
+      "file": "server/src/routes/support.ts",
+      "issue": "Error responses may not include both error and message fields",
+      "recommendation": "Standardize error responses to include both error code and message"
+    },
+    {
+      "severity": "LOW",
+      "category": "Architecture - Inconsistent Error Response Format",
+      "file": "server/src/routes/search.ts",
+      "issue": "Error responses may not include both error and message fields",
+      "recommendation": "Standardize error responses to include both error code and message"
+    },
+    {
+      "severity": "LOW",
+      "category": "Architecture - Inconsistent Error Response Format",
+      "file": "server/src/routes/promos.ts",
+      "issue": "Error responses may not include both error and message fields",
+      "recommendation": "Standardize error responses to include both error code and message"
+    },
+    {
+      "severity": "LOW",
+      "category": "Architecture - Inconsistent Error Response Format",
+      "file": "server/src/routes/plays.ts",
+      "issue": "Error responses may not include both error and message fields",
+      "recommendation": "Standardize error responses to include both error code and message"
+    },
+    {
+      "severity": "LOW",
+      "category": "Architecture - Inconsistent Error Response Format",
+      "file": "server/src/routes/highlights.ts",
+      "issue": "Error responses may not include both error and message fields",
+      "recommendation": "Standardize error responses to include both error code and message"
+    },
+    {
+      "severity": "LOW",
+      "category": "Architecture - Inconsistent Error Response Format",
+      "file": "server/src/routes/gameStories.ts",
+      "issue": "Error responses may not include both error and message fields",
+      "recommendation": "Standardize error responses to include both error code and message"
+    },
+    {
+      "severity": "LOW",
+      "category": "Architecture - Inconsistent Error Response Format",
+      "file": "server/src/routes/follows.ts",
+      "issue": "Error responses may not include both error and message fields",
+      "recommendation": "Standardize error responses to include both error code and message"
+    },
+    {
+      "severity": "LOW",
+      "category": "Architecture - Inconsistent Error Response Format",
+      "file": "server/src/routes/adminReports.ts",
+      "issue": "Error responses may not include both error and message fields",
+      "recommendation": "Standardize error responses to include both error code and message"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Architecture - Missing Database Transactions",
+      "file": "server/src/routes/tournaments.ts",
+      "issue": "Multiple database writes without transaction - potential data inconsistency",
+      "recommendation": "Wrap multiple related database operations in a transaction"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Architecture - Missing Database Transactions",
+      "file": "server/src/routes/messages.ts",
+      "issue": "Multiple database writes without transaction - potential data inconsistency",
+      "recommendation": "Wrap multiple related database operations in a transaction"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Architecture - Missing Database Transactions",
+      "file": "server/src/routes/group-chats.ts",
+      "issue": "Multiple database writes without transaction - potential data inconsistency",
+      "recommendation": "Wrap multiple related database operations in a transaction"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Architecture - Missing Database Transactions",
+      "file": "server/src/routes/games.ts",
+      "issue": "Multiple database writes without transaction - potential data inconsistency",
+      "recommendation": "Wrap multiple related database operations in a transaction"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Architecture - Missing Database Transactions",
+      "file": "server/src/routes/gameStories.ts",
+      "issue": "Multiple database writes without transaction - potential data inconsistency",
+      "recommendation": "Wrap multiple related database operations in a transaction"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Architecture - Missing Database Transactions",
+      "file": "server/src/routes/auth.ts",
+      "issue": "Multiple database writes without transaction - potential data inconsistency",
+      "recommendation": "Wrap multiple related database operations in a transaction"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Architecture - Missing Database Transactions",
+      "file": "server/src/routes/adminReports.ts",
+      "issue": "Multiple database writes without transaction - potential data inconsistency",
+      "recommendation": "Wrap multiple related database operations in a transaction"
+    },
+    {
+      "severity": "CRITICAL",
+      "category": "Permissions - Missing Ownership Check",
+      "file": "server/src/routes/plays.ts",
+      "issue": "Update/delete operations may not verify ownership",
+      "recommendation": "Add ownership verification before allowing data modifications"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Permissions - Subscription Limit Not Enforced",
+      "file": "server/src/routes/payments.ts",
+      "issue": "Subscription tier limits may not be properly enforced",
+      "recommendation": "Add explicit checks to enforce subscription tier limits"
+    },
+    {
+      "severity": "CRITICAL",
+      "category": "Permissions - Missing Ownership Check",
+      "file": "server/src/routes/notifications.ts",
+      "issue": "Update/delete operations may not verify ownership",
+      "recommendation": "Add ownership verification before allowing data modifications"
+    },
+    {
+      "severity": "CRITICAL",
+      "category": "Permissions - Missing Ownership Check",
+      "file": "server/src/routes/highlights.ts",
+      "issue": "Update/delete operations may not verify ownership",
+      "recommendation": "Add ownership verification before allowing data modifications"
+    }
+  ]
+}

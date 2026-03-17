@@ -31,13 +31,13 @@ export default function TabLayout() {
       tabBarLabelStyle: {
         fontSize: 12,
       },
-      tabBarBackground: TabBarBackground,
+      tabBarBackground: () => <TabBarBackground />,
       tabBarStyle: {
         height: Math.max(64, 56 + insets.bottom),
         paddingBottom: Math.max(10, insets.bottom),
         paddingTop: 6,
         backgroundColor: colorScheme === 'dark' ? '#0f172a' : palette.card,
-        overflow: 'visible',
+        overflow: 'visible' as const,
         shadowOpacity: 0,
         shadowRadius: 0,
         elevation: 0,

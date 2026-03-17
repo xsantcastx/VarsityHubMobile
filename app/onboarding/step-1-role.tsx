@@ -129,7 +129,7 @@ export default function Step1Role() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const { user, signOut } = useAuth();
-  const { state: ob, setState: setOB, setProgress, clearOnboarding, dispatch, canNavigate } = useOnboarding();
+  const { state: ob, setState: setOB, setProgress, clearOnboarding: _clearOnboarding, dispatch, canNavigate } = useOnboarding();
   const [role, setRole] = useState<UserRole | null>(null);
   const [saving, setSaving] = useState(false);
   const [emailVerified, setEmailVerified] = useState<boolean | null>(null);

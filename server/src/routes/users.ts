@@ -6,7 +6,7 @@ import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
-import { mentionsSearchLimiter, userLookupLimiter } from '../middleware/rateLimiters.js';
+import { mentionsSearchLimiter, userLookupLimiter, usernameAvailableLimiter } from '../middleware/rateLimiters.js';
 import { detectMediaType, getVideoPreviewUrl } from '../lib/mediaUtils.js';
 
 export const usersRouter = Router();
@@ -535,7 +535,7 @@ usersRouter.delete('/me', requireAuth as any, async (req: AuthedRequest, res) =>
 
 // Username availability check (public - no auth required)
 // authMiddleware still populates req.user if a token is present, allowing exclusion of current user
-usersRouter.get('/username-available', async (req: AuthedRequest, res) => {
+usersRouter.get('/username-available', usernameAvailableLimiter, async (req: AuthedRequest, res) => {
   const username = String((req.query as any).username || '').trim();
   const valid = /^[a-z0-9_.]{3,20}$/.test(username);
   if (!valid) return res.json({ available: false, valid: false });

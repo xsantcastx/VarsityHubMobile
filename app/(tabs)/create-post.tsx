@@ -118,7 +118,7 @@ export default function CreatePostScreen() {
         setContentConsent(false);
         draftLoadedRef.current = false;
       }
-    }, [postSuccess, gameId])
+    }, [postSuccess, gameId, postType])
   );
 
   useEffect(() => {

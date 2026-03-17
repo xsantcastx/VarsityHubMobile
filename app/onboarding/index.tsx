@@ -8,7 +8,7 @@ import { ActivityIndicator, View } from 'react-native';
 export default function OnboardingIndex() {
   const router = useRouter();
   const { user } = useAuth();
-  const { progress, state, isLoaded, setProgress, reducerState, dispatch, nextStep } = useOnboarding();
+  const { progress, state, isLoaded, setProgress, reducerState: _reducerState, dispatch, nextStep: _nextStep } = useOnboarding();
   const [hasNavigated, setHasNavigated] = useState(false);
 
   // CRITICAL: User must be authenticated to access onboarding

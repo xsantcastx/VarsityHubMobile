@@ -149,13 +149,19 @@ export const auth = {
     const stored = await loadRefreshToken();
     if (!stored) return null;
 
+    const timeoutMs = 15000; // 15s — align with auth endpoint timeouts
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
     try {
       const base = getApiBaseUrl();
       const res = await fetch(`${base}/auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refreshToken: stored }),
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
 
       if (!res.ok) {
         await auth.logout();
@@ -167,6 +173,7 @@ export const auth = {
       await saveRefreshToken(refresh_token);
       return access_token;
     } catch (error) {
+      clearTimeout(timeoutId);
       if (__DEV__) console.error('[auth] Token refresh failed:', error);
       await auth.logout();
       return null;

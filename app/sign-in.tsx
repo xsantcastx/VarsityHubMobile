@@ -57,7 +57,7 @@ export default function SignInScreen() {
 
       if (!res?.access_token) {
         const errMsg = `Invalid login response: missing access_token. Response keys: ${Object.keys(res || {}).join(', ')}`;
-        captureException(new Error(errMsg), { tags: { context: 'email-password-login', userId: email } });
+        captureException(new Error(errMsg), { tags: { context: 'email-password-login' } });
         setError('Invalid login response from server');
         setLoading(false);
         return;
@@ -113,7 +113,7 @@ export default function SignInScreen() {
       captureException(
         typeof e === 'string' ? new Error(e) : e,
         {
-          tags: { context: 'email-password-login', userId: email },
+          tags: { context: 'email-password-login' },
           extra: { response: e?.data?.error || e?.response?.data, status },
         }
       );

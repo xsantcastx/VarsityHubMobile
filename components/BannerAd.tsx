@@ -46,6 +46,14 @@ export function BannerAd({
       return;
     }
 
+    // SECURITY: Allow only https and http schemes — reject javascript:, data:, file:, etc.
+    const trimmed = targetUrl.trim().toLowerCase();
+    const hasProtocol = trimmed.match(/^[a-z]+:/);
+    if (hasProtocol && !trimmed.startsWith('https://') && !trimmed.startsWith('http://')) {
+      Alert.alert('Invalid Link', 'This link cannot be opened for security reasons.');
+      return;
+    }
+
     // Normalize the URL - add https:// if no protocol is present
     let normalizedUrl = targetUrl.trim();
     if (!normalizedUrl.match(/^https?:\/\//i)) {

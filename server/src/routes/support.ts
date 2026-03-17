@@ -4,6 +4,7 @@ import { sendAbuseReportNotification } from '../lib/email.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
+import { supportLimiter } from '../middleware/rateLimiters.js';
 
 const contactSchema = z.object({
   name: z.string().min(1).max(200),
@@ -21,7 +22,7 @@ const feedbackSchema = z.object({
 export const supportRouter = Router();
 
 // POST /support/contact
-supportRouter.post('/contact', requireAuth as any, async (req: AuthedRequest, res) => {
+supportRouter.post('/contact', supportLimiter, requireAuth as any, async (req: AuthedRequest, res) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const parsed = contactSchema.safeParse(req.body || {});
@@ -62,7 +63,7 @@ supportRouter.post('/contact', requireAuth as any, async (req: AuthedRequest, re
 });
 
 // POST /support/feedback
-supportRouter.post('/feedback', requireAuth as any, async (req: AuthedRequest, res) => {
+supportRouter.post('/feedback', supportLimiter, requireAuth as any, async (req: AuthedRequest, res) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const parsed = feedbackSchema.safeParse(req.body || {});

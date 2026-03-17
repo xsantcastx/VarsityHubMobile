@@ -57,7 +57,7 @@ export default function SignUpScreen() {
     } catch (e: any) {
       captureException(typeof e === 'string' ? new Error(e) : e, {
         tags: { context: 'email-signup-attempt' },
-        extra: { attempt, email },
+        extra: { attempt },
       });
       
       // Handle the race condition: if we get "Email already registered" on retry,
@@ -119,7 +119,6 @@ export default function SignUpScreen() {
       if (__DEV__) console.error('[sign-up] Registration failed after all attempts:', e);
       captureException(typeof e === 'string' ? new Error(e) : e, {
         tags: { context: 'email-signup-final' },
-        extra: { email },
       });
       
       // Handle specific error types with better messaging

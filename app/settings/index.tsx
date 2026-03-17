@@ -2,11 +2,10 @@ import { Colors } from '@/constants/Colors';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, useColorScheme, View } from 'react-native';
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, useColorScheme, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Event, User } from '@/api/entities';
-import { getConfig } from '@/config/env';
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboardingOptional } from '@/context/OnboardingContext';
 import { safeGoBack } from '@/utils/navigation';
@@ -93,15 +92,13 @@ function SwitchRow({ title, subtitle, value, onValueChange, isLast }: { title: s
 export default function SettingsScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
-  const { checkAuth, markOnboardingIncompleteLocally, signOut } = useAuth();
+  const { checkAuth, markOnboardingIncompleteLocally, signOut, isAdmin } = useAuth();
   const obCtx = useOnboardingOptional();
   const setOB = obCtx?.setState;
-  const appConfig = getConfig();
 
   const [_loading, setLoading] = useState(true);
   const [_error, setError] = useState<string | null>(null);
   const [_email, setEmail] = useState<string | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
   const [prefs, setPrefs] = useState<Preferences>({
     notifications: {
       game_event_reminders: false,
@@ -269,10 +266,7 @@ export default function SettingsScreen() {
                     const me = await User.me() as UserMeResponse;
                     if (!mounted) return;
                     setEmail(me?.email || null);
-                    // Check if user is admin (email-based)
-                    const adminEmails = (appConfig.adminEmails.length ? appConfig.adminEmails : ['admin@varsityhub.app'])
-                      .map((e) => e.toLowerCase());
-                    setIsAdmin(adminEmails.includes((me?.email || '').toLowerCase()));
+                    // Admin status comes from useAuth().isAdmin (user.role / user.is_admin from backend)
                     const serverPrefs = ((me && me.preferences) || {}) as Record<string, any>;
                     setPrefs({
                       notifications: {
@@ -334,7 +328,7 @@ export default function SettingsScreen() {
                   }
                 })();
                 return () => { mounted = false; };
-              }, [appConfig.adminEmails, checkAuth]);
+              }, [checkAuth]);
 
               return (
                 <>

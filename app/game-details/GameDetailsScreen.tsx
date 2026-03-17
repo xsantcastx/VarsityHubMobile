@@ -1879,15 +1879,15 @@ const handleTeamPress = useCallback(
       // Team search failed; no navigation
     }
   },
-  [],
+  [router],
 );
 
 // attempt to pull team color accents from vm.teams if present
 const homeTeamObj = vm?.teams?.find((t: any) => t.name === vm?.homeTeam);
 const awayTeamObj = vm?.teams?.find((t: any) => t.name === vm?.awayTeam);
 
-const onLeftTeamPress = useCallback(() => void handleTeamPress(homeTeamObj, vm?.homeTeam ?? null), [handleTeamPress]);
-const onRightTeamPress = useCallback(() => void handleTeamPress(awayTeamObj, vm?.awayTeam ?? null), [handleTeamPress]);
+const onLeftTeamPress = useCallback(() => void handleTeamPress(homeTeamObj, vm?.homeTeam ?? null), [handleTeamPress, homeTeamObj, vm?.homeTeam]);
+const onRightTeamPress = useCallback(() => void handleTeamPress(awayTeamObj, vm?.awayTeam ?? null), [handleTeamPress, awayTeamObj, vm?.awayTeam]);
 
 const renderBanner = () => {
   // Prefer a full MatchBanner hero if both teams have logos available

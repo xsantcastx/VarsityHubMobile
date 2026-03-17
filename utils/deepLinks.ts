@@ -39,6 +39,13 @@ const PUBLIC_DEEP_LINK_ROUTES = new Set([
 // Pending deep link URL — deferred until auth settles
 let _pendingDeepLinkUrl: string | null = null;
 
+/** Validate deep link ID — alphanumeric, dash, underscore; 3–64 chars (cuid/uuid compatible) */
+function isValidDeepLinkId(id: string | undefined | null): boolean {
+  if (!id || typeof id !== 'string') return false;
+  const trimmed = id.trim();
+  return trimmed.length >= 3 && trimmed.length <= 64 && /^[a-zA-Z0-9_-]+$/.test(trimmed);
+}
+
 /** Store a deep link to be processed after auth completes */
 export function setPendingDeepLink(url: string) {
   _pendingDeepLinkUrl = url;
@@ -75,7 +82,7 @@ const ROUTE_MAP: Record<string, string> = {
   posts: '/(tabs)/post-detail', // /posts/:id (web URL format)
   game: '/(tabs)/game-detail',
   event: '/(tabs)/event-detail',
-  team: '/(tabs)/team-profile',
+  team: '/(tabs)/team-page', // team-page loads Team.get(id); team-profile is user profile
   profile: '/(tabs)/user-profile',
   user: '/(tabs)/user-profile',
   // Auth-related routes
@@ -136,6 +143,10 @@ function parseSchemeLink(parsed: Linking.ParsedURL): ParsedDeepLink | null {
     if (__DEV__) console.warn('[DeepLinks] Unknown content type:', type);
     return null;
   }
+  if (!isValidDeepLinkId(id)) {
+    if (__DEV__) console.warn('[DeepLinks] Invalid ID format:', type);
+    return null;
+  }
   
   return {
     screen,
@@ -163,6 +174,10 @@ function parseUniversalLink(parsed: Linking.ParsedURL): ParsedDeepLink | null {
     const screen = ROUTE_MAP[type];
     if (!screen) {
       if (__DEV__) console.warn('[DeepLinks] Unknown content type:', type);
+      return null;
+    }
+    if (!isValidDeepLinkId(id)) {
+      if (__DEV__) console.warn('[DeepLinks] Invalid ID format in share link:', type);
       return null;
     }
     
@@ -200,6 +215,9 @@ function parsePathLink(parsed: Linking.ParsedURL): ParsedDeepLink | null {
   const screen = ROUTE_MAP[type];
   
   if (!screen) {
+    return null;
+  }
+  if (!isValidDeepLinkId(id)) {
     return null;
   }
   

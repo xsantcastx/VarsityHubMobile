@@ -54,13 +54,12 @@ adminRouter.get('/dashboard', requireVerified as any, requireAdminMiddleware as 
       // Total messages
       prisma.message.count(),
       
-      // Recent activity (last 5 admin actions) - Check if table exists
-      prisma.$queryRaw`
-        SELECT id, admin_email, action, target_type, description, timestamp
-        FROM "AdminActivityLog"
-        ORDER BY timestamp DESC
-        LIMIT 5
-      `.catch(() => []) // Return empty array if table doesn't exist yet
+      // Recent activity (last 5 admin actions)
+      prisma.adminActivityLog.findMany({
+        orderBy: { timestamp: 'desc' },
+        take: 5,
+        select: { id: true, admin_email: true, action: true, target_type: true, description: true, timestamp: true },
+      }).catch(() => [] as Array<{ id: string; admin_email: string; action: string; target_type: string; description: string; timestamp: Date }>)
     ]);
 
     return res.json({

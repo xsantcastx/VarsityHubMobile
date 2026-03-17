@@ -101,6 +101,10 @@ export const makeListMediaHandler = ({ prisma }: StoryDeps) => async (req: Reque
   } catch (error: any) {
     if (isMissingStoryLocationColumnError(error)) {
       console.warn('[stories] Story location columns missing, falling back to legacy query');
+      // Validate game id to prevent injection (Prisma parameterizes, but defense-in-depth)
+      if (!/^[a-zA-Z0-9_-]+$/.test(id) || id.length > 100) {
+        return res.status(400).json({ error: 'Invalid game id' });
+      }
       try {
         const items = await prisma.$queryRaw<Array<{
           id: string;

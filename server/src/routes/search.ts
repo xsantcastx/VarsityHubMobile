@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { searchLimiter } from '../middleware/rateLimiters.js';
 
 export const searchRouter = Router();
 
@@ -11,7 +12,7 @@ export const searchRouter = Router();
  * Returns results grouped by type with is_following when authenticated.
  * Auth is optional; unauthenticated requests return results with is_following: false.
  */
-searchRouter.get('/', authMiddleware as any, async (req: AuthedRequest, res) => {
+searchRouter.get('/', searchLimiter, authMiddleware as any, async (req: AuthedRequest, res) => {
   try {
   const q = String((req.query as any).q || '').trim().toLowerCase();
   const limit = Math.min(parseInt(String((req.query as any).limit || '10'), 10) || 10, 20);

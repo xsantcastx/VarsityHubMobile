@@ -351,6 +351,49 @@ export const alternativeZipsLimiter = createLimiter({
 });
 
 /**
+ * Username availability check (public endpoint)
+ * 30 per minute per IP to prevent enumeration
+ */
+export const usernameAvailableLimiter = createLimiter({
+  name: 'username-available',
+  windowMs: 60 * 1000, // 1 minute
+  max: isDev ? 100000 : 30,
+  keyGenerator: (req) => `ip:${req.ip || 'unknown'}`,
+});
+
+/**
+ * Unified search (public endpoint)
+ * 60 per minute per IP to prevent search abuse
+ */
+export const searchLimiter = createLimiter({
+  name: 'search',
+  windowMs: 60 * 1000, // 1 minute
+  max: isDev ? 100000 : 60,
+  keyGenerator: (req) => `ip:${req.ip || 'unknown'}`,
+});
+
+/**
+ * Support contact and feedback (authenticated)
+ * 10 per minute per user to prevent spam
+ */
+export const supportLimiter = createLimiter({
+  name: 'support',
+  windowMs: 60 * 1000, // 1 minute
+  max: isDev ? 100000 : 10,
+});
+
+/**
+ * Organizations search nearby (public, geocoding-heavy)
+ * 30 per minute per IP to prevent geocoding abuse
+ */
+export const organizationsNearbyLimiter = createLimiter({
+  name: 'organizations-nearby',
+  windowMs: 60 * 1000, // 1 minute
+  max: isDev ? 100000 : 30,
+  keyGenerator: (req) => `ip:${req.ip || 'unknown'}`,
+});
+
+/**
  * User lookup by email
  * 10 per minute per user (prevents email enumeration)
  */

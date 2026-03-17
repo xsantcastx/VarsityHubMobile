@@ -53,7 +53,7 @@ if (Platform.OS === 'web' && __DEV__) {
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
-  const router = useRouter();
+  const _router = useRouter();
   const [loaded] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });

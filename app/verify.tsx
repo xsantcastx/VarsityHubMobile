@@ -40,7 +40,7 @@ export default function VerifyScreen() {
     setLoading(true); setError(null); setInfo(null);
 
     const startTime = Date.now();
-    const email = pendingVerificationEmail || user?.email;
+    const _email = pendingVerificationEmail || user?.email;
 
     try {
       await User.verifyEmail(code.trim());
@@ -48,7 +48,7 @@ export default function VerifyScreen() {
 
       captureException(new Error(`[TELEMETRY] Email verified in ${verifyDuration}ms`), {
         tags: { context: 'verify-email-success', duration_ms: String(verifyDuration) },
-        extra: { email },
+        extra: { email: _email },
       });
 
       setInfo('Email verified successfully!');
@@ -92,7 +92,7 @@ export default function VerifyScreen() {
         } catch (profileError) {
           captureException(
             typeof profileError === 'string' ? new Error(profileError) : (profileError as Error),
-            { tags: { context: 'verify-email-profile' }, extra: { email } }
+            { tags: { context: 'verify-email-profile' } }
           );
         }
 
@@ -102,7 +102,7 @@ export default function VerifyScreen() {
       } catch (userError) {
         captureException(
           typeof userError === 'string' ? new Error(userError) : (userError as Error),
-          { tags: { context: 'verify-email-refresh' }, extra: { email } }
+          { tags: { context: 'verify-email-refresh' } }
         );
         setError('Verification successful but failed to load profile. Please sign in again.');
         redirectTimerRef.current = setTimeout(() => {
@@ -113,7 +113,7 @@ export default function VerifyScreen() {
       const errorDuration = Date.now() - startTime;
       captureException(typeof e === 'string' ? new Error(e) : e, {
         tags: { context: 'verify-email-verify', duration_ms: String(errorDuration) },
-        extra: { email, code_length: String(code).length },
+        extra: { code_length: String(code).length },
       });
       
       // Provide more helpful error messages
@@ -146,7 +146,7 @@ export default function VerifyScreen() {
     setLoading(true); setError(null); setInfo(null);
 
     const startTime = Date.now();
-    const email = pendingVerificationEmail || user?.email;
+    const _email = pendingVerificationEmail || user?.email;
 
     try {
       const res: any = await User.requestVerification();
@@ -154,7 +154,7 @@ export default function VerifyScreen() {
 
       captureException(new Error(`[TELEMETRY] Resend requested in ${resendDuration}ms`), {
         tags: { context: 'verify-email-resend-success', duration_ms: String(resendDuration) },
-        extra: { email, sendgrid_ready: res?.dev_verification_code ? 'dev-mode' : 'production' },
+        extra: { sendgrid_ready: res?.dev_verification_code ? 'dev-mode' : 'production' },
       });
 
       setInfo('Verification code sent! Please check your email (and spam folder).');
@@ -163,7 +163,7 @@ export default function VerifyScreen() {
       const resendDuration = Date.now() - startTime;
       captureException(typeof e === 'string' ? new Error(e) : e, {
         tags: { context: 'verify-email-resend', duration_ms: String(resendDuration) },
-        extra: { email, error_code: e?.data?.error },
+        extra: { error_code: e?.data?.error },
       });
       
       let errorMsg = e?.message || e?.data?.error || 'Resend failed';

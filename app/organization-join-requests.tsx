@@ -85,7 +85,7 @@ export default function OrganizationJoinRequestsScreen() {
     } finally {
       setLoading(false);
     }
-  }, [params.organization_id, filter]);
+  }, [params.organization_id, params.organization_name, filter]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);

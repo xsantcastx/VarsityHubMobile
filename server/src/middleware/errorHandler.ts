@@ -80,14 +80,10 @@ export function errorHandler(
   if (err.name === 'PrismaClientKnownRequestError') {
     const prismaError = err as any;
     
-    // Unique constraint violation
+    // Unique constraint violation (do not leak schema/column names to client)
     if (prismaError.code === 'P2002') {
-      const conflictError = new ConflictError('Resource already exists', {
-        metadata: {
-          target: prismaError.meta?.target,
-        },
-      });
-      console.warn('[ConflictError]', conflictError.getLogDetails());
+      console.warn('[ConflictError] P2002', { target: prismaError.meta?.target, path: req.path });
+      const conflictError = new ConflictError('Resource already exists');
       res.status(409).json(conflictError.toJSON());
       return;
     }
@@ -100,14 +96,10 @@ export function errorHandler(
       return;
     }
     
-    // Foreign key constraint violation
+    // Foreign key constraint violation (do not leak schema/field names to client)
     if (prismaError.code === 'P2003') {
-      const validationError = new ValidationError('Invalid reference', {
-        metadata: {
-          field: prismaError.meta?.field_name,
-        },
-      });
-      console.warn('[ValidationError]', validationError.getLogDetails());
+      console.warn('[ValidationError] P2003', { field: prismaError.meta?.field_name, path: req.path });
+      const validationError = new ValidationError('Invalid reference');
       res.status(400).json(validationError.toJSON());
       return;
     }

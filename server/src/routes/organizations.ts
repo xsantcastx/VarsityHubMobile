@@ -13,7 +13,7 @@ import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireAdmin, isEmailAdmin } from '../middleware/requireAdmin.js';
 import { debugLog } from '../lib/debugLog.js';
-import { inviteLimiter } from '../middleware/rateLimiters.js';
+import { inviteLimiter, organizationsNearbyLimiter } from '../middleware/rateLimiters.js';
 import { requireOnboarded } from '../middleware/requireOnboarded.js';
 import { getAuthorizedUsersOrgLimit } from '../lib/planLimits.js';
 import { signJwt, verifyJwt } from '../lib/jwt.js';
@@ -729,7 +729,7 @@ organizationsRouter.post('/invites/:inviteId/decline', requireAuth as any, async
 // ===========================================
 
 // Search organizations by zip code / proximity
-organizationsRouter.get('/search/nearby', async (req, res) => {
+organizationsRouter.get('/search/nearby', organizationsNearbyLimiter, async (req, res) => {
   try {
     const query = String((req.query as any).query || '').trim();
     const sport = String((req.query as any).sport || '').trim();

@@ -251,9 +251,14 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
     // Handle 429 Rate Limit errors — never retry, throw immediately.
     // Retrying would just extend the wait and make things worse (retryAfter can be 900s+).
     if (error.status === 429) {
-      const err: any = new Error('Too many attempts. Please wait a moment and try again.');
+      const retryAfter = typeof error.data?.retryAfter === 'number' ? error.data.retryAfter : null;
+      const msg = retryAfter && retryAfter > 0 && retryAfter <= 300
+        ? `Too many attempts. Please try again in ${retryAfter} second${retryAfter === 1 ? '' : 's'}.`
+        : 'Too many attempts. Please wait a moment and try again.';
+      const err: any = new Error(msg);
       err.status = 429;
       err.data = error.data;
+      err.retryAfter = retryAfter;
       throw err;
     }
     

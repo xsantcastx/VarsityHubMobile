@@ -444,7 +444,7 @@ export default function PostDetailScreen() {
   };
 
   const followInFlight = useRef(false);
-  const onFollow = async () => {
+  const _onFollow = async () => {
     if (!post?.author_id || followInFlight.current) return;
     followInFlight.current = true;
 

@@ -14,7 +14,7 @@ if (!isExpoGo) {
 }
 
 const devLog = (...args: unknown[]) => {
-  if (__DEV__) console.log(...args);
+  if (__DEV__) console.log(...args); // eslint-disable-line no-console -- dev-only logging
 };
 
 export function NotificationTapHandler() {

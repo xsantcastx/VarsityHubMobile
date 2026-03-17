@@ -53,7 +53,7 @@ export default function Step3League() {
   const dupCheckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [supportingDocumentUri, setSupportingDocumentUri] = useState<string | null>(null);
   const [supportingDocumentUrl, setSupportingDocumentUrl] = useState<string | null>(null);
-  const [uploadingDocument, setUploadingDocument] = useState(false);
+  const [_uploadingDocument, setUploadingDocument] = useState(false);
 
   const styles = useMemo(() => createStyles(colorScheme), [colorScheme]);
 

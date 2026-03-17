@@ -305,9 +305,35 @@ teamsRouter.get('/:id', async (req, res) => {
 });
 
 // Team members list (auth required — roster visibility)
+// Restricted to team members, org admins (owner/manager), or platform admins
 teamsRouter.get('/:id/members', requireAuth as any, async (req: AuthedRequest, res) => {
   try {
   const id = String(req.params.id);
+  const team = await prisma.team.findUnique({ where: { id }, select: { id: true, organization_id: true } });
+  if (!team) return res.status(404).json({ error: 'Team not found' });
+
+  const isAdmin = await getIsAdmin(req as any);
+  const isTeamMember = await prisma.teamMembership.findFirst({
+    where: { team_id: id, user_id: req.user!.id, status: 'active' },
+    select: { id: true },
+  });
+  let isOrgAdmin = false;
+  if (team.organization_id) {
+    const orgMembership = await prisma.organizationMembership.findFirst({
+      where: {
+        organization_id: team.organization_id,
+        user_id: req.user!.id,
+        role: { in: ['owner', 'manager'] },
+        status: 'active',
+      },
+      select: { id: true },
+    });
+    isOrgAdmin = !!orgMembership;
+  }
+  if (!isAdmin && !isTeamMember && !isOrgAdmin) {
+    return res.status(403).json({ error: 'Only team members, league admins, or platform admins can view the roster' });
+  }
+
   const mems = await prisma.teamMembership.findMany({
     where: { team_id: id },
     orderBy: { created_at: 'asc' },
