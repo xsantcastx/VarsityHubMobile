@@ -5,7 +5,7 @@ import {
   sendJoinRequestApproved, sendJoinRequestDenied, sendJoinRequestToAdmin,
   sendOrganizationInviteEmail, sendLeagueApprovalRequestEmail, sendLeagueApprovedEmail,
   sendLeagueRejectedEmail, sendCoachApprovedEmail, sendCoachRejectedEmail,
-  sendNewCoachRequestEmail, sendEmail,
+  sendNewCoachRequestEmail, sendAdminActionConfirmationEmail,
 } from '../lib/email.js';
 import { sendOrganizationApprovalEmail, sendPushNotification } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
@@ -951,13 +951,15 @@ organizationsRouter.post('/join-requests', requireAuth as any, async (req: Authe
           requestId: joinRequest.id,
         });
 
-        // New: plain-text coach request notification to league owner
+        // Coach request notification to league owner (SendGrid template)
         await sendNewCoachRequestEmail({
           to: owner.user.email,
           ownerName: owner.user.display_name || 'League Owner',
           coachName: joinRequest.user.display_name || 'A coach',
           coachEmail: joinRequest.user.email,
           leagueName: organization.name,
+          requestId: joinRequest.id,
+          organizationId: organization.id,
         });
 
         // Push notification to league owner
@@ -1363,11 +1365,13 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
       }).catch(() => {});
     }
 
-    // Confirm action to super admin
-    sendEmail({
+    // Confirm action to super admin (SendGrid template)
+    sendAdminActionConfirmationEmail({
       to: 'emancero@varsityhub.app',
-      subject: `League Approved: ${org.name}`,
-      text: `League "${org.name}" owned by ${org.leagueOwner?.display_name || 'Unknown'} (${org.leagueOwner?.email || ''}) has been approved.`,
+      action: 'league_approved',
+      leagueName: org.name,
+      ownerName: org.leagueOwner?.display_name || undefined,
+      ownerEmail: org.leagueOwner?.email || undefined,
     }).catch(() => {});
 
     // If accessed via browser link, show a simple HTML confirmation (escape org.name to prevent XSS)
@@ -1434,11 +1438,14 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
       }).catch(() => {});
     }
 
-    // Confirm action to super admin
-    sendEmail({
+    // Confirm action to super admin (SendGrid template)
+    sendAdminActionConfirmationEmail({
       to: 'emancero@varsityhub.app',
-      subject: `League Rejected: ${org.name}`,
-      text: `League "${org.name}" owned by ${org.leagueOwner?.display_name || 'Unknown'} (${org.leagueOwner?.email || ''}) has been rejected.${reason ? ' Reason: ' + reason : ''}`,
+      action: 'league_rejected',
+      leagueName: org.name,
+      ownerName: org.leagueOwner?.display_name || undefined,
+      ownerEmail: org.leagueOwner?.email || undefined,
+      reason,
     }).catch(() => {});
 
     if (token) {

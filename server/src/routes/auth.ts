@@ -1103,7 +1103,7 @@ authRouter.patch('/me/preferences', requireAuth as any, async (req: AuthedReques
       messages_notifications: z.boolean().optional(),
     }).partial().optional(),
     is_parent: z.boolean().optional(),
-    zip_code: z.string().min(3).max(20).optional().nullable(),
+    zip_code: z.string().regex(/^\d{5}$/, 'Must be a 5-digit US zip code').optional().nullable(),
     // SECURITY: onboarding_completed is NEVER settable via PATCH — only via POST /me/complete-onboarding
     
     // New onboarding fields
@@ -1331,6 +1331,11 @@ authRouter.post('/me/complete-onboarding', requireAuth as any, async (req: Authe
   });
   const currentPrefs = currentUser?.preferences as any || {};
 
+  // SECURITY: Prevent re-completion — onboarding can only be completed once
+  if (currentPrefs.onboarding_completed === true) {
+    return res.status(409).json({ error: 'Onboarding already completed', code: 'ALREADY_COMPLETED' });
+  }
+
   const finalRole = data.role !== undefined ? data.role : (currentPrefs.role || 'fan');
 
   if (finalRole === 'coach' && !data.username) {
@@ -1343,6 +1348,22 @@ authRouter.post('/me/complete-onboarding', requireAuth as any, async (req: Authe
       error: 'Coaches must create or join an organization during onboarding.',
       code: 'ORG_REQUIRED',
     });
+  }
+
+  // SECURITY: If coach claims an organization_id, verify they actually own or have a pending join request for it
+  if (finalRole === 'coach' && data.organization_id) {
+    const membership = await prisma.organizationMembership.findFirst({
+      where: { organization_id: data.organization_id, user_id: req.user!.id },
+    });
+    const joinRequest = await prisma.organizationJoinRequest.findFirst({
+      where: { organization_id: data.organization_id, user_id: req.user!.id, status: { in: ['pending', 'approved'] } },
+    });
+    if (!membership && !joinRequest) {
+      return res.status(403).json({
+        error: 'You must be a member of or have a pending request for this organization.',
+        code: 'ORG_NOT_YOURS',
+      });
+    }
   }
 
   if (!data.username && !currentUser?.username) {

@@ -996,8 +996,8 @@ teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, req
           if (existingOrg) organizationId = existingOrg.id;
         } catch { /* ignore — continue without org */ }
       }
-      // For any unrecoverable error: continue team creation without an org
-      // (organization_id is optional — the user can link one later)
+      // Org creation failed — log for visibility but continue (user can link later)
+      console.warn('[teams] Organization auto-creation failed for team. Team will be created without org link.', orgError?.message || orgError);
     }
   } else {
     // Validate organization_id if provided (fail fast if invalid)

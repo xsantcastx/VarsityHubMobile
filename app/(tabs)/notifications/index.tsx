@@ -1,3 +1,4 @@
+import { useAuth } from '@/context/AuthProvider';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -26,6 +27,7 @@ type Notif = {
 };
 
 export default function NotificationsScreen() {
+  const { user } = useAuth();
   const router = useRouter();
   const colorScheme = useColorScheme();
   const insets = useSafeAreaInsets();

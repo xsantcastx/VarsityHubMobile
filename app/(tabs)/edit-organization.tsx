@@ -1,3 +1,4 @@
+import { useAuth } from '@/context/AuthProvider';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,6 +24,7 @@ const ORG_TYPES = [
 const AUTO_DESC_PATTERN = /^(School|Organization)( in .+)?$/;
 
 export default function EditOrganizationScreen() {
+  const { user } = useAuth();
   const router = useRouter();
   const params = useLocalSearchParams<{ id?: string }>();
   const colorScheme = useColorScheme() ?? 'light';

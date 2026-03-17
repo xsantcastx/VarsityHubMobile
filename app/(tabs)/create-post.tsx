@@ -800,7 +800,7 @@ export default function CreatePostScreen() {
                 color: Colors[colorScheme].text
               }
             ]}
-            maxLength={500}
+            maxLength={4000}
           />
           <Text style={[styles.helper, { color: Colors[colorScheme].mutedText }]}>Use # to tag teams and @ to mention players</Text>
         </View>

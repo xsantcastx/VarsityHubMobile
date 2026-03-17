@@ -101,6 +101,10 @@ const TEMPLATE_IDS = {
   AD_PENDING_REVIEW: process.env.SENDGRID_AD_PENDING_REVIEW_TEMPLATE_ID || '',
   AD_APPROVED: process.env.SENDGRID_AD_APPROVED_TEMPLATE_ID || '',
   AD_REJECTED: process.env.SENDGRID_AD_REJECTED_TEMPLATE_ID || '',
+
+  // League / Coach approval flows
+  LEAGUE_PENDING_APPROVAL: process.env.SENDGRID_LEAGUE_PENDING_APPROVAL_TEMPLATE_ID || '',
+  ADMIN_ACTION_CONFIRMATION: process.env.SENDGRID_ADMIN_ACTION_CONFIRMATION_TEMPLATE_ID || '',
 };
 
 type TemplateKey = keyof typeof TEMPLATE_IDS;
@@ -151,6 +155,8 @@ const RECOMMENDED_TEMPLATE_KEYS: TemplateKey[] = [
   'AD_REJECTED',
   'DAILY_TRANSACTION_REPORT',
   'FOUNDER_METRICS',
+  'LEAGUE_PENDING_APPROVAL',
+  'ADMIN_ACTION_CONFIRMATION',
 ];
 
 export function isSendGridConfigured(): boolean {
@@ -201,8 +207,8 @@ const formatLines = (lines: Array<string | undefined | null>) =>
   lines.filter((line) => Boolean(line && String(line).trim().length)).join('\n');
 
 /**
- * Generic email helper used by queue fallbacks and non-templated sends.
- * Now uses the new EmailService with retry logic and better error handling.
+ * Generic email helper — use ONLY for internal/system emails when no template exists.
+ * All user-facing and business emails MUST use SendGrid templates via sendTemplateEmail.
  */
 export async function sendEmail({ to, subject, text, html }: BasicEmail): Promise<boolean> {
   if (!to) {
@@ -340,7 +346,7 @@ export async function sendAdPendingReviewEmail(params: {
   bannerUrl?: string;
   adId?: string;
 }): Promise<boolean> {
-  const templateResult = await sendTemplateEmail(
+  return sendTemplateEmail(
     TEMPLATE_IDS.AD_PENDING_REVIEW,
     params.to,
     `Ad Pending Review — ${params.businessName || 'Unknown Business'}`,
@@ -355,20 +361,6 @@ export async function sendAdPendingReviewEmail(params: {
     },
     `Ad pending review email sent to ${params.to}`
   );
-  // Fallback: send plain-text email if template is not configured
-  if (!templateResult) {
-    const service = await getEmailService();
-    if (service?.isConfigured()) {
-      const bannerLine = params.bannerUrl ? `\nBanner: ${params.bannerUrl}` : '';
-      await service.send({
-        to: params.to,
-        subject: `Ad Pending Review — ${params.businessName || 'Unknown Business'}`,
-        text: `New ad needs review.\n\nBusiness: ${params.businessName || 'N/A'}\nContact: ${params.contactName || 'N/A'} (${params.contactEmail || 'N/A'})\nZip: ${params.zipCode || 'N/A'}${bannerLine}\n\nApprove or reject in the admin panel.`,
-      }).catch(e => console.warn('[email] Ad review fallback email failed:', e));
-      return true;
-    }
-  }
-  return templateResult;
 }
 
 export async function sendAdApprovedEmail(params: {
@@ -1350,14 +1342,14 @@ export async function sendWelcomeEmail(_to: string, _name?: string): Promise<boo
 }
 
 // =====================================================
-// League / Business Model Approval Emails (plain HTML)
+// League / Coach Approval Emails (SendGrid templates only)
 // =====================================================
 
 const API_BASE_URL = (process.env.API_BASE_URL || 'https://api-production-8ac3.up.railway.app').replace(/\/$/, '');
 
 /**
- * Notify super admin (emancero@varsityhub.app) that a new league was created and needs approval.
- * Includes one-click approve/reject links with signed JWT tokens.
+ * Notify super admin that a new league was created and needs approval.
+ * Uses SendGrid LEAGUE_PENDING_APPROVAL template.
  */
 export async function sendLeagueApprovalRequestEmail(params: {
   leagueId: string;
@@ -1372,65 +1364,54 @@ export async function sendLeagueApprovalRequestEmail(params: {
   const approveUrl = `${API_BASE_URL}/organizations/${params.leagueId}/approve?token=${params.approveToken}`;
   const rejectUrl = `${API_BASE_URL}/organizations/${params.leagueId}/reject?token=${params.rejectToken}`;
 
-  const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2 style="color: #1B3A6B;">New League Page Awaiting Approval</h2>
-      <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
-        <tr><td style="padding: 8px; font-weight: bold;">League Name:</td><td style="padding: 8px;">${params.leagueName}</td></tr>
-        <tr><td style="padding: 8px; font-weight: bold;">Owner:</td><td style="padding: 8px;">${params.ownerName} (${params.ownerEmail})</td></tr>
-        <tr><td style="padding: 8px; font-weight: bold;">Sport:</td><td style="padding: 8px;">${params.sport || 'Not specified'}</td></tr>
-        <tr><td style="padding: 8px; font-weight: bold;">Type:</td><td style="padding: 8px;">${params.orgType || 'Not specified'}</td></tr>
-        <tr><td style="padding: 8px; font-weight: bold;">Created:</td><td style="padding: 8px;">${new Date().toLocaleDateString()}</td></tr>
-      </table>
-      <div style="margin: 24px 0;">
-        <a href="${approveUrl}" style="display: inline-block; padding: 12px 32px; background: #16A34A; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; margin-right: 12px;">Approve League</a>
-        <a href="${rejectUrl}" style="display: inline-block; padding: 12px 32px; background: #DC2626; color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">Reject League</a>
-      </div>
-      <p style="color: #6B7280; font-size: 13px;">These links expire in 7 days. No login required.</p>
-    </div>
-  `;
-
   const to =
     (process.env.ADMIN_EMAILS || '').split(',')[0]?.trim() || 'emancero@varsityhub.app';
-  return sendEmail({
+  return sendTemplateEmail(
+    TEMPLATE_IDS.LEAGUE_PENDING_APPROVAL,
     to,
-    subject: `New League Awaiting Approval: ${params.leagueName}`,
-    text: `New league "${params.leagueName}" by ${params.ownerName} (${params.ownerEmail}) needs your approval. Approve: ${approveUrl} — Reject: ${rejectUrl}`,
-    html,
-  });
+    `New League Awaiting Approval: ${params.leagueName}`,
+    {
+      ...getCommonTemplateData(),
+      league_name: params.leagueName,
+      owner_name: params.ownerName,
+      owner_email: params.ownerEmail,
+      sport: params.sport || 'Not specified',
+      org_type: params.orgType || 'Not specified',
+      created_date: new Date().toLocaleDateString(),
+      approve_url: approveUrl,
+      reject_url: rejectUrl,
+    },
+    `League approval request sent to ${to}`
+  );
 }
 
 /**
  * Notify league owner that their league has been approved by super admin.
+ * Uses SendGrid ORG_APPROVAL template (league = org).
  */
 export async function sendLeagueApprovedEmail(params: {
   to: string;
   ownerName: string;
   leagueName: string;
 }): Promise<boolean> {
-  const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2 style="color: #16A34A;">Your League is Live!</h2>
-      <p>Hi ${params.ownerName},</p>
-      <p>Great news — <strong>${params.leagueName}</strong> has been approved and is now live on VarsityHub.</p>
-      <p>You can now complete your onboarding, set up your subscription, and start inviting coaches to your league.</p>
-      <div style="margin: 24px 0;">
-        <a href="${APP_BASE_URL}" style="display: inline-block; padding: 12px 32px; background: #1B3A6B; color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">Open VarsityHub</a>
-      </div>
-      <p style="color: #6B7280; font-size: 13px;">If you have questions, contact us at support@varsityhub.app</p>
-    </div>
-  `;
-
-  return sendEmail({
-    to: params.to,
-    subject: `Your league "${params.leagueName}" is live!`,
-    text: `Hi ${params.ownerName}, great news — ${params.leagueName} has been approved and is now live on VarsityHub. Open the app to continue onboarding.`,
-    html,
-  });
+  return sendTemplateEmail(
+    TEMPLATE_IDS.ORG_APPROVAL,
+    params.to,
+    `Your league "${params.leagueName}" is live!`,
+    {
+      ...getCommonTemplateData(),
+      org_name: params.leagueName,
+      owner_name: params.ownerName,
+      dashboard_url: `${APP_BASE_URL}/team-hub`,
+      org_logo_url: '',
+    },
+    `League approved email sent to ${params.to}`
+  );
 }
 
 /**
  * Notify league owner that their league was rejected by super admin.
+ * Uses SendGrid ORG_DENIAL template (league = org).
  */
 export async function sendLeagueRejectedEmail(params: {
   to: string;
@@ -1438,55 +1419,49 @@ export async function sendLeagueRejectedEmail(params: {
   leagueName: string;
   reason?: string;
 }): Promise<boolean> {
-  const reasonText = params.reason ? `<p><strong>Reason:</strong> ${params.reason}</p>` : '';
-  const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2 style="color: #DC2626;">League Not Approved</h2>
-      <p>Hi ${params.ownerName},</p>
-      <p>Unfortunately, <strong>${params.leagueName}</strong> was not approved on VarsityHub.</p>
-      ${reasonText}
-      <p>If you believe this was a mistake or would like to resubmit, please contact us at support@varsityhub.app.</p>
-    </div>
-  `;
-
-  return sendEmail({
-    to: params.to,
-    subject: `League "${params.leagueName}" — not approved`,
-    text: `Hi ${params.ownerName}, unfortunately ${params.leagueName} was not approved on VarsityHub.${params.reason ? ' Reason: ' + params.reason : ''} Contact support@varsityhub.app for questions.`,
-    html,
-  });
+  return sendTemplateEmail(
+    TEMPLATE_IDS.ORG_DENIAL,
+    params.to,
+    `League "${params.leagueName}" — not approved`,
+    {
+      ...getCommonTemplateData(),
+      org_name: params.leagueName,
+      owner_name: params.ownerName,
+      reason: params.reason || '',
+      org_logo_url: '',
+    },
+    `League rejected email sent to ${params.to}`
+  );
 }
 
 /**
  * Notify coach that they have been approved by the league owner.
+ * Uses SendGrid JOIN_REQUEST_APPROVED template.
  */
 export async function sendCoachApprovedEmail(params: {
   to: string;
   coachName: string;
   leagueName: string;
 }): Promise<boolean> {
-  const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2 style="color: #16A34A;">You've Been Approved!</h2>
-      <p>Hi ${params.coachName},</p>
-      <p>The owner of <strong>${params.leagueName}</strong> has approved your coach account. You now have full access to coach tools.</p>
-      <div style="margin: 24px 0;">
-        <a href="${APP_BASE_URL}" style="display: inline-block; padding: 12px 32px; background: #1B3A6B; color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">Continue Setup</a>
-      </div>
-      <p style="color: #6B7280; font-size: 13px;">Open the app to finish setting up your profile and start managing your team.</p>
-    </div>
-  `;
-
-  return sendEmail({
-    to: params.to,
-    subject: `You're approved — welcome to ${params.leagueName}!`,
-    text: `Hi ${params.coachName}, the owner of ${params.leagueName} has approved your coach account. Open VarsityHub to continue setup.`,
-    html,
-  });
+  return sendTemplateEmail(
+    TEMPLATE_IDS.JOIN_REQUEST_APPROVED,
+    params.to,
+    `You're approved — welcome to ${params.leagueName}!`,
+    {
+      ...getCommonTemplateData(),
+      user_name: params.coachName,
+      org_name: params.leagueName,
+      admin_name: 'League Owner',
+      dashboard_url: `${APP_BASE_URL}/team-hub`,
+      org_logo_url: '',
+    },
+    `Coach approved email sent to ${params.to}`
+  );
 }
 
 /**
  * Notify coach that they were rejected by the league owner.
+ * Uses SendGrid JOIN_REQUEST_DENIED template.
  */
 export async function sendCoachRejectedEmail(params: {
   to: string;
@@ -1494,27 +1469,52 @@ export async function sendCoachRejectedEmail(params: {
   leagueName: string;
   reason?: string;
 }): Promise<boolean> {
-  const reasonText = params.reason ? `<p><strong>Reason:</strong> ${params.reason}</p>` : '';
-  const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2 style="color: #DC2626;">Coach Request Declined</h2>
-      <p>Hi ${params.coachName},</p>
-      <p>Your request to join <strong>${params.leagueName}</strong> as a coach was not approved.</p>
-      ${reasonText}
-      <p>You can apply to a different league or contact support@varsityhub.app for help.</p>
-    </div>
-  `;
+  return sendTemplateEmail(
+    TEMPLATE_IDS.JOIN_REQUEST_DENIED,
+    params.to,
+    `Coach request for ${params.leagueName} — declined`,
+    {
+      ...getCommonTemplateData(),
+      user_name: params.coachName,
+      org_name: params.leagueName,
+      reason: params.reason || '',
+      org_logo_url: '',
+    },
+    `Coach rejected email sent to ${params.to}`
+  );
+}
 
-  return sendEmail({
-    to: params.to,
-    subject: `Coach request for ${params.leagueName} — declined`,
-    text: `Hi ${params.coachName}, your request to join ${params.leagueName} as a coach was not approved.${params.reason ? ' Reason: ' + params.reason : ''} You can apply to a different league.`,
-    html,
-  });
+/**
+ * Notify super admin of league approval/rejection action (internal confirmation).
+ * Uses SendGrid ADMIN_ACTION_CONFIRMATION template.
+ */
+export async function sendAdminActionConfirmationEmail(params: {
+  to: string;
+  action: 'league_approved' | 'league_rejected';
+  leagueName: string;
+  ownerName?: string;
+  ownerEmail?: string;
+  reason?: string;
+}): Promise<boolean> {
+  return sendTemplateEmail(
+    TEMPLATE_IDS.ADMIN_ACTION_CONFIRMATION,
+    params.to,
+    `League ${params.action === 'league_approved' ? 'Approved' : 'Rejected'}: ${params.leagueName}`,
+    {
+      ...getCommonTemplateData(),
+      action: params.action,
+      league_name: params.leagueName,
+      owner_name: params.ownerName || 'Unknown',
+      owner_email: params.ownerEmail || '',
+      reason: params.reason || '',
+    },
+    `Admin action confirmation sent to ${params.to}`
+  );
 }
 
 /**
  * Notify league owner that a new coach wants to join.
+ * Uses SendGrid JOIN_REQUEST_ADMIN template.
  */
 export async function sendNewCoachRequestEmail(params: {
   to: string;
@@ -1522,23 +1522,31 @@ export async function sendNewCoachRequestEmail(params: {
   coachName: string;
   coachEmail: string;
   leagueName: string;
+  requestId?: string;
+  organizationId?: string;
 }): Promise<boolean> {
-  const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2 style="color: #1B3A6B;">New Coach Request</h2>
-      <p>Hi ${params.ownerName},</p>
-      <p><strong>${params.coachName}</strong> (${params.coachEmail}) wants to join <strong>${params.leagueName}</strong> as a coach.</p>
-      <p>Open VarsityHub to approve or decline this request from your league dashboard.</p>
-      <div style="margin: 24px 0;">
-        <a href="${APP_BASE_URL}" style="display: inline-block; padding: 12px 32px; background: #1B3A6B; color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">Review Request</a>
-      </div>
-    </div>
-  `;
+  const approveUrl = params.requestId
+    ? `${APP_BASE_URL}/organizations/join-requests/${params.requestId}/approve`
+    : `${APP_BASE_URL}/organizations`;
+  const denyUrl = params.requestId
+    ? `${APP_BASE_URL}/organizations/join-requests/${params.requestId}/deny`
+    : `${APP_BASE_URL}/organizations`;
 
-  return sendEmail({
-    to: params.to,
-    subject: `New coach request for ${params.leagueName}: ${params.coachName}`,
-    text: `Hi ${params.ownerName}, ${params.coachName} (${params.coachEmail}) wants to join ${params.leagueName} as a coach. Open VarsityHub to review.`,
-    html,
-  });
+  return sendTemplateEmail(
+    TEMPLATE_IDS.JOIN_REQUEST_ADMIN,
+    params.to,
+    `New coach request for ${params.leagueName}: ${params.coachName}`,
+    {
+      ...getCommonTemplateData(),
+      admin_name: params.ownerName,
+      requester_name: params.coachName,
+      org_name: params.leagueName,
+      message: params.coachEmail,
+      request_id: params.requestId || '',
+      approve_url: approveUrl,
+      deny_url: denyUrl,
+      org_logo_url: '',
+    },
+    `New coach request sent to ${params.to}`
+  );
 }

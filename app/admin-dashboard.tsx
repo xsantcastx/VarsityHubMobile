@@ -29,7 +29,7 @@ interface DashboardStats {
 export default function AdminDashboardScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
-  const { isAdmin, loading: _authLoading } = useRequireAdmin();
+  const { isAdmin, loading: adminLoading } = useRequireAdmin();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -117,6 +117,13 @@ export default function AdminDashboardScreen() {
       </View>
     </View>
   );
+
+  if (adminLoading) {
+    return <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator /></SafeAreaView>;
+  }
+  if (!isAdmin) {
+    return <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><Text>Admin access required</Text></SafeAreaView>;
+  }
 
   return (
     <SafeAreaView 

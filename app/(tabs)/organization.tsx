@@ -1,4 +1,5 @@
 import { Game, Organization, Team, User } from '@/api/entities';
+import { useAuth } from '@/context/AuthProvider';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
@@ -52,6 +53,7 @@ type GameItem = {
 };
 
 export default function OrganizationScreen() {
+  const { user } = useAuth();
   const colorScheme = useCustomColorScheme();
   const theme = Colors[colorScheme];
   const router = useRouter();
@@ -77,7 +79,7 @@ export default function OrganizationScreen() {
   }, []);
 
   const loadOrganization = useCallback(async () => {
-    if (!mounted.current) return;
+    if (!mounted.current || !user) return;
     setError(null);
     try {
       const orgId = params.id?.trim();

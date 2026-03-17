@@ -1,3 +1,4 @@
+import { useAuth } from '@/context/AuthProvider';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { format } from 'date-fns';
 import { Image } from 'expo-image';
@@ -33,6 +34,7 @@ const computeGoing = (count?: number | null, capacity?: number | null) => {
 const pickBanner = (event: any) => event?.game?.cover_image_url || event?.banner_url || null;
 
 export default function TeamHubScreen() {
+  const { user } = useAuth();
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const palette = useMemo(() => buildPalette(colorScheme), [colorScheme]);

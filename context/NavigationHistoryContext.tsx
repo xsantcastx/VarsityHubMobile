@@ -1,14 +1,15 @@
 /**
- * NavigationHistoryContext - Tracks last-visited tab/screen for back button fallback.
+ * NavigationHistoryContext - Maintains a navigation history stack for back button.
  *
- * When Expo Router loses the navigation stack (router.canGoBack() returns false),
- * we replace to the last-visited tab instead of always going to feed.
+ * Expo Router's canGoBack() returns false in Tabs when navigating to nested screens.
+ * We track every screen visit and use that stack when back is pressed.
  */
-import { useRouter, useSegments } from 'expo-router';
+import { useRouter, useSegments, useUnstableGlobalHref } from 'expo-router';
 import React, { createContext, useCallback, useContext, useEffect, useRef } from 'react';
 
 const TAB_ROUTES = ['feed', 'discover', 'profile', 'highlights', 'create'] as const;
 export const DEFAULT_FALLBACK = '/(tabs)/feed' as const;
+const MAX_HISTORY = 50;
 
 /** Module-level fallback for safeGoBack(router) when used outside React tree (e.g. Alert callbacks) */
 let globalGetFallback: (() => string) | null = null;
@@ -34,10 +35,9 @@ function segmentsToRoute(segments: string[]): string {
   return DEFAULT_FALLBACK;
 }
 
+
 interface NavigationHistoryContextType {
-  /** Navigate back; if canGoBack() is false, replace to last-visited tab */
   safeGoBack: () => void;
-  /** Get the fallback route when history is empty (for imperative use) */
   getFallbackRoute: () => string;
 }
 
@@ -52,8 +52,7 @@ export function useNavigationHistory() {
 }
 
 /**
- * Hook that returns a safeGoBack function. Safe to use even when
- * NavigationHistoryProvider is not in the tree (falls back to feed).
+ * Hook that returns a safeGoBack function.
  * @param explicitFallback - When provided, use this route when canGoBack is false (e.g. '/(tabs)/my-ads')
  */
 export function useSafeGoBack(explicitFallback?: string): () => void {
@@ -76,10 +75,31 @@ interface NavigationHistoryProviderProps {
 
 export function NavigationHistoryProvider({ children }: NavigationHistoryProviderProps) {
   const router = useRouter();
+  const href = useUnstableGlobalHref();
   const segments = useSegments();
   const lastTabRouteRef = useRef<string>(DEFAULT_FALLBACK);
+  const historyRef = useRef<string[]>([]);
+  const prevHrefRef = useRef<string | null>(null);
+  const isNavigatingBackRef = useRef(false);
 
-  // Update last-visited tab only when user is on a tab screen (feed, discover, profile, highlights)
+  // Use full href (path + params) so back preserves query params
+  const currentHref = typeof href === 'string' ? href : `/${segments.map((s) => String(s)).join('/')}`;
+
+  // On every route change: push previous href to history (unless we just navigated back)
+  useEffect(() => {
+    const prev = prevHrefRef.current;
+    prevHrefRef.current = currentHref;
+
+    if (isNavigatingBackRef.current) {
+      isNavigatingBackRef.current = false;
+      return;
+    }
+    if (prev != null && prev !== currentHref) {
+      historyRef.current = [...historyRef.current.slice(-(MAX_HISTORY - 1)), prev];
+    }
+  }, [currentHref]);
+
+  // Update last-visited tab when on a tab root
   useEffect(() => {
     const segStrings = segments.map((s) => String(s));
     if (segStrings.length >= 2 && isTabRoute(segStrings[1])) {
@@ -87,11 +107,23 @@ export function NavigationHistoryProvider({ children }: NavigationHistoryProvide
     }
   }, [segments]);
 
-  const getFallbackRoute = useCallback(() => lastTabRouteRef.current, []);
+  const getFallbackRoute = useCallback(() => {
+    const hist = historyRef.current;
+    if (hist.length > 0) return hist[hist.length - 1];
+    return lastTabRouteRef.current;
+  }, []);
 
   const safeGoBack = useCallback(() => {
     if (router.canGoBack()) {
       router.back();
+      return;
+    }
+    const hist = historyRef.current;
+    if (hist.length > 0) {
+      const target = hist[hist.length - 1];
+      historyRef.current = hist.slice(0, -1);
+      isNavigatingBackRef.current = true;
+      router.replace(target as any);
     } else {
       router.replace(lastTabRouteRef.current as any);
     }
@@ -102,7 +134,6 @@ export function NavigationHistoryProvider({ children }: NavigationHistoryProvide
     [safeGoBack, getFallbackRoute]
   );
 
-  // Expose getFallbackRoute globally so safeGoBack(router) in utils/navigation can use it
   React.useEffect(() => {
     setNavigationFallbackGetter(getFallbackRoute);
     return () => setNavigationFallbackGetter(null);

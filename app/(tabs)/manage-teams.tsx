@@ -1,3 +1,4 @@
+import { useAuth } from '@/context/AuthProvider';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -32,6 +33,7 @@ type Team = {
 };
 
 export default function ManageTeamsSimpleScreen() {
+  const { user } = useAuth();
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const [loading, setLoading] = useState(true);
@@ -43,6 +45,7 @@ export default function ManageTeamsSimpleScreen() {
   const [userPlan, setUserPlan] = useState<string | null>(null);
 
   const loadTeams = useCallback(async () => {
+    if (!user) return;
     try {
       setError(null);
       const list: any[] = await TeamApi.managed();
@@ -66,13 +69,13 @@ export default function ManageTeamsSimpleScreen() {
   }, []);
 
   useEffect(() => {
-    void loadTeams().finally(() => setLoading(false)).catch(() => {});
+    void loadTeams().finally(() => setLoading(false)).catch((e) => { if (__DEV__) console.warn('[ManageTeams] load error:', e); });
   }, [loadTeams]);
 
   // Auto-refresh when screen regains focus (e.g. after creating a team)
   useFocusEffect(
     useCallback(() => {
-      void loadTeams().catch(() => {});
+      void loadTeams().catch((e) => { if (__DEV__) console.warn('[ManageTeams] focus reload error:', e); });
     }, [loadTeams])
   );
 

@@ -16,7 +16,7 @@ type AdStatus = 'draft' | 'pending' | 'approved' | 'active' | 'paused';
 export default function AdminAdsScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
-  const { isAdmin, loading: _authLoading } = useRequireAdmin();
+  const { isAdmin, loading: adminLoading } = useRequireAdmin();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<any[]>([]);
@@ -159,8 +159,16 @@ export default function AdminAdsScreen() {
   };
 
   const theme = Colors[colorScheme];
-  const filteredItems = filterStatus === 'all' 
-    ? items 
+
+  if (adminLoading) {
+    return <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'bottom']}><ActivityIndicator style={{ marginTop: 40 }} /></SafeAreaView>;
+  }
+  if (!isAdmin) {
+    return <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'bottom']}><Text style={{ textAlign: 'center', marginTop: 40, color: theme.text }}>Admin access required</Text></SafeAreaView>;
+  }
+
+  const filteredItems = filterStatus === 'all'
+    ? items
     : items.filter(ad => ad.status === filterStatus);
 
   const getStatusColor = (status: string) => {

@@ -1,3 +1,4 @@
+import { useAuth } from '@/context/AuthProvider';
 import { BackHeader } from '@/components/ui/BackHeader';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -14,6 +15,7 @@ import { Colors } from '@/constants/Colors';
 type EventItem = { id: string | number; title?: string; date?: string; location?: string; description?: string; capacity?: number; attendees?: any[]; status?: string; can_cancel?: boolean };
 
 export default function EventDetailScreen() {
+  const { user } = useAuth();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme();

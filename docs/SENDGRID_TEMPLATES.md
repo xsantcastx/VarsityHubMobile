@@ -232,7 +232,65 @@ This document describes all SendGrid dynamic templates used by VarsityHub and th
 
 ---
 
-### 9. Organization Approval (`SENDGRID_ORG_APPROVAL_TEMPLATE_ID`)
+### 9. League Pending Approval (`SENDGRID_LEAGUE_PENDING_APPROVAL_TEMPLATE_ID`)
+
+**Purpose:** Sent to super admin when a new league is created and needs approval.
+
+**Dynamic Template Data:**
+```json
+{
+  "league_name": "Dallas Lady Tigers",
+  "owner_name": "Jane Smith",
+  "owner_email": "jane@example.com",
+  "sport": "Basketball",
+  "org_type": "Youth League",
+  "created_date": "3/17/2026",
+  "approve_url": "https://api.../organizations/org_123/approve?token=...",
+  "reject_url": "https://api.../organizations/org_123/reject?token=..."
+}
+```
+
+**Template Placeholders:**
+- `{{league_name}}` - League name
+- `{{owner_name}}` - League owner display name
+- `{{owner_email}}` - League owner email
+- `{{sport}}` - Sport type
+- `{{org_type}}` - Organization type
+- `{{created_date}}` - Creation date
+- `{{approve_url}}` - One-click approve link (signed JWT)
+- `{{reject_url}}` - One-click reject link (signed JWT)
+
+**Subject:** New League Awaiting Approval: {{league_name}}
+
+---
+
+### 10. Admin Action Confirmation (`SENDGRID_ADMIN_ACTION_CONFIRMATION_TEMPLATE_ID`)
+
+**Purpose:** Internal confirmation to super admin when a league is approved or rejected.
+
+**Dynamic Template Data:**
+```json
+{
+  "action": "league_approved",
+  "league_name": "Dallas Lady Tigers",
+  "owner_name": "Jane Smith",
+  "owner_email": "jane@example.com",
+  "reason": ""
+}
+```
+
+**Template Placeholders:**
+- `{{action}}` - One of: `league_approved`, `league_rejected`
+- `{{league_name}}` - League name
+- `{{owner_name}}` - League owner name
+- `{{owner_email}}` - League owner email
+- `{{reason}}` - Rejection reason (only for league_rejected)
+
+**Subject:** League Approved/Rejected: {{league_name}}
+
+---
+
+### 11. Organization Approval (`SENDGRID_ORG_APPROVAL_TEMPLATE_ID`)
 
 **Purpose:** Sent when admin approves organization-related action.
 
@@ -254,7 +312,7 @@ This document describes all SendGrid dynamic templates used by VarsityHub and th
 
 ---
 
-### 10. Organization Denial (`SENDGRID_ORG_DENIAL_TEMPLATE_ID`)
+### 12. Organization Denial (`SENDGRID_ORG_DENIAL_TEMPLATE_ID`)
 
 **Purpose:** Sent when admin denies organization-related action.
 
@@ -276,7 +334,7 @@ This document describes all SendGrid dynamic templates used by VarsityHub and th
 
 ---
 
-### 11. Content Moderation (`SENDGRID_CONTENT_MODERATION_TEMPLATE_ID`)
+### 13. Content Moderation (`SENDGRID_CONTENT_MODERATION_TEMPLATE_ID`)
 
 **Purpose:** Sent when content is moderated (removed, flagged, or restored).
 
@@ -303,7 +361,7 @@ Use `{{#if reason}}{{reason}}{{/if}}` to show reason only when provided.
 
 ---
 
-### 12. Billing Notice (`SENDGRID_BILLING_NOTICE_TEMPLATE_ID`)
+### 14. Billing Notice (`SENDGRID_BILLING_NOTICE_TEMPLATE_ID`)
 
 **Purpose:** Sent for billing events (payment success/failure, subscription changes). Trials are not offered.
 

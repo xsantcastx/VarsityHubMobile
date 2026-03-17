@@ -24,6 +24,7 @@ export default function AdConfirmationScreen() {
   const [adDetails, setAdDetails] = useState<any>(null);
   const [loading, setLoading] = useState(!!params.ad_id);
   const [paymentVerified, setPaymentVerified] = useState(false);
+  const [pollError, setPollError] = useState(false);
 
   useEffect(() => {
     if (params.ad_id) {
@@ -53,7 +54,7 @@ export default function AdConfirmationScreen() {
           if (attempt < maxPollAttempts) {
             timer = setTimeout(poll, 2000);
           } else {
-            // Give up polling but still show the page
+            setPollError(true);
             setLoading(false);
           }
         } catch (err) {
@@ -62,6 +63,7 @@ export default function AdConfirmationScreen() {
           if (attempt < maxPollAttempts) {
             timer = setTimeout(poll, 2000);
           } else {
+            setPollError(true);
             setLoading(false);
           }
         }
@@ -98,8 +100,30 @@ export default function AdConfirmationScreen() {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#10B981" />
           <Text style={[styles.loadingText, { color: Colors[colorScheme].mutedText }]}>
-            Loading your ad details...
+            Verifying your payment...
           </Text>
+        </View>
+      ) : pollError && !paymentVerified ? (
+        <View style={styles.loadingContainer}>
+          <MaterialIcons name="hourglass-top" size={48} color="#F59E0B" />
+          <Text style={[styles.loadingText, { color: Colors[colorScheme].text, fontWeight: '600', marginTop: 12 }]}>
+            Payment Processing
+          </Text>
+          <Text style={[styles.loadingText, { color: Colors[colorScheme].mutedText, marginTop: 4 }]}>
+            Your payment is being processed. This may take a moment.
+          </Text>
+          <Pressable
+            onPress={() => { setPollError(false); setLoading(true); }}
+            style={{ marginTop: 20, backgroundColor: '#10B981', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 }}
+          >
+            <Text style={{ color: '#fff', fontWeight: '600' }}>Try Again</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => setPollError(false)}
+            style={{ marginTop: 12 }}
+          >
+            <Text style={{ color: Colors[colorScheme].tint, fontWeight: '500' }}>Continue Anyway</Text>
+          </Pressable>
         </View>
       ) : (
         <ScrollView 

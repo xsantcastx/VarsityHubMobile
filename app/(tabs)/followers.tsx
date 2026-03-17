@@ -1,4 +1,5 @@
 import { User } from '@/api/entities';
+import { useAuth } from '@/context/AuthProvider';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,6 +14,7 @@ import SwipeBackContainer from '@/components/SwipeBackContainer';
 import { safeGoBack } from '@/utils/navigation';
 
 export default function FollowersScreen() {
+  const { user } = useAuth();
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const { id, username } = useLocalSearchParams<{ id: string; username?: string }>();

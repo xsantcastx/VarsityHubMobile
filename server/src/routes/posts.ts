@@ -791,7 +791,7 @@ postsRouter.post('/:id/poll', requireAuth as any, requireOnboarded as any, async
   }
 });
 
-postsRouter.post('/:id/poll/vote', requireAuth as any, async (req: AuthedRequest, res) => {
+postsRouter.post('/:id/poll/vote', requireAuth as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
   const postId = String(req.params.id);
   const userId = req.user!.id;
 

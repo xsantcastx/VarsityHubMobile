@@ -16,12 +16,21 @@ export default function FollowedTeamsScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<FollowedTeam[]>([]);
-  useEffect(() => { void (async () => {
-    setLoading(true); setError(null);
-    try { const rows = await httpGet('/follows/teams?user_id=me') as FollowedTeam[]; setItems(Array.isArray(rows) ? rows : []); }
-    catch (e: any) { setError(e?.message || 'Failed to load'); }
-    finally { setLoading(false); }
-  })(); }, []);
+  useEffect(() => {
+    let mounted = true;
+    void (async () => {
+      setLoading(true); setError(null);
+      try {
+        const rows = await httpGet('/follows/teams?user_id=me') as FollowedTeam[];
+        if (mounted) setItems(Array.isArray(rows) ? rows : []);
+      } catch (e: any) {
+        if (mounted) setError(e?.message || 'Failed to load');
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme ?? 'light'].background }]} edges={['bottom']}>
       <Stack.Screen options={{ title: 'Followed Teams', headerBackTitle: 'Back', headerShown: true }} />

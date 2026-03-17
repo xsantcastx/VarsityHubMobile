@@ -38,9 +38,19 @@ export default function EditAdScreen() {
   const [uploading, setUploading] = useState(false);
   const [bookedDates, setBookedDates] = useState<string[]>([]);
 
+  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail.trim());
+  const zipValid = !zip.trim() || /^\d{5}$/.test(zip.trim());
+  const urlValid = !targetUrl.trim() || /^https?:\/\/.+/.test(targetUrl.trim());
+
   const canSave = useMemo(() => {
-    return !!id && business.trim().length > 0 && contactEmail.trim().length > 0;
-  }, [id, business, contactEmail]);
+    return !!id
+      && business.trim().length > 0 && business.trim().length <= 200
+      && contactEmail.trim().length > 0 && emailValid
+      && contactName.trim().length <= 200
+      && desc.trim().length <= 1000
+      && zipValid
+      && urlValid;
+  }, [id, business, contactEmail, contactName, desc, emailValid, zipValid, urlValid]);
 
   const load = useCallback(async () => {
     if (!id) { setLoading(false); return; }

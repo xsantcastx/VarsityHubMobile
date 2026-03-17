@@ -13,6 +13,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ErrorToastContainer } from '@/components/ErrorToast';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { Colors } from '@/constants/Colors';
+import { MAX_CONTENT_WIDTH } from '@/constants/layout';
 import { AuthProvider } from '@/context/AuthProvider';
 import { NavigationHistoryProvider } from '@/context/NavigationHistoryContext';
 import { PostCacheProvider } from '@/context/PostCacheContext';
@@ -137,6 +138,8 @@ export default function RootLayout() {
                 <NavigationThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
                   <OfflineBanner />
                   <ErrorToastContainer />
+                  <View style={{ flex: 1, backgroundColor: Colors[colorScheme ?? 'light'].background }}>
+                    <View style={{ flex: 1, maxWidth: MAX_CONTENT_WIDTH, width: '100%', alignSelf: 'center' }}>
                     <Stack screenOptions={{ headerShown: false }}>
                     <Stack.Screen name="index" options={{ headerShown: false }} />
                     <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -158,6 +161,8 @@ export default function RootLayout() {
                     <Stack.Screen name="settings" options={{ headerShown: false }} />
                     <Stack.Screen name="+not-found" />
                   </Stack>
+                    </View>
+                  </View>
                   <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
                 </NavigationThemeProvider>
               </AuthProvider>

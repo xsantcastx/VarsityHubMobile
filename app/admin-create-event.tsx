@@ -15,6 +15,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 // @ts-ignore
 import { httpPost } from '@/api/http';
 import { autocompleteLocations, PlaceSuggestion } from '@/api/geocoding';
@@ -32,6 +33,7 @@ const EVENT_TYPES = [
 ];
 
 export default function CreateEventScreen() {
+  const { isAdmin, loading: adminLoading } = useRequireAdmin();
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
 
@@ -109,6 +111,21 @@ export default function CreateEventScreen() {
       setSubmitting(false);
     }
   };
+
+  if (adminLoading) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['bottom']}>
+        <ActivityIndicator style={{ marginTop: 40 }} />
+      </SafeAreaView>
+    );
+  }
+  if (!isAdmin) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['bottom']}>
+        <Text style={{ textAlign: 'center', marginTop: 40, color: Colors[colorScheme].text }}>Admin access required</Text>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView

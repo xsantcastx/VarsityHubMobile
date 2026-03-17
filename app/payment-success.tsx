@@ -104,7 +104,7 @@ export default function PaymentSuccessScreen() {
               if (verificationAttempt === 4) {
                 try {
                   await httpPost('/payments/finalize-session', { session_id: sessionId });
-                } catch { /* finalize may already be done */ }
+                } catch (e) { if (__DEV__) console.warn('[PaymentSuccess] finalize-session:', e); }
               }
               clearRetry();
               retryTimeoutRef.current = setTimeout(() => {
@@ -119,7 +119,7 @@ export default function PaymentSuccessScreen() {
                   showSuccessState();
                   return;
                 }
-              } catch { /* ignore */ }
+              } catch (e) { if (__DEV__) console.warn('[PaymentSuccess] poll error:', e); }
               setError('Payment verification timed out. Your payment may still be processing.');
               setLoading(false);
             }
