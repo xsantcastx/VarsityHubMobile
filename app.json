@@ -139,7 +139,7 @@
           "url": "https://sentry.io/",
           "organization": "varsity-hub",
           "project": "varsity-hub-mobile",
-          "uploadSourcemaps": true
+          "uploadSourcemaps": false
         }
       ],
       [
