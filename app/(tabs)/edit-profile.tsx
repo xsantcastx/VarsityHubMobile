@@ -129,7 +129,7 @@ export default function EditProfileScreen() {
       setZipCode(prefs?.zip_code || me?.zip_code || '');
       
       // Handle date of birth from preferences or direct field
-      const dobValue = prefs?.date_of_birth || me?.date_of_birth;
+      const dobValue = prefs?.dob || prefs?.date_of_birth || me?.dob || me?.date_of_birth;
       if (dobValue) {
         try {
           const date = new Date(dobValue);
