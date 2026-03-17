@@ -608,7 +608,7 @@ adsRouter.post('/reservations', requireVerified as any, async (_req: AuthedReque
  * Find alternative zip codes within 50 miles when the requested zip is fully booked.
  * Returns nearby zips with availability for the requested dates, sorted by distance.
  */
-adsRouter.get('/alternative-zips', alternativeZipsLimiter, async (req: AuthedRequest, res) => {
+adsRouter.get('/alternative-zips', requireAuth as any, alternativeZipsLimiter, async (req: AuthedRequest, res) => {
   try {
     const { zip, dates } = req.query;
 

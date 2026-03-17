@@ -489,7 +489,7 @@ model Ad {
   radius          Int      @default(45) // non-null with default
   description     String?
   status          String   @default("draft") // draft | pending | active | rejected | archived
-  payment_status  String   @default("unpaid") // unpaid | paid | refunded
+  payment_status  String   @default("unpaid") // unpaid | pending_approval | hold | paid | refunded
   admin_note      String?  // Note from admin when approving/rejecting
   created_at      DateTime @default(now())
 

@@ -78,20 +78,23 @@ interface ParsedDeepLink {
  * Route mappings from content type to screen path
  */
 const ROUTE_MAP: Record<string, string> = {
-  post: '/(tabs)/post-detail',
-  posts: '/(tabs)/post-detail', // /posts/:id (web URL format)
-  game: '/(tabs)/game-detail',
-  event: '/(tabs)/event-detail',
-  team: '/(tabs)/team-page', // team-page loads Team.get(id); team-profile is user profile
-  profile: '/(tabs)/user-profile',
-  user: '/(tabs)/user-profile',
+  post: '/post-detail',
+  posts: '/post-detail', // /posts/:id (web URL format)
+  game: '/game-detail',
+  event: '/event-detail',
+  team: '/team-page',
+  profile: '/user-profile',
+  user: '/user-profile',
   // Auth-related routes
   'reset-password': '/reset-password',
   'verify-email': '/verify',
   'verify': '/verify',
   // Onboarding continuation (after coach approval)
   'onboarding': '/onboarding',
-  'approvals': '/(tabs)/approvals',
+  'approvals': '/approvals',
+  // Invite deep links
+  'join/org': '/request-join-organization',
+  'join/team': '/team-invites',
 };
 
 /**
@@ -136,9 +139,19 @@ function parseSchemeLink(parsed: Linking.ParsedURL): ParsedDeepLink | null {
     return null;
   }
   
-  const [type, id] = pathParts;
+  // Support multi-segment types like 'join/org' (3 parts: join, org, id)
+  let type: string;
+  let id: string;
+  const twoSegmentType = pathParts.length >= 3 ? `${pathParts[0]}/${pathParts[1]}` : '';
+  if (twoSegmentType && ROUTE_MAP[twoSegmentType]) {
+    type = twoSegmentType;
+    id = pathParts[2];
+  } else {
+    type = pathParts[0];
+    id = pathParts[1];
+  }
   const screen = ROUTE_MAP[type];
-  
+
   if (!screen) {
     if (__DEV__) console.warn('[DeepLinks] Unknown content type:', type);
     return null;
@@ -206,21 +219,31 @@ function parseUniversalLink(parsed: Linking.ParsedURL): ParsedDeepLink | null {
  */
 function parsePathLink(parsed: Linking.ParsedURL): ParsedDeepLink | null {
   const pathParts = parsed.path?.split('/').filter(Boolean) || [];
-  
+
   if (pathParts.length < 2) {
     return null;
   }
-  
-  const [type, id] = pathParts;
+
+  // Support multi-segment types like 'join/org' (3 parts: join, org, id)
+  let type: string;
+  let id: string;
+  const twoSegmentType = pathParts.length >= 3 ? `${pathParts[0]}/${pathParts[1]}` : '';
+  if (twoSegmentType && ROUTE_MAP[twoSegmentType]) {
+    type = twoSegmentType;
+    id = pathParts[2];
+  } else {
+    type = pathParts[0];
+    id = pathParts[1];
+  }
   const screen = ROUTE_MAP[type];
-  
+
   if (!screen) {
     return null;
   }
   if (!isValidDeepLinkId(id)) {
     return null;
   }
-  
+
   return {
     screen,
     params: { id },
