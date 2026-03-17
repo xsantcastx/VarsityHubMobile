@@ -1,8 +1,24 @@
 import { Router, type Request, type Response } from 'express';
+import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireOnboarded } from '../middleware/requireOnboarded.js';
+
+const createTournamentSchema = z.object({
+  name: z.string().min(1).max(255),
+  description: z.string().max(2000).optional(),
+  sport: z.string().max(100).optional(),
+  season: z.string().max(50).optional(),
+  logo_url: z.string().url().max(2048).optional(),
+  location: z.string().max(500).optional(),
+  stadium_name: z.string().max(200).optional(),
+  capacity: z.number().int().min(0).optional(),
+  opened_year: z.number().int().min(1800).max(2100).optional(),
+  tournament_start_date: z.string().optional(),
+  tournament_end_date: z.string().optional(),
+  tournament_format: z.string().max(100).optional(),
+});
 
 export const tournamentsRouter = Router();
 
@@ -18,32 +34,17 @@ const toOptionalNumber = (value: unknown) => {
  */
 tournamentsRouter.post('/', requireAuth as any, requireOnboarded as any, async (req: AuthedRequest, res: Response) => {
   try {
-    const {
-      name,
-      description,
-      sport,
-      season,
-      logo_url,
-      location,
-      stadium_name,
-      capacity,
-      opened_year,
-      tournament_start_date,
-      tournament_end_date,
-      tournament_format,
-    } = req.body;
-
-    if (!name) {
-      return res.status(400).json({ error: 'name is required' });
-    }
+    const parsed = createTournamentSchema.safeParse(req.body || {});
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
+    const { name, description, sport, season, logo_url, location, stadium_name, capacity, opened_year, tournament_start_date, tournament_end_date, tournament_format } = parsed.data;
 
     const tournament = await prisma.organization.create({
       data: {
         name,
-        description: description || `${season ? `${season} ` : ''}${sport ?? ''} Tournament`.trim() || undefined,
+        description: description ?? `${season ? `${season} ` : ''}${sport ?? ''} Tournament`.trim() || undefined,
         org_type: 'tournament',
-        sport,
-        location,
+        sport: sport ?? undefined,
+        location: location ?? undefined,
         updated_at: new Date(),
       },
     });

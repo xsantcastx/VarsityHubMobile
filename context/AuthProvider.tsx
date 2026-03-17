@@ -21,6 +21,7 @@ import auth from '@/api/auth';
 import { User } from '@/api/entities';
 import { httpGet } from '@/api/http';
 import { clearPostCacheOnLogout } from '@/context/PostCacheContext';
+import { consumePendingDeepLink, handleDeepLink } from '@/utils/deepLinks';
 
 // Conditionally import notifications only if not in Expo Go
 const isExpoGo = Constants.executionEnvironment === 'storeClient';
@@ -581,6 +582,18 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
           router.replace(landingRoute as any);
         }
         return;
+      }
+
+      // SECURITY: Flush any pending deep link now that auth is settled and user is valid.
+      // Deep links to protected screens (post, game, team, profile) are deferred in
+      // _layout.tsx until we reach this point — preventing unauthenticated access.
+      if (!needsOnboarding) {
+        const pendingUrl = consumePendingDeepLink();
+        if (pendingUrl) {
+          if (__DEV__) console.log('[AuthProvider] Flushing deferred deep link:', pendingUrl);
+          handleDeepLink(pendingUrl);
+          return;
+        }
       }
     }
 

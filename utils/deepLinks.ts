@@ -1,9 +1,14 @@
 /**
  * Deep Linking Handler
- * 
+ *
  * Parses incoming deep links and universal links, routing users
  * to the appropriate screen in the app.
- * 
+ *
+ * SECURITY: Deep links to protected screens (posts, games, teams, profiles)
+ * are deferred until AuthProvider confirms the user is authenticated and
+ * has completed onboarding. Only public routes (verify, reset-password)
+ * navigate immediately.
+ *
  * Supports:
  * - varsityhubmobile://post/123
  * - varsityhubmobile://game/456
@@ -11,7 +16,7 @@
  * - varsityhubmobile://profile/abc
  * - https://varsityhub.app/posts/123
  * - https://varsityhub.com/share?type=post&id=123
- * 
+ *
  * @module utils/deepLinks
  */
 
@@ -22,6 +27,35 @@ import { getConfig } from '@/config/env';
 // App scheme and web domain (must match app.json scheme and shared URLs)
 const APP_SCHEME = getConfig().appScheme || 'varsityhubmobile';
 const WEB_DOMAINS = ['varsityhub.com', 'www.varsityhub.com', 'varsityhub.app', 'www.varsityhub.app'];
+
+// Routes that don't require authentication — safe to navigate immediately
+const PUBLIC_DEEP_LINK_ROUTES = new Set([
+  '/reset-password',
+  '/verify',
+  '/verify-email',
+  '/onboarding',
+]);
+
+// Pending deep link URL — deferred until auth settles
+let _pendingDeepLinkUrl: string | null = null;
+
+/** Store a deep link to be processed after auth completes */
+export function setPendingDeepLink(url: string) {
+  _pendingDeepLinkUrl = url;
+}
+
+/** Get and clear the pending deep link */
+export function consumePendingDeepLink(): string | null {
+  const url = _pendingDeepLinkUrl;
+  _pendingDeepLinkUrl = null;
+  return url;
+}
+
+/** Check if a parsed deep link points to a public (no-auth) route */
+function isPublicRoute(parsed: ParsedDeepLink | null): boolean {
+  if (!parsed) return false;
+  return PUBLIC_DEEP_LINK_ROUTES.has(parsed.screen);
+}
 
 /**
  * Parsed deep link result
@@ -177,23 +211,23 @@ function parsePathLink(parsed: Linking.ParsedURL): ParsedDeepLink | null {
 }
 
 /**
- * Handle a deep link by navigating to the appropriate screen
+ * Handle a deep link by navigating to the appropriate screen.
+ * Protected routes are deferred — call handleDeepLinkAuthAware from _layout
+ * and flushPendingDeepLink from AuthProvider after auth settles.
  */
 export function handleDeepLink(url: string): boolean {
   const parsed = parseDeepLink(url);
-  
+
   if (!parsed) {
     if (__DEV__) console.log('[DeepLinks] Could not parse URL:', url);
     return false;
   }
-  
-  if (__DEV__) console.log('[DeepLinks] Navigating to:', parsed.screen, parsed.params);
-  
+
   // Log UTM params for analytics if present
   if (parsed.utmParams) {
     if (__DEV__) console.log('[DeepLinks] UTM params:', parsed.utmParams);
   }
-  
+
   try {
     router.push({
       pathname: parsed.screen as any,
@@ -204,6 +238,29 @@ export function handleDeepLink(url: string): boolean {
     if (__DEV__) console.error('[DeepLinks] Navigation failed:', error);
     return false;
   }
+}
+
+/**
+ * Auth-aware deep link handler: navigates immediately for public routes,
+ * defers protected routes until AuthProvider confirms authentication.
+ */
+export function handleDeepLinkAuthAware(url: string): boolean {
+  const parsed = parseDeepLink(url);
+
+  if (!parsed) {
+    if (__DEV__) console.log('[DeepLinks] Could not parse URL:', url);
+    return false;
+  }
+
+  if (isPublicRoute(parsed)) {
+    if (__DEV__) console.log('[DeepLinks] Public route — navigating immediately:', parsed.screen);
+    return handleDeepLink(url);
+  }
+
+  // Protected route — defer until auth settles
+  if (__DEV__) console.log('[DeepLinks] Protected route — deferring until auth:', parsed.screen);
+  setPendingDeepLink(url);
+  return true;
 }
 
 /**

@@ -108,9 +108,9 @@ teamsRouter.get('/limits', requireAuth as any, async (req: AuthedRequest, res) =
     }
   });
   
-  // Get plan from preferences, fallback to subscription_tier
+  // Get plan from preferences; if payment_pending, treat as rookie until payment completes
   const prefs = (user.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
-  const plan = prefs.plan || user.subscription_tier || 'rookie';
+  const plan = prefs.payment_pending ? 'rookie' : (prefs.plan || user.subscription_tier || 'rookie');
   
   // Get max teams from plan definitions (source of truth)
   const maxTeamsFromPlan = getMaxTeamsForPlan(plan);
@@ -304,8 +304,8 @@ teamsRouter.get('/:id', async (req, res) => {
   }
 });
 
-// Team members list
-teamsRouter.get('/:id/members', async (req, res) => {
+// Team members list (auth required — roster visibility)
+teamsRouter.get('/:id/members', requireAuth as any, async (req: AuthedRequest, res) => {
   try {
   const id = String(req.params.id);
   const mems = await prisma.teamMembership.findMany({
@@ -454,7 +454,7 @@ teamsRouter.post('/', requireVerified as any, requireOnboarded as any, requirePl
     const hasOrgRole = await prisma.organizationMembership.findFirst({
       where: {
         user_id: userId,
-        role: { in: ['owner', 'manager', 'administrator'] },
+        role: { in: ['owner', 'manager'] },
         status: 'active',
       },
     });
@@ -767,7 +767,7 @@ teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, req
     const hasOrgRole = await prisma.organizationMembership.findFirst({
       where: {
         user_id: userId,
-        role: { in: ['owner', 'manager', 'administrator'] },
+        role: { in: ['owner', 'manager'] },
         status: 'active',
       },
     });

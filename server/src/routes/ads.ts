@@ -5,9 +5,10 @@ import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { getIsAdmin, requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
+import { requireOnboarded } from '../middleware/requireOnboarded.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { debugLog } from '../lib/debugLog.js';
-import { adCreationLimiter } from '../middleware/rateLimiters.js';
+import { adCreationLimiter, alternativeZipsLimiter } from '../middleware/rateLimiters.js';
 import { sendAdApprovedEmail, sendAdPendingReviewEmail, sendAdRejectedEmail } from '../lib/email.js';
 import { z } from 'zod';
 
@@ -61,7 +62,7 @@ async function getZipCoordinatesWithFallback(zipCode: string): Promise<{ lat: nu
 export const adsRouter = Router();
 
 // Create an Ad (optionally associated to the authenticated user)
-adsRouter.post('/', requireVerified as any, adCreationLimiter, async (req: AuthedRequest, res) => {
+adsRouter.post('/', requireVerified as any, requireOnboarded as any, adCreationLimiter, async (req: AuthedRequest, res) => {
   try {
     const { payment_status: _ps, status: _st, ...safeBody } = req.body || {};
     const parsed = adCreateSchema.safeParse(safeBody);
@@ -461,6 +462,17 @@ adsRouter.get('/reservations', requireAuth as any, async (req: AuthedRequest, re
     const from = req.query.from ? new Date(String(req.query.from)) : undefined;
     const to = req.query.to ? new Date(String(req.query.to)) : undefined;
     const adId = req.query.ad_id ? String(req.query.ad_id) : undefined;
+
+    // IDOR fix: when ad_id provided, verify ownership (or admin)
+    if (adId) {
+      const ad = await prisma.ad.findUnique({ where: { id: adId }, select: { user_id: true } });
+      if (!ad) return res.status(404).json({ error: 'Ad not found' });
+      const isAdmin = await getIsAdmin(req as any);
+      if (ad.user_id !== req.user?.id && !isAdmin) {
+        return res.status(403).json({ error: 'You can only view reservations for your own ads' });
+      }
+    }
+
     const where: any = {};
     if (from || to) where.date = {};
     if (from) where.date.gte = from;
@@ -596,7 +608,7 @@ adsRouter.post('/reservations', requireVerified as any, async (_req: AuthedReque
  * Find alternative zip codes within 50 miles when the requested zip is fully booked.
  * Returns nearby zips with availability for the requested dates, sorted by distance.
  */
-adsRouter.get('/alternative-zips', async (req: AuthedRequest, res) => {
+adsRouter.get('/alternative-zips', alternativeZipsLimiter, async (req: AuthedRequest, res) => {
   try {
     const { zip, dates } = req.query;
 

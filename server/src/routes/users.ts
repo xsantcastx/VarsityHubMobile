@@ -1,4 +1,6 @@
+import bcrypt from 'bcrypt';
 import { Router } from 'express';
+import { z } from 'zod';
 import { notifyNewFollower, sendPushNotification } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
@@ -481,9 +483,28 @@ usersRouter.get('/:id/teams', async (req: AuthedRequest, res) => {
 });
 
 // Delete own account (hard-delete user and all their data)
+// Requires password confirmation to prevent compromised session from deleting account
+const deleteAccountSchema = z.object({ password: z.string().min(1, 'Password is required') });
 usersRouter.delete('/me', requireAuth as any, async (req: AuthedRequest, res) => {
   const id = req.user!.id;
+  const parsed = deleteAccountSchema.safeParse(req.body || {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Password confirmation required', message: 'Provide your password to delete your account.' });
+  }
+  const { password } = parsed.data;
   try {
+    const user = await prisma.user.findUnique({ where: { id }, select: { password_hash: true, google_id: true, apple_id: true } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const isValid = await bcrypt.compare(password, user.password_hash);
+    if (!isValid) {
+      const isOAuth = !!(user.google_id || user.apple_id);
+      return res.status(403).json({
+        error: 'Invalid password',
+        message: isOAuth
+          ? 'If you signed up with Google or Apple, set a password in Settings first, then delete your account.'
+          : 'Password does not match.',
+      });
+    }
     await prisma.$transaction(async (tx) => {
       // Delete user's interactions
       await tx.postUpvote.deleteMany({ where: { user_id: id } });
@@ -602,7 +623,7 @@ usersRouter.post('/:id/follow', requireAuth as any, async (req: AuthedRequest, r
     });
 
     if (existing) {
-      // Already following or pending — return current status
+      // Already following or pending — return current status (idempotent)
       return res.status(200).json({
         is_following_author: existing.status === 'accepted',
         follow_status: existing.status,
@@ -611,6 +632,7 @@ usersRouter.post('/:id/follow', requireAuth as any, async (req: AuthedRequest, r
 
     const followStatus = isPrivate ? 'pending' : 'accepted';
 
+    try {
     await prisma.follows.create({
       data: { follower_id, following_id, status: followStatus },
     });
@@ -650,6 +672,19 @@ usersRouter.post('/:id/follow', requireAuth as any, async (req: AuthedRequest, r
       is_following_author: followStatus === 'accepted',
       follow_status: followStatus,
     });
+    } catch (createErr: any) {
+      // P2002 = unique constraint violation (race: duplicate follow request)
+      if (createErr?.code === 'P2002') {
+        const dup = await prisma.follows.findUnique({
+          where: { follower_id_following_id: { follower_id, following_id } },
+        });
+        return res.status(200).json({
+          is_following_author: dup?.status === 'accepted',
+          follow_status: dup?.status ?? 'accepted',
+        });
+      }
+      throw createErr;
+    }
   } catch (error) {
     console.error('Follow error:', error);
     res.status(500).json({ error: 'Something went wrong.' });

@@ -197,18 +197,13 @@ export default function EditTeamScreen() {
               organizationId = existingOrgs[0].id;
             }
           } else {
-            // Create new organization if none found
-            try {
-              const newOrg = await Organization.createOrganization({
-                name: trimmedOrgName,
-              });
-              organizationId = newOrg.id;
-            } catch (orgErr: any) {
-              if (__DEV__) console.error('[EditTeam] Failed to create organization:', orgErr);
-              if (__DEV__) console.error('[EditTeam] Error message:', orgErr?.message);
-              Alert.alert('Warning', `Could not create organization. Team will be updated without organization change.`);
-              // Continue without changing organization if creation fails
-            }
+            // No matching organization found — org creation requires supporting documents,
+            // which must go through the onboarding flow. Skip org assignment here.
+            Alert.alert(
+              'Organization Not Found',
+              'No matching organization found. To create a new organization, go to Settings and set up a new league with supporting documents.',
+            );
+            // Continue without changing organization
           }
         } catch (err: any) {
           if (__DEV__) console.error('[EditTeam] Error handling organization:', err);

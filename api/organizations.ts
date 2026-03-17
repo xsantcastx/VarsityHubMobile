@@ -28,7 +28,7 @@ export const Organization = {
     zip_code?: string;
     latitude?: number;
     longitude?: number;
-    supporting_document_url?: string;
+    supporting_document_url: string;
   }) => httpPost('/organizations', data),
   createWithTeams: (data: any) => httpPost('/organizations/create', data),
   invite: (organizationId: string, email: string, role?: string) => httpPost(`/organizations/${encodeURIComponent(organizationId)}/invite`, { email, role }),

@@ -340,6 +340,17 @@ export const paymentLimiter = createLimiter({
 });
 
 /**
+ * Alternative zips (public geocoding endpoint)
+ * 30 per minute per IP to prevent abuse
+ */
+export const alternativeZipsLimiter = createLimiter({
+  name: 'alternative-zips',
+  windowMs: 60 * 1000, // 1 minute
+  max: isDev ? 100000 : 30,
+  keyGenerator: (req) => `ip:${req.ip || 'unknown'}`,
+});
+
+/**
  * User lookup by email
  * 10 per minute per user (prevents email enumeration)
  */

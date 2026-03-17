@@ -1,4 +1,5 @@
 import express from 'express';
+import { z } from 'zod';
 import { checkReportSpike, getUserModerationHistory, issueWarning, suspendUser } from '../lib/moderation.js';
 import { prisma } from '../lib/prisma.js';
 import { getFounderMetricsReport } from '../lib/founderMetrics.js';
@@ -240,12 +241,20 @@ adminRouter.get('/transactions', requireVerified as any, requireAdmin as any, as
       offset = '0'
     } = req.query;
 
+    const dateParsed = z.object({
+      startDate: z.string().optional().transform((s) => (s ? new Date(s) : undefined)),
+      endDate: z.string().optional().transform((s) => (s ? new Date(s) : undefined)),
+    }).safeParse({ startDate, endDate });
+    if (!dateParsed.success) {
+      return res.status(400).json({ error: 'Invalid date format', message: 'Use ISO date strings for startDate and endDate.' });
+    }
+
     const filters: any = {};
     if (type) filters.transactionType = String(type);
     if (status) filters.status = String(status);
     if (userId) filters.userId = String(userId);
-    if (startDate) filters.startDate = new Date(String(startDate));
-    if (endDate) filters.endDate = new Date(String(endDate));
+    if (dateParsed.data.startDate) filters.startDate = dateParsed.data.startDate;
+    if (dateParsed.data.endDate) filters.endDate = dateParsed.data.endDate;
 
     const transactions = await getAllTransactions(
       filters,
@@ -411,13 +420,22 @@ adminRouter.post('/users/:id/ban', requireVerified as any, requireAdminMiddlewar
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const { reason } = req.body;
+    const bannedUserId = req.params.id;
 
     await prisma.user.update({
-      where: { id: req.params.id },
+      where: { id: bannedUserId },
       data: {
         banned: true,
         ban_reason: reason || 'Banned by admin for violating community guidelines.',
       },
+    });
+
+    // Audit log: who banned whom (for compliance and debugging)
+    console.warn('[ADMIN_AUDIT] user_banned', {
+      admin_id: req.user.id,
+      banned_user_id: bannedUserId,
+      reason: reason || 'Banned by admin',
+      at: new Date().toISOString(),
     });
 
     await issueWarning({

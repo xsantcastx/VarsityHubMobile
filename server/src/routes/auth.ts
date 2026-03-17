@@ -190,6 +190,22 @@ function isUnder13(dob: string | null | undefined): boolean {
   return age < 13;
 }
 
+// ---- Logout — invalidate refresh token server-side ----
+authRouter.post('/logout', requireAuth as any, async (req: AuthedRequest, res) => {
+  try {
+    if (req.user?.id) {
+      await prisma.user.update({
+        where: { id: req.user.id },
+        data: { refresh_token: null, refresh_token_expires: null },
+      });
+    }
+    return res.json({ ok: true });
+  } catch (err) {
+    // Best-effort — even if DB fails, client should still clear local tokens
+    return res.json({ ok: true });
+  }
+});
+
 // ---- Token Refresh (no auth middleware — refresh tokens are self-authenticating) ----
 authRouter.post('/refresh', refreshTokenLimiter, asyncHandler(async (req, res) => {
   const { refreshToken } = req.body;
@@ -1087,12 +1103,11 @@ authRouter.patch('/me/preferences', requireAuth as any, async (req: AuthedReques
       messages_notifications: z.boolean().optional(),
     }).partial().optional(),
     is_parent: z.boolean().optional(),
-    zip_code: z.string().min(2).max(20).optional().nullable(),
+    zip_code: z.string().min(3).max(20).optional().nullable(),
     // SECURITY: onboarding_completed is NEVER settable via PATCH — only via POST /me/complete-onboarding
     
     // New onboarding fields
-    // Rule A: Client can set plan to 'rookie' only; paid plans go through pending_plan.
-    plan: z.enum(['rookie']).optional(),
+    // SECURITY: plan is never settable via PATCH — only via payment webhook / upgrade-to-coach
     pending_plan: z.enum(['veteran', 'legend']).optional().nullable(),
     payment_pending: z.boolean().optional(),
 
@@ -1135,6 +1150,8 @@ authRouter.patch('/me/preferences', requireAuth as any, async (req: AuthedReques
   const incoming = parsed.data as any;
   // SECURITY: Strip onboarding_completed — client cannot bypass onboarding via PATCH
   delete incoming.onboarding_completed;
+  // SECURITY: Strip plan — only payment flow and upgrade-to-coach set plan; client cannot self-elevate
+  delete incoming.plan;
   // COPPA: Reject if DOB indicates under 13 - do not store
   if (incoming.dob !== undefined && isUnder13(incoming.dob)) {
     return res.status(403).json({
@@ -1397,10 +1414,16 @@ authRouter.post('/me/complete-onboarding', requireAuth as any, async (req: Authe
   const merged = mergePreferences(normalizedCurrent || {}, preferencesUpdate);
   updateData.preferences = merged;
   
+  // SECURITY: Coaches must be PENDING until their organization is approved.
+  // Without this, the Prisma default (APPROVED) lets coaches bypass approval entirely.
+  if (finalRole === 'coach') {
+    updateData.approval_status = 'PENDING';
+  }
+
   // Update user
-  const updated = await prisma.user.update({ 
-    where: { id: req.user.id }, 
-    data: updateData 
+  const updated = await prisma.user.update({
+    where: { id: req.user.id },
+    data: updateData
   });
   
   return res.json({ 

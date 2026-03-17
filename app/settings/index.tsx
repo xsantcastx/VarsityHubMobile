@@ -123,6 +123,7 @@ export default function SettingsScreen() {
   const [deleteWarningVisible, setDeleteWarningVisible] = useState(false);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deletePassword, setDeletePassword] = useState('');
   const [deletingAccount, setDeletingAccount] = useState(false);
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
@@ -224,19 +225,25 @@ export default function SettingsScreen() {
 
               const performDeleteAccount = async () => {
                 if (deletingAccount) return;
+                const pwd = deletePassword.trim();
+                if (!pwd) {
+                  Alert.alert('Password required', 'Enter your password to confirm account deletion.');
+                  return;
+                }
                 setDeletingAccount(true);
                 try {
-                  const { httpDelete } = await import('@/api/http');
-                  await httpDelete('/users/me');
+                  await User.deleteAccount(pwd);
                 } catch (error: any) {
                   if (__DEV__) console.error('[settings] Account deletion failed:', error);
-                  Alert.alert('Delete failed', error?.message || 'Could not delete your account.');
+                  const msg = error?.data?.message || error?.message || 'Could not delete your account.';
+                  Alert.alert('Delete failed', msg);
                   setDeletingAccount(false);
                   return;
                 }
 
                 setDeleteModalVisible(false);
                 setDeleteConfirmText('');
+                setDeletePassword('');
                 setDeletingAccount(false);
                 await performSignOut();
               };
@@ -247,26 +254,8 @@ export default function SettingsScreen() {
 
               const proceedToDeleteConfirm = () => {
                 setDeleteWarningVisible(false);
-                if (Platform.OS === 'ios' && Alert.prompt) {
-                  Alert.prompt('Delete Account', 'This permanently deletes your account. Type DELETE to confirm.', [
-                    { text: 'Cancel', style: 'cancel' },
-                    {
-                      text: 'Confirm',
-                      style: 'destructive',
-                      onPress: (val: string | undefined) => {
-                        const value = String(val || '').trim();
-                        if (value !== 'DELETE') {
-                          Alert.alert('Confirmation required', 'Type DELETE in all caps to confirm.');
-                          return;
-                        }
-                        void performDeleteAccount();
-                      },
-                    },
-                  ], 'plain-text');
-                  return;
-                }
-
                 setDeleteConfirmText('');
+                setDeletePassword('');
                 setDeleteModalVisible(true);
               };
 
@@ -605,7 +594,7 @@ export default function SettingsScreen() {
                         <View style={[styles.deleteModalCard, { backgroundColor: Colors[colorScheme ?? 'light'].card, borderColor: Colors[colorScheme ?? 'light'].border }]}>
                           <Text style={[styles.deleteModalTitle, { color: Colors[colorScheme ?? 'light'].text }]}>Delete Account</Text>
                           <Text style={[styles.deleteModalBody, { color: Colors[colorScheme ?? 'light'].mutedText }]}>
-                            This permanently deletes your account. Type DELETE to confirm.
+                            This permanently deletes your account. Type DELETE and enter your password to confirm.
                           </Text>
                           <TextInput
                             value={deleteConfirmText}
@@ -616,6 +605,15 @@ export default function SettingsScreen() {
                             placeholder="DELETE"
                             placeholderTextColor={Colors[colorScheme ?? 'light'].mutedText}
                             style={[styles.deleteInput, { color: Colors[colorScheme ?? 'light'].text, borderColor: Colors[colorScheme ?? 'light'].border }]}
+                          />
+                          <TextInput
+                            value={deletePassword}
+                            onChangeText={setDeletePassword}
+                            editable={!deletingAccount}
+                            placeholder="Password"
+                            placeholderTextColor={Colors[colorScheme ?? 'light'].mutedText}
+                            secureTextEntry
+                            style={[styles.deleteInput, { color: Colors[colorScheme ?? 'light'].text, borderColor: Colors[colorScheme ?? 'light'].border, marginTop: 8 }]}
                           />
                           <View style={styles.deleteModalActions}>
                             <Pressable
@@ -630,9 +628,9 @@ export default function SettingsScreen() {
                               style={[
                                 styles.deleteActionBtn,
                                 styles.deleteConfirmBtn,
-                                (deleteConfirmText.trim() !== 'DELETE' || deletingAccount) && styles.deleteConfirmBtnDisabled,
+                                (deleteConfirmText.trim() !== 'DELETE' || !deletePassword.trim() || deletingAccount) && styles.deleteConfirmBtnDisabled,
                               ]}
-                              disabled={deleteConfirmText.trim() !== 'DELETE' || deletingAccount}
+                              disabled={deleteConfirmText.trim() !== 'DELETE' || !deletePassword.trim() || deletingAccount}
                               onPress={() => { void performDeleteAccount(); }}
                             >
                               <Text style={styles.deleteConfirmText}>{deletingAccount ? 'Deleting…' : 'Delete'}</Text>

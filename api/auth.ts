@@ -105,6 +105,12 @@ export const auth = {
     }
   },
   async logout() {
+    // Invalidate refresh token server-side first (best-effort)
+    try {
+      await httpPost('/auth/logout', {});
+    } catch {
+      // Server may be unreachable — continue with local cleanup
+    }
     clearAuthToken();
     try {
       if (Platform.OS === 'web') {

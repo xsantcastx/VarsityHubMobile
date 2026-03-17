@@ -756,7 +756,7 @@ export default function ManageSeasonScreen() {
         gamePayload.destination = gameData.destination;
       }
 
-      // Add game venue location
+      // Add game venue location — always ensure location is set (server requires it)
       const venue = gameData.type === 'home' ? gameData.homeVenue : gameData.awayVenue;
       const venueLat = gameData.type === 'home' ? gameData.homeVenueLat : gameData.awayVenueLat;
       const venueLng = gameData.type === 'home' ? gameData.homeVenueLng : gameData.awayVenueLng;
@@ -764,6 +764,9 @@ export default function ManageSeasonScreen() {
         gamePayload.location = venue;
         if (venueLat) gamePayload.latitude = venueLat;
         if (venueLng) gamePayload.longitude = venueLng;
+      } else {
+        // Fallback for non-competitive events: use watch location, destination, or a default
+        gamePayload.location = gameData.watchLocation || gameData.destination || 'TBD';
       }
 
       // Include banner URL if provided by the QuickAdd modal

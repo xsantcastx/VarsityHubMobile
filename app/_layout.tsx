@@ -18,7 +18,8 @@ import { NavigationHistoryProvider } from '@/context/NavigationHistoryContext';
 import { PostCacheProvider } from '@/context/PostCacheContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { ThemeProvider } from '@/hooks/useCustomColorScheme';
-import { handleInitialDeepLink, setupDeepLinkListener } from '@/utils/deepLinks';
+import { NotificationTapHandler } from '@/components/NotificationTapHandler';
+import { handleDeepLinkAuthAware, handleInitialDeepLink, setupDeepLinkListener } from '@/utils/deepLinks';
 import { initSentry } from '@/utils/sentry';
 import { getConfig } from '@/config/env';
 import { StripeProvider } from '@stripe/stripe-react-native';
@@ -99,102 +100,18 @@ export default function RootLayout() {
   }, []);
 
   // Handle deep links (shared post links, etc.)
+  // Public routes (verify, reset-password) navigate immediately.
+  // Protected routes (post, game, team, profile) are deferred until AuthProvider
+  // confirms the user is authenticated — prevents bypassing onboarding/verification.
   useEffect(() => {
-    handleInitialDeepLink().catch(() => {});
-    const unsubscribe = setupDeepLinkListener();
+    handleInitialDeepLink((url) => {
+      handleDeepLinkAuthAware(url);
+    }).catch(() => {});
+    const unsubscribe = setupDeepLinkListener((url) => {
+      handleDeepLinkAuthAware(url);
+    });
     return unsubscribe;
   }, []);
-
-  // Handle notification taps
-  useEffect(() => {
-    if (isExpoGo || !Notifications) return;
-
-    const subscription = Notifications.addNotificationResponseReceivedListener((response: any) => {
-      const data = response?.notification?.request?.content?.data;
-
-      if (!data || typeof data.type !== 'string') {
-        devLog('[Notifications] Received notification with no data');
-        return;
-      }
-
-      const str = (v: unknown): string | null => (v != null && typeof v === 'string' ? v : null);
-
-      devLog('[Notifications] User tapped notification:', data.type);
-
-      try {
-        switch (data.type) {
-          case 'new_message': {
-            const convId = str(data.conversation_id);
-            const senderId = str(data.sender_id);
-            if (convId) {
-              router.push(`/(tabs)/message-thread?conversation_id=${encodeURIComponent(convId)}` as any);
-            } else if (senderId) {
-              router.push(`/(tabs)/message-thread?with=${encodeURIComponent(senderId)}` as any);
-            } else {
-              router.push('/(tabs)/messages' as any);
-            }
-            break;
-          }
-
-          case 'post_interaction': {
-            const postId = str(data.post_id);
-            if (postId) {
-              router.push({ pathname: '/(tabs)/post-detail', params: { id: postId } } as any);
-            }
-            break;
-          }
-
-          case 'mention':
-          case 'comment_reply': {
-            const postId = str(data.post_id);
-            const commentId = str(data.comment_id);
-            if (postId) {
-              router.push({
-                pathname: '/(tabs)/post-detail',
-                params: { id: postId, ...(commentId ? { commentId } : {}) },
-              } as any);
-            }
-            break;
-          }
-
-          case 'new_follower': {
-            const followerId = str(data.follower_id);
-            if (followerId) {
-              router.push({ pathname: '/(tabs)/user-profile', params: { userId: followerId } } as any);
-            }
-            break;
-          }
-
-          case 'team_invite':
-            router.push('/team-invites' as any);
-            break;
-
-          case 'game_reminder': {
-            const eventId = str(data.event_id);
-            if (eventId) {
-              router.push({ pathname: '/(tabs)/event-detail', params: { id: eventId } } as any);
-            }
-            break;
-          }
-
-          case 'coach_request':
-            router.push('/(tabs)/approvals' as any);
-            break;
-
-          case 'coach_approved':
-            router.push('/(tabs)' as any);
-            break;
-
-          default:
-            devLog('[Notifications] Unknown notification type:', data.type);
-        }
-      } catch (error) {
-        if (__DEV__) console.error('[Notifications] Navigation error:', error);
-      }
-    });
-
-    return () => subscription.remove();
-  }, [router]);
 
   if (!loaded) {
     return (
@@ -216,6 +133,7 @@ export default function RootLayout() {
             <PostCacheProvider>
               <NavigationHistoryProvider>
               <AuthProvider navReady={!!navState?.key}>
+                <NotificationTapHandler />
                 <NavigationThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
                   <OfflineBanner />
                   <ErrorToastContainer />

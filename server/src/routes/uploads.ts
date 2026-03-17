@@ -134,7 +134,7 @@ uploadsRouter.get('/cloudinary-signature', requireAuth as any, uploadLimiter as 
 
     return res.json({
       cloudName,
-      apiKey,
+      apiKey,  // Public identifier (not a secret) — required by Cloudinary signed upload SDK
       signature,
       timestamp,
       folder,

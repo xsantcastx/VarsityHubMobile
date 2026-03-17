@@ -12,9 +12,10 @@ import { safeGoBack } from '@/utils/navigation';
 import { ZipCodeMapPreview } from '@/components/ZipCodeMapPreview';
 
 function isValidZip(v: string) {
-  const us = /^\d{5}$/;
-  const generic = /^[A-Za-z0-9\s-]{3,10}$/;
-  return us.test(v) || generic.test(v);
+  if (!v || v.length < 3 || v.length > 20) return false;
+  const us = /^\d{5}(-\d{4})?$/;
+  const generic = /^[A-Za-z0-9\s-]+$/;
+  return us.test(v) || (generic.test(v) && v.length >= 3);
 }
 
 export default function ZipCodeScreen() {

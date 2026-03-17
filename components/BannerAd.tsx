@@ -17,7 +17,7 @@ interface BannerAdProps {
   targetUrl?: string | null;
   businessName?: string;
   description?: string;
-  fitMode?: 'rotate' | 'fill' | 'stretch' | 'letterbox' | `rotate:${number}`;
+  fitMode?: 'cover' | 'contain' | 'fill' | 'rotate' | 'stretch' | 'letterbox' | `rotate:${number}`;
   aspectRatio?: number;
   onPress?: () => void; // Optional override for click behavior
 }
@@ -95,14 +95,19 @@ export function BannerAd({
 
   const getContentFit = (): 'contain' | 'cover' | 'fill' => {
     switch (base) {
+      case 'contain':
+        return 'contain';
+      case 'cover':
+        return 'cover';
+      case 'fill':
+        return 'fill';
       case 'rotate':
       case 'letterbox':
-        return 'contain'; // Fits entire image, may show bars
+        return 'contain'; // Legacy: fits entire image
       case 'stretch':
-        return 'fill'; // Stretches to fill, may distort
-      case 'fill':
+        return 'fill'; // Legacy: stretches to fill
       default:
-        return 'cover'; // Fills container, may crop
+        return 'cover';
     }
   };
 

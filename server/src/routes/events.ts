@@ -33,7 +33,7 @@ async function isOrgAdmin(userId: string): Promise<boolean> {
   const membership = await prisma.organizationMembership.findFirst({
     where: {
       user_id: userId,
-      role: { in: ['owner', 'manager', 'administrator'] },
+      role: { in: ['owner', 'manager'] },
       status: 'active',
     },
   });
@@ -583,7 +583,7 @@ eventsRouter.put('/:id/approve', requireVerified as any, requireOnboarded as any
         const team = await prisma.team.findUnique({ where: { id: event.team_id }, select: { organization_id: true } });
         if (team?.organization_id) {
           const orgMembership = await prisma.organizationMembership.findFirst({
-            where: { organization_id: team.organization_id, user_id: userId, role: { in: ['owner', 'manager', 'administrator'] }, status: 'active' },
+            where: { organization_id: team.organization_id, user_id: userId, role: { in: ['owner', 'manager'] }, status: 'active' },
           });
           canApprove = !!orgMembership;
         }
@@ -700,7 +700,7 @@ eventsRouter.put('/:id/reject', requireVerified as any, requireOnboarded as any,
         const team = await prisma.team.findUnique({ where: { id: event.team_id }, select: { organization_id: true } });
         if (team?.organization_id) {
           const orgMembership = await prisma.organizationMembership.findFirst({
-            where: { organization_id: team.organization_id, user_id: userId, role: { in: ['owner', 'manager', 'administrator'] }, status: 'active' },
+            where: { organization_id: team.organization_id, user_id: userId, role: { in: ['owner', 'manager'] }, status: 'active' },
           });
           canReject = !!orgMembership;
         }

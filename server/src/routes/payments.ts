@@ -394,10 +394,9 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paym
   // Up to MAX_AD_SLOTS different ads may run per date per zip.
   const MAX_AD_SLOTS = 2;
   if (ad.target_zip_code) {
-    // Include both 'paid' and 'hold' ads when checking slot availability.
-    // 'hold' ads have temporary reservations created at checkout time to prevent race conditions.
+    // Include paid, hold, and pending_approval — align with PaymentSheet to prevent overfilling zip
     const reservedAdsInZip = await prisma.ad.findMany({
-      where: { target_zip_code: ad.target_zip_code, payment_status: { in: ['paid', 'hold'] }, NOT: { id: String(ad_id) } },
+      where: { target_zip_code: ad.target_zip_code, payment_status: { in: ['paid', 'hold', 'pending_approval'] }, NOT: { id: String(ad_id) } },
       select: { id: true },
       take: 100,
     });

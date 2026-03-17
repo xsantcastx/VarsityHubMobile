@@ -43,7 +43,7 @@ function normalizeOrganizationName(name: string): string {
 // Determine if a membership role is considered an administrator of the organization.
 function isOrganizationAdmin(role: string | null | undefined): boolean {
   if (!role) return false;
-  return role === 'owner' || role === 'manager' || role === 'administrator';
+  return role === 'owner' || role === 'manager';
 }
 
 // List organizations (public, with optional search)
@@ -88,7 +88,7 @@ organizationsRouter.get('/mine', requireAuth as any, async (req: AuthedRequest, 
         memberships: {
           some: {
             user_id: req.user!.id,
-            role: { in: ['owner', 'manager', 'administrator'] },
+            role: { in: ['owner', 'manager'] },
             status: 'active',
           }
         }
@@ -133,7 +133,7 @@ organizationsRouter.patch('/:id', requireAuth as any, requireOnboarded as any, a
 
     // Verify user is org admin
     const membership = await prisma.organizationMembership.findFirst({
-      where: { organization_id: orgId, user_id: userId, status: 'active', role: { in: ['owner', 'manager', 'administrator'] } },
+      where: { organization_id: orgId, user_id: userId, status: 'active', role: { in: ['owner', 'manager'] } },
     });
     if (!membership) return res.status(403).json({ error: 'Only organization admins can edit this organization.' });
 
@@ -314,7 +314,7 @@ const createOrganizationSchema = z.object({
   zip_code: z.string().regex(/^\d{5}$/, 'Must be a 5-digit US zip code').optional(),
   season_start: z.string().optional(),
   season_end: z.string().optional(),
-  supporting_document_url: z.string().url().optional(),
+  supporting_document_url: z.string().url({ message: 'Supporting document is required' }),
 });
 
 // Create organization
@@ -410,7 +410,7 @@ const createOrganizationWithTeamsSchema = z.object({
   zip_code: z.string().regex(/^\d{5}$/, 'Must be a 5-digit US zip code').optional(),
   season_start: z.string().optional(),
   season_end: z.string().optional(),
-  supporting_document_url: z.string().url().optional(),
+  supporting_document_url: z.string().url({ message: 'Supporting document is required' }),
   authorized_users: z.array(z.object({
     email: z.string().email().optional(),
     user_id: z.string().optional(),
@@ -1478,7 +1478,7 @@ organizationsRouter.get('/:id/pending-coaches', requireAuth as any, async (req: 
       include: {
         user: {
           select: {
-            id: true, display_name: true, username: true, email: true,
+            id: true, display_name: true, username: true,
             avatar_url: true, approval_status: true, preferences: true,
           },
         },

@@ -1,14 +1,29 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { previewPromo, redeemPromo } from '../lib/promos.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
+
+const previewSchema = z.object({
+  code: z.string().max(50),
+  subtotal_cents: z.coerce.number().int().min(0),
+  service: z.string().max(50).optional(),
+});
+const redeemSchema = z.object({
+  code: z.string().max(50),
+  subtotal_cents: z.coerce.number().int().min(0),
+  service: z.string().max(50).optional(),
+  order_id: z.string().max(100).optional(),
+});
 
 export const promosRouter = Router();
 
 promosRouter.post('/preview', requireAuth as any, async (req: AuthedRequest, res) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'unauthorized' });
-    const { code, subtotal_cents, service } = (req.body as any) || {};
+    const parsed = previewSchema.safeParse(req.body || {});
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
+    const { code, subtotal_cents, service } = parsed.data;
     const result = await previewPromo({
       code: String(code || ''),
       subtotalCents: Number(subtotal_cents || 0),
@@ -25,7 +40,9 @@ promosRouter.post('/preview', requireAuth as any, async (req: AuthedRequest, res
 promosRouter.post('/redeem', requireAuth as any, async (req: AuthedRequest, res) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'unauthorized' });
-    const { code, subtotal_cents, service, order_id } = (req.body as any) || {};
+    const parsed = redeemSchema.safeParse(req.body || {});
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
+    const { code, subtotal_cents, service, order_id } = parsed.data;
     const result = await redeemPromo({
       code: String(code || ''),
       subtotalCents: Number(subtotal_cents || 0),

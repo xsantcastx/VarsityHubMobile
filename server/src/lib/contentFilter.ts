@@ -92,12 +92,15 @@ function checkBullying(text: string): boolean {
 
 /** Check for spam patterns. titleOnly: true = strict (no URLs), for titles */
 function checkSpam(text: string, titleOnly = false): { isSpam: boolean; reason?: string } {
-  // Excessive caps (>70% of letters)
-  const letters = text.replace(/\s/g, '').replace(/[^a-zA-Z]/g, '');
-  if (letters.length >= 10) {
-    const caps = (letters.match(/[A-Z]/g) || []).length;
-    if (caps / letters.length > 0.7) {
-      return { isSpam: true, reason: 'excessive_caps' };
+  // Excessive caps (>70% of letters) — only for body text, not titles.
+  // Organization names, team names, and acronyms are often legitimately all-caps.
+  if (!titleOnly) {
+    const letters = text.replace(/\s/g, '').replace(/[^a-zA-Z]/g, '');
+    if (letters.length >= 10) {
+      const caps = (letters.match(/[A-Z]/g) || []).length;
+      if (caps / letters.length > 0.7) {
+        return { isSpam: true, reason: 'excessive_caps' };
+      }
     }
   }
 

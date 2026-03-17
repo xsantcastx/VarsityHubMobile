@@ -8,12 +8,20 @@ import { sendTeamInviteEmail } from '../lib/email.js';
 
 export const teamInvitesRouter = Router();
 
+const VALID_INVITE_ROLES = ['owner', 'manager', 'coach', 'assistant_coach', 'player', 'parent', 'member', 'equipment', 'health_wellness'] as const;
+
 // POST /team-invites { team_id, email, role }
 // SECURITY: Same permission checks as POST /teams/:id/invite
 teamInvitesRouter.post('/', requireAuth as any, inviteLimiter, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const { team_id, email, role } = (req.body || {}) as any;
   if (!team_id || !email) return res.status(400).json({ error: 'team_id and email required' });
+
+  // Validate role against whitelist to prevent injection of arbitrary roles
+  const assignedRole = String(role || 'member');
+  if (!(VALID_INVITE_ROLES as readonly string[]).includes(assignedRole)) {
+    return res.status(400).json({ error: 'Invalid role', valid_roles: VALID_INVITE_ROLES });
+  }
   const emailLower = String(email).toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailLower)) {
     return res.status(400).json({ error: 'Invalid email format' });
@@ -70,8 +78,8 @@ teamInvitesRouter.post('/', requireAuth as any, inviteLimiter, async (req: Authe
       }
       return await tx.teamInvite.upsert({
         where: { team_id_email: { team_id: teamId, email: emailLower } } as any,
-        update: { role: role || 'member', status: 'pending' },
-        create: { team_id: teamId, email: emailLower, role: role || 'member', status: 'pending' },
+        update: { role: assignedRole, status: 'pending' },
+        create: { team_id: teamId, email: emailLower, role: assignedRole, status: 'pending' },
       });
     });
   } catch (e: any) {
