@@ -278,12 +278,13 @@ export default function Step2Basic() {
             affiliation,
           });
           await markOnboardingCompleteLocally();
+          dispatch({ type: 'SAVE_SUCCESS', data: updatedDataWithRole });
+          router.replace('/(tabs)' as any);
         } catch (completeErr: any) {
           if (__DEV__) console.error('[step-2] Failed to complete fan onboarding:', completeErr);
-          // Still navigate — server may have completed it
+          dispatch({ type: 'SAVE_FAIL', error: completeErr });
+          Alert.alert('Failed to complete setup', 'Please try again.', [{ text: 'OK' }]);
         }
-        dispatch({ type: 'SAVE_SUCCESS', data: updatedDataWithRole });
-        router.replace('/(tabs)' as any);
       }
     } catch (e: any) { 
       if (__DEV__) console.error('[step-2-basic] Failed to save:', e);
@@ -305,7 +306,7 @@ export default function Step2Basic() {
       aboveTitle={<SportBallRow />}
       onBack={onBack}
       emailVerified={emailVerified === null ? undefined : emailVerified}
-      onVerifyEmail={() => void router.push('/(tabs)/verify-email')}
+      onVerifyEmail={() => void router.push('/verify')}
     >
       <Stack.Screen options={{ headerShown: false }} />
       

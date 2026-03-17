@@ -306,8 +306,9 @@ export default function SubscriptionPaywallScreen() {
               key={tier}
               style={[
                 styles.tierPill,
+                { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border },
                 selectedTier === tier && styles.tierPillSelected,
-                selectedTier === tier && { borderColor: getTierColor(tier) },
+                selectedTier === tier && { borderColor: getTierColor(tier), backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.08)' : '#F9FAFB' },
               ]}
               onPress={() => setSelectedTier(tier)}
             >
@@ -318,7 +319,7 @@ export default function SubscriptionPaywallScreen() {
                 </View>
               )}
               {(isIOS || Platform.OS === 'android') && tier !== 'rookie' && getIAPPrice(tier as 'veteran' | 'legend') ? (
-                <Text style={styles.iapPriceText}>
+                <Text style={[styles.iapPriceText, { color: Colors[colorScheme].mutedText }]}>
                   {getIAPPrice(tier as 'veteran' | 'legend')}
                 </Text>
               ) : null}

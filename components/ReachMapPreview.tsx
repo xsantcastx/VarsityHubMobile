@@ -208,7 +208,7 @@ export function ReachMapPreview({ zipCode, radiusKm = 15 }: ReachMapPreviewProps
 
       {/* Legend */}
       {location && !loading && (
-        <View style={styles.legend}>
+        <View style={[styles.legend, { borderTopColor: Colors[colorScheme].border }]}>
           <View style={styles.legendItem}>
             <View style={[styles.legendDot, { backgroundColor: '#10B981' }]} />
             <Text style={[styles.legendText, { color: Colors[colorScheme].mutedText }]}>

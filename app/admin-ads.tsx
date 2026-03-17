@@ -213,8 +213,8 @@ export default function AdminAdsScreen() {
           {item.banner_url ? (
             <Image source={{ uri: item.banner_url }} style={styles.bannerPreview} contentFit="cover" />
           ) : (
-            <View style={[styles.bannerPreview, { alignItems: 'center', justifyContent: 'center', backgroundColor: '#F3F4F6' }]}>
-              <Ionicons name="image-outline" size={24} color="#9ca3af" />
+            <View style={[styles.bannerPreview, { alignItems: 'center', justifyContent: 'center', backgroundColor: theme.surface }]}>
+              <Ionicons name="image-outline" size={24} color={theme.mutedText} />
             </View>
           )}
           
@@ -239,8 +239,8 @@ export default function AdminAdsScreen() {
                 </Text>
               </View>
               {item.payment_status && (
-                <View style={[styles.badgeSmall, { backgroundColor: '#E5E7EB', borderColor: '#D1D5DB' }]}>
-                  <Text style={styles.badgeSmallText}>{String(item.payment_status).toUpperCase()}</Text>
+                <View style={[styles.badgeSmall, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                  <Text style={[styles.badgeSmallText, { color: theme.text }]}>{String(item.payment_status).toUpperCase()}</Text>
                 </View>
               )}
             </View>

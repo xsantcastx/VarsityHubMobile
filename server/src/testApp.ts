@@ -3,6 +3,7 @@ import express from 'express';
 import { authMiddleware } from './middleware/auth.js';
 import { authRouter } from './routes/auth.js';
 import { eventsRouter } from './routes/events.js';
+import { organizationsRouter } from './routes/organizations.js';
 import { postsRouter } from './routes/posts.js';
 import { teamsRouter } from './routes/teams.js';
 import { uploadsRouter } from './routes/uploads.js';
@@ -15,6 +16,7 @@ app.use(authMiddleware);
 
 app.use('/auth', authRouter);
 app.use('/events', eventsRouter);
+app.use('/organizations', organizationsRouter);
 app.use('/posts', postsRouter);
 app.use('/teams', teamsRouter);
 app.use('/uploads', uploadsRouter);

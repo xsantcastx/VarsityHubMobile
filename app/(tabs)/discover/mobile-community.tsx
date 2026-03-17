@@ -1230,7 +1230,7 @@ export default function CommunityDiscoverScreen() {
               style={[styles.card, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
               onPress={() => void router.push({ pathname: '/game/[id]', params: { id: String(item.id) } })}
             >
-              <View style={styles.hero}>
+              <View style={[styles.hero, { backgroundColor: Colors[colorScheme].surface }]}>
                 {(() => {
                   const banner = item.cover_image_url || (item as any).banner_url || null;
                   return banner ? (

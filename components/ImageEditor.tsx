@@ -80,7 +80,7 @@ export default function ImageEditor({ visible, imageUri, onSave, onClose }: Prop
 
             {/* Stickers */}
             {stickers.map((st) => (
-              <DraggableSticker key={st.id} sticker={st} onMove={(dx, dy) => updateSticker(st.id, dx, dy)} onRemove={() => removeSticker(st.id)} />
+              <DraggableSticker key={st.id} sticker={st} onMove={(dx, dy) => updateSticker(st.id, dx, dy)} onRemove={() => removeSticker(st.id)} removeBtnBg={Colors[colorScheme].card} removeBtnColor={Colors[colorScheme].text} />
             ))}
           </View>
         </ViewShot>
@@ -88,7 +88,6 @@ export default function ImageEditor({ visible, imageUri, onSave, onClose }: Prop
         <View style={styles.row}>{filters.map(f => (
           <Pressable key={f.id} style={[
             styles.filterBtn,
-            f.id === filter && styles.filterBtnActive,
             { borderColor: Colors[colorScheme].border, backgroundColor: f.id === filter ? Colors[colorScheme].elevated : undefined }
           ]} onPress={() => setFilter(f.id)}>
             <Text style={[styles.filterText, { color: Colors[colorScheme].text }]}>{f.label}</Text>
@@ -132,7 +131,7 @@ function MeasuredImage({ uri, maxW = 300, maxH = 240 }: { uri: string; maxW?: nu
   );
 }
 
-function DraggableSticker({ sticker, onMove, onRemove }: { sticker: Sticker; onMove: (dx: number, dy: number) => void; onRemove: () => void }) {
+function DraggableSticker({ sticker, onMove, onRemove, removeBtnBg, removeBtnColor }: { sticker: Sticker; onMove: (dx: number, dy: number) => void; onRemove: () => void; removeBtnBg?: string; removeBtnColor?: string }) {
   const pan = useRef({ x: sticker.x, y: sticker.y });
   const [pos, setPos] = useState({ x: sticker.x, y: sticker.y });
 
@@ -152,7 +151,7 @@ function DraggableSticker({ sticker, onMove, onRemove }: { sticker: Sticker; onM
   return (
     <View style={[styles.sticker, { left: pos.x, top: pos.y }]} {...responder.panHandlers}>
       <Text style={{ fontSize: sticker.size }}>{sticker.emoji}</Text>
-      <Pressable style={styles.removeBtn} onPress={onRemove}><Text style={{ fontSize: 12 }}>✕</Text></Pressable>
+      <Pressable style={[styles.removeBtn, removeBtnBg && { backgroundColor: removeBtnBg }]} onPress={onRemove}><Text style={{ fontSize: 12, color: removeBtnColor || '#000' }}>✕</Text></Pressable>
     </View>
   );
 }
@@ -169,9 +168,8 @@ const styles = StyleSheet.create({
   filterOverlay: { position: 'absolute', left: 0, right: 0, top: 0, borderRadius: 0 },
   row: { flexDirection: 'row', padding: 12, gap: 8, justifyContent: 'center' },
   filterBtn: { padding: 8, borderRadius: 8, borderWidth: StyleSheet.hairlineWidth },
-  filterBtnActive: { backgroundColor: '#EEE' },
   filterText: { fontSize: 14, fontWeight: '600' },
   stickerBtn: { padding: 8 },
   sticker: { position: 'absolute' , alignItems: 'center', justifyContent: 'center' },
-  removeBtn: { position: 'absolute', right: -8, top: -8, backgroundColor: '#fff', borderRadius: 8, padding: 2 },
+  removeBtn: { position: 'absolute', right: -8, top: -8, borderRadius: 8, padding: 2 },
 });

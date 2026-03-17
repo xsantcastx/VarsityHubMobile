@@ -1,7 +1,7 @@
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View, useColorScheme, Pressable, ActivityIndicator } from 'react-native';
+import { Alert, StyleSheet, Text, View, useColorScheme, Pressable, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { User } from '@/api/entities';
@@ -38,14 +38,15 @@ export default function PendingApproval() {
         // If completion fails, stay here and show a retry state instead of redirect loops.
         let completed = false;
         try {
+          // Use server data (me) as primary source, fall back to local state (ob)
           await User.completeOnboarding({
             role: 'coach',
             username: me?.username || ob.username,
-            dob: ob.dob,
-            zip_code: ob.zip_code || ob.zip,
-            affiliation: ob.affiliation,
-            organization_id: ob.organization_id,
-            organization_name: ob.organization_name,
+            dob: me?.dob || ob.dob,
+            zip_code: me?.zip_code || ob.zip_code || ob.zip,
+            affiliation: me?.preferences?.affiliation || ob.affiliation,
+            organization_id: me?.preferences?.organization_id || ob.organization_id,
+            organization_name: me?.preferences?.organization_name || ob.organization_name,
           });
           await markOnboardingCompleteLocally();
           completed = true;
@@ -97,12 +98,21 @@ export default function PendingApproval() {
 
   const handleProceedAsFan = async () => {
     try {
-      await User.updatePreferences({ onboarding_completed: true, proceeding_as_fan: true });
+      const me: any = await User.me().catch(() => null);
+      await User.completeOnboarding({
+        role: 'fan',
+        username: me?.username || ob.username,
+        dob: me?.dob || ob.dob,
+        zip_code: me?.zip_code || ob.zip_code || ob.zip,
+        affiliation: me?.preferences?.affiliation || ob.affiliation,
+        proceeding_as_fan: true,
+      });
       await markOnboardingCompleteLocally();
       await checkAuth();
       router.replace('/(tabs)' as any);
     } catch (err) {
       if (__DEV__) console.warn('[pending-approval] Failed to proceed as fan:', err);
+      Alert.alert('Failed', 'Could not complete setup. Please try again.');
     }
   };
 

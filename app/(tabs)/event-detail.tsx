@@ -295,7 +295,7 @@ export default function EventDetailScreen() {
                   <Text style={[styles.locationText, { color: theme.text }]}>{event.location}</Text>
                   <Text style={[styles.locationHint, { color: theme.mutedText }]}>Tap to open in Maps</Text>
                 </View>
-                <MaterialIcons name="chevron-right" size={20} color="#9CA3AF" />
+                <MaterialIcons name="chevron-right" size={20} color={theme.mutedText} />
               </Pressable>
             )}
             

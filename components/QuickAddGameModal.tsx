@@ -799,7 +799,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
                       }
                     }}
                   >
-                    <View style={[styles.toggleThumb, { backgroundColor: '#FFFFFF' }]} />
+                    <View style={[styles.toggleThumb, { backgroundColor: Colors[colorScheme].background }]} />
                   </Pressable>
                 </View>
               </View>

@@ -21,7 +21,7 @@ export default function RsvpSheet({ visible, onClose, goingCount = 0, capacity =
       <View style={styles.backdrop}>
         <View style={[styles.sheet, { backgroundColor: theme.background }]}>
           <View style={{ alignItems: 'center', marginBottom: 8 }}>
-            <View style={styles.handle} />
+            <View style={[styles.handle, { backgroundColor: theme.border }]} />
           </View>
           <Text style={[styles.title, { color: theme.text }]}>RSVP</Text>
           <Text style={[styles.meta, { color: theme.mutedText }]}>Going: {goingCount}{typeof capacity === 'number' ? ` / ${capacity}` : ''}</Text>
@@ -44,7 +44,7 @@ export default function RsvpSheet({ visible, onClose, goingCount = 0, capacity =
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'flex-end' },
   sheet: { backgroundColor: '#fff', borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 16 },
-  handle: { width: 44, height: 4, borderRadius: 2, backgroundColor: '#e5e7eb' },
+  handle: { width: 44, height: 4, borderRadius: 2 },
   title: { fontSize: 18, fontWeight: '800', marginTop: 4 },
   meta: { marginTop: 6 },
   metaMuted: { color: '#6b7280' },

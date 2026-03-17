@@ -1,3 +1,5 @@
+import { Colors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect } from 'react';
@@ -10,6 +12,8 @@ export default function PaymentCancelScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ type?: string }>();
   const isAd = params.type === 'ad';
+  const colorScheme = useColorScheme() ?? 'light';
+  const theme = Colors[colorScheme];
 
   // For ad cancellations, auto-navigate back after a short delay
   useEffect(() => {
@@ -43,14 +47,14 @@ export default function PaymentCancelScreen() {
         headerShown: false,
         gestureEnabled: true
       }} />
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
         <View style={styles.content}>
           <View style={styles.cancelContainer}>
-            <MaterialIcons name="cancel" size={64} color={isAd ? '#F59E0B' : '#DC2626'} />
-            <Text style={[styles.cancelTitle, isAd && { color: '#92400E' }]}>
+            <MaterialIcons name="cancel" size={64} color={isAd ? '#F59E0B' : theme.destructive} />
+            <Text style={[styles.cancelTitle, { color: theme.destructive }, isAd && { color: '#92400E' }]}>
               {isAd ? 'Checkout Cancelled' : 'Payment Cancelled'}
             </Text>
-            <Text style={styles.cancelText}>
+            <Text style={[styles.cancelText, { color: theme.mutedText }]}>
               {isAd
                 ? 'No charge was made. Returning to your schedule...'
                 : 'Your payment was cancelled. You can try again or continue with limited features.'}
@@ -65,8 +69,8 @@ export default function PaymentCancelScreen() {
 
             {!isAd && (
               <View style={styles.buttonContainer}>
-                <Pressable style={styles.secondaryButton} onPress={handleContinue}>
-                  <Text style={styles.secondaryButtonText}>Continue with Free Version</Text>
+                <Pressable style={[styles.secondaryButton, { borderColor: theme.border }]} onPress={handleContinue}>
+                  <Text style={[styles.secondaryButtonText, { color: theme.mutedText }]}>Continue with Free Version</Text>
                 </Pressable>
               </View>
             )}
@@ -80,7 +84,6 @@ export default function PaymentCancelScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
   },
   content: {
     flex: 1,

@@ -437,7 +437,8 @@ organizationsRouter.post('/create', requireAuth as any, async (req: AuthedReques
       return res.status(400).json({ error: filterResult.error, code: filterResult.code });
     }
 
-    // Transaction: create org + owner membership atomically
+    // Transaction: create org + owner membership + set league owner to PENDING atomically
+    // League owner has no coach access until super admin approves the league
     const organization = await prisma.$transaction(async (tx) => {
       const org = await tx.organization.create({
         data: {
@@ -460,6 +461,10 @@ organizationsRouter.post('/create', requireAuth as any, async (req: AuthedReques
           user_id: req.user!.id,
           role: 'owner'
         }
+      });
+      await tx.user.update({
+        where: { id: req.user!.id },
+        data: { approval_status: 'PENDING' },
       });
       return org;
     });
@@ -572,7 +577,8 @@ organizationsRouter.post('/:id/invite', requireAuth as any, requireOnboarded as 
     return res.status(404).json({ error: 'Organization owner not found. Please contact support.' });
   }
   const ownerPrefs = (owner.preferences || {}) as any;
-  const plan = ownerPrefs.pending_plan || ownerPrefs.plan || 'rookie';
+  // Use confirmed plan only — pending_plan is not yet paid for
+  const plan = ownerPrefs.payment_pending ? 'rookie' : (ownerPrefs.plan || 'rookie');
 
   // Get team count for org-level limit calculation (from org owner's profile)
   const teamCountTotal = ownerPrefs.team_count_total || await prisma.teamMembership.count({
