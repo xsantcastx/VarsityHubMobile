@@ -166,10 +166,7 @@ export default function OrganizationJoinRequestsScreen() {
       {/* Custom Header */}
       <View style={[styles.header, { backgroundColor: theme.background, borderColor: theme.border }]}>
         <Pressable 
-          onPress={() => {
-            safeGoBack(router);
-            else router.push('/(tabs)' as any);
-          }} 
+          onPress={() => safeGoBack(router)} 
           style={styles.backButton}
         >
           <MaterialIcons name="arrow-back" size={24} color={theme.text} />

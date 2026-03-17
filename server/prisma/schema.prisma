@@ -113,6 +113,7 @@ model User {
 
   @@index([subscription_status])
   @@index([banned])
+  @@index([refresh_token])
 }
 
 model Game {

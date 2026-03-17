@@ -60,35 +60,46 @@ teamMembershipsRouter.post('/', requireAuth as any, requireOnboarded as any, req
     const user = await prisma.user.findUnique({ where: { id: String(user_id) } });
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    // Enforce roster size limit based on team owner's plan
-    const ownerMembership = await prisma.teamMembership.findFirst({
-      where: { team_id: String(team_id), role: 'owner', status: 'active' },
-      include: { user: true },
-    });
-    if (ownerMembership) {
-      const ownerPrefs = (ownerMembership.user as any)?.preferences || {};
-      const ownerPlan = resolvePlan(ownerPrefs.plan);
-      const maxRoster = getMaxRosterSizePerTeam(ownerPlan);
-      if (maxRoster !== null) {
-        const currentCount = await prisma.teamMembership.count({
-          where: { team_id: String(team_id), status: 'active' },
-        });
-        if (currentCount >= maxRoster) {
-          return res.status(403).json({
-            error: 'ROSTER_LIMIT_REACHED',
-            message: `This team has reached its roster limit of ${maxRoster} members. Upgrade your plan for more.`,
+    // Enforce roster size limit and create membership atomically
+    const teamIdStr = String(team_id);
+    const userIdStr = String(user_id);
+
+    const m = await prisma.$transaction(async (tx) => {
+      // Check roster limit inside transaction to prevent race conditions
+      const ownerMembership = await tx.teamMembership.findFirst({
+        where: { team_id: teamIdStr, role: 'owner', status: 'active' },
+        include: { user: true },
+      });
+      if (ownerMembership) {
+        const ownerPrefs = (ownerMembership.user as any)?.preferences || {};
+        const ownerPlan = resolvePlan(ownerPrefs.plan);
+        const maxRoster = getMaxRosterSizePerTeam(ownerPlan);
+        if (maxRoster !== null) {
+          const currentCount = await tx.teamMembership.count({
+            where: { team_id: teamIdStr, status: 'active' },
           });
+          if (currentCount >= maxRoster) {
+            throw new Error(`ROSTER_LIMIT_REACHED:${maxRoster}`);
+          }
         }
       }
-    }
 
-    const m = await prisma.teamMembership.upsert({
-      where: { team_id_user_id: { team_id: String(team_id), user_id: String(user_id) } } as any,
-      update: { role: assignedRole, status: 'active' },
-      create: { team_id: String(team_id), user_id: String(user_id), role: assignedRole, status: 'active' },
+      return tx.teamMembership.upsert({
+        where: { team_id_user_id: { team_id: teamIdStr, user_id: userIdStr } } as any,
+        update: { role: assignedRole, status: 'active' },
+        create: { team_id: teamIdStr, user_id: userIdStr, role: assignedRole, status: 'active' },
+      });
     });
     return res.status(201).json(m);
-  } catch (err) {
+  } catch (err: any) {
+    const msg = err?.message || '';
+    if (msg.startsWith('ROSTER_LIMIT_REACHED:')) {
+      const limit = msg.split(':')[1];
+      return res.status(403).json({
+        error: 'ROSTER_LIMIT_REACHED',
+        message: `This team has reached its roster limit of ${limit} members. Upgrade your plan for more.`,
+      });
+    }
     console.error('[team-memberships] POST / error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
