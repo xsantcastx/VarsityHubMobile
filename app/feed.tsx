@@ -676,7 +676,7 @@ export default function FeedScreen() {
     if (!me || emailVerified) return null;
     return (
       <Pressable
-        onPress={() => void router.push('/(tabs)/verify-email')}
+        onPress={() => void router.push('/verify-email')}
         style={{
           padding: 10,
           borderRadius: 10,
@@ -736,7 +736,7 @@ export default function FeedScreen() {
           {/* Messages on RIGHT */}
           <View style={styles.headerActions}>
             <Pressable 
-              onPress={() => void router.push('/(tabs)/messages' as any)}
+              onPress={() => void router.push('/messages' as any)}
               style={styles.iconButton} 
               accessibilityRole="button" 
               accessibilityLabel={unreadMessagesCount > 0 ? `Open messages (${unreadMessagesCount} unread)` : 'Open messages'}
@@ -1051,7 +1051,7 @@ export default function FeedScreen() {
                     key={String(post.id)}
                     post={post}
                     showAuthorHeader
-                    onPress={() => void router.push(`/(tabs)/post-detail?id=${encodeURIComponent(String(post.id))}&postIds=${followedPosts.map((p: any) => String(p.id)).join(',')}&index=${idx}`)}
+                    onPress={() => void router.push(`/post-detail?id=${encodeURIComponent(String(post.id))}&postIds=${followedPosts.map((p: any) => String(p.id)).join(',')}&index=${idx}`)}
                     onDeleted={(postId) => setFollowedPosts((prev) => prev.filter((p) => String(p.id) !== postId))}
                     onUpdated={(updated) => setFollowedPosts((prev) => prev.map((p) => (String(p.id) === String(updated.id) ? { ...p, ...updated } : p)))}
                   />
@@ -1104,7 +1104,7 @@ export default function FeedScreen() {
                     <Pressable
                       key={String(post.id)}
                       style={styles.singleEventCard}
-                      onPress={() => void router.push(`/(tabs)/post-detail?id=${encodeURIComponent(String(post.id))}&postIds=${followedTeamsPosts.map((p: any) => String(p.id)).join(',')}&index=${index}`)}
+                      onPress={() => void router.push(`/post-detail?id=${encodeURIComponent(String(post.id))}&postIds=${followedTeamsPosts.map((p: any) => String(p.id)).join(',')}&index=${index}`)}
                       accessibilityRole="button"
                       accessibilityLabel={`View post from ${teamName}`}
                     >
@@ -1398,7 +1398,7 @@ export default function FeedScreen() {
                             setNotificationsMenuOpen(false);
                             // Always navigate to the actor's profile if available
                             if (item.actor?.id) {
-                              router.push(`/(tabs)/user-profile?id=${encodeURIComponent(item.actor.id)}`);
+                              router.push(`/user-profile?id=${encodeURIComponent(item.actor.id)}`);
                             } else if (item.type === 'TEAM_INVITE') {
                               router.push('/team-invites');
                             }

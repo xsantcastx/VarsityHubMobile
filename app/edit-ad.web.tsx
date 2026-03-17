@@ -156,7 +156,7 @@ export default function EditAdScreen() {
         await settings.setJson(settings.SETTINGS_KEYS.LOCAL_ADS, list);
       }
       Alert.alert('Saved', 'Your ad was updated.');
-      safeGoBack(router, '/(tabs)/my-ads');
+      safeGoBack(router, '/my-ads');
     } finally {
       setSaving(false);
     }

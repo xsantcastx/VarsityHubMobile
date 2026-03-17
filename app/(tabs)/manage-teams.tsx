@@ -309,7 +309,7 @@ export default function ManageTeamsSimpleScreen() {
       <View style={styles.quickActionsContainer}>
         <Pressable 
           style={[styles.inlineActionButton, { backgroundColor: Colors[colorScheme].tint }]}
-          onPress={() => void router.push('/(tabs)/create-team')}
+          onPress={() => void router.push('/create-team')}
         >
           <MaterialIcons name="add-circle-outline" size={24} color="#fff" />
           <Text style={styles.inlineActionText}>Create Team</Text>
@@ -342,7 +342,7 @@ export default function ManageTeamsSimpleScreen() {
           <Pressable 
             style={styles.leagueCard}
             onPress={() => { void router.push({
-                pathname: '/(tabs)/organization',
+                pathname: '/organization',
                 params: {
                   id: organization.id,
                   name: organization.name
@@ -424,7 +424,7 @@ export default function ManageTeamsSimpleScreen() {
                   member_count: team.members,
                   role: team.my_role as any,
                 }}
-                onPress={() => void router.push(`/(tabs)/team-profile?id=${team.id}`)}
+                onPress={() => void router.push(`/team-profile?id=${team.id}`)}
                 showRole={true}
                 style={{ marginBottom: 12 }}
               />
@@ -445,7 +445,7 @@ export default function ManageTeamsSimpleScreen() {
         <View style={styles.actionsSection}>
           <Pressable
             style={[styles.bigActionButton, { backgroundColor: Colors[colorScheme].tint }]}
-            onPress={() => void router.push('/(tabs)/create-team')}
+            onPress={() => void router.push('/create-team')}
           >
             <MaterialIcons name="add-circle" size={32} color="#FFF" />
             <Text style={styles.bigActionButtonText}>CREATE TEAM</Text>

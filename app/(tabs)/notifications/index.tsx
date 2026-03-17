@@ -134,22 +134,22 @@ export default function NotificationsScreen() {
       : 'Notification';
     const onPress = () => {
       if ((item.type === 'FOLLOW' || item.type === 'FOLLOW_REQUEST') && item.actor?.id) {
-        router.push(`/(tabs)/user-profile?id=${encodeURIComponent(item.actor.id)}` as any);
+        router.push(`/user-profile?id=${encodeURIComponent(item.actor.id)}` as any);
       } else if ((item.type === 'UPVOTE' || item.type === 'COMMENT' || item.type === 'MENTION' || item.type === 'COMMENT_REPLY' || item.type === 'SHARE') && item.post?.id) {
         const q = (item.type === 'MENTION' || item.type === 'COMMENT_REPLY') && item.comment?.id
           ? `?id=${encodeURIComponent(item.post.id)}&commentId=${encodeURIComponent(item.comment.id)}`
           : `?id=${encodeURIComponent(item.post.id)}`;
-        router.push(`/(tabs)/post-detail${q}` as any);
+        router.push(`/post-detail${q}` as any);
       } else if (item.type === 'MESSAGE' && item.message?.conversation_id) {
-        router.push(`/(tabs)/message-thread?conversation_id=${encodeURIComponent(item.message.conversation_id)}` as any);
+        router.push(`/message-thread?conversation_id=${encodeURIComponent(item.message.conversation_id)}` as any);
       } else if (item.type === 'TEAM_INVITE' && item.meta?.coach_request) {
-        router.push('/(tabs)/approvals' as any);
+        router.push('/approvals' as any);
       } else if (item.type === 'TEAM_INVITE' && item.meta?.coach_approved) {
         router.push('/(tabs)' as any);
       } else if (item.type === 'TEAM_INVITE') {
         router.push('/team-invites');
       } else if (item.type === 'GAME_REMINDER' && (item.event?.id || item.meta?.event_id)) {
-        router.push(`/(tabs)/event-detail?id=${encodeURIComponent(item.event?.id || item.meta?.event_id || '')}` as any);
+        router.push(`/event-detail?id=${encodeURIComponent(item.event?.id || item.meta?.event_id || '')}` as any);
       }
       // Mark read optimistically
       if (!item.read_at) {

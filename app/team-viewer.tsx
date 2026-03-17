@@ -135,7 +135,7 @@ export default function TeamViewerScreen() {
 
   const handleMemberPress = (member: TeamMember) => {
     router.push({
-      pathname: '/(tabs)/user-profile',
+      pathname: '/user-profile',
       params: { id: member.id }
     });
   };

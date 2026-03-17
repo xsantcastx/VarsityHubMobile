@@ -141,7 +141,7 @@ export default function ManageSeasonScreen() {
           title: 'No Managed Teams',
           message: 'You don\'t manage any teams yet. Create one to continue.',
           options: [
-            { label: 'Create Team', onPress: () => router.push('/(tabs)/create-team') },
+            { label: 'Create Team', onPress: () => router.push('/create-team') },
             { label: 'Close', onPress: () => {} },
           ],
         });
@@ -1137,7 +1137,7 @@ export default function ManageSeasonScreen() {
                 { label: 'Cancel', onPress: () => setTeamSelectorOpen(false), color: undefined },
                 {
                   label: 'Create Team',
-                  onPress: () => { void router.push('/(tabs)/create-team'); },
+                  onPress: () => { void router.push('/create-team'); },
                   color: Colors[colorScheme].tint,
                 },
               ]

@@ -149,7 +149,7 @@ export default function AdminTeamsScreen() {
                   color={bulkMode ? '#dc2626' : theme.tint} 
                 />
               </Pressable>
-              <Pressable onPress={() => void router.push('/(tabs)/create-team')} style={{ padding: 8 }}>
+              <Pressable onPress={() => void router.push('/create-team')} style={{ padding: 8 }}>
                 <Ionicons name="add-circle" size={24} color={theme.tint} />
               </Pressable>
             </View>
@@ -188,7 +188,7 @@ export default function AdminTeamsScreen() {
                 if (bulkMode) {
                   toggleTeamSelection(String(item.id));
                 } else {
-                  router.push({ pathname: '/(tabs)/team-profile', params: { id: item.id } } as any);
+                  router.push({ pathname: '/team-profile', params: { id: item.id } } as any);
                 }
               }}
             >
@@ -229,7 +229,7 @@ export default function AdminTeamsScreen() {
                 </View>
                 {!bulkMode && (
                   <Pressable 
-                    onPress={() => void router.push({ pathname: '/(tabs)/edit-team', params: { id: item.id } } as any)}
+                    onPress={() => void router.push({ pathname: '/edit-team', params: { id: item.id } } as any)}
                     style={{ padding: 8 }}
                   >
                     <Ionicons name="pencil" size={20} color={theme.tint} />

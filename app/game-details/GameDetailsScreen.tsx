@@ -1865,7 +1865,7 @@ const renderVoteSection = () => {
 const handleTeamPress = useCallback(
   async (teamObj: { id: string } | undefined, teamName: string | null) => {
     if (teamObj?.id) {
-      void router.push(`/(tabs)/team-profile?id=${teamObj.id}`);
+      void router.push(`/team-profile?id=${teamObj.id}`);
       return;
     }
     if (!teamName?.trim()) return;
@@ -1874,7 +1874,7 @@ const handleTeamPress = useCallback(
       const list: any[] = Array.isArray(raw) ? raw : [];
       const lower = teamName.trim().toLowerCase();
       const match = list.find((t: any) => (t?.name || '').toLowerCase() === lower || (t?.name || '').toLowerCase().includes(lower));
-      if (match?.id) void router.push(`/(tabs)/team-profile?id=${match.id}`);
+      if (match?.id) void router.push(`/team-profile?id=${match.id}`);
     } catch {
       // Team search failed; no navigation
     }
@@ -2106,7 +2106,7 @@ const renderBanner = () => {
                   borderColor: Colors[colorScheme].border,
                 }
               ]}
-              onPress={() => void router.push({ pathname: '/(tabs)/team-page', params: { id: team.id, name: team.name, from: 'game-details', gameId: id } } as any)}
+              onPress={() => void router.push({ pathname: '/team-page', params: { id: team.id, name: team.name, from: 'game-details', gameId: id } } as any)}
             >
               {team.avatarUrl ? (
                 <Image source={{ uri: team.avatarUrl }} style={styles.teamLinkAvatar} contentFit="cover" />
@@ -2160,7 +2160,7 @@ const renderBanner = () => {
                   transform: pressed ? [{ scale: 0.95 }] : [{ scale: 1 }],
                 }
               ]}
-              onPress={() => void router.push({ pathname: '/(tabs)/team-page', params: { name: teamName, from: 'game-details', gameId: id } } as any)}
+              onPress={() => void router.push({ pathname: '/team-page', params: { name: teamName, from: 'game-details', gameId: id } } as any)}
               accessibilityRole="button"
               accessibilityLabel={`View ${teamName} team`}
             >
@@ -2364,7 +2364,7 @@ const renderBanner = () => {
                       }
                       // Directly navigate to create-post with gameId - defaults to 'post' type
                       void router.push({
-                        pathname: '/(tabs)/create-post',
+                        pathname: '/create-post',
                         params: { gameId: String(targetGameId), type: 'post' },
                       } as any);
                     }}
@@ -2398,7 +2398,7 @@ const renderBanner = () => {
                                  const allPosts = vm?.posts || [];
                                  const postIds = allPosts.map((p: any) => String(p.id)).join(',');
                                  const idx = allPosts.findIndex((p: any) => String(p.id) === String(post.id));
-                                 void router.push(`/(tabs)/post-detail?id=${post.id}&postIds=${encodeURIComponent(postIds)}&index=${Math.max(0, idx)}`);
+                                 void router.push(`/post-detail?id=${post.id}&postIds=${encodeURIComponent(postIds)}&index=${Math.max(0, idx)}`);
                                }}
                              >
                                {thumb ? (
@@ -2471,7 +2471,7 @@ const renderBanner = () => {
                                  const allPosts = vm?.posts || [];
                                  const postIds = allPosts.map((p: any) => String(p.id)).join(',');
                                  const idx = allPosts.findIndex((p: any) => String(p.id) === String(post.id));
-                                 void router.push(`/(tabs)/post-detail?id=${post.id}&postIds=${encodeURIComponent(postIds)}&index=${Math.max(0, idx)}`);
+                                 void router.push(`/post-detail?id=${post.id}&postIds=${encodeURIComponent(postIds)}&index=${Math.max(0, idx)}`);
                                }}
                              >
                                {thumb ? (

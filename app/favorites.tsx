@@ -198,7 +198,7 @@ export default function FavoritesScreen() {
     ({ item }: { item: SavedPost }) => (
       <Pressable
         style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.border }]}
-        onPress={() => void router.push(`/(tabs)/post-detail?id=${item.id}`)}
+        onPress={() => void router.push(`/post-detail?id=${item.id}`)}
       >
         <View style={styles.media}>
           {item.media_url ? (

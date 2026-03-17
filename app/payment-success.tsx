@@ -258,7 +258,7 @@ export default function PaymentSuccessScreen() {
                 {isAdPayment && (
                   <Pressable
                     style={[styles.primaryBtn, { backgroundColor: theme.tint }]}
-                    onPress={() => { safeGoBack(router, '/(tabs)/my-ads'); }}
+                    onPress={() => { safeGoBack(router, '/my-ads'); }}
                   >
                     <MaterialIcons name="campaign" size={20} color="#fff" style={{ marginRight: 8 }} />
                     <Text style={styles.primaryBtnText}>View My Ads</Text>
@@ -268,7 +268,7 @@ export default function PaymentSuccessScreen() {
                   <>
                     <Pressable
                       style={[styles.primaryBtn, { backgroundColor: theme.tint }]}
-                      onPress={() => { safeGoBack(router, '/(tabs)/create-team'); }}
+                      onPress={() => { safeGoBack(router, '/create-team'); }}
                     >
                       <Text style={styles.primaryBtnText}>Create a Team</Text>
                     </Pressable>

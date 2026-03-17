@@ -73,7 +73,7 @@ export default function FollowingScreen() {
     <View style={styles.userRow}>
       <Pressable 
         style={styles.userInfo}
-        onPress={() => void router.push(`/(tabs)/user-profile?id=${item.id}`)}
+        onPress={() => void router.push(`/user-profile?id=${item.id}`)}
       >
         <Avatar uri={item.avatar_url} />
         <Text style={styles.userName}>{item.display_name}</Text>

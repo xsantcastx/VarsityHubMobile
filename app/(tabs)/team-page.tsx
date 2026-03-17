@@ -644,7 +644,7 @@ export default function TeamScreen() {
           <Text style={[styles.userHandle, { color: theme.text }]}>{teamHandle}</Text>
           <View style={{ flexDirection: 'row', gap: 8 }}>
             {isTeamAdmin && (
-              <Pressable style={[styles.editButtonBelowBanner, { backgroundColor: theme.surface || theme.background, borderColor: theme.border }]} onPress={() => void router.push(`/(tabs)/create-team?id=${team?.id}` as any)}>
+              <Pressable style={[styles.editButtonBelowBanner, { backgroundColor: theme.surface || theme.background, borderColor: theme.border }]} onPress={() => void router.push(`/create-team?id=${team?.id}` as any)}>
                 <Text style={[styles.editButtonBelowBannerText, { color: theme.text }]}>Edit profile</Text>
               </Pressable>
             )}
@@ -747,7 +747,7 @@ export default function TeamScreen() {
                         styles.rosterRow,
                         { backgroundColor: pressed ? theme.surface : 'transparent', borderColor: theme.border },
                       ]}
-                      onPress={() => m.user?.id && router.push({ pathname: '/(tabs)/user-profile', params: { id: m.user.id } } as any)}
+                      onPress={() => m.user?.id && router.push({ pathname: '/user-profile', params: { id: m.user.id } } as any)}
                     >
                       {m.user?.avatar_url ? (
                         <Image source={{ uri: m.user.avatar_url }} style={styles.rosterAvatar} contentFit="cover" />

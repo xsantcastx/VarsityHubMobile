@@ -297,7 +297,7 @@ export default function MessageThreadScreen() {
 
           <Pressable
             style={styles.headerProfile}
-            onPress={() => { if (otherParticipant?.id) { void router.push(`/(tabs)/user-profile?id=${encodeURIComponent(otherParticipant.id)}`);
+            onPress={() => { if (otherParticipant?.id) { void router.push(`/user-profile?id=${encodeURIComponent(otherParticipant.id)}`);
               }
             }}
           >

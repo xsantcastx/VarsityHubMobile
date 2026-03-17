@@ -254,7 +254,7 @@ export default function AdConfirmationScreen() {
         <View style={styles.actions}>
           <Pressable
             style={[styles.primaryButton, { backgroundColor: '#10B981' }]}
-            onPress={() => { safeGoBack(router, '/(tabs)/my-ads'); }}
+            onPress={() => { safeGoBack(router, '/my-ads'); }}
           >
             <MaterialIcons name="work" size={20} color="#ffffff" />
             <Text style={styles.primaryButtonText}>View My Ads</Text>

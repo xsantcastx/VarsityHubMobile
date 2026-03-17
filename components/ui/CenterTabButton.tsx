@@ -13,7 +13,7 @@ export default function CenterTabButton(props: BottomTabBarButtonProps) {
     if (Platform.OS === 'ios') {
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-    void router.push('/(tabs)/create-post');
+    void router.push('/create-post');
   };
 
   return (

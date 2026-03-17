@@ -126,7 +126,7 @@ export default function EditAdScreen() {
         description: desc.trim() || undefined,
       });
       Alert.alert('Saved', 'Your ad was updated.');
-      safeGoBack(router, '/(tabs)/my-ads');
+      safeGoBack(router, '/my-ads');
     } catch (e: any) {
       Alert.alert('Save failed', e?.message || 'Could not update the ad. Please try again.');
     } finally {
@@ -137,7 +137,7 @@ export default function EditAdScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['bottom']}>
       <Stack.Screen options={{ title: 'Edit Ad', headerShown: true, headerLeft: () => (
-            <Pressable onPress={() => safeGoBack(router, '/(tabs)/my-ads')} style={{ paddingRight: 8 }}>
+            <Pressable onPress={() => safeGoBack(router, '/my-ads')} style={{ paddingRight: 8 }}>
               <MaterialIcons name="chevron-left" size={28} color="#007AFF" />
             </Pressable>
           ) }} />

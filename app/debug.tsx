@@ -30,7 +30,7 @@ export default function DebugScreen() {
       <View style={styles.block}>
         <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Event Detail id</Text>
         <Input placeholder="e.g. 123" value={eventId} onChangeText={setEventId} style={{ marginBottom: 8 }} />
-  <Button onPress={() => eventId && router.push(`/(tabs)/event-detail?id=${eventId}`)} disabled={!eventId}><Text>Open Event</Text></Button>
+  <Button onPress={() => eventId && router.push(`/event-detail?id=${eventId}`)} disabled={!eventId}><Text>Open Event</Text></Button>
       </View>
 
       <View style={styles.block}>

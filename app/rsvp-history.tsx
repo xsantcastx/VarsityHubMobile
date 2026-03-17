@@ -76,7 +76,7 @@ export default function RsvpHistoryScreen() {
   }, [filteredItems]);
 
   const renderItem = ({ item }: { item: Item }) => (
-    <Pressable style={[styles.card, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]} onPress={() => item.event?.id && router.push(`/(tabs)/event-detail?id=${item.event.id}`)}>
+    <Pressable style={[styles.card, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]} onPress={() => item.event?.id && router.push(`/event-detail?id=${item.event.id}`)}>
       <Text style={[styles.title, { color: Colors[colorScheme].text }]}>{item.event?.title || 'Event'}</Text>
       <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>{item.event?.location || 'TBD'}</Text>
       <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>{item.event?.date ? new Date(String(item.event.date)).toLocaleString() : ''}</Text>

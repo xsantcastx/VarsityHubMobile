@@ -130,7 +130,7 @@ export default function TeamHubScreen() {
       return;
     }
     if (evt.id) {
-      router.push(`/(tabs)/event-detail?id=${String(evt.id)}` as any);
+      router.push(`/event-detail?id=${String(evt.id)}` as any);
     }
   };
 
@@ -180,7 +180,7 @@ export default function TeamHubScreen() {
             <Text style={[Type.sub as any, { textAlign: 'center', marginBottom: 12 }]}>Create a team to get started.</Text>
             <PrimaryButton
               label="Create New Team"
-              onPress={() => void router.push('/(tabs)/create-team')}
+              onPress={() => void router.push('/create-team')}
             />
           </View>
         ) : (
@@ -192,7 +192,7 @@ export default function TeamHubScreen() {
               <Pressable
                 key={String(team.id)}
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, paddingHorizontal: 12, borderRadius: Radius.md, backgroundColor: palette.infoTile }}
-                onPress={() => router.push({ pathname: '/(tabs)/team-page', params: { id: String(team.id) } })}
+                onPress={() => router.push({ pathname: '/team-page', params: { id: String(team.id) } })}
               >
                 <MaterialIcons name="groups" size={20} color={palette.primary} />
                 <Text style={{ color: palette.text, fontWeight: '700', flex: 1 }} numberOfLines={1}>{team.name}</Text>
@@ -201,7 +201,7 @@ export default function TeamHubScreen() {
             ))}
             <PrimaryButton
               label="Create New Team"
-              onPress={() => void router.push('/(tabs)/create-team')}
+              onPress={() => void router.push('/create-team')}
             />
           </View>
         )}

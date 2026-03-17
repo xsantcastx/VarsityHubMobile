@@ -1065,7 +1065,7 @@ export default function AdCalendarScreen() {
                 <Text style={[styles.pendingBannerText, { color: colorScheme === 'dark' ? '#6EE7B7' : '#047857' }]}>
                   Select new dates above to run this ad again — no re-approval needed.
                 </Text>
-                <Pressable onPress={() => router.push('/(tabs)/my-ads')} style={{ marginTop: 8 }}>
+                <Pressable onPress={() => router.push('/my-ads')} style={{ marginTop: 8 }}>
                   <Text style={{ color: Colors[colorScheme].tint, fontWeight: '600' }}>View My Ads →</Text>
                 </Pressable>
               </View>

@@ -484,7 +484,7 @@ export default function EventApprovalsScreen() {
           }
 
           {/* ── Section 2: Roster Invites ── */}
-          {renderSectionHeader('Roster Invites', 'people-outline', teamInvites.length, '#3B82F6', () => router.push('/(tabs)/my-team' as any))}
+          {renderSectionHeader('Roster Invites', 'people-outline', teamInvites.length, '#3B82F6', () => router.push('/my-team' as any))}
           {invitesLoading
             ? <ActivityIndicator style={styles.sectionLoader} color={C.tint} />
             : teamInvites.length === 0
@@ -493,7 +493,7 @@ export default function EventApprovalsScreen() {
           }
 
           {/* ── Section 3: Authorized User Requests ── */}
-          {renderSectionHeader('Authorized User Requests', 'shield-checkmark-outline', orgRequests.length, '#8B5CF6', () => router.push('/(tabs)/team-hub' as any))}
+          {renderSectionHeader('Authorized User Requests', 'shield-checkmark-outline', orgRequests.length, '#8B5CF6', () => router.push('/team-hub' as any))}
           {orgRequestsLoading
             ? <ActivityIndicator style={styles.sectionLoader} color={C.tint} />
             : orgRequests.length === 0

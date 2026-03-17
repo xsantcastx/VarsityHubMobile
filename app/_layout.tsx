@@ -212,6 +212,29 @@ export default function RootLayout() {
                     <Stack.Screen name="help" options={{ headerShown: false }} />
                     <Stack.Screen name="core-values" options={{ headerShown: false }} />
                     <Stack.Screen name="verify-identity" options={{ headerShown: false }} />
+                    {/* Sub-screens (root Stack for proper back navigation) */}
+                    <Stack.Screen name="post-detail" options={{ headerShown: false }} />
+                    <Stack.Screen name="create-post" options={{ headerShown: false }} />
+                    <Stack.Screen name="team-page" options={{ headerShown: false }} />
+                    <Stack.Screen name="team-profile" options={{ headerShown: false }} />
+                    <Stack.Screen name="team-hub" options={{ headerShown: false }} />
+                    <Stack.Screen name="team-contacts" options={{ headerShown: false }} />
+                    <Stack.Screen name="user-profile" options={{ headerShown: false }} />
+                    <Stack.Screen name="edit-profile" options={{ headerShown: false }} />
+                    <Stack.Screen name="edit-team" options={{ headerShown: false }} />
+                    <Stack.Screen name="create-team" options={{ headerShown: false }} />
+                    <Stack.Screen name="manage-teams" options={{ headerShown: false }} />
+                    <Stack.Screen name="my-team" options={{ headerShown: false }} />
+                    <Stack.Screen name="organization" options={{ headerShown: false }} />
+                    <Stack.Screen name="edit-organization" options={{ headerShown: false }} />
+                    <Stack.Screen name="event-detail" options={{ headerShown: false }} />
+                    <Stack.Screen name="event-approvals" options={{ headerShown: false }} />
+                    <Stack.Screen name="approvals" options={{ headerShown: false }} />
+                    <Stack.Screen name="create-fan-event" options={{ headerShown: false }} />
+                    <Stack.Screen name="message-thread" options={{ headerShown: false }} />
+                    <Stack.Screen name="followers" options={{ headerShown: false }} />
+                    <Stack.Screen name="following" options={{ headerShown: false }} />
+                    <Stack.Screen name="verify-email" options={{ headerShown: false }} />
                     <Stack.Screen name="+not-found" />
                   </Stack>
                     </View>

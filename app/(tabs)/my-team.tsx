@@ -7,7 +7,6 @@ import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  ActivityIndicator,
   Alert,
   FlatList,
   Image,

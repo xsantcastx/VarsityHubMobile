@@ -261,7 +261,7 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
         <View style={styles.authorRow}>
           <Pressable
             style={styles.authorInfo}
-            onPress={() => { if (!author?.id) return; void router.push({ pathname: '/(tabs)/user-profile', params: { id: String(author.id), username: author.username || 'User' } });
+            onPress={() => { if (!author?.id) return; void router.push({ pathname: '/user-profile', params: { id: String(author.id), username: author.username || 'User' } });
             }}
             accessibilityRole="button"
             accessibilityLabel={`View profile of ${author?.display_name || author?.username || 'User'}`}

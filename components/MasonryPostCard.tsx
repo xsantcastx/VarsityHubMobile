@@ -129,7 +129,7 @@ export default function MasonryPostCard({ post, onPress, onDeleted: _onDeleted, 
             style={styles.authorInfo}
             onPress={() => {
               if (!author?.id) return;
-              router.push({ pathname: '/(tabs)/user-profile', params: { id: String(author.id), username: author.username || 'User' } });
+              router.push({ pathname: '/user-profile', params: { id: String(author.id), username: author.username || 'User' } });
             }}
           >
             <View style={styles.authorAvatarWrap}>

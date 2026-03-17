@@ -839,7 +839,7 @@ export default function ProfileScreen() {
         {/* Edit profile button - positioned in banner overlap area, right-aligned at avatar level */}
         {(!viewingUserId || viewingUserId === currentUserId) && (
           <View style={styles.editButtonOverlay}>
-            <Pressable style={[styles.editButtonBelowBanner, { backgroundColor: theme.surface || theme.background, borderColor: theme.border }]} onPress={() => void router.push('/(tabs)/edit-profile')} accessibilityRole="button" accessibilityLabel="Edit profile">
+            <Pressable style={[styles.editButtonBelowBanner, { backgroundColor: theme.surface || theme.background, borderColor: theme.border }]} onPress={() => void router.push('/edit-profile')} accessibilityRole="button" accessibilityLabel="Edit profile">
               <Text style={[styles.editButtonBelowBannerText, { color: theme.text }]}>Edit profile</Text>
             </Pressable>
           </View>
@@ -904,7 +904,7 @@ export default function ProfileScreen() {
                       styles.teamChip,
                       { borderColor: theme.border, backgroundColor: pressed ? theme.background : theme.card },
                     ]}
-                    onPress={() => void router.push({ pathname: '/(tabs)/team-profile', params: { id: t.id, name: t.name } } as any)}
+                    onPress={() => void router.push({ pathname: '/team-profile', params: { id: t.id, name: t.name } } as any)}
                   >
                     {t.logo_url || t.avatar_url ? (
                       <Image source={{ uri: t.logo_url || t.avatar_url || '' }} style={styles.teamChipAvatar} contentFit="cover" />
@@ -973,7 +973,7 @@ export default function ProfileScreen() {
         color: colorScheme === 'dark' ? theme.mutedText : '#4B5563' // Darker grey for better contrast in light mode
       }]}>Share your first moment with the community!</Text>
       <Pressable
-        onPress={() => void router.push('/(tabs)/create-post')}
+        onPress={() => void router.push('/create-post')}
         style={({ pressed }) => [
           styles.createPostButton,
           {

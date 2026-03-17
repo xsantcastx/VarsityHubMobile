@@ -332,7 +332,7 @@ export default function CommunityDiscoverScreen() {
       const orgs = await Organization.mine();
       const list = Array.isArray(orgs) ? orgs : [];
       if (list.length > 0) {
-        router.push({ pathname: '/(tabs)/organization', params: { id: list[0].id } } as any);
+        router.push({ pathname: '/organization', params: { id: list[0].id } } as any);
       } else {
         Alert.alert('No Organization', 'You are not linked to any organization yet.');
       }
@@ -351,7 +351,7 @@ export default function CommunityDiscoverScreen() {
         router.push('/manage-season' as any);
       } else {
         Alert.alert('No Teams', 'Create a team first to manage your schedule.', [
-          { text: 'Create Team', onPress: () => router.push('/(tabs)/create-team') },
+          { text: 'Create Team', onPress: () => router.push('/create-team') },
           { text: 'Close', style: 'cancel' },
         ]);
       }
@@ -679,7 +679,7 @@ export default function CommunityDiscoverScreen() {
                 <Pressable
                   key={u.id}
                   style={[styles.searchResultRow, { borderBottomColor: Colors[colorScheme].border }]}
-                  onPress={() => { setQuery(''); setUnifiedSearchResults(null); void router.push(`/(tabs)/user-profile?id=${u.id}`); }}
+                  onPress={() => { setQuery(''); setUnifiedSearchResults(null); void router.push(`/user-profile?id=${u.id}`); }}
                   accessibilityRole="button"
                   accessibilityLabel={`View profile of ${u.display_name || u.username || 'User'}`}
                 >
@@ -715,7 +715,7 @@ export default function CommunityDiscoverScreen() {
                 <Pressable
                   key={t.id}
                   style={[styles.searchResultRow, { borderBottomColor: Colors[colorScheme].border }]}
-                  onPress={() => { setQuery(''); setUnifiedSearchResults(null); void router.push(`/(tabs)/team-profile?id=${t.id}`); }}
+                  onPress={() => { setQuery(''); setUnifiedSearchResults(null); void router.push(`/team-profile?id=${t.id}`); }}
                   accessibilityRole="button"
                   accessibilityLabel={`View team ${t.name}`}
                 >
@@ -749,7 +749,7 @@ export default function CommunityDiscoverScreen() {
                 <Pressable
                   key={o.id}
                   style={[styles.searchResultRow, { borderBottomColor: Colors[colorScheme].border }]}
-                  onPress={() => { setQuery(''); setUnifiedSearchResults(null); void router.push(`/(tabs)/organization?id=${o.id}`); }}
+                  onPress={() => { setQuery(''); setUnifiedSearchResults(null); void router.push(`/organization?id=${o.id}`); }}
                   accessibilityRole="button"
                   accessibilityLabel={`View organization ${o.name}`}
                 >
@@ -901,7 +901,7 @@ export default function CommunityDiscoverScreen() {
             <>
               <Pressable
                 style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30' }]}
-                onPress={() => void router.push('/(tabs)/manage-teams')}
+                onPress={() => void router.push('/manage-teams')}
                 accessibilityRole="button"
                 accessibilityLabel="Manage Teams"
               >
@@ -921,7 +921,7 @@ export default function CommunityDiscoverScreen() {
               </Pressable>
               <Pressable
                 style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: 12 }]}
-                onPress={() => void router.push('/(tabs)/event-approvals')}
+                onPress={() => void router.push('/event-approvals')}
                 accessibilityRole="button"
                 accessibilityLabel="Review pending event approvals"
               >
@@ -958,7 +958,7 @@ export default function CommunityDiscoverScreen() {
               {/* Fan actions */}
               <Pressable
                 style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: me?.preferences?.role === 'organizer' ? 12 : 0 }]}
-                onPress={() => void router.push('/(tabs)/create-fan-event')}
+                onPress={() => void router.push('/create-fan-event')}
                 accessibilityRole="button"
                 accessibilityLabel="Create a fan event"
               >
@@ -968,7 +968,7 @@ export default function CommunityDiscoverScreen() {
               </Pressable>
               <Pressable
                 style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: 12 }]}
-                onPress={() => void router.push('/(tabs)/create-post')}
+                onPress={() => void router.push('/create-post')}
                 accessibilityRole="button"
                 accessibilityLabel="Share a moment"
               >
@@ -996,7 +996,7 @@ export default function CommunityDiscoverScreen() {
           <MaterialIcons name="group" size={18} color="#2563EB" />
           <Text style={[styles.followingText, { color: Colors[colorScheme].text }]}>{`Following ${me._count.following} people`}</Text>
           <View style={{ flex: 1 }} />
-          <Pressable onPress={() => void router.push(`/(tabs)/following?id=${me.id}&username=${me.display_name || me.username || 'You'}`)} style={styles.followingBtn} accessibilityRole="button" accessibilityLabel="Manage who you follow">
+          <Pressable onPress={() => void router.push(`/following?id=${me.id}&username=${me.display_name || me.username || 'You'}`)} style={styles.followingBtn} accessibilityRole="button" accessibilityLabel="Manage who you follow">
             <Text style={styles.followingBtnText}>Manage</Text>
           </Pressable>
         </View>
@@ -1037,7 +1037,7 @@ export default function CommunityDiscoverScreen() {
                     onPress={() => {
                       if (!authorId) return;
                       // Navigate to the specific user's profile, not own profile
-                      void router.push(`/(tabs)/user-profile?id=${authorId}`);
+                      void router.push(`/user-profile?id=${authorId}`);
                     }}
                     accessibilityRole="button"
                     accessibilityLabel={`View profile of ${author?.display_name || 'User'}`}
@@ -1092,7 +1092,7 @@ export default function CommunityDiscoverScreen() {
                     const posts = tab === 'following' ? followingPosts : discoverPosts;
                     const postIds = posts.map((post: any) => String(post.id)).join(',');
                     const index = posts.findIndex((post: any) => String(post.id) === String(p.id));
-                    void router.push(`/(tabs)/post-detail?id=${p.id}&postIds=${encodeURIComponent(postIds)}&index=${Math.max(0, index)}`);
+                    void router.push(`/post-detail?id=${p.id}&postIds=${encodeURIComponent(postIds)}&index=${Math.max(0, index)}`);
                   }}
                   showAuthorHeader={false}
                   onDeleted={(postId) => {
@@ -1121,7 +1121,7 @@ export default function CommunityDiscoverScreen() {
           <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>Nearby people</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }} contentContainerStyle={{ paddingRight: 8 }}>
             {nearbyPeople.map((u) => (
-              <Pressable key={String(u.id)} style={styles.personTile} onPress={() => void router.push(`/(tabs)/user-profile?id=${u.id}`)} accessibilityRole="button" accessibilityLabel={`View profile of ${u.display_name || u.username || 'User'}`}>
+              <Pressable key={String(u.id)} style={styles.personTile} onPress={() => void router.push(`/user-profile?id=${u.id}`)} accessibilityRole="button" accessibilityLabel={`View profile of ${u.display_name || u.username || 'User'}`}>
                 <View style={styles.personAvatar}>
                   {u.avatar_url ? (
                     <Image source={{ uri: String(u.avatar_url) }} style={styles.personAvatar} contentFit="cover" />

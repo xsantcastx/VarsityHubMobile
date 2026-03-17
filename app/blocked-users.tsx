@@ -10,7 +10,7 @@ import { safeGoBack } from '@/utils/navigation';
 
 interface BlockedUser {
   id: string;
-  email: string;
+  username?: string;
   display_name?: string;
 }
 

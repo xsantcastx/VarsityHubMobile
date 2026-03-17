@@ -356,7 +356,7 @@ export default function LeagueScreen() {
   const handleTeamPress = (team: LeagueTeam) => {
     // Navigate to team page (with Feed/Schedule/Roster)
     router.push({
-      pathname: '/(tabs)/team-profile',
+      pathname: '/team-profile',
       params: { 
         id: team.id,
         name: team.name,
@@ -366,7 +366,7 @@ export default function LeagueScreen() {
 
   const handleEventPress = (event: LeagueEvent) => {
     router.push({
-      pathname: '/(tabs)/event-detail',
+      pathname: '/event-detail',
       params: { id: event.id }
     });
   };
@@ -456,7 +456,7 @@ export default function LeagueScreen() {
         {isAdmin && league?.id && (
           <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
             <Pressable
-              onPress={() => router.push({ pathname: '/(tabs)/edit-organization', params: { id: league.id } })}
+              onPress={() => router.push({ pathname: '/edit-organization', params: { id: league.id } })}
               style={[styles.adminButton, { backgroundColor: theme.tint }]}
             >
               <Ionicons name="pencil" size={20} color="#fff" />

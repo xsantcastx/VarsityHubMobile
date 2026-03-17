@@ -200,7 +200,7 @@ export default function PublicEventScreen() {
                 const targetGameId = event?.game_id || params?.id || '';
                 if (__DEV__) console.warn('[PublicEvent] Navigating to create-post with gameId:', targetGameId, '| params.id:', params?.id, '| event?.game_id:', event?.game_id);
                 router.push({
-                  pathname: '/(tabs)/create-post',
+                  pathname: '/create-post',
                   params: { gameId: targetGameId },
                 });
               }}
@@ -225,7 +225,7 @@ export default function PublicEventScreen() {
                 <MasonryPostCard
                   post={post}
                   onPress={() => {
-                    router.push({ pathname: '/(tabs)/post-detail', params: { id: post.id } } as any);
+                    router.push({ pathname: '/post-detail', params: { id: post.id } } as any);
                   }}
                   onDeleted={(postId) => {
                     setPosts(prev => prev.filter(p => p.id !== postId));

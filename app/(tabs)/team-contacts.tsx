@@ -1426,7 +1426,7 @@ export default function TeamChatScreen() {
       style={[styles.memberCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
       onPress={() => {
         if (item.user?.id) {
-          void router.push(`/(tabs)/user-profile?id=${encodeURIComponent(item.user.id)}`);
+          void router.push(`/user-profile?id=${encodeURIComponent(item.user.id)}`);
         }
       }}
       disabled={!item.user?.id}
@@ -1461,7 +1461,7 @@ export default function TeamChatScreen() {
         style={styles.messageButton}
         onPress={() => {
           if (item.user?.id) {
-            void router.push(`/(tabs)/message-thread?with=${encodeURIComponent(item.user.id)}` as any);
+            void router.push(`/message-thread?with=${encodeURIComponent(item.user.id)}` as any);
           }
         }}
         disabled={!item.user?.id}

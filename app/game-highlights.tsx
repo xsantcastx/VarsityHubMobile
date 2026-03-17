@@ -68,7 +68,7 @@ export default function GameHighlightsScreen() {
           numColumns={3}
           renderItem={({ item: _item }) => (
             <Pressable
-              onPress={() => void router.push(`/(tabs)/post-detail?id=${encodeURIComponent(String(_item.id))}`)}
+              onPress={() => void router.push(`/post-detail?id=${encodeURIComponent(String(_item.id))}`)}
               accessibilityRole="button"
               accessibilityLabel="View highlight"
             >

@@ -203,7 +203,7 @@ export default function OrganizationScreen() {
   }, [loadOrganization]);
 
   const handleTeamPress = (team: TeamItem) => {
-    router.push({ pathname: '/(tabs)/team-profile', params: { id: team.id, name: team.name } });
+    router.push({ pathname: '/team-profile', params: { id: team.id, name: team.name } });
   };
 
   const handleGamePress = (game: GameItem) => {
@@ -371,7 +371,7 @@ export default function OrganizationScreen() {
           {isOrgAdmin ? (
             <Pressable
               style={[styles.actionBtn, { flex: 1, backgroundColor: theme.card, borderColor: theme.border, borderWidth: StyleSheet.hairlineWidth }]}
-              onPress={() => router.push({ pathname: '/(tabs)/edit-organization', params: { id: organization?.id } })}
+              onPress={() => router.push({ pathname: '/edit-organization', params: { id: organization?.id } })}
             >
               <Ionicons name="pencil-outline" size={16} color={theme.text} />
               <Text style={[styles.actionBtnText, { color: theme.text }]}>Edit Profile</Text>
@@ -456,7 +456,7 @@ export default function OrganizationScreen() {
         {isOrgAdmin && pendingCoachCount > 0 && organization?.id && (
           <Pressable
             style={[styles.card, styles.sectionCard, { backgroundColor: '#FEF9C3', borderColor: '#DAA520', flexDirection: 'row', alignItems: 'center', gap: 12 }]}
-            onPress={() => router.push('/(tabs)/approvals')}
+            onPress={() => router.push('/approvals')}
           >
             <MaterialIcons name="group-add" size={24} color="#DAA520" />
             <View style={{ flex: 1 }}>

@@ -20,7 +20,7 @@ export default function PaymentCancelScreen() {
   useEffect(() => {
     if (isAd) {
       const timer = setTimeout(() => {
-        safeGoBack(router, '/(tabs)/my-ads');
+        safeGoBack(router, '/my-ads');
       }, 1500);
       return () => clearTimeout(timer);
     }
@@ -29,7 +29,7 @@ export default function PaymentCancelScreen() {
   const handleRetryPayment = () => {
     if (isAd) {
       // Go back to ad calendar with selections preserved
-      safeGoBack(router, '/(tabs)/my-ads');
+      safeGoBack(router, '/my-ads');
     } else {
       router.replace('/onboarding/step-3-league');
     }

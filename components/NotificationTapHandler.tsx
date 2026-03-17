@@ -50,11 +50,11 @@ export function NotificationTapHandler() {
             const convId = str(data.conversation_id);
             const senderId = str(data.sender_id);
             if (convId) {
-              router.push(`/(tabs)/message-thread?conversation_id=${encodeURIComponent(convId)}` as any);
+              router.push(`/message-thread?conversation_id=${encodeURIComponent(convId)}` as any);
             } else if (senderId) {
-              router.push(`/(tabs)/message-thread?with=${encodeURIComponent(senderId)}` as any);
+              router.push(`/message-thread?with=${encodeURIComponent(senderId)}` as any);
             } else {
-              router.push('/(tabs)/messages' as any);
+              router.push('/messages' as any);
             }
             break;
           }
@@ -62,7 +62,7 @@ export function NotificationTapHandler() {
           case 'post_interaction': {
             const postId = str(data.post_id);
             if (postId) {
-              router.push({ pathname: '/(tabs)/post-detail', params: { id: postId } } as any);
+              router.push({ pathname: '/post-detail', params: { id: postId } } as any);
             }
             break;
           }
@@ -73,7 +73,7 @@ export function NotificationTapHandler() {
             const commentId = str(data.comment_id);
             if (postId) {
               router.push({
-                pathname: '/(tabs)/post-detail',
+                pathname: '/post-detail',
                 params: { id: postId, ...(commentId ? { commentId } : {}) },
               } as any);
             }
@@ -83,7 +83,7 @@ export function NotificationTapHandler() {
           case 'new_follower': {
             const followerId = str(data.follower_id);
             if (followerId) {
-              router.push({ pathname: '/(tabs)/user-profile', params: { userId: followerId } } as any);
+              router.push({ pathname: '/user-profile', params: { userId: followerId } } as any);
             }
             break;
           }
@@ -95,13 +95,13 @@ export function NotificationTapHandler() {
           case 'game_reminder': {
             const eventId = str(data.event_id);
             if (eventId) {
-              router.push({ pathname: '/(tabs)/event-detail', params: { id: eventId } } as any);
+              router.push({ pathname: '/event-detail', params: { id: eventId } } as any);
             }
             break;
           }
 
           case 'coach_request':
-            router.push('/(tabs)/approvals' as any);
+            router.push('/approvals' as any);
             break;
 
           case 'coach_approved':

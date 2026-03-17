@@ -182,7 +182,7 @@ export default function OrganizationDetailScreen() {
           org.teams.map((team) => (
             <Pressable
               key={team.id}
-              onPress={() => router.push({ pathname: '/(tabs)/team-page', params: { id: team.id, name: team.name } } as any)}
+              onPress={() => router.push({ pathname: '/team-page', params: { id: team.id, name: team.name } } as any)}
               style={({ pressed }) => ({
                 flexDirection: 'row',
                 alignItems: 'center',

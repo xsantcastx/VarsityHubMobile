@@ -81,28 +81,28 @@ export default function CreateScreen() {
             marginBottom: 4 
           }}>Verify your email to enable actions below.</Text>
         ) : null}
-        <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/(tabs)/create-post')}>
+        <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/create-post')}>
           <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>Create Post</Text>
         </Pressable>
-        <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/(tabs)/create-post?type=highlight')}>
+        <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/create-post?type=highlight')}>
           <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>Share Highlight</Text>
         </Pressable>
         {/* Team creation - COACH ONLY */}
         {me?.preferences?.role === 'coach' && (
-          <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/(tabs)/create-team')}>
+          <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/create-team')}>
             <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>Create Team</Text>
           </Pressable>
         )}
         {/* Event creation - ALL USERS (fans pitch, coaches auto-approve) */}
-        <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/(tabs)/create-fan-event')}>
+        <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/create-fan-event')}>
           <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>
             {me?.preferences?.role === 'coach' ? 'Create Event' : 'Pitch Event'}
           </Text>
         </Pressable>
-        <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/(tabs)/submit-ad')}>
+        <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/submit-ad')}>
           <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>Submit Ad</Text>
         </Pressable>
-        <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/(tabs)/my-ads')}>
+        <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/my-ads')}>
           <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>My Ads</Text>
         </Pressable>
         <Pressable style={[styles.item, styles.cancel, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]} onPress={safeBack}>
