@@ -9,15 +9,25 @@ import { ActivityIndicator, Alert, Modal, Pressable, RefreshControl, ScrollView,
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { safeGoBack } from '@/utils/navigation';
 
+/** API returns OrganizationJoinRequest (user-based coach requests) */
+type ApiJoinRequest = {
+  id: string;
+  organization_id: string;
+  user_id: string;
+  status: 'pending' | 'approved' | 'denied';
+  message?: string | null;
+  created_at: string;
+  reviewed_at?: string | null;
+  user: { id: string; display_name?: string | null; username?: string | null; avatar_url?: string | null; email?: string };
+};
+
 type JoinRequest = {
   id: string;
   organization_id: string;
   organization_name: string;
-  team_id: string;
-  team_name: string;
-  message: string;
   requester_id: string;
   requester_name: string;
+  message: string;
   status: 'pending' | 'approved' | 'rejected';
   created_at: string;
   approved_at?: string;
@@ -50,9 +60,24 @@ export default function OrganizationJoinRequestsScreen() {
     setLoading(true);
     setError(null);
     try {
-      const status = filter === 'pending' ? 'pending' : undefined;
+      const status = filter === 'pending' ? 'pending' : ('all' as const);
       const data = await Organization.getJoinRequests(params.organization_id, status);
-      setRequests(Array.isArray(data) ? data : []);
+      const raw = Array.isArray(data) ? data : [];
+      const orgName = params.organization_name || 'Organization';
+      const mapped: JoinRequest[] = raw.map((r: ApiJoinRequest) => ({
+        id: r.id,
+        organization_id: r.organization_id,
+        organization_name: orgName,
+        requester_id: r.user_id,
+        requester_name: r.user?.display_name || r.user?.username || 'Coach',
+        message: r.message || '',
+        status: r.status === 'denied' ? 'rejected' : r.status,
+        created_at: r.created_at,
+        approved_at: r.status === 'approved' ? r.reviewed_at ?? undefined : undefined,
+        rejected_at: r.status === 'denied' ? r.reviewed_at ?? undefined : undefined,
+        rejection_reason: r.status === 'denied' ? (r.message || undefined) : undefined,
+      }));
+      setRequests(mapped);
     } catch (err: any) {
       if (__DEV__) console.error('[OrganizationJoinRequests] Error loading requests:', err);
       captureException(err, { tags: { screen: 'organization-join-requests', action: 'load' } });
@@ -75,7 +100,7 @@ export default function OrganizationJoinRequestsScreen() {
   const handleApprove = async (request: JoinRequest) => {
     Alert.alert(
       'Approve Request',
-      `Allow "${request.team_name}" to join ${params.organization_name || 'this organization'}?`,
+      `Allow ${request.requester_name} to join ${params.organization_name || 'this organization'}?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -86,7 +111,7 @@ export default function OrganizationJoinRequestsScreen() {
               setProcessingId(request.id);
               try {
                 await Organization.approveJoinRequest(request.id);
-                Alert.alert('Success', `${request.team_name} has been added to your organization!`);
+                Alert.alert('Success', `${request.requester_name} has been added to your organization!`);
                 await loadRequests();
               } catch (err: any) {
                 if (__DEV__) console.error('[OrganizationJoinRequests] Error approving request:', err);
@@ -120,7 +145,7 @@ export default function OrganizationJoinRequestsScreen() {
       setProcessingId(rejectModal.request.id);
       try {
         await Organization.rejectJoinRequest(rejectModal.request.id, reason);
-        Alert.alert('Request Rejected', `${rejectModal.request.team_name} has been notified.`);
+        Alert.alert('Request Rejected', `${rejectModal.request.requester_name} has been notified.`);
         await loadRequests();
       } catch (err: any) {
         if (__DEV__) console.error('[OrganizationJoinRequests] Error rejecting request:', err);
@@ -172,7 +197,7 @@ export default function OrganizationJoinRequestsScreen() {
           <MaterialIcons name="arrow-back" size={24} color={theme.text} />
         </Pressable>
         <View style={styles.headerTextContainer}>
-          <Text style={[styles.headerTitle, { color: theme.text }]}>Team Requests</Text>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>Coach Requests</Text>
           {params.organization_name && (
             <Text style={[styles.headerSubtitle, { color: theme.mutedText }]} numberOfLines={1}>
               {params.organization_name}
@@ -252,7 +277,7 @@ export default function OrganizationJoinRequestsScreen() {
               <Text style={[styles.emptySubtitle, { color: theme.mutedText }]}>
                 {filter === 'pending'
                   ? 'All caught up! New requests will appear here.'
-                  : 'Coaches can request to join your organization from their team page.'}
+                  : 'Coaches can request to join your organization during onboarding or from the league search.'}
               </Text>
             </View>
           ) : (
@@ -269,14 +294,14 @@ export default function OrganizationJoinRequestsScreen() {
                       { backgroundColor: theme.card, borderColor: theme.border },
                     ]}
                   >
-                    {/* Team Info */}
+                    {/* Requester Info */}
                     <View style={styles.requestHeader}>
                       <View style={styles.requestHeaderText}>
                         <Text style={[styles.teamName, { color: theme.text }]}>
-                          {request.team_name}
+                          {request.requester_name}
                         </Text>
                         <Text style={[styles.requesterName, { color: theme.mutedText }]}>
-                          by {request.requester_name}
+                          Coach join request
                         </Text>
                       </View>
                       <View
@@ -376,7 +401,7 @@ export default function OrganizationJoinRequestsScreen() {
           <Pressable style={[styles.modalCard, { backgroundColor: theme.background }]} onPress={() => {}}>
             <Text style={[styles.modalTitle, { color: theme.text }]}>Reject Request</Text>
             <Text style={[styles.modalSubtitle, { color: theme.mutedText }]}>
-              {rejectModal.request ? `Optional reason for rejecting ${rejectModal.request.team_name}.` : ''}
+              {rejectModal.request ? `Optional reason for rejecting ${rejectModal.request.requester_name}.` : ''}
             </Text>
             <TextInput
               placeholder="Reason (optional)"

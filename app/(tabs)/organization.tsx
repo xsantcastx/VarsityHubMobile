@@ -321,7 +321,7 @@ export default function OrganizationScreen() {
             style={[styles.adminButton, { backgroundColor: theme.tint }]}
           >
             <Ionicons name="people" size={20} color="#fff" />
-            <Text style={styles.adminButtonText}>Team Requests</Text>
+            <Text style={styles.adminButtonText}>Coach Requests</Text>
           </Pressable>
         )}
 

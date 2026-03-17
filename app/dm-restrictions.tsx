@@ -56,11 +56,7 @@ export default function DMRestrictionsScreen() {
       return;
     }
     setSaving(false);
-    if (router.canGoBack()) {
-      safeGoBack(router);
-    } else {
-      router.push('/(tabs)' as any);
-    }
+    safeGoBack(router);
   };
 
   const Row = ({ k, title, desc }: { k: Policy; title: string; desc: string }) => (

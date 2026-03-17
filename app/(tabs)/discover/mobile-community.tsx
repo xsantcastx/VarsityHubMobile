@@ -496,26 +496,25 @@ export default function CommunityDiscoverScreen() {
       if (typeof alert !== 'undefined') {
         alert(data.isCompetitive ? 'Game added successfully!' : 'Event added successfully!');
       }
-    } catch (error) {
+    } catch (error: any) {
       if (__DEV__) console.error('Error adding quick game:', error);
       
-      // Provide specific error messages
-      let errorMessage = 'Failed to add event.';
-      if (error instanceof Error) {
-        errorMessage = error.message;
-      } else if (typeof error === 'string') {
-        errorMessage = error;
-      } else if (error && typeof error === 'object' && 'message' in error) {
-        errorMessage = String(error.message);
-      }
-      
-      if (typeof alert !== 'undefined') {
-        alert(errorMessage);
+      const code = error?.data?.code || error?.code;
+      if (code === 'APPROVAL_REQUIRED') {
+        Alert.alert('Approval Required', 'Your coach account is pending approval. You can create games once a league admin approves your application.');
+      } else if (code === 'PAYMENT_REQUIRED') {
+        Alert.alert('Checkout Required', 'Please complete your subscription checkout before creating games.', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Go to Billing', onPress: () => router.push('/settings/manage-subscription') },
+        ]);
+      } else {
+        const errorMessage = error?.data?.error || error?.message || 'Failed to add event.';
+        Alert.alert('Error', errorMessage);
       }
     } finally {
       setIsCreatingGame(false);
     }
-  }, [load, isCreatingGame]);
+  }, [load, isCreatingGame, router]);
 
   const filtered = useMemo(() => {
     if (!query) return games;

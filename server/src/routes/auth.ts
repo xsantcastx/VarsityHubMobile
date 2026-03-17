@@ -1088,7 +1088,7 @@ authRouter.patch('/me/preferences', requireAuth as any, async (req: AuthedReques
     }).partial().optional(),
     is_parent: z.boolean().optional(),
     zip_code: z.string().min(2).max(20).optional().nullable(),
-    onboarding_completed: z.boolean().optional(),
+    // SECURITY: onboarding_completed is NEVER settable via PATCH — only via POST /me/complete-onboarding
     
     // New onboarding fields
     // Rule A: Client can set plan to 'rookie' only; paid plans go through pending_plan.
@@ -1133,6 +1133,8 @@ authRouter.patch('/me/preferences', requireAuth as any, async (req: AuthedReques
     });
   }
   const incoming = parsed.data as any;
+  // SECURITY: Strip onboarding_completed — client cannot bypass onboarding via PATCH
+  delete incoming.onboarding_completed;
   // COPPA: Reject if DOB indicates under 13 - do not store
   if (incoming.dob !== undefined && isUnder13(incoming.dob)) {
     return res.status(403).json({
@@ -1148,6 +1150,12 @@ authRouter.patch('/me/preferences', requireAuth as any, async (req: AuthedReques
   if (incoming.role && currentPrefs.onboarding_completed === true && incoming.role !== currentPrefs.role) {
     return res.status(403).json({
       error: 'Cannot change role after onboarding is complete. Contact support if you need to change your account type.',
+    });
+  }
+  // SECURITY: Prevent role elevation to coach via PATCH — use POST /upgrade-to-coach or complete-onboarding
+  if (incoming.role === 'coach' && currentPrefs.role === 'fan') {
+    return res.status(403).json({
+      error: 'Use the upgrade flow to become a coach. Contact support if you need help.',
     });
   }
   // Check if user is admin (same logic as GET /me endpoint)
@@ -1310,6 +1318,14 @@ authRouter.post('/me/complete-onboarding', requireAuth as any, async (req: Authe
 
   if (finalRole === 'coach' && !data.username) {
     return res.status(400).json({ error: 'Username required for coach onboarding' });
+  }
+
+  // SECURITY: Coaches must create or join an organization — prevents bypassing approval flow
+  if (finalRole === 'coach' && !data.organization_id && !data.join_request_pending) {
+    return res.status(400).json({
+      error: 'Coaches must create or join an organization during onboarding.',
+      code: 'ORG_REQUIRED',
+    });
   }
 
   if (!data.username && !currentUser?.username) {

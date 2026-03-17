@@ -37,13 +37,7 @@ export default function CreateScreen() {
     router.push(path as any);
   };
 
-  const safeBack = () => {
-    if (router.canGoBack()) {
-      safeGoBack(router);
-    } else {
-      router.push('/(tabs)' as any);
-    }
-  };
+  const safeBack = () => safeGoBack(router);
 
   if (loading) {
     return (

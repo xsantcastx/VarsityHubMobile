@@ -703,6 +703,9 @@ model Organization {
   league_owner_id String?
   leagueOwner     User?    @relation("league_owner", fields: [league_owner_id], references: [id], onDelete: SetNull)
 
+  // Supporting document (file/image) URL — required for new org creation
+  supporting_document_url String?
+
   teams       Team[]
   memberships OrganizationMembership[]
   invites     OrganizationInvite[]

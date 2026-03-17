@@ -35,11 +35,7 @@ export default function FeedbackScreen() {
     try {
       await Support.feedback({ user_id: 'me', category, message: message.trim(), screenshot_url: screenshotUrl.trim() || undefined });
       Alert.alert('Thanks!', 'Your feedback was sent.');
-      if (router.canGoBack()) {
-        safeGoBack(router);
-      } else {
-        router.push('/(tabs)' as any);
-      }
+      safeGoBack(router);
     } catch (e: any) { Alert.alert('Failed', e?.message || 'Try again later'); } finally { setSending(false); }
   };
 

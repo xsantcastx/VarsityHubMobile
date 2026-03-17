@@ -34,11 +34,7 @@ export default function ContactScreen() {
     try {
       await Support.contact({ name: name || 'Unknown', email: emailField.trim(), subject: subject.trim(), message: message.trim() });
       Alert.alert('Sent', 'Thanks for reaching out.');
-      if (router.canGoBack()) {
-        safeGoBack(router);
-      } else {
-        router.push('/(tabs)' as any);
-      }
+      safeGoBack(router);
     } catch (e: any) {
       if (__DEV__) console.error('[contact] Failed to send contact message:', e);
       Alert.alert('Failed', e?.message || 'Try again later');

@@ -7,7 +7,7 @@
 import { useRouter, useSegments } from 'expo-router';
 import React, { createContext, useCallback, useContext, useEffect, useRef } from 'react';
 
-const TAB_ROUTES = ['feed', 'discover', 'profile', 'highlights'] as const;
+const TAB_ROUTES = ['feed', 'discover', 'profile', 'highlights', 'create'] as const;
 export const DEFAULT_FALLBACK = '/(tabs)/feed' as const;
 
 /** Module-level fallback for safeGoBack(router) when used outside React tree (e.g. Alert callbacks) */

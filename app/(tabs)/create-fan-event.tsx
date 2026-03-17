@@ -327,7 +327,14 @@ export default function CreateFanEventScreen() {
       const errorCode = e?.code || e?.data?.code;
       const errorMessage = e?.message || e?.data?.message;
 
-      if (errorCode === 'EVENT_LIMIT_EXCEEDED') {
+      if (errorCode === 'APPROVAL_REQUIRED') {
+        Alert.alert('Approval Required', 'Your coach account is pending approval. You can create events once a league admin approves your application.');
+      } else if (errorCode === 'PAYMENT_REQUIRED') {
+        Alert.alert('Checkout Required', 'Please complete your subscription checkout before creating events.', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Go to Billing', onPress: () => router.push('/settings/manage-subscription') },
+        ]);
+      } else if (errorCode === 'EVENT_LIMIT_EXCEEDED') {
         Alert.alert(
           'Event Limit Reached',
           errorMessage || "You've reached your limit of 3 pending events. Upgrade to create more.",

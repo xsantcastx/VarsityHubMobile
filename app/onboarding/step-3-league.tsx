@@ -3,11 +3,14 @@ import PrimaryButton from '@/components/ui/PrimaryButton';
 import { Colors } from '@/constants/Colors';
 import { Type } from '@/ui/tokens';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import * as ImagePicker from 'expo-image-picker';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useColorScheme, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useColorScheme, View } from 'react-native';
 // @ts-ignore
 import { Organization, Team, User } from '@/api/entities';
+import { getApiBaseUrl } from '@/api/http';
+import { uploadFile } from '@/api/upload';
 import { PlaceSuggestion } from '@/api/geocoding';
 import LocationPicker from '@/components/LocationPicker';
 import { httpPost } from '@/api/http';
@@ -48,6 +51,9 @@ export default function Step3League() {
   const [_emailVerified, setEmailVerified] = useState<boolean | null>(null);
   const [duplicateOrg, setDuplicateOrg] = useState<{ id: string; name: string; location?: string; sport?: string } | null>(null);
   const dupCheckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [supportingDocumentUri, setSupportingDocumentUri] = useState<string | null>(null);
+  const [supportingDocumentUrl, setSupportingDocumentUrl] = useState<string | null>(null);
+  const [uploadingDocument, setUploadingDocument] = useState(false);
 
   const styles = useMemo(() => createStyles(colorScheme), [colorScheme]);
 
@@ -173,8 +179,11 @@ export default function Step3League() {
     if (alreadyExists || ob.join_request_pending) return true;
 
     // All coaches need organization fields; location may be typed or autocomplete-selected
-    return orgName.trim().length > 0 && !!orgType && (!!selectedPlace || location.trim().length >= 2);
-  }, [orgName, orgType, saving, alreadyExists, ob.join_request_pending, selectedPlace, location]);
+    // Supporting document (file/image) is mandatory when creating new organization
+    const hasRequiredFields = orgName.trim().length > 0 && !!orgType && (!!selectedPlace || location.trim().length >= 2);
+    const hasSupportingDoc = !!supportingDocumentUrl || !!supportingDocumentUri;
+    return hasRequiredFields && hasSupportingDoc;
+  }, [orgName, orgType, saving, alreadyExists, ob.join_request_pending, selectedPlace, location, supportingDocumentUrl, supportingDocumentUri]);
 
   // Format organization type for display (capitalize & friendly term mapping)
   const formatOrgType = (raw?: string) => {
@@ -383,6 +392,28 @@ export default function Step3League() {
         return;
       }
       
+      // Upload supporting document if we have a local file
+      let docUrl = supportingDocumentUrl;
+      if (!docUrl && supportingDocumentUri) {
+        setUploadingDocument(true);
+        try {
+          const result = await uploadFile(getApiBaseUrl(), supportingDocumentUri, 'supporting-doc.jpg', 'image/jpeg');
+          docUrl = result?.url || result?.secure_url || result?.path || (typeof result === 'string' ? result : null);
+          if (docUrl) setSupportingDocumentUrl(docUrl);
+        } catch (uploadErr: any) {
+          Alert.alert('Upload Failed', uploadErr?.message || 'Could not upload supporting document. Please try again.');
+          setSaving(false);
+          setUploadingDocument(false);
+          return;
+        }
+        setUploadingDocument(false);
+      }
+      if (!docUrl) {
+        Alert.alert('Supporting Document Required', 'Please upload a file or image (e.g., school letterhead, registration) to verify your organization.');
+        setSaving(false);
+        return;
+      }
+
       // All coaches create organization page
       const locationLabel = selectedPlace?.description || location.trim();
       // Create an organization using the dedicated API
@@ -392,6 +423,7 @@ export default function Step3League() {
         org_type: orgType,
         location: locationLabel || undefined,
         zip_code: (selectedPlaceZip || searchZip.trim()) || undefined,
+        supporting_document_url: docUrl,
       };
 
       const org = await Organization.createOrganization(payload);
@@ -418,7 +450,7 @@ export default function Step3League() {
       }
 
       // Navigate to league pending approval screen
-      // Super admin (emancero@varsityhub.app) must approve the league before it goes live
+      // Super admin must approve the league before it goes live
       router.replace({
         pathname: '/onboarding/league-pending-approval',
         params: {
@@ -562,6 +594,50 @@ export default function Step3League() {
                 {orgType ? formatOrgType(orgType) : 'Select organization type'}
               </Text>
               <MaterialIcons name="expand-more" size={18} color={isDark ? '#CBD5E1' : '#475569'} />
+            </Pressable>
+
+            <Text style={[styles.label, { marginTop: 16 }]}>Supporting Documents (Required)</Text>
+            <Text style={[Type.caption, { color: isDark ? '#9CA3AF' : '#6B7280', marginBottom: 8 }]}>
+              Upload a file or image to verify your organization (e.g., school letterhead, registration document)
+            </Text>
+            <Pressable
+              style={[
+                styles.selectField,
+                { borderColor: isDark ? '#374151' : '#E2E8F0', backgroundColor: isDark ? '#1F2937' : '#F9FAFB', minHeight: 80, paddingVertical: 12 }
+              ]}
+              onPress={async () => {
+                const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                if (status !== 'granted') {
+                  Alert.alert('Permission Needed', 'Please allow access to your photos to upload a supporting document.');
+                  return;
+                }
+                const result = await ImagePicker.launchImageLibraryAsync({
+                  mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                  allowsEditing: false,
+                  quality: 0.9,
+                });
+                if (!result.canceled && result.assets?.[0]?.uri) {
+                  setSupportingDocumentUri(result.assets[0].uri);
+                  setSupportingDocumentUrl(null);
+                }
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Upload supporting document"
+            >
+              {supportingDocumentUri ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                  <Image source={{ uri: supportingDocumentUri }} style={{ width: 48, height: 48, borderRadius: 8 }} />
+                  <Text style={[styles.selectFieldText, { flex: 1 }]}>Document selected</Text>
+                  <Pressable onPress={() => { setSupportingDocumentUri(null); setSupportingDocumentUrl(null); }} hitSlop={8}>
+                    <MaterialIcons name="close" size={20} color={isDark ? '#9CA3AF' : '#6B7280'} />
+                  </Pressable>
+                </View>
+              ) : (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <MaterialIcons name="upload-file" size={24} color={isDark ? '#60A5FA' : '#2563EB'} />
+                  <Text style={styles.selectFieldText}>Tap to upload file or image</Text>
+                </View>
+              )}
             </Pressable>
             <View style={{ height: 12 }} />
           </>

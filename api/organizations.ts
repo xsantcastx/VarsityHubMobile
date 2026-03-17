@@ -28,6 +28,7 @@ export const Organization = {
     zip_code?: string;
     latitude?: number;
     longitude?: number;
+    supporting_document_url?: string;
   }) => httpPost('/organizations', data),
   createWithTeams: (data: any) => httpPost('/organizations/create', data),
   invite: (organizationId: string, email: string, role?: string) => httpPost(`/organizations/${encodeURIComponent(organizationId)}/invite`, { email, role }),
@@ -36,7 +37,7 @@ export const Organization = {
   declineInvite: (inviteId: string) => httpPost(`/organizations/invites/${encodeURIComponent(inviteId)}/decline`, {}),
   requestToJoin: (organizationId: string, message?: string, role?: string) =>
     httpPost(`/organizations/join-requests`, { organization_id: organizationId, message, role }),
-  getJoinRequests: (organizationId: string, status?: 'pending' | 'approved' | 'rejected') => {
+  getJoinRequests: (organizationId: string, status?: 'pending' | 'approved' | 'rejected' | 'all') => {
     const params: string[] = [];
     if (status) params.push('status=' + encodeURIComponent(status));
     const qs = params.length ? '?' + params.join('&') : '';

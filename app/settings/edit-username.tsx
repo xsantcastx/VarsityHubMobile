@@ -58,11 +58,7 @@ export default function EditUsernameScreen() {
         checkAuth().catch(() => {}), // Refresh AuthProvider state
       ]);
       Alert.alert('Success', 'Username updated successfully');
-      if (router.canGoBack()) {
-        safeGoBack(router);
-      } else {
-        router.push('/(tabs)' as any);
-      }
+      safeGoBack(router);
     } catch (e: any) {
       let errorMessage = 'Could not save username';
       if (e?.data?.message) {

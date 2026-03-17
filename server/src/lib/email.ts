@@ -1390,8 +1390,10 @@ export async function sendLeagueApprovalRequestEmail(params: {
     </div>
   `;
 
+  const to =
+    (process.env.ADMIN_EMAILS || '').split(',')[0]?.trim() || 'emancero@varsityhub.app';
   return sendEmail({
-    to: 'emancero@varsityhub.app',
+    to,
     subject: `New League Awaiting Approval: ${params.leagueName}`,
     text: `New league "${params.leagueName}" by ${params.ownerName} (${params.ownerEmail}) needs your approval. Approve: ${approveUrl} — Reject: ${rejectUrl}`,
     html,

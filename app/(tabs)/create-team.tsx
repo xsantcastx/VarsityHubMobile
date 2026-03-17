@@ -432,8 +432,13 @@ export default function CreateTeamScreen() {
       if (__DEV__) console.error('Team creation error:', e);
       if (e?.data?.code === 'APPROVAL_REQUIRED' || e?.code === 'APPROVAL_REQUIRED') {
         Alert.alert('Approval Required', 'Your coach account is pending approval. You can create teams once a league admin approves your application.');
+      } else if (e?.data?.code === 'PAYMENT_REQUIRED' || e?.code === 'PAYMENT_REQUIRED') {
+        Alert.alert('Checkout Required', 'Please complete your subscription checkout before creating teams.', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Go to Billing', onPress: () => router.push('/settings/manage-subscription') },
+        ]);
       } else {
-        Alert.alert('Error', e?.message || 'Failed to create team. Please try again.');
+        Alert.alert('Error', e?.data?.error || e?.message || 'Failed to create team. Please try again.');
       }
       setSubmitting(false);
     }
@@ -478,8 +483,13 @@ export default function CreateTeamScreen() {
       if (__DEV__) console.error('Team creation error in proceedWithTeamCreation:', e);
       if (e?.data?.code === 'APPROVAL_REQUIRED' || e?.code === 'APPROVAL_REQUIRED') {
         Alert.alert('Approval Required', 'Your coach account is pending approval. You can create teams once a league admin approves your application.');
+      } else if (e?.data?.code === 'PAYMENT_REQUIRED' || e?.code === 'PAYMENT_REQUIRED') {
+        Alert.alert('Checkout Required', 'Please complete your subscription checkout before creating teams.', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Go to Billing', onPress: () => router.push('/settings/manage-subscription') },
+        ]);
       } else {
-        Alert.alert('Error', e?.message || 'Failed to create team. Please try again.');
+        Alert.alert('Error', e?.data?.error || e?.message || 'Failed to create team. Please try again.');
       }
     } finally { 
       setSubmitting(false); 

@@ -40,11 +40,7 @@ export default function ZipCodeScreen() {
       await refreshUserProfile().catch((error) => {
         if (__DEV__) console.warn('[zip-code] Failed to refresh user profile after save:', error);
       });
-      if (router.canGoBack()) {
-        safeGoBack(router);
-      } else {
-        router.push('/(tabs)' as any);
-      }
+      safeGoBack(router);
     } catch (e: any) {
       if (__DEV__) console.error('[zip-code] Failed to save ZIP code:', e);
       Alert.alert('Save failed', e?.message || 'Could not save');

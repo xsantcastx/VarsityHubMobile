@@ -314,6 +314,7 @@ const createOrganizationSchema = z.object({
   zip_code: z.string().regex(/^\d{5}$/, 'Must be a 5-digit US zip code').optional(),
   season_start: z.string().optional(),
   season_end: z.string().optional(),
+  supporting_document_url: z.string().url().optional(),
 });
 
 // Create organization
@@ -409,6 +410,7 @@ const createOrganizationWithTeamsSchema = z.object({
   zip_code: z.string().regex(/^\d{5}$/, 'Must be a 5-digit US zip code').optional(),
   season_start: z.string().optional(),
   season_end: z.string().optional(),
+  supporting_document_url: z.string().url().optional(),
   authorized_users: z.array(z.object({
     email: z.string().email().optional(),
     user_id: z.string().optional(),
@@ -1105,7 +1107,7 @@ organizationsRouter.post('/join-requests/:requestId/approve', requireAuth as any
     return res.status(400).json({ error: 'This request has already been reviewed' });
   }
   
-  // Update join request and create membership — approved coaches get free access
+  // Update join request, create membership, and set coach approval — approved coaches get free access
   await prisma.$transaction([
     prisma.organizationJoinRequest.update({
       where: { id: requestId },
@@ -1122,6 +1124,10 @@ organizationsRouter.post('/join-requests/:requestId/approve', requireAuth as any
         role: 'member',
         status: 'active'
       }
+    }),
+    prisma.user.update({
+      where: { id: joinRequest.user_id },
+      data: { approval_status: 'APPROVED', paid_by_owner: true }
     }),
   ]);
   
