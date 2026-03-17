@@ -43,6 +43,8 @@ export default function Index() {
 
       if (!user) {
         router.replace('/sign-in');
+      } else if (user.email_verified !== true) {
+        router.replace('/verify');
       } else if (user.preferences?.onboarding_completed !== true) {
         router.replace('/onboarding/step-1-role');
       } else {

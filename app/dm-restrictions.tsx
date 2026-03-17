@@ -7,6 +7,7 @@ import { Stack, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { safeGoBack } from '@/utils/navigation';
 
 type Policy = 'everyone' | 'following' | 'no_one';
 
@@ -56,7 +57,7 @@ export default function DMRestrictionsScreen() {
     }
     setSaving(false);
     if (router.canGoBack()) {
-      if (router.canGoBack()) router.back();
+      safeGoBack(router);
     } else {
       router.push('/(tabs)' as any);
     }
@@ -77,7 +78,7 @@ export default function DMRestrictionsScreen() {
       <Stack.Screen options={{
         title: 'DM Restrictions',
         headerLeft: () => (
-          <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={{ paddingLeft: 8 }}>
+          <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingLeft: 8 }}>
             <MaterialIcons name="chevron-left" size={24} color={Colors[colorScheme].tint} />
           </Pressable>
         ),

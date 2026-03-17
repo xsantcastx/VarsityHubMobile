@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { safeGoBack } from '@/utils/navigation';
 
 type ParamValue = string | string[] | undefined;
 
@@ -134,7 +135,7 @@ export default function VerifyScreen() {
       <KeyboardAwareScreen contentContainerStyle={styles.content}>
         {/* Back Button */}
         <Pressable 
-          onPress={() => { if (router.canGoBack()) router.back(); }}
+          onPress={() => { safeGoBack(router); }}
           style={styles.backButton}
           hitSlop={8}
         >

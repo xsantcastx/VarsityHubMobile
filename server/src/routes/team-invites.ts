@@ -47,7 +47,8 @@ teamInvitesRouter.post('/', requireAuth as any, inviteLimiter, async (req: Authe
   const ownerId = ownerMembership?.user_id || req.user.id;
   const owner = await prisma.user.findUnique({ where: { id: ownerId } });
   const ownerPrefs = (owner?.preferences || {}) as any;
-  const plan = ownerPrefs.pending_plan || ownerPrefs.plan || 'rookie';
+  // Use confirmed plan only — pending_plan is not yet paid for
+  const plan = ownerPrefs.payment_pending ? 'rookie' : (ownerPrefs.plan || 'rookie');
   const limit = getAuthorizedUsersPerTeam(plan);
 
   const existingInvite = await prisma.teamInvite.findUnique({

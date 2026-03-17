@@ -4,6 +4,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as Location from 'expo-location';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { safeGoBack } from '@/utils/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -35,14 +36,21 @@ export default function GameMapScreen() {
         }
       }
 
-      // Fetch ALL games and events worldwide - no location filter
+      // Fetch games and events; when user has location, filter to nearby (radius 50mi)
+      const eventsQuery = new URLSearchParams();
+      eventsQuery.set('approval_status', 'approved');
+      eventsQuery.set('include_past', '1');
+      if (lat != null && lng != null && !isNaN(lat) && !isNaN(lng)) {
+        eventsQuery.set('lat', String(lat));
+        eventsQuery.set('lng', String(lng));
+        eventsQuery.set('radius', '50');
+      }
       const [gamesResponse, eventsResponse] = await Promise.all([
         Game.list('-date', {}).catch((error) => {
           if (__DEV__) console.error('[game-map] Failed to fetch games:', error);
           return { items: [] };
         }),
-        // Fetch approved events (including past events for map display)
-        httpGet('/events?approval_status=approved&include_past=1').catch((error) => {
+        httpGet('/events?' + eventsQuery.toString()).catch((error) => {
           if (__DEV__) console.error('[game-map] Failed to fetch events:', error);
           return [];
         }),
@@ -147,7 +155,7 @@ export default function GameMapScreen() {
           headerStyle: { backgroundColor: Colors[colorScheme].background },
           headerTintColor: Colors[colorScheme].text,
           headerLeft: () => (
-            <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={styles.headerButton}>
+            <Pressable onPress={() => safeGoBack(router)} style={styles.headerButton}>
               <MaterialIcons name="arrow-back" size={24} color={Colors[colorScheme].text} />
             </Pressable>
           ),

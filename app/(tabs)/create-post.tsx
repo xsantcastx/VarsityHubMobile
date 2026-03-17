@@ -1,4 +1,5 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { safeGoBack } from '@/utils/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Linking, Modal, Platform, Pressable, Image as RNImage, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -78,12 +79,12 @@ export default function CreatePostScreen() {
   const [content, setContent] = useState('');
   const [picked, setPicked] = useState<{ uri: string; type: 'image' | 'video'; mime?: string; width?: number; height?: number } | null>(null);
   const [mediaDimensions, setMediaDimensions] = useState<{ width: number; height: number } | null>(null);
-  const [selectedGameId, setSelectedGameId] = useState<string | undefined>(gameId);
+  const [selectedGameId, setSelectedGameId] = useState<string | undefined>(postType === 'highlight' ? gameId : undefined);
   const [suggestedGame, setSuggestedGame] = useState<any>(null);
   const [nearbyGames, setNearbyGames] = useState<any[]>([]);
   const [rotatingPromptIndex, setRotatingPromptIndex] = useState(0);
   const [eventSelectorVisible, setEventSelectorVisible] = useState(false);
-  const [hasAutoSuggested, setHasAutoSuggested] = useState(!!gameId); // If gameId from params, don't auto-suggest
+  const [hasAutoSuggested, setHasAutoSuggested] = useState(postType === 'highlight' && !!gameId); // If gameId from params for highlights, don't auto-suggest
   const [previewVisible, setPreviewVisible] = useState(false);
   const [previewData, setPreviewData] = useState<any>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
@@ -113,7 +114,7 @@ export default function CreatePostScreen() {
         setSubmitting(false);
         setPreviewVisible(false);
         setSuggestedGame(null);
-        setSelectedGameId(gameId);
+        setSelectedGameId(postType === 'highlight' ? gameId : undefined);
         setContentConsent(false);
         draftLoadedRef.current = false;
       }
@@ -302,9 +303,10 @@ export default function CreatePostScreen() {
     })();
   }, [gameId]);
 
-  // Auto-suggest nearest event based on time and location
-  // Backend already filters by distance/date, limits to ~10 candidates for efficiency
+  // Auto-suggest nearest event ONLY for highlights — regular posts appear on profile only
+  // Regular posts: no default event; user must explicitly tap "Attach to event" if desired
   useEffect(() => {
+    if (postType !== 'highlight') return;
     if (selectedGameId || hasAutoSuggested) return;
 
     // If we have permission but no coordinates yet, wait before attempting auto-suggest
@@ -353,7 +355,7 @@ export default function CreatePostScreen() {
         setHasAutoSuggested(true);
       }
     })();
-  }, [locationReady, permissionGranted, selectedGameId, hasAutoSuggested, location?.latitude, location?.longitude]);
+  }, [postType, locationReady, permissionGranted, selectedGameId, hasAutoSuggested, location?.latitude, location?.longitude]);
 
   const pickFromLibraryRaw = async (media: 'image' | 'video') => {
     try {
@@ -758,7 +760,7 @@ export default function CreatePostScreen() {
 
       {/* Header */}
       <View style={[styles.header, { backgroundColor: Colors[colorScheme].background, borderBottomColor: Colors[colorScheme].border }]}>
-        <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} accessibilityLabel="Close" style={styles.iconBtn}>
+        <Pressable onPress={() => safeGoBack(router)} accessibilityLabel="Close" style={styles.iconBtn}>
           <Ionicons name="close" size={22} color={Colors[colorScheme].text} />
         </Pressable>
         <View style={styles.headerSpacer} />

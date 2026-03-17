@@ -13,6 +13,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Clipboard, FlatList, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatFileSize, uploadDocument, uploadImage, UploadResponse } from '@/utils/uploadUtils';
+import { safeGoBack } from '@/utils/navigation';
 // @ts-ignore
 import { Team as TeamApi } from '@/api/entities';
 
@@ -1476,7 +1477,7 @@ export default function TeamChatScreen() {
     return (
       <SafeAreaView style={[styles.container, styles.centerContent, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
         <Stack.Screen options={{ title: 'Team Chat', headerShown: true, headerLeft: () => (
-            <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={{ paddingRight: 8 }}>
+            <Pressable onPress={() => safeGoBack(router)} style={{ paddingRight: 8 }}>
               <Ionicons name="chevron-back" size={28} color={Colors[colorScheme].tint} />
             </Pressable>
           ) }} />
@@ -1490,7 +1491,7 @@ export default function TeamChatScreen() {
     return (
       <SafeAreaView style={[styles.container, styles.centerContent, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
         <Stack.Screen options={{ title: 'Team Chat', headerShown: true, headerLeft: () => (
-            <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={{ paddingRight: 8 }}>
+            <Pressable onPress={() => safeGoBack(router)} style={{ paddingRight: 8 }}>
               <Ionicons name="chevron-back" size={28} color={Colors[colorScheme].tint} />
             </Pressable>
           ) }} />
@@ -1519,7 +1520,7 @@ export default function TeamChatScreen() {
           headerStyle: { backgroundColor: Colors[colorScheme].background },
           headerTintColor: Colors[colorScheme].text,
           headerLeft: () => (
-            <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={{ paddingRight: 8 }}>
+            <Pressable onPress={() => safeGoBack(router)} style={{ paddingRight: 8 }}>
               <Ionicons name="chevron-back" size={28} color={Colors[colorScheme].tint} />
             </Pressable>
           ),

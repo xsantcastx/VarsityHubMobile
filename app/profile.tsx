@@ -17,6 +17,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { safeGoBack } from '@/utils/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Dimensions, FlatList, Linking, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -750,7 +751,7 @@ export default function ProfileScreen() {
         {/* Back Button - Only when viewing another user's profile */}
         {viewingUserId && viewingUserId !== currentUserId ? (
           <Pressable
-            onPress={() => { if (router.canGoBack()) router.back(); }}
+            onPress={() => safeGoBack(router)}
             hitSlop={12}
             style={[styles.controlButton, { position: 'absolute', left: 16, top: 12, zIndex: 200, elevation: 200, backgroundColor: colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)' }]}
             accessibilityRole="button"
@@ -1038,7 +1039,7 @@ export default function ProfileScreen() {
           <MaterialIcons name="person-outline" size={48} color={theme.mutedText} style={{ marginBottom: 16 }} />
           <Text style={[styles.error, { color: theme.text, textAlign: 'center', marginBottom: 8 }]}>User not found</Text>
           <Text style={{ color: theme.mutedText, textAlign: 'center', marginBottom: 16 }}>This profile doesn't exist or the link is invalid.</Text>
-          <Button onPress={() => { if (router.canGoBack()) router.back(); }}>
+          <Button onPress={() => safeGoBack(router)}>
             <Text style={{ color: '#fff' }}>Go Back</Text>
           </Button>
         </View>
@@ -1528,7 +1529,7 @@ const styles = StyleSheet.create({
     elevation: 99999, // Highest elevation for Android
     backgroundColor: '#ffffff',
     zIndex: 99999, // Highest z-index to ensure avatar is always on top
-    overflow: 'visible', // Ensure full circle is visible
+    overflow: 'hidden', // Prevent avatar from overlapping text
   },
   avatarImage: {
     width: '100%',
@@ -1608,10 +1609,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  // Profile Details Below Banner — paddingTop clears the overlapping avatar (reduced for tighter layout)
+  // Profile Details Below Banner — paddingTop ensures avatar never overlaps text (avatar is 100px, extends 50px below banner)
   profileDetailsContainer: {
     backgroundColor: 'transparent',
-    paddingTop: 16,
+    paddingTop: 64,
     marginBottom: 0,
     paddingBottom: 0,
     gap: 0,

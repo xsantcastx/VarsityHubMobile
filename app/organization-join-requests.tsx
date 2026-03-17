@@ -7,6 +7,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { safeGoBack } from '@/utils/navigation';
 
 type JoinRequest = {
   id: string;
@@ -166,7 +167,7 @@ export default function OrganizationJoinRequestsScreen() {
       <View style={[styles.header, { backgroundColor: theme.background, borderColor: theme.border }]}>
         <Pressable 
           onPress={() => {
-            if (router.canGoBack()) router.back();
+            safeGoBack(router);
             else router.push('/(tabs)' as any);
           }} 
           style={styles.backButton}

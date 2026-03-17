@@ -5,6 +5,7 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
+import { safeGoBack } from '@/utils/navigation';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -179,7 +180,7 @@ export default function SubmitAdScreen() {
           title: 'Submit Ad', 
           headerShown: true,
           headerLeft: () => (
-            <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={{ padding: 8 }} accessibilityLabel="Go back">
+            <Pressable onPress={() => safeGoBack(router)} style={{ padding: 8 }} accessibilityLabel="Go back">
               <MaterialIcons name="arrow-back" size={24} color={theme.text} />
             </Pressable>
           ),

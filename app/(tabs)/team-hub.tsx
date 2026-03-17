@@ -3,6 +3,7 @@ import { format } from 'date-fns';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
+import { safeGoBack } from '@/utils/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -136,7 +137,7 @@ export default function TeamHubScreen() {
       <Stack.Screen options={{ 
         title: 'Team Hub',
         headerLeft: () => (
-          <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={{ paddingLeft: 8 }}>
+          <Pressable onPress={() => safeGoBack(router)} style={{ paddingLeft: 8 }}>
             <MaterialIcons name="chevron-left" size={24} color={Colors[colorScheme].tint} />
           </Pressable>
         ),

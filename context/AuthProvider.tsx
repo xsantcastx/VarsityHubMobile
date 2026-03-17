@@ -516,10 +516,10 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         return;
       }
 
-      // SERVER IS SOURCE OF TRUTH for onboarding completion
+      // SERVER IS SOURCE OF TRUTH for onboarding completion — never trust AsyncStorage alone
       // Treat undefined/null as incomplete (prevents bypass when flag is missing)
       const serverSaysIncomplete = user.preferences?.onboarding_completed !== true;
-      const needsOnboarding = serverSaysIncomplete && !hasCompletedOnboarding;
+      const needsOnboarding = serverSaysIncomplete;
       const pendingPlan = String(user.preferences?.pending_plan || user.preferences?.plan || '').toLowerCase();
       const coachNeedsCheckout = user.preferences?.role === 'coach'
         && user.approval_status === 'APPROVED'

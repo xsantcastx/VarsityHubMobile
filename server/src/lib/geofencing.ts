@@ -141,6 +141,7 @@ export async function verifyStoryPostingPermission(
       latitude: true,
       longitude: true,
       location: true,
+      game_id: true,
     },
   });
 
@@ -160,9 +161,21 @@ export async function verifyStoryPostingPermission(
     };
   }
 
-  // Check if event has location coordinates
-  if (typeof event.latitude !== 'number' || typeof event.longitude !== 'number') {
-    console.warn(`Event ${eventId} missing coordinates - allowing story without geofence`);
+  // Resolve venue coordinates: event first, then fall back to game
+  let venueLat = typeof event.latitude === 'number' ? event.latitude : null;
+  let venueLon = typeof event.longitude === 'number' ? event.longitude : null;
+  if (venueLat == null || venueLon == null) {
+    const game = event.game_id
+      ? await prisma.game.findUnique({
+          where: { id: event.game_id },
+          select: { latitude: true, longitude: true, venue_lat: true, venue_lng: true },
+        })
+      : null;
+    venueLat = venueLat ?? game?.latitude ?? game?.venue_lat ?? null;
+    venueLon = venueLon ?? game?.longitude ?? game?.venue_lng ?? null;
+  }
+  if (venueLat == null || venueLon == null) {
+    console.warn(`Event ${eventId} and game missing coordinates - allowing story without geofence`);
     return { allowed: true };
   }
 
@@ -175,9 +188,9 @@ export async function verifyStoryPostingPermission(
     };
   }
 
-  // Check if user is within 1km geofence
-  const distance = calculateDistance(userLat, userLon, event.latitude, event.longitude, 'km');
-  const isWithin = isWithinGeofence(userLat, userLon, event.latitude, event.longitude, 1.0); // 1km for stories
+  // Check if user is within 1km geofence (using resolved venue coords)
+  const distance = calculateDistance(userLat, userLon, venueLat!, venueLon!, 'km');
+  const isWithin = isWithinGeofence(userLat, userLon, venueLat!, venueLon!, 1.0); // 1km for stories
 
   if (!isWithin) {
     return {
@@ -212,6 +225,7 @@ export async function verifyEventPostingPermission(
       latitude: true,
       longitude: true,
       location: true,
+      game_id: true,
     },
   });
 
@@ -231,11 +245,21 @@ export async function verifyEventPostingPermission(
     };
   }
 
-  // Check if event has location coordinates
-  if (typeof event.latitude !== 'number' || typeof event.longitude !== 'number') {
-    // If event doesn't have coordinates, allow posting (legacy support)
-    // In production, all events should have coordinates
-    console.warn(`Event ${eventId} missing coordinates - allowing post without geofence`);
+  // Resolve venue coordinates: event first, then fall back to game
+  let venueLat = typeof event.latitude === 'number' ? event.latitude : null;
+  let venueLon = typeof event.longitude === 'number' ? event.longitude : null;
+  if (venueLat == null || venueLon == null) {
+    const game = event.game_id
+      ? await prisma.game.findUnique({
+          where: { id: event.game_id },
+          select: { latitude: true, longitude: true, venue_lat: true, venue_lng: true },
+        })
+      : null;
+    venueLat = venueLat ?? game?.latitude ?? game?.venue_lat ?? null;
+    venueLon = venueLon ?? game?.longitude ?? game?.venue_lng ?? null;
+  }
+  if (venueLat == null || venueLon == null) {
+    console.warn(`Event ${eventId} and game missing coordinates - allowing post without geofence`);
     return { allowed: true };
   }
 
@@ -248,9 +272,9 @@ export async function verifyEventPostingPermission(
     };
   }
 
-  // Check if user is within 3km geofence
-  const distance = calculateDistance(userLat, userLon, event.latitude, event.longitude, 'km');
-  const isWithin = isWithinGeofence(userLat, userLon, event.latitude, event.longitude, 3.0); // 3km for posts
+  // Check if user is within 3km geofence (using resolved venue coords)
+  const distance = calculateDistance(userLat, userLon, venueLat, venueLon, 'km');
+  const isWithin = isWithinGeofence(userLat, userLon, venueLat, venueLon, 3.0); // 3km for posts
 
   if (!isWithin) {
     return {

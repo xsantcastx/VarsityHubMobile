@@ -15,6 +15,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { safeGoBack } from '@/utils/navigation';
 // @ts-ignore
 import { httpGet, httpPost, httpPut } from '@/api/http';
 // @ts-ignore
@@ -164,8 +165,8 @@ export default function EventApprovalsScreen() {
         const me = await User.me() as { preferences?: { role?: string } };
         if (me?.preferences?.role !== 'coach') {
           Alert.alert('Restricted', 'Only coach accounts can access Approvals.');
-          if (router.canGoBack()) router.back();
-          else router.push('/(tabs)');
+          safeGoBack(router);
+
         }
       } catch {
         // silently ignore — auth errors handled elsewhere
@@ -437,7 +438,7 @@ export default function EventApprovalsScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: C.background }]} edges={['bottom']}>
       <Stack.Screen options={{ title: 'Approvals', headerShown: true, headerLeft: () => (
-            <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={{ paddingRight: 8 }}>
+            <Pressable onPress={() => safeGoBack(router)} style={{ paddingRight: 8 }}>
               <Ionicons name="chevron-back" size={28} color="#007AFF" />
             </Pressable>
           ) }} />

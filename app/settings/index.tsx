@@ -9,6 +9,7 @@ import { Event, User } from '@/api/entities';
 import { getConfig } from '@/config/env';
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboardingOptional } from '@/context/OnboardingContext';
+import { safeGoBack } from '@/utils/navigation';
 
 interface PendingHostRequest {
   id: string;
@@ -354,7 +355,7 @@ export default function SettingsScreen() {
                       headerShown: true,
                       headerBackTitle: 'Back',
                       headerLeft: () => (
-                        <Pressable onPress={() => { if (router.canGoBack()) router.back(); else router.push('/(tabs)' as any); }} hitSlop={12} style={{ marginRight: 8 }}>
+                        <Pressable onPress={() => { safeGoBack(router, '/(tabs)'); }} hitSlop={12} style={{ marginRight: 8 }}>
                           <Ionicons name="chevron-back" size={28} color={Colors[colorScheme ?? 'light'].tint} />
                         </Pressable>
                       ),

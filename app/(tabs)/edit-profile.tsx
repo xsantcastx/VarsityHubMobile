@@ -14,6 +14,7 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { getApiBaseUrl } from '@/api/http';
 import { validateZipCode, validateYear } from '@/utils/formUtils';
+import { safeGoBack } from '@/utils/navigation';
 
 // Field validation errors
 interface FieldErrors {
@@ -467,14 +468,10 @@ export default function EditProfileScreen() {
       // Redirect based on role
       if (userRole === 'coach' || userRole === 'admin') {
         // Coaches and admins go to team profile
-        router.back();
+        safeGoBack(router);
       } else {
         // Fans go back to previous screen
-        if (router.canGoBack()) {
-          if (router.canGoBack()) router.back();
-        } else {
-          router.push('/(tabs)' as any);
-        }
+        safeGoBack(router);
       }
     } catch (e: any) {
       if (__DEV__) console.error('Save error:', e);
@@ -498,7 +495,7 @@ export default function EditProfileScreen() {
           headerStyle: { backgroundColor: Colors[colorScheme].background },
           headerTintColor: Colors[colorScheme].text,
           headerLeft: () => (
-            <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={{ paddingLeft: 8 }}>
+            <Pressable onPress={() => safeGoBack(router)} style={{ paddingLeft: 8 }}>
               <MaterialIcons name="chevron-left" size={24} color={Colors[colorScheme].tint} />
             </Pressable>
           ),

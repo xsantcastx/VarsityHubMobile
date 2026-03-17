@@ -6,6 +6,7 @@ import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, FlatList, Pressable, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { safeGoBack } from '@/utils/navigation';
 
 interface BlockedUser {
   id: string;
@@ -81,7 +82,7 @@ export default function BlockedUsersScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#111827' : '#FFFFFF' }]} edges={['bottom']}>
       <Stack.Screen options={{ title: 'Blocked Users', headerBackTitle: 'Back', headerShown: true, headerLeft: () => (
-            <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={{ paddingRight: 8 }}>
+            <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingRight: 8 }}>
               <MaterialIcons name="chevron-left" size={28} color="#007AFF" />
             </Pressable>
           ) }} />

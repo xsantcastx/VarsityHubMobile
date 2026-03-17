@@ -9,6 +9,7 @@ import { User } from '@/api/entities';
 import { useUser } from '@/hooks/useUser';
 import { useAuth } from '@/context/AuthProvider';
 import { Colors } from '@/constants/Colors';
+import { safeGoBack } from '@/utils/navigation';
 
 export default function EditUsernameScreen() {
   const router = useRouter();
@@ -58,7 +59,7 @@ export default function EditUsernameScreen() {
       ]);
       Alert.alert('Success', 'Username updated successfully');
       if (router.canGoBack()) {
-        if (router.canGoBack()) router.back();
+        safeGoBack(router);
       } else {
         router.push('/(tabs)' as any);
       }

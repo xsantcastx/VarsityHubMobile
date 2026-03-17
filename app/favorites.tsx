@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { safeGoBack } from '@/utils/navigation';
 
 type SavedPost = {
   id: string;
@@ -251,7 +252,7 @@ export default function FavoritesScreen() {
           headerBackTitle: 'Back',
           headerShown: true,
           headerLeft: () => (
-            <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={{ paddingRight: 8 }}>
+            <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingRight: 8 }}>
               <MaterialIcons name="chevron-left" size={28} color="#007AFF" />
             </Pressable>
           ),

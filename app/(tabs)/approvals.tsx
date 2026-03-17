@@ -2,6 +2,7 @@ import { Organization } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
+import { safeGoBack } from '@/utils/navigation';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Stack, useRouter } from 'expo-router';
@@ -305,7 +306,7 @@ export default function ApprovalsScreen() {
           <Text style={[styles.emptySubtitle, { color: isDark ? '#6B7280' : '#9CA3AF' }]}>
             This screen is for league owners to manage coach requests.
           </Text>
-          <Pressable style={styles.backBtn} onPress={() => router.back()}>
+          <Pressable style={styles.backBtn} onPress={() => safeGoBack(router)}>
             <Text style={styles.backBtnText}>Go Back</Text>
           </Pressable>
         </View>
@@ -319,7 +320,7 @@ export default function ApprovalsScreen() {
 
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: isDark ? '#1F2937' : '#E5E7EB' }]}>
-        <Pressable onPress={() => router.back()} hitSlop={12}>
+        <Pressable onPress={() => safeGoBack(router)} hitSlop={12}>
           <MaterialIcons name="arrow-back" size={24} color={C.text} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: C.text }]}>Pending Approvals</Text>

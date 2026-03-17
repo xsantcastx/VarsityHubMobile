@@ -10,7 +10,7 @@ export const Organization = {
   },
   mine: () => httpGet('/organizations/mine'),
   get: (id: string) => httpGet('/organizations/' + encodeURIComponent(id)),
-  update: (id: string, data: { name?: string; description?: string | null; logo_url?: string | null; sport?: string | null; org_type?: string | null; location?: string | null; zip_code?: string | null }) =>
+  update: (id: string, data: { name?: string; description?: string | null; logo_url?: string | null; profile_picture_url?: string | null; background_url?: string | null; sport?: string | null; org_type?: string | null; location?: string | null; zip_code?: string | null }) =>
     httpPatch('/organizations/' + encodeURIComponent(id), data),
   follow: (id: string) => httpPost(`/organizations/${encodeURIComponent(id)}/follow`, {}),
   unfollow: (id: string) => httpDelete(`/organizations/${encodeURIComponent(id)}/follow`),

@@ -2,6 +2,7 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { safeGoBack } from '@/utils/navigation';
 import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -19,8 +20,7 @@ export default function PaymentCancelScreen() {
   useEffect(() => {
     if (isAd) {
       const timer = setTimeout(() => {
-        if (router.canGoBack()) router.back();
-        else router.push('/(tabs)/my-ads');
+        safeGoBack(router, '/(tabs)/my-ads');
       }, 1500);
       return () => clearTimeout(timer);
     }
@@ -29,15 +29,14 @@ export default function PaymentCancelScreen() {
   const handleRetryPayment = () => {
     if (isAd) {
       // Go back to ad calendar with selections preserved
-      if (router.canGoBack()) router.back();
-      else router.push('/(tabs)/my-ads');
+      safeGoBack(router, '/(tabs)/my-ads');
     } else {
       router.replace('/onboarding/step-3-league');
     }
   };
 
   const handleContinue = () => {
-    if (router.canGoBack()) router.back(); else router.push('/(tabs)');
+    safeGoBack(router);
   };
 
   return (

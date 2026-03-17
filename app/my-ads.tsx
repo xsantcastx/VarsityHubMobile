@@ -9,6 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Advertisement as AdsApi, User } from '@/api/entities';
 import settings from '@/api/settings';
+import { safeGoBack } from '@/utils/navigation';
 
 type ManagedAd = {
   id: string;
@@ -404,7 +405,7 @@ export default function MyAdsScreen() {
         backgroundColor: Colors[colorScheme].card,
         borderBottomColor: Colors[colorScheme].border
       }]}>
-        <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} hitSlop={8} style={{ padding: 4 }}>
+        <Pressable onPress={() => { safeGoBack(router); }} hitSlop={8} style={{ padding: 4 }}>
           <MaterialIcons name="chevron-left" size={24} color={Colors[colorScheme].text} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: Colors[colorScheme].text, flex: 1 }]}>My Ads</Text>

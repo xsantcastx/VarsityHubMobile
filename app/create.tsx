@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 // @ts-ignore
 import { User } from '@/api/entities';
+import { safeGoBack } from '@/utils/navigation';
 
 export default function CreateScreen() {
   const router = useRouter();
@@ -38,7 +39,7 @@ export default function CreateScreen() {
 
   const safeBack = () => {
     if (router.canGoBack()) {
-      if (router.canGoBack()) router.back();
+      safeGoBack(router);
     } else {
       router.push('/(tabs)' as any);
     }

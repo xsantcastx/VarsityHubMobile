@@ -12,6 +12,7 @@ import QuickAddGameModal, { QuickGameData } from '@/components/QuickAddGameModal
 // @ts-ignore
 import { Game as GameApi } from '@/api/entities';
 import { EmptyState, SectionHeader, TeamCard, TeamCardSkeleton } from '@/components/ui';
+import { safeGoBack } from '@/utils/navigation';
 
 type Team = { 
   id: string; 
@@ -260,7 +261,7 @@ export default function ManageTeamsSimpleScreen() {
       <View style={[styles.header, { backgroundColor: Colors[colorScheme].background }]}>
         <Pressable 
           style={styles.backButton} 
-          onPress={() => { if (router.canGoBack()) router.back(); }}
+          onPress={() => safeGoBack(router)}
         >
           <MaterialIcons name="arrow-back" size={28} color={Colors[colorScheme].text} />
         </Pressable>

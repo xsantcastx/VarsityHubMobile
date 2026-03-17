@@ -8,6 +8,7 @@ import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, Vi
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { User } from '@/api/entities';
+import { safeGoBack } from '@/utils/navigation';
 
 export default function AdminUsersScreen() {
   const colorScheme = useColorScheme() ?? 'light';
@@ -66,7 +67,7 @@ export default function AdminUsersScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
       <Stack.Screen options={{ title: 'Admin · Users', headerShown: true, headerLeft: () => (
-            <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={{ paddingRight: 8 }}>
+            <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingRight: 8 }}>
               <MaterialIcons name="chevron-left" size={28} color="#007AFF" />
             </Pressable>
           ) }} />

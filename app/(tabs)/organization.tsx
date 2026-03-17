@@ -7,6 +7,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { safeGoBack } from '@/utils/navigation';
 
 type OrganizationData = {
   id: string;
@@ -244,7 +245,7 @@ export default function OrganizationScreen() {
           <Ionicons name="business" size={48} color={theme.mutedText} style={{ marginBottom: 12 }} />
           <Text style={[styles.errorText, { color: theme.text, fontSize: 18, fontWeight: '600' }]}>Not Found</Text>
           <Text style={{ color: theme.mutedText, textAlign: 'center', marginTop: 4, marginBottom: 16 }}>This organization doesn't exist or the link is invalid.</Text>
-          <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={[styles.retryButton, { backgroundColor: theme.tint }]}>
+          <Pressable onPress={() => safeGoBack(router)} style={[styles.retryButton, { backgroundColor: theme.tint }]}>
             <Text style={styles.retryText}>Go Back</Text>
           </Pressable>
         </View>
@@ -302,7 +303,7 @@ export default function OrganizationScreen() {
       >
         {/* Back Button */}
         <Pressable
-          onPress={() => { if (router.canGoBack()) router.back(); }}
+          onPress={() => safeGoBack(router)}
           style={[styles.backButton, { borderColor: theme.border }]}
         >
           <Ionicons name="arrow-back" size={22} color={theme.text} />

@@ -13,6 +13,7 @@ import { useAppleAuth } from '@/hooks/useAppleAuth';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useGoogleAuth } from '@/hooks/useGoogleAuth';
 import { calculatePasswordStrength, sanitizeEmail, validateEmail, validatePassword } from '@/utils/formUtils';
+import { useAuth } from '@/context/AuthProvider';
 import { captureException } from '@/utils/sentry';
 import { Ionicons } from '@expo/vector-icons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -29,6 +30,7 @@ export default function SignUpScreen() {
   const { signInWithGoogle, loading: googleLoading, ready: googleReady } = useGoogleAuth();
   const { signInWithApple, loading: appleLoading, ready: appleReady } = useAppleAuth();
   const { trackTap } = useAnalytics();
+  const { checkAuth } = useAuth();
   const [showEmailForm, setShowEmailForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
@@ -155,16 +157,9 @@ export default function SignUpScreen() {
     setError(null);
     try {
       trackTap('auth_google_tap', { screen: 'sign_up' });
-      const response: any = await signInWithGoogle();
-      const account = response?.user || (await User.me());
-      const prefs = account?.preferences || {};
-      const needsOnboarding = response?.needs_onboarding === true || prefs?.onboarding_completed === false;
-      if (needsOnboarding) {
-        router.replace('/onboarding/step-1-role');
-        return;
-      }
-      // Everyone lands on feed
-      router.replace('/(tabs)' as any);
+      await signInWithGoogle();
+      // Let AuthProvider handle routing (onboarding vs tabs)
+      await checkAuth();
     } catch (e: any) {
       const message = e?.message || 'Google sign up failed';
       if (typeof message === 'string' && message.toLowerCase().includes('cancel')) {
@@ -190,18 +185,9 @@ export default function SignUpScreen() {
     setError(null);
     try {
       trackTap('auth_apple_tap', { screen: 'sign_up' });
-      const response: any = await signInWithApple();
-      
-      // The response includes both access_token and user data
-      // Check needs_onboarding from the auth response directly
-      const needsOnboarding = response?.needs_onboarding === true;
-      
-      if (needsOnboarding) {
-        router.replace('/onboarding/step-1-role');
-        return;
-      }
-      
-      router.replace('/(tabs)' as any);
+      await signInWithApple();
+      // Let AuthProvider handle routing (onboarding vs tabs)
+      await checkAuth();
     } catch (e: any) {
       if (__DEV__) console.error('[sign-up] Apple sign up error:', e);
       captureException(typeof e === 'string' ? new Error(e) : e, { tags: { context: 'apple-signup' } });

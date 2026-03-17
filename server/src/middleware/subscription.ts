@@ -42,7 +42,7 @@ function tierGte(a: AnyTier, b: AnyTier): boolean {
 export async function getUserPlan(userId: string): Promise<AnyTier> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { subscription_tier: true, preferences: true, paid_by_owner: true },
+    select: { subscription_tier: true, subscription_status: true, preferences: true, paid_by_owner: true },
   });
   if (!user) return 'free';
   const prefs = (user.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
@@ -55,6 +55,9 @@ export async function getUserPlan(userId: string): Promise<AnyTier> {
   // Rule A: If payment_pending is true, the coach selected a paid plan but hasn't
   // paid yet (awaiting admin approval or checkout). Treat as free until payment completes.
   if (prefs.payment_pending === true) return 'free';
+
+  // Rule A2: If subscription is past_due or unpaid, downgrade to free until payment resolves.
+  if (user.subscription_status === 'past_due' || user.subscription_status === 'unpaid') return 'free';
 
   // Rule B: If subscription has an expiry date and it's in the past, treat as free.
   const expiryRaw = prefs.subscription_end_date || prefs.plan_expiry_date;

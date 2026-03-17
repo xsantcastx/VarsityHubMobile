@@ -340,7 +340,7 @@ export async function sendAdPendingReviewEmail(params: {
   bannerUrl?: string;
   adId?: string;
 }): Promise<boolean> {
-  return sendTemplateEmail(
+  const templateResult = await sendTemplateEmail(
     TEMPLATE_IDS.AD_PENDING_REVIEW,
     params.to,
     `Ad Pending Review — ${params.businessName || 'Unknown Business'}`,
@@ -355,6 +355,20 @@ export async function sendAdPendingReviewEmail(params: {
     },
     `Ad pending review email sent to ${params.to}`
   );
+  // Fallback: send plain-text email if template is not configured
+  if (!templateResult) {
+    const service = await getEmailService();
+    if (service?.isConfigured()) {
+      const bannerLine = params.bannerUrl ? `\nBanner: ${params.bannerUrl}` : '';
+      await service.send({
+        to: params.to,
+        subject: `Ad Pending Review — ${params.businessName || 'Unknown Business'}`,
+        text: `New ad needs review.\n\nBusiness: ${params.businessName || 'N/A'}\nContact: ${params.contactName || 'N/A'} (${params.contactEmail || 'N/A'})\nZip: ${params.zipCode || 'N/A'}${bannerLine}\n\nApprove or reject in the admin panel.`,
+      }).catch(e => console.warn('[email] Ad review fallback email failed:', e));
+      return true;
+    }
+  }
+  return templateResult;
 }
 
 export async function sendAdApprovedEmail(params: {
@@ -377,6 +391,7 @@ export async function sendAdApprovedEmail(params: {
 export async function sendAdRejectedEmail(params: {
   to: string;
   businessName?: string;
+  reason?: string;
 }): Promise<boolean> {
   return sendTemplateEmail(
     TEMPLATE_IDS.AD_REJECTED,
@@ -385,6 +400,7 @@ export async function sendAdRejectedEmail(params: {
     {
       ...getCommonTemplateData(),
       business_name: params.businessName || 'your business',
+      rejection_reason: params.reason || 'Please review our ad guidelines and resubmit.',
       support_email: CUSTOMER_SERVICE_EMAIL,
       app_url: APP_BASE_URL,
     },

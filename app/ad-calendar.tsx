@@ -11,6 +11,7 @@ import { useUnsavedChanges } from '@/hooks/useUnsavedChanges';
 import { httpPost } from '@/api/http';
 import { addWeeks, format, startOfToday } from 'date-fns';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { safeGoBack } from '@/utils/navigation';
 import { Calendar, DateData } from 'react-native-calendars';
 // @ts-ignore JS exports
 import { Advertisement, Payments } from '@/api/entities';
@@ -647,7 +648,7 @@ export default function AdCalendarScreen() {
           backgroundColor: Colors[colorScheme].card,
           borderBottomColor: Colors[colorScheme].border 
         }]}>
-          <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={[styles.iconBtn, { backgroundColor: Colors[colorScheme].surface }]}>
+          <Pressable onPress={() => safeGoBack(router)} style={[styles.iconBtn, { backgroundColor: Colors[colorScheme].surface }]}>
             <Text style={[styles.iconBtnText, { color: Colors[colorScheme].text }]}>{'<'}</Text>
           </Pressable>
           <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>Schedule Your Ad</Text>

@@ -9,6 +9,7 @@ import { User } from '@/api/entities';
 import { httpPost } from '@/api/http';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { safeGoBack } from '@/utils/navigation';
 
 type AdDetails = {
   id: string;
@@ -172,7 +173,7 @@ export default function PaymentSuccessScreen() {
             >
               <Text style={styles.primaryBtnText}>Try Again</Text>
             </Pressable>
-            <Pressable style={styles.linkBtn} onPress={() => { if (router.canGoBack()) router.back(); else router.push('/(tabs)/feed'); }}>
+            <Pressable style={styles.linkBtn} onPress={() => { safeGoBack(router, '/(tabs)/feed'); }}>
               <Text style={[styles.linkBtnText, { color: theme.mutedText }]}>Continue to App</Text>
             </Pressable>
           </View>
@@ -257,7 +258,7 @@ export default function PaymentSuccessScreen() {
                 {isAdPayment && (
                   <Pressable
                     style={[styles.primaryBtn, { backgroundColor: theme.tint }]}
-                    onPress={() => { if (router.canGoBack()) router.back(); else router.push('/(tabs)/my-ads'); }}
+                    onPress={() => { safeGoBack(router, '/(tabs)/my-ads'); }}
                   >
                     <MaterialIcons name="campaign" size={20} color="#fff" style={{ marginRight: 8 }} />
                     <Text style={styles.primaryBtnText}>View My Ads</Text>
@@ -267,7 +268,7 @@ export default function PaymentSuccessScreen() {
                   <>
                     <Pressable
                       style={[styles.primaryBtn, { backgroundColor: theme.tint }]}
-                      onPress={() => { if (router.canGoBack()) router.back(); else router.push('/(tabs)/create-team'); }}
+                      onPress={() => { safeGoBack(router, '/(tabs)/create-team'); }}
                     >
                       <Text style={styles.primaryBtnText}>Create a Team</Text>
                     </Pressable>
@@ -275,7 +276,7 @@ export default function PaymentSuccessScreen() {
                 )}
                 <Pressable
                   style={[styles.secondaryBtn, { borderColor: theme.border }]}
-                  onPress={() => { if (router.canGoBack()) router.back(); else router.push('/(tabs)/feed'); }}
+                  onPress={() => { safeGoBack(router, '/(tabs)/feed'); }}
                 >
                   <Text style={[styles.secondaryBtnText, { color: theme.text }]}>Back to Feed</Text>
                 </Pressable>

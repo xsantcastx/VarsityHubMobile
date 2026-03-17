@@ -7,6 +7,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { safeGoBack } from '@/utils/navigation';
 
 type TeamData = {
   id: string;
@@ -121,7 +122,7 @@ export default function RequestJoinOrganizationScreen() {
         [
           {
             text: 'OK',
-            onPress: () => { if (router.canGoBack()) router.back(); },
+            onPress: () => { safeGoBack(router); },
           },
         ]
       );
@@ -146,7 +147,7 @@ export default function RequestJoinOrganizationScreen() {
 
       {/* Custom Header */}
       <View style={[styles.header, { backgroundColor: theme.background, borderColor: theme.border }]}>
-        <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={styles.backButton}>
+        <Pressable onPress={() => { safeGoBack(router); }} style={styles.backButton}>
           <MaterialIcons name="arrow-back" size={24} color={theme.text} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: theme.text }]}>Join Organization</Text>

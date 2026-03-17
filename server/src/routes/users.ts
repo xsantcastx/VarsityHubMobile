@@ -468,8 +468,8 @@ usersRouter.get('/:id/teams', async (req: AuthedRequest, res) => {
       sport: t.sport ?? null,
       season: formatSeason(t.season_start, t.season_end) ?? null,
       role: m.role,
-      position: (m as any).position ?? null,
-      jersey_number: (m as any).jersey_number ?? null,
+      position: (m as any).custom_position ?? null,
+      jersey_number: null,
     };
   });
 

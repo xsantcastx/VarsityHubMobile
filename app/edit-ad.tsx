@@ -8,6 +8,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { safeGoBack } from '@/utils/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -115,7 +116,7 @@ export default function EditAdScreen() {
         description: desc.trim() || undefined,
       });
       Alert.alert('Saved', 'Your ad was updated.');
-      if (router.canGoBack()) router.back(); else router.push('/(tabs)/my-ads');
+      safeGoBack(router, '/(tabs)/my-ads');
     } catch (e: any) {
       Alert.alert('Save failed', e?.message || 'Could not update the ad. Please try again.');
     } finally {
@@ -126,7 +127,7 @@ export default function EditAdScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['bottom']}>
       <Stack.Screen options={{ title: 'Edit Ad', headerShown: true, headerLeft: () => (
-            <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={{ paddingRight: 8 }}>
+            <Pressable onPress={() => safeGoBack(router, '/(tabs)/my-ads')} style={{ paddingRight: 8 }}>
               <MaterialIcons name="chevron-left" size={28} color="#007AFF" />
             </Pressable>
           ) }} />

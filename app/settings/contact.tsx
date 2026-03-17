@@ -9,6 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Support } from '@/api/entities';
 import { useUserProfile } from '@/hooks/useUser';
 import { Colors } from '@/constants/Colors';
+import { safeGoBack } from '@/utils/navigation';
 
 export default function ContactScreen() {
   const router = useRouter();
@@ -34,7 +35,7 @@ export default function ContactScreen() {
       await Support.contact({ name: name || 'Unknown', email: emailField.trim(), subject: subject.trim(), message: message.trim() });
       Alert.alert('Sent', 'Thanks for reaching out.');
       if (router.canGoBack()) {
-        if (router.canGoBack()) router.back();
+        safeGoBack(router);
       } else {
         router.push('/(tabs)' as any);
       }

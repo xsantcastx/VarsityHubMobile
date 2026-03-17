@@ -1,16 +1,17 @@
-import { Game, Post, Team, User } from '@/api/entities';
+import { Game, Organization, Post, Team, User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { getGradientForColor } from '@/utils/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import GameVerticalFeedScreen, { FeedPost } from '../game-details/GameVerticalFeedScreen';
+import { safeGoBack } from '@/utils/navigation';
 
 type LeagueTeam = {
   id: string;
@@ -149,12 +150,12 @@ export default function TeamScreen() {
   const handleBack = useCallback(() => {
     if (from === 'game-details' && gameId) {
       if (navigation.canGoBack()) {
-        router.back();
+        safeGoBack(router);
       } else {
         router.push({ pathname: '/game/[id]', params: { id: gameId } } as any);
       }
     } else {
-      router.back();
+      safeGoBack(router);
     }
   }, [from, gameId, navigation, router]);
 
@@ -371,7 +372,15 @@ export default function TeamScreen() {
             const role = String(m.role || '').toLowerCase();
             return ['owner', 'coach', 'admin'].includes(role);
           });
-              if (mounted.current) setIsTeamAdmin(!!membership);
+              // Also check if user is the org owner (league admin can edit all teams)
+              let isOrgOwner = false;
+              if (orgId && currentUser.id) {
+                try {
+                  const org = await Organization.get(orgId);
+                  isOrgOwner = org?.league_owner_id === currentUser.id;
+                } catch { /* ignore */ }
+              }
+              if (mounted.current) setIsTeamAdmin(!!membership || isOrgOwner);
             } catch (err: any) {
               if (__DEV__) console.error('[team-page] Failed to check team admin status:', err);
               if (mounted.current) setIsTeamAdmin(false);
@@ -474,6 +483,19 @@ export default function TeamScreen() {
   useEffect(() => {
     void loadTeam();
   }, [loadTeam]);
+
+  // Re-fetch team data when screen regains focus (e.g., after editing team name)
+  const hasLoadedOnce = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      // Skip the initial focus — useEffect above already handles that
+      if (!hasLoadedOnce.current) {
+        hasLoadedOnce.current = true;
+        return;
+      }
+      void loadTeam();
+    }, [loadTeam])
+  );
 
   // Refresh when switching tabs
   useEffect(() => {
@@ -760,9 +782,9 @@ export default function TeamScreen() {
             </View>
           )}
 
-          {/* Organization Link Button - ALWAYS VISIBLE */}
+          {/* Organization Link Button - white bg, black text */}
           <Pressable
-            style={[styles.orgButton, { borderColor: '#1e3a5f', backgroundColor: '#1e3a5f' }]}
+            style={[styles.orgButton, { borderColor: theme.border, backgroundColor: '#fff' }]}
             onPress={() => {
               const orgId = team?.organization_id;
               if (orgId) {
@@ -774,16 +796,16 @@ export default function TeamScreen() {
             <Ionicons
               name="trophy-outline"
               size={16}
-              color={team?.organization_id ? '#fff' : theme.mutedText}
+              color={team?.organization_id ? '#000' : theme.mutedText}
             />
             <Text style={[
               styles.orgButtonText,
-              { color: team?.organization_id ? '#fff' : theme.mutedText }
+              { color: team?.organization_id ? '#000' : theme.mutedText }
             ]}>
               {team?.organization_id ? 'My League' : 'No Organization'}
             </Text>
             {team?.organization_id && (
-              <Ionicons name="chevron-forward" size={14} color={theme.mutedText} />
+              <Ionicons name="chevron-forward" size={14} color="#000" />
             )}
           </Pressable>
         </View>

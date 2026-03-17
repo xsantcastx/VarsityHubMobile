@@ -10,6 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import SwipeBackContainer from '@/components/SwipeBackContainer';
+import { safeGoBack } from '@/utils/navigation';
 
 export default function FollowersScreen() {
   const router = useRouter();
@@ -91,7 +92,7 @@ export default function FollowersScreen() {
       <Stack.Screen options={{ 
         title: `${username}'s Followers`,
         headerLeft: () => (
-          <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={styles.backButton}>
+          <Pressable onPress={() => safeGoBack(router)} style={styles.backButton}>
             <MaterialIcons name="chevron-left" size={24} color="#3B82F6" />
           </Pressable>
         ),

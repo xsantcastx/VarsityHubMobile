@@ -19,6 +19,7 @@ import { useAuth } from '@/context/AuthProvider';
 import { useVHubIAP } from '@/hooks/useIAP';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
+import { safeGoBack } from '@/utils/navigation';
 import { usePaymentSheet } from '@stripe/stripe-react-native';
 import { useEffect, useState } from 'react';
 import {
@@ -81,8 +82,7 @@ export default function SubscriptionPaywallScreen() {
 
   const handleSubscribe = async () => {
     if (selectedTier === 'rookie') {
-      if (router.canGoBack()) router.back();
-      else router.push('/(tabs)' as any);
+      safeGoBack(router);
       return;
     }
 
@@ -109,8 +109,7 @@ export default function SubscriptionPaywallScreen() {
           checkAuth().catch(() => {});
           Alert.alert('Success', 'Your subscription is now active!', [
             { text: 'OK', onPress: () => {
-              if (router.canGoBack()) router.back();
-              else router.push('/(tabs)' as any);
+              safeGoBack(router);
             }},
           ]);
         }
@@ -181,8 +180,7 @@ export default function SubscriptionPaywallScreen() {
         if (!planActivated) {
           Alert.alert('Payment Received', 'Your subscription is being processed. It may take a moment to activate.');
         }
-        if (router.canGoBack()) router.back();
-        else router.push('/(tabs)' as any);
+        safeGoBack(router);
       } else {
         throw new Error('No payment sheet data received');
       }
@@ -245,7 +243,7 @@ export default function SubscriptionPaywallScreen() {
         <Stack.Screen options={{
           title: 'Subscription',
           headerLeft: () => (
-            <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={{ paddingLeft: 8 }}>
+            <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingLeft: 8 }}>
               <MaterialIcons name="chevron-left" size={24} color="#3B82F6" />
             </Pressable>
           ),
@@ -261,7 +259,7 @@ export default function SubscriptionPaywallScreen() {
           </Text>
           <Pressable
             style={[styles.ctaButton, { backgroundColor: Colors[colorScheme].tint, marginTop: 24, width: '80%' }]}
-            onPress={() => { if (router.canGoBack()) router.back(); else router.push('/(tabs)' as any); }}
+            onPress={() => safeGoBack(router)}
           >
             <Text style={styles.ctaButtonText}>Go Back</Text>
           </Pressable>
@@ -275,7 +273,7 @@ export default function SubscriptionPaywallScreen() {
       <Stack.Screen options={{
         title: 'Choose Your Plan',
         headerLeft: () => (
-          <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={{ paddingLeft: 8 }}>
+          <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingLeft: 8 }}>
             <MaterialIcons name="chevron-left" size={24} color="#3B82F6" />
           </Pressable>
         ),
@@ -463,7 +461,7 @@ export default function SubscriptionPaywallScreen() {
                   checkAuth().catch(() => {});
                   if (hadPurchases) {
                     Alert.alert('Restore Complete', 'Your subscription has been restored.', [
-                      { text: 'OK', onPress: () => { if (router.canGoBack()) router.back(); else router.push('/(tabs)' as any); } },
+                      { text: 'OK', onPress: () => safeGoBack(router) },
                     ]);
                   } else {
                     Alert.alert('No Purchases Found', 'No previous subscription was found for this account.');

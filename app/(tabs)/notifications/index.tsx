@@ -3,6 +3,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
+import { safeGoBack } from '@/utils/navigation';
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
@@ -204,7 +205,7 @@ export default function NotificationsScreen() {
         style={[S.headerGradient, { paddingTop: insets.top + 12 }]}
       >
         <View style={S.headerRow}>
-          <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={S.backButton} accessibilityRole="button" accessibilityLabel="Go back">
+          <Pressable onPress={() => safeGoBack(router)} style={S.backButton} accessibilityRole="button" accessibilityLabel="Go back">
             <MaterialIcons name="chevron-left" size={24} color={Colors[colorScheme].text} />
           </Pressable>
           <Text style={[S.topTitle, { color: Colors[colorScheme].text }]}>Notifications</Text>

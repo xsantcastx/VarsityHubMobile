@@ -18,6 +18,7 @@ import {
     View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { safeGoBack } from '@/utils/navigation';
 import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 // @ts-ignore
 import { Game, Team as TeamAPI, User } from '@/api/entities';
@@ -320,7 +321,7 @@ export default function CreateFanEventScreen() {
         isCoach
           ? 'Your event has been submitted for review.'
           : 'Your event idea has been submitted! A coach or admin will review it and you\'ll be notified.',
-        [{ text: 'OK', onPress: () => { if (router.canGoBack()) router.back(); } }]
+        [{ text: 'OK', onPress: () => safeGoBack(router) }]
       );
     } catch (e: any) {
       const errorCode = e?.code || e?.data?.code;

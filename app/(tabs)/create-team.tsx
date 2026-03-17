@@ -4,6 +4,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
+import { safeGoBack } from '@/utils/navigation';
 import { usePaymentSheet } from '@stripe/stripe-react-native';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Linking, Platform, Pressable, ScrollView as RNScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -468,9 +469,10 @@ export default function CreateTeamScreen() {
         logo_url: logoUrl || undefined, // Use uploaded URL
       };
       
-      const team = await Team.create(teamData);
+      const response = await Team.create(teamData);
+      const createdTeam = response?.team || response;
       Alert.alert('Success!', 'Your team has been created successfully.', [
-        { text: 'View Team', onPress: () => router.push({ pathname: '/(tabs)/team-page', params: { id: String(team.id) } } as any) }
+        { text: 'View Team', onPress: () => router.push({ pathname: '/(tabs)/team-page', params: { id: String(createdTeam.id) } } as any) }
       ]);
     } catch (e: any) {
       if (__DEV__) console.error('Team creation error in proceedWithTeamCreation:', e);
@@ -497,7 +499,7 @@ export default function CreateTeamScreen() {
         <View style={[styles.header, { paddingTop: 12 + insets.top }]}>
           <Pressable 
             style={styles.backButton} 
-            onPress={() => { if (router.canGoBack()) router.back(); }}
+            onPress={() => safeGoBack(router)}
           >
             <MaterialIcons name="arrow-back" size={24} color={Colors[colorScheme].text} />
           </Pressable>

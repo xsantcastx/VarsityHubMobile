@@ -3,7 +3,7 @@ import multer from 'multer';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { getCloudinaryFolder, isCloudinaryConfigured, uploadBufferToCloudinary } from '../lib/cloudinary.js';
+import { getCloudinaryCredentials, getCloudinaryFolder, isCloudinaryConfigured, uploadBufferToCloudinary } from '../lib/cloudinary.js';
 import { captureException } from '../lib/sentry.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { uploadLimiter } from '../middleware/rateLimiters.js';
@@ -120,9 +120,7 @@ uploadsRouter.get('/cloudinary-signature', requireAuth as any, uploadLimiter as 
   }
 
   try {
-    const cloudName = process.env.CLOUDINARY_CLOUD_NAME!;
-    const apiKey = process.env.CLOUDINARY_API_KEY!;
-    const apiSecret = process.env.CLOUDINARY_API_SECRET!;
+    const { cloudName, apiKey, apiSecret } = getCloudinaryCredentials();
     const folder = getCloudinaryFolder();
     const timestamp = Math.floor(Date.now() / 1000);
 

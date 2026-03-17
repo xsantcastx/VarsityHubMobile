@@ -13,6 +13,7 @@ import { useOnboarding, type Affiliation } from '@/context/OnboardingContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { ZipCodeMapPreview } from '@/components/ZipCodeMapPreview';
 import { useFocusEffect } from '@react-navigation/native';
+import { safeGoBack } from '@/utils/navigation';
 import OnboardingLayout from './components/OnboardingLayout';
 
 // Username validation: lowercase letters, numbers, dots, underscores only (matches backend)
@@ -207,7 +208,7 @@ export default function Step2Basic() {
 
   const onBack = () => {
     setProgress(0);
-    if (router.canGoBack()) router.back();
+    safeGoBack(router);
   };
 
   const onContinue = async () => {

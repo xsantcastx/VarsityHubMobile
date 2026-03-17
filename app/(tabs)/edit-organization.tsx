@@ -3,6 +3,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { safeGoBack } from '@/utils/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,6 +18,9 @@ const ORG_TYPES = [
   { label: 'League', value: 'league' },
   { label: 'Other', value: 'other' },
 ];
+
+// Auto-generated descriptions that should be treated as blank
+const AUTO_DESC_PATTERN = /^(School|Organization)( in .+)?$/;
 
 export default function EditOrganizationScreen() {
   const router = useRouter();
@@ -33,7 +37,11 @@ export default function EditOrganizationScreen() {
   const [location, setLocation] = useState('');
   const [zipCode, setZipCode] = useState('');
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [profilePictureUrl, setProfilePictureUrl] = useState<string | null>(null);
+  const [backgroundUrl, setBackgroundUrl] = useState<string | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingProfile, setUploadingProfile] = useState(false);
+  const [uploadingBackground, setUploadingBackground] = useState(false);
 
   const loadOrg = useCallback(async () => {
     if (!params.id) return;
@@ -41,15 +49,19 @@ export default function EditOrganizationScreen() {
       setLoading(true);
       const org: any = await Organization.get(params.id);
       setName(org.name || '');
-      setDescription(org.description || '');
+      // Strip auto-generated descriptions — treat them as blank
+      const desc = org.description || '';
+      setDescription(AUTO_DESC_PATTERN.test(desc) ? '' : desc);
       setSport(org.sport || '');
       setOrgType(org.org_type || '');
       setLocation(org.location || '');
       setZipCode(org.zip_code || '');
       setLogoUrl(org.logo_url || null);
+      setProfilePictureUrl(org.profile_picture_url || null);
+      setBackgroundUrl(org.background_url || null);
     } catch {
       Alert.alert('Error', 'Failed to load organization.');
-      if (router.canGoBack()) router.back();
+      safeGoBack(router);
     } finally {
       setLoading(false);
     }
@@ -57,30 +69,40 @@ export default function EditOrganizationScreen() {
 
   useEffect(() => { void loadOrg(); }, [loadOrg]);
 
-  const pickLogo = async () => {
+  const pickImage = async (
+    aspect: [number, number],
+    fileName: string,
+    setUrl: (url: string | null) => void,
+    setUploading: (v: boolean) => void,
+    label: string,
+  ) => {
     try {
       const r = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'] as any,
         allowsEditing: true,
-        aspect: [1, 1],
+        aspect,
         quality: 0.8,
       });
       if (!r.canceled && r.assets?.[0]) {
-        setUploadingLogo(true);
+        setUploading(true);
         try {
-          const res = await uploadFile(getApiBaseUrl(), r.assets[0].uri, 'org-logo.jpg', 'image/jpeg');
+          const res = await uploadFile(getApiBaseUrl(), r.assets[0].uri, fileName, 'image/jpeg');
           const url = res?.url || res?.path;
-          if (url) setLogoUrl(url);
+          if (url) setUrl(url);
         } catch (e: any) {
-          Alert.alert('Upload Failed', e?.message || 'Could not upload logo.');
+          Alert.alert('Upload Failed', e?.message || `Could not upload ${label}.`);
         } finally {
-          setUploadingLogo(false);
+          setUploading(false);
         }
       }
     } catch {
       Alert.alert('Error', 'Failed to open image picker.');
     }
   };
+
+  const pickLogo = () => pickImage([1, 1], 'org-logo.jpg', setLogoUrl, setUploadingLogo, 'logo');
+  const pickProfile = () => pickImage([1, 1], 'org-profile.jpg', setProfilePictureUrl, setUploadingProfile, 'profile picture');
+  const pickBackground = () => pickImage([16, 9], 'org-background.jpg', setBackgroundUrl, setUploadingBackground, 'background');
 
   const handleSave = async () => {
     if (!name.trim()) {
@@ -94,13 +116,15 @@ export default function EditOrganizationScreen() {
         name: name.trim(),
         description: description.trim() || null,
         logo_url: logoUrl || null,
+        profile_picture_url: profilePictureUrl || null,
+        background_url: backgroundUrl || null,
         sport: sport.trim() || null,
-        org_type: orgType || null,
+        // org_type is read-only — do not send
         location: location.trim() || null,
         zip_code: zipCode.trim() || null,
       });
       Alert.alert('Saved', 'Organization updated successfully.');
-      if (router.canGoBack()) router.back();
+      safeGoBack(router);
     } catch (e: any) {
       const msg = e?.data?.error || e?.message || 'Failed to save changes.';
       Alert.alert('Error', msg);
@@ -120,13 +144,50 @@ export default function EditOrganizationScreen() {
     );
   }
 
+  const renderImageUpload = (
+    label: string,
+    url: string | null,
+    uploading: boolean,
+    onPick: () => void,
+    onRemove: () => void,
+    style: any,
+    iconSize: number,
+    placeholderText: string,
+  ) => (
+    <>
+      <Text style={[styles.label, { color: theme.text }]}>{label}</Text>
+      <Pressable style={[style, { borderColor: theme.border, backgroundColor: theme.card }]} onPress={onPick} disabled={uploading}>
+        {uploading ? (
+          <ActivityIndicator size="small" color={theme.tint} />
+        ) : url ? (
+          <Image source={{ uri: url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+        ) : (
+          <View style={styles.logoPlaceholder}>
+            <Ionicons name="camera-outline" size={iconSize} color={theme.mutedText} />
+            <Text style={[styles.logoPlaceholderText, { color: theme.mutedText }]}>{placeholderText}</Text>
+          </View>
+        )}
+      </Pressable>
+      {url && (
+        <View style={styles.logoActions}>
+          <Pressable onPress={onPick} style={[styles.logoActionBtn, { backgroundColor: theme.tint }]}>
+            <Text style={{ color: '#fff', fontWeight: '600', fontSize: 14 }}>Change</Text>
+          </Pressable>
+          <Pressable onPress={onRemove} style={[styles.logoActionBtn, { backgroundColor: '#EF4444' }]}>
+            <Text style={{ color: '#fff', fontWeight: '600', fontSize: 14 }}>Remove</Text>
+          </Pressable>
+        </View>
+      )}
+    </>
+  );
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
 
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: theme.border }]}>
-        <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} hitSlop={12}>
+        <Pressable onPress={() => safeGoBack(router)} hitSlop={12}>
           <Ionicons name="arrow-back" size={24} color={theme.text} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: theme.text }]}>Edit Organization</Text>
@@ -140,29 +201,40 @@ export default function EditOrganizationScreen() {
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        {/* Background Image */}
+        {renderImageUpload(
+          'Background Image',
+          backgroundUrl,
+          uploadingBackground,
+          pickBackground,
+          () => setBackgroundUrl(null),
+          styles.backgroundSection,
+          28,
+          'Tap to add background',
+        )}
+
         {/* Logo */}
-        <Text style={[styles.label, { color: theme.text }]}>Organization Logo</Text>
-        <Pressable style={[styles.logoSection, { borderColor: theme.border, backgroundColor: theme.card }]} onPress={pickLogo} disabled={uploadingLogo}>
-          {uploadingLogo ? (
-            <ActivityIndicator size="small" color={theme.tint} />
-          ) : logoUrl ? (
-            <Image source={{ uri: logoUrl }} style={styles.logoImage} />
-          ) : (
-            <View style={styles.logoPlaceholder}>
-              <Ionicons name="camera-outline" size={32} color={theme.mutedText} />
-              <Text style={[styles.logoPlaceholderText, { color: theme.mutedText }]}>Tap to add logo</Text>
-            </View>
-          )}
-        </Pressable>
-        {logoUrl && (
-          <View style={styles.logoActions}>
-            <Pressable onPress={pickLogo} style={[styles.logoActionBtn, { backgroundColor: theme.tint }]}>
-              <Text style={{ color: '#fff', fontWeight: '600', fontSize: 14 }}>Change</Text>
-            </Pressable>
-            <Pressable onPress={() => setLogoUrl(null)} style={[styles.logoActionBtn, { backgroundColor: '#EF4444' }]}>
-              <Text style={{ color: '#fff', fontWeight: '600', fontSize: 14 }}>Remove</Text>
-            </Pressable>
-          </View>
+        {renderImageUpload(
+          'Organization Logo',
+          logoUrl,
+          uploadingLogo,
+          pickLogo,
+          () => setLogoUrl(null),
+          styles.logoSection,
+          32,
+          'Tap to add logo',
+        )}
+
+        {/* Profile Picture */}
+        {renderImageUpload(
+          'Profile Picture',
+          profilePictureUrl,
+          uploadingProfile,
+          pickProfile,
+          () => setProfilePictureUrl(null),
+          styles.logoSection,
+          32,
+          'Tap to add photo',
         )}
 
         {/* Name */}
@@ -176,13 +248,13 @@ export default function EditOrganizationScreen() {
           autoCapitalize="words"
         />
 
-        {/* Description */}
+        {/* Description — leave blank if blank; no auto-generated text */}
         <Text style={[styles.label, { color: theme.text }]}>Description</Text>
         <TextInput
           style={[styles.input, styles.textArea, { color: theme.text, backgroundColor: theme.card, borderColor: theme.border }]}
           value={description}
           onChangeText={setDescription}
-          placeholder="Tell people about your organization"
+          placeholder=""
           placeholderTextColor={theme.mutedText}
           multiline
           numberOfLines={4}
@@ -199,26 +271,13 @@ export default function EditOrganizationScreen() {
           placeholderTextColor={theme.mutedText}
         />
 
-        {/* Org Type */}
+        {/* Org Type — read-only; cannot be changed after creation */}
         <Text style={[styles.label, { color: theme.text }]}>Type</Text>
-        <View style={styles.chipRow}>
-          {ORG_TYPES.map((t) => (
-            <Pressable
-              key={t.value}
-              style={[
-                styles.chip,
-                {
-                  backgroundColor: orgType === t.value ? theme.tint : theme.card,
-                  borderColor: orgType === t.value ? theme.tint : theme.border,
-                },
-              ]}
-              onPress={() => setOrgType(orgType === t.value ? '' : t.value)}
-            >
-              <Text style={{ color: orgType === t.value ? '#fff' : theme.text, fontWeight: '600', fontSize: 14 }}>
-                {t.label}
-              </Text>
-            </Pressable>
-          ))}
+        <View style={[styles.readOnlyField, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <Text style={{ color: theme.mutedText, fontSize: 15 }}>
+            {ORG_TYPES.find((t) => t.value === orgType)?.label || 'Not set'}
+          </Text>
+          <Text style={{ color: theme.mutedText, fontSize: 11, marginTop: 2 }}>Cannot be changed after creation</Text>
         </View>
 
         {/* Location */}
@@ -271,6 +330,13 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   textArea: { minHeight: 100 },
+  readOnlyField: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    opacity: 0.7,
+  },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
     paddingHorizontal: 14,
@@ -287,10 +353,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  logoImage: {
+  backgroundSection: {
     width: '100%',
-    height: '100%',
+    height: 140,
     borderRadius: 12,
+    borderWidth: 1,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   logoPlaceholder: {
     alignItems: 'center',

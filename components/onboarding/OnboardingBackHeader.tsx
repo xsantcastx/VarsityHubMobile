@@ -3,6 +3,7 @@ import { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { safeGoBack } from '@/utils/navigation';
 
 type Props = {
   title?: string;
@@ -19,11 +20,7 @@ export function OnboardingBackHeader({ title, subtitle, onBack, rightSlot }: Pro
       onBack();
       return;
     }
-    if (router.canGoBack()) {
-      if (router.canGoBack()) router.back();
-    } else {
-      router.replace('/onboarding/step-1-role');
-    }
+    safeGoBack(router, '/onboarding/step-1-role');
   };
 
   return (

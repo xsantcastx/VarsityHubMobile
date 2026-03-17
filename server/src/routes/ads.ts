@@ -150,8 +150,9 @@ export async function handleAdSubmitForApproval(req: AuthedRequest, res: Respons
       }),
     ]);
 
+    // Ad approval emails always go to emancero@varsityhub.app (primary admin)
     sendAdPendingReviewEmail({
-      to: process.env.ADMIN_EMAILS?.split(',')[0]?.trim() || 'emancero@varsityhub.app',
+      to: (process.env.ADMIN_EMAILS?.split(',')[0]?.trim() || 'emancero@varsityhub.app'),
       businessName: ad.business_name || undefined,
       contactName: ad.contact_name || undefined,
       contactEmail: ad.contact_email || undefined,
@@ -385,16 +386,17 @@ adsRouter.put('/:id([a-z0-9]{15,50})', requireAuth as any, async (req: AuthedReq
       if (k in safeBody) data[k] = v;
     }
 
-    // If banner_url changed, set status to pending for admin review
+    // If banner_url or target_url changed, set status to pending for admin review
     const bannerChanged = 'banner_url' in data && data.banner_url !== ad.banner_url;
-    if (bannerChanged && data.banner_url) {
+    const targetUrlChanged = 'target_url' in data && data.target_url !== ad.target_url;
+    if ((bannerChanged && data.banner_url) || targetUrlChanged) {
       data.status = 'pending';
     }
 
     const updated = await prisma.ad.update({ where: { id }, data });
 
-    // Notify admin when banner needs review
-    if (bannerChanged && data.banner_url) {
+    // Notify admin when banner or target URL needs review
+    if ((bannerChanged && data.banner_url) || targetUrlChanged) {
       void sendAdPendingReviewEmail({
         to: 'emancero@varsityhub.app',
         businessName: updated.business_name || undefined,
@@ -768,7 +770,7 @@ adsRouter.post('/:id([a-z0-9]{15,50})/reject', requireAdmin as any, async (req: 
     ]);
 
     if (ad.contact_email) {
-      sendAdRejectedEmail({ to: ad.contact_email, businessName: ad.business_name || undefined }).catch((err) =>
+      sendAdRejectedEmail({ to: ad.contact_email, businessName: ad.business_name || undefined, reason: req.body?.reason || undefined }).catch((err) =>
         console.warn('[ads] reject email failed:', (err as any)?.message || err)
       );
     }
@@ -808,7 +810,7 @@ adsRouter.post('/:id([a-z0-9]{15,50})/review', requireAdmin as any, async (req: 
         prisma.ad.update({ where: { id }, data: { status: 'draft', payment_status: 'unpaid', ...(note ? { admin_note: note } : {}) } }),
       ]);
       if (ad.contact_email) {
-        sendAdRejectedEmail({ to: ad.contact_email, businessName: ad.business_name || undefined }).catch((err) =>
+        sendAdRejectedEmail({ to: ad.contact_email, businessName: ad.business_name || undefined, reason: note || undefined }).catch((err) =>
           console.warn('[ads] reject email failed:', (err as any)?.message || err)
         );
       }

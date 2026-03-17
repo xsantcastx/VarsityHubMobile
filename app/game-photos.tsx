@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 // @ts-ignore
 import { Post as PostApi } from '@/api/entities';
+import { safeGoBack } from '@/utils/navigation';
 
 export default function GamePhotosScreen() {
   const { game_id } = useLocalSearchParams<{ game_id?: string }>();
@@ -46,7 +47,7 @@ export default function GamePhotosScreen() {
   return (
     <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
       <Stack.Screen options={{ title: 'Photos', headerShown: true, headerLeft: () => (
-            <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={{ paddingRight: 8 }}>
+            <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingRight: 8 }}>
               <MaterialIcons name="chevron-left" size={28} color="#007AFF" />
             </Pressable>
           ) }} />

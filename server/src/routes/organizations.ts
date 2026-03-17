@@ -117,6 +117,8 @@ const updateOrgSchema = z.object({
   name: z.string().min(1).max(200).optional(),
   description: z.string().max(2000).optional().nullable(),
   logo_url: z.string().max(2000).optional().nullable(),
+  profile_picture_url: z.string().max(2000).optional().nullable(),
+  background_url: z.string().max(2000).optional().nullable(),
   sport: z.string().max(100).optional().nullable(),
   org_type: z.string().max(50).optional().nullable(),
   location: z.string().max(500).optional().nullable(),
@@ -151,12 +153,15 @@ organizationsRouter.patch('/:id', requireAuth as any, requireOnboarded as any, a
       data: {
         ...(data.name !== undefined && { name: data.name }),
         ...(data.description !== undefined && { description: data.description }),
+        ...(data.logo_url !== undefined && { logo_url: data.logo_url }),
+        ...(data.profile_picture_url !== undefined && { profile_picture_url: data.profile_picture_url }),
+        ...(data.background_url !== undefined && { background_url: data.background_url }),
         ...(data.sport !== undefined && { sport: data.sport }),
         ...(data.org_type !== undefined && { org_type: data.org_type }),
         ...(data.location !== undefined && { location: data.location }),
         ...(data.zip_code !== undefined && { zip_code: data.zip_code }),
       },
-      select: { id: true, name: true, description: true, sport: true, org_type: true, location: true, zip_code: true },
+      select: { id: true, name: true, description: true, logo_url: true, profile_picture_url: true, background_url: true, sport: true, org_type: true, location: true, zip_code: true },
     });
     return res.json(updated);
   } catch (err: any) {

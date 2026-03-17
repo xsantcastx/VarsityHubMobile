@@ -8,6 +8,7 @@ import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View }
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Team as TeamApi, User } from '@/api/entities';
+import { safeGoBack } from '@/utils/navigation';
 
 export default function AdminTeamsScreen() {
   const colorScheme = useColorScheme() ?? 'light';
@@ -114,7 +115,7 @@ export default function AdminTeamsScreen() {
           title: 'Admin · All Teams',
           headerShown: true,
           headerLeft: () => (
-            <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={{ paddingRight: 8 }}>
+            <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingRight: 8 }}>
               <Ionicons name="chevron-back" size={28} color="#007AFF" />
             </Pressable>
           ),

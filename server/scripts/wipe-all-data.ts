@@ -8,53 +8,39 @@
  * Usage:
  *   cd server && npx tsx scripts/wipe-all-data.ts
  *
- * Requires: DATABASE_URL, SEED_PASSWORD
- * Optional: CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET
+ * Requires: DATABASE_URL
+ * Optional: SEED_PASSWORD (for "cd server && npx tsx prisma/seed.ts" after wipe)
+ * Optional: CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET (real values in server/.env)
+ * If Cloudinary returns 401, see docs/CLOUDINARY_TROUBLESHOOTING.md
  */
 
 import { PrismaClient } from '@prisma/client';
 import crypto from 'node:crypto';
 import 'dotenv/config';
 
+import { getCloudinaryCredentials, getCloudinaryFolder, isCloudinaryConfigured } from '../src/lib/cloudinary.js';
+
 const prisma = new PrismaClient({ log: ['error'] });
 
 // ─── Cloudinary bulk-delete helpers ──────────────────────────────────
 
-function cloudinaryConfigured(): boolean {
-  return !!(
-    process.env.CLOUDINARY_CLOUD_NAME &&
-    process.env.CLOUDINARY_API_KEY &&
-    process.env.CLOUDINARY_API_SECRET
-  );
-}
-
 async function cloudinaryDeleteFolder(folder: string): Promise<{ deleted: number }> {
-  const cloudName = process.env.CLOUDINARY_CLOUD_NAME!;
-  const apiKey = process.env.CLOUDINARY_API_KEY!;
-  const apiSecret = process.env.CLOUDINARY_API_SECRET!;
+  const { cloudName, apiKey, apiSecret } = getCloudinaryCredentials();
 
   let totalDeleted = 0;
 
   for (const resourceType of ['image', 'video', 'raw'] as const) {
     let nextCursor: string | undefined;
     do {
-      // List resources in folder
-      const timestamp = Math.floor(Date.now() / 1000);
+      // List resources in folder (Admin API uses Basic Auth only — no signature for GET)
       const listParams: Record<string, string> = {
         max_results: '500',
         prefix: folder,
-        timestamp: String(timestamp),
         type: 'upload',
       };
       if (nextCursor) listParams.next_cursor = nextCursor;
 
-      const toSign = Object.keys(listParams)
-        .sort()
-        .map((k) => `${k}=${listParams[k]}`)
-        .join('&');
-      const signature = crypto.createHash('sha1').update(toSign + apiSecret).digest('hex');
-
-      const qs = new URLSearchParams({ ...listParams, api_key: apiKey, signature });
+      const qs = new URLSearchParams(listParams);
       const listUrl = `https://api.cloudinary.com/v1_1/${cloudName}/resources/${resourceType}/upload?${qs}`;
       const auth = 'Basic ' + Buffer.from(`${apiKey}:${apiSecret}`).toString('base64');
 
@@ -115,10 +101,9 @@ async function wipe() {
   console.log('=== DATA WIPE STARTING ===\n');
 
   // 1. Wipe Cloudinary storage
-  if (cloudinaryConfigured()) {
+  if (isCloudinaryConfigured()) {
     console.log('[1/3] Clearing Cloudinary storage...');
-    const env = process.env.NODE_ENV || 'development';
-    const folder = `varsityhub/${env}`;
+    const folder = getCloudinaryFolder();
     const result = await cloudinaryDeleteFolder(folder);
     console.log(`  Cloudinary: ${result.deleted} total resources deleted from "${folder}"\n`);
   } else {
@@ -203,6 +188,9 @@ async function wipe() {
 
     // Promo codes (seed recreates)
     'PromoCode',
+
+    // User warnings (before User)
+    'UserWarning',
 
     // Users last (most things depend on user)
     'User',

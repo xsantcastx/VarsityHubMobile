@@ -6,6 +6,7 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
+import { safeGoBack } from '@/utils/navigation';
 import { useEffect, useState } from 'react';
 import { Alert, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -115,7 +116,7 @@ export default function BillingScreen() {
         <Stack.Screen options={{
           title: 'Billing',
           headerLeft: () => (
-            <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={{ paddingLeft: 8 }}>
+            <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingLeft: 8 }}>
               <MaterialIcons name="chevron-left" size={24} color="#3B82F6" />
             </Pressable>
           ),
@@ -146,7 +147,7 @@ export default function BillingScreen() {
       <Stack.Screen options={{
         title: 'Billing',
         headerLeft: () => (
-          <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={{ paddingLeft: 8 }}>
+          <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingLeft: 8 }}>
             <MaterialIcons name="chevron-left" size={24} color="#3B82F6" />
           </Pressable>
         ),

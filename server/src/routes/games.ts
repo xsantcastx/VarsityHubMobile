@@ -367,11 +367,16 @@ gamesRouter.post('/', requireVerified as any, requireOnboarded as any, gameCreat
     }) as any;
     
     // Automatically create an associated Event for RSVP functionality
+    // Copy venue coordinates from game so geofencing can enforce location-based posting
+    const eventLat = game.venue_lat ?? game.latitude ?? null;
+    const eventLng = game.venue_lng ?? game.longitude ?? null;
     const event = await prisma.event.create({
       data: {
         title: game.title,
         date: game.date,
         location: game.location || null,
+        latitude: eventLat,
+        longitude: eventLng,
         game_id: game.id,
         team_id: game.home_team_id || null,
         status: 'approved',

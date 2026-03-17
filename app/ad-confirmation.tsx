@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BackHeader } from '@/components/ui/BackHeader';
+import { safeGoBack } from '@/utils/navigation';
 
 export default function AdConfirmationScreen() {
   const router = useRouter();
@@ -229,7 +230,7 @@ export default function AdConfirmationScreen() {
         <View style={styles.actions}>
           <Pressable
             style={[styles.primaryButton, { backgroundColor: '#10B981' }]}
-            onPress={() => { if (router.canGoBack()) router.back(); else router.push('/(tabs)/my-ads'); }}
+            onPress={() => { safeGoBack(router, '/(tabs)/my-ads'); }}
           >
             <MaterialIcons name="work" size={20} color="#ffffff" />
             <Text style={styles.primaryButtonText}>View My Ads</Text>
@@ -237,7 +238,7 @@ export default function AdConfirmationScreen() {
 
           <Pressable
             style={[styles.secondaryButton, { borderColor: Colors[colorScheme].border, backgroundColor: Colors[colorScheme].card }]}
-            onPress={() => { if (router.canGoBack()) router.back(); else router.push('/(tabs)'); }}
+            onPress={() => { safeGoBack(router, '/(tabs)'); }}
           >
             <MaterialIcons name="home" size={20} color={Colors[colorScheme].text} />
             <Text style={[styles.secondaryButtonText, { color: Colors[colorScheme].text }]}>

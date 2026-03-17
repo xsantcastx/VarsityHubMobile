@@ -13,7 +13,15 @@ export async function requireVerified(req: AuthedRequest, res: Response, next: N
     (req.path === '/' || req.path === '/create');
 
   if (req.body?.onboarding === true && isTeamsCreateRoute) {
-    return next();
+    // Only allow bypass if user genuinely hasn't completed onboarding yet
+    const onboardingUser = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { preferences: true },
+    });
+    const prefs = (onboardingUser?.preferences as any) || {};
+    if (!prefs.onboarding_completed) {
+      return next();
+    }
   }
 
   const u = await prisma.user.findUnique({ where: { id: req.user.id }, select: { email_verified: true } });

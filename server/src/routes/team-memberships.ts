@@ -4,6 +4,10 @@ import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireOnboarded } from '../middleware/requireOnboarded.js';
 import { requirePlan } from '../middleware/subscription.js';
+import { getMaxRosterSizePerTeam, resolvePlan } from '../lib/planLimits.js';
+
+const VALID_ROLES = ['owner', 'manager', 'coach', 'assistant_coach', 'player', 'parent', 'member', 'equipment', 'health_wellness'] as const;
+type ValidRole = typeof VALID_ROLES[number];
 
 export const teamMembershipsRouter = Router();
 
@@ -45,14 +49,43 @@ teamMembershipsRouter.post('/', requireAuth as any, requireOnboarded as any, req
       });
     }
 
-    const team = await prisma.team.findUnique({ where: { id: String(team_id) } });
+    // Validate role against whitelist
+    const assignedRole = String(role || 'member') as ValidRole;
+    if (!VALID_ROLES.includes(assignedRole)) {
+      return res.status(400).json({ error: 'Invalid role', valid_roles: VALID_ROLES });
+    }
+
+    const team = await prisma.team.findUnique({ where: { id: String(team_id) }, include: { organization: true } });
     if (!team) return res.status(404).json({ error: 'Team not found' });
     const user = await prisma.user.findUnique({ where: { id: String(user_id) } });
     if (!user) return res.status(404).json({ error: 'User not found' });
+
+    // Enforce roster size limit based on team owner's plan
+    const ownerMembership = await prisma.teamMembership.findFirst({
+      where: { team_id: String(team_id), role: 'owner', status: 'active' },
+      include: { user: true },
+    });
+    if (ownerMembership) {
+      const ownerPrefs = (ownerMembership.user as any)?.preferences || {};
+      const ownerPlan = resolvePlan(ownerPrefs.plan);
+      const maxRoster = getMaxRosterSizePerTeam(ownerPlan);
+      if (maxRoster !== null) {
+        const currentCount = await prisma.teamMembership.count({
+          where: { team_id: String(team_id), status: 'active' },
+        });
+        if (currentCount >= maxRoster) {
+          return res.status(403).json({
+            error: 'ROSTER_LIMIT_REACHED',
+            message: `This team has reached its roster limit of ${maxRoster} members. Upgrade your plan for more.`,
+          });
+        }
+      }
+    }
+
     const m = await prisma.teamMembership.upsert({
       where: { team_id_user_id: { team_id: String(team_id), user_id: String(user_id) } } as any,
-      update: { role: String(role || 'member'), status: 'active' },
-      create: { team_id: String(team_id), user_id: String(user_id), role: String(role || 'member'), status: 'active' },
+      update: { role: assignedRole, status: 'active' },
+      create: { team_id: String(team_id), user_id: String(user_id), role: assignedRole, status: 'active' },
     });
     return res.status(201).json(m);
   } catch (err) {
@@ -83,7 +116,13 @@ teamMembershipsRouter.patch('/:id', requireAuth as any, requireOnboarded as any,
     if (!role && custom_position === undefined) return res.status(400).json({ error: 'role or custom_position is required' });
 
     const data: Record<string, any> = {};
-    if (role) data.role = String(role);
+    if (role) {
+      const validatedRole = String(role) as ValidRole;
+      if (!VALID_ROLES.includes(validatedRole)) {
+        return res.status(400).json({ error: 'Invalid role', valid_roles: VALID_ROLES });
+      }
+      data.role = validatedRole;
+    }
     if (custom_position !== undefined) data.custom_position = custom_position === null ? null : String(custom_position);
 
     const updated = await prisma.teamMembership.update({

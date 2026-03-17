@@ -21,6 +21,8 @@
     "verify:email": "tsx scripts/verify-email-config.ts",
     "verify:production-health": "tsx scripts/verify-production-health.ts",
     "verify:rate-limits": "tsx scripts/verify-rate-limit-coverage.ts",
+    "verify:cloudinary": "tsx scripts/verify-cloudinary.ts",
+    "verify:coach-approval": "tsx scripts/verify-coach-approval.ts",
     "audit:prod": "npm audit --omit=dev",
     "load:smoke": "tsx scripts/load/p0-load-smoke.ts",
     "load:validate-lock": "tsx scripts/load/validate-distributed-lock.ts",

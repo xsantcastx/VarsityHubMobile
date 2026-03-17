@@ -8,6 +8,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as MediaLibrary from 'expo-media-library';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { safeGoBack } from '@/utils/navigation';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -525,10 +526,8 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
   const handleBack = useCallback(() => {
     if (onClose) {
       onClose();
-    } else if (router.canGoBack()) {
-      router.back();
     } else {
-      router.replace('/(tabs)' as any);
+      safeGoBack(router, '/(tabs)');
     }
   }, [onClose, router]);
 

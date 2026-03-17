@@ -677,11 +677,13 @@ model Team {
 }
 
 model Organization {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  logo_url    String?
-  sport       String?
+  id                    String   @id @default(cuid())
+  name                  String
+  description           String?
+  logo_url              String?
+  profile_picture_url   String?
+  background_url        String?
+  sport                 String?
   org_type    String?  // school | club | league | other
   location    String?  // City, State format
   zip_code    String?  // For nearby search

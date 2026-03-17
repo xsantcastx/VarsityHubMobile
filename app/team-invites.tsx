@@ -10,6 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Team as TeamApi } from '@/api/entities';
 import { Button } from '@/components/ui/button';
 import { useTeamInvites } from '@/hooks/useTeamInvites';
+import { safeGoBack } from '@/utils/navigation';
 
 type Invite = { id: string; role?: string; team?: { id: string; name?: string } };
 
@@ -62,7 +63,7 @@ export default function TeamInvitesScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
       <Stack.Screen options={{ title: 'Team Invites', headerShown: true, headerLeft: () => (
-            <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={{ paddingRight: 8 }}>
+            <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingRight: 8 }}>
               <MaterialIcons name="chevron-left" size={28} color="#007AFF" />
             </Pressable>
           ) }} />

@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
+import { safeGoBack } from '@/utils/navigation';
 import { useState } from 'react';
 import {
     ActivityIndicator,
@@ -53,7 +54,7 @@ export default function ForgotPasswordScreen() {
       <Stack.Screen options={{ 
         title: 'Forgot Password',
         headerLeft: () => (
-          <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={{ paddingLeft: 8 }}>
+          <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingLeft: 8 }}>
             <MaterialIcons name="chevron-left" size={24} color={palette.tint} />
           </Pressable>
         ),

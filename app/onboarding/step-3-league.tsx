@@ -385,12 +385,10 @@ export default function Step3League() {
       
       // All coaches create organization page
       const locationLabel = selectedPlace?.description || location.trim();
-      const desc = `${orgType === 'school' ? 'School' : 'Organization'}` + (locationLabel ? ` in ${locationLabel}` : '');
       // Create an organization using the dedicated API
       // Note: server schema expects location as a string (not an object)
       const payload: any = {
         name: orgName.trim(),
-        description: desc,
         org_type: orgType,
         location: locationLabel || undefined,
         zip_code: (selectedPlaceZip || searchZip.trim()) || undefined,

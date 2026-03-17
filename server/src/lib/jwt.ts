@@ -34,5 +34,10 @@ export function generateRefreshToken(): string {
   return crypto.randomBytes(32).toString('hex');
 }
 
+/** Hash a refresh token for safe database storage (SHA-256). */
+export function hashRefreshToken(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
 export { DEFAULT_ACCESS_TOKEN_EXPIRY };
 

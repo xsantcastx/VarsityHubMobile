@@ -4,6 +4,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { safeGoBack } from '@/utils/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -81,8 +82,7 @@ export default function EditTeamScreen() {
     } catch (error) {
       if (__DEV__) console.error('Failed to load team:', error);
       Alert.alert('Error', 'Failed to load team data. Please try again.');
-      if (router.canGoBack()) router.back();
-      else router.push('/(tabs)' as any);
+      safeGoBack(router);
     } finally {
       setLoading(false);
     }
@@ -201,7 +201,6 @@ export default function EditTeamScreen() {
             try {
               const newOrg = await Organization.createOrganization({
                 name: trimmedOrgName,
-                description: `Organization for ${trimmedOrgName}`,
               });
               organizationId = newOrg.id;
             } catch (orgErr: any) {
@@ -239,6 +238,8 @@ export default function EditTeamScreen() {
       await Team.update(params.id!, teamData);
       setExistingLogoUrl(logoUrl || null);
       setLogoUri(null);
+      // Update local state so UI reflects saved data (including name)
+      setTeam((prev: any) => prev ? { ...prev, name: name.trim(), description: description.trim() || prev.description, sport: sport || prev.sport } : prev);
       if (organizationId !== undefined) {
         setTeam((prev: any) => prev ? {
           ...prev,
@@ -250,7 +251,7 @@ export default function EditTeamScreen() {
         setOrganizationName(organizationId ? trimmedOrgName : '');
       }
       Alert.alert('Success!', 'Your team has been updated successfully.', [
-        { text: 'OK', onPress: () => { if (router.canGoBack()) router.back(); } }
+        { text: 'OK', onPress: () => safeGoBack(router) }
       ]);
     } catch (e: any) {
       if (__DEV__) console.error('Team update error:', e);
@@ -289,7 +290,7 @@ export default function EditTeamScreen() {
         <View style={[styles.header, { paddingTop: 12 + insets.top }]}>
           <Pressable 
             style={styles.backButton} 
-            onPress={() => { if (router.canGoBack()) router.back(); }}
+            onPress={() => { safeGoBack(router); }}
           >
             <MaterialIcons name="arrow-back" size={24} color={Colors[colorScheme].text} />
           </Pressable>
@@ -533,7 +534,7 @@ export default function EditTeamScreen() {
                                 setMemberSearch('');
                                 setIsOwner(false);
                                 Alert.alert('Ownership Transferred', `${displayName} is now the team owner.`, [
-                                  { text: 'OK', onPress: () => { if (router.canGoBack()) router.back(); } }
+                                  { text: 'OK', onPress: () => { safeGoBack(router); } }
                                 ]);
                               } catch (e: any) {
                                 const msg = e?.data?.error || e?.message || 'Failed to transfer ownership';

@@ -1,30 +1,37 @@
 import { useRouter } from 'expo-router';
+import { useContext } from 'react';
+import { getNavigationFallback, NavigationHistoryContext } from '@/context/NavigationHistoryContext';
 
 /**
  * Standalone safe back for imperative use — pass the router from useRouter().
- * Navigates back if possible, otherwise falls back to the main tabs.
+ * Uses NavigationHistoryContext (via global getter) to fall back to last-visited tab.
  */
-export function safeGoBack(router: ReturnType<typeof useRouter>) {
+export function safeGoBack(
+  router: ReturnType<typeof useRouter>,
+  explicitFallback?: string
+) {
   if (router.canGoBack()) {
     router.back();
   } else {
-    // No history (e.g. deep link) — replace to home so back doesn't loop
-    router.replace('/(tabs)' as any);
+    const fallback = explicitFallback ?? getNavigationFallback();
+    router.replace(fallback as any);
   }
 }
 
 /**
- * Safe navigation utility that prevents GO_BACK errors
+ * Safe navigation utility that prevents GO_BACK errors.
+ * Uses last-visited tab when history is empty.
  */
 export function useSafeNavigation() {
   const router = useRouter();
+  const navHistory = useContext(NavigationHistoryContext);
 
   const safeBack = () => {
     if (router.canGoBack()) {
       router.back();
     } else {
-      // No history — replace to home so back doesn't loop
-      router.replace('/(tabs)' as any);
+      const fallback = navHistory?.getFallbackRoute?.() ?? getNavigationFallback();
+      router.replace(fallback as any);
     }
   };
 
@@ -35,14 +42,14 @@ export function useSafeNavigation() {
 }
 
 /**
- * Standalone safe back function for use outside hooks
+ * Standalone safe back function for use outside hooks.
+ * Requires getFallback from useNavigationHistory when used in tab screens.
  */
-export function createSafeBack(router: ReturnType<typeof useRouter>) {
+export function createSafeBack(
+  router: ReturnType<typeof useRouter>,
+  explicitFallback?: string
+) {
   return () => {
-    if (router.canGoBack()) {
-      router.back();
-    } else {
-      router.replace('/(tabs)' as any);
-    }
+    safeGoBack(router, explicitFallback);
   };
 }

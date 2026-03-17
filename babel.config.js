@@ -26,6 +26,7 @@ module.exports = function (api) {
           'is-arrayish': './shims/is-arrayish',
         }
       }],
+      ...(isProduction ? [['transform-remove-console', { exclude: ['error', 'warn'] }]] : []),
       // CRITICAL: Reanimated plugin MUST be last for Fast Refresh to work
       'react-native-reanimated/plugin',
     ],

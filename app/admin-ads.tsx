@@ -4,6 +4,7 @@ import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Stack, useRouter } from 'expo-router';
+import { safeGoBack } from '@/utils/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -342,7 +343,7 @@ export default function AdminAdsScreen() {
           title: 'Admin · Ads',
           headerShown: true,
           headerLeft: () => (
-            <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={{ paddingRight: 8 }}>
+            <Pressable onPress={() => safeGoBack(router)} style={{ paddingRight: 8 }}>
               <Ionicons name="chevron-back" size={28} color="#007AFF" />
             </Pressable>
           ),

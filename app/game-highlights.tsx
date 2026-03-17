@@ -6,6 +6,7 @@ import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from '
 import { Post as PostApi } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { safeGoBack } from '@/utils/navigation';
 
 export default function GameHighlightsScreen() {
   const { game_id } = useLocalSearchParams<{ game_id?: string }>();
@@ -44,7 +45,7 @@ export default function GameHighlightsScreen() {
       <Stack.Screen options={{ 
         title: 'Highlights',
         headerLeft: () => (
-          <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={{ paddingLeft: 8 }}>
+          <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingLeft: 8 }}>
             <MaterialIcons name="chevron-left" size={24} color={theme.tint} />
           </Pressable>
         ),

@@ -14,6 +14,7 @@ import { ErrorToastContainer } from '@/components/ErrorToast';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { Colors } from '@/constants/Colors';
 import { AuthProvider } from '@/context/AuthProvider';
+import { NavigationHistoryProvider } from '@/context/NavigationHistoryContext';
 import { PostCacheProvider } from '@/context/PostCacheContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { ThemeProvider } from '@/hooks/useCustomColorScheme';
@@ -213,6 +214,7 @@ export default function RootLayout() {
           >
           <ThemeProvider>
             <PostCacheProvider>
+              <NavigationHistoryProvider>
               <AuthProvider navReady={!!navState?.key}>
                 <NavigationThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
                   <OfflineBanner />
@@ -241,6 +243,7 @@ export default function RootLayout() {
                   <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
                 </NavigationThemeProvider>
               </AuthProvider>
+              </NavigationHistoryProvider>
             </PostCacheProvider>
           </ThemeProvider>
         </StripeProvider>

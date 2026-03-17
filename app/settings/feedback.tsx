@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Support, User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
+import { safeGoBack } from '@/utils/navigation';
 
 export default function FeedbackScreen() {
   const router = useRouter();
@@ -35,7 +36,7 @@ export default function FeedbackScreen() {
       await Support.feedback({ user_id: 'me', category, message: message.trim(), screenshot_url: screenshotUrl.trim() || undefined });
       Alert.alert('Thanks!', 'Your feedback was sent.');
       if (router.canGoBack()) {
-        if (router.canGoBack()) router.back();
+        safeGoBack(router);
       } else {
         router.push('/(tabs)' as any);
       }

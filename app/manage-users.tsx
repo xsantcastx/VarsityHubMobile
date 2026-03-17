@@ -7,6 +7,7 @@ import { Stack, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { safeGoBack } from '@/utils/navigation';
 // @ts-ignore
 import { Team as TeamApi } from '@/api/entities';
 
@@ -44,7 +45,7 @@ export default function ManageUsersScreen() {
       <Stack.Screen options={{ 
         title: 'Manage Users',
         headerLeft: () => (
-          <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={{ paddingLeft: 8 }}>
+          <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingLeft: 8 }}>
             <MaterialIcons name="chevron-left" size={24} color="#3B82F6" />
           </Pressable>
         ),

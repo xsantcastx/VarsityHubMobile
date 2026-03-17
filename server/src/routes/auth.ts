@@ -7,7 +7,7 @@ import { sendPasswordChangedEmail, sendPasswordResetEmail, sendVerificationEmail
 import { validateContent } from '../lib/contentFilter.js';
 import { ConflictError } from '../lib/errors/ConflictError.js';
 import { ValidationError } from '../lib/errors/ValidationError.js';
-import { signJwt, generateRefreshToken, REFRESH_TOKEN_EXPIRY_DAYS } from '../lib/jwt.js';
+import { signJwt, generateRefreshToken, hashRefreshToken, REFRESH_TOKEN_EXPIRY_DAYS } from '../lib/jwt.js';
 import { prisma } from '../lib/prisma.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
@@ -134,13 +134,13 @@ function checkAuthRateLimit(identifier: string): boolean {
   return true;
 }
 
-/** Create a refresh token pair and store in DB. Returns { refresh_token, refresh_token_expires }. */
+/** Create a refresh token pair and store hashed in DB. Returns the raw token to send to the client. */
 async function issueRefreshToken(userId: string) {
   const refresh_token = generateRefreshToken();
   const refresh_token_expires = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
   await prisma.user.update({
     where: { id: userId },
-    data: { refresh_token, refresh_token_expires },
+    data: { refresh_token: hashRefreshToken(refresh_token), refresh_token_expires },
   });
   return { refresh_token, refresh_token_expires };
 }
@@ -197,8 +197,9 @@ authRouter.post('/refresh', refreshTokenLimiter, asyncHandler(async (req, res) =
     return res.status(400).json({ error: 'refreshToken required' });
   }
 
+  const hashedToken = hashRefreshToken(refreshToken);
   const user = await prisma.user.findFirst({
-    where: { refresh_token: refreshToken, refresh_token_expires: { gt: new Date() } },
+    where: { refresh_token: hashedToken, refresh_token_expires: { gt: new Date() } },
   });
   if (!user) return res.status(401).json({ error: 'Invalid or expired refresh token' });
 
@@ -393,7 +394,7 @@ authRouter.post('/login', authLimiter, asyncHandler(async (req, res) => {
   }).catch((err) => { console.warn('[auth] Failed to update device info:', err?.message); }); // fire-and-forget
 
   const sanitized = sanitizeUser(user);
-  const needsOnboarding = sanitized?.preferences?.onboarding_completed === false;
+  const needsOnboarding = sanitized?.preferences?.onboarding_completed !== true;
   const body: any = { access_token, refresh_token, user: sanitized, needs_onboarding: needsOnboarding };
   if (!user.email_verified) body.needs_verification = true;
   return res.json(body);
@@ -502,7 +503,7 @@ authRouter.post('/google', authLimiter, async (req, res) => {
     const sanitized = sanitizeUser(user);
     const access_token = signJwt({ id: sanitized.id });
     const { refresh_token } = await issueRefreshToken(sanitized.id);
-    const needsOnboarding = sanitized?.preferences?.onboarding_completed === false;
+    const needsOnboarding = sanitized?.preferences?.onboarding_completed !== true;
 
     return res.json({
       access_token,
@@ -695,7 +696,7 @@ authRouter.post('/apple', authLimiter, async (req, res) => {
     const sanitized = sanitizeUser(user);
     const access_token = signJwt({ id: sanitized.id });
     const { refresh_token } = await issueRefreshToken(sanitized.id);
-    const needsOnboarding = sanitized?.preferences?.onboarding_completed === false;
+    const needsOnboarding = sanitized?.preferences?.onboarding_completed !== true;
 
     return res.json({
       access_token,
@@ -889,8 +890,8 @@ authRouter.get('/me', requireAuth as any, async (req: AuthedRequest, res) => {
   const prefs = mergePreferences(defaults, userPrefs);
   // Admins always skip onboarding (override DB value)
   if (is_admin) prefs.onboarding_completed = true;
-  const { password_hash, refresh_token, stripe_customer_id, ...rest } = user as any;
-  return res.json({ ...rest, ...(is_admin ? { role: 'admin' } : {}), preferences: prefs, is_admin });
+  const sanitized = sanitizeUser(user);
+  return res.json({ ...sanitized, ...(is_admin ? { role: 'admin' } : {}), preferences: prefs, is_admin });
 });
 
 // Lightweight subscription status (no Stripe calls)
@@ -1277,6 +1278,7 @@ const completeOnboardingSchema = z.object({
   location_enabled: z.boolean().optional(),
   notifications_enabled: z.boolean().optional(),
   messaging_policy_accepted: z.boolean().optional(),
+  proceeding_as_fan: z.boolean().optional(),
 });
 
 authRouter.post('/me/complete-onboarding', requireAuth as any, async (req: AuthedRequest, res) => {
@@ -1351,6 +1353,7 @@ authRouter.post('/me/complete-onboarding', requireAuth as any, async (req: Authe
     messaging_policy_accepted: data.messaging_policy_accepted,
     payment_pending: data.payment_pending,
     team_count_total: data.team_count_total,
+    proceeding_as_fan: data.proceeding_as_fan,
   };
   
   // CRITICAL: Role must NEVER be undefined - preserve from current preferences if not in payload

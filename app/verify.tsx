@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { safeGoBack } from '@/utils/navigation';
 import { captureException } from '@/utils/sentry';
 
 export default function VerifyScreen() {
@@ -198,7 +199,7 @@ export default function VerifyScreen() {
 
       {/* Back Button */}
       <Pressable
-        onPress={() => { if (router.canGoBack()) router.back(); }}
+        onPress={() => { safeGoBack(router); }}
         style={styles.backButton}
         hitSlop={8}
       >

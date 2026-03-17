@@ -4,6 +4,7 @@ import { ReactNode } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useOnboarding } from '@/context/OnboardingContext';
+import { safeGoBack } from '@/utils/navigation';
 
 interface OnboardingLayoutProps {
   step: number;
@@ -65,7 +66,7 @@ export default function OnboardingLayout({
     } else if (previousStepRoute[step]) {
       router.replace(previousStepRoute[step] as any);
     } else {
-      if (router.canGoBack()) router.back();
+      safeGoBack(router);
     }
   };
 

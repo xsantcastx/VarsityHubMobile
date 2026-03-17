@@ -18,6 +18,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 // @ts-ignore
 import { httpPost } from '@/api/http';
 import { autocompleteLocations, PlaceSuggestion } from '@/api/geocoding';
+import { safeGoBack } from '@/utils/navigation';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 const EVENT_TYPES = [
@@ -100,7 +101,7 @@ export default function CreateEventScreen() {
       await httpPost('/events', eventData);
 
       Alert.alert('Event Created!', 'Your event has been published successfully!', [
-        { text: 'OK', onPress: () => { if (router.canGoBack()) router.back(); } },
+        { text: 'OK', onPress: () => { safeGoBack(router); } },
       ]);
     } catch (e: any) {
       Alert.alert('Error', e.message || 'Failed to create event.');

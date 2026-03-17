@@ -1,6 +1,7 @@
 import CustomActionModal from '@/components/CustomActionModal';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { safeGoBack } from '@/utils/navigation';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
@@ -117,8 +118,8 @@ export default function MyTeamScreen() {
         const me = await User.me() as { preferences?: { role?: string } };
         if (me?.preferences?.role !== 'coach') {
           Alert.alert('Restricted', 'Only coach accounts can access My Team.');
-          if (router.canGoBack()) router.back();
-          else router.push('/(tabs)');
+          safeGoBack(router);
+
         }
       } catch {
         // silently ignore
@@ -399,7 +400,7 @@ export default function MyTeamScreen() {
           title: 'My Team',
           headerShown: true,
           headerLeft: () => (
-            <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={{ paddingRight: 8 }}>
+            <Pressable onPress={() => safeGoBack(router)} style={{ paddingRight: 8 }}>
               <MaterialIcons name="chevron-left" size={28} color={Colors[colorScheme].tint} />
             </Pressable>
           ),

@@ -10,6 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Event, Post } from '@/api/entities';
 import settings from '@/api/settings';
+import { safeGoBack } from '@/utils/navigation';
 
 export default function PublicEventScreen() {
   const params = useLocalSearchParams<{ id?: string }>();
@@ -165,7 +166,7 @@ export default function PublicEventScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
       <Stack.Screen options={{ title: 'Public Event', headerShown: true, headerLeft: () => (
-            <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={{ paddingRight: 8 }}>
+            <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingRight: 8 }}>
               <MaterialIcons name="chevron-left" size={28} color="#007AFF" />
             </Pressable>
           ) }} />

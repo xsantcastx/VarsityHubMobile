@@ -9,6 +9,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { safeGoBack } from '@/utils/navigation';
 
 // Web version: ReachMapPreview removed (maps not supported on web)
 // @ts-ignore
@@ -155,7 +156,7 @@ export default function EditAdScreen() {
         await settings.setJson(settings.SETTINGS_KEYS.LOCAL_ADS, list);
       }
       Alert.alert('Saved', 'Your ad was updated.');
-      if (router.canGoBack()) router.back(); else router.push('/(tabs)/my-ads');
+      safeGoBack(router, '/(tabs)/my-ads');
     } finally {
       setSaving(false);
     }

@@ -854,27 +854,7 @@ export default function PostDetailScreen() {
                 <Text style={[styles.postTime, { color: Colors[colorScheme].tabIconDefault }]}>{timeAgo(postData.created_at)}</Text>
               </View>
             </Pressable>
-            
-            {postData.author_id && String(postData.author_id) !== String(currentUser?.id) && (
-              <Pressable
-                style={[
-                  styles.followButton,
-                  following
-                    ? { borderColor: '#FFB800', backgroundColor: 'transparent' }
-                    : { borderColor: Colors[colorScheme].border, backgroundColor: Colors[colorScheme].card }
-                ]}
-                onPress={onFollow}
-              >
-                {following ? (
-                  <Ionicons name="checkmark-circle" size={18} color="#FFB800" />
-                ) : (
-                  <>
-                    <Ionicons name="person-add-outline" size={15} color={Colors[colorScheme].text} />
-                    <Text style={[styles.followText, { color: Colors[colorScheme].text }]}>Follow</Text>
-                  </>
-                )}
-              </Pressable>
-            )}
+            {/* Follow button removed — users follow when visiting profile page */}
           </View>
 
           {/* Stats & Actions */}
@@ -1072,13 +1052,7 @@ export default function PostDetailScreen() {
       
       {/* Custom Header */}
       <View style={[styles.header, { backgroundColor: Colors[colorScheme].surface, borderBottomColor: Colors[colorScheme].border }]}>
-        <Pressable style={styles.backButton} onPress={() => {
-          if (router.canGoBack()) {
-            router.back();
-          } else {
-            router.push('/(tabs)' as any);
-          }
-        }}>
+        <Pressable style={styles.backButton} onPress={() => safeGoBack(router)}>
           <Ionicons name="arrow-back" size={24} color={Colors[colorScheme].text} />
         </Pressable>
         <View style={styles.headerCenter}>

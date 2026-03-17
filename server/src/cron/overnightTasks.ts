@@ -113,13 +113,15 @@ export function startQueueCleanup() {
 }
 
 /**
- * Ad goes live notification task
- * Runs daily at midnight to check if ads should go live
+ * Ad lifecycle tasks — runs daily at midnight:
+ * 1. Send go-live notifications for active+paid ads whose first reservation starts today
+ * 2. Archive expired ads (all reservations in the past)
+ * 3. Clean up stale payment holds (older than 1 hour)
  */
 export function startAdGoLiveCheck() {
   // Run daily at midnight
   cron.schedule('0 0 * * *', async () => {
-    debugLog('[ad-go-live] Checking for ads going live today...');
+    debugLog('[ad-lifecycle] Running daily ad lifecycle checks...');
 
     try {
       const today = new Date();
@@ -127,10 +129,10 @@ export function startAdGoLiveCheck() {
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
 
-      // Find ads that should go live today
+      // 1. Go-live notifications: active+paid ads with their earliest reservation starting today
       const adsGoingLive = await prisma.ad.findMany({
         where: {
-          status: 'draft',
+          status: 'active',
           payment_status: 'paid',
           reservations: {
             some: {
@@ -143,24 +145,22 @@ export function startAdGoLiveCheck() {
         },
         include: {
           reservations: {
-            orderBy: { date: 'desc' },
+            orderBy: { date: 'asc' },
           },
         },
       });
 
-      debugLog(`[ad-go-live] Found ${adsGoingLive.length} ads going live today`);
+      // Only notify if today is the FIRST reservation date (not a mid-run date)
+      const firstDayAds = adsGoingLive.filter(ad => {
+        const firstDate = ad.reservations[0]?.date;
+        return firstDate && firstDate >= today && firstDate < tomorrow;
+      });
 
-      for (const ad of adsGoingLive) {
-        // Update ad status to active
-        await prisma.ad.update({
-          where: { id: ad.id },
-          data: { status: 'active' },
-        });
+      debugLog(`[ad-lifecycle] ${firstDayAds.length} ads starting today`);
 
-        // Get the last reservation date
-        const lastDate = ad.reservations[0]?.date;
+      for (const ad of firstDayAds) {
+        const lastDate = ad.reservations[ad.reservations.length - 1]?.date;
 
-        // Queue "Ad Goes Live" email
         await emailQueue.add('ads.goes_live', {
           to: ad.contact_email,
           advertiser_name: ad.contact_name,
@@ -168,18 +168,52 @@ export function startAdGoLiveCheck() {
           ad_title: ad.business_name,
           target_zip: ad.target_zip_code,
           live_until: lastDate ? lastDate.toISOString() : '',
-          analytics_dashboard_url: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/ads/${ad.id}/analytics`,
+          analytics_dashboard_url: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/ads/${ad.id}`,
           ad_preview_url: ad.banner_url || undefined,
         });
 
-        debugLog(`[ad-go-live] Sent notification for ad ${ad.id} (${ad.business_name})`);
+        debugLog(`[ad-lifecycle] Go-live notification sent for ad ${ad.id} (${ad.business_name})`);
       }
 
-      debugLog('[ad-go-live] Check complete ✅');
+      // 2. Archive expired ads: active+paid but ALL reservations are in the past
+      const expiredAds = await prisma.ad.findMany({
+        where: {
+          status: 'active',
+          payment_status: 'paid',
+          reservations: {
+            every: {
+              date: { lt: today },
+            },
+          },
+        },
+      });
+
+      if (expiredAds.length > 0) {
+        await prisma.ad.updateMany({
+          where: { id: { in: expiredAds.map(a => a.id) } },
+          data: { status: 'archived' },
+        });
+        debugLog(`[ad-lifecycle] Archived ${expiredAds.length} expired ads`);
+      }
+
+      // 3. Clean up stale holds (older than 1 hour)
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+      const staleHolds = await prisma.ad.updateMany({
+        where: {
+          payment_status: 'hold',
+          updated_at: { lt: oneHourAgo },
+        },
+        data: { payment_status: 'unpaid' },
+      });
+      if (staleHolds.count > 0) {
+        debugLog(`[ad-lifecycle] Released ${staleHolds.count} stale ad holds`);
+      }
+
+      debugLog('[ad-lifecycle] Daily check complete ✅');
     } catch (error) {
-      console.error('[ad-go-live] Check failed:', error);
+      console.error('[ad-lifecycle] Check failed:', error);
     }
   });
 
-  debugLog('✅ Ad go-live check started (runs daily at midnight)');
+  debugLog('✅ Ad lifecycle check started (runs daily at midnight)');
 }

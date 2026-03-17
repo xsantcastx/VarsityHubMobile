@@ -2,6 +2,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { safeGoBack } from '@/utils/navigation';
 
 interface BackHeaderProps {
   title?: string;
@@ -28,8 +29,8 @@ export function BackHeader({
   const handleBack = () => {
     if (onBack) {
       onBack();
-    } else if (router.canGoBack()) {
-      router.back();
+    } else {
+      safeGoBack(router);
     }
   };
 

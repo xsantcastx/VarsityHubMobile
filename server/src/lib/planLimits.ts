@@ -85,6 +85,7 @@ interface RawPlanDefinition {
   priceId: string | null;
   max_teams: number | null;
   max_authorized_users_per_team: number | null;
+  max_roster_size_per_team: number | null;
   authorized_users_org_strategy: AuthorizedUsersOrgStrategy;
   supports_extracurricular: boolean;
   features: string[];
@@ -93,9 +94,9 @@ interface RawPlanDefinition {
 function toPlanId(input?: string | null): PlanId {
   const value = String(input ?? 'rookie').toLowerCase();
   if (value === 'free') return 'rookie';
-  if (value === 'premium' || value === 'pro') return 'veteran';
+  if (value === 'premium') return 'veteran';
   if (value === 'veteran') return 'veteran';
-  if (value === 'legend') return 'legend';
+  if (value === 'pro' || value === 'legend') return 'legend';
   return 'rookie';
 }
 
@@ -129,6 +130,10 @@ export function getAuthorizedUsersOrgLimit(
     default:
       return null;
   }
+}
+
+export function getMaxRosterSizePerTeam(plan?: string | null): number | null {
+  return (getPlanMeta(plan) as any).max_roster_size_per_team ?? null;
 }
 
 export function planSupportsExtracurricular(plan?: string | null): boolean {

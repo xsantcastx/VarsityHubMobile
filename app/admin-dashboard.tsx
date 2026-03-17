@@ -6,6 +6,7 @@ import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { safeGoBack } from '@/utils/navigation';
 import { getApiBaseUrl } from '../api/http';
 
 interface DashboardStats {
@@ -129,7 +130,7 @@ export default function AdminDashboardScreen() {
           headerStyle: { backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white' },
           headerTintColor: colorScheme === 'dark' ? '#ECEDEE' : '#111827',
           headerLeft: () => (
-            <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={{ paddingRight: 8 }}>
+            <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingRight: 8 }}>
               <MaterialIcons name="chevron-left" size={28} color="#007AFF" />
             </Pressable>
           ),

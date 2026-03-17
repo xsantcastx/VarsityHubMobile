@@ -377,9 +377,18 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paym
   if (!ad_id || !Array.isArray(dates) || dates.length === 0) return res.status(400).json({ error: 'ad_id and dates[] are required' });
   const isoDates: string[] = Array.from(new Set(dates.map((d: any) => String(d))));
 
-  // Ensure ad exists
+  // Ensure ad exists and belongs to the requesting user
   const ad = await prisma.ad.findUnique({ where: { id: String(ad_id) } });
   if (!ad) return res.status(404).json({ error: 'Ad not found' });
+  if (ad.user_id !== req.user?.id) return res.status(403).json({ error: 'You can only pay for your own ads' });
+
+  // No charge until approved — match PaymentSheet route behavior
+  if (ad.status !== 'approved' && ad.status !== 'active') {
+    return res.status(403).json({
+      error: 'APPROVAL_REQUIRED',
+      message: 'Your ad must be approved before payment. An admin will review it and notify you when you can pay.',
+    });
+  }
 
   // Slot availability check — reject before Stripe if any date is already full.
   // Up to MAX_AD_SLOTS different ads may run per date per zip.
@@ -826,6 +835,7 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
 
   const ad = await prisma.ad.findUnique({ where: { id: String(ad_id) } });
   if (!ad) return res.status(404).json({ error: 'Ad not found' });
+  if (ad.user_id !== req.user?.id) return res.status(403).json({ error: 'You can only pay for your own ads' });
 
   // No charge until approved by emancero@varsityhub.app. Once approved, no re-approval needed for future runs.
   if (ad.status !== 'approved' && ad.status !== 'active') {

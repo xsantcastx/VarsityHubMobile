@@ -6,6 +6,7 @@ import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useUserProfile } from '@/hooks/useUser';
+import { safeGoBack } from '@/utils/navigation';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Stack, useRouter } from 'expo-router';
@@ -137,7 +138,7 @@ export default function RequestHostEventScreen() {
         content: `New event host request submitted: ${title}\nLocation: ${location}\nDate: ${date.toLocaleString()}\nRequested by: ${displayName || 'Unknown'} (${profileEmail})`,
         recipient_email: getConfig().adminEmails[0] || 'admin@varsityhub.com',
       });
-      Alert.alert('Request Submitted!', 'Your request to host an event has been submitted. You will be notified when it is reviewed.', [{ text: 'OK', onPress: () => { if (router.canGoBack()) router.back(); } }]);
+      Alert.alert('Request Submitted!', 'Your request to host an event has been submitted. You will be notified when it is reviewed.', [{ text: 'OK', onPress: () => { safeGoBack(router); } }]);
     } catch (e: any) {
       Alert.alert('Error', e?.message || 'Failed to submit request. Please try again.');
     } finally {

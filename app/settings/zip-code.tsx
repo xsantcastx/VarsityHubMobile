@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { User } from '@/api/entities';
 import { useUserProfile } from '@/hooks/useUser';
 import { Colors } from '@/constants/Colors';
+import { safeGoBack } from '@/utils/navigation';
 import { ZipCodeMapPreview } from '@/components/ZipCodeMapPreview';
 
 function isValidZip(v: string) {
@@ -40,7 +41,7 @@ export default function ZipCodeScreen() {
         if (__DEV__) console.warn('[zip-code] Failed to refresh user profile after save:', error);
       });
       if (router.canGoBack()) {
-        if (router.canGoBack()) router.back();
+        safeGoBack(router);
       } else {
         router.push('/(tabs)' as any);
       }

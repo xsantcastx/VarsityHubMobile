@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Platform, Pressable, ScrollView, Text, useColorScheme, View } from 'react-native';
+import { safeGoBack } from '@/utils/navigation';
 
 interface Organization {
   id: string;
@@ -105,7 +106,7 @@ export default function OrganizationDetailScreen() {
         <Text style={{ fontSize: 48, marginBottom: 12 }}>🏫</Text>
         <Text style={{ fontSize: 18, fontWeight: '600', marginBottom: 8, color: theme.text }}>Not Found</Text>
         <Text style={{ color: theme.mutedText, textAlign: 'center', marginBottom: 20 }}>This organization doesn't exist or the link is invalid.</Text>
-        <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={{ backgroundColor: theme.tint, borderRadius: 8, paddingHorizontal: 20, paddingVertical: 10 }}>
+        <Pressable onPress={() => { safeGoBack(router); }} style={{ backgroundColor: theme.tint, borderRadius: 8, paddingHorizontal: 20, paddingVertical: 10 }}>
           <Text style={{ color: '#fff', fontWeight: '600' }}>Go Back</Text>
         </Pressable>
       </View>

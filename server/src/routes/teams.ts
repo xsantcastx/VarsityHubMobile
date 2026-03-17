@@ -12,7 +12,7 @@ import { requireVerified } from '../middleware/requireVerified.js';
 import { requireOnboarded } from '../middleware/requireOnboarded.js';
 import { requirePlan } from '../middleware/subscription.js';
 import { teamCreationLimiter, followLimiter, inviteLimiter } from '../middleware/rateLimiters.js';
-import { getAuthorizedUsersPerTeam, getMaxTeamsForPlan } from '../lib/planLimits.js';
+import { getAuthorizedUsersPerTeam, getMaxTeamsForPlan, planSupportsExtracurricular } from '../lib/planLimits.js';
 
 export const teamsRouter = Router();
 const debugLog = (...args: Parameters<typeof console.log>) => {
@@ -331,8 +331,8 @@ teamsRouter.get('/:id/members', async (req, res) => {
       id: m.id,
       role: m.role,
       status: m.status,
-      position: (m as any).position || null,
-      jersey_number: (m as any).jersey_number || null,
+      position: (m as any).custom_position || null,
+      jersey_number: prefs?.jersey_number || null,
       user: {
         id: m.user_id,
         display_name: user?.display_name || null,
@@ -556,13 +556,21 @@ teamsRouter.put('/:id', requireVerified as any, requireOnboarded as any, async (
   if (!team) return res.status(404).json({ error: 'Team not found' });
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   
-  // Check if user is owner or admin
+  // Check if user is team owner/manager/coach, org owner, or platform admin
   const membership = await prisma.teamMembership.findUnique({
     where: { team_id_user_id: { team_id: teamId, user_id: req.user.id } }
   });
   const isAdmin = await getIsAdmin(req as any);
-  if (!isAdmin && (!membership || !['owner', 'manager', 'coach'].includes(membership.role))) {
-    return res.status(403).json({ error: 'Only team owners, managers, or coaches can update team information' });
+  const isTeamStaff = membership && ['owner', 'manager', 'coach'].includes(membership.role);
+  let isOrgOwner = false;
+  if (team.organization_id) {
+    const orgMembership = await prisma.organizationMembership.findFirst({
+      where: { organization_id: team.organization_id, user_id: req.user.id, role: 'owner', status: 'active' },
+    });
+    isOrgOwner = !!orgMembership;
+  }
+  if (!isAdmin && !isOrgOwner && !isTeamStaff) {
+    return res.status(403).json({ error: 'Only team staff, league owners, or admins can update team information' });
   }
   
   const updateData: any = {};
@@ -821,7 +829,7 @@ teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, req
 
   // Legend tier restriction: Only Legend users can create extracurricular clubs
   const clubType = data.club_type || 'sport';
-  if (clubType === 'extracurricular' && userPlan !== 'legend') {
+  if (clubType === 'extracurricular' && !planSupportsExtracurricular(userPlan)) {
     return res.status(403).json({
       error: 'Extracurricular clubs require Legend tier',
       message: 'Upgrade to Legend ($19.99/year) to create extracurricular clubs like Theater, Chess, Debate, etc.',
@@ -1082,7 +1090,6 @@ teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, req
             team_id: team.id,
             email: user.email!,
             role: (user.role || 'member') as any,
-            invited_by: me.id,
           }));
         
         if (invites.length > 0) {
@@ -1203,7 +1210,8 @@ teamsRouter.post('/:id/invite', requireAuth as any, requireVerified as any, requ
     const ownerId = ownerMembership?.user_id || req.user.id;
     const owner = await prisma.user.findUnique({ where: { id: ownerId } });
     const ownerPrefs = (owner?.preferences || {}) as any;
-    const plan = ownerPrefs.pending_plan || ownerPrefs.plan || 'rookie';
+    // Use confirmed plan only — pending_plan is not yet paid for
+    const plan = ownerPrefs.payment_pending ? 'rookie' : (ownerPrefs.plan || 'rookie');
 
     // Get per-team limit from the owner's plan definitions
     const limit = getAuthorizedUsersPerTeam(plan);

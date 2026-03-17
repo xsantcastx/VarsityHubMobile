@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { getApiBaseUrl } from '../api/http';
+import { safeGoBack } from '@/utils/navigation';
 
 interface AbuseReport {
   id: string;
@@ -302,7 +303,7 @@ export default function AdminReportsScreen() {
       >
         {/* Header */}
         <View style={[styles.header, { backgroundColor: Colors[colorScheme].card, borderBottomColor: Colors[colorScheme].border }]}>
-          <Pressable onPress={() => { if (router.canGoBack()) router.back(); }} style={styles.backButton}>
+          <Pressable onPress={() => { safeGoBack(router); }} style={styles.backButton}>
             <Ionicons 
               name="arrow-back" 
               size={24} 
