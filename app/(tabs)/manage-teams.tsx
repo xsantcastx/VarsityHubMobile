@@ -223,6 +223,9 @@ export default function ManageTeamsSimpleScreen() {
         gamePayload.location = venue;
         if (venueLat) gamePayload.latitude = venueLat;
         if (venueLng) gamePayload.longitude = venueLng;
+      } else {
+        // Fallback: use watch location, destination, or 'TBD' — backend requires location
+        gamePayload.location = data.watchLocation || data.destination || 'TBD';
       }
 
       if (data.banner_url) {

@@ -1001,7 +1001,7 @@ postsRouter.get('/:id/comments', async (req: AuthedRequest, res) => {
     where: commentWhere,
     orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
     include: {
-      author: { select: { id: true, display_name: true, avatar_url: true } }
+      author: { select: { id: true, username: true, display_name: true, avatar_url: true } }
     },
     take: limit + 1,
   };
@@ -1528,7 +1528,7 @@ postsRouter.patch('/:postId/comments/:commentId', requireAuth as any, async (req
       where: { id: commentId },
       data: { content: parsed.data.content },
       include: {
-        author: { select: { id: true, display_name: true, avatar_url: true } }
+        author: { select: { id: true, username: true, display_name: true, avatar_url: true } }
       }
     });
     

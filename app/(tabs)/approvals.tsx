@@ -260,7 +260,12 @@ export default function ApprovalsScreen() {
   };
 
   const renderEmpty = () => {
-    if (loading) return null;
+    if (loading) return (
+      <View style={styles.emptyContainer}>
+        <ActivityIndicator size="large" color={C.tint} />
+        <Text style={[styles.emptySubtitle, { color: isDark ? '#6B7280' : '#9CA3AF', marginTop: 12 }]}>Loading...</Text>
+      </View>
+    );
     return (
       <View style={styles.emptyContainer}>
         <MaterialIcons name="check-circle-outline" size={64} color={isDark ? '#374151' : '#D1D5DB'} />

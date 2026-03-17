@@ -119,9 +119,10 @@ export default function EventDetailScreen() {
     }
     try {
       const res = await Event.rsvp(String(event.id), !rsvped);
-      setRsvped(!!res?.attending);
-      setAttendeesCount(Number(res?.count || 0));
-      Alert.alert('Success', res?.attending ? 'RSVP confirmed.' : 'RSVP canceled.');
+      const isGoing = !!(res?.going ?? res?.attending);
+      setRsvped(isGoing);
+      setAttendeesCount(Number(res?.count ?? res?.attendees_count ?? 0));
+      Alert.alert('Success', isGoing ? 'RSVP confirmed.' : 'RSVP canceled.');
     } catch (e: any) {
       const status = e?.status ?? e?.response?.status;
       const message = String(e?.message || e?.data?.error || '');

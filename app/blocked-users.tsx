@@ -122,8 +122,8 @@ export default function BlockedUsersScreen() {
                 borderColor: isDark ? '#374151' : '#E5E7EB'
               }]}>
                 <View>
-                  <Text style={[styles.email, { color: theme.text }]}>{item.display_name || item.email}</Text>
-                  <Text style={[styles.muted, { fontSize: 12, color: theme.mutedText }]}>{item.email}</Text>
+                  <Text style={[styles.email, { color: theme.text }]}>{item.display_name || item.username || 'User'}</Text>
+                  {item.username ? <Text style={[styles.muted, { fontSize: 12, color: theme.mutedText }]}>@{item.username}</Text> : null}
                 </View>
                 <Pressable onPress={() => remove(item.id)} style={styles.removeBtn}>
                   <Text style={styles.removeText}>Unblock</Text>

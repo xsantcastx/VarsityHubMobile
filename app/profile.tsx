@@ -808,7 +808,7 @@ export default function ProfileScreen() {
           ) : null}
         </View>
         
-        {/* Profile Content - Avatar centered at banner bottom edge */}
+        {/* Profile Content - Avatar at banner bottom edge */}
         <View style={styles.profileContent}>
           <Pressable
             onPress={me?.avatar_url
@@ -835,19 +835,19 @@ export default function ProfileScreen() {
             </View>
           </Pressable>
         </View>
-      </View>
 
-      {/* Content Below Banner */}
-      <View style={styles.profileDetailsContainer}>
-        {/* Edit button row (right aligned above username) */}
-        {!viewingUserId || viewingUserId === currentUserId ? (
-          <View style={styles.profileActionRow}>
+        {/* Edit profile button - positioned in banner overlap area, right-aligned at avatar level */}
+        {(!viewingUserId || viewingUserId === currentUserId) && (
+          <View style={styles.editButtonOverlay}>
             <Pressable style={[styles.editButtonBelowBanner, { backgroundColor: theme.surface || theme.background, borderColor: theme.border }]} onPress={() => void router.push('/(tabs)/edit-profile')} accessibilityRole="button" accessibilityLabel="Edit profile">
               <Text style={[styles.editButtonBelowBannerText, { color: theme.text }]}>Edit profile</Text>
             </Pressable>
           </View>
-        ) : null}
+        )}
+      </View>
 
+      {/* Content Below Banner */}
+      <View style={styles.profileDetailsContainer}>
         {/* Username + Role Badge */}
         <View style={styles.profileNameRow}>
           <View style={styles.profileNameContent}>
@@ -1504,7 +1504,7 @@ const styles = StyleSheet.create({
   },
   profileContent: {
     position: 'absolute',
-    bottom: -50,
+    bottom: -60,
     left: 16,
     zIndex: 100,
     elevation: 100,
@@ -1517,30 +1517,30 @@ const styles = StyleSheet.create({
   },
   avatarContainer: {
     position: 'relative',
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
     borderWidth: 4,
     borderColor: '#ffffff',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
-    elevation: 99999, // Highest elevation for Android
+    elevation: 99999,
     backgroundColor: '#ffffff',
-    zIndex: 99999, // Highest z-index to ensure avatar is always on top
-    overflow: 'hidden', // Prevent avatar from overlapping text
+    zIndex: 99999,
+    overflow: 'hidden',
   },
   avatarImage: {
     width: '100%',
     height: '100%',
-    borderRadius: 46,
+    borderRadius: 56,
   },
   avatarPlaceholder: {
     width: '100%',
     height: '100%',
-    borderRadius: 46,
-    backgroundColor: 'transparent', // Will be overridden with theme color if needed
+    borderRadius: 56,
+    backgroundColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1549,7 +1549,14 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 46,
+    borderRadius: 56,
+  },
+  editButtonOverlay: {
+    position: 'absolute',
+    bottom: -46,
+    right: 16,
+    zIndex: 101,
+    elevation: 101,
   },
   nameRow: {
     flexDirection: 'row',
@@ -1609,18 +1616,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  // Profile Details Below Banner — paddingTop ensures avatar never overlaps text (avatar is 100px, extends 50px below banner)
+  // Profile Details Below Banner — paddingTop ensures avatar (120px, extends 60px below banner) never overlaps text
   profileDetailsContainer: {
     backgroundColor: 'transparent',
-    paddingTop: 64,
+    paddingTop: 66,
     marginBottom: 0,
     paddingBottom: 0,
     gap: 0,
-  },
-  profileActionRow: {
-    paddingHorizontal: 16,
-    marginBottom: 0,
-    alignItems: 'flex-end',
   },
   profileNameRow: {
     flexDirection: 'row',

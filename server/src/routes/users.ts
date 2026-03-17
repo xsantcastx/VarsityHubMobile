@@ -933,6 +933,7 @@ usersRouter.get('/blocked', requireAuth as any, async (req: AuthedRequest, res) 
           select: {
             id: true,
             display_name: true,
+            username: true,
             avatar_url: true,
           },
         },

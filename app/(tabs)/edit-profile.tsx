@@ -424,7 +424,7 @@ export default function EditProfileScreen() {
       const preferences: any = {};
       if (location.trim()) preferences.location = location.trim();
       if (zipCode.trim()) preferences.zip_code = zipCode.trim();
-      if (dateOfBirth) preferences.date_of_birth = formatDateForAPI(dateOfBirth);
+      if (dateOfBirth) preferences.dob = formatDateForAPI(dateOfBirth);
       if (sportsInterests.length > 0) preferences.sports_interests = sportsInterests;
       // Only save theme_color for coach/organization accounts
       if (themeColor && (userRole === 'coach' || userRole === 'admin' || userRole === 'organization')) {

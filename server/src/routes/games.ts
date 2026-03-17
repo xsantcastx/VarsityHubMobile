@@ -379,10 +379,10 @@ gamesRouter.post('/', requireVerified as any, requireOnboarded as any, gameCreat
         longitude: eventLng,
         game_id: game.id,
         team_id: game.home_team_id || null,
-        status: 'approved',
-        approval_status: 'approved',
+        status: gameData.approval_status || 'pending',
+        approval_status: gameData.approval_status || 'pending',
         creator_id: req.user!.id,
-        creator_role: 'coach',
+        creator_role: isCoach ? 'coach' : 'fan',
         event_type: parsed.data.event_type || 'game',
         capacity: null,
       } as any,
@@ -1102,7 +1102,7 @@ gamesRouter.put('/:id/approve', requireAuth as any, requireOnboarded as any, asy
       where: {
         team_id: game.home_team_id,
         user_id: req.user.id,
-        role: { in: ['coach', 'manager', 'owner'] }
+        role: { in: ['coach', 'manager', 'owner', 'assistant_coach'] }
       }
     });
     isCoach = !!membership;

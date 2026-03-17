@@ -464,9 +464,10 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
       // Location is mandatory for all non-competitive events
       if (eventType === 'watch_party' && !watchLocation.trim()) {
         newErrors.watchLocation = 'Watch location is required';
-      }
-      if (eventType === 'team_trip' && !destination.trim()) {
+      } else if (eventType === 'team_trip' && !destination.trim()) {
         newErrors.destination = 'Destination is required';
+      } else if (eventType !== 'watch_party' && eventType !== 'team_trip' && !homeVenue.trim()) {
+        newErrors.homeVenue = 'Location is required';
       }
     }
     
@@ -1236,6 +1237,23 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
                 placeholder="e.g., State Tournament, Orlando FL"
               />
               {errors.destination && <Text style={styles.errorText}>{errors.destination}</Text>}
+            </View>
+          )}
+
+          {/* Location for non-competitive events (fundraiser, meeting, team_meal, other) */}
+          {!isCompetitive && eventType !== 'watch_party' && eventType !== 'team_trip' && (
+            <View style={styles.formSection}>
+              <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Location *</Text>
+              <LocationPicker
+                value={homeVenue}
+                onLocationSelect={(location) => {
+                  setHomeVenue(location.address);
+                  setHomeVenueLat(location.latitude);
+                  setHomeVenueLng(location.longitude);
+                }}
+                placeholder="e.g., School Gym, Community Center"
+              />
+              {errors.homeVenue && <Text style={styles.errorText}>{errors.homeVenue}</Text>}
             </View>
           )}
 

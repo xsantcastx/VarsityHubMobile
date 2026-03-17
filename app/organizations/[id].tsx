@@ -5,8 +5,17 @@ import { findSeedOrganization, seedOrganizationToPayload } from '@/data/seedOrga
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Linking, Platform, Pressable, ScrollView, Text, useColorScheme, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Linking, Platform, Pressable, ScrollView, Text, useColorScheme, View } from 'react-native';
 import { safeGoBack } from '@/utils/navigation';
+
+interface OrgTeam {
+  id: string;
+  name: string;
+  sport?: string | null;
+  logo_url?: string | null;
+  avatar_url?: string | null;
+  _count?: { memberships?: number };
+}
 
 interface Organization {
   id: string;
@@ -19,6 +28,7 @@ interface Organization {
   latitude?: number | null;
   longitude?: number | null;
   status?: string | null;
+  teams?: OrgTeam[];
   _count?: { teams?: number; memberships?: number };
 }
 
@@ -165,12 +175,47 @@ export default function OrganizationDetailScreen() {
         </Pressable>
       </View>
 
-      {/* Teams count */}
+      {/* Teams */}
       <View style={{ marginTop: 24 }}>
-        <Text style={{ fontSize: 18, fontWeight: '600', color: theme.text }}>Teams</Text>
-        <Text style={{ color: theme.mutedText, marginTop: 6 }}>
-          {org._count?.teams ? `${org._count.teams} team${org._count.teams === 1 ? '' : 's'}` : 'No teams yet'}
-        </Text>
+        <Text style={{ fontSize: 18, fontWeight: '700', color: theme.text, marginBottom: 10 }}>Teams</Text>
+        {org.teams && org.teams.length > 0 ? (
+          org.teams.map((team) => (
+            <Pressable
+              key={team.id}
+              onPress={() => router.push({ pathname: '/(tabs)/team-page', params: { id: team.id, name: team.name } } as any)}
+              style={({ pressed }) => ({
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 12,
+                paddingVertical: 12,
+                paddingHorizontal: 12,
+                borderRadius: 10,
+                backgroundColor: pressed ? (colorScheme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)') : 'transparent',
+                borderBottomWidth: 1,
+                borderBottomColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
+              })}
+            >
+              {team.logo_url || team.avatar_url ? (
+                <Image source={{ uri: (team.logo_url || team.avatar_url)! }} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colorScheme === 'dark' ? '#374151' : '#E5E7EB' }} />
+              ) : (
+                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colorScheme === 'dark' ? '#374151' : '#E5E7EB', alignItems: 'center', justifyContent: 'center' }}>
+                  <Ionicons name="people" size={20} color={theme.mutedText} />
+                </View>
+              )}
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 16, fontWeight: '600', color: theme.text }}>{team.name}</Text>
+                {team.sport ? (
+                  <Text style={{ fontSize: 13, color: theme.mutedText, marginTop: 2 }}>{team.sport}{team._count?.memberships ? ` · ${team._count.memberships} members` : ''}</Text>
+                ) : team._count?.memberships ? (
+                  <Text style={{ fontSize: 13, color: theme.mutedText, marginTop: 2 }}>{team._count.memberships} members</Text>
+                ) : null}
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={theme.mutedText} />
+            </Pressable>
+          ))
+        ) : (
+          <Text style={{ color: theme.mutedText }}>No teams yet.</Text>
+        )}
       </View>
       {/* Members count */}
       <View style={{ marginTop: 24 }}>

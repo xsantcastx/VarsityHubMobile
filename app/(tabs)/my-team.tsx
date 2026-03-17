@@ -7,6 +7,7 @@ import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  ActivityIndicator,
   Alert,
   FlatList,
   Image,
@@ -370,7 +371,12 @@ export default function MyTeamScreen() {
   );
 
   const renderEmpty = () => {
-    if (loading) return null;
+    if (loading) return (
+      <View style={styles.emptyContainer}>
+        <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
+        <Text style={[styles.emptySubtitle, { color: Colors[colorScheme].mutedText, marginTop: 12 }]}>Loading...</Text>
+      </View>
+    );
     if (teams.length === 0) {
       return (
         <View style={styles.emptyContainer}>

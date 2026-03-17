@@ -198,7 +198,7 @@ export function startAdGoLiveCheck() {
 
       // 3. Clean up stale holds (older than 1 hour)
       const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-      const staleHolds = await prisma.ad.updateMany({
+      const staleHolds = await (prisma.ad.updateMany as any)({
         where: {
           payment_status: 'hold',
           updated_at: { lt: oneHourAgo },

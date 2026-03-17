@@ -1437,8 +1437,16 @@ authRouter.post('/me/complete-onboarding', requireAuth as any, async (req: Authe
   
   // SECURITY: Coaches must be PENDING until their organization is approved.
   // Without this, the Prisma default (APPROVED) lets coaches bypass approval entirely.
+  // BUT: If they were already explicitly APPROVED (e.g., org approved by super admin,
+  // or league owner approved their join request), don't downgrade back to PENDING.
   if (finalRole === 'coach') {
-    updateData.approval_status = 'PENDING';
+    const currentApproval = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+      select: { approval_status: true },
+    });
+    if (currentApproval?.approval_status !== 'APPROVED') {
+      updateData.approval_status = 'PENDING';
+    }
   }
 
   // Update user

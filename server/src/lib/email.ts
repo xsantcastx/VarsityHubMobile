@@ -1366,7 +1366,9 @@ export async function sendLeagueApprovalRequestEmail(params: {
 
   const to =
     (process.env.ADMIN_EMAILS || '').split(',')[0]?.trim() || 'emancero@varsityhub.app';
-  return sendTemplateEmail(
+
+  // Try SendGrid template first; fall back to plain-text so admin always gets notified
+  const sent = await sendTemplateEmail(
     TEMPLATE_IDS.LEAGUE_PENDING_APPROVAL,
     to,
     `New League Awaiting Approval: ${params.leagueName}`,
@@ -1383,6 +1385,28 @@ export async function sendLeagueApprovalRequestEmail(params: {
     },
     `League approval request sent to ${to}`
   );
+
+  // Plain-text fallback — critical that admin always receives this
+  if (!sent) {
+    return sendEmail({
+      to,
+      subject: `New League Awaiting Approval: ${params.leagueName}`,
+      text: [
+        `A new league needs your approval on VarsityHub.`,
+        ``,
+        `League: ${params.leagueName}`,
+        `Owner: ${params.ownerName} (${params.ownerEmail})`,
+        `Type: ${params.orgType || 'Not specified'}`,
+        `Sport: ${params.sport || 'Not specified'}`,
+        `Submitted: ${new Date().toLocaleDateString()}`,
+        ``,
+        `APPROVE: ${approveUrl}`,
+        ``,
+        `REJECT: ${rejectUrl}`,
+      ].join('\n'),
+    });
+  }
+  return sent;
 }
 
 /**

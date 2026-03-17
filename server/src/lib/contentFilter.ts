@@ -210,14 +210,21 @@ export function validateContent(fields: {
       };
     }
   }
-  const contentSpam = checkSpam(combined, false);
-  if (contentSpam.isSpam) {
-    return {
-      valid: false,
-      error: 'Your content appears to be spam. Please remove promotional content and try again.',
-      code: 'SPAM_DETECTED',
-      flags: ['spam', contentSpam.reason || 'unknown'],
-    };
+  // Check body content (content + description) for spam separately from the title.
+  // The title is already checked above with titleOnly=true (which correctly skips caps check
+  // since org names, team names, and acronyms are often legitimately all-caps).
+  // Checking `combined` here would re-include the title and flag all-caps org names.
+  const bodyOnly = [content, description].filter(Boolean).join(' ');
+  if (bodyOnly.trim()) {
+    const contentSpam = checkSpam(bodyOnly, false);
+    if (contentSpam.isSpam) {
+      return {
+        valid: false,
+        error: 'Your content appears to be spam. Please remove promotional content and try again.',
+        code: 'SPAM_DETECTED',
+        flags: ['spam', contentSpam.reason || 'unknown'],
+      };
+    }
   }
 
   // 4. Trolling (flag but don't block - could be legitimate)

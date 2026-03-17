@@ -137,34 +137,34 @@ notificationsRouter.get('/', requireAuth as any, async (req: AuthedRequest, res)
   }
 });
 
+// POST /notifications/mark-read-all  (must be before /:id/read to avoid Express treating "mark-read-all" as an :id)
+notificationsRouter.post('/mark-read-all', requireAuth as any, async (req: AuthedRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    await prisma.notification.updateMany({
+      where: { user_id: userId, read_at: null },
+      data: { read_at: new Date() }
+    });
+    return res.json({ ok: true });
+  } catch (error: any) {
+    console.error('[notifications] Error marking all notifications as read:', error);
+    return res.status(500).json({ error: 'Failed to mark all notifications as read' });
+  }
+});
+
 // POST /notifications/:id/read
 notificationsRouter.post('/:id/read', requireAuth as any, async (req: AuthedRequest, res) => {
   try {
     const userId = req.user!.id;
     const id = String(req.params.id);
-    const result = await prisma.notification.updateMany({ 
-      where: { id, user_id: userId }, 
-      data: { read_at: new Date() } 
+    const result = await prisma.notification.updateMany({
+      where: { id, user_id: userId },
+      data: { read_at: new Date() }
     });
     if (result.count === 0) return res.status(404).json({ error: 'Not found' });
     return res.json({ ok: true, id });
   } catch (error: any) {
     console.error('[notifications] Error marking notification as read:', error);
     return res.status(500).json({ error: 'Failed to mark notification as read' });
-  }
-});
-
-// POST /notifications/mark-read-all
-notificationsRouter.post('/mark-read-all', requireAuth as any, async (req: AuthedRequest, res) => {
-  try {
-    const userId = req.user!.id;
-    await prisma.notification.updateMany({ 
-      where: { user_id: userId, read_at: null }, 
-      data: { read_at: new Date() } 
-    });
-    return res.json({ ok: true });
-  } catch (error: any) {
-    console.error('[notifications] Error marking all notifications as read:', error);
-    return res.status(500).json({ error: 'Failed to mark all notifications as read' });
   }
 });

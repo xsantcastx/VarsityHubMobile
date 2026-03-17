@@ -16,7 +16,7 @@ export const redis = new RedisCtor(REDIS_URL);
 export const redisSubscriber = new RedisCtor(REDIS_URL);
 
 // Initialize email queue
-export const emailQueue = new Queue('email', REDIS_URL, {
+export const emailQueue = new Queue('email', REDIS_URL || '', {
   settings: {
     // Attempt retry up to 3 times with exponential backoff
     retryProcessDelay: 5000, // 5 seconds between retries

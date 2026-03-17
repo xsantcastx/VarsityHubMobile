@@ -8,6 +8,7 @@ import path from 'node:path';
 import pinoHttp from 'pino-http';
 import swaggerUi from 'swagger-ui-express';
 import { runGameReminders } from './cron/game-reminders.js';
+import { startAdGoLiveCheck, startOvernightMonitoring, startQueueCleanup } from './cron/overnightTasks.js';
 import { debugLog } from './lib/debugLog.js';
 import { verifyMediaSignature } from './lib/mediaAccess.js';
 import { addSentryErrorHandler, initSentry } from './lib/sentry.js';
@@ -288,6 +289,12 @@ if (!isTest) {
     );
   });
   debugLog('[cron] Game reminder job scheduled (every hour)');
+
+  // Overnight tasks — ad go-live, monitoring, and stale hold cleanup
+  startAdGoLiveCheck();
+  startOvernightMonitoring();
+  startQueueCleanup();
+  debugLog('[cron] Overnight tasks scheduled (ad go-live, monitoring, queue cleanup)');
 }
 
 export { app };
