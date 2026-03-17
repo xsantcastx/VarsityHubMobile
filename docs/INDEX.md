@@ -57,6 +57,7 @@ This is the single entry point for VarsityHub docs. Use the sections below to fi
 
 ## Status
 - [Status Index](./status/INDEX.md)
+- [Coach Approval System](./status/COACH_APPROVAL_SYSTEM.md)
 - [API Key Update Complete](./status/API_KEY_UPDATE_COMPLETE.md)
 - [Coach Onboarding Fix Summary](./status/COACH_ONBOARDING_FIX_SUMMARY.md)
 - [Coach Onboarding Verified](./status/COACH_ONBOARDING_VERIFIED.md)

@@ -51,5 +51,10 @@ This folder contains all project status reports, checklists, and progress tracki
 
 ---
 
-**Last Updated:** December 10, 2025  
+**Last Updated:** March 16, 2026  
 **Organization:** Status documents consolidated from root into dedicated `/docs/status/` folder to improve project navigation.
+
+## Recent (March 2026)
+
+- **Coach approval system** – League owners and coaches are PENDING until approved. Super admin approves leagues; league owners approve coaches. See `server/scripts/verify-coach-approval.ts` and `server/src/__tests__/coach-approval.test.ts`.
+- **Dark mode fixes** – ImageEditor, payment-cancel, sign-in, subscription-paywall, admin-ads, mobile-community, feed, ReachMapPreview, RsvpSheet, QuickAddGameModal now use theme colors.

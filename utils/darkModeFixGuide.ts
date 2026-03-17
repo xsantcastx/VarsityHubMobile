@@ -29,19 +29,23 @@
 export const darkModeFixGuide = `
 DARK MODE IMPLEMENTATION GUIDE
 
-Key screens that may need fixes:
+Key screens - status:
 - Settings: ✅ FIXED
-- Feed: ✅ MOSTLY FIXED  
-- Profile: ✅ MOSTLY FIXED
+- Feed: ✅ FIXED
+- Profile: ✅ FIXED
 - Create modal: ✅ FIXED
-- Game details screens
-- Sign in/up screens
-- Various admin screens
+- Sign in/up: ✅ FIXED
+- Event detail, mobile-community: ✅ FIXED
+- Payment cancel, subscription paywall: ✅ FIXED
+- Admin ads: ✅ FIXED
+- ImageEditor, RsvpSheet, QuickAddGameModal, ReachMapPreview: ✅ FIXED
+- Game details screens: 🔄 some remain
+- Onboarding: 🔄 some steps remain
 
 Quick fix template:
-1. Import theme hooks
+1. Import theme hooks (useColorScheme, Colors)
 2. Add colorScheme variable
-3. Replace static styles with dynamic ones
+3. Replace static styles with Colors[colorScheme].*
 4. Test both light and dark modes
 `;
 

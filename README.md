@@ -81,6 +81,7 @@ Recent security enhancements:
 - ✅ Comprehensive audit logging
 - ✅ JWT secret validation on startup
 - ✅ Rate limiting on authentication endpoints
+- ✅ Coach approval system (PENDING coaches blocked until approved by super admin or league owner)
 
 ---
 
@@ -105,6 +106,10 @@ npx expo run:ios              # Build and run on iOS
 ./scripts/check-repo-health.sh # Verify clean state
 ./scripts/clean-repo-artifacts.sh
 du -sh * | sort -h             # Check directory sizes
+
+# Coach approval (server)
+cd server && npm run verify:coach-approval  # Static verification
+cd server && npm test -- --testPathPattern="coach-approval"  # Integration tests (requires DB)
 ```
 
 ---
@@ -122,6 +127,6 @@ On EAS/production, set it via your environment management (or keep `false` to us
 
 ---
 
-**Last Updated**: December 2, 2025  
+**Last Updated**: March 16, 2026  
 **Security Grade**: A-  
 **Repository Size**: ~18 MB (source) / ~2.5 GB (with dependencies)

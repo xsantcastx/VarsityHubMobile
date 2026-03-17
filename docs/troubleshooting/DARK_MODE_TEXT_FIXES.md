@@ -63,14 +63,22 @@ From `constants/Colors.ts`:
 
 ### ✅ Completed:
 1. **app/profile.tsx** - All text colors use theme
-2. **app/sign-in.tsx** - Fixed hardcoded colors for buttons and error text
+2. **app/sign-in.tsx** - Logo container, buttons, error text
+3. **app/feed.tsx** - Search box, verification banner
+4. **app/(tabs)/event-detail.tsx** - Location chevron, buttons
+5. **app/(tabs)/discover/mobile-community.tsx** - Hero placeholder
+6. **app/payment-cancel.tsx** - Background, text, secondary button
+7. **app/subscription-paywall.tsx** - Tier pills, IAP price text
+8. **app/admin-ads.tsx** - Empty banner preview, payment badge, icons
+9. **components/ImageEditor.tsx** - Sticker remove button, filter active state
+10. **components/ReachMapPreview.tsx** - Legend border
+11. **app/components/RsvpSheet.tsx** - Handle
+12. **components/QuickAddGameModal.tsx** - Toggle thumb
+13. **app/sign-up.tsx**, **app/settings/*.tsx**, **app/(tabs)/*.tsx** (various)
 
-### 🔄 Remaining (30+ files with hardcoded colors):
-- app/feed.tsx (verification banner text)
-- app/sign-up.tsx
-- app/settings/*.tsx (multiple files)
-- app/onboarding/*.tsx
-- app/(tabs)/*.tsx (various)
+### 🔄 Remaining (lower priority):
+- Some onboarding steps
+- Game details screens (complex)
 
 ## Common Replacements
 
@@ -86,10 +94,11 @@ From `constants/Colors.ts`:
 ## Priority Order
 
 1. ✅ **Critical user-facing screens** (sign-in, profile) - DONE
-2. 🔄 **Main app screens** (feed, discover, highlights)
-3. 🔄 **Settings pages** (most text-heavy)
-4. 🔄 **Onboarding flows** (important first impression)
-5. 🔄 **Admin/management screens**
+2. ✅ **Main app screens** (feed, discover, event-detail, mobile-community) - DONE
+3. ✅ **Settings pages** - DONE
+4. 🔄 **Onboarding flows** (some steps remain)
+5. ✅ **Admin/management screens** (admin-ads) - DONE
+6. ✅ **Modals & components** (ImageEditor, RsvpSheet, QuickAddGameModal, ReachMapPreview) - DONE
 
 ## Notes
 
