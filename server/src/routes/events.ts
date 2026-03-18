@@ -778,11 +778,11 @@ eventsRouter.put('/:id/reject', requireVerified as any, requireOnboarded as any,
     ).catch(err => console.warn('[events] Failed to send rejection notification:', err));
   }
   
-  return res.json({ 
+  return res.json({
     ...serializeEvent(updated),
-    message: 'Event rejected' 
+    message: 'Event rejected'
   });
-});
+}));
 
 // Update event (creator, team owner/coach, or admin)
 const updateEventSchema = z.object({
@@ -801,7 +801,7 @@ const updateEventSchema = z.object({
   opponent: z.string().trim().optional(), // Alias for away_team_name (manual opponent name)
   away_team_id: z.string().trim().nullable().optional(),
   away_team_name: z.string().trim().optional(),
-}));
+});
 
 const COACH_EDITABLE_FIELDS = ['date', 'location', 'latitude', 'longitude', 'description', 'opponent', 'away_team_id', 'away_team_name'];
 

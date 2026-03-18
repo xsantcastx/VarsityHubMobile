@@ -18,6 +18,7 @@ import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { paymentLimiter } from '../middleware/rateLimiters.js';
 import { calculateAdPriceCents } from '../utils/adPricing.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', { apiVersion: '2024-06-20' });
 
@@ -1026,7 +1027,7 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
 // Stripe webhook to finalize reservations on successful payment.
 // IMPORTANT: The raw body parser is registered at the app level (server/src/index.ts)
 // for route /payments/webhook BEFORE express.json(). Do not add parsers here.
-paymentsRouter.post('/webhook', async (req, res) => {
+paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
   const sig = req.headers['stripe-signature'];
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || '';
   if (!webhookSecret) {
@@ -1448,7 +1449,7 @@ paymentsRouter.post('/webhook', async (req, res) => {
   }
 
   return res.json({ received: true });
-});
+}));
 
 
 // Cancel an abandoned PaymentIntent and mark transaction as FAILED
@@ -2260,7 +2261,7 @@ async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
 }
 
 // Human-facing pages for success/cancel, with success also attempting confirmation if session_id present
-paymentsRouter.get('/success', async (req, res) => {
+paymentsRouter.get('/success', asyncHandler(async (req, res) => {
   const appScheme = process.env.APP_SCHEME || 'varsityhubmobile';
   const appReturnPath = process.env.APP_RETURN_PATH || '';
   const returnUrl = `${appScheme}://${appReturnPath}`;
@@ -2303,7 +2304,7 @@ paymentsRouter.get('/success', async (req, res) => {
     </script>
   </body>
 </html>`);
-});
+}));
 
 // ── Apple IAP Receipt Verification ──────────────────────────────────
 const APPLE_SHARED_SECRET = process.env.APPLE_IAP_SHARED_SECRET || '';

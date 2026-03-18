@@ -14,6 +14,7 @@ import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { reportLimiter } from '../middleware/rateLimiters.js';
 import { requireAuth } from '../middleware/requireAuth.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 
 export const reportsRouter = Router();
 
@@ -314,7 +315,7 @@ reportsRouter.get('/reasons', async (_req, res) => {
  * 
  * Returns the reports submitted by the current user.
  */
-reportsRouter.get('/my', requireAuth as any, async (req: AuthedRequest, res) => {
+reportsRouter.get('/my', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
   const reports = await prisma.abuseReport.findMany({
@@ -349,7 +350,7 @@ reportsRouter.get('/my', requireAuth as any, async (req: AuthedRequest, res) => 
   });
 
   return res.json({ reports: parsed });
-});
+}));
 
 /**
  * Helper to get description for a report reason
