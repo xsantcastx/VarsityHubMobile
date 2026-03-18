@@ -1,5 +1,4 @@
 import crypto from 'node:crypto';
-import { FormData, File, fetch } from 'undici';
 
 // Placeholder values from .env.example — treat as "not configured" so local dev fails fast
 // instead of silently failing uploads. Use real Cloudinary credentials in server/.env
@@ -101,7 +100,7 @@ export async function uploadBufferToCloudinary(
   const form = new FormData();
   form.set(
     'file',
-    new File([file.buffer], file.originalname || `upload-${Date.now()}`, {
+    new File([new Uint8Array(file.buffer)], file.originalname || `upload-${Date.now()}`, {
       type: file.mimetype || 'application/octet-stream',
     })
   );
