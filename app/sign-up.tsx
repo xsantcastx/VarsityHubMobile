@@ -370,7 +370,7 @@ export default function SignUpScreen() {
                 Password strength: {passwordStrength.feedback}
               </Text>
               <Text style={{ fontSize: 11, color: Colors[colorScheme].text + '77', marginTop: 2 }}>
-                Min 8 characters. Must contain: uppercase, lowercase, number, special character
+                Min 8 characters. Must contain at least one letter and one number
               </Text>
             </View>
           )}

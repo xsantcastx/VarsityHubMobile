@@ -441,13 +441,32 @@ adsRouter.delete('/:id([a-z0-9]{15,50})', requireVerified as any, async (req: Au
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    // First delete all reservations for this ad
-    await prisma.adReservation.deleteMany({ where: { ad_id: id } });
-    debugLog('[ads] DELETE /:id - Deleted reservations', { id });
+    // Capture ad details for audit before deletion
+    const auditData = {
+      ad_id: id,
+      business_name: existing.business_name,
+      status: existing.status,
+      payment_status: existing.payment_status,
+      target_zip_code: existing.target_zip_code,
+      deleted_by: req.user?.id,
+      deleted_by_admin: isAdmin && !isOwner,
+    };
 
-    // Then delete the ad itself
-    await prisma.ad.delete({ where: { id } });
-    debugLog('[ads] DELETE /:id - Ad deleted successfully', { id });
+    // Delete reservations and ad in transaction, create audit log
+    await prisma.$transaction([
+      prisma.adReservation.deleteMany({ where: { ad_id: id } }),
+      prisma.ad.delete({ where: { id } }),
+      prisma.transactionLog.create({
+        data: {
+          transaction_type: 'AD_DELETED',
+          status: 'COMPLETED',
+          user_id: req.user?.id || null,
+          order_id: `ad_delete_${id}`,
+          metadata: auditData,
+        } as any,
+      }),
+    ]);
+    debugLog('[ads] DELETE /:id - Ad deleted with audit trail', { id });
 
     return res.json({ ok: true, message: 'Ad deleted successfully' });
   } catch (err) {
@@ -532,7 +551,6 @@ adsRouter.get('/availability', async (req, res) => {
         payment_status: { in: ['paid', 'hold', 'pending_approval'] },
       },
       select: { id: true },
-      take: 100,
     });
 
     const adIds = adsInZip.map(a => a.id);

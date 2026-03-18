@@ -695,7 +695,7 @@ organizationsRouter.post('/invites/:inviteId/accept', requireAuth as any, async 
     await prisma.$transaction([
       prisma.organizationMembership.upsert({
         where: { organization_id_user_id: { organization_id: invite.organization_id, user_id: user.id } as any },
-        update: { role: invite.role, status: 'active' },
+        update: { status: 'active' }, // SECURITY: Only reactivate — never escalate role via invite
         create: { organization_id: invite.organization_id, user_id: user.id, role: invite.role, status: 'active' }
       }),
       prisma.organizationInvite.update({ where: { id: inviteId }, data: { status: 'accepted' } }),
@@ -1120,7 +1120,13 @@ organizationsRouter.post('/join-requests/:requestId/approve', requireAuth as any
   if (joinRequest.status !== 'pending') {
     return res.status(400).json({ error: 'This request has already been reviewed' });
   }
-  
+
+  // SECURITY: Only allow approving join requests for admin-approved organizations.
+  // Without this, coaches could get APPROVED status by joining an unapproved org.
+  if (!joinRequest.organization.admin_approved) {
+    return res.status(403).json({ error: 'Organization must be approved by VarsityHub before accepting members.' });
+  }
+
   // Update join request, create membership, and set coach approval — approved coaches get free access
   await prisma.$transaction([
     prisma.organizationJoinRequest.update({
@@ -1427,18 +1433,32 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
     });
     if (!org) return res.status(404).json({ error: 'Organization not found' });
 
-    await prisma.organization.update({
-      where: { id: orgId },
-      data: { status: 'rejected' },
-    });
-
-    // Set league owner back to REJECTED so they can't access coach tools
-    if (org.leagueOwner?.id) {
-      await prisma.user.update({
-        where: { id: org.leagueOwner.id },
-        data: { approval_status: 'REJECTED' },
+    // Cascade: reject org, unlink teams, revoke coach status for all org members
+    await prisma.$transaction(async (tx) => {
+      await tx.organization.update({
+        where: { id: orgId },
+        data: { status: 'rejected' },
       });
-    }
+
+      // Unlink teams from rejected org so they can't be used for coach actions
+      await tx.team.updateMany({
+        where: { organization_id: orgId },
+        data: { organization_id: null },
+      });
+
+      // Remove all org memberships
+      await tx.organizationMembership.deleteMany({
+        where: { organization_id: orgId },
+      });
+
+      // Set league owner back to REJECTED so they can't access coach tools
+      if (org.leagueOwner?.id) {
+        await tx.user.update({
+          where: { id: org.leagueOwner.id },
+          data: { approval_status: 'REJECTED' },
+        });
+      }
+    });
 
     // Email league owner
     if (org.leagueOwner?.email) {

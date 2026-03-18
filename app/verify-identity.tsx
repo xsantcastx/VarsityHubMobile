@@ -170,12 +170,12 @@ export default function VerifyScreen() {
 
         <View style={styles.codeSection}>
           <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Verification Code</Text>
-          <Input 
-            placeholder="123456" 
-            value={code} 
-            onChangeText={setCode} 
-            keyboardType="number-pad" 
-            maxLength={6}
+          <Input
+            placeholder="Enter code"
+            value={code}
+            onChangeText={(t: string) => setCode(t.toUpperCase())}
+            autoCapitalize="characters"
+            maxLength={8}
             style={styles.codeInput}
           />
         </View>

@@ -346,10 +346,11 @@ export async function sendAdPendingReviewEmail(params: {
   bannerUrl?: string;
   adId?: string;
 }): Promise<boolean> {
-  return sendTemplateEmail(
+  const subject = `Ad Pending Review — ${params.businessName || 'Unknown Business'}`;
+  const sent = await sendTemplateEmail(
     TEMPLATE_IDS.AD_PENDING_REVIEW,
     params.to,
-    `Ad Pending Review — ${params.businessName || 'Unknown Business'}`,
+    subject,
     {
       ...getCommonTemplateData(),
       business_name: params.businessName || 'N/A',
@@ -361,6 +362,26 @@ export async function sendAdPendingReviewEmail(params: {
     },
     `Ad pending review email sent to ${params.to}`
   );
+
+  // Plain-text fallback — critical that admin always receives ad review requests
+  if (!sent) {
+    return sendEmail({
+      to: params.to,
+      subject,
+      text: [
+        `A new ad needs your review on VarsityHub.`,
+        ``,
+        `Business: ${params.businessName || 'N/A'}`,
+        `Contact: ${params.contactName || 'N/A'} (${params.contactEmail || 'N/A'})`,
+        `Zip Code: ${params.zipCode || 'N/A'}`,
+        `Ad ID: ${params.adId || 'N/A'}`,
+        params.bannerUrl ? `Banner: ${params.bannerUrl}` : '',
+        ``,
+        `Review this ad in the admin dashboard.`,
+      ].filter(Boolean).join('\n'),
+    });
+  }
+  return sent;
 }
 
 export async function sendAdApprovedEmail(params: {

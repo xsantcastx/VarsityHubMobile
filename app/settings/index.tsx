@@ -344,7 +344,7 @@ export default function SettingsScreen() {
                       ),
                     }}
                   />
-                  <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme ?? 'light'].background }]} edges={['top', 'bottom']}>
+                  <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme ?? 'light'].background }]} edges={['bottom']}>
                     <ScrollView>
                     {/* Account */}
                     <SectionCard title="Account" initiallyOpen>
@@ -467,13 +467,16 @@ export default function SettingsScreen() {
                       </SectionCard>
                     )}
 
-                    {/* Support & Feedback */}
-                    <SectionCard title="Support & Feedback">
-                      <NavRow title="Contact Varsity Hub Team" onPress={() => void router.push('/settings/contact')} />
+                    {/* Contact VarsityHub */}
+                    <SectionCard title="Contact VarsityHub Team">
                       <NavRow title="Leave Feedback" onPress={() => void router.push('/settings/feedback')} />
-                      <NavRow title="Privacy Policy" onPress={() => void router.push('/settings/privacy-policy')} />
-                      <NavRow title="Terms of Service" onPress={() => void router.push('/settings/terms-of-service')} />
                       <NavRow title="Report Abuse" isLast onPress={() => void router.navigate('/report-abuse')} />
+                    </SectionCard>
+
+                    {/* Legal */}
+                    <SectionCard title="Legal">
+                      <NavRow title="Privacy Policy" onPress={() => void router.push('/settings/privacy-policy')} />
+                      <NavRow title="Terms of Service" isLast onPress={() => void router.push('/settings/terms-of-service')} />
                     </SectionCard>
 
                     {/* Admin Panel - Only visible to admins */}

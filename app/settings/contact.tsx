@@ -47,7 +47,7 @@ export default function ContactScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme ?? 'light'].background }]} edges={['bottom']}>
       <Stack.Screen options={{ title: 'Contact', headerBackTitle: 'Back', headerShown: true }} />
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-        <Text style={[styles.title, { color: Colors[colorScheme ?? 'light'].text }]}>Contact Varsity Hub Team</Text>
+        <Text style={[styles.title, { color: Colors[colorScheme ?? 'light'].text }]}>Contact VarsityHub Team</Text>
         <Input placeholder="Your name" value={name} onChangeText={setName} style={{ marginBottom: 8 }} />
         <Input placeholder="you@example.com" value={emailField} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" style={{ marginBottom: 8 }} />
         <Input placeholder="Subject" value={subject} onChangeText={setSubject} style={{ marginBottom: 8 }} />

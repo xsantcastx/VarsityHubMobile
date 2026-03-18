@@ -293,7 +293,7 @@ export default function SubscriptionPaywallScreen() {
         {/* IAP Error Banner */}
         {(isIOS || Platform.OS === 'android') && iapError ? (
           <View style={styles.errorBanner}>
-            <Text style={styles.errorBannerText}>{iapError}</Text>
+            <Text style={styles.errorBannerText}>Subscription plans are being set up. You can continue with the free Rookie plan for now.</Text>
           </View>
         ) : null}
 

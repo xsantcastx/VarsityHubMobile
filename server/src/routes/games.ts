@@ -210,7 +210,7 @@ gamesRouter.post('/', requireVerified as any, requireOnboarded as any, gameCreat
     away_team_id: z.string().trim().optional(), // Team ID if opponent exists in system
     away_team_name: z.string().trim().optional(), // Manual opponent name if not in system
     date: z.string().datetime().optional(),
-    location: z.string().trim().min(1, 'Location is required'),
+    location: z.string().trim().optional(),
     description: z.string().trim().optional(),
     cover_image_url: z.string().url().optional(),
     banner_url: z.string().url().optional(),
@@ -305,6 +305,14 @@ gamesRouter.post('/', requireVerified as any, requireOnboarded as any, gameCreat
       }
     }
 
+    // After auto-population, ensure location is set
+    if (!gameData.location || !gameData.location.trim()) {
+      return res.status(400).json({
+        error: 'Invalid game data',
+        issues: [{ code: 'invalid_type', expected: 'string', received: 'undefined', path: ['location'], message: 'Location is required' }],
+      });
+    }
+
     // Handle auto-geocoding if requested and location is provided
     if (parsed.data.autoGeocode && parsed.data.location && !parsed.data.latitude && !parsed.data.longitude) {
       try {
@@ -342,6 +350,23 @@ gamesRouter.post('/', requireVerified as any, requireOnboarded as any, gameCreat
         }
       });
       isCoach = !!membership;
+
+      // Verify the team's org is admin-approved (if team has an org)
+      if (isCoach) {
+        const team = await prisma.team.findUnique({
+          where: { id: parsed.data.home_team_id },
+          select: { organization_id: true },
+        });
+        if (team?.organization_id) {
+          const org = await prisma.organization.findUnique({
+            where: { id: team.organization_id },
+            select: { admin_approved: true },
+          });
+          if (org && !org.admin_approved) {
+            return res.status(403).json({ error: 'Your organization must be approved before creating events.' });
+          }
+        }
+      }
     } else if (isAdmin) {
       // Admin can create events for any team
       isCoach = true;

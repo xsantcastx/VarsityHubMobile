@@ -12,6 +12,7 @@ import { prisma } from '../lib/prisma.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
+import { requireVerified } from '../middleware/requireVerified.js';
 import { authLimiter, passwordResetLimiter, refreshTokenLimiter, verificationLimiter } from '../middleware/rateLimiters.js';
 
 export const authRouter = Router();
@@ -304,7 +305,7 @@ authRouter.post('/register', authLimiter, asyncHandler(async (req, res) => {
     });
   }
   const password_hash = await bcrypt.hash(password, 12);
-  const code = String(crypto.randomInt(100000, 1000000));
+  const code = crypto.randomBytes(4).toString('hex').toUpperCase(); // 8 hex chars = 4 billion possibilities
   debugLog(`[verify-code] [register] Verification code generated for ${sanitizedEmail}`);
   const exp = new Date(Date.now() + 30 * 60 * 1000);
   const userRole = role || 'fan';
@@ -1153,10 +1154,12 @@ authRouter.patch('/me/preferences', requireAuth as any, async (req: AuthedReques
     });
   }
   const incoming = parsed.data as any;
-  // SECURITY: Strip onboarding_completed — client cannot bypass onboarding via PATCH
-  delete incoming.onboarding_completed;
-  // SECURITY: Strip plan — only payment flow and upgrade-to-coach set plan; client cannot self-elevate
-  delete incoming.plan;
+  // SECURITY: Strip fields that can only be set via controlled server flows
+  delete incoming.onboarding_completed; // Only via POST /me/complete-onboarding
+  delete incoming.plan;                 // Only via payment webhook or upgrade-to-coach
+  delete incoming.pending_plan;         // Only via upgrade-to-coach (prevents fake payment state)
+  delete incoming.payment_pending;      // Only via upgrade-to-coach
+  delete incoming.payment_approved;     // Only via payment webhook
   // COPPA: Reject if DOB indicates under 13 - do not store
   if (incoming.dob !== undefined && isUnder13(incoming.dob)) {
     return res.status(403).json({
@@ -1211,7 +1214,8 @@ authRouter.patch('/me/preferences', requireAuth as any, async (req: AuthedReques
 });
 
 // Upgrade fan account to coach — bypasses the role-change block on PATCH /me/preferences
-authRouter.post('/upgrade-to-coach', requireAuth as any, async (req: AuthedRequest, res) => {
+// SECURITY: requireVerified ensures only email-verified users can upgrade to coach
+authRouter.post('/upgrade-to-coach', requireVerified as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
   const schema = z.object({
@@ -1240,7 +1244,12 @@ authRouter.post('/upgrade-to-coach', requireAuth as any, async (req: AuthedReque
     onboarding_completed: false,
   };
 
-  const updated = await prisma.user.update({ where: { id: req.user.id }, data: { preferences: merged } });
+  // SECURITY: Set approval_status to PENDING so coaches must go through
+  // the full org creation + god-admin approval flow before getting coach tools.
+  const updated = await prisma.user.update({
+    where: { id: req.user.id },
+    data: { preferences: merged, approval_status: 'PENDING' },
+  });
   return res.json({ user: { id: req.user.id, preferences: updated.preferences } });
 });
 
@@ -1440,16 +1449,22 @@ authRouter.post('/me/complete-onboarding', requireAuth as any, async (req: Authe
   const merged = mergePreferences(normalizedCurrent || {}, preferencesUpdate);
   updateData.preferences = merged;
   
-  // SECURITY: Coaches must be PENDING until their organization is approved.
-  // Without this, the Prisma default (APPROVED) lets coaches bypass approval entirely.
-  // BUT: If they were already explicitly APPROVED (e.g., org approved by super admin,
-  // or league owner approved their join request), don't downgrade back to PENDING.
+  // SECURITY: Coaches must be PENDING until their organization is approved by god-admin.
+  // The Prisma default is APPROVED (for fans), so we MUST explicitly set PENDING here.
+  // The only legitimate path to APPROVED is via the org approval endpoint (POST /:id/approve)
+  // or join-request approval — both set it explicitly AFTER admin review.
+  // During onboarding, coaches always start as PENDING regardless of current DB value.
   if (finalRole === 'coach') {
-    const currentApproval = await prisma.user.findUnique({
-      where: { id: req.user!.id },
-      select: { approval_status: true },
-    });
-    if (currentApproval?.approval_status !== 'APPROVED') {
+    // Check if this coach's org has been admin_approved — only then preserve APPROVED
+    let orgApproved = false;
+    if (data.organization_id) {
+      const org = await prisma.organization.findUnique({
+        where: { id: data.organization_id },
+        select: { admin_approved: true },
+      });
+      orgApproved = org?.admin_approved === true;
+    }
+    if (!orgApproved) {
       updateData.approval_status = 'PENDING';
     }
   }
@@ -1479,7 +1494,7 @@ authRouter.post('/verify/request', requireAuth as any, verificationLimiter, asyn
   if (now - rec.hourStart > 3600_000) { rec.hourStart = now; rec.count = 0; }
   if (now - rec.last < 30_000) return res.status(429).json({ error: 'Please wait before requesting another code' });
   if (rec.count >= 5) return res.status(429).json({ error: 'Too many requests' });
-  const code = String(crypto.randomInt(100000, 1000000));
+  const code = crypto.randomBytes(4).toString('hex').toUpperCase(); // 8 hex chars = 4 billion possibilities
   debugLog(`[verify-code] [verify/request] Verification code generated for user ${user.id}`);
   const exp = new Date(Date.now() + 30 * 60 * 1000);
   await prisma.user.update({ where: { id: user.id }, data: { email_verification_code: code, email_verification_expires: exp } });
@@ -1510,7 +1525,7 @@ authRouter.post('/verify/send', requireAuth as any, verificationLimiter, async (
 // Verify code (authenticated) — rate limited to prevent brute-force on 6-digit codes
 authRouter.post('/verify/confirm', requireAuth as any, verificationLimiter, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  const schema = z.object({ code: z.string().min(4).max(8) });
+  const schema = z.object({ code: z.string().min(6).max(10) });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
   const { code } = parsed.data;

@@ -147,7 +147,7 @@ export default function GameMapScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={[]}>
       <Stack.Screen
         options={{
           title: 'Nearby Games',

@@ -1281,7 +1281,7 @@ export default function CommunityDiscoverScreen() {
         onSave={handleQuickGameSave}
         currentTeamName={me?.team?.name}
         currentTeamId={me?.team?.id}
-        userRole={(me?.preferences?.role === 'coach' || me?.preferences?.role === 'admin' || me?.role === 'coach' || me?.role === 'admin') ? 'coach' : 'fan'}
+        userRole={((me?.preferences?.role === 'coach' || me?.role === 'coach') && (me as any)?.approval_status === 'APPROVED') || me?.preferences?.role === 'admin' || me?.role === 'admin' ? 'coach' : 'fan'}
       />
     </View>
   </SwipeBackContainer>

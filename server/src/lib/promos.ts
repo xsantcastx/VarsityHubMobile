@@ -91,5 +91,5 @@ export async function redeemPromo(input: PromoPreviewInput & { orderId?: string 
     }
 
     return { ok: true, ...preview } as const;
-  });
+  }, { isolationLevel: 'Serializable' });
 }

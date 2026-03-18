@@ -5,6 +5,7 @@ import { prisma } from '../lib/prisma.js';
 /**
  * Middleware that rejects requests from users who haven't completed onboarding.
  * Also blocks coaches with PENDING approval_status from coach-only actions.
+ * For coaches, verifies their org is admin_approved (god-admin gated).
  * Must be placed after auth middleware (requireAuth or requireVerified).
  */
 export async function requireOnboarded(req: AuthedRequest, res: Response, next: NextFunction) {
@@ -20,12 +21,31 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
     return res.status(403).json({ error: 'Please complete onboarding before creating content.' });
   }
 
-  // Block pending coaches from coach-only actions (creating teams, posts, events, games)
-  if (prefs?.role === 'coach' && u?.approval_status === 'PENDING') {
+  // Block coaches whose approval_status is not explicitly APPROVED.
+  // The Prisma default is APPROVED (for fans), but coaches must be set to PENDING
+  // during onboarding and only transition to APPROVED via god-admin or org-admin action.
+  if (prefs?.role === 'coach' && u?.approval_status !== 'APPROVED') {
     return res.status(403).json({
       error: 'Your coach account is pending approval.',
       code: 'APPROVAL_REQUIRED',
     });
+  }
+
+  // Extra guard: coaches must belong to an admin-approved org
+  if (prefs?.role === 'coach' && u?.approval_status === 'APPROVED') {
+    const orgId = prefs?.organization_id as string | undefined;
+    if (orgId) {
+      const org = await prisma.organization.findUnique({
+        where: { id: orgId },
+        select: { admin_approved: true },
+      });
+      if (org && !org.admin_approved) {
+        return res.status(403).json({
+          error: 'Your organization is pending approval.',
+          code: 'APPROVAL_REQUIRED',
+        });
+      }
+    }
   }
 
   // Approved coach accounts that selected a paid tier must complete checkout

@@ -48,9 +48,11 @@ export default function CreateFanEventScreen() {
     User.me()
       .then((u: any) => {
         const role = u?.preferences?.role || 'fan';
-        setUserRole(role);
+        // Only grant coach UI if fully approved and onboarded
+        const isApprovedCoach = role === 'coach' && u?.approval_status === 'APPROVED' && u?.preferences?.onboarding_completed === true;
+        setUserRole(isApprovedCoach ? 'coach' : 'fan');
         // Fans can't create game events — default to watch_party
-        if (role !== 'coach') {
+        if (!isApprovedCoach) {
           setEventType('watch_party');
         }
       })

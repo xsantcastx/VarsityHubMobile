@@ -1039,8 +1039,10 @@ paymentsRouter.post('/webhook', async (req, res) => {
       debugLog('[webhook] Duplicate event skipped', { event_id: event.id, event_type: event.type });
       return res.json({ received: true, deduplicated: true });
     }
-    // Non-unique error — log warning but proceed (downstream is idempotent)
-    console.warn('[webhook] Failed to record event for dedup, proceeding anyway:', dedupErr?.message || dedupErr);
+    // Non-unique error — return 500 so Stripe retries later when DB is healthy.
+    // Processing without dedup risks duplicate charges/subscriptions.
+    console.error('[webhook] Failed to record event for dedup, rejecting for retry:', dedupErr?.message || dedupErr);
+    return res.status(500).json({ error: 'Dedup recording failed, will retry' });
   }
 
   try {
@@ -1310,6 +1312,12 @@ paymentsRouter.post('/webhook', async (req, res) => {
                 }
               }
             }
+            // SECURITY: Only activate ads that have been approved by admin
+            const adCheck = await tx.ad.findUnique({ where: { id: adId }, select: { status: true } });
+            if (!adCheck || (adCheck.status !== 'approved' && adCheck.status !== 'active')) {
+              throw new Error(`AD_NOT_APPROVED: Ad ${adId} status is ${adCheck?.status}, cannot activate`);
+            }
+
             await tx.ad.update({ where: { id: adId }, data: { payment_status: 'paid', status: 'active' } });
             await tx.adReservation.createMany({
               data: piDates.map((s) => ({ ad_id: adId, date: new Date(s + 'T00:00:00.000Z') })),
@@ -1995,6 +2003,13 @@ async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
           }
         }
 
+        // SECURITY: Only activate ads that have been approved by admin.
+        // Prevents paying for pending/rejected ads to bypass approval.
+        const adCheck = await tx.ad.findUnique({ where: { id: ad_id }, select: { status: true } });
+        if (!adCheck || (adCheck.status !== 'approved' && adCheck.status !== 'active')) {
+          throw new Error(`AD_NOT_APPROVED: Ad ${ad_id} status is ${adCheck?.status}, cannot activate`);
+        }
+
         await tx.ad.update({
           where: { id: ad_id },
           data: { payment_status: 'paid', status: 'active' },
@@ -2479,7 +2494,7 @@ paymentsRouter.post('/apple/verify-ad-receipt', expressPkg.json(), requireAuth a
       return res.status(400).json({ error: 'Receipt total does not match expected amount' });
     }
 
-    const orderId = orderIds.join('_') || `ad_iap_${ad_id}_${Date.now()}`;
+    const orderId = orderIds.join('_') || `ad_iap_${ad_id}_${crypto.randomUUID()}`;
     const existing = await prisma.transactionLog.findFirst({
       where: { order_id: orderId, transaction_type: 'AD_PURCHASE', status: 'COMPLETED' } as any,
     });
@@ -2510,6 +2525,11 @@ paymentsRouter.post('/apple/verify-ad-receipt', expressPkg.json(), requireAuth a
           return res.status(409).json({ error: 'One or more dates are fully booked', dates: fullDates.map((s) => s.date.toISOString().slice(0, 10)) });
         }
       }
+    }
+
+    // SECURITY: Only activate ads that have been approved by admin
+    if (ad.status !== 'approved' && ad.status !== 'active') {
+      return res.status(403).json({ error: 'Ad must be approved before payment', current_status: ad.status });
     }
 
     await prisma.$transaction([

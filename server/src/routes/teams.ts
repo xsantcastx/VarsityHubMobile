@@ -808,10 +808,11 @@ teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, req
   }
 
   // Guard: Coach must be approved before creating teams
-  // Exception: League owners creating during their own onboarding (onboarding: true flag + they are an org owner)
+  // Exception: League owners creating during onboarding — verified server-side (not client flag)
   if (isCoachByPrefs && me.approval_status !== 'APPROVED') {
-    // Allow league owners during onboarding — they have org owner role
-    const isOnboarding = data.onboarding === true;
+    // Server-side onboarding check: user has not completed onboarding AND is an org owner
+    const mePrefs = (me.preferences && typeof me.preferences === 'object') ? (me.preferences as any) : {};
+    const isOnboarding = mePrefs.onboarding_completed !== true;
     const isOrgOwner = await prisma.organizationMembership.findFirst({
       where: { user_id: userId, role: 'owner', status: 'active' },
     });
@@ -1022,22 +1023,13 @@ teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, req
       });
 
       if (!orgMembership) {
-        // Auto-claim as owner if no owners exist, otherwise join as coach
-        const existingOwners = await prisma.organizationMembership.findMany({
-          where: { organization_id: organizationId, role: 'owner' },
-          select: { id: true }
-        });
-
-        const role = existingOwners.length === 0 ? 'owner' : 'coach';
-        if (role === 'owner') {
-          console.log(`[Teams] Organization "${orgExists.name}" has no owner. User ${me.id} is claiming it.`);
-        }
-
+        // Join as coach member — never auto-claim ownership during team creation.
+        // Org ownership is established during org creation or via admin transfer.
         await prisma.organizationMembership.create({
           data: {
             organization_id: organizationId,
             user_id: me.id,
-            role,
+            role: 'coach',
           }
         });
       }

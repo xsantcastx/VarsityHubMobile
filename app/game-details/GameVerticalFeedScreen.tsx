@@ -401,43 +401,50 @@ const FeedCard = memo(
             <Text style={styles.railLabel}>{post.bookmarks_count}</Text>
           </Pressable>
 
-          <Pressable onPress={onMoreOptions} style={styles.railBtn}>
-            <Ionicons name="ellipsis-horizontal-circle-outline" size={34} color="#fff" />
-            <Text style={styles.railLabel}>More</Text>
+          <Pressable onPress={() => setShowOptionsMenu(true)} style={styles.railBtn}>
+            <Ionicons name="ellipsis-horizontal" size={34} color="#fff" />
+            <Text style={styles.railLabel}>Options</Text>
           </Pressable>
-
-          {isAuthor && (
-            <Pressable onPress={() => setShowOptionsMenu(true)} style={styles.railBtn}>
-              <Ionicons name="ellipsis-horizontal" size={34} color="#fff" />
-              <Text style={styles.railLabel}>Options</Text>
-            </Pressable>
-          )}
         </View>
 
         {/* Options Menu Modal */}
         <Modal visible={showOptionsMenu} transparent animationType="fade">
           <Pressable style={styles.modalOverlay} onPress={() => setShowOptionsMenu(false)}>
             <View style={styles.optionsMenu}>
-              <Pressable 
+              <Pressable
                 onPress={() => {
                   setShowOptionsMenu(false);
-                  handleEditPost();
-                }} 
+                  onMoreOptions();
+                }}
                 style={styles.optionButton}
               >
-                <Ionicons name="pencil-outline" size={20} color={Colors[colorScheme].text} />
-                <Text style={[styles.optionText, { color: Colors[colorScheme].text }]}>Edit Post</Text>
+                <Ionicons name="flag-outline" size={20} color={Colors[colorScheme].text} />
+                <Text style={[styles.optionText, { color: Colors[colorScheme].text }]}>Report Post</Text>
               </Pressable>
-              <Pressable 
-                onPress={() => {
-                  setShowOptionsMenu(false);
-                  handleDeletePost();
-                }} 
-                style={styles.optionButton}
-              >
-                <Ionicons name="trash-outline" size={20} color="#dc2626" />
-                <Text style={[styles.optionText, { color: '#dc2626' }]}>Delete Post</Text>
-              </Pressable>
+              {isAuthor && (
+                <>
+                  <Pressable
+                    onPress={() => {
+                      setShowOptionsMenu(false);
+                      handleEditPost();
+                    }}
+                    style={styles.optionButton}
+                  >
+                    <Ionicons name="pencil-outline" size={20} color={Colors[colorScheme].text} />
+                    <Text style={[styles.optionText, { color: Colors[colorScheme].text }]}>Edit Post</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => {
+                      setShowOptionsMenu(false);
+                      handleDeletePost();
+                    }}
+                    style={styles.optionButton}
+                  >
+                    <Ionicons name="trash-outline" size={20} color="#dc2626" />
+                    <Text style={[styles.optionText, { color: '#dc2626' }]}>Delete Post</Text>
+                  </Pressable>
+                </>
+              )}
             </View>
           </Pressable>
         </Modal>
