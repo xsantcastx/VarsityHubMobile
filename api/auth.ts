@@ -122,7 +122,8 @@ export const auth = {
   async logout() {
     // Invalidate refresh token server-side first (best-effort)
     try {
-      await httpPost('/auth/logout', {});
+      const refreshToken = await loadRefreshToken();
+      await httpPost('/auth/logout', refreshToken ? { refreshToken } : {});
     } catch {
       // Server may be unreachable — continue with local cleanup
     }

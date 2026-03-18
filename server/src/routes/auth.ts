@@ -184,6 +184,12 @@ authRouter.post('/refresh', refreshTokenLimiter, asyncHandler(async (req, res) =
     return res.status(403).json({ error: 'Account temporarily suspended', banned_until: (user as any).banned_until, ban_reason: (user as any).ban_reason || undefined });
   }
 
+  // Belt-and-suspenders: reject tokens issued before password change
+  if (user.password_changed_at && existingToken.created_at < user.password_changed_at) {
+    await prisma.refreshToken.delete({ where: { id: existingToken.id } }).catch(() => {});
+    return res.status(401).json({ error: 'Token invalidated by password change' });
+  }
+
   // Rotate: delete old token, issue new one (preserving device_info)
   const deviceInfo = existingToken.device_info;
   await prisma.refreshToken.delete({ where: { id: existingToken.id } });
@@ -319,7 +325,7 @@ authRouter.post('/register', authLimiter, asyncHandler(async (req, res) => {
   } catch (e) {
     console.error('[register] sendWelcomeEmail failed:', e);
   }
-  const payload: any = { access_token, refresh_token, user: sanitizeUser(user) };
+  const payload: any = { access_token, refresh_token, user: sanitizeUser(user), needs_verification: true };
   if (process.env.NODE_ENV !== 'production' && process.env.ENABLE_DEV_CODES === '1') payload.dev_verification_code = code;
   debugLog('[register] Completed in', Date.now() - start, 'ms');
   res.status(201).json(payload);
