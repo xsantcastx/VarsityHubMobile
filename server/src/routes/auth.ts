@@ -750,7 +750,7 @@ authRouter.post('/password/forgot', passwordResetLimiter, async (req, res) => {
   }
   debugLog('[password-reset] User found:', user.id);
 
-  const code = String(crypto.randomInt(10000000, 100000000)); // 8-digit code (~90M possibilities)
+  const code = crypto.randomBytes(6).toString('hex'); // 12-char hex code (~281 trillion possibilities)
   const expires = new Date(Date.now() + 30 * 60 * 1000);
 
   await prisma.user.update({

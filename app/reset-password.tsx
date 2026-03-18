@@ -110,10 +110,10 @@ export default function ResetPasswordScreen() {
           />
 
           <Input
-            placeholder="12345678"
+            placeholder="Reset code from email"
             value={code}
             onChangeText={setCode}
-            keyboardType="number-pad"
+            autoCapitalize="none"
             placeholderTextColor={palette.mutedText}
             style={[
               styles.input,

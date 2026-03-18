@@ -1288,11 +1288,11 @@ organizationsRouter.post('/:id/transfer-ownership', requireAuth as any, requireO
       return res.status(400).json({ error: 'New owner must be a member of the organization' });
     }
 
-    // Transfer: demote current owner to admin, promote new owner
+    // Transfer: demote current owner to manager, promote new owner
     await prisma.$transaction([
       prisma.organizationMembership.update({
         where: { id: currentOwnership.id },
-        data: { role: 'admin' },
+        data: { role: 'manager' },
       }),
       prisma.organizationMembership.update({
         where: { id: newOwnerMembership.id },

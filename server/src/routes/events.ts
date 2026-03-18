@@ -452,11 +452,21 @@ eventsRouter.post('/', requireVerified as any, requireOnboarded as any, eventCre
   }
   
   const userId = req.user!.id;
-  const userIsCoach = await isTeamCoach(userId);
   const userIsOrgAdmin = await isOrgAdmin(userId);
 
-  // Coaches/organizers/org admins get auto-approval, fans need approval
-  const autoApprove = userIsCoach || userIsOrgAdmin;
+  // Auto-approve only if user is coach/admin of the specific team, not just any team
+  let autoApprove = userIsOrgAdmin;
+  if (!autoApprove && data.home_team_id) {
+    const teamMembership = await prisma.teamMembership.findFirst({
+      where: {
+        user_id: userId,
+        team_id: data.home_team_id,
+        role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
+        status: 'active',
+      },
+    });
+    autoApprove = !!teamMembership;
+  }
 
   // Use capacity if provided, otherwise max_attendees (for backward compatibility)
   const capacity = data.max_attendees ?? null;
@@ -465,7 +475,7 @@ eventsRouter.post('/', requireVerified as any, requireOnboarded as any, eventCre
   try {
   // Atomic limit check + create to prevent race condition (fans: 3 pending max)
   event = await prisma.$transaction(async (tx) => {
-    if (!userIsCoach && !userIsOrgAdmin) {
+    if (!autoApprove) {
       const pendingCount = await tx.event.count({
         where: {
           creator_id: userId,
@@ -502,7 +512,7 @@ eventsRouter.post('/', requireVerified as any, requireOnboarded as any, eventCre
         game_id: data.game_id,
         team_id: data.home_team_id || null,
         creator_id: userId,
-        creator_role: userIsCoach ? 'coach' : userIsOrgAdmin ? 'organizer' : 'fan',
+        creator_role: autoApprove ? (userIsOrgAdmin ? 'organizer' : 'coach') : 'fan',
         approval_status: autoApprove ? 'approved' : 'pending',
         status: autoApprove ? 'approved' : 'draft',
         approved_at: autoApprove ? new Date() : null,
