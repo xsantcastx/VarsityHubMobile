@@ -567,13 +567,17 @@ postsRouter.post('/', requireVerified as any, requireOnboarded as any, postCreat
       country_code = rev.country_code || preferCountry;
       admin1 = rev.admin_area || null;
       place_name = rev.place_name || null;
-    } catch (_error) {}
+    } catch (err: unknown) {
+      debugLog('[posts] reverseGeocode failed, using fallback:', (err as Error)?.message ?? err);
+    }
   } else if (loc.zip || (prefs?.preferences as any)?.zip_code) {
     try {
       const zip = String(loc.zip || (prefs?.preferences as any)?.zip_code);
       const gg = await geocodeZip(zip, preferCountry);
       lat = gg.lat; lng = gg.lng; country_code = gg.country_code || preferCountry;
-    } catch (_error) {}
+    } catch (err: unknown) {
+      debugLog('[posts] geocodeZip failed, using fallback:', (err as Error)?.message ?? err);
+    }
   } else {
     country_code = preferCountry || null;
   }

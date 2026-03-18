@@ -905,6 +905,8 @@ export default function ProfileScreen() {
                       { borderColor: theme.border, backgroundColor: pressed ? theme.background : theme.card },
                     ]}
                     onPress={() => void router.push({ pathname: '/team-profile', params: { id: t.id, name: t.name } } as any)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Open team ${t.name}${t.role ? `, ${String(t.role).replace(/_/g, ' ')}` : ''}`}
                   >
                     {t.logo_url || t.avatar_url ? (
                       <Image source={{ uri: t.logo_url || t.avatar_url || '' }} style={styles.teamChipAvatar} contentFit="cover" />
@@ -1374,6 +1376,8 @@ export default function ProfileScreen() {
         <Pressable
           style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', alignItems: 'center', justifyContent: 'center' }}
           onPress={() => setAvatarViewerVisible(false)}
+          accessibilityRole="button"
+          accessibilityLabel="Close profile picture viewer"
         >
           {me?.avatar_url && (
             <Image
@@ -1385,6 +1389,8 @@ export default function ProfileScreen() {
           <Pressable
             onPress={() => setAvatarViewerVisible(false)}
             style={{ position: 'absolute', top: insets.top + 12, right: 16, padding: 8, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 20 }}
+            accessibilityRole="button"
+            accessibilityLabel="Close"
           >
             <MaterialIcons name="close" size={24} color="white" />
           </Pressable>
@@ -1411,6 +1417,8 @@ export default function ProfileScreen() {
         <Pressable
           style={styles.reportModalOverlay}
           onPress={() => !reportSubmitting && setShowReportMenu(false)}
+          accessibilityRole="button"
+          accessibilityLabel="Dismiss report menu"
         >
           <View style={[styles.reportActionsMenu, { backgroundColor: theme.card }]}>
             <Text style={[styles.reportMenuTitle, { color: theme.text }]}>Report this user</Text>

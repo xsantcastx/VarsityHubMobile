@@ -19,9 +19,14 @@ export default function ResetPasswordScreen() {
   const [saving, setSaving] = useState(false);
 
   // Check if user signed up via OAuth (Apple/Google) — password change not applicable
-  const userRecord = user as { auth_provider?: string; preferences?: { auth_provider?: string } } | null;
-  const authProvider = userRecord?.auth_provider || userRecord?.preferences?.auth_provider;
-  const isOAuth = authProvider === 'apple' || authProvider === 'google';
+  const userRecord = user as { auth_provider?: string; preferences?: { auth_provider?: string }; apple_id?: string; google_id?: string } | null;
+  let authProvider = userRecord?.auth_provider || userRecord?.preferences?.auth_provider;
+  if (!authProvider && userRecord) {
+    const hasApple = !!userRecord.apple_id;
+    const hasGoogle = !!userRecord.google_id;
+    authProvider = hasApple && hasGoogle ? 'apple,google' : hasApple ? 'apple' : hasGoogle ? 'google' : undefined;
+  }
+  const isOAuth = authProvider === 'apple' || authProvider === 'google' || authProvider === 'apple,google';
 
   const onSave = async () => {
     const currentValue = current.trim();
@@ -57,7 +62,9 @@ export default function ResetPasswordScreen() {
               Password change is not available
             </Text>
             <Text style={[{ color: Colors[colorScheme ?? 'light'].mutedText, textAlign: 'center', lineHeight: 22 }]}>
-              Your account was created with {authProvider === 'apple' ? 'Apple' : 'Google'} Sign-In. To change your password, manage it through your {authProvider === 'apple' ? 'Apple ID' : 'Google Account'} settings.
+              {authProvider === 'apple,google'
+                ? 'Your account can be signed in with Apple or Google. To change your password, manage it through your Apple ID or Google Account settings.'
+                : `Your account was created with ${authProvider === 'apple' ? 'Apple' : 'Google'} Sign-In. To change your password, manage it through your ${authProvider === 'apple' ? 'Apple ID' : 'Google Account'} settings.`}
             </Text>
           </View>
         ) : (

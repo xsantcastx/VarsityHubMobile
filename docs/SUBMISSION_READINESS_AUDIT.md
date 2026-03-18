@@ -2,7 +2,7 @@
 
 **Methodology:** Security & Architecture Validation Audit (system mapping → gap identification → severity classification → fixes).  
 **Date:** 2026-03-18  
-**Verdict:** **Conditional GO** — Ready for submission. Gaps 1–6 (silent catches, server org TS) resolved; gap 7 (accessibility) remains as follow-up.
+**Verdict:** **Conditional GO** — Ready for submission. Gaps 1–6 resolved; gap 7 (accessibility) in progress — sign-up and Create menu added.
 
 ---
 
@@ -38,7 +38,7 @@
 |-------------|--------|------------------|
 | Render loading, success, error, empty for lists and detail views | **PARTIAL** | Most critical screens do; some list/detail views could strengthen empty state. |
 | Validate before network; block double submit (loading guards) | **PASS** | Sign-in: `if (loading) return` and `disabled={loading}`. Payment and other forms use loading/saving flags. |
-| Touch targets accessible: testID/accessibilityLabel; alt for images | **PARTIAL** | Tab bar and sign-in have labels/hints; Create screen uses isApprovedCoach. More screens need labels (see CODEBASE_MAP Known Issues). |
+| Touch targets accessible: testID/accessibilityLabel; alt for images | **PARTIAL** | Tab bar, sign-in, sign-up, and Create menu have accessibilityLabel/hint; more screens can follow (see CODEBASE_MAP Known Issues). |
 
 ### Plans/Subscriptions
 
@@ -91,7 +91,7 @@
 | 4 | `app/manage-season.tsx` | `catch {}` | MEDIUM | **Resolved** — mounted guard + `__DEV__` log. |
 | 5 | `hooks/useIAP.ts`, `useAdIAP.ts` | `catch {}` | LOW | **Resolved** — receipt/finish and require() catch log in `__DEV__`. |
 | 6 | `server/src/routes/organizations.ts` | TS: `formatted_address` not in Prisma type | MEDIUM | **Resolved** — stripped from create payload; server typecheck passes. |
-| 7 | Accessibility | Many screens still missing accessibilityLabel/hint | MEDIUM | **Open** — Add incrementally; tab bar and sign-in done. |
+| 7 | Accessibility | Many screens still missing accessibilityLabel/hint | MEDIUM | **In progress** — Tab bar, sign-in, sign-up, and Create menu have labels/hints; remaining screens can follow in next release. |
 
 **No CRITICAL or HIGH** gaps that block submission: no bypass of restrictions, no data-integrity risk from these items. Role/plan and auth gates are enforced server-side.
 
@@ -113,7 +113,7 @@
 - **Before you submit:**  
   - Run `npm run typecheck` (frontend) and server `npx tsc --noEmit` (backend).  
   - Run `npm run validate:pre-launch` and `npm run verify:release`.  
-- **After submission:** Add accessibility labels to remaining screens (gap #7); optional upload-path logging.
+- **After submission:** Add accessibility labels to remaining screens (gap #7); optional upload-path logging. Sign-up and Create menu already have labels/hints.
 
 ---
 

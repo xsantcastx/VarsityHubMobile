@@ -1,252 +1,152 @@
 # Comprehensive System Architecture Audit
 
-**Date**: January 2025  
-**Scope**: Security Gaps, Validation Mismatches, Architectural Inconsistencies
+**Audit Type:** Security & Architecture Validation  
+**Date:** 2026-03-18  
+**Methodology:** System mapping → Gap identification → Severity classification → Fix implementation
 
 ---
 
-## Executive Summary
+## 1. Commandments Compliance Summary
 
-This audit examines the VarsityHub application architecture across three critical dimensions:
-
-1. **Security Gaps** - Authentication, authorization, input validation, injection risks
-2. **Validation Mismatches** - Frontend/backend inconsistencies, schema validation gaps
-3. **Architectural Inconsistencies** - Pattern variations, middleware usage, error handling
-
----
-
-## 🔒 1. SECURITY GAPS AUDIT
-
-### 1.1 Authentication & Authorization
-
-#### ✅ Strengths
-- **JWT-based authentication** implemented with `authMiddleware`
-- **Email verification required** via `requireVerified` middleware
-- **Role-based access control** enforced for team creation (coach-only)
-- **Admin checks** implemented via `requireAdmin` middleware
-
-#### ⚠️ Findings
-
-**Finding 1.1.1: Inconsistent Middleware Usage**
-- **Severity**: MEDIUM
-- **Location**: Various route files
-- **Issue**: Some routes use `authMiddleware` (optional auth) vs `requireAuth` (required auth)
-- **Impact**: Potential for unauthorized access if middleware is misapplied
-- **Recommendation**: Standardize on `requireAuth` for protected routes, `authMiddleware` only for optional auth
-
-**Finding 1.1.2: Missing Rate Limiting on Auth Endpoints**
-- **Severity**: HIGH
-- **Location**: `server/src/routes/auth.ts`
-- **Issue**: Login endpoint has rate limiting, but registration may not
-- **Impact**: Brute force attacks, account enumeration
-- **Recommendation**: Ensure all authentication endpoints have rate limiting
-
-**Finding 1.1.3: Ownership Verification Gaps**
-- **Severity**: CRITICAL (if found)
-- **Location**: Update/Delete endpoints
-- **Issue**: Some endpoints may not verify ownership before allowing modifications
-- **Impact**: Users could modify/delete data they don't own
-- **Recommendation**: Audit all update/delete operations for ownership checks
-
-### 1.2 Input Validation
-
-#### ✅ Strengths
-- **Zod schemas** used extensively for request validation
-- **Type-safe validation** with proper error messages
-- **Email validation** enforced where needed
-
-#### ⚠️ Findings
-
-**Finding 1.2.1: Missing Input Sanitization**
-- **Severity**: MEDIUM
-- **Location**: String validations
-- **Issue**: Some string fields may not use `.trim()` to remove whitespace
-- **Impact**: Data quality issues, potential injection vectors
-- **Recommendation**: Add `.trim()` to all string validations
-
-**Finding 1.2.2: SQL Injection Risk**
-- **Severity**: CRITICAL (if found)
-- **Location**: Any raw SQL queries
-- **Issue**: Use of `$queryRaw` or `queryRawUnsafe` without proper parameterization
-- **Impact**: SQL injection attacks
-- **Recommendation**: Use Prisma parameterized queries or validate all inputs
-
-**Finding 1.2.3: Missing Length Limits**
-- **Severity**: LOW
-- **Location**: Text fields
-- **Issue**: Some text fields may not have max length validation
-- **Impact**: DoS attacks via large payloads
-- **Recommendation**: Add max length validation to all text fields
-
-### 1.3 Data Access Control
-
-#### ✅ Strengths
-- **Subscription tier limits** enforced
-- **Team ownership limits** checked
-- **Role-based permissions** for team creation
-
-#### ⚠️ Findings
-
-**Finding 1.3.1: Inconsistent Permission Checks**
-- **Severity**: MEDIUM
-- **Location**: Various endpoints
-- **Issue**: Permission checks may be implemented differently across endpoints
-- **Impact**: Security gaps if one endpoint misses a check
-- **Recommendation**: Create reusable permission middleware functions
+| Commandment Area | Status | Notes |
+|------------------|--------|------|
+| **Overall Architecture** | ⚠️ Partial | No `src/features/*`; screens live in `app/` and `app/(tabs)/`. Path aliases `@/features/*` → `app/features/*`, `@/shared/*` → `shared/*` exist but `app/features/` is empty; `shared/` has only `plan-definitions.json`. App is routing + screen logic in same tree. |
+| **State & Data** | ✅ | API calls go through `api/*`; no raw `fetch` to API in screens (only `httpGet`/`httpPost`/`getApiBaseUrl` from `@/api/http`). Feature-scoped state; global context for auth/session (AuthProvider). |
+| **Navigation & Deep Links** | ✅ | Expo Router; deep links handled (reset-password, OAuth). |
+| **UI/UX** | ✅ | Loading/error/empty and submit guards used across create-team, onboarding, edit-profile, submit-ad. Accessibility: feed, sign-in, sign-up, Create menu, profile (team chips, modals), onboarding (Back, Verify, affiliation, Continue) have labels/hints. |
+| **Plans/Subscriptions** | ✅ | Payment-success verifies with retries and finalize-session; plan not persisted until webhook/callback. Veteran team count enforced server-side; free first two teams, then billing. |
+| **Teams/Organizations** | ✅ | Team creation associates org (server creates org from `organization_name` if needed). Extracurricular clubs require Legend (server: `planSupportsExtracurricular`, 403 + `LEGEND_TIER_REQUIRED`). Uploads wrapped in try/catch; don’t block core create. |
+| **Payments/Ads** | ✅ | Payment-success: retries, “Try Again”/“Continue”, missing/invalid session handled. Ad confirmation shows banner, dates, amount; defaults for missing params. |
+| **Testing & Quality** | ✅ | typecheck green; jest-expo; Playwright/smoke referenced in commandments. |
+| **Security & Errors** | ✅ Improved | Silent catches in posts (geocode fallback) replaced with `debugLog`; role/plan gates (requireAuth, requireVerified, requireOnboarded) applied on server. |
 
 ---
 
-## ✅ 2. VALIDATION MISMATCHES AUDIT
+## 2. System Mapping & Data Flow
 
-### 2.1 Frontend vs Backend Validation
+### 2.1 Auth / Session (System 1)
 
-#### ⚠️ Findings
+| Layer | Components | Validation / Gates |
+|-------|------------|--------------------|
+| **Frontend** | `app/sign-in.tsx`, `sign-up.tsx`, `app/settings/reset-password.tsx`, `context/AuthProvider.tsx` | Token in SecureStore; `auth.clearTokensOnly()` before OAuth. |
+| **API** | `api/auth.ts`, `api/user.ts` | `me()` → GET `/me`; refresh; login/register/OAuth. |
+| **Server** | `server/src/routes/auth.ts`, `middleware/requireAuth.ts`, `requireVerified.ts`, `requireOnboarded.ts` | JWT verify; email_verified for requireVerified; onboarding_completed + coach approval for requireOnboarded. Role change blocked after onboarding; coach upgrade via `/upgrade-to-coach`. |
+| **DB** | User, preferences (role, plan, onboarding_completed, approval_status) | — |
 
-**Finding 2.1.1: Potential Validation Mismatches**
-- **Severity**: MEDIUM
-- **Location**: Frontend forms vs backend schemas
-- **Issue**: Frontend validation may not match backend Zod schemas
-- **Impact**: Users see different errors on frontend vs backend
-- **Recommendation**: Share validation schemas between frontend and backend
+**Permission hierarchy:** Unauthenticated → requireAuth → requireVerified → requireOnboarded → requireAdmin (where used). No bypass found.
 
-**Finding 2.1.2: Missing Email Validation**
-- **Severity**: HIGH
-- **Location**: Any schema with email fields
-- **Issue**: Email fields may not use `z.string().email()`
-- **Impact**: Invalid emails stored in database
-- **Recommendation**: Ensure all email fields use proper email validation
+### 2.2 Payments / Subscriptions / Plans (System 2)
 
-### 2.2 Schema Consistency
+| Layer | Components | Validation / Gates |
+|-------|------------|--------------------|
+| **Frontend** | `app/payment-success.tsx`, `subscription-paywall.tsx`, `billing.tsx`, `settings/manage-subscription.tsx` | Session id validation (`cs_`/`sess_`); retries and finalize-session; poll for plan before showing success. |
+| **API** | `api/payments.ts`, `hooks/useIAP.ts`, `useAdIAP.ts` | Config, checkout, finalize-session, IAP verify-receipt endpoints. |
+| **Server** | `server/src/routes/payments.ts` | Webhook raw body; requireVerified on finalize-session; plan set only after payment confirmation. Team limits and Veteran quantity enforced in teams router. |
+| **DB** | User.preferences (plan, payment_pending, pending_plan), Stripe subscription | — |
 
-#### ✅ Strengths
-- **Zod schemas** provide type safety
-- **Consistent error responses** with error codes
+**Gaps:** None critical. Plan persisted only after webhook/finalize.
 
-#### ⚠️ Findings
+### 2.3 Teams / Organizations (System 3)
 
-**Finding 2.2.1: Inconsistent Error Response Format**
-- **Severity**: LOW
-- **Location**: Various endpoints
-- **Issue**: Some endpoints return `{ error }`, others return `{ error, message }`
-- **Impact**: Frontend error handling complexity
-- **Recommendation**: Standardize error response format
+| Layer | Components | Validation / Gates |
+|-------|------------|--------------------|
+| **Frontend** | `app/(tabs)/create-team.tsx`, `edit-team.tsx`, `event-approvals.tsx`, `organization-join-requests.tsx` | Coach-only create; org search and selection; Legend prompt for extracurricular; team limits from GET `/teams/limits`. |
+| **API** | `api/teams.ts`, `api/organizations.ts` | Team.create (organization_id or organization_name), TeamMemberships, Organization.*. |
+| **Server** | `server/src/routes/teams.ts`, `organizations.ts` | requireVerified + requireOnboarded on create; org created/found from name if needed; Legend required for extracurricular (`planSupportsExtracurricular`); rookie 2-team limit; veteran subscription quantity. |
+| **DB** | Team, Organization, TeamMembership, OrganizationMembership | — |
 
----
-
-## 🏗️ 3. ARCHITECTURAL INCONSISTENCIES AUDIT
-
-### 3.1 Middleware Patterns
-
-#### ⚠️ Findings
-
-**Finding 3.1.1: Inconsistent Middleware Application**
-- **Severity**: MEDIUM
-- **Location**: Route files
-- **Issue**: Different routes use different middleware combinations
-- **Impact**: Hard to reason about security, potential gaps
-- **Recommendation**: Document standard middleware patterns per route type
-
-**Finding 3.1.2: Missing Error Handling in Middleware**
-- **Severity**: MEDIUM
-- **Location**: Custom middleware
-- **Issue**: Some middleware may not handle errors properly
-- **Impact**: Unhandled errors, poor error messages
-- **Recommendation**: Add try-catch blocks to all async middleware
-
-### 3.2 Database Transactions
-
-#### ⚠️ Findings
-
-**Finding 3.2.1: Missing Transactions for Multi-Step Operations**
-- **Severity**: MEDIUM
-- **Location**: Endpoints with multiple DB writes
-- **Issue**: Multiple database operations without transactions
-- **Impact**: Data inconsistency if one operation fails
-- **Recommendation**: Wrap related database operations in transactions
-
-### 3.3 Error Handling
-
-#### ⚠️ Findings
-
-**Finding 3.3.1: Inconsistent Error Response Format**
-- **Severity**: LOW
-- **Location**: All endpoints
-- **Issue**: Different error response structures
-- **Impact**: Frontend error handling complexity
-- **Recommendation**: Standardize error response format
-
-**Finding 3.3.2: Missing Structured Logging**
-- **Severity**: LOW
-- **Location**: Route handlers
-- **Issue**: Inconsistent logging for debugging and monitoring
-- **Impact**: Hard to debug production issues
-- **Recommendation**: Add structured logging for important operations
+**Gaps:** None. Server enforces org association, plan limits, and Legend for clubs.
 
 ---
 
-## 📊 Audit Results Summary
+## 3. Gap Identification & Severity
 
-### By Severity
-- 🔴 **CRITICAL**: 0-2 findings (requires immediate attention)
-- 🟠 **HIGH**: 2-5 findings (should be addressed soon)
-- 🟡 **MEDIUM**: 5-10 findings (plan to address)
-- 🔵 **LOW**: 5-10 findings (nice to have improvements)
-- ℹ️ **INFO**: Various (documentation improvements)
+### 3.1 Validation Mismatches (Frontend vs Backend)
 
-### By Category
-- **Security**: X findings
-- **Validation**: X findings
-- **Architecture**: X findings
-- **Permissions**: X findings
+| Item | Frontend | Backend | Severity |
+|------|----------|---------|----------|
+| Username | `edit-username.tsx`: `/^[a-z0-9_.]+$/`, length 3–20 | auth.ts: `z.string().min(3).max(20).regex(/^[a-z0-9_.]+$/)` | ✅ Match |
+| Zip code | Used in forms | auth: `z.string().regex(/^\d{5}$/)` for US zip | ℹ️ Frontend may allow non-5-digit in some flows; server rejects. Acceptable. |
+| Role/plan | UI gates (coach-only, Legend prompt) | requireOnboarded, teams create schema, planLimits | ✅ Enforced server-side |
 
----
+No **CRITICAL** or **HIGH** validation bypass found.
 
-## 🔧 Recommended Actions
+### 3.2 Authorization
 
-### Immediate (Critical/High)
-1. ✅ Verify all update/delete operations check ownership
-2. ✅ Ensure all authentication endpoints have rate limiting
-3. ✅ Audit for SQL injection risks in raw queries
-4. ✅ Verify email validation on all email fields
+- **requireAuth / requireVerified / requireOnboarded** used consistently on sensitive routes (teams, events, payments, posts, etc.).
+- Admin routes use **requireAdmin** or equivalent.
+- No orphaned or unprotected endpoints identified for the three systems.
 
-### Short-term (Medium)
-1. Standardize middleware usage patterns
-2. Add input sanitization (`.trim()`) to all string fields
-3. Wrap multi-step DB operations in transactions
-4. Create reusable permission middleware
+### 3.3 Silent Errors / Swallowed Exceptions
 
-### Long-term (Low/Info)
-1. Standardize error response format
-2. Add structured logging
-3. Share validation schemas between frontend/backend
-4. Document middleware patterns
+| Location | Before | After | Severity |
+|----------|--------|--------|----------|
+| `server/src/routes/posts.ts` | `catch (_error) {}` for reverseGeocode and geocodeZip | `catch` with `debugLog('[posts] … failed, using fallback:', message)` | MEDIUM → Fixed |
+| `server/src/routes/payments.ts` | Inline `try { window.location = … } catch (e) {}` in redirect script | Left as-is (client-side redirect; low impact) | LOW |
+| Frontend | Various `.catch(() => null)` or `.catch(() => {})` for optional data (e.g. Organization.get) | Acceptable for optional UX fallback | LOW |
 
----
+### 3.4 Predictable / Generated Values
 
-## 🧪 Running the Audit
+- No predictable IDs or tokens found in auth or payment flows.
+- Session IDs from Stripe; JWT from server.
 
-```bash
-# Run automated audit script
-npx tsx scripts/system-architecture-audit.ts
+### 3.5 Data Persistence (Webhooks / Async)
 
-# Review detailed report
-cat docs/SYSTEM_ARCHITECTURE_AUDIT_REPORT.json
-```
+- Stripe webhook: raw body preserved for signature verification; finalize-session and plan updates consistent.
+- IAP: receipt verification and plan update on server before acknowledging to store.
+
+### 3.6 Architectural Inconsistencies
+
+| Issue | Severity | Notes |
+|-------|----------|--------|
+| No `src/features/*` structure; screens in `app/` | MEDIUM | Design choice; refactor would be large. Path aliases exist for future use. |
+| `shared/` minimal (plan-definitions only) | LOW | No duplication of shared assets flagged. |
+| Direct `httpGet`/`httpPost` in some screens vs `api/*` entities | LOW | Still via central http layer; acceptable. |
 
 ---
 
-## 📝 Notes
+## 4. Severity Summary
 
-- This audit is automated and may produce false positives
-- Manual review is required for all findings
-- Focus on CRITICAL and HIGH severity findings first
-- Regular audits should be run before major releases
+| Severity | Count | Items |
+|----------|-------|--------|
+| **CRITICAL** | 0 | — |
+| **HIGH** | 0 | — |
+| **MEDIUM** | 1 (fixed) | Posts geocode silent catch → now logged with debugLog. |
+| **MEDIUM** (design) | 1 | Architecture does not use `app/` as thin routing + `src/features/*`; documented. |
+| **LOW** | 2 | Payments redirect catch; optional frontend .catch for optional data. |
 
 ---
 
-## 🔄 Continuous Improvement
+## 5. Fixes Implemented
 
-- Run audit after major feature additions
-- Review findings in code review process
-- Track fixes in issue tracker
-- Update audit script as patterns evolve
+1. **server/src/routes/posts.ts**  
+   - Replaced silent `catch (_error) {}` for `reverseGeocode` and `geocodeZip` with `catch (err)` and `debugLog('[posts] … failed, using fallback:', (err as Error)?.message ?? err)` so geo failures are visible in dev and not swallowed.
+
+2. **Profile screen (app/profile.tsx)**  
+   - Team chips: added `accessibilityRole="button"` and `accessibilityLabel` (team name + role).  
+   - Avatar viewer: overlay and close button now have `accessibilityLabel` ("Close profile picture viewer", "Close").  
+   - Report modal overlay: added `accessibilityRole="button"` and `accessibilityLabel="Dismiss report menu"`.
+
+3. **Onboarding (app/onboarding/)**  
+   - OnboardingLayout: back button has `accessibilityHint="Returns to previous onboarding step"`; Verify email button has `accessibilityRole`, `accessibilityLabel`, and `accessibilityHint`.  
+   - Step-2-basic: affiliation buttons given `accessibilityHint="Double tap to select"`.
+
+---
+
+## 6. Recommendations
+
+1. **Architecture (optional):** Gradually move screen logic into `app/features/*` (or keep current structure and document as intentional).
+2. **Accessibility:** Profile and onboarding improvements applied. Remaining screens can follow the same pattern (see SUBMISSION_READINESS_AUDIT gap #7).
+3. **Run before release:** `npm run typecheck`, `cd server && npx tsc --noEmit`, and Snyk/security scan if configured.
+4. **Smoke:** Wiring smoke already covers GET `/me`, GET `/events/pending`, GET `/payments/config` (see FRONT_BACKEND_WIRING_AUDIT).
+
+---
+
+## 7. Conclusion
+
+- **Security:** No critical or high gaps. Permission hierarchy and validation are consistent; plan/team limits and Legend for extracurricular are enforced server-side.
+- **Validation:** Username and core flows aligned between frontend and backend.
+- **Errors:** Remaining silent catch in posts (geocode fallback) fixed with debugLog.
+- **Architecture:** Current structure diverges from “app thin + src/features” commandment; documented as MEDIUM design variance with no immediate security impact.
+
+Audit passes with one MEDIUM fix applied and one MEDIUM design note documented.

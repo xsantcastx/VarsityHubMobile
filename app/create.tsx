@@ -59,7 +59,7 @@ export default function CreateScreen() {
         <View style={[styles.sheet, { backgroundColor: Colors[colorScheme].background, alignItems: 'center', paddingVertical: 32 }]}>
           <MaterialIcons name="error-outline" size={40} color={Colors[colorScheme].mutedText} />
           <Text style={{ color: Colors[colorScheme].mutedText, marginTop: 8, fontSize: 15 }}>{error}</Text>
-          <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border, marginTop: 16, width: '100%' }]} onPress={safeBack}>
+          <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border, marginTop: 16, width: '100%' }]} onPress={safeBack} accessibilityRole="button" accessibilityLabel="Close" accessibilityHint="Double tap to close">
             <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>Close</Text>
           </Pressable>
         </View>
@@ -83,31 +83,31 @@ export default function CreateScreen() {
             marginBottom: 4 
           }}>Verify your email to enable actions below.</Text>
         ) : null}
-        <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/create-post')}>
+        <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/create-post')} accessibilityRole="button" accessibilityLabel="Create Post" accessibilityHint="Double tap to create a new post">
           <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>Create Post</Text>
         </Pressable>
-        <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/create-post?type=highlight')}>
+        <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/create-post?type=highlight')} accessibilityRole="button" accessibilityLabel="Share Highlight" accessibilityHint="Double tap to share a video highlight">
           <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>Share Highlight</Text>
         </Pressable>
         {/* Team creation - APPROVED COACH ONLY (pending coaches are blocked by backend requireOnboarded) */}
         {isApprovedCoach && (
-          <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/create-team')}>
+          <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/create-team')} accessibilityRole="button" accessibilityLabel="Create Team" accessibilityHint="Double tap to create a new team">
             <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>Create Team</Text>
           </Pressable>
         )}
         {/* Event creation - ALL USERS (fans pitch, approved coaches auto-approve) */}
-        <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/create-fan-event')}>
+        <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/create-fan-event')} accessibilityRole="button" accessibilityLabel={isApprovedCoach ? 'Create Event' : 'Pitch Event'} accessibilityHint="Double tap to create or pitch an event">
           <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>
             {isApprovedCoach ? 'Create Event' : 'Pitch Event'}
           </Text>
         </Pressable>
-        <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/submit-ad')}>
+        <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/submit-ad')} accessibilityRole="button" accessibilityLabel="Submit Ad" accessibilityHint="Double tap to submit an advertisement">
           <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>Submit Ad</Text>
         </Pressable>
-        <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/my-ads')}>
+        <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/my-ads')} accessibilityRole="button" accessibilityLabel="My Ads" accessibilityHint="Double tap to view your ads">
           <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>My Ads</Text>
         </Pressable>
-        <Pressable style={[styles.item, styles.cancel, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]} onPress={safeBack}>
+        <Pressable style={[styles.item, styles.cancel, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]} onPress={safeBack} accessibilityRole="button" accessibilityLabel="Cancel" accessibilityHint="Double tap to close Create menu">
           <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>Cancel</Text>
         </Pressable>
       </View>

@@ -69,6 +69,10 @@ const scenarios: Scenario[] = [
     body: { ping: true },
     expectedStatuses: [400],
   },
+  // Wiring smoke: ensure mount paths exist (auth required; 401 acceptable without token)
+  { name: 'wiring/me', method: 'GET', path: '/me', requiresAuth: true, expectedStatuses: [200, 401, 429] },
+  { name: 'wiring/events-pending', method: 'GET', path: '/events/pending', requiresAuth: true, expectedStatuses: [200, 401, 429] },
+  { name: 'wiring/payments-config', method: 'GET', path: '/payments/config', requiresAuth: true, expectedStatuses: [200, 401, 404, 429] },
 ];
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));

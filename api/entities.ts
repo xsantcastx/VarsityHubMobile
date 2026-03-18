@@ -10,3 +10,4 @@ export { Team, TeamMemberships, TeamInvites } from './teams';
 export { Notification } from './notifications';
 export { Payments, Subscriptions } from './payments';
 export { Report, Support, Advertisement, Search, Highlights } from './misc';
+export { GroupChat } from './groupChats';

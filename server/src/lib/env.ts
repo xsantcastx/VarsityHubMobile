@@ -44,6 +44,8 @@ const envSchema = z.object({
   REDIS_URL: z.string().optional().transform(toOptional),
   SENTRY_DSN: z.string().optional().transform(toOptional),
   UPLOADS_PUBLIC: z.string().optional(),
+  /** iOS in-app purchase receipt verification (App Store Connect → App → App-Specific Shared Secret) */
+  APPLE_IAP_SHARED_SECRET: z.string().optional().transform(toOptional),
 });
 
 const parsed = envSchema.safeParse(process.env);

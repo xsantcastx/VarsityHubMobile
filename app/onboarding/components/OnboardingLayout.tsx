@@ -93,6 +93,7 @@ export default function OnboardingLayout({
             hitSlop={8}
             accessibilityLabel="Go back"
             accessibilityRole="button"
+            accessibilityHint="Returns to previous onboarding step"
           >
             <MaterialIcons name="chevron-left" size={24} color={colors.text} />
           </Pressable>
@@ -105,7 +106,7 @@ export default function OnboardingLayout({
         </Text>
         
         {emailVerified === false && onVerifyEmail ? (
-          <Pressable onPress={onVerifyEmail} style={styles.verifyButton} hitSlop={8}>
+          <Pressable onPress={onVerifyEmail} style={styles.verifyButton} hitSlop={8} accessibilityRole="button" accessibilityLabel="Verify email" accessibilityHint="Send verification email">
             <MaterialIcons name="mail-outline" size={18} color="#EF4444" />
             <Text style={styles.verifyButtonText}>Verify</Text>
           </Pressable>

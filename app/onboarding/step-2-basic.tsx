@@ -351,6 +351,7 @@ export default function Step2Basic() {
                 onPress={() => setAffiliation(option.value as Affiliation)}
                 accessibilityLabel={`${option.label} affiliation`}
                 accessibilityRole="button"
+                accessibilityHint="Double tap to select"
               >
                 <Text style={styles.affiliationIcon}>{option.icon}</Text>
                 <Text style={[

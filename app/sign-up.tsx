@@ -235,6 +235,8 @@ export default function SignUpScreen() {
             activeOpacity={0.7}
             accessibilityRole="checkbox"
             accessibilityState={{ checked: agreedToTerms }}
+            accessibilityLabel="I agree to the Terms of Service and Privacy Policy"
+            accessibilityHint="Double tap to toggle"
           >
             <Ionicons
               name={agreedToTerms ? 'checkbox' : 'checkbox-outline'}
@@ -266,6 +268,8 @@ export default function SignUpScreen() {
             activeOpacity={0.7}
             accessibilityRole="checkbox"
             accessibilityState={{ checked: confirmedAge }}
+            accessibilityLabel="I confirm I am at least 13 years old"
+            accessibilityHint="Double tap to toggle"
           >
             <Ionicons
               name={confirmedAge ? 'checkbox' : 'checkbox-outline'}
@@ -279,7 +283,7 @@ export default function SignUpScreen() {
 
           {/* Apple Sign Up Option (iOS only) */}
           {Platform.OS === 'ios' ? (
-            <View pointerEvents={(!agreedToTerms || !confirmedAge) ? 'none' : 'auto'} style={(!agreedToTerms || !confirmedAge) ? styles.buttonDisabled : undefined}>
+            <View pointerEvents={(!agreedToTerms || !confirmedAge) ? 'none' : 'auto'} style={(!agreedToTerms || !confirmedAge) ? styles.buttonDisabled : undefined} accessibilityLabel="Sign up with Apple" accessibilityRole="button" accessibilityHint="Double tap to create an account with your Apple ID">
               <AppleAuthenticationButton
                 onPress={handleAppleSignUp}
                 buttonType={AppleAuthenticationButtonType.SIGN_UP}
@@ -297,6 +301,8 @@ export default function SignUpScreen() {
               onPress={handleGoogleSignUp}
               disabled={googleLoading || !agreedToTerms || !confirmedAge}
               accessibilityRole="button"
+              accessibilityLabel="Continue with Google"
+              accessibilityHint="Double tap to create an account with your Google account"
             >
               <Ionicons name="logo-google" size={20} color="#4285F4" style={styles.googleIcon} />
               {googleLoading ? (
@@ -326,7 +332,7 @@ export default function SignUpScreen() {
           </View>
 
           {/* Email Sign Up Option */}
-          <Button onPress={() => setShowEmailForm(true)} variant="outline" disabled={!agreedToTerms || !confirmedAge}>
+          <Button onPress={() => setShowEmailForm(true)} variant="outline" disabled={!agreedToTerms || !confirmedAge} accessibilityLabel="Sign up with Email" accessibilityRole="button" accessibilityHint="Double tap to enter your email and password">
             <MaterialIcons name="mail" size={16} color={Colors[colorScheme].mutedText} style={{ marginRight: 8 }} />
             <Text style={{ color: Colors[colorScheme].text, fontSize: 16, fontWeight: '600' }}>Sign up with Email</Text>
           </Button>
@@ -334,14 +340,14 @@ export default function SignUpScreen() {
         ) : (
           <>
           {/* Back Button */}
-          <Pressable style={styles.backButton} onPress={() => setShowEmailForm(false)}>
+          <Pressable style={styles.backButton} onPress={() => setShowEmailForm(false)} accessibilityRole="button" accessibilityLabel="Back to sign up options" accessibilityHint="Double tap to return to Apple and Google options">
             <MaterialIcons name="arrow-back" size={20} color={Colors[colorScheme].mutedText} />
             <Text style={[styles.backText, { color: Colors[colorScheme].mutedText }]}>Back to options</Text>
           </Pressable>
 
           {/* Email Form */}
-          <Input placeholder="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" style={{ marginBottom: 10 }} />
-          <Input placeholder="Password" value={password} onChangeText={handlePasswordChange} secureTextEntry />
+          <Input placeholder="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" style={{ marginBottom: 10 }} accessibilityLabel="Email" accessibilityHint="Enter your email address" />
+          <Input placeholder="Password" value={password} onChangeText={handlePasswordChange} secureTextEntry accessibilityLabel="Password" accessibilityHint="Enter at least 8 characters with one letter and one number" />
           <Text style={{ fontSize: 11, color: Colors[colorScheme].mutedText, marginTop: 4 }}>
             Password must be at least 8 characters
           </Text>
@@ -384,6 +390,8 @@ export default function SignUpScreen() {
             activeOpacity={0.7}
             accessibilityRole="checkbox"
             accessibilityState={{ checked: agreedToTerms }}
+            accessibilityLabel="I agree to the Terms of Service and Privacy Policy"
+            accessibilityHint="Double tap to toggle"
           >
             <Ionicons
               name={agreedToTerms ? 'checkbox' : 'checkbox-outline'}
@@ -415,6 +423,8 @@ export default function SignUpScreen() {
             activeOpacity={0.7}
             accessibilityRole="checkbox"
             accessibilityState={{ checked: confirmedAge }}
+            accessibilityLabel="I confirm I am at least 13 years old"
+            accessibilityHint="Double tap to toggle"
           >
             <Ionicons
               name={confirmedAge ? 'checkbox' : 'checkbox-outline'}
@@ -426,7 +436,7 @@ export default function SignUpScreen() {
             </Text>
           </TouchableOpacity>
 
-          <Button onPress={onSubmit} disabled={loading || !agreedToTerms || !confirmedAge}>
+          <Button onPress={onSubmit} disabled={loading || !agreedToTerms || !confirmedAge} accessibilityLabel={loading ? 'Creating account' : 'Create account'} accessibilityRole="button" accessibilityHint="Double tap to sign up with email and password">
             {loading ? (
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <ActivityIndicator size="small" color="white" />
@@ -439,7 +449,7 @@ export default function SignUpScreen() {
           </>
         )}
 
-        <Pressable style={{ marginTop: 24, alignItems: 'center' }} onPress={() => void router.replace('/sign-in')}>
+        <Pressable style={{ marginTop: 24, alignItems: 'center' }} onPress={() => void router.replace('/sign-in')} accessibilityRole="button" accessibilityLabel="Already have an account? Sign in" accessibilityHint="Double tap to go to sign in">
           <Text style={[styles.signInLink, { color: Colors[colorScheme].tint }]}>Already have an account? Sign in</Text>
         </Pressable>
       </KeyboardAwareScreen>

@@ -913,7 +913,11 @@ authRouter.get('/me', requireAuth as any, async (req: AuthedRequest, res) => {
   // Admins always skip onboarding (override DB value)
   if (is_admin) prefs.onboarding_completed = true;
   const sanitized = sanitizeUser(user);
-  return res.json({ ...sanitized, ...(is_admin ? { role: 'admin' } : {}), preferences: prefs, is_admin });
+  // auth_provider: so app can show correct "Signed in with Apple/Google" and handle linked accounts (one person, multiple logins)
+  const hasApple = !!(user as any).apple_id;
+  const hasGoogle = !!(user as any).google_id;
+  const auth_provider = hasApple && hasGoogle ? 'apple,google' : hasApple ? 'apple' : hasGoogle ? 'google' : null;
+  return res.json({ ...sanitized, ...(is_admin ? { role: 'admin' } : {}), preferences: prefs, is_admin, auth_provider });
 });
 
 // Lightweight subscription status (no Stripe calls)

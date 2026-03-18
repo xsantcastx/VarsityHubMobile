@@ -57,7 +57,22 @@ export async function loadToken(): Promise<string | null> {
   return t;
 }
 
+/** Clear tokens locally only (no server call). Use before OAuth so the new provider’s token is the only one in use. */
 export const auth = {
+  async clearTokensOnly() {
+    clearAuthToken();
+    try {
+      if (Platform.OS === 'web') {
+        window.localStorage.removeItem(TOKEN_KEY);
+        window.localStorage.removeItem(REFRESH_TOKEN_KEY);
+      } else {
+        await SecureStore.deleteItemAsync(TOKEN_KEY);
+        await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
+      }
+    } catch (error) {
+      if (__DEV__) console.warn('[auth] Failed to clear tokens from storage:', error);
+    }
+  },
   async register(email: string, password: string, display_name?: string) {
     const res = await httpPostLongTimeout('/auth/register', { email, password, display_name });
     if ((res as any)?.access_token) await saveToken((res as any).access_token);

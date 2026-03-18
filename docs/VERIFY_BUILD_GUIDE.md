@@ -180,6 +180,17 @@ The app tracks versions in:
    npm run audit:app
    ```
 
+## Verifying which commit EAS built (e.g. ac02e53)
+
+When you run `eas build` from your machine, EAS builds your **local** project. To confirm the build used a specific commit (e.g. `ac02e53`):
+
+1. **Before building:** In the project directory run `git log -1 --oneline`. The hash shown is what EAS will use (e.g. `ac02e53 fix: 10 bug fixes...`).
+2. **After the build:** In [Expo dashboard](https://expo.dev) → your project → the build → **View build log**. Search for the commit hash (e.g. `ac02e53`) or for the phrase "commit" / "git" in the "Prepare project" or similar step. The log will show which revision was built.
+
+So: **build only after your tree is at the commit you want** (e.g. `git checkout ac02e53` or `git pull` so `main` is at ac02e53), then check the EAS build log to confirm that commit.
+
+---
+
 ## Quick Reference
 
 | Command | Purpose |
@@ -190,3 +201,4 @@ The app tracks versions in:
 | `npm run dev:rebuild` | Rebuild dev client with latest code |
 | `git pull` | Get latest code from remote |
 | `npm install` | Update dependencies |
+| `git log -1 --oneline` | See current commit (what EAS will build from) |

@@ -39,6 +39,7 @@ Fix any **errors** from these before building. Warnings are acceptable if you’
 | **Sentry DSN** | `eas.json` production env | Optional but recommended; production profile has it. |
 | **App Store Connect App ID** | `eas.json` → submit.production.ios.ascAppId | Must match the app in App Store Connect (`6758405187` in eas.json). |
 | **Apple ID for submit** | `eas.json` → submit.production.ios.appleId | Used for `eas submit`. |
+| **Apple IAP shared secret** | Railway env `APPLE_IAP_SHARED_SECRET` | Required for iOS in-app purchase receipt verification. From App Store Connect → App → App Information → App-Specific Shared Secret. |
 
 ---
 

@@ -1,6 +1,7 @@
 # VarsityHub Mobile — Codebase Map
 **Last updated:** 2026-03-18
 **Purpose:** Session briefing document for AI assistants. Read this before making any changes.
+**Related docs:** `docs/FRONT_BACKEND_WIRING_AUDIT.md`, `docs/SYSTEM_ARCHITECTURE_AUDIT.md`
 
 ---
 
@@ -45,20 +46,16 @@ VarsityHubMobile/
 │   ├── verify.tsx              # Email verification landing
 │   ├── admin-users.tsx         # Admin: user management
 │   ├── admin-ads.tsx           # Admin: ad management
-│   ├── onboarding/             # Multi-step onboarding flow
+│   ├── onboarding/             # 3-step onboarding (see onboardingReducer.ts)
 │   │   ├── _layout.tsx
-│   │   ├── index.tsx
-│   │   ├── step-1-role.tsx     # Select Fan or Coach
-│   │   ├── step-2-basic.tsx    # Username, DOB, zip, affiliation
-│   │   ├── step-3-plan.tsx     # Plan selection (Rookie/Veteran/Legend)
-│   │   ├── step-4-organization.tsx # Organization setup (coach only)
-│   │   ├── step-5-team.tsx      # Team creation (coach only)
-│   │   ├── step-6-authorized-users.tsx # Add team staff (coach only)
-│   │   ├── step-7-profile.tsx  # Avatar, bio
-│   │   ├── step-8-interests.tsx # Sport interests (fan path)
-│   │   ├── step-9-features.tsx # Notifications/location toggles
-│   │   ├── step-10-confirmation.tsx # Final review and submit
-│   │   └── parental-consent.tsx # COPPA consent for under-18 users
+│   │   ├── index.tsx            # Redirects to next incomplete step
+│   │   ├── step-1-role.tsx      # Select Fan or Coach
+│   │   ├── step-2-basic.tsx     # Username, DOB, zip, affiliation
+│   │   ├── step-3-league.tsx    # Join or create league (coach only)
+│   │   ├── league-pending-approval.tsx # Coach created league — waiting approval
+│   │   ├── pending-approval.tsx # Coach requested to join — waiting approval
+│   │   ├── parental-consent.tsx # COPPA consent for under-18 users
+│   │   └── components/OnboardingLayout.tsx # Shared layout (back, step indicator, continue)
 │   ├── settings/               # Settings area
 │   │   └── index.tsx           # Settings screen (notifications, privacy, account)
 │   ├── game-details/           # Game detail sub-screens (separate folder)
@@ -69,8 +66,9 @@ VarsityHubMobile/
 ├── api/                        # Frontend API client layer
 │   ├── http.ts                 # Core fetch wrapper (auth headers, retry, 502 handling)
 │   ├── auth.ts                 # Auth functions (login, register, token storage)
-│   ├── entities.ts             # Re-exports from domain-specific modules (teams.ts, organizations.ts, posts.ts, etc.)
-│   ├── teams.ts                # Team, TeamMemberships, TeamInvites API
+│   ├── entities.ts             # Re-exports: User, Game, Post, Event, Message, Organization, Team, TeamMemberships, TeamInvites, Notification, Payments, Subscriptions, Report, Support, Advertisement, Search, Highlights, GroupChat
+│   ├── groupChats.ts            # GroupChat API (list, getMessages, sendMessage, markRead, create)
+│   ├── teams.ts                 # Team, TeamMemberships, TeamInvites API
 │   ├── organizations.ts        # Organization API (CRUD, invites, join requests, coaches)
 │   ├── posts.ts                # Post API (CRUD, comments, upvotes, bookmarks)
 │   ├── games.ts                # Game API (CRUD, votes, stories, scores)
@@ -210,31 +208,24 @@ VarsityHubMobile/
 All onboarding screens share `OnboardingContext` for state. Steps progress in sequence via `nextIncompleteStep()` from `onboardingReducer.ts`. State is persisted to AsyncStorage.
 
 #### `app/onboarding/step-1-role.tsx` — Select Role
-**Purpose:** User picks "Fan" or "Coach". This controls which subsequent steps appear.
-**API calls:** `User.me()` to check existing role, then `User.updatePreferences({ role })` → `PATCH /me/preferences`
+**Purpose:** User picks "Fan" or "Coach". Controls which steps follow (fans: 1→2→done; coaches: 1→2→3→pending).
+**API calls:** `User.me()` to check existing role; `User.updatePreferences({ role })` → `PATCH /me/preferences`
 **Navigation:** Next → `step-2-basic`
 
 #### `app/onboarding/step-2-basic.tsx` — Basic Info
-**Purpose:** Username, date of birth, zip code, affiliation (school/club/etc). Includes real-time username availability check.
+**Purpose:** Username, date of birth, zip code, affiliation. Real-time username availability.
 **API calls:**
 - `User.me()` → `GET /me`
 - `User.usernameAvailable(username)` → `GET /users/username-available?username=...`
 - `User.updatePreferences({...})` → `PATCH /me/preferences`
-**Navigation:** Next → depends on role (coaches go to step-3-plan, fans skip to step-7-profile)
+**Navigation:** Next → `step-3-league` (coach) or complete onboarding (fan)
 
-#### `app/onboarding/step-3-plan.tsx` — Plan Selection (Coach only)
-**Purpose:** Coach selects Rookie (free), Veteran ($1.00/mo per team over 2), or Legend ($20/yr). Veteran/Legend trigger Stripe checkout.
+#### `app/onboarding/step-3-league.tsx` — League (Coach only)
+**Purpose:** Coach joins existing organization (search + request) or creates new league. Plan/checkout and team creation can be part of this flow or post-approval.
 **API calls:**
-- `Payments.getConfig()` → `GET /payments/config`
-- `User.me()` → `GET /me`
-- `Subscriptions.createCheckout(plan, teamCount)` → `POST /payments/checkout`
-**Navigation:** On paid plan → opens `WebBrowser` for Stripe checkout; on Rookie → next step
-
-#### `app/onboarding/step-10-confirmation.tsx` — Final Confirmation
-**Purpose:** Review all onboarding data, call `complete-onboarding`, redirect to app.
-**API calls:**
-- `User.completeOnboarding(data)` → `POST /me/complete-onboarding`
-**Navigation:** On success → `router.replace('/(tabs)')`
+- `Organization.list(q)`, `Organization.checkDuplicate(name)`, `Organization.joinRequests` / `Organization.create`, etc.
+- `User.completeOnboarding(data)` → `POST /me/complete-onboarding` when finishing
+**Navigation:** On success → `league-pending-approval` or `pending-approval`; after approval → `/(tabs)`
 
 ---
 
@@ -280,7 +271,7 @@ The tab bar has **5 visible tabs**: Feed, Highlights, Create (center), Discover,
 **Navigation:** Game → `/game-detail?id=...`. Post → vertical feed. User → `/user-profile?userId=...`.
 
 #### `app/profile.tsx` — Profile (Main Tab + detail)
-**Purpose:** Shows own profile or another user's profile (based on `useLocalSearchParams` `userId`). Displays posts, team memberships, organizations, followers/following. Edit button for own profile.
+**Purpose:** Shows own profile or another user's profile (based on `useLocalSearchParams` `id`). Displays posts, replies, upvotes tabs; team chips; followers/following. Edit button for own profile.
 **API calls:**
 - `User.me()` → `GET /me`
 - `User.getPublic(id)` → `GET /users/:id`
@@ -290,8 +281,8 @@ The tab bar has **5 visible tabs**: Feed, Highlights, Create (center), Discover,
 - `User.unfollow(id)` → `DELETE /users/:id/follow`
 - `Team.list(undefined, true)` → `GET /teams?mine=1`
 - `Organization.mine()` → `GET /organizations/mine`
-**Key state:** `profile`, `posts`, `activeTab` ('posts'|'interactions'), `isFollowing`, `followers_count`, `following_count`
-**Navigation:** Edit → `/edit-profile`. Settings → `/settings`. Team → `/team-profile`. Post → `/post-detail`.
+**Key state:** `me`, `posts`, `replies`, `upvotes`, `activeTab` ('posts'|'replies'|'upvotes'), `isFollowing`, `followers_count`, `following_count`
+**Navigation:** Edit → `/edit-profile`. Settings → `/settings`. Team chip → `/team-profile`. Post → post viewer or `/post-detail`.
 
 ---
 
@@ -440,11 +431,11 @@ Server entry: `server/src/index.ts` → `server/src/app.ts`
 | POST | /auth/google | No (rate-limited) | Google OAuth login (id_token in body) | useGoogleAuth |
 | POST | /auth/apple | No (rate-limited) | Apple Sign In (identity_token in body) | useAppleAuth |
 | POST | /auth/refresh | No (rate-limited) | Refresh access token using refresh_token | api/auth.ts |
-| GET | /me | Required | Get current user profile | AuthProvider, everywhere |
+| GET | /me | Required | Get current user profile (includes `auth_provider`: 'apple'\|'google'\|'apple,google') | AuthProvider, everywhere |
 | PUT | /auth/me | Required | Update profile (display_name, bio, avatar_url, etc.) | edit-profile |
 | PATCH | /me | Required | Partial update of profile | profile screen |
 | PATCH | /me/preferences | Required | Update user preferences JSON blob | settings, onboarding |
-| POST | /me/complete-onboarding | Required | Finalize onboarding; sets onboarding_completed=true | step-10-confirmation |
+| POST | /me/complete-onboarding | Required | Finalize onboarding; sets onboarding_completed=true | step-3-league, league-pending-approval |
 | POST | /auth/verify/request | Required | Send email verification code | verify flow |
 | POST | /auth/verify/confirm | Required | Confirm email with code | verify flow |
 | POST | /auth/password/forgot | No (rate-limited) | Request password reset email | forgot-password |
@@ -566,10 +557,15 @@ Server entry: `server/src/index.ts` → `server/src/app.ts`
 | Method | Path | Auth | Description | Used by |
 |--------|------|------|-------------|---------|
 | POST | /events | Verified + onboarded + rate-limited | Create event (fan-created events go through approval workflow) | create-fan-event, team-hub |
-| GET | /events | Optional | Filter events (status, approval_status, event_type, q) | team-hub, feed |
+| GET | /events | Optional | Filter events (status, approval_status, event_type, q, zip, lat/lng/radius) | team-hub, feed |
 | GET | /events/my-rsvps | Required | Events user has RSVP'd to | rsvp-history |
+| GET | /events/my-events | Required | Events created by user | create-fan-event |
+| GET | /events/pending | Required | Pending events (for approval by org/league admin) | event-approvals |
 | GET | /events/:id | Optional | Get single event | event-detail, team-hub |
-| PATCH | /events/:id/cancel | Required | Cancel event | team-hub |
+| PUT | /events/:id/approve | Verified + onboarded | Approve event | event-approvals |
+| PUT | /events/:id/reject | Verified + onboarded | Reject event | event-approvals |
+| PATCH | /events/:id | Required + onboarded | Update event | team-hub |
+| PATCH | /events/:id/cancel | Required + onboarded | Cancel event | team-hub |
 | GET | /events/:id/rsvp | Optional | Check user's RSVP status for event | feed (RSVPBadge) |
 | POST | /events/:id/rsvp | Required | RSVP to event (going: true/false) | feed (RSVPBadge), event-detail |
 
@@ -591,14 +587,15 @@ Server entry: `server/src/index.ts` → `server/src/app.ts`
 | GET | /organizations/:id/join-requests | Required | List join requests (admin) | org admin |
 | POST | /organizations/invites/:id/accept | Required | Accept org invite | org invites |
 | POST | /organizations/invites/:id/decline | Required | Decline org invite | org invites |
-| POST | /organizations/join-requests/:id/approve | Required | Approve join request (admin) | org admin |
-| POST | /organizations/join-requests/:id/reject | Required | Reject join request (admin) | org admin |
+| POST | /organizations/join-requests/:requestId/approve | Required | Approve join request (admin) | organization-join-requests |
+| POST | /organizations/join-requests/:requestId/deny | Required | Deny join request (admin) | organization-join-requests (rejectJoinRequest) |
 | POST | /organizations/:id/transfer-ownership | Required (owner) | Transfer org ownership to another member | settings |
 
-### Ads Routes — `routes/ads.ts`
+### Ads Routes — `routes/ads.ts` (+ app-level route)
 
 | Method | Path | Auth | Description | Used by |
 |--------|------|------|-------------|---------|
+| POST | /ads/:id/submit-for-approval | Required + verified | Submit ad for approval (app-level route, registered before ads router) | submit-ad, my-ads |
 | GET | /ads | Optional | List ads (mine=1 for own ads, all=1 for admin) | my-ads, admin-ads |
 | POST | /ads | Required + verified | Create ad | submit-ad |
 | GET | /ads/for-feed | No | Get active ads for feed (by date/zip/radius) | feed, discover |
@@ -622,8 +619,9 @@ Server entry: `server/src/index.ts` → `server/src/app.ts`
 | POST | /payments/update-subscription-quantity | Required + verified + rate-limited | Update team count on subscription (validates actual team ownership) | billing |
 | GET | /payments/subscription/summary | Required | Current subscription status | billing, profile |
 | POST | /payments/webhook | No (Stripe sig) | Stripe webhook: handles checkout.session.completed, subscription events, payment_intent.succeeded/failed, ad slot hold releases | Stripe → server |
-| POST | /payments/apple/verify-receipt | Required + rate-limited | Apple in-app purchase receipt validation | iOS IAP |
-| POST | /payments/google/verify-purchase | Required + rate-limited | Google Play purchase validation | Android IAP |
+| POST | /payments/apple/verify-receipt | Required + rate-limited | Apple IAP subscription receipt validation | useIAP (iOS) |
+| POST | /payments/apple/verify-ad-receipt | Required + rate-limited | Apple IAP ad slot receipt validation | useAdIAP (iOS) |
+| POST | /payments/google/verify-purchase | Required + rate-limited | Google Play purchase validation | useIAP (Android) |
 
 ### Search Route — `routes/search.ts`
 
@@ -709,10 +707,11 @@ Server entry: `server/src/index.ts` → `server/src/app.ts`
 
 | Method | Path | Auth | Description | Used by |
 |--------|------|------|-------------|---------|
-| POST | /group-chats | Required | Create group chat | team management |
-| GET | /group-chats | Required | List group chats | team management |
-| POST | /group-chats/:id/messages | Required | Send message to group | group chat screen |
-| GET | /group-chats/:id/messages | Required | Get messages in group | group chat screen |
+| GET | /group-chats | Required | List group chats for current user | api/groupChats.ts GroupChat.list |
+| POST | /group-chats | Required | Create group chat (name, teamId?, memberIds) | api/groupChats.ts GroupChat.create |
+| GET | /group-chats/:chatId/messages | Required | Get messages for a group chat (last 100) | api/groupChats.ts GroupChat.getMessages |
+| POST | /group-chats/:chatId/messages | Required | Send message (content) | api/groupChats.ts GroupChat.sendMessage |
+| POST | /group-chats/:chatId/read | Required | Mark chat as read | api/groupChats.ts GroupChat.markRead |
 
 ---
 
@@ -886,6 +885,7 @@ Authentication operations with token storage in SecureStore (iOS/Android) or loc
 - `auth.loginWithApple(identityToken)`
 - `auth.me()` — loads token from storage first; auto-refreshes on 401
 - `auth.logout()` — clears both access and refresh tokens
+- `auth.clearTokensOnly()` — clear tokens locally only (no server call); use before OAuth to avoid mixed provider state
 - `auth.requestEmailVerification()`
 - `auth.verifyEmail(code)`
 - `auth.requestPasswordReset(email)`
@@ -894,7 +894,7 @@ Authentication operations with token storage in SecureStore (iOS/Android) or loc
 - `loadToken()` — exported for AuthProvider
 
 #### `api/entities.ts`
-All entity API call wrappers. Named exports: `User`, `Game`, `Post`, `Event`, `Message`, `Organization`, `Team`, `Support`, `Payments`, `Subscriptions`, `TeamMemberships`, `TeamInvites`, `Notification`, `Advertisement`, `Search`, `Highlights`.
+All entity API call wrappers. Named exports: `User`, `Game`, `Post`, `Event`, `Message`, `Organization`, `Team`, `TeamMemberships`, `TeamInvites`, `Notification`, `Payments`, `Subscriptions`, `Report`, `Support`, `Advertisement`, `Search`, `Highlights`, `GroupChat`.
 
 Each is a plain object with methods that delegate to `httpGet`/`httpPost`/etc. This is the primary import for all screens.
 
@@ -1208,11 +1208,10 @@ npm --prefix server run load:validate-lock
 - **Fix:** `server/src/routes/follows.ts` — swapped `prisma.teamMembership.findMany` for `prisma.teamFollow.findMany`. Response shape is now `{ id, name, description }` (no `role` — `TeamFollow` has none).
 - **Files changed:** `server/src/routes/follows.ts` only.
 
-### 🔴 OPEN — Accessibility Labels Incomplete
-- **Status:** Ongoing — medium priority before App Store submission
-- **Problem:** Many `Pressable`, list item, and form field components lack `accessibilityLabel` / `accessibilityHint`. Approximately 40 components have labels; the majority of interactive elements do not.
-- **Impact:** VoiceOver announces unlabeled elements generically ("button", "image"). Apple Accessibility guidelines require all interactive elements to have labels.
-- **Files:** Spread across all screen files; `utils/accessibility.ts` has helpers that are not being used consistently.
+### 🟡 IN PROGRESS — Accessibility Labels
+- **Status:** In progress — medium priority; improved 2026-03-18
+- **Done:** Tab bar, sign-in, sign-up, Create menu, profile (team chips, avatar viewer, report modal), onboarding (OnboardingLayout back/verify/continue, step-2 affiliation), feed (RSVP, notifications, messages, retry, map, promo, game cards, discover, highlights, close). Reset-password shows correct copy for OAuth/linked accounts using `auth_provider` from `/me`.
+- **Remaining:** Additional screens can follow the same pattern (accessibilityRole, accessibilityLabel, accessibilityHint). See `docs/SUBMISSION_READINESS_AUDIT.md` gap #7.
 
 ### ℹ️ BY DESIGN — Main Feed Tab Shows Games, Not Social Posts
 - **This is intentional product design, not a bug.**
@@ -1241,7 +1240,7 @@ npm --prefix server run load:validate-lock
 | `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` | `hooks/useGoogleAuth.ts` | Google OAuth web client | `.env`, `app.json extra` |
 | `EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID` | `hooks/useGoogleAuth.ts` | Google OAuth Expo client | `.env`, `app.json extra` |
 | `EXPO_PUBLIC_GOOGLE_FORCE_PROXY` | `hooks/useGoogleAuth.ts` | Force auth.expo.io proxy | `app.json extra` |
-| `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY` | `onboarding/step-3-plan.tsx` | Stripe publishable key | `.env`, `app.json extra` |
+| `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Stripe PaymentSheet (subscription-paywall, billing, create-team, ad-calendar) | Stripe publishable key | `.env`, `app.json extra` |
 | `EXPO_PUBLIC_ADMIN_EMAILS` | `context/AuthProvider.tsx` | Comma-separated admin emails | `app.json extra` |
 | `EXPO_PUBLIC_WEB_BASE_URL` | `utils/links.ts` | Web base URL for shareable links | `app.json extra` |
 | `EXPO_PUBLIC_EXPO_PROJECT_FULL_NAME` | `hooks/useGoogleAuth.ts` | Expo project name for OAuth redirect | `app.json extra` |
@@ -1282,6 +1281,7 @@ npm --prefix server run load:validate-lock
 | `STRIPE_PRICE_LEGEND` | Payments | Legend plan Stripe price ID | Railway, `.env` |
 | `STRIPE_PRICE_AD_WEEKDAY` | Payments | Ad weekday price ID | Railway, `.env` |
 | `STRIPE_PRICE_AD_WEEKEND` | Payments | Ad weekend price ID | Railway, `.env` |
+| `APPLE_IAP_SHARED_SECRET` | `server/src/routes/payments.ts` | iOS in-app purchase receipt verification (App Store Connect → App → App-Specific Shared Secret) | Railway, `.env` (optional; server warns if missing) |
 | `EMAIL_PROVIDER` | `server/src/lib/email.ts` | Email provider: `sendgrid` | Railway, `.env` |
 | `EMAIL_FROM` | Email | From address for emails | Railway, `.env` |
 | `CUSTOMER_SERVICE_EMAIL` | Email templates | Support email address | Railway, `.env` |

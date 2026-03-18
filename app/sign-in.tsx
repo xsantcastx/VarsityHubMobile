@@ -22,6 +22,7 @@ import { useAuth } from '@/context/AuthProvider';
 import { useAppleAuth } from '@/hooks/useAppleAuth';
 import { useGoogleAuth } from '@/hooks/useGoogleAuth';
 import { captureException } from '@/utils/sentry';
+import auth from '@/api/auth';
 import { Ionicons } from '@expo/vector-icons';
 import * as AppleAuthentication from 'expo-apple-authentication';
 
@@ -128,6 +129,8 @@ export default function SignInScreen() {
       return;
     }
     setError(null);
+    // Clear any existing session so the new token is the only one in use (prevents wrong-account after Apple/Google)
+    await auth.clearTokensOnly();
     try {
       const response: any = await signInWithGoogle();
 
@@ -179,6 +182,8 @@ export default function SignInScreen() {
       return;
     }
     setError(null);
+    // Clear any existing session so the new token is the only one in use (prevents wrong-account after Google/Apple)
+    await auth.clearTokensOnly();
     try {
       const response: any = await signInWithApple();
 
@@ -227,19 +232,20 @@ export default function SignInScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.root, { backgroundColor: palette.background }]} edges={['top', 'bottom']}>
+    <SafeAreaView style={[styles.root, { backgroundColor: palette.background, borderLeftWidth: 0, borderRightWidth: 0 }]} edges={['top', 'bottom']}>
       <Stack.Screen options={{ title: 'Sign In', headerShown: false }} />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.flex}
+        style={[styles.flex, { borderWidth: 0 }]}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
       >
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
+          style={{ borderWidth: 0 }}
         >
-          <View style={styles.header}>
+          <View style={[styles.header, { borderWidth: 0 }]}>
             <View style={[
               styles.logoContainer, 
               { 
@@ -249,6 +255,8 @@ export default function SignInScreen() {
                 shadowOffset: { width: 0, height: 4 },
                 shadowRadius: 12,
                 elevation: 6,
+                borderWidth: 2,
+                borderColor: palette.border,
               }
             ]}>
               <Image
@@ -262,7 +270,7 @@ export default function SignInScreen() {
             <Text style={[styles.subtitle, { color: palette.mutedText }]}>Sign in to keep your community in sync.</Text>
           </View>
 
-          <View style={[styles.card, { backgroundColor: palette.elevated, borderColor: palette.border }]}>
+          <View style={[styles.card, { backgroundColor: palette.elevated, borderColor: palette.border, borderWidth: 2 }]}>
             {error ? (
               <Text style={[styles.error, { color: palette.destructive }]}>{error}</Text>
             ) : null}
@@ -273,14 +281,14 @@ export default function SignInScreen() {
                 buttonType={AppleAuthenticationButtonType.SIGN_IN}
                 buttonStyle={colorScheme === 'dark' ? AppleAuthenticationButtonStyle.WHITE : AppleAuthenticationButtonStyle.BLACK}
                 cornerRadius={8}
-                style={{ width: '100%', height: 50, marginBottom: 0 }}
+                style={{ width: '100%', height: 50, marginBottom: 0, borderWidth: 2, borderColor: palette.border }}
                 accessibilityLabel="Sign in with Apple"
               />
             ) : null}
 
             {googleReady ? (
               <Pressable
-                style={[styles.googleButton, googleLoading && styles.buttonDisabled, { backgroundColor: palette.card, borderColor: palette.border }]}
+                style={[styles.googleButton, googleLoading && styles.buttonDisabled, { backgroundColor: palette.card, borderColor: palette.border, borderWidth: 2 }]}
                 onPress={handleGoogleLogin}
                 disabled={googleLoading}
                 accessibilityRole="button"
@@ -296,7 +304,7 @@ export default function SignInScreen() {
               </Pressable>
             ) : (
               <View
-                style={[styles.googleButton, styles.disabledGoogleButton, { backgroundColor: palette.surface, borderColor: palette.border }]}
+                style={[styles.googleButton, styles.disabledGoogleButton, { backgroundColor: palette.surface, borderColor: palette.border, borderWidth: 2 }]}
                 accessibilityRole="text"
                 accessibilityLabel="Google sign in not available"
               >
@@ -334,6 +342,7 @@ export default function SignInScreen() {
                   {
                     backgroundColor: palette.surface,
                     borderColor: palette.border,
+                    borderWidth: 2,
                     color: palette.text,
                   },
                 ]}
@@ -357,6 +366,7 @@ export default function SignInScreen() {
                   {
                     backgroundColor: palette.surface,
                     borderColor: palette.border,
+                    borderWidth: 2,
                     color: palette.text,
                   },
                 ]}
@@ -441,7 +451,7 @@ const styles = StyleSheet.create({
     maxWidth: 280,
   },
   card: {
-    borderWidth: 1,
+    borderWidth: 2,
     borderRadius: 20,
     padding: 20,
     marginBottom: 16,
@@ -452,7 +462,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'transparent', // Will be overridden with palette.card
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: 'transparent', // Will be overridden with palette.border
     borderRadius: 12,
     paddingVertical: 12,
