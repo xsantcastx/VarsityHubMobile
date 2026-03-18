@@ -303,7 +303,10 @@ async function uploadViaServer(
       if (err?.status === 401 && !refreshAttempted) {
         refreshAttempted = true;
         const refreshed = await auth.getToken();
-        if (refreshed) { headers.Authorization = `Bearer ${refreshed}`; continue; }
+        if (refreshed) {
+          headers.Authorization = `Bearer ${refreshed}`;
+          continue;
+        }
       }
       if (attempt < retries && (isNetwork || isTimeout)) {
         await new Promise((r) => setTimeout(r, backoffMs * Math.pow(2, attempt)));

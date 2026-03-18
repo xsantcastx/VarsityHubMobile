@@ -265,6 +265,7 @@ authRouter.post('/register', authLimiter, asyncHandler(async (req, res) => {
   const password_hash = await bcrypt.hash(password, 12);
   const code = crypto.randomBytes(4).toString('hex').toUpperCase(); // 8 hex chars = 4 billion possibilities
   debugLog(`[verify-code] [register] Verification code generated for ${sanitizedEmail}`);
+  if (process.env.NODE_ENV === 'development') console.log(`[verify-code] [register] Code generated: ${code} for ${sanitizedEmail}`);
   const exp = new Date(Date.now() + 30 * 60 * 1000);
   const userRole = role || 'fan';
 
@@ -290,10 +291,12 @@ authRouter.post('/register', authLimiter, asyncHandler(async (req, res) => {
     }
   });
   debugLog(`[verify-code] [register] Verification code stored for user ${user.id} (expires ${exp.toISOString()})`);
+  if (process.env.NODE_ENV === 'development') console.log(`[verify-code] [register] Code stored in DB for user ${user.id} (expires ${exp.toISOString()})`);
   const access_token = signJwt({ id: user.id });
   const { refresh_token } = await issueRefreshToken(user.id, req.get('user-agent'));
   try {
     debugLog(`[verify-code] [register] Sending verification email to ${email}`);
+    if (process.env.NODE_ENV === 'development') console.log(`[verify-code] [register] Calling sendVerificationEmail → to: ${email}`);
     const emailSend = sendVerificationEmail(email, code, display_name || sanitizedEmail.split('@')[0]);
     const EMAIL_TIMEOUT_MS = 5000;
     const timed = await Promise.race([
@@ -1488,11 +1491,14 @@ authRouter.post('/verify/request', requireAuth as any, verificationLimiter, asyn
 
   const code = crypto.randomBytes(4).toString('hex').toUpperCase(); // 8 hex chars = 4 billion possibilities
   debugLog(`[verify-code] [verify/request] Verification code generated for user ${user.id}`);
+  if (process.env.NODE_ENV === 'development') console.log(`[verify-code] [verify/request] Code generated: ${code} for user ${user.id} (${user.email})`);
   const exp = new Date(Date.now() + 30 * 60 * 1000);
   await prisma.user.update({ where: { id: user.id }, data: { email_verification_code: code, email_verification_expires: exp } });
   debugLog(`[verify-code] [verify/request] Verification code stored in DB (expires ${exp.toISOString()})`);
+  if (process.env.NODE_ENV === 'development') console.log(`[verify-code] [verify/request] Code stored in DB (expires ${exp.toISOString()})`);
   try {
     debugLog(`[verify-code] [verify/request] Sending verification email for user ${user.id}`);
+    if (process.env.NODE_ENV === 'development') console.log(`[verify-code] [verify/request] Calling sendVerificationEmail → to: ${user.email}`);
     const sent = await sendVerificationEmail(user.email, code, user.display_name || user.email.split('@')[0]);
     if (!sent) {
       console.error('[verify-code] [verify/request] sendVerificationEmail returned false — email was NOT sent (check SendGridProvider logs above for the specific error)');
