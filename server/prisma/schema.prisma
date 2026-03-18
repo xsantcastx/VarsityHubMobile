@@ -585,6 +585,7 @@ model Ad {
   status          AdStatus        @default(draft)
   payment_status  AdPaymentStatus @default(unpaid)
   admin_note      String?  // Note from admin when approving/rejecting
+  go_live_notified_at DateTime? // Set after go-live email sent to prevent duplicates
   created_at      DateTime @default(now())
   updated_at      DateTime @updatedAt
 

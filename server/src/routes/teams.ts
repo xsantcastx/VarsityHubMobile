@@ -733,7 +733,7 @@ if (process.env.NODE_ENV !== 'production') {
 
 // Enhanced create team for onboarding
 const createTeamSchema = z.object({
-  name: z.string().min(1).max(255),
+  name: z.string().min(2).max(100),
   description: z.string().max(1000).optional(),
   sport: z.string().max(100).optional(),
   club_type: z.enum(['sport', 'extracurricular']).optional(),

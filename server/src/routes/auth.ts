@@ -943,7 +943,7 @@ const updateMeSchema = z.object({
     }, { message: 'Avatar URL must be from an allowed domain (Cloudinary or VarsityHub CDN)' })
     .optional()
     .nullable(),
-  bio: z.string().max(1000).transform((val) => val === '' ? null : val).optional().nullable(),
+  bio: z.string().max(300).transform((val) => val === '' ? null : val).optional().nullable(),
   preferences: z.record(z.any()).optional(),
 });
 
@@ -1242,7 +1242,7 @@ const completeOnboardingSchema = z.object({
   // Core identity fields
   // Rookie is not a role
   role: z.enum(['fan', 'coach']).optional(),
-  username: z.string().min(3).max(20).optional(),
+  username: z.string().min(3).max(20).regex(/^[a-z0-9_.]+$/).optional(),
   display_name: z.string().optional(),
   affiliation: z.enum([
     'none',

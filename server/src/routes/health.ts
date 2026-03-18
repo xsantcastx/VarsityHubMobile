@@ -17,8 +17,13 @@ export const healthRouter = Router();
  * GET /health?include=payments - also returns payments config (fallback when /payments/config 404s)
  */
 healthRouter.get('/', asyncHandler(async (req: AuthedRequest, res) => {
-  // Always return full status: integrations are booleans only (no secrets).
-  // Enables verify-railway-env.sh to work without HEALTH_CHECK_SECRET or JWT.
+  // Only return detailed status if the caller provides the correct secret
+  const secret = process.env.HEALTH_CHECK_SECRET;
+  const provided = req.headers['x-health-check-secret'] as string | undefined;
+  if (!secret || !provided || provided !== secret) {
+    return res.json({ status: 'ok' });
+  }
+
   const missingEmailTemplates = getMissingEmailTemplates();
   const missingRecommendedTemplates = getMissingRecommendedTemplates();
   const emailService = getEmailService();

@@ -237,6 +237,16 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         }
 
         const me: any = await User.me();
+
+        // If user is banned, clear session and redirect to sign-in
+        if (me?.banned) {
+          setUser(null);
+          setSentryUser(null);
+          setPendingVerificationEmail(null);
+          try { await auth.logout(); } catch {}
+          return;
+        }
+
         const serverComplete = me?.preferences?.onboarding_completed === true;
 
         // Sync local onboarding flag BEFORE setUser to prevent routing race condition.

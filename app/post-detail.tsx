@@ -38,7 +38,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 
 const getSportCategory = (title?: string | null, content?: string | null) => {
-  const text = (title + ' ' + content || '').toLowerCase();
+  const text = ((title || '') + ' ' + (content || '')).toLowerCase();
   if (text.includes('football') || text.includes('nfl')) return { name: 'Football', icon: '🏈', color: '#8B5A2B' };
   if (text.includes('basketball') || text.includes('nba')) return { name: 'Basketball', icon: '🏀', color: '#FF6B35' };
   if (text.includes('baseball') || text.includes('mlb')) return { name: 'Baseball', icon: '⚾', color: '#2E8B57' };
@@ -700,7 +700,21 @@ export default function PostDetailScreen() {
     );
   }
   
-  if (!post) return null;
+  if (!post) {
+    return (
+      <SafeAreaView style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
+        <StatusBar barStyle={colorScheme === 'dark' ? "light-content" : "dark-content"} backgroundColor={Colors[colorScheme].background} />
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={styles.errorContainer}>
+          <Ionicons name="alert-circle" size={48} color={Colors[colorScheme].mutedText} />
+          <Text style={[styles.errorText, { color: Colors[colorScheme].text }]}>Post not found</Text>
+          <Pressable style={[styles.retryButton, { backgroundColor: Colors[colorScheme].surface }]} onPress={() => { safeGoBack(router); }}>
+            <Text style={[styles.retryButtonText, { color: Colors[colorScheme].text }]}>Go Back</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   const hasMultiplePosts = postIdsArray.length > 1;
   const currentIsImage = post.media_url && !post.media_url.match(/\.(mp4|mov|webm|m4v|avi)$/i);

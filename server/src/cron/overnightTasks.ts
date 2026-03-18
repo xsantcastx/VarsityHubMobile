@@ -124,16 +124,17 @@ export function startAdGoLiveCheck() {
     debugLog('[ad-lifecycle] Running daily ad lifecycle checks...');
 
     try {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const tomorrow = new Date(today);
-      tomorrow.setDate(tomorrow.getDate() + 1);
+      const now = new Date();
+      const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+      const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
 
       // 1. Go-live notifications: active+paid ads with their earliest reservation starting today
+      //    Filter out ads that have already been notified (go_live_notified_at is set)
       const adsGoingLive = await prisma.ad.findMany({
         where: {
           status: 'active',
           payment_status: 'paid',
+          go_live_notified_at: null,
           reservations: {
             some: {
               date: {
@@ -170,6 +171,11 @@ export function startAdGoLiveCheck() {
           live_until: lastDate ? lastDate.toISOString() : '',
           analytics_dashboard_url: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/ads/${ad.id}`,
           ad_preview_url: ad.banner_url || undefined,
+        });
+
+        await prisma.ad.update({
+          where: { id: ad.id },
+          data: { go_live_notified_at: new Date() },
         });
 
         debugLog(`[ad-lifecycle] Go-live notification sent for ad ${ad.id} (${ad.business_name})`);

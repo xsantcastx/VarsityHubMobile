@@ -40,6 +40,7 @@ export default function MessageThreadScreen() {
   const [safetyOpen, setSafetyOpen] = useState(false);
   const [restrictionModal, setRestrictionModal] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
   const [prefillApplied, setPrefillApplied] = useState(false);
+  const [sending, setSending] = useState(false);
   const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
 
   // Clear the prefill param once we've used it
@@ -145,14 +146,17 @@ export default function MessageThreadScreen() {
   }, []);
 
   const send = async () => {
+    if (sending) return;
     const content = text.trim();
     if (!content) return;
+    setSending(true);
 
     // Check DM restrictions before sending
     if (me && otherParticipant) {
       const restriction = checkDMRestriction(me, otherParticipant);
       if (!restriction.allowed && restriction.showWarning) {
         setRestrictionModal({ show: true, message: restriction.warningMessage || 'Cannot send message' });
+        setSending(false);
         return;
       }
     }
@@ -199,6 +203,8 @@ export default function MessageThreadScreen() {
       // Remove optimistic message on failure; preserve text so user can retry
       setMsgs((arr) => arr.filter((m) => m.id !== optimisticMsg.id));
       Alert.alert('Send Failed', 'Your message could not be sent. Please try again.');
+    } finally {
+      setSending(false);
     }
   };
 
@@ -362,8 +368,8 @@ export default function MessageThreadScreen() {
           />
           <Pressable
             onPress={send}
-            style={[styles.sendBtn, !text.trim() && styles.sendBtnDisabled]}
-            disabled={!text.trim()}
+            style={[styles.sendBtn, (!text.trim() || sending) && styles.sendBtnDisabled]}
+            disabled={!text.trim() || sending}
           >
             <MaterialIcons name="send" size={18} color="white" />
           </Pressable>

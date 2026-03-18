@@ -527,6 +527,9 @@ usersRouter.delete('/me', requireAuth as any, async (req: AuthedRequest, res) =>
         }
       });
 
+      // Delete refresh tokens
+      await tx.refreshToken.deleteMany({ where: { user_id: id } });
+
       // Delete user's posts
       await tx.post.deleteMany({ where: { author_id: id } });
 
@@ -587,7 +590,7 @@ usersRouter.get('/lookup', requireAuth as any, userLookupLimiter, asyncHandler(a
 
   const u = await prisma.user.findUnique({
     where: { email },
-    select: { id: true, email: true, display_name: true }
+    select: { id: true, display_name: true }
   });
 
   if (!u) return res.status(404).json({ error: 'Not found' });
@@ -906,7 +909,6 @@ usersRouter.get('/search/mentions', requireAuth as any, mentionsSearchLimiter as
       username: true,
       display_name: true,
       avatar_url: true,
-      email_verified: true,
       preferences: true,
     },
     take: limit,
@@ -923,7 +925,6 @@ usersRouter.get('/search/mentions', requireAuth as any, mentionsSearchLimiter as
       username: user.username || user.display_name || 'user',
       display_name: user.display_name || user.username || 'User',
       avatar_url: user.avatar_url,
-      email_verified: user.email_verified,
     }));
 
   res.json(safeUsers);

@@ -43,6 +43,7 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
   const [showReportMenu, setShowReportMenu] = useState(false);
   const [reportSubmitting, setReportSubmitting] = useState(false);
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [mediaError, setMediaError] = useState(false);
 
   // Cleanup delete timer on unmount to prevent memory leak
   useEffect(() => {
@@ -299,8 +300,13 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
       {/* Media section */}
       {(isImage || isVideo) ? (
         <View style={styles.mediaWrap}>
-          {isImage && mediaUrl ? (
-            <Image source={{ uri: optimizeImageUrl(mediaUrl, 600) }} style={styles.media} contentFit="cover" />
+          {isImage && mediaUrl && !mediaError ? (
+            <Image source={{ uri: optimizeImageUrl(mediaUrl, 600) }} style={styles.media} contentFit="cover" onError={() => setMediaError(true)} />
+          ) : isImage && mediaUrl && mediaError ? (
+            <View style={[styles.media, { backgroundColor: '#1e293b', alignItems: 'center', justifyContent: 'center' }]}>
+              <MaterialIcons name="broken-image" size={36} color="#94a3b8" />
+              <Text style={{ color: '#94a3b8', fontSize: 12, marginTop: 4 }}>Image unavailable</Text>
+            </View>
           ) : isVideo && previewUrl ? (
             <Image source={{ uri: optimizeImageUrl(previewUrl, 600) }} style={styles.media} contentFit="cover" />
           ) : isVideo && mediaUrl ? (

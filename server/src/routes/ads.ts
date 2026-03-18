@@ -178,7 +178,7 @@ export async function handleAdSubmitForApproval(req: AuthedRequest, res: Respons
   }
 }
 
-adsRouter.post('/:id/submit-for-approval', requireVerified as any, handleAdSubmitForApproval);
+adsRouter.post('/:id/submit-for-approval', requireVerified as any, requireOnboarded as any, handleAdSubmitForApproval);
 
 // List Ads. If mine=1, returns ads for the authenticated user. If contact_email is provided, returns by email.
 adsRouter.get('/', requireAuth as any, async (req: AuthedRequest, res) => {

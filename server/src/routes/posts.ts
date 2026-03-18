@@ -449,10 +449,15 @@ postsRouter.get('/trending', async (req: AuthedRequest, res) => {
   (postsRouter as any).handle(req, res, () => res.status(404).json({ error: 'Not found' }));
 });
 
-// Debug endpoint to check follow relationships
+// Debug endpoint to check follow relationships (admin only)
 postsRouter.get('/debug/follows', requireAuth, asyncHandler(async (req: AuthedRequest, res) => {
+  const isAdmin = await getIsAdmin(req as any);
+  if (!isAdmin) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
   const currentUserId = req.user!.id;
-  
+
   const follows = await prisma.follows.findMany({
     where: { follower_id: currentUserId },
     select: {

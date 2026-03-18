@@ -1,8 +1,17 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { prisma } from '../lib/prisma.js';
+import { validateContent } from '../lib/contentFilter.js';
+import { groupMessageLimiter } from '../middleware/rateLimiters.js';
 const groupChatsRouter = Router();
+
+const createGroupChatSchema = z.object({
+  name: z.string().min(1).max(100),
+  teamId: z.string().optional(),
+  memberIds: z.array(z.string()).min(1).max(200),
+});
 
 // Get all group chats for the current user
 groupChatsRouter.get('/', requireAuth as any, async (req: AuthedRequest, res) => {
@@ -109,7 +118,7 @@ groupChatsRouter.get('/:chatId/messages', requireAuth as any, async (req: Authed
 });
 
 // Send a message to a group chat
-groupChatsRouter.post('/:chatId/messages', requireAuth as any, async (req: AuthedRequest, res) => {
+groupChatsRouter.post('/:chatId/messages', requireAuth as any, groupMessageLimiter, async (req: AuthedRequest, res) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
@@ -119,6 +128,17 @@ groupChatsRouter.post('/:chatId/messages', requireAuth as any, async (req: Authe
     // SECURITY: Type validation for content (must be string)
     if (typeof content !== 'string' || !content.trim()) {
       return res.status(400).json({ error: 'Message content required' });
+    }
+
+    // SECURITY: Max length check
+    if (content.length > 5000) {
+      return res.status(400).json({ error: 'Message too long (max 5000 characters)' });
+    }
+
+    // SECURITY: Content filter
+    const filterResult = validateContent({ content });
+    if (!filterResult.valid) {
+      return res.status(400).json({ error: filterResult.error || 'Message contains inappropriate content' });
     }
 
     // Verify user is a member of this chat
@@ -187,18 +207,14 @@ groupChatsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) =
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
-    const { name, teamId, memberIds } = req.body;
+    const parsed = createGroupChatSchema.safeParse(req.body || {});
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
+    const { name, teamId, memberIds } = parsed.data;
 
-    // SECURITY: Type validation for name (must be string)
-    if (typeof name !== 'string' || !name.trim()) {
-      return res.status(400).json({ error: 'Chat name required' });
-    }
+    // Deduplicate and exclude creator
+    const uniqueMemberIds = [...new Set(memberIds)].filter(id => id !== req.user!.id);
 
-    if (!memberIds || !Array.isArray(memberIds) || memberIds.length === 0) {
-      return res.status(400).json({ error: 'At least one member required' });
-    }
-
-    // If teamId provided, verify user has permission (coach, manager, admin)
+    // If teamId provided, verify user has permission and all members belong to the team
     if (teamId) {
       const membership = await prisma.teamMembership.findFirst({
         where: {
@@ -213,6 +229,40 @@ groupChatsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) =
       if (!membership) {
         return res.status(403).json({ error: 'No permission to create team chat' });
       }
+
+      // Verify all memberIds are actual members of the team
+      const teamMembers = await prisma.teamMembership.findMany({
+        where: { team_id: teamId, user_id: { in: uniqueMemberIds } },
+        select: { user_id: true },
+      });
+      const validTeamUserIds = new Set(teamMembers.map(m => m.user_id));
+      const invalidIds = uniqueMemberIds.filter(id => !validTeamUserIds.has(id));
+      if (invalidIds.length > 0) {
+        return res.status(400).json({ error: 'Some members are not part of this team' });
+      }
+    } else {
+      // No teamId — verify all memberIds are real users
+      const existingUsers = await prisma.user.findMany({
+        where: { id: { in: uniqueMemberIds } },
+        select: { id: true },
+      });
+      if (existingUsers.length !== uniqueMemberIds.length) {
+        return res.status(400).json({ error: 'One or more member IDs are invalid' });
+      }
+
+      // Check none of the members have blocked the creator (or vice versa)
+      const blocks = await prisma.blockedUser.findMany({
+        where: {
+          OR: [
+            { blocker_id: req.user.id, blocked_id: { in: uniqueMemberIds } },
+            { blocker_id: { in: uniqueMemberIds }, blocked_id: req.user.id },
+          ],
+        },
+        select: { blocker_id: true, blocked_id: true },
+      });
+      if (blocks.length > 0) {
+        return res.status(400).json({ error: 'Cannot add blocked users to chat' });
+      }
     }
 
     // Create the group chat
@@ -224,9 +274,7 @@ groupChatsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) =
         members: {
           create: [
             { user_id: req.user!.id }, // Add creator
-            ...memberIds
-              .filter((id: string) => id !== req.user!.id) // Avoid duplicates
-              .map((id: string) => ({ user_id: id })),
+            ...uniqueMemberIds.map((id: string) => ({ user_id: id })),
           ],
         },
       },

@@ -1108,17 +1108,18 @@ gamesRouter.put('/:id/approve', requireAuth as any, requireOnboarded as any, asy
   // Get the game to check permissions
   const game = await (prisma.game.findUnique as any)({
     where: { id },
-    select: { id: true, home_team_id: true, approval_status: true }
+    select: { id: true, home_team_id: true, away_team_id: true, approval_status: true }
   });
-  
+
   if (!game) return res.status(404).json({ error: 'Event not found' });
-  
-  // Check if user is coach/manager of the team
+
+  // Check if user is coach/manager of either the home or away team
   let isCoach = false;
-  if (game.home_team_id) {
+  const gameTeamIds = [game.home_team_id, game.away_team_id].filter(Boolean) as string[];
+  if (gameTeamIds.length > 0) {
     const membership = await prisma.teamMembership.findFirst({
       where: {
-        team_id: game.home_team_id,
+        team_id: { in: gameTeamIds },
         user_id: req.user.id,
         role: { in: ['coach', 'manager', 'owner', 'assistant_coach'] }
       }

@@ -20,6 +20,26 @@ const createTournamentSchema = z.object({
   tournament_format: z.string().max(100).optional(),
 });
 
+const updateTournamentSchema = z.object({
+  name: z.string().min(1).max(255).optional(),
+  description: z.string().max(2000).optional(),
+  logo_url: z.string().url().max(2048).optional(),
+  location: z.string().max(500).optional(),
+  stadium_name: z.string().max(200).optional(),
+  capacity: z.number().int().min(0).optional(),
+  opened_year: z.number().int().min(1800).max(2100).optional(),
+});
+
+const createTournamentGameSchema = z.object({
+  title: z.string().max(255).optional(),
+  home_team: z.string().min(1).max(255),
+  away_team: z.string().min(1).max(255),
+  date: z.string().min(1),
+  location: z.string().max(500).optional(),
+  latitude: z.union([z.number(), z.string(), z.null()]).optional(),
+  longitude: z.union([z.number(), z.string(), z.null()]).optional(),
+});
+
 export const tournamentsRouter = Router();
 
 const toOptionalNumber = (value: unknown) => {
@@ -46,6 +66,15 @@ tournamentsRouter.post('/', requireAuth as any, requireOnboarded as any, async (
         sport: sport ?? undefined,
         location: location ?? undefined,
         updated_at: new Date(),
+      },
+    });
+
+    // Add creator as org owner
+    await prisma.organizationMembership.create({
+      data: {
+        organization_id: tournament.id,
+        user_id: req.user!.id,
+        role: 'owner',
       },
     });
 
@@ -126,6 +155,9 @@ tournamentsRouter.patch('/:id', requireAuth as any, requireOnboarded as any, asy
   try {
     const { id } = req.params;
 
+    const parsed = updateTournamentSchema.safeParse(req.body || {});
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
+
     const membership = await prisma.organizationMembership.findUnique({
       where: { organization_id_user_id: { organization_id: id, user_id: req.user!.id } },
     });
@@ -133,20 +165,12 @@ tournamentsRouter.patch('/:id', requireAuth as any, requireOnboarded as any, asy
       return res.status(403).json({ error: 'Not authorized' });
     }
 
-    const {
-      name,
-      description,
-      logo_url,
-      location,
-      stadium_name,
-      capacity,
-      opened_year,
-    } = req.body;
+    const { name, description, location } = parsed.data;
 
     const data: Record<string, unknown> = {};
-    if (typeof name === 'string') data.name = name;
-    if (typeof description === 'string') data.description = description;
-    if (typeof location === 'string') data.location = location;
+    if (name !== undefined) data.name = name;
+    if (description !== undefined) data.description = description;
+    if (location !== undefined) data.location = location;
 
     const tournament = await prisma.organization.update({
       where: { id },
@@ -180,12 +204,36 @@ tournamentsRouter.post('/:id/teams', requireAuth as any, requireOnboarded as any
       return res.status(403).json({ error: 'Not authorized' });
     }
 
-    const team = await prisma.team.update({
+    // SECURITY: Verify the team exists and check ownership
+    const team = await prisma.team.findUnique({
+      where: { id: team_id },
+      select: { id: true, organization_id: true },
+    });
+    if (!team) return res.status(404).json({ error: 'Team not found' });
+
+    // Prevent reassigning teams already belonging to another org
+    if (team.organization_id && team.organization_id !== id) {
+      return res.status(400).json({ error: 'Team already belongs to another organization' });
+    }
+
+    // Verify the caller is owner/coach of the team being added
+    const teamMembership = await prisma.teamMembership.findFirst({
+      where: {
+        team_id: team_id,
+        user_id: req.user!.id,
+        role: { in: ['owner', 'coach'] as any[] },
+      },
+    });
+    if (!teamMembership) {
+      return res.status(403).json({ error: 'You must be an owner or coach of this team to add it' });
+    }
+
+    const updatedTeam = await prisma.team.update({
       where: { id: team_id },
       data: { organization_id: id },
     });
 
-    return res.json(team);
+    return res.json(updatedTeam);
   } catch (error: any) {
     console.error('Failed to add team to tournament:', error);
     return res.status(500).json({ error: 'Failed to add team' });
@@ -199,19 +247,10 @@ tournamentsRouter.post('/:id/teams', requireAuth as any, requireOnboarded as any
 tournamentsRouter.post('/:id/games', requireAuth as any, requireOnboarded as any, async (req: AuthedRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const {
-      title,
-      home_team,
-      away_team,
-      date,
-      location,
-      latitude,
-      longitude,
-    } = req.body;
 
-    if (!home_team || !away_team || !date) {
-      return res.status(400).json({ error: 'home_team, away_team, and date are required' });
-    }
+    const parsed = createTournamentGameSchema.safeParse(req.body || {});
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
+    const { title, home_team, away_team, date, location, latitude, longitude } = parsed.data;
 
     const tournament = await prisma.organization.findUnique({ where: { id } });
     if (!tournament) {
