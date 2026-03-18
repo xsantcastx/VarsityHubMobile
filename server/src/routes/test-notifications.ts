@@ -182,7 +182,7 @@ testNotificationsRouter.get('/test/upcoming-games', requireAdmin as any, async (
             gte: new Date(twelveHoursFromNow.getTime() - 5 * 60 * 1000),
             lte: new Date(twelveHoursFromNow.getTime() + 5 * 60 * 1000),
           },
-          status: 'active',
+          status: 'approved',
           rsvps: {
             some: {
               user_id: req.user!.id
@@ -202,7 +202,7 @@ testNotificationsRouter.get('/test/upcoming-games', requireAdmin as any, async (
             gte: new Date(oneHourFromNow.getTime() - 5 * 60 * 1000),
             lte: new Date(oneHourFromNow.getTime() + 5 * 60 * 1000),
           },
-          status: 'active',
+          status: 'approved',
           rsvps: {
             some: {
               user_id: req.user!.id

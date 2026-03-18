@@ -10,6 +10,7 @@ import { haversineDistance, getZipCoordinates } from '../lib/geoUtils.js';
 import { geocodeLocation } from '../lib/geocoding.js';
 import { detectMediaType, getVideoPreviewUrl } from '../lib/mediaUtils.js';
 import { getExcludedPrivateAuthorIds, getBlockedUserIds, isAuthorHiddenFromViewer } from '../lib/privacyUtils.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 
 export const postsRouter = Router();
 
@@ -449,7 +450,7 @@ postsRouter.get('/trending', async (req: AuthedRequest, res) => {
 });
 
 // Debug endpoint to check follow relationships
-postsRouter.get('/debug/follows', requireAuth, async (req: AuthedRequest, res) => {
+postsRouter.get('/debug/follows', requireAuth, asyncHandler(async (req: AuthedRequest, res) => {
   const currentUserId = req.user!.id;
   
   const follows = await prisma.follows.findMany({
@@ -471,18 +472,18 @@ postsRouter.get('/debug/follows', requireAuth, async (req: AuthedRequest, res) =
       username: f.following.username
     }))
   });
-});
+}));
 
 
 // Count posts by simple filters (e.g., game_id, type)
-postsRouter.get('/count', async (req, res) => {
+postsRouter.get('/count', asyncHandler(async (req, res) => {
   const where: any = { deleted_at: null };
   if (req.query.game_id) where.game_id = String(req.query.game_id);
   if (req.query.team_id) where.team_id = String(req.query.team_id);
   if (req.query.type) where.type = String(req.query.type);
   const count = await prisma.post.count({ where });
   res.json({ count });
-});
+}));
 
 const locationSchema = z.object({
   lat: z.number().nullable().optional(),
@@ -523,7 +524,7 @@ import { notifyMentions } from '../lib/mentionNotifications.js';
 import { validateContent } from '../lib/contentFilter.js';
 import { stripHtml } from '../lib/sanitizeHtml.js';
 
-postsRouter.post('/', requireVerified as any, requireOnboarded as any, postCreationLimiter, async (req: AuthedRequest, res) => {
+postsRouter.post('/', requireVerified as any, requireOnboarded as any, postCreationLimiter, asyncHandler(async (req: AuthedRequest, res) => {
   // Reject sample/seed game IDs early with a clear error before any DB work
   const rawGameId = req.body?.game_id;
   if (rawGameId && /^sample-/i.test(String(rawGameId))) {
@@ -740,9 +741,9 @@ postsRouter.post('/', requireVerified as any, requireOnboarded as any, postCreat
     preview_url: getVideoPreviewUrl(post.media_url),
     location: { lat, lng, place_name, country_code }
   });
-});
+}));
 
-postsRouter.post('/:id/poll', requireAuth as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
+postsRouter.post('/:id/poll', requireAuth as any, requireOnboarded as any, asyncHandler(async (req: AuthedRequest, res) => {
   const postId = String(req.params.id);
   const userId = req.user!.id;
 
@@ -793,9 +794,9 @@ postsRouter.post('/:id/poll', requireAuth as any, requireOnboarded as any, async
       message: 'Polls are temporarily unavailable. Please try again shortly.',
     });
   }
-});
+}));
 
-postsRouter.post('/:id/poll/vote', requireAuth as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
+postsRouter.post('/:id/poll/vote', requireAuth as any, requireOnboarded as any, asyncHandler(async (req: AuthedRequest, res) => {
   const postId = String(req.params.id);
   const userId = req.user!.id;
 
@@ -882,9 +883,9 @@ postsRouter.post('/:id/poll/vote', requireAuth as any, requireOnboarded as any, 
   });
 
   res.status(200).json(updatedPoll);
-});
+}));
 
-postsRouter.get('/:id', async (req: AuthedRequest, res) => {
+postsRouter.get('/:id', asyncHandler(async (req: AuthedRequest, res) => {
   const { id } = req.params;
   const currentUserId = req.user?.id ?? null;
 
@@ -981,10 +982,10 @@ postsRouter.get('/:id', async (req: AuthedRequest, res) => {
   };
 
   res.json(response);
-});
+}));
 
 // Comments
-postsRouter.get('/:id/comments', async (req: AuthedRequest, res) => {
+postsRouter.get('/:id/comments', asyncHandler(async (req: AuthedRequest, res) => {
   const { id } = req.params;
   const post = await prisma.post.findFirst({ where: { id, deleted_at: null }, select: { id: true, author_id: true } });
   if (!post) return res.status(404).json({ error: 'Post not found' });
@@ -1017,9 +1018,9 @@ postsRouter.get('/:id/comments', async (req: AuthedRequest, res) => {
   const items = rows.slice(0, limit);
   const nextCursor = rows.length > limit ? rows[limit].id : null;
   res.json({ items, nextCursor });
-});
+}));
 
-postsRouter.post('/:id/comments', requireAuth as any, commentLimiter, async (req: AuthedRequest, res) => {
+postsRouter.post('/:id/comments', requireAuth as any, commentLimiter, asyncHandler(async (req: AuthedRequest, res) => {
   // req.user is guaranteed by requireAuth middleware
   const { id } = req.params;
   const post = await prisma.post.findFirst({
@@ -1153,7 +1154,7 @@ postsRouter.post('/:id/comments', requireAuth as any, commentLimiter, async (req
     console.error('Failed to send comment notification:', e);
   }
   res.status(201).json(comment);
-});
+}));
 
 // Reactions
 // Toggle upvote
@@ -1287,7 +1288,7 @@ postsRouter.post('/:id/share', requireAuth as any, async (req: AuthedRequest, re
 });
 
 // Delete post (author, or coach/owner of team the post is associated with)
-postsRouter.delete('/:id', requireAuth as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
+postsRouter.delete('/:id', requireAuth as any, requireOnboarded as any, asyncHandler(async (req: AuthedRequest, res) => {
   const postId = String(req.params.id);
   const userId = req.user!.id;
 
@@ -1318,10 +1319,10 @@ postsRouter.delete('/:id', requireAuth as any, requireOnboarded as any, async (r
     console.error('Error deleting post:', error);
     res.status(500).json({ error: 'Failed to delete post' });
   }
-});
+}));
 
 // Restore a recently deleted post (author only)
-postsRouter.post('/:id/restore', requireAuth as any, async (req: AuthedRequest, res) => {
+postsRouter.post('/:id/restore', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   const postId = String(req.params.id);
   const userId = req.user!.id;
 
@@ -1370,10 +1371,10 @@ postsRouter.post('/:id/restore', requireAuth as any, async (req: AuthedRequest, 
     console.error('Error restoring post:', error);
     return res.status(500).json({ error: 'Failed to restore post' });
   }
-});
+}));
 
 // Update post (author: content/title/is_pinned; coach of team: is_pinned only)
-postsRouter.patch('/:id', requireAuth as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
+postsRouter.patch('/:id', requireAuth as any, requireOnboarded as any, asyncHandler(async (req: AuthedRequest, res) => {
   const postId = String(req.params.id);
   const userId = req.user!.id;
 
@@ -1447,10 +1448,10 @@ postsRouter.patch('/:id', requireAuth as any, requireOnboarded as any, async (re
     console.error('Error updating post:', error);
     res.status(500).json({ error: 'Failed to update post' });
   }
-});
+}));
 
 // Delete comment (author or post owner)
-postsRouter.delete('/:postId/comments/:commentId', requireAuth as any, async (req: AuthedRequest, res) => {
+postsRouter.delete('/:postId/comments/:commentId', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   const { postId, commentId } = req.params;
   const userId = req.user!.id;
 
@@ -1483,10 +1484,10 @@ postsRouter.delete('/:postId/comments/:commentId', requireAuth as any, async (re
     console.error('Error deleting comment:', error);
     res.status(500).json({ error: 'Failed to delete comment' });
   }
-});
+}));
 
 // Update comment (author only)
-postsRouter.patch('/:postId/comments/:commentId', requireAuth as any, async (req: AuthedRequest, res) => {
+postsRouter.patch('/:postId/comments/:commentId', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   const { postId, commentId } = req.params;
   const userId = req.user!.id;
   
@@ -1541,10 +1542,10 @@ postsRouter.patch('/:postId/comments/:commentId', requireAuth as any, async (req
     console.error('Error updating comment:', error);
     res.status(500).json({ error: 'Failed to update comment' });
   }
-});
+}));
 
 // New route handler for creating a collage post
-postsRouter.post('/collage', requireVerified as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
+postsRouter.post('/collage', requireVerified as any, requireOnboarded as any, asyncHandler(async (req: AuthedRequest, res) => {
   const { title, postIds } = req.body;
 
   if (!Array.isArray(postIds) || postIds.length === 0) {
@@ -1591,4 +1592,4 @@ postsRouter.post('/collage', requireVerified as any, requireOnboarded as any, as
   });
 
   res.status(201).json(newPost);
-});
+}));

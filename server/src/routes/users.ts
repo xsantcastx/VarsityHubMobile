@@ -8,6 +8,7 @@ import { requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { mentionsSearchLimiter, userLookupLimiter, usernameAvailableLimiter } from '../middleware/rateLimiters.js';
 import { detectMediaType, getVideoPreviewUrl } from '../lib/mediaUtils.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 
 export const usersRouter = Router();
 const publicUserSelect = {
@@ -495,14 +496,21 @@ usersRouter.delete('/me', requireAuth as any, async (req: AuthedRequest, res) =>
   try {
     const user = await prisma.user.findUnique({ where: { id }, select: { password_hash: true, google_id: true, apple_id: true } });
     if (!user) return res.status(404).json({ error: 'User not found' });
+
+    // OAuth-only users without a password cannot verify via password
+    if (!user.password_hash) {
+      const provider = user.google_id ? 'Google' : user.apple_id ? 'Apple' : 'your social account';
+      return res.status(400).json({
+        error: 'No password set',
+        message: `Your account uses ${provider} sign-in. Please set a password in Settings first, then delete your account.`,
+      });
+    }
+
     const isValid = await bcrypt.compare(password, user.password_hash);
     if (!isValid) {
-      const isOAuth = !!(user.google_id || user.apple_id);
       return res.status(403).json({
         error: 'Invalid password',
-        message: isOAuth
-          ? 'If you signed up with Google or Apple, set a password in Settings first, then delete your account.'
-          : 'Password does not match.',
+        message: 'Password does not match.',
       });
     }
     await prisma.$transaction(async (tx) => {
@@ -535,7 +543,7 @@ usersRouter.delete('/me', requireAuth as any, async (req: AuthedRequest, res) =>
 
 // Username availability check (public - no auth required)
 // authMiddleware still populates req.user if a token is present, allowing exclusion of current user
-usersRouter.get('/username-available', usernameAvailableLimiter, async (req: AuthedRequest, res) => {
+usersRouter.get('/username-available', usernameAvailableLimiter, asyncHandler(async (req: AuthedRequest, res) => {
   const username = String((req.query as any).username || '').trim();
   const valid = /^[a-z0-9_.]{3,20}$/.test(username);
   if (!valid) return res.json({ available: false, valid: false });
@@ -554,11 +562,11 @@ usersRouter.get('/username-available', usernameAvailableLimiter, async (req: Aut
   });
 
   return res.json({ available: !exists, valid: true });
-});
+}));
 
 // Lookup user by email or username (for onboarding authorized users flow)
 // CRITICAL: Requires authentication and rate limiting to prevent enumeration
-usersRouter.get('/lookup', requireAuth as any, userLookupLimiter, async (req: AuthedRequest, res) => {
+usersRouter.get('/lookup', requireAuth as any, userLookupLimiter, asyncHandler(async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
   const email = String((req.query as any).email || '').trim().toLowerCase();
@@ -584,10 +592,10 @@ usersRouter.get('/lookup', requireAuth as any, userLookupLimiter, async (req: Au
 
   if (!u) return res.status(404).json({ error: 'Not found' });
   return res.json(u);
-});
+}));
 
 // Follow a user
-usersRouter.post('/:id/follow', requireAuth as any, async (req: AuthedRequest, res) => {
+usersRouter.post('/:id/follow', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   const follower_id = req.user!.id;
   const following_id = req.params.id;
 
@@ -689,10 +697,10 @@ usersRouter.post('/:id/follow', requireAuth as any, async (req: AuthedRequest, r
     console.error('Follow error:', error);
     res.status(500).json({ error: 'Something went wrong.' });
   }
-});
+}));
 
 // Unfollow a user
-usersRouter.delete('/:id/follow', requireAuth as any, async (req: AuthedRequest, res) => {
+usersRouter.delete('/:id/follow', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   const follower_id = req.user!.id;
   const following_id = req.params.id;
 
@@ -705,10 +713,10 @@ usersRouter.delete('/:id/follow', requireAuth as any, async (req: AuthedRequest,
     console.error('Unfollow error:', error);
     res.status(500).json({ error: 'Something went wrong.' });
   }
-});
+}));
 
 // Accept a follow request (for private profiles)
-usersRouter.post('/:id/accept-follow', requireAuth as any, async (req: AuthedRequest, res) => {
+usersRouter.post('/:id/accept-follow', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   const currentUserId = req.user!.id;
   const followerId = req.params.id;
 
@@ -754,10 +762,10 @@ usersRouter.post('/:id/accept-follow', requireAuth as any, async (req: AuthedReq
     console.error('Accept follow error:', error);
     res.status(500).json({ error: 'Something went wrong.' });
   }
-});
+}));
 
 // Reject a follow request (for private profiles)
-usersRouter.post('/:id/reject-follow', requireAuth as any, async (req: AuthedRequest, res) => {
+usersRouter.post('/:id/reject-follow', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   const currentUserId = req.user!.id;
   const followerId = req.params.id;
 
@@ -770,7 +778,7 @@ usersRouter.post('/:id/reject-follow', requireAuth as any, async (req: AuthedReq
     console.error('Reject follow error:', error);
     res.status(500).json({ error: 'Something went wrong.' });
   }
-});
+}));
 
 // Get pending follow requests for current user
 usersRouter.get('/me/follow-requests', requireAuth as any, async (req: AuthedRequest, res) => {
@@ -795,7 +803,7 @@ usersRouter.get('/me/follow-requests', requireAuth as any, async (req: AuthedReq
 });
 
 // Get followers
-usersRouter.get('/:id/followers', requireAuth as any, async (req: AuthedRequest, res) => {
+usersRouter.get('/:id/followers', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   const { id } = req.params;
   const currentUserId = req.user?.id;
   const hidden = await isProfileHiddenFromViewer(id, currentUserId || null);
@@ -829,10 +837,10 @@ usersRouter.get('/:id/followers', requireAuth as any, async (req: AuthedRequest,
   }
 
   res.json({ items: users, nextCursor });
-});
+}));
 
 // Get following
-usersRouter.get('/:id/following', requireAuth as any, async (req: AuthedRequest, res) => {
+usersRouter.get('/:id/following', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   const { id } = req.params;
   const currentUserId = req.user?.id;
   const hidden = await isProfileHiddenFromViewer(id, currentUserId || null);
@@ -866,10 +874,10 @@ usersRouter.get('/:id/following', requireAuth as any, async (req: AuthedRequest,
   }
 
   res.json({ items: users, nextCursor });
-});
+}));
 
 // Search users for mentions/tagging
-usersRouter.get('/search/mentions', requireAuth as any, mentionsSearchLimiter as any, async (req: AuthedRequest, res) => {
+usersRouter.get('/search/mentions', requireAuth as any, mentionsSearchLimiter as any, asyncHandler(async (req: AuthedRequest, res) => {
   const currentUserId = req.user!.id;
   const query = String((req.query as any).q || '').trim().toLowerCase();
   const limit = Math.min(parseInt(String((req.query as any).limit || '10'), 10) || 10, 20);
@@ -919,7 +927,7 @@ usersRouter.get('/search/mentions', requireAuth as any, mentionsSearchLimiter as
     }));
 
   res.json(safeUsers);
-});
+}));
 
 // Get blocked users
 // NOTE: Must be defined BEFORE the /:id catch-all route, otherwise Express
@@ -952,7 +960,7 @@ usersRouter.get('/blocked', requireAuth as any, async (req: AuthedRequest, res) 
 // When profile_private is true, non-followers see only display_name and avatar_url.
 // NOTE: Keep this AFTER more specific routes like /:id/full, /:id/posts, etc.,
 // so it doesn't shadow them.
-usersRouter.get('/:id', async (req: AuthedRequest, res) => {
+usersRouter.get('/:id', asyncHandler(async (req: AuthedRequest, res) => {
   const id = String(req.params.id);
   const currentUserId = req.user?.id || null;
 
@@ -1028,10 +1036,10 @@ usersRouter.get('/:id', async (req: AuthedRequest, res) => {
     follow_status: rel?.status || null,
     is_parent, // Include parent status for coaches viewing profiles
   });
-});
+}));
 
 // Block a user
-usersRouter.post('/:id/block', requireAuth as any, async (req: AuthedRequest, res) => {
+usersRouter.post('/:id/block', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   const blocker_id = req.user!.id;
   const blocked_id = req.params.id;
 
@@ -1055,10 +1063,10 @@ usersRouter.post('/:id/block', requireAuth as any, async (req: AuthedRequest, re
     console.error('Block user error:', error);
     return res.status(500).json({ error: 'Failed to block user' });
   }
-});
+}));
 
 // Unblock a user
-usersRouter.delete('/:id/block', requireAuth as any, async (req: AuthedRequest, res) => {
+usersRouter.delete('/:id/block', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   const blocker_id = req.user!.id;
   const blocked_id = req.params.id;
 
@@ -1074,6 +1082,6 @@ usersRouter.delete('/:id/block', requireAuth as any, async (req: AuthedRequest, 
     console.error('Unblock user error:', error);
     return res.status(500).json({ error: 'Failed to unblock user' });
   }
-});
+}));
 
 

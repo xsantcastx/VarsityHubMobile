@@ -196,17 +196,37 @@ export function startAdGoLiveCheck() {
         debugLog(`[ad-lifecycle] Archived ${expiredAds.length} expired ads`);
       }
 
-      // 3. Clean up stale holds (older than 1 hour)
+      // 3. Clean up stale holds (older than 1 hour since last status change)
       const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-      const staleHolds = await prisma.ad.updateMany({
+      const staleHoldAds = await prisma.ad.findMany({
         where: {
           payment_status: 'hold',
-          created_at: { lt: oneHourAgo },
+          updated_at: { lt: oneHourAgo },
         },
-        data: { payment_status: 'unpaid' },
+        select: { id: true },
       });
+      if (staleHoldAds.length > 0) {
+        const staleAdIds = staleHoldAds.map(a => a.id);
+        await prisma.$transaction([
+          prisma.adReservation.deleteMany({ where: { ad_id: { in: staleAdIds } } }),
+          prisma.ad.updateMany({
+            where: { id: { in: staleAdIds } },
+            data: { payment_status: 'unpaid' },
+          }),
+        ]);
+      }
+      const staleHolds = { count: staleHoldAds.length };
       if (staleHolds.count > 0) {
         debugLog(`[ad-lifecycle] Released ${staleHolds.count} stale ad holds`);
+      }
+
+      // 4. Clean up old ProcessedStripeEvent records (older than 30 days)
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const deletedEvents = await prisma.processedStripeEvent.deleteMany({
+        where: { created_at: { lt: thirtyDaysAgo } },
+      });
+      if (deletedEvents.count > 0) {
+        debugLog(`[ad-lifecycle] Cleaned up ${deletedEvents.count} old Stripe event dedup records`);
       }
 
       debugLog('[ad-lifecycle] Daily check complete ✅');

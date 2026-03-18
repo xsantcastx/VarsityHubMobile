@@ -22,6 +22,7 @@ import { useAuth } from '@/context/AuthProvider';
 import { useAppleAuth } from '@/hooks/useAppleAuth';
 import { useGoogleAuth } from '@/hooks/useGoogleAuth';
 import { captureException } from '@/utils/sentry';
+import { validateEmail } from '@/utils/formUtils';
 import auth from '@/api/auth';
 import { Ionicons } from '@expo/vector-icons';
 import * as AppleAuthentication from 'expo-apple-authentication';
@@ -49,6 +50,11 @@ export default function SignInScreen() {
     if (loading) return;
     if (!email || !password) {
       setError('Please enter email and password');
+      return;
+    }
+    const emailCheck = validateEmail(email);
+    if (!emailCheck.valid) {
+      setError(emailCheck.error || 'Please enter a valid email address');
       return;
     }
     setLoading(true);

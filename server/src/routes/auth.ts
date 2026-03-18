@@ -14,102 +14,52 @@ import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { authLimiter, passwordResetLimiter, refreshTokenLimiter, verificationLimiter } from '../middleware/rateLimiters.js';
+import { rlGet, rlSet, rlDel, rlIncr } from '../lib/redisRateLimit.js';
 
 export const authRouter = Router();
-// Simple in-memory rate limiting for auth endpoints
-const authRate: Map<string, { attempts: number; resetAt: number }> = new Map();
+
+// Rate limit constants
 const MAX_AUTH_ATTEMPTS = 5;
 const AUTH_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
-
-// Dedicated failed-attempt tracking for password reset code verification
-type ResetFailureRecord = { attempts: number; lockedUntil: number; lastAttempt: number };
-const resetFailures: Map<string, ResetFailureRecord> = new Map();
 const MAX_RESET_FAILURES = 5;
 const RESET_LOCKOUT_MS = 15 * 60 * 1000; // 15 minutes
-const MAX_RATE_TRACKED_KEYS = 10_000;
-const RATE_MAP_PRUNE_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 const RESET_FAILURE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
-let lastRatePruneAt = 0;
 
-function trimMapByOldestValue<K, V>(map: Map<K, V>, targetSize: number, getSortValue: (value: V) => number): void {
-  if (map.size <= targetSize) return;
-  const entries = [...map.entries()].sort((a, b) => getSortValue(a[1]) - getSortValue(b[1]));
-  const removeCount = Math.max(0, map.size - targetSize);
-  for (let i = 0; i < removeCount; i++) {
-    map.delete(entries[i][0]);
-  }
-}
+async function checkResetAttempt(email: string): Promise<{ allowed: boolean; retryAfterMs?: number }> {
+  const raw = await rlGet(`resetfail:${email}`);
+  if (!raw) return { allowed: true };
 
-function maybePruneRateMaps(now: number = Date.now(), force = false): void {
-  if (!force && now - lastRatePruneAt < RATE_MAP_PRUNE_INTERVAL_MS) return;
-  lastRatePruneAt = now;
-
-  for (const [key, record] of authRate.entries()) {
-    if (record.resetAt <= now) authRate.delete(key);
-  }
-
-  for (const [key, record] of resetFailures.entries()) {
-    const lockExpired = record.lockedUntil > 0 && record.lockedUntil <= now;
-    const staleRecord = now - record.lastAttempt > RESET_FAILURE_TTL_MS;
-    if (lockExpired || staleRecord) resetFailures.delete(key);
-  }
-
-  for (const [key, record] of verifyRate.entries()) {
-    if (now - record.hourStart > 2 * 3600_000) verifyRate.delete(key);
-  }
-
-  const targetSize = Math.floor(MAX_RATE_TRACKED_KEYS * 0.8);
-  if (authRate.size > MAX_RATE_TRACKED_KEYS) {
-    trimMapByOldestValue(authRate, targetSize, (value) => value.resetAt);
-  }
-  if (resetFailures.size > MAX_RATE_TRACKED_KEYS) {
-    trimMapByOldestValue(resetFailures, targetSize, (value) => value.lastAttempt);
-  }
-  if (verifyRate.size > MAX_RATE_TRACKED_KEYS) {
-    trimMapByOldestValue(verifyRate, targetSize, (value) => value.hourStart);
-  }
-}
-
-function checkResetAttempt(email: string): { allowed: boolean; retryAfterMs?: number } {
-  const now = Date.now();
-  maybePruneRateMaps(now, resetFailures.size >= MAX_RATE_TRACKED_KEYS);
-  const record = resetFailures.get(email);
-
-  if (!record) return { allowed: true };
+  const record = JSON.parse(raw) as { attempts: number; lockedUntil: number };
 
   // Lock expired — clear and allow
-  if (record.lockedUntil && now >= record.lockedUntil) {
-    resetFailures.delete(email);
+  if (record.lockedUntil && Date.now() >= record.lockedUntil) {
+    await rlDel(`resetfail:${email}`);
     return { allowed: true };
   }
 
   // Currently locked out
   if (record.attempts >= MAX_RESET_FAILURES) {
-    return { allowed: false, retryAfterMs: record.lockedUntil - now };
+    return { allowed: false, retryAfterMs: record.lockedUntil - Date.now() };
   }
 
   return { allowed: true };
 }
 
-function recordResetFailure(email: string): void {
+async function recordResetFailure(email: string): Promise<void> {
   const now = Date.now();
-  maybePruneRateMaps(now, resetFailures.size >= MAX_RATE_TRACKED_KEYS);
-  const record = resetFailures.get(email);
-
-  if (!record) {
-    resetFailures.set(email, { attempts: 1, lockedUntil: 0, lastAttempt: now });
-    return;
-  }
+  const raw = await rlGet(`resetfail:${email}`);
+  let record = raw ? JSON.parse(raw) as { attempts: number; lockedUntil: number } : { attempts: 0, lockedUntil: 0 };
 
   record.attempts++;
-  record.lastAttempt = now;
   if (record.attempts >= MAX_RESET_FAILURES) {
     record.lockedUntil = now + RESET_LOCKOUT_MS;
   }
+
+  await rlSet(`resetfail:${email}`, JSON.stringify(record), RESET_FAILURE_TTL_MS);
 }
 
-function clearResetFailures(email: string): void {
-  resetFailures.delete(email);
+async function clearResetFailures(email: string): Promise<void> {
+  await rlDel(`resetfail:${email}`);
 }
 const debugLog = (...args: Parameters<typeof console.log>) => {
   if (process.env.ENABLE_SERVER_DEBUG_LOGS === 'true' || process.env.NODE_ENV !== 'production') {
@@ -117,37 +67,27 @@ const debugLog = (...args: Parameters<typeof console.log>) => {
   }
 };
 
-function checkAuthRateLimit(identifier: string): boolean {
-  const now = Date.now();
-  maybePruneRateMaps(now, authRate.size >= MAX_RATE_TRACKED_KEYS);
-  const record = authRate.get(identifier);
-  
-  if (!record || now > record.resetAt) {
-    authRate.set(identifier, { attempts: 1, resetAt: now + AUTH_WINDOW_MS });
-    return true;
-  }
-  
-  if (record.attempts >= MAX_AUTH_ATTEMPTS) {
-    return false;
-  }
-  
-  record.attempts++;
-  return true;
+async function checkAuthRateLimit(identifier: string): Promise<boolean> {
+  const count = await rlIncr(`auth:${identifier}`, AUTH_WINDOW_MS);
+  return count <= MAX_AUTH_ATTEMPTS;
 }
 
-/** Create a refresh token pair and store hashed in DB. Returns the raw token to send to the client. */
-async function issueRefreshToken(userId: string) {
+/** Create a refresh token and store hashed in the RefreshToken table. Returns the raw token to send to the client. */
+async function issueRefreshToken(userId: string, deviceInfo?: string | null) {
   const refresh_token = generateRefreshToken();
-  const refresh_token_expires = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
-  await prisma.user.update({
-    where: { id: userId },
-    data: { refresh_token: hashRefreshToken(refresh_token), refresh_token_expires },
+  const expires_at = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
+  await prisma.refreshToken.create({
+    data: {
+      token_hash: hashRefreshToken(refresh_token),
+      user_id: userId,
+      device_info: deviceInfo || null,
+      expires_at,
+    },
   });
-  return { refresh_token, refresh_token_expires };
+  return { refresh_token, expires_at };
 }
 
-// simple in-memory rate limiting for verification send: 1/30s, 5/hour per user
-const verifyRate: Map<string, { last: number; count: number; hourStart: number }> = new Map();
+// Verification send rate limiting: 1/30s, 5/hour per user (Redis-backed with in-memory fallback)
 const GOOGLE_ALLOWED_AUDIENCES = (process.env.GOOGLE_OAUTH_CLIENT_IDS || process.env.GOOGLE_OAUTH_AUDIENCE || '')
   .split(',')
   .map((value) => value.trim())
@@ -194,10 +134,17 @@ function isUnder13(dob: string | null | undefined): boolean {
 // ---- Logout — invalidate refresh token server-side ----
 authRouter.post('/logout', requireAuth as any, async (req: AuthedRequest, res) => {
   try {
-    if (req.user?.id) {
-      await prisma.user.update({
-        where: { id: req.user.id },
-        data: { refresh_token: null, refresh_token_expires: null },
+    const { refreshToken } = req.body || {};
+    if (req.user?.id && refreshToken && typeof refreshToken === 'string') {
+      // Delete the specific refresh token for this device
+      const tokenHash = hashRefreshToken(refreshToken);
+      await prisma.refreshToken.deleteMany({
+        where: { token_hash: tokenHash, user_id: req.user.id },
+      });
+    } else if (req.user?.id) {
+      // Fallback: if no token provided, delete all tokens for user (full logout)
+      await prisma.refreshToken.deleteMany({
+        where: { user_id: req.user.id },
       });
     }
     return res.json({ ok: true });
@@ -215,10 +162,19 @@ authRouter.post('/refresh', refreshTokenLimiter, asyncHandler(async (req, res) =
   }
 
   const hashedToken = hashRefreshToken(refreshToken);
-  const user = await prisma.user.findFirst({
-    where: { refresh_token: hashedToken, refresh_token_expires: { gt: new Date() } },
+  const existingToken = await prisma.refreshToken.findUnique({
+    where: { token_hash: hashedToken },
+    include: { user: true },
   });
-  if (!user) return res.status(401).json({ error: 'Invalid or expired refresh token' });
+  if (!existingToken || existingToken.expires_at <= new Date()) {
+    // Clean up expired token if it exists
+    if (existingToken) {
+      await prisma.refreshToken.delete({ where: { id: existingToken.id } }).catch(() => {});
+    }
+    return res.status(401).json({ error: 'Invalid or expired refresh token' });
+  }
+
+  const user = existingToken.user;
 
   // Block banned or suspended users from refreshing tokens
   if (user.banned) {
@@ -228,8 +184,10 @@ authRouter.post('/refresh', refreshTokenLimiter, asyncHandler(async (req, res) =
     return res.status(403).json({ error: 'Account temporarily suspended', banned_until: (user as any).banned_until, ban_reason: (user as any).ban_reason || undefined });
   }
 
-  // Rotate: issue new token pair
-  const { refresh_token: newRefreshToken } = await issueRefreshToken(user.id);
+  // Rotate: delete old token, issue new one (preserving device_info)
+  const deviceInfo = existingToken.device_info;
+  await prisma.refreshToken.delete({ where: { id: existingToken.id } });
+  const { refresh_token: newRefreshToken } = await issueRefreshToken(user.id, deviceInfo);
   const access_token = signJwt({ id: user.id });
 
   return res.json({ access_token, refresh_token: newRefreshToken });
@@ -284,7 +242,7 @@ authRouter.post('/register', authLimiter, asyncHandler(async (req, res) => {
   const sanitizedEmail = email.trim().toLowerCase();
 
   // SECURITY: Rate limiting to prevent mass account creation / enumeration
-  if (!checkAuthRateLimit(`register:${sanitizedEmail}`)) {
+  if (!(await checkAuthRateLimit(`register:${sanitizedEmail}`))) {
     return res.status(429).json({ error: 'Too many registration attempts. Please try again later.' });
   }
 
@@ -333,7 +291,7 @@ authRouter.post('/register', authLimiter, asyncHandler(async (req, res) => {
   });
   debugLog(`[verify-code] [register] Verification code stored for user ${user.id} (expires ${exp.toISOString()})`);
   const access_token = signJwt({ id: user.id });
-  const { refresh_token } = await issueRefreshToken(user.id);
+  const { refresh_token } = await issueRefreshToken(user.id, req.get('user-agent'));
   try {
     debugLog(`[verify-code] [register] Sending verification email to ${email}`);
     const emailSend = sendVerificationEmail(email, code, display_name || sanitizedEmail.split('@')[0]);
@@ -359,7 +317,7 @@ authRouter.post('/register', authLimiter, asyncHandler(async (req, res) => {
     console.error('[register] sendWelcomeEmail failed:', e);
   }
   const payload: any = { access_token, refresh_token, user: sanitizeUser(user) };
-  if (process.env.NODE_ENV !== 'production') payload.dev_verification_code = code;
+  if (process.env.NODE_ENV !== 'production' && process.env.ENABLE_DEV_CODES === '1') payload.dev_verification_code = code;
   debugLog('[register] Completed in', Date.now() - start, 'ms');
   res.status(201).json(payload);
 }));
@@ -373,7 +331,7 @@ authRouter.post('/login', authLimiter, asyncHandler(async (req, res) => {
   const sanitizedEmail = email.trim().toLowerCase();
   
   // Rate limiting
-  if (!checkAuthRateLimit(sanitizedEmail)) {
+  if (!(await checkAuthRateLimit(sanitizedEmail))) {
     return res.status(429).json({ error: 'Too many login attempts. Please try again later.' });
   }
   
@@ -391,10 +349,15 @@ authRouter.post('/login', authLimiter, asyncHandler(async (req, res) => {
   if (user.banned_until && new Date(user.banned_until) <= new Date()) {
     await prisma.user.update({ where: { id: user.id }, data: { banned_until: null, ban_reason: null } });
   }
+  // OAuth-only users have no password — they must sign in with their provider
+  if (!user.password_hash) {
+    const provider = user.google_id ? 'Google' : user.apple_id ? 'Apple' : 'your social account';
+    return res.status(401).json({ error: `This account uses ${provider} sign-in. Please sign in with ${provider} instead.` });
+  }
   const ok = await bcrypt.compare(password, user.password_hash);
   if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
   const access_token = signJwt({ id: user.id });
-  const { refresh_token } = await issueRefreshToken(user.id);
+  const { refresh_token } = await issueRefreshToken(user.id, req.get('user-agent'));
 
   // Track device fingerprint (non-blocking)
   const userAgent = req.headers['user-agent'] || 'unknown';
@@ -483,12 +446,9 @@ authRouter.post('/google', authLimiter, async (req, res) => {
         }
         user = await prisma.user.update({ where: { id: existingByEmail.id }, data: updates });
       } else {
-        const randomSecret = crypto.randomBytes(32).toString('hex');
-        const password_hash = await bcrypt.hash(randomSecret, 12);
         user = await prisma.user.create({
           data: {
             email,
-            password_hash,
             google_id: googleId,
             display_name: displayNameSource,
             avatar_url: avatarUrl,
@@ -519,7 +479,7 @@ authRouter.post('/google', authLimiter, async (req, res) => {
 
     const sanitized = sanitizeUser(user);
     const access_token = signJwt({ id: sanitized.id });
-    const { refresh_token } = await issueRefreshToken(sanitized.id);
+    const { refresh_token } = await issueRefreshToken(sanitized.id, req.get('user-agent'));
     const needsOnboarding = sanitized?.preferences?.onboarding_completed !== true;
 
     return res.json({
@@ -657,8 +617,6 @@ authRouter.post('/apple', authLimiter, async (req, res) => {
         user = await prisma.user.update({ where: { id: existingByEmail.id }, data: updates });
       } else {
         // Create new user
-        const randomSecret = crypto.randomBytes(32).toString('hex');
-        const password_hash = await bcrypt.hash(randomSecret, 12);
         const userEmail = email || `apple_${appleId.substring(0, 16)}@appleid.local`;
 
         try {
@@ -666,7 +624,6 @@ authRouter.post('/apple', authLimiter, async (req, res) => {
           user = await prisma.user.create({
             data: {
               email: userEmail,
-              password_hash,
               apple_id: appleId,
               display_name: displayName,
               email_verified: true,
@@ -712,7 +669,7 @@ authRouter.post('/apple', authLimiter, async (req, res) => {
 
     const sanitized = sanitizeUser(user);
     const access_token = signJwt({ id: sanitized.id });
-    const { refresh_token } = await issueRefreshToken(sanitized.id);
+    const { refresh_token } = await issueRefreshToken(sanitized.id, req.get('user-agent'));
     const needsOnboarding = sanitized?.preferences?.onboarding_completed !== true;
 
     return res.json({
@@ -730,13 +687,13 @@ authRouter.post('/apple', authLimiter, async (req, res) => {
 
 const passwordResetRequestSchema = z.object({ email: z.string().email() });
 
-authRouter.post('/password/forgot', passwordResetLimiter, async (req, res) => {
+authRouter.post('/password/forgot', passwordResetLimiter, asyncHandler(async (req, res) => {
   const parsed = passwordResetRequestSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
   const email = parsed.data.email.trim().toLowerCase();
 
   // SECURITY: Rate limiting to prevent password reset abuse / enumeration
-  if (!checkAuthRateLimit(`forgot:${email}`)) {
+  if (!(await checkAuthRateLimit(`forgot:${email}`))) {
     // Return generic success to prevent timing-based enumeration
     return res.json({ ok: true });
   }
@@ -774,9 +731,9 @@ authRouter.post('/password/forgot', passwordResetLimiter, async (req, res) => {
     req.log?.warn?.({ err: e }, 'Password reset email failed');
   }
 
-  if (process.env.NODE_ENV !== 'production') payload.dev_reset_code = code;
+  if (process.env.NODE_ENV !== 'production' && process.env.ENABLE_DEV_CODES === '1') payload.dev_reset_code = code;
   return res.json(payload);
-});
+}));
 
 const passwordResetSchema = z.object({
   email: z.string().email(),
@@ -784,41 +741,41 @@ const passwordResetSchema = z.object({
   password: passwordSchema,
 });
 
-authRouter.post('/password/reset', passwordResetLimiter, async (req, res) => {
+authRouter.post('/password/reset', passwordResetLimiter, asyncHandler(async (req, res) => {
   const parsed = passwordResetSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
   const { email, code, password } = parsed.data;
   const sanitizedEmail = email.trim().toLowerCase();
 
   // SECURITY: Check dedicated failure-based lockout before anything else
-  const attemptCheck = checkResetAttempt(sanitizedEmail);
+  const attemptCheck = await checkResetAttempt(sanitizedEmail);
   if (!attemptCheck.allowed) {
     return res.status(429).json({ error: 'Too many attempts. Try again in 15 minutes.' });
   }
 
   // Also keep the general rate limit as a secondary guard
-  if (!checkAuthRateLimit(`reset:${sanitizedEmail}`)) {
+  if (!(await checkAuthRateLimit(`reset:${sanitizedEmail}`))) {
     return res.status(429).json({ error: 'Too many reset attempts. Please request a new code.' });
   }
 
   const user = await prisma.user.findFirst({ where: { email: { equals: sanitizedEmail, mode: 'insensitive' } } });
   if (!user || !user.password_reset_code || !user.password_reset_expires) {
-    recordResetFailure(sanitizedEmail);
+    await recordResetFailure(sanitizedEmail);
     return res.status(400).json({ error: 'Invalid or expired reset code' });
   }
   if (new Date() > user.password_reset_expires) {
-    recordResetFailure(sanitizedEmail);
+    await recordResetFailure(sanitizedEmail);
     return res.status(400).json({ error: 'Invalid or expired reset code' });
   }
   const codeA = Buffer.from(String(code).trim());
   const codeB = Buffer.from(String(user.password_reset_code));
   if (codeA.length !== codeB.length || !crypto.timingSafeEqual(codeA, codeB)) {
-    recordResetFailure(sanitizedEmail);
+    await recordResetFailure(sanitizedEmail);
     return res.status(400).json({ error: 'Invalid or expired reset code' });
   }
 
   // Success — clear failure tracking and reset the code
-  clearResetFailures(sanitizedEmail);
+  await clearResetFailures(sanitizedEmail);
 
   const password_hash = await bcrypt.hash(password, 12);
   await prisma.user.update({
@@ -832,14 +789,14 @@ authRouter.post('/password/reset', passwordResetLimiter, async (req, res) => {
   });
 
   return res.json({ ok: true });
-});
+}));
 
 const passwordChangeSchema = z.object({
   current_password: z.string().min(1),
   new_password: passwordSchema,
 });
 
-authRouter.post('/password/change', requireAuth as any, async (req: AuthedRequest, res) => {
+authRouter.post('/password/change', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const parsed = passwordChangeSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
@@ -849,9 +806,12 @@ authRouter.post('/password/change', requireAuth as any, async (req: AuthedReques
   const user = await prisma.user.findUnique({ where: { id: req.user.id } });
   if (!user) return res.status(404).json({ error: 'User not found' });
   
-  // Users who signed up via Apple/Google may not have a password hash
+  // OAuth-only users have no password yet — they should use "Forgot Password" to set one
   if (!user.password_hash) {
-    return res.status(400).json({ error: 'Your account uses Apple or Google sign-in. Please use your provider to manage your password.' });
+    return res.status(400).json({
+      error: 'No password set',
+      message: 'Your account was created with Google or Apple sign-in and has no password. Use "Forgot Password" to set one.',
+    });
   }
 
   // Verify current password
@@ -862,15 +822,19 @@ authRouter.post('/password/change', requireAuth as any, async (req: AuthedReques
   const password_hash = await bcrypt.hash(new_password, 12);
   
   // Update password and invalidate all existing sessions
-  await prisma.user.update({
-    where: { id: user.id },
-    data: {
-      password_hash,
-      password_changed_at: new Date(),
-      refresh_token: null,
-      refresh_token_expires: null,
-    },
-  });
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password_hash,
+        password_changed_at: new Date(),
+      },
+    }),
+    // Delete ALL refresh tokens for this user (force re-login on every device)
+    prisma.refreshToken.deleteMany({
+      where: { user_id: user.id },
+    }),
+  ]);
   
   // Send confirmation email
   try {
@@ -882,20 +846,35 @@ authRouter.post('/password/change', requireAuth as any, async (req: AuthedReques
   }
   
   return res.json({ ok: true });
-});
+}));
 
-authRouter.get('/me', requireAuth as any, async (req: AuthedRequest, res) => {
+authRouter.get('/me', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const user = await prisma.user.findUnique({
     where: { id: req.user.id },
-    include: {
-      _count: {
-        select: {
-          posts: true,
-          followers: true,
-          following: true,
-        },
-      },
+    select: {
+      id: true,
+      email: true,
+      display_name: true,
+      username: true,
+      avatar_url: true,
+      bio: true,
+      created_at: true,
+      email_verified: true,
+      banned: true,
+      ban_reason: true,
+      banned_until: true,
+      preferences: true,
+      approval_status: true,
+      subscription_tier: true,
+      subscription_status: true,
+      subscription_expires_at: true,
+      max_teams: true,
+      paid_by_owner: true,
+      // Needed for auth_provider and has_password detection (not exposed by sanitizeUser)
+      apple_id: true,
+      google_id: true,
+      password_hash: true,
     },
   });
   if (!user) return res.status(404).json({ error: 'Not found' });
@@ -914,14 +893,15 @@ authRouter.get('/me', requireAuth as any, async (req: AuthedRequest, res) => {
   if (is_admin) prefs.onboarding_completed = true;
   const sanitized = sanitizeUser(user);
   // auth_provider: so app can show correct "Signed in with Apple/Google" and handle linked accounts (one person, multiple logins)
-  const hasApple = !!(user as any).apple_id;
-  const hasGoogle = !!(user as any).google_id;
+  const hasApple = !!user.apple_id;
+  const hasGoogle = !!user.google_id;
   const auth_provider = hasApple && hasGoogle ? 'apple,google' : hasApple ? 'apple' : hasGoogle ? 'google' : null;
-  return res.json({ ...sanitized, ...(is_admin ? { role: 'admin' } : {}), preferences: prefs, is_admin, auth_provider });
-});
+  const has_password = !!user.password_hash;
+  return res.json({ ...sanitized, ...(is_admin ? { role: 'admin' } : {}), preferences: prefs, is_admin, auth_provider, has_password });
+}));
 
 // Lightweight subscription status (no Stripe calls)
-authRouter.get('/me/subscription', requireAuth as any, async (req: AuthedRequest, res) => {
+authRouter.get('/me/subscription', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const user = await prisma.user.findUnique({
     where: { id: req.user.id },
@@ -941,7 +921,7 @@ authRouter.get('/me/subscription', requireAuth as any, async (req: AuthedRequest
   const paymentApproved = prefs.payment_approved === true;
 
   return res.json({ tier, status, expiresAt, hasActiveSubscription, pendingPlan, paymentApproved });
-});
+}));
 
 const updateMeSchema = z.object({
   display_name: z.string().min(1).max(120).refine((val) => val.trim().length > 0, { message: 'Display name cannot be only whitespace' }).optional(),
@@ -1102,7 +1082,7 @@ function mergePreferences(base: any, incoming: any) {
 }
 
 // Partial update for user preferences
-authRouter.patch('/me/preferences', requireAuth as any, async (req: AuthedRequest, res) => {
+authRouter.patch('/me/preferences', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const schema = z.object({
     notifications: z.object({
@@ -1215,11 +1195,11 @@ authRouter.patch('/me/preferences', requireAuth as any, async (req: AuthedReques
 
   const updated = await prisma.user.update({ where: { id: req.user.id }, data: { preferences: merged } });
   return res.json({ preferences: updated.preferences });
-});
+}));
 
 // Upgrade fan account to coach — bypasses the role-change block on PATCH /me/preferences
 // SECURITY: requireVerified ensures only email-verified users can upgrade to coach
-authRouter.post('/upgrade-to-coach', requireVerified as any, async (req: AuthedRequest, res) => {
+authRouter.post('/upgrade-to-coach', requireVerified as any, asyncHandler(async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
   const schema = z.object({
@@ -1255,7 +1235,7 @@ authRouter.post('/upgrade-to-coach', requireVerified as any, async (req: AuthedR
     data: { preferences: merged, approval_status: 'PENDING' },
   });
   return res.json({ user: { id: req.user.id, preferences: updated.preferences } });
-});
+}));
 
 // Complete onboarding endpoint
 const completeOnboardingSchema = z.object({
@@ -1324,7 +1304,7 @@ const completeOnboardingSchema = z.object({
   proceeding_as_fan: z.boolean().optional(),
 });
 
-authRouter.post('/me/complete-onboarding', requireAuth as any, async (req: AuthedRequest, res) => {
+authRouter.post('/me/complete-onboarding', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const parsed = completeOnboardingSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -1479,25 +1459,33 @@ authRouter.post('/me/complete-onboarding', requireAuth as any, async (req: Authe
     data: updateData
   });
   
-  return res.json({ 
-    message: 'Onboarding completed successfully', 
-    user: sanitizeUser(updated) 
+  return res.json({
+    message: 'Onboarding completed successfully',
+    user: sanitizeUser(updated)
   });
-});
+}));
 
 // Request a new email verification code (authenticated)
-authRouter.post('/verify/request', requireAuth as any, verificationLimiter, async (req: AuthedRequest, res) => {
+authRouter.post('/verify/request', requireAuth as any, verificationLimiter, asyncHandler(async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const user = await prisma.user.findUnique({ where: { id: req.user.id } });
   if (!user) return res.status(404).json({ error: 'Not found' });
   if (user.email_verified) return res.json({ ok: true, already_verified: true });
   const now = Date.now();
-  const key = user.id;
-  maybePruneRateMaps(now, verifyRate.size >= MAX_RATE_TRACKED_KEYS);
-  const rec = verifyRate.get(key) || { last: 0, count: 0, hourStart: now };
-  if (now - rec.hourStart > 3600_000) { rec.hourStart = now; rec.count = 0; }
-  if (now - rec.last < 30_000) return res.status(429).json({ error: 'Please wait before requesting another code' });
-  if (rec.count >= 5) return res.status(429).json({ error: 'Too many requests' });
+  const verifyKey = `verify:${user.id}`;
+
+  // Check 30-second cooldown via a separate TTL key
+  const lastSend = await rlGet(`${verifyKey}:last`);
+  if (lastSend && now - parseInt(lastSend, 10) < 30_000) {
+    return res.status(429).json({ error: 'Please wait before requesting another code' });
+  }
+
+  // Check 5/hour limit via an hourly counter
+  const hourlyCount = await rlIncr(`${verifyKey}:hour`, 3600_000);
+  if (hourlyCount > 5) {
+    return res.status(429).json({ error: 'Too many requests' });
+  }
+
   const code = crypto.randomBytes(4).toString('hex').toUpperCase(); // 8 hex chars = 4 billion possibilities
   debugLog(`[verify-code] [verify/request] Verification code generated for user ${user.id}`);
   const exp = new Date(Date.now() + 30 * 60 * 1000);
@@ -1516,18 +1504,19 @@ authRouter.post('/verify/request', requireAuth as any, verificationLimiter, asyn
     req.log?.warn?.({ err: e }, 'Email send failed');
   }
   const payload: any = { ok: true };
-  if (process.env.NODE_ENV !== 'production') payload.dev_verification_code = code;
-  rec.last = now; rec.count += 1; verifyRate.set(key, rec);
+  if (process.env.NODE_ENV !== 'production' && process.env.ENABLE_DEV_CODES === '1') payload.dev_verification_code = code;
+  // Record the send timestamp for 30s cooldown
+  await rlSet(`${verifyKey}:last`, String(now), 30_000);
   return res.json(payload);
-});
+}));
 
 // Alias: /auth/verify/send
-authRouter.post('/verify/send', requireAuth as any, verificationLimiter, async (req: AuthedRequest, res) => {
+authRouter.post('/verify/send', requireAuth as any, verificationLimiter, asyncHandler(async (req: AuthedRequest, res) => {
   (authRouter as any).handle({ ...req, url: '/verify/request' }, res);
-});
+}));
 
 // Verify code (authenticated) — rate limited to prevent brute-force on 6-digit codes
-authRouter.post('/verify/confirm', requireAuth as any, verificationLimiter, async (req: AuthedRequest, res) => {
+authRouter.post('/verify/confirm', requireAuth as any, verificationLimiter, asyncHandler(async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const schema = z.object({ code: z.string().min(6).max(10) });
   const parsed = schema.safeParse(req.body);
@@ -1543,20 +1532,38 @@ authRouter.post('/verify/confirm', requireAuth as any, verificationLimiter, asyn
   if (verifA.length !== verifB.length || !crypto.timingSafeEqual(verifA, verifB)) return res.status(400).json({ error: 'Invalid code' });
   const updated = await prisma.user.update({ where: { id: user.id }, data: { email_verified: true, email_verification_code: null, email_verification_expires: null } });
   return res.json({ ok: true, user: sanitizeUser(updated) });
-});
+}));
 
 function sanitizeUser(u: any) {
-  const {
-    password_hash,
-    email_verification_code,
-    email_verification_expires,
-    password_reset_code,
-    password_reset_expires,
-    refresh_token,
-    stripe_customer_id,
-    ...rest
-  } = u as any;
-  return rest;
+  if (!u) return u;
+  return {
+    id: u.id,
+    email: u.email,
+    display_name: u.display_name,
+    username: u.username,
+    avatar_url: u.avatar_url,
+    bio: u.bio,
+    created_at: u.created_at,
+    email_verified: u.email_verified,
+    banned: u.banned,
+    ban_reason: u.ban_reason,
+    banned_until: u.banned_until,
+    preferences: u.preferences,
+    approval_status: u.approval_status,
+    subscription_tier: u.subscription_tier,
+    subscription_status: u.subscription_status,
+    subscription_expires_at: u.subscription_expires_at,
+    max_teams: u.max_teams,
+    paid_by_owner: u.paid_by_owner,
+    // Include relations only if they were loaded
+    ...(u.memberships !== undefined && { memberships: u.memberships }),
+    ...(u.orgMemberships !== undefined && { orgMemberships: u.orgMemberships }),
+    ...(u.posts !== undefined && { posts: u.posts }),
+    ...(u.stories !== undefined && { stories: u.stories }),
+    ...(u.ads !== undefined && { ads: u.ads }),
+    ...(u.teamFollows !== undefined && { teamFollows: u.teamFollows }),
+    ...(u.organizationFollows !== undefined && { organizationFollows: u.organizationFollows }),
+  };
 }
 
 // Test email endpoint (development only)

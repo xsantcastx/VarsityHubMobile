@@ -113,10 +113,7 @@ export default function TabLayout() {
   <Tabs.Screen name="game-reviews" options={hiddenTab} />
   {/* Common navigation screens - hidden but accessible with tab bar */}
   <Tabs.Screen name="create-post" options={hiddenTab} />
-  <Tabs.Screen name="post-detail" options={hiddenTab} />
-  <Tabs.Screen name="user-profile" options={hiddenTab} />
   <Tabs.Screen name="team-profile" options={hiddenTab} />
-  <Tabs.Screen name="team-page" options={hiddenTab} />
   <Tabs.Screen name="team-hub" options={hiddenTab} />
   <Tabs.Screen name="team-contacts" options={hiddenTab} />
   <Tabs.Screen name="edit-profile" options={hiddenTab} />
@@ -124,12 +121,10 @@ export default function TabLayout() {
   <Tabs.Screen name="edit-team" options={hiddenTab} />
   <Tabs.Screen name="manage-teams" options={hiddenTab} />
   <Tabs.Screen name="my-team" options={hiddenTab} />
-  <Tabs.Screen name="message-thread" options={hiddenTab} />
   <Tabs.Screen name="followers" options={hiddenTab} />
   <Tabs.Screen name="following" options={hiddenTab} />
   <Tabs.Screen name="organization" options={hiddenTab} />
   <Tabs.Screen name="event-detail" options={hiddenTab} />
-  <Tabs.Screen name="create-fan-event" options={hiddenTab} />
   <Tabs.Screen name="edit-organization" options={hiddenTab} />
   <Tabs.Screen name="event-approvals" options={hiddenTab} />
   <Tabs.Screen name="approvals" options={hiddenTab} />

@@ -3,6 +3,7 @@ import { logAdminActivity } from '../lib/adminActivityLogger.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 
 export const adminReportsRouter = Router();
 
@@ -16,7 +17,7 @@ async function getAdminEmail(userId: string): Promise<string> {
 }
 
 // GET /admin/reports - Get all abuse reports
-adminReportsRouter.get('/', requireAdmin as any, async (req: AuthedRequest, res) => {
+adminReportsRouter.get('/', requireAdmin as any, asyncHandler(async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   
   const status = String(req.query.status || 'all').trim();
@@ -47,10 +48,10 @@ adminReportsRouter.get('/', requireAdmin as any, async (req: AuthedRequest, res)
   ]);
   
   return res.json({ reports, total });
-});
+}));
 
 // GET /admin/reports/stats - Get report statistics
-adminReportsRouter.get('/stats', requireAdmin as any, async (req: AuthedRequest, res) => {
+adminReportsRouter.get('/stats', requireAdmin as any, asyncHandler(async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   
   const [pending, reviewed, resolved, dismissed, total] = await Promise.all([
@@ -62,10 +63,10 @@ adminReportsRouter.get('/stats', requireAdmin as any, async (req: AuthedRequest,
   ]);
   
   return res.json({ pending, reviewed, resolved, dismissed, total });
-});
+}));
 
 // PATCH /admin/reports/:id - Update report status
-adminReportsRouter.patch('/:id', requireAdmin as any, async (req: AuthedRequest, res) => {
+adminReportsRouter.patch('/:id', requireAdmin as any, asyncHandler(async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   
   const { id } = req.params;
@@ -107,10 +108,10 @@ adminReportsRouter.patch('/:id', requireAdmin as any, async (req: AuthedRequest,
   );
   
   return res.json({ report });
-});
+}));
 
 // POST /admin/reports/bulk-update - Bulk update multiple reports
-adminReportsRouter.post('/bulk-update', requireAdmin as any, async (req: AuthedRequest, res) => {
+adminReportsRouter.post('/bulk-update', requireAdmin as any, asyncHandler(async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   
   const { report_ids, status, resolution_note } = req.body || {};
@@ -146,10 +147,10 @@ adminReportsRouter.post('/bulk-update', requireAdmin as any, async (req: AuthedR
   );
   
   return res.json({ updated: result.count });
-});
+}));
 
 // DELETE /admin/reports/:id - Delete a report
-adminReportsRouter.delete('/:id', requireAdmin as any, async (req: AuthedRequest, res) => {
+adminReportsRouter.delete('/:id', requireAdmin as any, asyncHandler(async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   
   const { id } = req.params;
@@ -178,10 +179,10 @@ adminReportsRouter.delete('/:id', requireAdmin as any, async (req: AuthedRequest
   );
   
   return res.json({ ok: true });
-});
+}));
 
 // POST /admin/reports/bulk-delete - Bulk delete multiple reports
-adminReportsRouter.post('/bulk-delete', requireAdmin as any, async (req: AuthedRequest, res) => {
+adminReportsRouter.post('/bulk-delete', requireAdmin as any, asyncHandler(async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   
   const { report_ids } = req.body || {};
@@ -207,4 +208,4 @@ adminReportsRouter.post('/bulk-delete', requireAdmin as any, async (req: AuthedR
   );
   
   return res.json({ deleted: result.count });
-});
+}));

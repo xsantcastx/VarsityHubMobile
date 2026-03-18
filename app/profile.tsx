@@ -1041,7 +1041,7 @@ export default function ProfileScreen() {
           <MaterialIcons name="person-outline" size={48} color={theme.mutedText} style={{ marginBottom: 16 }} />
           <Text style={[styles.error, { color: theme.text, textAlign: 'center', marginBottom: 8 }]}>User not found</Text>
           <Text style={{ color: theme.mutedText, textAlign: 'center', marginBottom: 16 }}>This profile doesn't exist or the link is invalid.</Text>
-          <Button onPress={() => safeGoBack(router)}>
+          <Button onPress={() => safeGoBack(router)} accessibilityLabel="Go back">
             <Text style={{ color: '#fff' }}>Go Back</Text>
           </Button>
         </View>
@@ -1058,11 +1058,11 @@ export default function ProfileScreen() {
           <Text style={[styles.error, { color: theme.text, textAlign: 'center', marginBottom: 8 }]}>{error}</Text>
           <View style={{ height: 16 }} />
           {error.includes('sign in') ? (
-            <Button onPress={() => void router.push('/sign-in')}>
+            <Button onPress={() => void router.push('/sign-in')} accessibilityLabel="Sign in">
               <Text style={{ color: '#fff' }}>Sign In</Text>
             </Button>
           ) : (
-            <Button onPress={() => void loadProfile()}>
+            <Button onPress={() => void loadProfile()} accessibilityLabel="Retry loading profile">
               <Text style={{ color: '#fff' }}>Retry</Text>
             </Button>
           )}
@@ -1082,7 +1082,7 @@ export default function ProfileScreen() {
             Unable to load profile
           </Text>
           <View style={{ height: 16 }} />
-          <Button onPress={() => void loadProfile()}>
+          <Button onPress={() => void loadProfile()} accessibilityLabel="Retry loading profile">
             <Text style={{ color: '#fff' }}>Retry</Text>
           </Button>
         </View>

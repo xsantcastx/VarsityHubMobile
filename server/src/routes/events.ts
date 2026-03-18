@@ -13,6 +13,7 @@ import { requireOnboarded } from '../middleware/requireOnboarded.js';
 import { eventCreationLimiter, rsvpLimiter } from '../middleware/rateLimiters.js';
 import { haversineDistance, getZipCoordinates } from '../lib/geoUtils.js';
 import { geocodeLocation } from '../lib/geocoding.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 
 export const eventsRouter = Router();
 
@@ -250,7 +251,7 @@ eventsRouter.get('/pending', requireAuth as any, async (req: AuthedRequest, res)
 });
 
 // Get single event with RSVP count (optionally includes can_cancel when authenticated)
-eventsRouter.get('/:id', authMiddleware as any, async (req: AuthedRequest, res) => {
+eventsRouter.get('/:id', authMiddleware as any, asyncHandler(async (req: AuthedRequest, res) => {
   const id = String(req.params.id);
   const event = await prisma.event.findUnique({
     where: { id },
@@ -273,10 +274,10 @@ eventsRouter.get('/:id', authMiddleware as any, async (req: AuthedRequest, res) 
     (payload as any).can_cancel = isCreator || isTeamOwner || isAdmin;
   }
   return res.json(payload);
-});
+}));
 
 // Get RSVP status and count
-eventsRouter.get('/:id/rsvp', async (req: AuthedRequest, res) => {
+eventsRouter.get('/:id/rsvp', asyncHandler(async (req: AuthedRequest, res) => {
   const id = String(req.params.id);
   const event = await prisma.event.findUnique({ 
     where: { id }, 
@@ -289,12 +290,12 @@ eventsRouter.get('/:id/rsvp', async (req: AuthedRequest, res) => {
   const exists = await prisma.eventRsvp.findUnique({ where: { event_id_user_id: { event_id: id, user_id: req.user.id } } as any });
   const going = !!exists;
   return res.json({ going, attending: going, count, capacity });
-});
+}));
 
 // Toggle/set RSVP
 const rsvpSchema = z.object({ attending: z.boolean().optional(), going: z.boolean().optional() });
 
-eventsRouter.post('/:id/rsvp', requireAuth as any, rsvpLimiter, async (req: AuthedRequest, res) => {
+eventsRouter.post('/:id/rsvp', requireAuth as any, rsvpLimiter, asyncHandler(async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const id = String(req.params.id);
   
@@ -392,7 +393,7 @@ eventsRouter.post('/:id/rsvp', requireAuth as any, rsvpLimiter, async (req: Auth
   const count = await prisma.eventRsvp.count({ where: { event_id: id } });
   const capacity = event.capacity ?? event.max_attendees;
   return res.json({ going: desired, attending: desired, count, capacity: capacity ?? null });
-});
+}));
 
 // Create event (fans & coaches)
 const createEventSchema = z.object({
@@ -417,7 +418,7 @@ const createEventSchema = z.object({
   home_team_id: z.string().optional(),
 });
 
-eventsRouter.post('/', requireVerified as any, requireOnboarded as any, eventCreationLimiter, async (req: AuthedRequest, res) => {
+eventsRouter.post('/', requireVerified as any, requireOnboarded as any, eventCreationLimiter, asyncHandler(async (req: AuthedRequest, res) => {
   // req.user is guaranteed by requireVerified middleware
   const parsed = createEventSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -564,10 +565,10 @@ eventsRouter.post('/', requireVerified as any, requireOnboarded as any, eventCre
     console.error('[events] create error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // Approve event
-eventsRouter.put('/:id/approve', requireVerified as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
+eventsRouter.put('/:id/approve', requireVerified as any, requireOnboarded as any, asyncHandler(async (req: AuthedRequest, res) => {
   // req.user is guaranteed by requireVerified middleware
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   
@@ -677,14 +678,14 @@ eventsRouter.put('/:id/approve', requireVerified as any, requireOnboarded as any
     ...serializeEvent(updated),
     message: 'Event approved successfully!'
   });
-});
+}));
 
 // Reject event
 const rejectEventSchema = z.object({
   reason: z.string().optional(),
 });
 
-eventsRouter.put('/:id/reject', requireVerified as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
+eventsRouter.put('/:id/reject', requireVerified as any, requireOnboarded as any, asyncHandler(async (req: AuthedRequest, res) => {
   // req.user is guaranteed by requireVerified middleware
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   
@@ -800,7 +801,7 @@ const updateEventSchema = z.object({
   opponent: z.string().trim().optional(), // Alias for away_team_name (manual opponent name)
   away_team_id: z.string().trim().nullable().optional(),
   away_team_name: z.string().trim().optional(),
-});
+}));
 
 const COACH_EDITABLE_FIELDS = ['date', 'location', 'latitude', 'longitude', 'description', 'opponent', 'away_team_id', 'away_team_name'];
 

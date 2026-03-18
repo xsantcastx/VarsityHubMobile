@@ -10,6 +10,7 @@ import { useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { httpGet } from '@/api/http';
+import { sanitizeText } from '@/utils/formUtils';
 // @ts-ignore
 import { Advertisement as AdsApi } from '@/api/entities';
 
@@ -102,15 +103,15 @@ export default function SubmitAdScreen() {
       let createError: string | null = null;
       try {
         const created: any = await AdsApi.create({
-          contact_name: name.trim(),
+          contact_name: sanitizeText(name),
           contact_email: email.trim(),
-          business_name: business.trim(),
+          business_name: sanitizeText(business),
           banner_url: bannerUrl || undefined,
           banner_fit_mode: normalizeBannerFitMode(bannerFitMode),
           target_url: normalizeUrl(targetUrl) || undefined,
           target_zip_code: zip.trim(),
           radius: 9,
-          description: desc.trim() || undefined,
+          description: sanitizeText(desc) || undefined,
         });
         serverId = String(created?.id || '');
         if (created?.user_id) currentUserId = String(created.user_id);

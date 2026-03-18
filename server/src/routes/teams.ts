@@ -13,6 +13,7 @@ import { requireOnboarded } from '../middleware/requireOnboarded.js';
 import { requirePlan } from '../middleware/subscription.js';
 import { teamCreationLimiter, followLimiter, inviteLimiter } from '../middleware/rateLimiters.js';
 import { getAuthorizedUsersPerTeam, getMaxTeamsForPlan, planSupportsExtracurricular } from '../lib/planLimits.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 
 export const teamsRouter = Router();
 const debugLog = (...args: Parameters<typeof console.log>) => {
@@ -565,7 +566,7 @@ const updateSchema = z.object({
   venue_lng: z.number().optional(),
   venue_address: z.string().optional(),
 });
-teamsRouter.put('/:id', requireVerified as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
+teamsRouter.put('/:id', requireVerified as any, requireOnboarded as any, asyncHandler(async (req: AuthedRequest, res) => {
   debugLog('[Teams PUT] Received update request:', JSON.stringify(req.body));
   // req.user is guaranteed by requireVerified middleware
   const parsed = updateSchema.safeParse(req.body);
@@ -677,10 +678,10 @@ teamsRouter.put('/:id', requireVerified as any, requireOnboarded as any, async (
     console.error('[teams] update error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // Delete team (auth required). Only owners/admins can delete.
-teamsRouter.delete('/:id', requireVerified as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
+teamsRouter.delete('/:id', requireVerified as any, requireOnboarded as any, asyncHandler(async (req: AuthedRequest, res) => {
   // req.user is guaranteed by requireVerified middleware
   
   const teamId = String(req.params.id);
@@ -713,11 +714,11 @@ teamsRouter.delete('/:id', requireVerified as any, requireOnboarded as any, asyn
     console.error('[teams] delete error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // Dev helper: update just the logo_url of a team (useful for testing uploads quickly)
 if (process.env.NODE_ENV !== 'production') {
-  teamsRouter.post('/:id/dev-set-logo', requireAuth as any, async (req, res) => {
+  teamsRouter.post('/:id/dev-set-logo', requireAuth as any, asyncHandler(async (req, res) => {
     const id = String(req.params.id);
     const { logo_url } = req.body || {};
     try {
@@ -727,7 +728,7 @@ if (process.env.NODE_ENV !== 'production') {
       console.error('dev-set-logo failed', e?.message || e);
       return res.status(500).json({ error: 'Internal server error' });
     }
-  });
+  }));
 }
 
 // Enhanced create team for onboarding
@@ -1183,7 +1184,7 @@ teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, req
 
 // Invite user by email to a team
 const inviteSchema = z.object({ email: z.string().email(), role: z.string().optional() });
-teamsRouter.post('/:id/invite', requireAuth as any, requireVerified as any, requireOnboarded as any, inviteLimiter, async (req: AuthedRequest, res) => {
+teamsRouter.post('/:id/invite', requireAuth as any, requireVerified as any, requireOnboarded as any, inviteLimiter, asyncHandler(async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const id = String(req.params.id);
   const parsed = inviteSchema.safeParse(req.body);
@@ -1248,7 +1249,7 @@ teamsRouter.post('/:id/invite', requireAuth as any, requireVerified as any, requ
       }
 
       // Create invite within same transaction
-      return await tx.teamInvite.create({ data: { team_id: id, email, role: role || 'member' } });
+      return await tx.teamInvite.create({ data: { team_id: id, email, role: (role || 'member') as any } });
     });
   } catch (e: any) {
     // Handle specific limit errors
@@ -1327,7 +1328,7 @@ teamsRouter.post('/:id/invite', requireAuth as any, requireVerified as any, requ
   }
   
   return res.status(201).json(invite);
-});
+}));
 
 // List invites for the authed user's email
 teamsRouter.get('/invites/me', requireAuth as any, async (req: AuthedRequest, res) => {

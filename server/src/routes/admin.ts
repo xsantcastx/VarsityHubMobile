@@ -8,10 +8,39 @@ import {
   getTransactionBySession,
   getTransactionSummary
 } from '../lib/transactionLogger.js';
+import { wipeCloudinary, wipeDatabase } from '../lib/wipeProduction.js';
 import { requireAdmin as requireAdminMiddleware } from '../middleware/requireAdmin.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 
 const adminRouter = express.Router();
+
+/**
+ * POST /admin/wipe-database
+ * One-time production wipe. Only available when WIPE_TOKEN is set in env.
+ * Call with header: X-Wipe-Token: <WIPE_TOKEN>. Remove WIPE_TOKEN after use.
+ */
+const WIPE_TOKEN = process.env.WIPE_TOKEN;
+if (WIPE_TOKEN) {
+  adminRouter.post('/wipe-database', async (req, res) => {
+    const token = req.headers['x-wipe-token'];
+    if (token !== WIPE_TOKEN) {
+      return res.status(401).json({ error: 'Invalid or missing X-Wipe-Token' });
+    }
+    try {
+      const dbResult = await wipeDatabase(prisma);
+      const cloudResult = await wipeCloudinary();
+      return res.json({
+        ok: true,
+        message: 'Production wipe complete. Remove WIPE_TOKEN from Railway after this.',
+        database: dbResult.deleted,
+        cloudinaryDeleted: cloudResult.deleted,
+      });
+    } catch (err) {
+      console.error('[admin] wipe-database error:', err);
+      return res.status(500).json({ error: 'Wipe failed', details: String(err) });
+    }
+  });
+}
 
 /**
  * GET /admin/dashboard

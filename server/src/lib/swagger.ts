@@ -18,9 +18,7 @@ const options = {
     },
     servers: [
       {
-        url: process.env.NODE_ENV === 'production'
-          ? 'https://api-production-8ac3.up.railway.app'
-          : 'http://localhost:4000',
+        url: process.env.APP_BASE_URL || process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000',
         description: process.env.NODE_ENV === 'production' ? 'Production' : 'Development',
       },
     ],

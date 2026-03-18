@@ -18,7 +18,10 @@ const adCreateSchema = z.object({
   business_name: z.string().min(1).max(200),
   banner_url: z.string().url().max(2048).nullish(),
   banner_fit_mode: z.enum(['cover', 'contain', 'fill']).nullish(),
-  target_url: z.string().url().max(2048).nullish(),
+  target_url: z.string().url().max(2048).refine(
+    (url) => /^https?:\/\//i.test(url),
+    { message: 'target_url must use http or https protocol' }
+  ).nullish(),
   target_zip_code: z.string().regex(/^\d{5}$/, 'Must be a 5-digit US zip code'),
   radius: z.number().optional(),
   description: z.string().max(1000).nullish(),
@@ -30,7 +33,10 @@ const adUpdateSchema = z.object({
   business_name: z.string().min(1).max(200).optional(),
   banner_url: z.string().url().max(2048).nullish(),
   banner_fit_mode: z.enum(['cover', 'contain', 'fill']).nullish(),
-  target_url: z.string().url().max(2048).nullish(),
+  target_url: z.string().url().max(2048).refine(
+    (url) => /^https?:\/\//i.test(url),
+    { message: 'target_url must use http or https protocol' }
+  ).nullish(),
   target_zip_code: z.string().regex(/^\d{5}$/, 'Must be a 5-digit US zip code').optional(),
   radius: z.number().optional(),
   description: z.string().max(1000).nullish(),
@@ -165,7 +171,7 @@ export async function handleAdSubmitForApproval(req: AuthedRequest, res: Respons
     }).catch((err) => console.error('[ads] submit-for-approval email failed:', (err as any)?.message || err));
 
     const updated = await prisma.ad.findUnique({ where: { id }, include: { reservations: true } });
-    return res.status(201).json(updated);
+    return res.status(200).json(updated);
   } catch (err) {
     console.error('[ads] POST /:id/submit-for-approval error:', err);
     return res.status(500).json({ error: 'Internal server error' });
@@ -467,7 +473,7 @@ adsRouter.delete('/:id([a-z0-9]{15,50})', requireVerified as any, async (req: Au
           user_id: req.user?.id || null,
           order_id: `ad_delete_${id}`,
           metadata: auditData,
-        } as any,
+        },
       }),
     ]);
     debugLog('[ads] DELETE /:id - Ad deleted with audit trail', { id });

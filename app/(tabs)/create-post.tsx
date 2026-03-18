@@ -18,6 +18,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { useDeviceLocation } from '@/hooks/useDeviceLocation';
 import SwipeBackContainer from '@/components/SwipeBackContainer';
 import { pickerMediaTypeFor } from '@/utils/picker';
+import { sanitizeText } from '@/utils/formUtils';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -619,7 +620,7 @@ export default function CreatePostScreen() {
           }
         } catch { /* non-critical cleanup */ }
       }
-      const trimmedContent = content.trim();
+      const trimmedContent = sanitizeText(content);
       
       const locationPayload = location?.latitude && location?.longitude ? { lat: location.latitude, lng: location.longitude, source: 'device' as const } : {};
       const payload: Record<string, any> = {
@@ -872,6 +873,8 @@ export default function CreatePostScreen() {
                   setSuggestedGame(game);
                   setSelectedGameId(String(game.id));
                 }}
+                accessibilityRole="button"
+                accessibilityLabel={`Tag game: ${game.title || `${game.home_team} vs ${game.away_team}`}`}
               >
                 <View style={styles.gameIconContainer}>
                   <Ionicons name="location" size={18} color={Colors[colorScheme].tint} />
@@ -900,9 +903,11 @@ export default function CreatePostScreen() {
               </Pressable>
             ))}
             {nearbyGames.length > 3 && (
-              <Pressable 
+              <Pressable
                 style={[styles.viewMoreButton, { backgroundColor: Colors[colorScheme].surface }]}
                 onPress={() => setEventSelectorVisible(true)}
+                accessibilityRole="button"
+                accessibilityLabel={`View all ${nearbyGames.length} nearby games`}
               >
                 <Text style={[styles.viewMoreText, { color: Colors[colorScheme].tint }]}>
                   View all {nearbyGames.length} nearby games
@@ -915,7 +920,7 @@ export default function CreatePostScreen() {
         {/* Selected Game/Event */}
         {suggestedGame && selectedGameId && (
           <View style={styles.gameSection}>
-            <Pressable 
+            <Pressable
               style={{
                 flexDirection: 'row',
                 alignItems: 'center',
@@ -927,6 +932,8 @@ export default function CreatePostScreen() {
                 paddingVertical: 14,
               }}
               onPress={() => nearbyGames.length > 1 && !isSampleEvent(selectedGameId) ? setEventSelectorVisible(true) : null}
+              accessibilityRole="button"
+              accessibilityLabel={`Tagged game: ${suggestedGame.title || `${suggestedGame.home_team} vs ${suggestedGame.away_team}`}`}
             >
               <View style={{ flex: 1 }}>
                 <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '600' }}>
@@ -944,6 +951,8 @@ export default function CreatePostScreen() {
             <Pressable
               style={{ alignSelf: 'flex-end', marginTop: 8, paddingVertical: 4 }}
               onPress={() => { setSuggestedGame(null); setSelectedGameId(undefined); }}
+              accessibilityRole="button"
+              accessibilityLabel="Remove tagged game"
             >
               <Text style={{ color: Colors[colorScheme].mutedText, fontSize: 13 }}>Remove</Text>
             </Pressable>
@@ -982,8 +991,8 @@ export default function CreatePostScreen() {
                   Precise location is off. Nearby event suggestions may be less accurate on Android.
                 </Text>
                 <View style={styles.warningActionsRow}>
-                  <Pressable onPress={() => setPrecisionBannerDismissed(true)}>
-                    <Text style={[styles.warningActionLink, { 
+                  <Pressable onPress={() => setPrecisionBannerDismissed(true)} accessibilityRole="button" accessibilityLabel="Dismiss precision location warning">
+                    <Text style={[styles.warningActionLink, {
                       color: colorScheme === 'dark' ? Colors[colorScheme].tint : '#FFFFFF'
                     }]}>Maybe later</Text>
                   </Pressable>
@@ -992,6 +1001,8 @@ export default function CreatePostScreen() {
                       setPrecisionBannerDismissed(true);
                       void openSettings();
                     }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Open location settings"
                   >
                     <Text style={[styles.warningActionLink, { color: Colors[colorScheme].tint, fontWeight: '700' }]}>
                       Open settings
@@ -1021,11 +1032,11 @@ export default function CreatePostScreen() {
         <SafeAreaView style={[styles.modalContainer, { backgroundColor: Colors[colorScheme].background }]}>
           <View style={[styles.modalHeader, { backgroundColor: Colors[colorScheme].background, borderBottomColor: Colors[colorScheme].border }]}>
             <Text style={[styles.modalTitle, { color: Colors[colorScheme].text }]}>Select Event</Text>
-            <Pressable onPress={() => setEventSelectorVisible(false)}>
+            <Pressable onPress={() => setEventSelectorVisible(false)} accessibilityRole="button" accessibilityLabel="Close event selector">
               <Ionicons name="close" size={24} color={Colors[colorScheme].text} />
             </Pressable>
           </View>
-          
+
           <ScrollView contentContainerStyle={styles.modalBody}>
             {nearbyGames.length > 0 ? (
               <>
@@ -1042,6 +1053,8 @@ export default function CreatePostScreen() {
                       setSelectedGameId(String(game.id));
                       setEventSelectorVisible(false);
                     }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Select ${game.title || `${game.home_team} vs ${game.away_team}`}`}
                   >
                     <View style={[styles.eventOptionIcon, { backgroundColor: Colors[colorScheme].surface }]}>
                       <Ionicons 
@@ -1104,7 +1117,7 @@ export default function CreatePostScreen() {
         <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
           <View style={[styles.modalHeader, { backgroundColor: Colors[colorScheme].background, borderBottomColor: Colors[colorScheme].border }]}>
             <Text style={[styles.modalTitle, { color: Colors[colorScheme].text }]}>Preview Post</Text>
-            <Pressable onPress={() => setPreviewVisible(false)}>
+            <Pressable onPress={() => setPreviewVisible(false)} accessibilityRole="button" accessibilityLabel="Close preview">
               <Ionicons name="close" size={24} color={Colors[colorScheme].text} />
             </Pressable>
           </View>
@@ -1148,6 +1161,8 @@ export default function CreatePostScreen() {
                   {/* Retake/Replace Media Button */}
                   <Pressable
                     style={[styles.retakeButton, { backgroundColor: Colors[colorScheme].background }]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Retake or replace media"
                     onPress={() => {
                       setPreviewVisible(false);
                       setPicked(null);
@@ -1220,6 +1235,7 @@ export default function CreatePostScreen() {
                 onPress={() => setContentConsent(!contentConsent)}
                 accessibilityRole="checkbox"
                 accessibilityState={{ checked: contentConsent }}
+                accessibilityLabel="I confirm I personally filmed or own this content"
               >
                 <Ionicons
                   name={contentConsent ? 'checkbox' : 'square-outline'}
@@ -1238,6 +1254,8 @@ export default function CreatePostScreen() {
               <Pressable
                 style={[styles.previewButton, styles.editButton, { backgroundColor: Colors[colorScheme].surface }]}
                 onPress={() => setPreviewVisible(false)}
+                accessibilityRole="button"
+                accessibilityLabel="Edit post"
               >
                 <Ionicons name="create-outline" size={20} color={Colors[colorScheme].text} />
                 <Text style={[styles.previewButtonText, { color: Colors[colorScheme].text }]}>
@@ -1249,6 +1267,8 @@ export default function CreatePostScreen() {
                 style={[styles.previewButton, styles.confirmButton, { opacity: (submitting || (picked?.uri && !contentConsent)) ? 0.6 : 1 }]}
                 onPress={confirmPost}
                 disabled={submitting || (!!picked?.uri && !contentConsent)}
+                accessibilityRole="button"
+                accessibilityLabel={submitting ? "Posting" : (picked?.uri ? "Confirm and upload" : "Confirm and post")}
               >
                 <Ionicons name="checkmark-circle" size={20} color="#fff" />
                 <Text style={styles.confirmButtonText}>

@@ -16,6 +16,7 @@ import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 // @ts-ignore
 import { httpPost } from '@/api/http';
 import { getApiBaseUrl } from '@/api/http';
+import { sanitizeText } from '@/utils/formUtils';
 
 type TeamLimitSummary = {
   owned_teams: number;
@@ -476,15 +477,15 @@ export default function CreateTeamScreen() {
       // This avoids extra /organizations requests and timeout chains.
 
       const teamData = {
-        name: name.trim(),
-        description: description.trim() || undefined,
-        sport: clubType === 'sport' ? (sport === 'Other' ? (customSport.trim() || 'Other') : (sport || undefined)) : undefined,
+        name: sanitizeText(name),
+        description: sanitizeText(description) || undefined,
+        sport: clubType === 'sport' ? (sport === 'Other' ? (sanitizeText(customSport) || 'Other') : (sport || undefined)) : undefined,
         club_type: clubType,
         extracurricular_category: clubType === 'extracurricular' ? (extracurricularCategory.trim() || undefined) : undefined,
         season: season || undefined,
         primary_color: teamColor || undefined,
         organization_id: selectedOrgId || undefined,
-        organization_name: !selectedOrgId ? (organizationName.trim() || undefined) : undefined,
+        organization_name: !selectedOrgId ? (sanitizeText(organizationName) || undefined) : undefined,
         logo_url: logoUrl || undefined, // Use uploaded URL
       };
       
@@ -521,9 +522,11 @@ export default function CreateTeamScreen() {
       >
         {/* Header */}
         <View style={[styles.header, { paddingTop: 12 + insets.top }]}>
-          <Pressable 
-            style={styles.backButton} 
+          <Pressable
+            style={styles.backButton}
             onPress={() => safeGoBack(router)}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
           >
             <MaterialIcons name="arrow-back" size={24} color={Colors[colorScheme].text} />
           </Pressable>
@@ -560,7 +563,7 @@ export default function CreateTeamScreen() {
                 {planBadgeText}
               </Text>
               {limitReached && Platform.OS !== 'ios' && (
-                <Pressable onPress={() => router.push('/subscription-paywall')} style={styles.limitUpgradeLink}>
+                <Pressable onPress={() => router.push('/subscription-paywall')} style={styles.limitUpgradeLink} accessibilityRole="button" accessibilityLabel="View subscription plans">
                   <MaterialIcons name="arrow-circle-right" size={18} color={Colors[colorScheme].tint} />
                   <Text style={[styles.limitUpgradeText, { color: Colors[colorScheme].tint }]}>View plans</Text>
                 </Pressable>
@@ -604,6 +607,7 @@ export default function CreateTeamScreen() {
                 placeholder="e.g. Springfield Eagles"
                 placeholderTextColor={Colors[colorScheme].mutedText}
                 style={[styles.textInput, { color: Colors[colorScheme].text }]}
+                accessibilityLabel="Team name"
               />
             </View>
           </View>
@@ -612,9 +616,11 @@ export default function CreateTeamScreen() {
           <View style={styles.fieldGroup}>
             <Text style={[styles.fieldLabel, { color: Colors[colorScheme].text }]}>Team Logo</Text>
             <View style={styles.logoSection}>
-              <Pressable 
+              <Pressable
                 style={[styles.logoContainer, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
                 onPress={showImagePicker}
+                accessibilityRole="button"
+                accessibilityLabel={logoUri ? "Change team logo" : "Add team logo"}
               >
                 {logoUri ? (
                   <Image source={{ uri: logoUri }} style={styles.logoImage} />
@@ -628,9 +634,11 @@ export default function CreateTeamScreen() {
                 )}
               </Pressable>
               <View style={styles.logoActions}>
-                <Pressable 
+                <Pressable
                   style={[styles.logoActionButton, { backgroundColor: Colors[colorScheme].tint }]}
                   onPress={showImagePicker}
+                  accessibilityRole="button"
+                  accessibilityLabel={logoUri ? "Change logo" : "Add logo"}
                 >
                   <MaterialIcons name="add" size={20} color="#fff" />
                   <Text style={styles.logoActionText}>
@@ -638,9 +646,11 @@ export default function CreateTeamScreen() {
                   </Text>
                 </Pressable>
                 {logoUri && (
-                  <Pressable 
+                  <Pressable
                     style={[styles.logoActionButton, { backgroundColor: '#EF4444' }]}
                     onPress={() => setLogoUri(null)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Remove logo"
                   >
                     <MaterialIcons name="delete-outline" size={20} color="#fff" />
                     <Text style={styles.logoActionText}>Remove</Text>
@@ -660,7 +670,7 @@ export default function CreateTeamScreen() {
               <Pressable
                 style={[
                   styles.clubTypeButton,
-                  { 
+                  {
                     backgroundColor: clubType === 'sport' ? Colors[colorScheme].tint : Colors[colorScheme].surface,
                     borderColor: clubType === 'sport' ? Colors[colorScheme].tint : Colors[colorScheme].border
                   }
@@ -669,6 +679,9 @@ export default function CreateTeamScreen() {
                   setClubType('sport');
                   setExtracurricularCategory('');
                 }}
+                accessibilityRole="button"
+                accessibilityLabel="Sport Team"
+                accessibilityState={{ selected: clubType === 'sport' }}
               >
                 <MaterialIcons name="sports-football" size={20} color={clubType === 'sport' ? '#fff' : Colors[colorScheme].text} />
                 <Text style={[
@@ -681,12 +694,15 @@ export default function CreateTeamScreen() {
               <Pressable
                 style={[
                   styles.clubTypeButton,
-                  { 
+                  {
                     backgroundColor: clubType === 'extracurricular' ? Colors[colorScheme].tint : Colors[colorScheme].surface,
                     borderColor: clubType === 'extracurricular' ? Colors[colorScheme].tint : Colors[colorScheme].border,
                     opacity: (teamLimits?.subscription_tier || 'rookie').toLowerCase() === 'legend' ? 1 : 0.5
                   }
                 ]}
+                accessibilityRole="button"
+                accessibilityLabel="Extracurricular Club"
+                accessibilityState={{ selected: clubType === 'extracurricular' }}
                 onPress={async () => {
                   const userPlan = (teamLimits?.subscription_tier || 'rookie').toLowerCase();
                   if (userPlan !== 'legend') {
@@ -733,6 +749,7 @@ export default function CreateTeamScreen() {
                     placeholder="e.g. Theater, Chess, Debate, Robotics"
                     placeholderTextColor={Colors[colorScheme].mutedText}
                     style={[styles.textInput, { color: Colors[colorScheme].text }]}
+                    accessibilityLabel="Club category"
                   />
                 </View>
               </View>
@@ -749,12 +766,15 @@ export default function CreateTeamScreen() {
                     key={sportOption}
                     style={[
                       styles.chipButton,
-                      { 
+                      {
                         backgroundColor: sport === sportOption ? Colors[colorScheme].tint : Colors[colorScheme].surface,
                         borderColor: sport === sportOption ? Colors[colorScheme].tint : Colors[colorScheme].border
                       }
                     ]}
                     onPress={() => setSport(sport === sportOption ? '' : sportOption)}
+                    accessibilityRole="button"
+                    accessibilityLabel={sportOption}
+                    accessibilityState={{ selected: sport === sportOption }}
                   >
                     <Text style={[
                       styles.chipText,
@@ -782,6 +802,7 @@ export default function CreateTeamScreen() {
                   onChangeText={setCustomSport}
                   placeholder="Enter your sport name"
                   placeholderTextColor={Colors[colorScheme].mutedText}
+                  accessibilityLabel="Custom sport name"
                 />
               )}
             </View>
@@ -798,12 +819,15 @@ export default function CreateTeamScreen() {
                   key={type}
                   style={[
                     styles.seasonButton,
-                    { 
+                    {
                       backgroundColor: seasonType === type ? Colors[colorScheme].tint + '15' : Colors[colorScheme].surface,
                       borderColor: seasonType === type ? Colors[colorScheme].tint : Colors[colorScheme].border
                     }
                   ]}
                   onPress={() => handleSeasonTypeSelect(type)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${type} season`}
+                  accessibilityState={{ selected: seasonType === type }}
                 >
                   <MaterialIcons 
                     name="event" 
@@ -833,6 +857,7 @@ export default function CreateTeamScreen() {
                     maxLength={4}
                     placeholderTextColor={Colors[colorScheme].mutedText}
                     style={[styles.yearInputText, { color: Colors[colorScheme].text }]}
+                    accessibilityLabel="Season year"
                   />
                 </View>
                 {season && (
@@ -858,13 +883,16 @@ export default function CreateTeamScreen() {
                   key={color.value}
                   style={[
                     styles.colorButton,
-                    { 
+                    {
                       backgroundColor: color.value,
                       borderWidth: teamColor === color.value ? 3 : 0,
                       borderColor: teamColor === color.value ? Colors[colorScheme].text : 'transparent',
                     }
                   ]}
                   onPress={() => setTeamColor(color.value)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${color.name} color`}
+                  accessibilityState={{ selected: teamColor === color.value }}
                 >
                   {teamColor === color.value && (
                     <MaterialIcons name="check" size={20} color="#fff" />
@@ -895,6 +923,8 @@ export default function CreateTeamScreen() {
                 alignItems: 'center',
                 justifyContent: 'space-between',
               }]}
+              accessibilityRole="button"
+              accessibilityLabel={organizationName ? `Selected organization: ${organizationName}` : "Select a school or organization"}
             >
               <Text
                 style={{
@@ -912,7 +942,7 @@ export default function CreateTeamScreen() {
               <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 6 }}>
                 <MaterialIcons name="check-circle" size={16} color={Colors[colorScheme].tint} />
                 <Text style={{ color: Colors[colorScheme].tint, fontSize: 13, fontWeight: '600' }}>Linked to existing organization</Text>
-                <Pressable onPress={() => { setSelectedOrgId(null); setOrganizationName(''); }} hitSlop={8}>
+                <Pressable onPress={() => { setSelectedOrgId(null); setOrganizationName(''); }} hitSlop={8} accessibilityRole="button" accessibilityLabel="Remove selected organization">
                   <MaterialIcons name="close" size={16} color={Colors[colorScheme].mutedText} />
                 </Pressable>
               </View>
@@ -921,7 +951,7 @@ export default function CreateTeamScreen() {
               <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 6 }}>
                 <MaterialIcons name="edit" size={14} color={Colors[colorScheme].mutedText} />
                 <Text style={{ color: Colors[colorScheme].mutedText, fontSize: 13 }}>New organization: {organizationName}</Text>
-                <Pressable onPress={() => { setOrganizationName(''); }} hitSlop={8}>
+                <Pressable onPress={() => { setOrganizationName(''); }} hitSlop={8} accessibilityRole="button" accessibilityLabel="Clear organization name">
                   <MaterialIcons name="close" size={16} color={Colors[colorScheme].mutedText} />
                 </Pressable>
               </View>
@@ -951,6 +981,7 @@ export default function CreateTeamScreen() {
                 numberOfLines={4}
                 textAlignVertical="top"
                 maxLength={500}
+                accessibilityLabel="Team description"
               />
             </View>
           </View>
@@ -971,13 +1002,15 @@ export default function CreateTeamScreen() {
           <Pressable
             style={[
               styles.createButton,
-              { 
+              {
                 backgroundColor: submitting || limitReached ? Colors[colorScheme].mutedText : Colors[colorScheme].tint,
                 opacity: submitting || limitReached ? 0.5 : 1
               }
             ]}
             onPress={onSubmit}
             disabled={submitting || limitReached}
+            accessibilityRole="button"
+            accessibilityLabel={submitting ? "Creating team" : "Create team"}
           >
             {submitting ? (
               <ActivityIndicator color="#fff" size="small" />
@@ -1001,7 +1034,7 @@ export default function CreateTeamScreen() {
         <View style={styles.orgPickerOverlay}>
           <View style={[styles.orgPickerContainer, { backgroundColor: Colors[colorScheme].background }]}>
             <View style={[styles.orgPickerHeader, { borderBottomColor: Colors[colorScheme].border }]}>
-              <Pressable onPress={() => { setShowOrgPicker(false); setOrgModalSearch(''); setOrgSearchResults([]); }}>
+              <Pressable onPress={() => { setShowOrgPicker(false); setOrgModalSearch(''); setOrgSearchResults([]); }} accessibilityRole="button" accessibilityLabel="Cancel">
                 <Text style={[styles.orgPickerHeaderButton, { color: Colors[colorScheme].text }]}>Cancel</Text>
               </Pressable>
               <Text style={[styles.orgPickerTitle, { color: Colors[colorScheme].text }]}>Select Organization</Text>
@@ -1017,6 +1050,7 @@ export default function CreateTeamScreen() {
                   placeholderTextColor={Colors[colorScheme].mutedText}
                   style={[styles.orgPickerSearchInput, { color: Colors[colorScheme].text }]}
                   autoFocus
+                  accessibilityLabel="Search organizations"
                 />
                 {orgSearching && (
                   <ActivityIndicator size="small" color={Colors[colorScheme].tint} />
@@ -1048,6 +1082,8 @@ export default function CreateTeamScreen() {
                     selectedOrgId === org.id && { backgroundColor: Colors[colorScheme].surface }
                   ]}
                   onPress={() => handleSelectOrg(org)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Select ${org.name}`}
                 >
                   <View style={styles.orgPickerItemContent}>
                     <MaterialIcons name="business" size={24} color={Colors[colorScheme].mutedText} />
@@ -1068,6 +1104,8 @@ export default function CreateTeamScreen() {
                 <Pressable
                   style={[styles.orgPickerItem, { borderBottomColor: Colors[colorScheme].border }]}
                   onPress={handleCreateNewOrg}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Create new organization: ${orgModalSearch.trim()}`}
                 >
                   <View style={styles.orgPickerItemContent}>
                     <MaterialIcons name="add-circle-outline" size={24} color={Colors[colorScheme].tint} />

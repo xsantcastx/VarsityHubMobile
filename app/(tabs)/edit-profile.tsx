@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { getApiBaseUrl } from '@/api/http';
-import { validateZipCode, validateYear } from '@/utils/formUtils';
+import { validateZipCode, validateYear, sanitizeText } from '@/utils/formUtils';
 import { safeGoBack } from '@/utils/navigation';
 
 // Field validation errors
@@ -412,7 +412,7 @@ export default function EditProfileScreen() {
       // Prepare data for server - split into direct fields and preferences
       // Username is edited separately via /settings/edit-username
       const directFields: any = {
-        bio: bio.trim() || null, // Explicitly send null when blank so backend clears it
+        bio: sanitizeText(bio) || null, // Explicitly send null when blank so backend clears it
       };
 
       // Include avatar URL only if the user actually uploaded a new one

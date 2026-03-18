@@ -3,11 +3,9 @@ import 'dotenv/config';
 import express, { NextFunction, Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
-import cron from 'node-cron';
 import path from 'node:path';
 import pinoHttp from 'pino-http';
 import swaggerUi from 'swagger-ui-express';
-import { runGameReminders } from './cron/game-reminders.js';
 import { startAdGoLiveCheck, startOvernightMonitoring, startQueueCleanup } from './cron/overnightTasks.js';
 import { debugLog } from './lib/debugLog.js';
 import { verifyMediaSignature } from './lib/mediaAccess.js';
@@ -59,7 +57,7 @@ app.set('trust proxy', true);
 
 // pino-http ESM interop can require using the default property in some setups
 const pinoMiddleware = (typeof (pinoHttp as any) === 'function' ? (pinoHttp as any) : (pinoHttp as any).default) || pinoHttp;
-app.use(pinoMiddleware({ transport: { target: 'pino-pretty' } }));
+app.use(pinoMiddleware(process.env.NODE_ENV !== 'production' ? { transport: { target: 'pino-pretty' } } : {}));
 // In dev, disable CSP to allow loading media from API when app runs on a different origin.
 // In prod, enable CSP with sensible defaults for a mobile API backend.
 app.use(helmet({
@@ -199,7 +197,7 @@ app.use(
   express.static(path.resolve(process.cwd(), 'uploads'))
 );
 
-const isDev = process.env.NODE_ENV !== 'production' || process.env.RATE_LIMIT_DISABLE === '1';
+const isDev = process.env.NODE_ENV !== 'production';
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: isDev ? 100000 : 50,
@@ -281,16 +279,9 @@ if (!isTest) {
   addSentryErrorHandler(app);
 }
 
-// Game reminder cron — runs every hour, checks for games starting in 12h and 1h
+// Overnight tasks — ad go-live, monitoring, and stale hold cleanup
+// (Game reminders are handled by the scheduler service in src/jobs/scheduler.ts)
 if (!isTest) {
-  cron.schedule('0 * * * *', () => {
-    void runGameReminders().catch((err) =>
-      console.error('[cron] game-reminders failed:', err)
-    );
-  });
-  debugLog('[cron] Game reminder job scheduled (every hour)');
-
-  // Overnight tasks — ad go-live, monitoring, and stale hold cleanup
   startAdGoLiveCheck();
   startOvernightMonitoring();
   startQueueCleanup();

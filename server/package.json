@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "npx prisma generate && rm -f .tsbuildinfo && tsc -p . && mkdir -p dist/shared && (cp ../shared/plan-definitions.json dist/shared/ 2>/dev/null || cp ./shared/plan-definitions.json dist/shared/ 2>/dev/null || (echo '❌ ERROR: plan-definitions.json not found' && exit 1)) && (cp -r ../docs/well-known ./well-known 2>/dev/null || true) && echo '✅ Build successful'",
@@ -25,15 +28,11 @@
     "verify:coach-approval": "tsx scripts/verify-coach-approval.ts",
     "audit:prod": "npm audit --omit=dev",
     "load:smoke": "tsx scripts/load/p0-load-smoke.ts",
-    "load:validate-lock": "tsx scripts/load/validate-distributed-lock.ts",
-    "android": "expo run:android",
-    "ios": "expo run:ios",
-    "lint": "expo lint"
+    "load:validate-lock": "tsx scripts/load/validate-distributed-lock.ts"
   },
   "dependencies": {
     "@googlemaps/google-maps-services-js": "^3.4.2",
     "@prisma/client": "^5.22.0",
-    "@react-native-async-storage/async-storage": "^2.2.0",
     "@sendgrid/mail": "^8.1.6",
     "@sentry/node": "^7.91.0",
     "@sentry/profiling-node": "^7.91.0",
@@ -42,8 +41,6 @@
     "bullmq": "^5.70.1",
     "cors": "^2.8.5",
     "dotenv": "^16.6.1",
-    "expo": "~54.0.25",
-    "expo-apple-authentication": "~8.0.7",
     "expo-server-sdk": "^4.0.0",
     "express": "^4.19.2",
     "express-rate-limit": "^7.4.0",
@@ -57,10 +54,6 @@
     "pino-http": "^10.3.0",
     "pino-pretty": "^11.2.1",
     "rate-limit-redis": "^4.3.1",
-    "react": "19.1.0",
-    "react-native": "0.81.5",
-    "react-native-google-places-autocomplete": "^2.5.7",
-    "react-native-maps": "1.20.1",
     "sanitize-html": "^2.17.1",
     "stripe": "^16.6.0",
     "swagger-jsdoc": "^6.2.8",
@@ -79,7 +72,6 @@
     "@types/node": "^20.11.30",
     "@types/node-cron": "^3.0.11",
     "@types/nodemailer": "^7.0.1",
-    "@types/react-native-maps": "^0.24.1",
     "@types/sanitize-html": "^2.16.0",
     "@types/supertest": "^6.0.3",
     "@types/swagger-ui-express": "^4.1.6",

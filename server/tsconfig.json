@@ -38,10 +38,6 @@
     "src/**/*.test.ts",
     "src/__tests__/**/*",
     "src/workers/**/*",
-    "src/jobs/**/*",
-    "src/cron/**/*",
-    "src/lib/queue.ts",
     "src/routes/tournaments.ts"
-  ],
-  "extends": "expo/tsconfig.base"
+  ]
 }

@@ -48,8 +48,6 @@ paymentsRouter.get('/config', (_req, res) => {
     stripe_publishable_key: stripePublishableKey,
     available_plans: availablePlans,
     payments_enabled: true,
-    stripe_configured: stripeConfigured,
-    has_webhook_secret: !!process.env.STRIPE_WEBHOOK_SECRET,
   });
 });
 
@@ -325,6 +323,18 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
     }
   }
 
+  // Cancel existing subscription if upgrading between paid plans
+  const existingSubId = prefs.subscription_id;
+  if (existingSubId && currentPlan !== 'rookie') {
+    try {
+      await stripe.subscriptions.cancel(existingSubId);
+      debugLog(`[payments] Cancelled old subscription ${existingSubId} for plan upgrade ${currentPlan} → ${chosen}`);
+    } catch (cancelErr: any) {
+      console.warn(`[payments] Failed to cancel old subscription ${existingSubId}:`, cancelErr?.message);
+      // Continue with new subscription creation — old sub will eventually expire
+    }
+  }
+
   const session = await stripe.checkout.sessions.create(sessionConfig, {
     idempotencyKey: `membership_${req.user!.id}_${chosen}_${Math.floor(Date.now() / 120000)}`,
   });
@@ -376,6 +386,12 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paym
   }
   if (!ad_id || !Array.isArray(dates) || dates.length === 0) return res.status(400).json({ error: 'ad_id and dates[] are required' });
   const isoDates: string[] = Array.from(new Set(dates.map((d: any) => String(d))));
+
+  // Ensure at least one selected date is today or in the future
+  const todayStr = new Date().toISOString().slice(0, 10);
+  if (!isoDates.some((d) => d >= todayStr)) {
+    return res.status(400).json({ error: 'All selected dates are in the past. Please choose at least one future date.' });
+  }
 
   // Ensure ad exists and belongs to the requesting user
   const ad = await prisma.ad.findUnique({ where: { id: String(ad_id) } });
@@ -831,6 +847,12 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
   // ── AD PAYMENT FLOW ──
   if (!ad_id || !Array.isArray(dates) || dates.length === 0) return res.status(400).json({ error: 'ad_id and dates[] are required (or plan for subscription)' });
   const isoDates: string[] = Array.from(new Set(dates.map((d: any) => String(d))));
+
+  // Ensure at least one selected date is today or in the future
+  const todayStr = new Date().toISOString().slice(0, 10);
+  if (!isoDates.some((d) => d >= todayStr)) {
+    return res.status(400).json({ error: 'All selected dates are in the past. Please choose at least one future date.' });
+  }
 
   const ad = await prisma.ad.findUnique({ where: { id: String(ad_id) } });
   if (!ad) return res.status(404).json({ error: 'Ad not found' });
@@ -2460,6 +2482,13 @@ paymentsRouter.post('/apple/verify-ad-receipt', expressPkg.json(), requireAuth a
       return res.status(400).json({ error: 'Missing ad_id, dates[], or receipts[]' });
     }
 
+    // Ensure at least one selected date is today or in the future
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const isoDateStrings: string[] = dates.map((d: any) => String(d));
+    if (!isoDateStrings.some((d) => d >= todayStr)) {
+      return res.status(400).json({ error: 'All selected dates are in the past. Please choose at least one future date.' });
+    }
+
     const ad = await prisma.ad.findUnique({ where: { id: String(ad_id) } });
     if (!ad) return res.status(404).json({ error: 'Ad not found' });
     if (ad.user_id !== userId) return res.status(403).json({ error: 'Not authorized' });
@@ -2572,6 +2601,228 @@ paymentsRouter.post('/apple/verify-ad-receipt', expressPkg.json(), requireAuth a
     console.error('[apple-iap] verify-ad-receipt error:', err);
     captureException(err, { tags: { context: 'apple-iap-verify-ad' } });
     return res.status(500).json({ error: 'Receipt verification failed' });
+  }
+});
+
+// ── Apple Server-to-Server (S2S) Notifications V2 ──────────────────
+// Apple sends JWS-signed payloads for subscription lifecycle events.
+// Configure this URL in App Store Connect → App → App Store Server Notifications.
+paymentsRouter.post('/apple/notifications', expressPkg.json(), async (req, res) => {
+  try {
+    const { signedPayload } = req.body || {};
+    if (!signedPayload) {
+      console.warn('[apple-s2s] Missing signedPayload');
+      return res.sendStatus(200); // Always 200 to Apple
+    }
+
+    // Decode the JWS payload (3-part dot-separated). Apple signs with their cert;
+    // we decode without verification here and rely on HTTPS + the secret URL.
+    // For production hardening, verify against Apple's root cert chain.
+    let payload: any;
+    try {
+      payload = jwt.decode(signedPayload);
+    } catch (decodeErr) {
+      console.error('[apple-s2s] Failed to decode signedPayload:', decodeErr);
+      return res.sendStatus(200);
+    }
+
+    if (!payload) {
+      console.error('[apple-s2s] Decoded payload is null');
+      return res.sendStatus(200);
+    }
+
+    const notificationType: string = payload.notificationType || '';
+    const subtype: string = payload.subtype || '';
+    const data = payload.data || {};
+
+    // The signedTransactionInfo is itself a JWS
+    let transactionInfo: any = {};
+    if (data.signedTransactionInfo) {
+      try {
+        transactionInfo = jwt.decode(data.signedTransactionInfo) || {};
+      } catch { /* ignore decode errors */ }
+    }
+
+    // The signedRenewalInfo is also a JWS
+    let renewalInfo: any = {};
+    if (data.signedRenewalInfo) {
+      try {
+        renewalInfo = jwt.decode(data.signedRenewalInfo) || {};
+      } catch { /* ignore decode errors */ }
+    }
+
+    const originalTransactionId: string = transactionInfo.originalTransactionId || '';
+    const productId: string = transactionInfo.productId || '';
+    const expiresDate: number = transactionInfo.expiresDate || 0; // ms timestamp
+    const environment: string = data.environment || payload.environment || 'Production';
+
+    console.log('[apple-s2s] Notification received:', {
+      notificationType,
+      subtype,
+      originalTransactionId,
+      productId,
+      environment,
+    });
+
+    // Audit log — always log the notification regardless of whether we find a user
+    await prisma.transactionLog.create({
+      data: {
+        transaction_type: 'APPLE_S2S_NOTIFICATION',
+        status: 'RECEIVED',
+        order_id: originalTransactionId || `s2s_${Date.now()}`,
+        metadata: {
+          notificationType,
+          subtype,
+          originalTransactionId,
+          productId,
+          environment,
+          expiresDate: expiresDate ? new Date(expiresDate).toISOString() : null,
+        },
+      } as any,
+    }).catch(err => console.error('[apple-s2s] Failed to log notification:', err));
+
+    if (!originalTransactionId) {
+      console.warn('[apple-s2s] No originalTransactionId — cannot match user');
+      return res.sendStatus(200);
+    }
+
+    // Find user by apple_original_transaction_id stored in preferences JSON
+    // This was saved during verify-receipt (see line ~2430)
+    const users = await (prisma as any).$queryRaw`
+      SELECT id, preferences FROM "User"
+      WHERE preferences::text LIKE ${'%' + originalTransactionId + '%'}
+      LIMIT 1
+    `;
+    const matchedUser = Array.isArray(users) && users.length > 0 ? users[0] : null;
+
+    if (!matchedUser) {
+      console.warn('[apple-s2s] No user found for originalTransactionId:', originalTransactionId);
+      return res.sendStatus(200);
+    }
+
+    const userId: string = matchedUser.id;
+    const prefs = (matchedUser.preferences && typeof matchedUser.preferences === 'object')
+      ? matchedUser.preferences as any
+      : {};
+
+    debugLog('apple-s2s', `Processing ${notificationType}/${subtype} for user ${userId}`);
+
+    // ── Handle notification types ──
+    if (
+      notificationType === 'DID_RENEW' ||
+      notificationType === 'SUBSCRIBED'
+    ) {
+      // Renewal or new subscription — activate and extend expiry
+      const plan = APPLE_PRODUCT_TO_PLAN[productId] || prefs.plan || 'veteran';
+      const newExpiry = expiresDate ? new Date(expiresDate).toISOString() : prefs.apple_expires_date;
+
+      await prisma.$transaction([
+        prisma.user.update({
+          where: { id: userId },
+          data: {
+            subscription_tier: plan === 'legend' ? 'pro' : 'premium',
+            subscription_status: 'active',
+            preferences: {
+              ...prefs,
+              plan,
+              apple_expires_date: newExpiry,
+              apple_original_transaction_id: originalTransactionId,
+            } as any,
+          },
+        }),
+        prisma.transactionLog.create({
+          data: {
+            transaction_type: 'SUBSCRIPTION_RENEWAL',
+            status: 'COMPLETED',
+            user_id: userId,
+            order_id: originalTransactionId,
+            metadata: { source: 'apple_s2s', notificationType, subtype, productId, plan },
+          } as any,
+        }),
+      ]);
+      debugLog('apple-s2s', `User ${userId} renewed/subscribed — plan: ${plan}`);
+
+    } else if (
+      notificationType === 'DID_FAIL_TO_RENEW' ||
+      (notificationType === 'GRACE_PERIOD' || subtype === 'GRACE_PERIOD')
+    ) {
+      // Failed renewal or grace period — mark as past_due
+      await prisma.$transaction([
+        prisma.user.update({
+          where: { id: userId },
+          data: { subscription_status: 'past_due' },
+        }),
+        prisma.transactionLog.create({
+          data: {
+            transaction_type: 'SUBSCRIPTION_RENEWAL_FAILED',
+            status: 'COMPLETED',
+            user_id: userId,
+            order_id: originalTransactionId,
+            metadata: { source: 'apple_s2s', notificationType, subtype },
+          } as any,
+        }),
+      ]);
+      console.warn('[apple-s2s] Marked user as past_due:', userId);
+
+    } else if (
+      notificationType === 'EXPIRED' ||
+      notificationType === 'REVOKE' ||
+      notificationType === 'REFUND'
+    ) {
+      // Expired, revoked, or refunded — downgrade to rookie
+      const previousPlan = prefs.plan || 'rookie';
+      const downgradedPrefs = { ...prefs };
+      downgradedPrefs.plan = 'rookie';
+      delete downgradedPrefs.apple_product_id;
+      delete downgradedPrefs.apple_expires_date;
+      // Keep apple_original_transaction_id for audit trail
+
+      await prisma.$transaction([
+        prisma.user.update({
+          where: { id: userId },
+          data: {
+            subscription_tier: 'free',
+            subscription_status: 'canceled',
+            preferences: downgradedPrefs as any,
+          },
+        }),
+        prisma.transactionLog.create({
+          data: {
+            transaction_type: 'SUBSCRIPTION_CANCEL',
+            status: 'COMPLETED',
+            user_id: userId,
+            order_id: originalTransactionId,
+            metadata: {
+              source: 'apple_s2s',
+              notificationType,
+              subtype,
+              reason: notificationType.toLowerCase(),
+              previous_plan: previousPlan,
+            },
+          } as any,
+        }),
+      ]);
+      debugLog('apple-s2s', `User ${userId} downgraded to rookie — reason: ${notificationType}`);
+
+      // Send billing notice for cancellation/refund
+      const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
+      if (user?.email) {
+        sendBillingNoticeEmail({
+          to: user.email,
+          type: 'subscription_canceled',
+          planName: previousPlan.charAt(0).toUpperCase() + previousPlan.slice(1),
+        }).catch(err => captureException(err as Error, { context: 'apple_s2s_cancel_email' }));
+      }
+    } else {
+      debugLog('apple-s2s', `Unhandled notification type: ${notificationType}/${subtype} for user ${userId}`);
+    }
+
+    return res.sendStatus(200);
+  } catch (err: any) {
+    console.error('[apple-s2s] Error processing notification:', err);
+    captureException(err, { tags: { context: 'apple-s2s-notification' } });
+    // Always return 200 so Apple doesn't retry indefinitely
+    return res.sendStatus(200);
   }
 });
 

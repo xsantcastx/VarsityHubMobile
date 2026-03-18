@@ -1,1 +1,1 @@
-export { default } from './(tabs)/user-profile';
+export { default } from './profile';

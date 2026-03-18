@@ -18,13 +18,94 @@ enum ApprovalStatus {
 }
 
 // ===========================
+// Ad Enums
+// ===========================
+
+enum AdStatus {
+  draft
+  pending
+  active
+  approved
+  rejected
+  archived
+}
+
+enum AdPaymentStatus {
+  unpaid
+  pending_approval
+  hold
+  paid
+  refunded
+}
+
+// ===========================
+// Team Membership Enums
+// ===========================
+
+enum TeamRole {
+  owner
+  manager
+  coach
+  assistant_coach
+  player
+  parent
+  member
+  equipment
+  health_wellness
+}
+
+enum MembershipStatus {
+  active
+  invited
+  archived
+}
+
+// ===========================
+// Team Invite Enums
+// ===========================
+
+enum InviteStatus {
+  pending
+  accepted
+  declined
+  revoked
+}
+
+// ===========================
+// Event Enums
+// ===========================
+
+enum EventStatus {
+  draft
+  approved
+  rejected
+  cancelled
+}
+
+enum EventApprovalStatus {
+  pending
+  approved
+  rejected
+}
+
+// ===========================
+// Game Enums
+// ===========================
+
+enum GameApprovalStatus {
+  approved
+  pending
+  rejected
+}
+
+// ===========================
 // Core Models
 // ===========================
 
 model User {
   id                         String    @id @default(cuid())
   email                      String    @unique
-  password_hash              String
+  password_hash              String?
   google_id                  String?   @unique
   apple_id                   String?   @unique
   display_name               String?
@@ -38,8 +119,6 @@ model User {
   password_reset_code        String?
   password_reset_expires     DateTime?
   password_changed_at        DateTime? @default(now())
-  refresh_token              String?
-  refresh_token_expires      DateTime?
   banned                     Boolean   @default(false)
   ban_reason                 String?   @db.Text
   banned_until               DateTime?
@@ -57,6 +136,7 @@ model User {
   paid_by_owner              Boolean   @default(false) // true if coach's plan is covered by league owner
 
   // Relations
+  refreshTokens RefreshToken[]
   memberships TeamMembership[]
   orgMemberships OrganizationMembership[]
   orgJoinRequests OrganizationJoinRequest[]
@@ -113,7 +193,21 @@ model User {
 
   @@index([subscription_status])
   @@index([banned])
-  @@index([refresh_token])
+  @@index([email_verified])
+}
+
+model RefreshToken {
+  id           String   @id @default(cuid())
+  token_hash   String   @unique  // SHA-256 hash of the token
+  user_id      String
+  user         User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  device_info  String?  // User-Agent or device identifier
+  expires_at   DateTime
+  created_at   DateTime @default(now())
+  last_used_at DateTime @default(now())
+
+  @@index([user_id])
+  @@index([expires_at])
 }
 
 model Game {
@@ -161,7 +255,7 @@ model Game {
   destination     String?  // For team trips - destination city/venue
   
   // Approval workflow
-  approval_status String   @default("approved") // approved | pending | rejected
+  approval_status GameApprovalStatus @default(approved)
   created_by_id   String?
   created_by      User?    @relation("created_games", fields: [created_by_id], references: [id], onDelete: SetNull)
   approved_by_id  String?
@@ -276,14 +370,14 @@ model Event {
   longitude  Float?
   banner_url String?
   game_id    String?
-  status     String   @default("draft") // draft, approved, rejected, cancelled
+  status     EventStatus @default(draft)
   capacity   Int?
   created_at DateTime @default(now())
   
   // Fan event creation fields
   creator_id      String?
   creator_role    String?   // fan, coach, organizer
-  approval_status String    @default("pending") // pending, approved, rejected
+  approval_status EventApprovalStatus @default(pending)
   event_type      String?   // game, watch_party, fundraiser, tryout, bbq, other
   description     String?
   linked_league   String?   // League/school name or ID
@@ -488,10 +582,11 @@ model Ad {
   target_zip_code String?
   radius          Int      @default(45) // non-null with default
   description     String?
-  status          String   @default("draft") // draft | pending | active | rejected | archived
-  payment_status  String   @default("unpaid") // unpaid | pending_approval | hold | paid | refunded
+  status          AdStatus        @default(draft)
+  payment_status  AdPaymentStatus @default(unpaid)
   admin_note      String?  // Note from admin when approving/rejecting
   created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
 
   reservations AdReservation[]
 
@@ -774,8 +869,8 @@ model TeamMembership {
   team_id String
   user_id String
 
-  role            String   @default("member") // owner | manager | coach | assistant_coach | equipment | health_wellness | player | parent | member
-  status          String   @default("active") // active | invited | archived
+  role            TeamRole         @default(member)
+  status          MembershipStatus @default(active)
   custom_position String?
   created_at      DateTime @default(now())
 
@@ -791,8 +886,8 @@ model TeamInvite {
   id         String   @id @default(cuid())
   team_id    String
   email      String
-  role       String   @default("member") // owner | manager | coach | assistant_coach | equipment | health_wellness | player | parent | member
-  status     String   @default("pending") // pending | accepted | declined | revoked
+  role       TeamRole     @default(member)
+  status     InviteStatus @default(pending)
   created_at DateTime @default(now())
 
   team Team @relation(fields: [team_id], references: [id], onDelete: Cascade)
@@ -902,6 +997,7 @@ model PromoRedemption {
 
 enum TransactionType {
   AD_PURCHASE
+  AD_DELETED
   SUBSCRIPTION_PURCHASE
   SUBSCRIPTION_RENEWAL
   SUBSCRIPTION_CANCEL

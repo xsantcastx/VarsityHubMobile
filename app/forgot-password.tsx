@@ -2,6 +2,7 @@ import { User } from '@/api/entities';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
+import { validateEmail } from '@/utils/formUtils';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
@@ -30,6 +31,11 @@ export default function ForgotPasswordScreen() {
     const trimmed = email.trim();
     if (!trimmed) {
       setError('Enter the email you use to sign in.');
+      return;
+    }
+    const emailCheck = validateEmail(trimmed);
+    if (!emailCheck.valid) {
+      setError(emailCheck.error || 'Please enter a valid email address');
       return;
     }
     setLoading(true);

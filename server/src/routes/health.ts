@@ -5,6 +5,7 @@ import { getAllPlanDefinitions } from '../lib/planLimits.js';
 import { getEmailService } from '../services/email/service.js';
 import { isTwilioConfigured } from '../lib/twilio.js';
 import type { AuthedRequest } from '../middleware/auth.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 
 export const healthRouter = Router();
 
@@ -15,7 +16,7 @@ export const healthRouter = Router();
  * Returns full integration status (booleans only, no secrets).
  * GET /health?include=payments - also returns payments config (fallback when /payments/config 404s)
  */
-healthRouter.get('/', async (req: AuthedRequest, res) => {
+healthRouter.get('/', asyncHandler(async (req: AuthedRequest, res) => {
   // Always return full status: integrations are booleans only (no secrets).
   // Enables verify-railway-env.sh to work without HEALTH_CHECK_SECRET or JWT.
   const missingEmailTemplates = getMissingEmailTemplates();
@@ -95,5 +96,5 @@ healthRouter.get('/', async (req: AuthedRequest, res) => {
     };
   }
   res.json(body);
-});
+}));
 

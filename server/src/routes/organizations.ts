@@ -116,9 +116,18 @@ organizationsRouter.get('/mine', requireAuth as any, async (req: AuthedRequest, 
 const updateOrgSchema = z.object({
   name: z.string().min(1).max(200).optional(),
   description: z.string().max(2000).optional().nullable(),
-  logo_url: z.string().max(2000).optional().nullable(),
-  profile_picture_url: z.string().max(2000).optional().nullable(),
-  background_url: z.string().max(2000).optional().nullable(),
+  logo_url: z.string().url().max(2000).refine(
+    (url) => { try { const h = new URL(url).hostname; return ['res.cloudinary.com','varsityhub.app','cdn.varsityhub.app'].some(d => h.endsWith(d)); } catch { return false; } },
+    { message: 'Image URL must be from an allowed domain' }
+  ).optional().nullable(),
+  profile_picture_url: z.string().url().max(2000).refine(
+    (url) => { try { const h = new URL(url).hostname; return ['res.cloudinary.com','varsityhub.app','cdn.varsityhub.app'].some(d => h.endsWith(d)); } catch { return false; } },
+    { message: 'Image URL must be from an allowed domain' }
+  ).optional().nullable(),
+  background_url: z.string().url().max(2000).refine(
+    (url) => { try { const h = new URL(url).hostname; return ['res.cloudinary.com','varsityhub.app','cdn.varsityhub.app'].some(d => h.endsWith(d)); } catch { return false; } },
+    { message: 'Image URL must be from an allowed domain' }
+  ).optional().nullable(),
   sport: z.string().max(100).optional().nullable(),
   org_type: z.string().max(50).optional().nullable(),
   location: z.string().max(500).optional().nullable(),

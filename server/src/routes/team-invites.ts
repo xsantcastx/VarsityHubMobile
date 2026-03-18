@@ -5,6 +5,7 @@ import { prisma } from '../lib/prisma.js';
 import { getAuthorizedUsersPerTeam } from '../lib/planLimits.js';
 import { inviteLimiter } from '../middleware/rateLimiters.js';
 import { sendTeamInviteEmail } from '../lib/email.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 
 export const teamInvitesRouter = Router();
 
@@ -12,7 +13,7 @@ const VALID_INVITE_ROLES = ['owner', 'manager', 'coach', 'assistant_coach', 'pla
 
 // POST /team-invites { team_id, email, role }
 // SECURITY: Same permission checks as POST /teams/:id/invite
-teamInvitesRouter.post('/', requireAuth as any, inviteLimiter, async (req: AuthedRequest, res) => {
+teamInvitesRouter.post('/', requireAuth as any, inviteLimiter, asyncHandler(async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const { team_id, email, role } = (req.body || {}) as any;
   if (!team_id || !email) return res.status(400).json({ error: 'team_id and email required' });
@@ -78,8 +79,8 @@ teamInvitesRouter.post('/', requireAuth as any, inviteLimiter, async (req: Authe
       }
       return await tx.teamInvite.upsert({
         where: { team_id_email: { team_id: teamId, email: emailLower } } as any,
-        update: { role: assignedRole, status: 'pending' },
-        create: { team_id: teamId, email: emailLower, role: assignedRole, status: 'pending' },
+        update: { role: assignedRole as any, status: 'pending' },
+        create: { team_id: teamId, email: emailLower, role: assignedRole as any, status: 'pending' },
       });
     });
   } catch (e: any) {
@@ -105,5 +106,5 @@ teamInvitesRouter.post('/', requireAuth as any, inviteLimiter, async (req: Authe
   });
 
   return res.status(201).json(invite);
-});
+}));
 

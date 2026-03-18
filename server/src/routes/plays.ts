@@ -4,6 +4,7 @@ import { prisma } from '../lib/prisma.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { detectMediaType, getVideoPreviewUrl } from '../lib/mediaUtils.js';
 import { getExcludedPrivateAuthorIds } from '../lib/privacyUtils.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 
 export const playsRouter = Router();
 
@@ -47,7 +48,7 @@ const decodeCursor = (cursor?: string | null) => {
   }
 };
 
-playsRouter.get('/top', requireAuth as any, async (req: AuthedRequest, res) => {
+playsRouter.get('/top', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   const categoryId = typeof req.query.category === 'string' ? req.query.category.trim() : '';
   if (!categoryId) {
     return res.status(400).json({ error: 'category parameter is required' });
@@ -174,4 +175,4 @@ playsRouter.get('/top', requireAuth as any, async (req: AuthedRequest, res) => {
 
   res.set('Cache-Control', 'no-store, private');
   return res.json({ items, nextCursor });
-});
+}));

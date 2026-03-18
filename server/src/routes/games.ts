@@ -11,6 +11,7 @@ import { debugLog } from '../lib/debugLog.js';
 import { gameCreationLimiter, voteLimiter } from '../middleware/rateLimiters.js';
 import { detectMediaType, getVideoPreviewUrl } from '../lib/mediaUtils.js';
 import { getExcludedPrivateAuthorIds } from '../lib/privacyUtils.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 
 export const gamesRouter = Router();
 
@@ -199,7 +200,7 @@ gamesRouter.get('/', async (req, res) => {
 });
 
 // Create a new game
-gamesRouter.post('/', requireVerified as any, requireOnboarded as any, gameCreationLimiter, async (req: AuthedRequest, res) => {
+gamesRouter.post('/', requireVerified as any, requireOnboarded as any, gameCreationLimiter, asyncHandler(async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   
   const schema = z.object({
@@ -322,7 +323,7 @@ gamesRouter.post('/', requireVerified as any, requireOnboarded as any, gameCreat
     }
 
     // Approval workflow: Check if user is a coach/manager OR if user is admin
-    const managementRoles = ['owner', 'manager', 'coach', 'assistant_coach'];
+    const managementRoles: any[] = ['owner', 'manager', 'coach', 'assistant_coach'];
     let isCoach = false;
     
     // Check if user is super admin (can create events for ANY team)

@@ -120,7 +120,11 @@ export function errorHandler(
     extra: {
       path: req.path,
       method: req.method,
-      body: req.body,
+      body: req.body ? Object.fromEntries(
+        Object.entries(req.body).map(([k, v]) =>
+          /password|secret|token|code/i.test(k) ? [k, '[REDACTED]'] : [k, v]
+        )
+      ) : undefined,
       query: req.query,
       params: req.params,
     },

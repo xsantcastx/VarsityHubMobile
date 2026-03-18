@@ -268,7 +268,7 @@ export async function notifyUpcomingGames(hoursBeforeGame: number): Promise<void
         lte: windowEnd,
       },
       OR: [
-        { status: { in: ['active', 'approved'] } },
+        { status: { in: ['approved'] as any } },
         { approval_status: 'approved' },
       ],
     },
@@ -291,7 +291,7 @@ export async function notifyUpcomingGames(hoursBeforeGame: number): Promise<void
 
   // Send notifications to all RSVPd users
   for (const event of upcomingEvents) {
-    for (const rsvp of event.rsvps) {
+    for (const rsvp of (event as any).rsvps) {
       const user = rsvp.user;
       
       // Check if user has disabled game/event reminders

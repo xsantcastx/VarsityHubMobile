@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Organization } from '@/api/entities';
 import { uploadFile } from '@/api/upload';
 import { getApiBaseUrl } from '@/api/http';
+import { sanitizeText } from '@/utils/formUtils';
 
 const ORG_TYPES = [
   { label: 'School', value: 'school' },
@@ -115,14 +116,14 @@ export default function EditOrganizationScreen() {
     setSaving(true);
     try {
       await Organization.update(params.id, {
-        name: name.trim(),
-        description: description.trim() || null,
+        name: sanitizeText(name),
+        description: sanitizeText(description) || null,
         logo_url: logoUrl || null,
         profile_picture_url: profilePictureUrl || null,
         background_url: backgroundUrl || null,
-        sport: sport.trim() || null,
+        sport: sanitizeText(sport) || null,
         // org_type is read-only — do not send
-        location: location.trim() || null,
+        location: sanitizeText(location) || null,
         zip_code: zipCode.trim() || null,
       });
       Alert.alert('Saved', 'Organization updated successfully.');

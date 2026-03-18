@@ -20,6 +20,7 @@ import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 import { httpPost } from '@/api/http';
 import { autocompleteLocations, PlaceSuggestion } from '@/api/geocoding';
 import { safeGoBack } from '@/utils/navigation';
+import { sanitizeText } from '@/utils/formUtils';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 const EVENT_TYPES = [
@@ -91,8 +92,8 @@ export default function CreateEventScreen() {
     setSubmitting(true);
     try {
       const eventData: Record<string, any> = {
-        title,
-        description,
+        title: sanitizeText(title),
+        description: sanitizeText(description),
         event_type: eventType,
         location: selectedPlace?.description || location,
         venue_address: selectedPlace?.description || location,

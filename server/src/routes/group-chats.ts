@@ -205,7 +205,7 @@ groupChatsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) =
           team_id: teamId,
           user_id: req.user.id,
           role: {
-            in: ['coach', 'manager', 'admin', 'owner'],
+            in: ['coach', 'manager', 'owner'] as any[],
           },
         },
       });

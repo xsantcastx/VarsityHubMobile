@@ -1,7 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Animated, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { User } from '@/api/entities';
@@ -172,6 +172,14 @@ export default function PaymentSuccessScreen() {
               onPress={() => { setLoading(true); setError(null); setVerificationAttempt(0); }}
             >
               <Text style={styles.primaryBtnText}>Try Again</Text>
+            </Pressable>
+            <Pressable
+              style={styles.linkBtn}
+              onPress={() => {
+                Linking.openURL('mailto:support@varsityhub.app?subject=Payment%20Verification%20Issue');
+              }}
+            >
+              <Text style={[styles.linkBtnText, { color: theme.tint }]}>Contact Support</Text>
             </Pressable>
             <Pressable style={styles.linkBtn} onPress={() => { safeGoBack(router, '/(tabs)/feed'); }}>
               <Text style={[styles.linkBtnText, { color: theme.mutedText }]}>Continue to App</Text>

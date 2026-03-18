@@ -17,7 +17,7 @@ import { debugLog } from '../lib/debugLog.js';
  * Check if we're in development mode
  * In dev mode, rate limits are disabled for easier testing
  */
-const isDev = process.env.NODE_ENV !== 'production' || process.env.RATE_LIMIT_DISABLE === '1';
+const isDev = process.env.NODE_ENV !== 'production';
 
 /**
  * Create a separate Redis connection for rate limiting only

@@ -1174,6 +1174,7 @@ export default function CommunityDiscoverScreen() {
                   style={styles.searchInput}
                   returnKeyType="search"
                   onBlur={() => setZipSuggestionsOpen(false)}
+                  accessibilityLabel="Search by zip code"
                 />
               </View>
 
@@ -1185,6 +1186,8 @@ export default function CommunityDiscoverScreen() {
                   setViewMode(newMode);
                 }}
                 style={[styles.viewToggle, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
+                accessibilityRole="button"
+                accessibilityLabel="Switch to list view"
               >
                 <MaterialIcons 
                   name={'list'} 
@@ -1230,6 +1233,8 @@ export default function CommunityDiscoverScreen() {
             <Pressable
               style={[styles.card, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
               onPress={() => void router.push({ pathname: '/game/[id]', params: { id: String(item.id) } })}
+              accessibilityRole="button"
+              accessibilityLabel={`View game: ${item.title ? String(item.title) : 'Game'}${item.location ? `, ${String(item.location)}` : ''}`}
             >
               <View style={[styles.hero, { backgroundColor: Colors[colorScheme].surface }]}>
                 {(() => {

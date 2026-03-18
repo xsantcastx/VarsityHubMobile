@@ -215,10 +215,11 @@ export default function SignUpScreen() {
           <View style={styles.errorContainer}>
             <Text style={[styles.error, { color: Colors[colorScheme].destructive }]}>{error}</Text>
             {showSignInPrompt && (
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onPress={() => router.replace('/sign-in')}
                 style={{ marginTop: 12 }}
+                accessibilityLabel="Go to sign in"
               >
                 <Text style={{ color: Colors[colorScheme].tint, fontSize: 16, fontWeight: '600' }}>Go to Sign In</Text>
               </Button>

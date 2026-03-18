@@ -15,7 +15,6 @@ const envSchema = z.object({
     .string()
     .min(32, 'JWT_SECRET must be at least 32 characters. Generate with `openssl rand -base64 32`'),
   ALLOWED_ORIGINS: z.string().optional(),
-  RATE_LIMIT_DISABLE: z.string().optional(),
   STRIPE_SECRET_KEY: z.string().optional().transform(toOptional),
   STRIPE_WEBHOOK_SECRET: z.string().optional().transform(toOptional),
   STRIPE_PRICE_VETERAN: z.string().optional().transform(toOptional),
@@ -46,6 +45,8 @@ const envSchema = z.object({
   UPLOADS_PUBLIC: z.string().optional(),
   /** iOS in-app purchase receipt verification (App Store Connect → App → App-Specific Shared Secret) */
   APPLE_IAP_SHARED_SECRET: z.string().optional().transform(toOptional),
+  /** Set to '1' to return verification/reset codes in non-production API responses (dev/test only) */
+  ENABLE_DEV_CODES: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

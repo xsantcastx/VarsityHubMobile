@@ -16,6 +16,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Advertisement as AdsApi } from '@/api/entities';
 import settings from '@/api/settings';
 import { getApiBaseUrl } from '../api/http';
+import { sanitizeText } from '@/utils/formUtils';
 
 export default function EditAdScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -117,13 +118,13 @@ export default function EditAdScreen() {
     setSaving(true);
     try {
       await AdsApi.update(String(id), {
-        contact_name: contactName.trim(),
+        contact_name: sanitizeText(contactName),
         contact_email: contactEmail.trim(),
-        business_name: business.trim(),
+        business_name: sanitizeText(business),
         banner_url: bannerUrl || undefined,
         target_url: targetUrl.trim() || undefined,
         target_zip_code: zip.trim(),
-        description: desc.trim() || undefined,
+        description: sanitizeText(desc) || undefined,
       });
       Alert.alert('Saved', 'Your ad was updated.');
       safeGoBack(router, '/my-ads');
