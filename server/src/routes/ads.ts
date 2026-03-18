@@ -160,7 +160,9 @@ export async function handleAdSubmitForApproval(req: AuthedRequest, res: Respons
       zipCode: ad.target_zip_code || undefined,
       bannerUrl: ad.banner_url || undefined,
       adId: id,
-    }).catch((err) => console.warn('[ads] submit-for-approval email failed:', (err as any)?.message || err));
+    }).then((sent) => {
+      if (!sent) console.error('[ads] submit-for-approval email returned false — email NOT delivered for ad', id);
+    }).catch((err) => console.error('[ads] submit-for-approval email failed:', (err as any)?.message || err));
 
     const updated = await prisma.ad.findUnique({ where: { id }, include: { reservations: true } });
     return res.status(201).json(updated);
@@ -406,7 +408,9 @@ adsRouter.put('/:id([a-z0-9]{15,50})', requireAuth as any, async (req: AuthedReq
         zipCode: updated.target_zip_code || undefined,
         bannerUrl: updated.banner_url ?? undefined,
         adId: updated.id,
-      }).catch((err) => console.warn('[ads] Failed to send review email:', (err as any)?.message || err));
+      }).then((sent) => {
+        if (!sent) console.error('[ads] review email returned false — email NOT delivered for ad', updated.id);
+      }).catch((err) => console.error('[ads] Failed to send review email:', (err as any)?.message || err));
     }
 
     return res.json(updated);
@@ -529,6 +533,7 @@ adsRouter.get('/availability', async (req, res) => {
     const zipCode = req.query.zip ? String(req.query.zip) : undefined;
     const from = req.query.from ? String(req.query.from) : undefined;
     const to = req.query.to ? String(req.query.to) : undefined;
+    const excludeAdId = req.query.exclude_ad_id ? String(req.query.exclude_ad_id) : undefined;
 
     if (!zipCode || !from || !to) {
       return res.status(400).json({ error: 'zip, from, and to are required' });
@@ -545,10 +550,12 @@ adsRouter.get('/availability', async (req, res) => {
     }
 
     // Get all ads for this zip code (paid, hold, pending_approval all hold slots)
+    // Optionally exclude a specific ad (so editing an ad doesn't block its own dates)
     const adsInZip = await prisma.ad.findMany({
       where: {
         target_zip_code: zipCode,
         payment_status: { in: ['paid', 'hold', 'pending_approval'] },
+        ...(excludeAdId ? { id: { not: excludeAdId } } : {}),
       },
       select: { id: true },
     });

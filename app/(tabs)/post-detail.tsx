@@ -865,7 +865,7 @@ export default function PostDetailScreen() {
                 <Text style={[styles.statText, { color: Colors[colorScheme].text }]}>{formatCount(postData.upvotes_count || 0)}</Text>
               </View>
               <View style={styles.stat}>
-                <Ionicons name="chatbubble-outline" size={18} color={Colors[colorScheme].mutedText} />
+                <Ionicons name="chatbubble-outline" size={18} color="#fff" />
                 <Text style={[styles.statText, { color: Colors[colorScheme].text }]}>{formatCount(localComments.length || 0)}</Text>
               </View>
               <View style={styles.stat}>
@@ -937,13 +937,13 @@ export default function PostDetailScreen() {
             )}
             <TextInput
               testID="comment-input"
-              style={[styles.commentInput, { 
-                backgroundColor: Colors[colorScheme].surface, 
-                borderColor: Colors[colorScheme].border,
-                color: Colors[colorScheme].text
+              style={[styles.commentInput, {
+                backgroundColor: '#222',
+                borderColor: '#333',
+                color: '#fff'
               }]}
               placeholder={replyingToComment ? `Reply to ${replyingToComment.authorName}...` : 'Add a comment...'}
-              placeholderTextColor={Colors[colorScheme].tabIconDefault}
+              placeholderTextColor="#888"
               value={comment}
               onChangeText={setComment}
               multiline
@@ -957,7 +957,7 @@ export default function PostDetailScreen() {
               <Ionicons 
                 name="send" 
                 size={18} 
-                color={(commenting || !comment.trim()) ? "#94a3b8" : "#2563EB"} 
+                color={(commenting || !comment.trim()) ? "#555" : "#3B82F6"}
               />
             </Pressable>
             </View>
@@ -1051,7 +1051,7 @@ export default function PostDetailScreen() {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }} keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}>
       
       {/* Custom Header */}
-      <View style={[styles.header, { backgroundColor: Colors[colorScheme].surface, borderBottomColor: Colors[colorScheme].border }]}>
+      <View style={[styles.header, { backgroundColor: Colors[colorScheme].surface, borderBottomColor: 'transparent' }]}>
         <Pressable style={styles.backButton} onPress={() => safeGoBack(router)}>
           <Ionicons name="arrow-back" size={24} color={Colors[colorScheme].text} />
         </Pressable>
@@ -1652,6 +1652,8 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: 12,
     padding: 16,
+    backgroundColor: '#111',
+    borderRadius: 12,
   },
   replyingToBar: {
     flexDirection: 'row',

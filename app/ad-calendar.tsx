@@ -166,7 +166,7 @@ export default function AdCalendarScreen() {
             if (mounted && adDetails?.status) setAdStatus(adDetails.status);
             if (adDetails?.target_zip_code) {
               setZipCode(adDetails.target_zip_code);
-              await loadAvailability(adDetails.target_zip_code);
+              await loadAvailability(adDetails.target_zip_code, String(adId));
             }
             if (mounted && adDetails?.status === 'approved' && dates.length > 0) {
               setSelected(new Set(dates));
@@ -202,13 +202,15 @@ export default function AdCalendarScreen() {
     };
   }, []);
 
-  const loadAvailability = async (zip: string) => {
+  const loadAvailability = async (zip: string, excludeAdId?: string) => {
     try {
       const from = todayISO();
       const to = maxDateISO();
-      
+
       const { httpGet } = await import('@/api/http');
-      const data = await httpGet(`/ads/availability?zip=${encodeURIComponent(zip)}&from=${from}&to=${to}`);
+      let url = `/ads/availability?zip=${encodeURIComponent(zip)}&from=${from}&to=${to}`;
+      if (excludeAdId) url += `&exclude_ad_id=${encodeURIComponent(excludeAdId)}`;
+      const data = await httpGet(url);
       
       if (data?.availability) {
         const fullDatesSet = new Set<string>();
@@ -288,30 +290,7 @@ export default function AdCalendarScreen() {
       }
     }
     
-    // PRIORITY 2: Mark reserved dates as disabled (user's own reservations)
-    for (const d of reserved) {
-      if (!selected.has(d)) {
-        obj[d] = { 
-          disabled: true, 
-          disableTouchEvent: true,
-          textColor: theme.mutedText,
-          dotColor: theme.mutedText,
-          marked: true,
-          customStyles: {
-            container: {
-              backgroundColor: theme.surface,
-              borderWidth: 1,
-              borderColor: theme.border,
-            },
-            text: {
-              color: theme.mutedText,
-            },
-          },
-        };
-      }
-    }
-    
-    // PRIORITY 3: Mark selected dates with BRIGHT weekday/weekend colors - HIGHLIGHTED
+    // PRIORITY 2: Mark selected dates with BRIGHT weekday/weekend colors - HIGHLIGHTED
     for (const d of selected) {
       const dow = getDayOfWeek(d);
       const isWeekend = dow === 0 || dow === 5 || dow === 6; // Sun, Fri, Sat
@@ -337,7 +316,7 @@ export default function AdCalendarScreen() {
     }
     
     return obj;
-  }, [selected, reserved, fullDates, theme]);
+  }, [selected, fullDates, theme]);
 
   const onDayPress = (day: DateData) => {
     const iso = day.dateString; // yyyy-MM-dd
@@ -366,14 +345,6 @@ export default function AdCalendarScreen() {
       return;
     }
     
-    // Prevent selection of reserved dates
-    if (reserved.has(iso)) {
-      // Fetch alternative zip codes
-      void fetchAlternativeZips([iso]).catch(() => {});
-      Alert.alert('Date Unavailable', 'This date is already reserved. Check below for nearby available zip codes.');
-      return;
-    }
-    
     // Get all dates in this week slot (Mon-Thu or Fri-Sun)
     const weekSlotDates = getWeekSlotDates(iso);
     
@@ -389,8 +360,8 @@ export default function AdCalendarScreen() {
       } else {
         // Otherwise, SELECT the entire week slot (only if dates are available)
         weekSlotDates.forEach(d => {
-          // Only add if not reserved or fully booked
-          if (!reserved.has(d) && !fullDates.has(d)) {
+          // Only add if not fully booked by OTHER ads
+          if (!fullDates.has(d)) {
             next.add(d);
           }
         });

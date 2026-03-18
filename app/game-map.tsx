@@ -7,7 +7,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+// SafeAreaView removed — native header handles safe area
 // @ts-ignore
 import { Game } from '@/api/entities';
 import { httpGet } from '@/api/http';
@@ -147,13 +147,14 @@ export default function GameMapScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={[]}>
+    <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
       <Stack.Screen
         options={{
           title: 'Nearby Games',
           headerShown: true,
           headerStyle: { backgroundColor: Colors[colorScheme].background },
           headerTintColor: Colors[colorScheme].text,
+          headerShadowVisible: false,
           headerLeft: () => (
             <Pressable onPress={() => safeGoBack(router)} style={styles.headerButton}>
               <MaterialIcons name="arrow-back" size={24} color={Colors[colorScheme].text} />
@@ -175,7 +176,7 @@ export default function GameMapScreen() {
         // Always show map, whether games exist or not
         <EventMap events={events} onEventPress={handleEventPress} showUserLocation={true} />
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 

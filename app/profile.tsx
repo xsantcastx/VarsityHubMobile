@@ -1619,7 +1619,7 @@ const styles = StyleSheet.create({
   // Profile Details Below Banner — paddingTop ensures avatar (120px, extends 60px below banner) never overlaps text
   profileDetailsContainer: {
     backgroundColor: 'transparent',
-    paddingTop: 66,
+    paddingTop: 62,
     marginBottom: 0,
     paddingBottom: 0,
     gap: 0,

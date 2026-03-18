@@ -346,42 +346,69 @@ export async function sendAdPendingReviewEmail(params: {
   bannerUrl?: string;
   adId?: string;
 }): Promise<boolean> {
+  const adminTo = params.to || process.env.ADMIN_EMAILS?.split(',')[0]?.trim() || 'emancero@varsityhub.app';
   const subject = `Ad Pending Review — ${params.businessName || 'Unknown Business'}`;
-  const sent = await sendTemplateEmail(
-    TEMPLATE_IDS.AD_PENDING_REVIEW,
-    params.to,
-    subject,
-    {
-      ...getCommonTemplateData(),
-      business_name: params.businessName || 'N/A',
-      contact_name: params.contactName || 'N/A',
-      contact_email: params.contactEmail || 'N/A',
-      zip_code: params.zipCode || 'N/A',
-      banner_url: params.bannerUrl || '',
-      ad_id: params.adId || '',
-    },
-    `Ad pending review email sent to ${params.to}`
-  );
+  const plainBody = [
+    `A new ad needs your review on VarsityHub.`,
+    ``,
+    `Business: ${params.businessName || 'N/A'}`,
+    `Contact: ${params.contactName || 'N/A'} (${params.contactEmail || 'N/A'})`,
+    `Zip Code: ${params.zipCode || 'N/A'}`,
+    `Ad ID: ${params.adId || 'N/A'}`,
+    params.bannerUrl ? `Banner: ${params.bannerUrl}` : '',
+    ``,
+    `Review this ad in the admin dashboard.`,
+  ].filter(Boolean).join('\n');
 
-  // Plain-text fallback — critical that admin always receives ad review requests
-  if (!sent) {
-    return sendEmail({
-      to: params.to,
+  // Try template first
+  const templateId = TEMPLATE_IDS.AD_PENDING_REVIEW;
+  if (templateId) {
+    const sent = await sendTemplateEmail(
+      templateId,
+      adminTo,
       subject,
-      text: [
-        `A new ad needs your review on VarsityHub.`,
-        ``,
-        `Business: ${params.businessName || 'N/A'}`,
-        `Contact: ${params.contactName || 'N/A'} (${params.contactEmail || 'N/A'})`,
-        `Zip Code: ${params.zipCode || 'N/A'}`,
-        `Ad ID: ${params.adId || 'N/A'}`,
-        params.bannerUrl ? `Banner: ${params.bannerUrl}` : '',
-        ``,
-        `Review this ad in the admin dashboard.`,
-      ].filter(Boolean).join('\n'),
-    });
+      {
+        ...getCommonTemplateData(),
+        business_name: params.businessName || 'N/A',
+        contact_name: params.contactName || 'N/A',
+        contact_email: params.contactEmail || 'N/A',
+        zip_code: params.zipCode || 'N/A',
+        banner_url: params.bannerUrl || '',
+        ad_id: params.adId || '',
+      },
+      `Ad pending review email sent to ${adminTo}`
+    );
+    if (sent) return true;
+    console.error('[email] Ad pending review template email failed, falling back to plain text');
+  } else {
+    console.warn('[email] AD_PENDING_REVIEW template ID not configured, using plain-text fallback');
   }
-  return sent;
+
+  // Plain-text fallback via EmailService
+  const fallbackSent = await sendEmail({ to: adminTo, subject, text: plainBody });
+  if (fallbackSent) return true;
+  console.error('[email] Ad pending review plain-text fallback also failed via EmailService');
+
+  // Last-resort: direct SendGrid API call bypassing the service layer
+  if (SENDGRID_API_KEY) {
+    try {
+      sgMail.setApiKey(SENDGRID_API_KEY);
+      await sgMail.send({
+        to: adminTo,
+        from: EMAIL_FROM,
+        subject,
+        text: plainBody,
+      });
+      console.log(`[email] Ad pending review sent via direct SendGrid to ${adminTo}`);
+      return true;
+    } catch (directErr: any) {
+      console.error('[email] Ad pending review direct SendGrid fallback failed:', directErr?.response?.body?.errors || directErr?.message || directErr);
+    }
+  } else {
+    console.error('[email] SENDGRID_API_KEY not set — cannot send ad pending review email');
+  }
+
+  return false;
 }
 
 export async function sendAdApprovedEmail(params: {

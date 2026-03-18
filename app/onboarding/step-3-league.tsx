@@ -475,8 +475,23 @@ export default function Step3League() {
             { text: 'Cancel', style: 'cancel' }
           ]
         );
+      } else if (e?.data?.code === 'SPAM_DETECTED' || e?.message?.includes('SPAM_DETECTED')) {
+        Alert.alert(
+          'Invalid Name',
+          'Please use a clear, descriptive name without special characters or excessive caps.'
+        );
+      } else if (e?.data?.code === 'PROFANITY_DETECTED' || e?.message?.includes('PROFANITY_DETECTED')) {
+        Alert.alert(
+          'Inappropriate Content',
+          'The name or description contains inappropriate content. Please revise.'
+        );
+      } else if (e?.data?.code === 'BULLYING_DETECTED' || e?.message?.includes('BULLYING_DETECTED')) {
+        Alert.alert(
+          'Inappropriate Content',
+          'The name or description contains harmful language. Please revise.'
+        );
       } else {
-        Alert.alert('Failed to create page', e?.message || 'Please verify your email and try again');
+        Alert.alert('Failed to create page', 'Something went wrong. Please try again.');
       }
     } finally { 
       setSaving(false); 
