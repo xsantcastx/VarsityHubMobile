@@ -471,7 +471,7 @@ const styles = StyleSheet.create({
   card: { 
     padding: 16, 
     borderRadius: 12, 
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
@@ -484,7 +484,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8, 
     paddingVertical: 3, 
     borderRadius: 999, 
-    borderWidth: StyleSheet.hairlineWidth 
+    borderWidth: 1 
   },
   badgeSmallText: { fontWeight: '800', fontSize: 10 },
   btn: { 
@@ -498,8 +498,8 @@ const styles = StyleSheet.create({
   },
   btnSecondary: { 
     backgroundColor: '#F3F4F6', 
-    borderWidth: StyleSheet.hairlineWidth, 
-    borderColor: '#E5E7EB' 
+    borderWidth: 1, 
+    borderColor: '#D1D5DB' 
   },
   btnText: { color: 'white', fontWeight: '700', fontSize: 14 },
   error: { padding: 16, textAlign: 'center', fontWeight: '600' },
@@ -507,7 +507,7 @@ const styles = StyleSheet.create({
     width: 100, 
     height: 70, 
     borderRadius: 8, 
-    backgroundColor: '#E5E7EB' 
+    backgroundColor: '#D1D5DB' 
   },
   filterTab: {
     paddingHorizontal: 14,

@@ -54,7 +54,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
   },
   text: { fontWeight: '600' },
   disabled: { opacity: 0.6 },

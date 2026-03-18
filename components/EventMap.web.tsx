@@ -25,7 +25,7 @@ export default function EventMapWebFallback({ events }: EventMapProps) {
 
 const styles = StyleSheet.create({
   container: {
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',

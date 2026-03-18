@@ -78,7 +78,7 @@ export default function ManageUsersScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16 },
   title: { fontSize: 20, fontWeight: '800', marginBottom: 8 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 12, borderWidth: 1 },
   name: { fontWeight: '700' },
   muted: {},
   team: { minWidth: 120, textAlign: 'right', fontWeight: '600' },

@@ -554,7 +554,7 @@ const styles = StyleSheet.create({
   // Cards
   card: {
     borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     padding: 14,
     gap: 8,
     marginBottom: 8,
@@ -591,7 +591,7 @@ const styles = StyleSheet.create({
 
   // Empty states
   emptyRow: {
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderRadius: 10,
     paddingVertical: 16,
     paddingHorizontal: 12,
@@ -600,7 +600,7 @@ const styles = StyleSheet.create({
   },
   emptyText: { fontSize: 13 },
   globalEmpty: {
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderStyle: 'dashed',
     borderRadius: 16,
     padding: 40,

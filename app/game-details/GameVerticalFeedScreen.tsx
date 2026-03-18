@@ -1313,7 +1313,7 @@ const styles = StyleSheet.create({
   followBadge: {
     marginLeft: 12,
     borderRadius: 999,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderColor: '#f87171',
     paddingHorizontal: 10,
     paddingVertical: 4,

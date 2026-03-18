@@ -23,7 +23,7 @@ export default function EventDetailScreen() {
   const isDark = colorScheme === 'dark';
   const headerBackground = isDark ? '#030712' : '#FFFFFF';
   const headerText = isDark ? '#F8FAFC' : '#0F172A';
-  const headerBorder = isDark ? '#1F2937' : '#E5E7EB';
+  const headerBorder = isDark ? '#1F2937' : '#D1D5DB';
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [event, setEvent] = useState<EventItem | null>(null);
@@ -370,7 +370,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F9FAFB',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: '#D1D5DB',
     gap: 12,
     marginVertical: 8,
   },
@@ -401,7 +401,7 @@ const styles = StyleSheet.create({
   primaryBtn: { backgroundColor: '#111827', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10 },
   primaryBtnDisabled: { opacity: 0.6 },
   primaryBtnText: { color: 'white', fontWeight: '700' },
-  outlineBtn: { borderWidth: StyleSheet.hairlineWidth, borderColor: '#D1D5DB', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10 },
+  outlineBtn: { borderWidth: 1, borderColor: '#D1D5DB', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10 },
   outlineBtnText: { fontWeight: '700' },
   cancelledBadge: {
     paddingHorizontal: 10,

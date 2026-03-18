@@ -90,7 +90,7 @@ export default function DMRestrictionsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16, gap: 8 },
   title: { fontSize: 20, fontWeight: '800', marginBottom: 4 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 12, borderWidth: 1 },
   rowTitle: { fontWeight: '700' },
   muted: {},
   badge: { fontWeight: '700' },

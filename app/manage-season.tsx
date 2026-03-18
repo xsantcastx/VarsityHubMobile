@@ -1294,7 +1294,7 @@ export default function ManageSeasonScreen() {
                         <Text style={styles.approveButtonText}>Approve</Text>
                       </Pressable>
                       <Pressable
-                        style={[styles.rejectButton, { backgroundColor: colorScheme === 'dark' ? '#374151' : '#E5E7EB' }]}
+                        style={[styles.rejectButton, { backgroundColor: colorScheme === 'dark' ? '#374151' : '#D1D5DB' }]}
                         onPress={() => handleRejectGame(game)}
                       >
                         <Ionicons name="close-circle" size={18} color="#EF4444" />
@@ -1732,7 +1732,7 @@ const styles = StyleSheet.create({
   headerCard: {
     margin: 16,
     borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     overflow: 'hidden',
   },
   statsGradient: {
@@ -1740,7 +1740,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginBottom: 16,
     borderRadius: 20,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
   },
   seasonHeader: {
     flexDirection: 'row',
@@ -1799,7 +1799,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     padding: 16,
     borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
   },
   quickActions: {
     gap: 12,
@@ -1822,7 +1822,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     padding: 16,
     borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
@@ -1837,13 +1837,13 @@ const styles = StyleSheet.create({
     gap: 12,
     padding: 14,
     borderRadius: 14,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
   },
   tabContainer: {
     flexDirection: 'row',
     marginHorizontal: 16,
     marginBottom: 16,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: '#D1D5DB',
     borderRadius: 12,
     padding: 4,
   },
@@ -1864,7 +1864,7 @@ const styles = StyleSheet.create({
   sectionCard: {
     padding: 20,
     borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     marginBottom: 16,
   },
   sectionHeader: {
@@ -1882,7 +1882,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     marginBottom: 12,
   },
   gameInfo: {
@@ -1939,7 +1939,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingVertical: 12,
     paddingHorizontal: 4,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: 1,
     marginBottom: 8,
   },
   standingsHeaderText: {
@@ -1951,7 +1951,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingVertical: 12,
     paddingHorizontal: 4,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: 1,
     alignItems: 'center',
     marginBottom: 4,
     borderRadius: 8,
@@ -2014,7 +2014,7 @@ const styles = StyleSheet.create({
   leagueStats: {
     marginTop: 16,
     paddingTop: 16,
-    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopWidth: 1,
   },
   leagueStatsTitle: {
     fontSize: 16,
@@ -2074,7 +2074,7 @@ const styles = StyleSheet.create({
   matchupCard: {
     padding: 12,
     borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     marginBottom: 16,
     minWidth: 180,
   },
@@ -2136,7 +2136,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   vsLine: {
-    height: StyleSheet.hairlineWidth,
+    height: 1,
     marginVertical: 4,
   },
   bracketConnector: {
@@ -2151,8 +2151,8 @@ const styles = StyleSheet.create({
   playoffSchedule: {
     marginTop: 16,
     paddingTop: 16,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#E5E7EB',
+    borderTopWidth: 1,
+    borderTopColor: '#D1D5DB',
   },
   scheduleTitle: {
     fontSize: 16,
@@ -2165,7 +2165,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 12,
     borderRadius: 8,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     marginBottom: 8,
   },
   scheduleMatchup: {

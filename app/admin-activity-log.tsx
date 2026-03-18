@@ -86,7 +86,7 @@ export default function AdminActivityLogScreen() {
             : (colorScheme === 'dark' ? '#1F2937' : '#F3F4F6'),
           borderColor: filter === value
             ? '#3B82F6'
-            : (colorScheme === 'dark' ? '#374151' : '#E5E7EB'),
+            : (colorScheme === 'dark' ? '#374151' : '#D1D5DB'),
         },
       ]}
       onPress={() => setFilter(value)}
@@ -112,7 +112,7 @@ export default function AdminActivityLogScreen() {
         styles.logItem,
         {
           backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white',
-          borderColor: colorScheme === 'dark' ? '#374151' : '#E5E7EB',
+          borderColor: colorScheme === 'dark' ? '#374151' : '#D1D5DB',
         },
       ]}
     >
@@ -185,7 +185,7 @@ export default function AdminActivityLogScreen() {
             styles.searchInput,
             {
               backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white',
-              borderColor: colorScheme === 'dark' ? '#374151' : '#E5E7EB',
+              borderColor: colorScheme === 'dark' ? '#374151' : '#D1D5DB',
               color: colorScheme === 'dark' ? '#ECEDEE' : '#111827',
             },
           ]}
@@ -244,7 +244,7 @@ const styles = StyleSheet.create({
   searchInput: {
     height: 44,
     borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     paddingHorizontal: 16,
     marginBottom: 12,
     fontSize: 16,
@@ -258,7 +258,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
   },
   filterChipText: {
     fontSize: 14,
@@ -270,7 +270,7 @@ const styles = StyleSheet.create({
   logItem: {
     padding: 16,
     borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
   },
   logHeader: {
     flexDirection: 'row',

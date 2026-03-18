@@ -1011,14 +1011,14 @@ const styles = StyleSheet.create({
     padding: 24,
     borderRadius: 16,
     alignItems: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
   },
   limitCard: {
     marginHorizontal: 16,
     marginBottom: 16,
     padding: 16,
     borderRadius: 14,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
   },
   limitHeader: {
     flexDirection: 'row',
@@ -1096,7 +1096,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     height: 52,
     borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
   },
   textInput: {
     flex: 1,
@@ -1109,7 +1109,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 20,
     marginRight: 8,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
   },
   chipText: {
     fontSize: 14,
@@ -1128,7 +1128,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 16,
     borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     gap: 8,
     position: 'relative',
   },
@@ -1163,7 +1163,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     gap: 8,
     minWidth: '47%',
   },
@@ -1176,7 +1176,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     minHeight: 100,
   },
   textArea: {
@@ -1227,7 +1227,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -1314,7 +1314,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   orgDropdown: {
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderRadius: 8,
     marginTop: 4,
     maxHeight: 200,
@@ -1326,7 +1326,7 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: 1,
   },
 });
 

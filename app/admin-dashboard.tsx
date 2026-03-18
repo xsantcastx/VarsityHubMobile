@@ -69,7 +69,7 @@ export default function AdminDashboardScreen() {
     <Pressable 
       style={[styles.statCard, { 
         backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white',
-        borderColor: colorScheme === 'dark' ? '#374151' : '#E5E7EB',
+        borderColor: colorScheme === 'dark' ? '#374151' : '#D1D5DB',
       }]}
       onPress={onPress}
       android_ripple={{ color: colorScheme === 'dark' ? '#374151' : '#F3F4F6' }}
@@ -101,7 +101,7 @@ export default function AdminDashboardScreen() {
   const ActivityItem = ({ item }: any) => (
     <View style={[styles.activityItem, { 
       backgroundColor: colorScheme === 'dark' ? '#1F2937' : '#F9FAFB',
-      borderColor: colorScheme === 'dark' ? '#374151' : '#E5E7EB',
+      borderColor: colorScheme === 'dark' ? '#374151' : '#D1D5DB',
     }]}>
       <View style={styles.activityDot} />
       <View style={{ flex: 1 }}>
@@ -249,7 +249,7 @@ export default function AdminDashboardScreen() {
               <Pressable 
                 style={[styles.actionButton, { 
                   backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white',
-                  borderColor: colorScheme === 'dark' ? '#374151' : '#E5E7EB',
+                  borderColor: colorScheme === 'dark' ? '#374151' : '#D1D5DB',
                 }]}
                 onPress={() => void router.push('/admin-users')}
               >
@@ -262,7 +262,7 @@ export default function AdminDashboardScreen() {
               <Pressable 
                 style={[styles.actionButton, { 
                   backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white',
-                  borderColor: colorScheme === 'dark' ? '#374151' : '#E5E7EB',
+                  borderColor: colorScheme === 'dark' ? '#374151' : '#D1D5DB',
                 }]}
                 onPress={() => void router.push('/admin-teams')}
               >
@@ -275,7 +275,7 @@ export default function AdminDashboardScreen() {
               <Pressable 
                 style={[styles.actionButton, { 
                   backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white',
-                  borderColor: colorScheme === 'dark' ? '#374151' : '#E5E7EB',
+                  borderColor: colorScheme === 'dark' ? '#374151' : '#D1D5DB',
                 }]}
                 onPress={() => void router.push('/admin-ads')}
               >
@@ -288,7 +288,7 @@ export default function AdminDashboardScreen() {
               <Pressable 
                 style={[styles.actionButton, { 
                   backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white',
-                  borderColor: colorScheme === 'dark' ? '#374151' : '#E5E7EB',
+                  borderColor: colorScheme === 'dark' ? '#374151' : '#D1D5DB',
                 }]}
                 onPress={() => void router.push('/admin-reports')}
               >
@@ -301,7 +301,7 @@ export default function AdminDashboardScreen() {
               <Pressable
                 style={[styles.actionButton, {
                   backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white',
-                  borderColor: colorScheme === 'dark' ? '#374151' : '#E5E7EB',
+                  borderColor: colorScheme === 'dark' ? '#374151' : '#D1D5DB',
                 }]}
                 onPress={() => void router.push('/admin-activity-log')}
               >
@@ -314,7 +314,7 @@ export default function AdminDashboardScreen() {
               <Pressable
                 style={[styles.actionButton, {
                   backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white',
-                  borderColor: colorScheme === 'dark' ? '#374151' : '#E5E7EB',
+                  borderColor: colorScheme === 'dark' ? '#374151' : '#D1D5DB',
                 }]}
                 onPress={() => void router.push('/admin-create-event')}
               >
@@ -402,7 +402,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     marginBottom: 12,
   },
   statIcon: {
@@ -437,7 +437,7 @@ const styles = StyleSheet.create({
     width: '48%',
     aspectRatio: 1,
     borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 16,
@@ -452,7 +452,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     padding: 12,
     borderRadius: 8,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     marginBottom: 8,
   },
   activityDot: {

@@ -249,7 +249,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: '#D1D5DB',
     gap: 12,
   },
   alternativeHeader: {
@@ -288,7 +288,7 @@ const styles = StyleSheet.create({
   },
   availabilityBar: {
     height: 8,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: '#D1D5DB',
     borderRadius: 4,
     overflow: 'hidden',
   },

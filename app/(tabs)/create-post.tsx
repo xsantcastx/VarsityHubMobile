@@ -1652,7 +1652,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 12,
     paddingBottom: 8,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: 1,
     // borderBottomColor: Uses dynamic color in JSX
   },
   reviewModalTitle: {
@@ -1667,7 +1667,7 @@ const styles = StyleSheet.create({
   reviewMediaCard: {
     borderRadius: 16,
     overflow: 'hidden',
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     // borderColor & backgroundColor: Uses dynamic colors in JSX
   },
   reviewMedia: {
@@ -1682,7 +1682,7 @@ const styles = StyleSheet.create({
   },
   reviewTextCard: {
     borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     // borderColor & backgroundColor: Uses dynamic colors in JSX
     padding: 16,
   },
@@ -1705,7 +1705,7 @@ const styles = StyleSheet.create({
     paddingVertical: 32,
     paddingHorizontal: 16,
     borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     // borderColor & backgroundColor: Uses dynamic colors in JSX
     gap: 12,
   },
@@ -1961,7 +1961,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
+    borderTopColor: '#D1D5DB',
   },
   previewActionButton: {
     flexDirection: 'row',
@@ -1987,7 +1987,7 @@ const styles = StyleSheet.create({
   },
   editButton: {
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: '#D1D5DB',
   },
   confirmButton: {
     backgroundColor: '#1B3A6B',

@@ -317,7 +317,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: 1,
   },
   headerTitle: { fontSize: 17, fontWeight: '700' },
   saveBtn: { fontSize: 16, fontWeight: '700' },

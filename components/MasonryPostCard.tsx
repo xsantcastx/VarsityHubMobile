@@ -215,7 +215,7 @@ const styles = StyleSheet.create({
   container: {
     borderRadius: 14,
     padding: 10,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     shadowColor: '#0f172a',
     shadowOpacity: 0.06,
     shadowRadius: 10,

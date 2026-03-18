@@ -112,15 +112,15 @@ export default function AdminUsersScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   bar: { flexDirection: 'row', gap: 8, padding: 12 },
-  search: { flex: 1, height: 44, borderRadius: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB', paddingHorizontal: 10, backgroundColor: 'white' },
-  toggle: { paddingHorizontal: 10, borderRadius: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB', alignItems: 'center', justifyContent: 'center' },
+  search: { flex: 1, height: 44, borderRadius: 8, borderWidth: 1, borderColor: '#D1D5DB', paddingHorizontal: 10, backgroundColor: 'white' },
+  toggle: { paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: '#D1D5DB', alignItems: 'center', justifyContent: 'center' },
   toggleOn: { backgroundColor: '#111827', borderColor: '#111827' },
   toggleText: { fontWeight: '700', color: 'transparent' }, // Will be overridden with Colors[colorScheme].text
   toggleTextOn: { color: '#FFFFFF' }, // White text for active state
-  row: { padding: 12, borderRadius: 12, backgroundColor: '#F9FAFB', borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB' },
+  row: { padding: 12, borderRadius: 12, backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#D1D5DB' },
   title: { fontWeight: '800', fontSize: 16 },
   meta: { color: '#6b7280' },
-  badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, borderWidth: StyleSheet.hairlineWidth, borderColor: '#D1D5DB', backgroundColor: '#E5E7EB' },
+  badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, borderWidth: 1, borderColor: '#D1D5DB', backgroundColor: '#D1D5DB' },
   badgeText: { fontWeight: '800', fontSize: 10 },
   btn: { backgroundColor: '#111827', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
   btnText: { color: 'white', fontWeight: '800' },

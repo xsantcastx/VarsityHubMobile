@@ -403,7 +403,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   divider: {
-    height: StyleSheet.hairlineWidth,
+    height: 1,
     marginVertical: 20,
   },
   infoBox: {

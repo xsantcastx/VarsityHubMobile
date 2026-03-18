@@ -612,7 +612,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: 1,
   },
   closeButton: {
     width: 32,
@@ -647,7 +647,7 @@ const styles = StyleSheet.create({
   section: {
     padding: 16,
     borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     marginBottom: 16,
   },
   sectionHeader: {
@@ -682,7 +682,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     gap: 8,
   },
   templateSelectText: {
@@ -692,7 +692,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     fontSize: 14,
     minWidth: 120,
   },
@@ -713,7 +713,7 @@ const styles = StyleSheet.create({
   gameCard: {
     padding: 16,
     borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     marginBottom: 12,
   },
   gameHeader: {
@@ -738,7 +738,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: 8,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     fontSize: 14,
   },
   selectInput: {
@@ -761,7 +761,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
   },
   typeButtonText: {
     fontSize: 14,
@@ -775,7 +775,7 @@ const styles = StyleSheet.create({
     right: 0,
     marginTop: 4,
     borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     maxHeight: 200,
     zIndex: 1000,
     elevation: 8,
@@ -797,8 +797,8 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   customOption: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E5E7EB',
+    borderBottomWidth: 1,
+    borderBottomColor: '#D1D5DB',
     marginBottom: 8,
     paddingBottom: 12,
   },
@@ -811,8 +811,8 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#E5E7EB',
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
   },
   optionInitial: {
     fontSize: 14,

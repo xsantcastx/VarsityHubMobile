@@ -252,7 +252,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     padding: 14,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.1)' : '#E5E7EB',
+    borderColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.1)' : '#D1D5DB',
   },
   orgCardContent: {
     flex: 1,

@@ -487,7 +487,7 @@ function badgeStyleForStatus(status?: string, colorScheme: 'light' | 'dark' = 'l
   const s = String(status || 'draft');
   if (s === 'active') return { backgroundColor: colorScheme === 'dark' ? '#065F46' : '#DCFCE7', borderColor: colorScheme === 'dark' ? '#10B981' : '#86EFAC' };
   if (s === 'pending') return { backgroundColor: colorScheme === 'dark' ? '#92400E' : '#FEF9C3', borderColor: colorScheme === 'dark' ? '#FBBF24' : '#FDE68A' };
-  if (s === 'archived') return { backgroundColor: colorScheme === 'dark' ? '#374151' : '#F3F4F6', borderColor: colorScheme === 'dark' ? '#6B7280' : '#E5E7EB' };
+  if (s === 'archived') return { backgroundColor: colorScheme === 'dark' ? '#374151' : '#F3F4F6', borderColor: colorScheme === 'dark' ? '#6B7280' : '#D1D5DB' };
   return { backgroundColor: colorScheme === 'dark' ? '#1E3A8A' : '#E0E7FF', borderColor: colorScheme === 'dark' ? '#3B82F6' : '#C7D2FE' }; // draft
 }
 function badgeTextStyleForStatus(status?: string) {
@@ -524,7 +524,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: Platform.OS === 'android' ? 14 : 8,
     paddingBottom: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: 1,
   },
   headerTitle: {
     fontSize: 28,
@@ -542,7 +542,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginVertical: 8,
     borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -564,7 +564,7 @@ const styles = StyleSheet.create({
     height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#E5E7EB',
+    backgroundColor: '#D1D5DB',
   },
   bannerPlaceholderText: {
     marginTop: 6,
@@ -608,7 +608,7 @@ const styles = StyleSheet.create({
   datesSection: {
     paddingHorizontal: 16,
     paddingVertical: 14,
-    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopWidth: 1,
   },
   datesSectionHeader: {
     flexDirection: 'row',
@@ -644,7 +644,7 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     borderRadius: 8,
     backgroundColor: '#F3F4F6',
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderColor: '#D1D5DB',
   },
   dateBadgeCompleted: {
@@ -682,7 +682,7 @@ const styles = StyleSheet.create({
   },
   actionsContainer: {
     flexDirection: 'row',
-    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopWidth: 1,
   },
   actionButton: {
     flex: 1,
@@ -693,10 +693,10 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   actionButtonPrimary: {
-    borderRightWidth: StyleSheet.hairlineWidth,
+    borderRightWidth: 1,
   },
   actionButtonSecondary: {
-    borderRightWidth: StyleSheet.hairlineWidth,
+    borderRightWidth: 1,
   },
   actionButtonTextPrimary: {
     fontSize: 14,

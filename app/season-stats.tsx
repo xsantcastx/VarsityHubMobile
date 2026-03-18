@@ -817,7 +817,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
   },
   teamSelectorText: {
     fontSize: 13,
@@ -826,7 +826,7 @@ const styles = StyleSheet.create({
   headerCard: {
     margin: 16,
     borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     overflow: 'hidden',
   },
   statsGradient: {
@@ -887,7 +887,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginHorizontal: 16,
     marginBottom: 16,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: '#D1D5DB',
     borderRadius: 12,
     padding: 4,
   },
@@ -908,7 +908,7 @@ const styles = StyleSheet.create({
   sectionCard: {
     padding: 20,
     borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     marginBottom: 16,
   },
   sectionTitle: {
@@ -939,7 +939,7 @@ const styles = StyleSheet.create({
   percentageTrack: {
     width: '100%',
     height: 8,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: '#D1D5DB',
     borderRadius: 4,
     marginBottom: 8,
   },
@@ -1053,7 +1053,7 @@ const styles = StyleSheet.create({
   playerCard: {
     padding: 16,
     borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     marginBottom: 12,
   },
   playerHeader: {
@@ -1130,7 +1130,7 @@ const styles = StyleSheet.create({
   gameCard: {
     padding: 14,
     borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     marginBottom: 12,
   },
   gameCardHeader: {

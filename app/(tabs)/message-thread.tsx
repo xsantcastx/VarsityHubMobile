@@ -499,7 +499,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 8,
     paddingBottom: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: 1,
     gap: 8,
   },
   backButton: {
@@ -598,7 +598,7 @@ const styles = StyleSheet.create({
   },
   bubbleTheirs: {
     borderBottomLeftRadius: 4,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
   },
   bubbleText: {
     fontSize: 15,
@@ -611,7 +611,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     padding: 12,
-    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopWidth: 1,
     gap: 10,
   },
   input: {

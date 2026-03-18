@@ -66,7 +66,7 @@ const styles = StyleSheet.create({
   error: { marginBottom: 8 },
   muted: { marginBottom: 8 },
   mutedSmall: { fontSize: 12 },
-  row: { padding: 12, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth },
+  row: { padding: 12, borderRadius: 12, borderWidth: 1 },
   rowTitle: { fontWeight: '600' },
 });
 

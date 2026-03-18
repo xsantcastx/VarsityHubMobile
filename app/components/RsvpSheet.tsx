@@ -50,6 +50,6 @@ const styles = StyleSheet.create({
   metaMuted: { color: '#6b7280' },
   primaryBtn: { backgroundColor: '#111827', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10 },
   primaryBtnText: { color: 'white', fontWeight: '700' },
-  outlineBtn: { borderWidth: StyleSheet.hairlineWidth, borderColor: '#D1D5DB', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10 },
+  outlineBtn: { borderWidth: 1, borderColor: '#D1D5DB', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10 },
   outlineBtnText: { fontWeight: '700' },
 });

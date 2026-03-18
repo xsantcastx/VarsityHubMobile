@@ -65,7 +65,7 @@ function NavRow({ title, subtitle, onPress, destructive, isLast }: { title: stri
   const cs = useColorScheme();
   const palette = Colors[cs ?? 'light'];
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={title} accessibilityHint={subtitle} style={[styles.rowBetween, !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.border }]}>
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={title} accessibilityHint={subtitle} style={[styles.rowBetween, !isLast && { borderBottomWidth: 1, borderBottomColor: palette.border }]}>
       <View style={{ flex: 1 }}>
         <Text style={[styles.rowTitle, { color: destructive ? palette.destructive : palette.text }]}>{title}</Text>
         {subtitle && <Text style={[styles.mutedSmall, { color: palette.mutedText }]}>{subtitle}</Text>}
@@ -79,7 +79,7 @@ function SwitchRow({ title, subtitle, value, onValueChange, isLast }: { title: s
   const cs = useColorScheme();
   const palette = Colors[cs ?? 'light'];
   return (
-    <View style={[styles.rowBetween, !isLast && { borderBottomWidth: 1, borderBottomColor: '#E5E7EB' }]}>
+    <View style={[styles.rowBetween, !isLast && { borderBottomWidth: 1, borderBottomColor: '#D1D5DB' }]}>
       <View style={{ flex: 1 }}>
         <Text style={[styles.rowTitle, { color: palette.text }]}>{title}</Text>
         {subtitle && <Text style={[styles.mutedSmall, { color: palette.mutedText }]}>{subtitle}</Text>}
@@ -394,7 +394,7 @@ export default function SettingsScreen() {
                         value={!!prefs.profile_private}
                         onValueChange={(v) => patchPrefs({ profile_private: v })}
                       />
-                      <View style={[styles.rowBetween, { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors[colorScheme ?? 'light'].border }]}>
+                      <View style={[styles.rowBetween, { borderBottomWidth: 1, borderBottomColor: Colors[colorScheme ?? 'light'].border }]}>
                         <View style={{ flex: 1 }}>
                           <Text style={[styles.rowTitle, { color: Colors[colorScheme ?? 'light'].text }]}>Comment Permissions</Text>
                           <Text style={[styles.mutedSmall, { color: Colors[colorScheme ?? 'light'].mutedText }]}>
@@ -645,7 +645,7 @@ export default function SettingsScreen() {
               container: { flex: 1 },
               title: { fontSize: 24, fontWeight: '700', marginBottom: 8, paddingHorizontal: 16 },
               error: { marginHorizontal: 16, marginBottom: 8 },
-              card: { marginHorizontal: 16, marginBottom: 6, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth },
+              card: { marginHorizontal: 16, marginBottom: 6, borderRadius: 12, borderWidth: 1 },
               cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 12 },
               cardBody: { paddingHorizontal: 12, paddingBottom: 4 },
               cardTitle: { fontWeight: '800', fontSize: 16 },
@@ -739,7 +739,7 @@ export default function SettingsScreen() {
                 width: '100%',
                 maxWidth: 420,
                 borderRadius: 12,
-                borderWidth: StyleSheet.hairlineWidth,
+                borderWidth: 1,
                 padding: 16,
                 gap: 10,
               },
@@ -771,7 +771,7 @@ export default function SettingsScreen() {
                 borderRadius: 8,
               },
               deleteCancelBtn: {
-                backgroundColor: '#E5E7EB',
+                backgroundColor: '#D1D5DB',
               },
               deleteConfirmBtn: {
                 backgroundColor: '#DC2626',

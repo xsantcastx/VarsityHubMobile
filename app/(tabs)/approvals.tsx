@@ -183,7 +183,7 @@ export default function ApprovalsScreen() {
     const sport = u.preferences?.sport || u.preferences?.primary_sport || '';
 
     return (
-      <View style={[styles.card, { backgroundColor: isDark ? '#1F2937' : '#FFFFFF', borderColor: isDark ? '#374151' : '#E5E7EB' }]}>
+      <View style={[styles.card, { backgroundColor: isDark ? '#1F2937' : '#FFFFFF', borderColor: isDark ? '#374151' : '#D1D5DB' }]}>
         {isApproved && (
           <View style={styles.approvedOverlay}>
             <MaterialIcons name="check-circle" size={48} color="#16A34A" />
@@ -195,7 +195,7 @@ export default function ApprovalsScreen() {
             {u.avatar_url ? (
               <Image source={{ uri: u.avatar_url }} style={styles.avatar} />
             ) : (
-              <View style={[styles.avatar, styles.avatarPlaceholder, { backgroundColor: isDark ? '#374151' : '#E5E7EB' }]}>
+              <View style={[styles.avatar, styles.avatarPlaceholder, { backgroundColor: isDark ? '#374151' : '#D1D5DB' }]}>
                 <MaterialIcons name="person" size={24} color={isDark ? '#6B7280' : '#9CA3AF'} />
               </View>
             )}
@@ -280,19 +280,19 @@ export default function ApprovalsScreen() {
   const renderSkeleton = () => (
     <View style={styles.skeletonContainer}>
       {[1, 2, 3].map((i) => (
-        <View key={i} style={[styles.card, { backgroundColor: isDark ? '#1F2937' : '#FFFFFF', borderColor: isDark ? '#374151' : '#E5E7EB' }]}>
+        <View key={i} style={[styles.card, { backgroundColor: isDark ? '#1F2937' : '#FFFFFF', borderColor: isDark ? '#374151' : '#D1D5DB' }]}>
           <View style={styles.cardContent}>
             <View style={styles.row}>
-              <View style={[styles.avatar, { backgroundColor: isDark ? '#374151' : '#E5E7EB' }]} />
+              <View style={[styles.avatar, { backgroundColor: isDark ? '#374151' : '#D1D5DB' }]} />
               <View style={styles.info}>
-                <View style={[styles.skeletonLine, { width: 140, backgroundColor: isDark ? '#374151' : '#E5E7EB' }]} />
-                <View style={[styles.skeletonLine, { width: 100, backgroundColor: isDark ? '#374151' : '#E5E7EB', marginTop: 6 }]} />
-                <View style={[styles.skeletonLine, { width: 80, backgroundColor: isDark ? '#374151' : '#E5E7EB', marginTop: 6 }]} />
+                <View style={[styles.skeletonLine, { width: 140, backgroundColor: isDark ? '#374151' : '#D1D5DB' }]} />
+                <View style={[styles.skeletonLine, { width: 100, backgroundColor: isDark ? '#374151' : '#D1D5DB', marginTop: 6 }]} />
+                <View style={[styles.skeletonLine, { width: 80, backgroundColor: isDark ? '#374151' : '#D1D5DB', marginTop: 6 }]} />
               </View>
             </View>
             <View style={[styles.skeletonActions, { marginTop: 12 }]}>
-              <View style={[styles.skeletonBtn, { backgroundColor: isDark ? '#374151' : '#E5E7EB' }]} />
-              <View style={[styles.skeletonBtn, { backgroundColor: isDark ? '#374151' : '#E5E7EB' }]} />
+              <View style={[styles.skeletonBtn, { backgroundColor: isDark ? '#374151' : '#D1D5DB' }]} />
+              <View style={[styles.skeletonBtn, { backgroundColor: isDark ? '#374151' : '#D1D5DB' }]} />
             </View>
           </View>
         </View>
@@ -324,7 +324,7 @@ export default function ApprovalsScreen() {
       <Stack.Screen options={{ headerShown: false }} />
 
       {/* Header */}
-      <View style={[styles.header, { borderBottomColor: isDark ? '#1F2937' : '#E5E7EB' }]}>
+      <View style={[styles.header, { borderBottomColor: isDark ? '#1F2937' : '#D1D5DB' }]}>
         <Pressable onPress={() => safeGoBack(router)} hitSlop={12}>
           <MaterialIcons name="arrow-back" size={24} color={C.text} />
         </Pressable>

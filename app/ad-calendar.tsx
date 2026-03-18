@@ -846,7 +846,7 @@ export default function AdCalendarScreen() {
                 flex: 1, 
                 height: 44, 
                 borderRadius: 10, 
-                borderWidth: StyleSheet.hairlineWidth, 
+                borderWidth: 1, 
                 borderColor: Colors[colorScheme].border, 
                 paddingHorizontal: 12,
                 backgroundColor: Colors[colorScheme].surface,
@@ -1103,7 +1103,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: 1,
     // Add shadow for depth (iOS)
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },

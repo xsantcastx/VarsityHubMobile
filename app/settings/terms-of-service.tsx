@@ -99,7 +99,7 @@ const styles = StyleSheet.create({
   updatedAt: { fontSize: 12, marginBottom: 4 },
   footer: { fontSize: 12, textAlign: 'center', marginTop: 16 },
   section: {
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderRadius: 12,
     padding: 12,
     gap: 6,

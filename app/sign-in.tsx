@@ -441,7 +441,7 @@ const styles = StyleSheet.create({
     maxWidth: 280,
   },
   card: {
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderRadius: 20,
     padding: 20,
     marginBottom: 16,
@@ -452,7 +452,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'transparent', // Will be overridden with palette.card
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderColor: 'transparent', // Will be overridden with palette.border
     borderRadius: 12,
     paddingVertical: 12,
@@ -486,7 +486,7 @@ const styles = StyleSheet.create({
   },
   dividerLine: {
     flex: 1,
-    height: StyleSheet.hairlineWidth,
+    height: 1,
   },
   dividerText: {
     fontSize: 13,

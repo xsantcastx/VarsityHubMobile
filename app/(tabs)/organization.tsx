@@ -370,7 +370,7 @@ export default function OrganizationScreen() {
         <View style={styles.actionRow}>
           {isOrgAdmin ? (
             <Pressable
-              style={[styles.actionBtn, { flex: 1, backgroundColor: theme.card, borderColor: theme.border, borderWidth: StyleSheet.hairlineWidth }]}
+              style={[styles.actionBtn, { flex: 1, backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }]}
               onPress={() => router.push({ pathname: '/edit-organization', params: { id: organization?.id } })}
             >
               <Ionicons name="pencil-outline" size={16} color={theme.text} />
@@ -423,7 +423,7 @@ export default function OrganizationScreen() {
               <Pressable
                 style={[
                   styles.actionBtn,
-                  { flex: 1, backgroundColor: 'transparent', borderColor: theme.border, borderWidth: StyleSheet.hairlineWidth },
+                  { flex: 1, backgroundColor: 'transparent', borderColor: theme.border, borderWidth: 1 },
                 ]}
                 disabled={isRequestingJoin}
                 onPress={async () => {
@@ -620,7 +620,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
   },
   adminButton: {
     flexDirection: 'row',
@@ -638,7 +638,7 @@ const styles = StyleSheet.create({
   },
   card: {
     borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
   },
   coverCard: {
     height: 160,
@@ -651,7 +651,7 @@ const styles = StyleSheet.create({
   },
   coverPlaceholder: {
     flex: 1,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderStyle: 'dashed',
     borderRadius: 16,
     alignItems: 'center',
@@ -672,7 +672,7 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     overflow: 'hidden',
     flexShrink: 0,
   },
@@ -745,7 +745,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     paddingTop: 12,
-    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopWidth: 1,
   },
   contactText: {
     fontSize: 14,
@@ -764,7 +764,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   rowItem: {
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderRadius: 12,
     paddingVertical: 12,
     paddingHorizontal: 14,

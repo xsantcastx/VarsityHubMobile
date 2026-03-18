@@ -12,7 +12,7 @@ const Input = React.forwardRef<TextInput, TextInputProps>((props, ref) => {
       style={[
         {
           height: 44,
-          borderWidth: StyleSheet.hairlineWidth,
+          borderWidth: 1,
           borderColor: Colors[colorScheme].border,
           borderRadius: 10,
           paddingHorizontal: 12,

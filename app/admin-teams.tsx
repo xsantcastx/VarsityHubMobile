@@ -259,7 +259,7 @@ const styles = StyleSheet.create({
   row: { 
     padding: 16, 
     borderRadius: 12, 
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,

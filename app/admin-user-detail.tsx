@@ -107,14 +107,14 @@ export default function AdminUserDetailScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { padding: 16, gap: 6, borderBottomWidth: StyleSheet.hairlineWidth },
+  header: { padding: 16, gap: 6, borderBottomWidth: 1 },
   title: { fontWeight: '800', fontSize: 18 },
   meta: {},
-  badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, borderWidth: StyleSheet.hairlineWidth },
+  badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, borderWidth: 1 },
   badgeText: { fontWeight: '800', fontSize: 10 },
   btn: { alignSelf: 'flex-start', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, marginTop: 8 },
   btnText: { color: 'white', fontWeight: '800' },
-  card: { padding: 12, borderRadius: 12, backgroundColor: '#F9FAFB', borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB' },
+  card: { padding: 12, borderRadius: 12, backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#D1D5DB' },
   cardTitle: { fontWeight: '800' },
   error: { color: '#b91c1c', padding: 12 },
 });

@@ -76,7 +76,7 @@ export default function CreateScreen() {
           <Text style={{ 
             color: colorScheme === 'dark' ? '#fef08a' : '#92400E', 
             backgroundColor: colorScheme === 'dark' ? 'rgba(254,240,138,0.1)' : '#FEF9C3', 
-            borderWidth: StyleSheet.hairlineWidth, 
+            borderWidth: 1, 
             borderColor: colorScheme === 'dark' ? 'rgba(254,240,138,0.3)' : '#FDE68A', 
             padding: 8, 
             borderRadius: 8, 
@@ -130,7 +130,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 18, fontWeight: '800', marginBottom: 4 },
   item: {
     paddingVertical: 12,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderRadius: 12,
     alignItems: 'center',
   },

@@ -24,7 +24,7 @@ export default function Segmented({ value, onChange, options, columns = 0 }: Seg
         styles.container,
         {
           backgroundColor: isDark ? '#1F2937' : '#F3F4F6',
-          borderColor: isDark ? '#374151' : '#E5E7EB',
+          borderColor: isDark ? '#374151' : '#D1D5DB',
           flexWrap: columns && columns > 0 ? 'wrap' : 'nowrap',
         },
       ]}

@@ -769,7 +769,7 @@ export default function ProfileScreen() {
               style={[
                 styles.headerFollowButton,
                 {
-                  backgroundColor: followStatus === 'pending' ? '#E5E7EB' : '#FFD600',
+                  backgroundColor: followStatus === 'pending' ? '#D1D5DB' : '#FFD600',
                   borderWidth: 0, width: 36, height: 36, borderRadius: 18,
                 }
               ]}
@@ -823,7 +823,7 @@ export default function ProfileScreen() {
               {me?.avatar_url ? (
                 <Image source={{ uri: String(me?.avatar_url) }} style={styles.avatarImage} contentFit="cover" />
               ) : (
-                <View style={[styles.avatarPlaceholder, { backgroundColor: colorScheme === 'dark' ? theme.surface || '#374151' : '#E5E7EB' }]}>
+                <View style={[styles.avatarPlaceholder, { backgroundColor: colorScheme === 'dark' ? theme.surface || '#374151' : '#D1D5DB' }]}>
                   <MaterialIcons name="person" size={48} color={theme.mutedText} />
                 </View>
               )}
@@ -1753,7 +1753,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: '#D1D5DB',
   },
   userBioCompact: {
     fontSize: 14,
@@ -1899,7 +1899,7 @@ const styles = StyleSheet.create({
   activityItem: {
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: '#D1D5DB',
   },
   gridRow: {
     gap: 12, // Spacing between cards like event page
@@ -2063,6 +2063,6 @@ const styles = StyleSheet.create({
   reportActionsMenu: { backgroundColor: 'white', borderRadius: 12, minWidth: 220, paddingVertical: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4, elevation: 5 },
   reportActionItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, gap: 12 },
   reportActionText: { fontSize: 16, fontWeight: '500', color: '#374151' },
-  reportSeparator: { height: 1, backgroundColor: '#E5E7EB', marginHorizontal: 8 },
+  reportSeparator: { height: 1, backgroundColor: '#D1D5DB', marginHorizontal: 8 },
   reportMenuTitle: { fontSize: 16, fontWeight: '700', paddingHorizontal: 16, paddingVertical: 12 },
 });

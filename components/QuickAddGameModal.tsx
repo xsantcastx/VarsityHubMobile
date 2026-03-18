@@ -1639,7 +1639,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: 1,
   },
   headerButton: {
     paddingVertical: 8,
@@ -1665,7 +1665,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 12,
     borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     marginBottom: 24,
     gap: 8,
   },
@@ -1686,7 +1686,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   input: {
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
@@ -1705,7 +1705,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     gap: 8,
   },
   gameTypeText: {
@@ -1726,7 +1726,7 @@ const styles = StyleSheet.create({
   previewCard: {
     padding: 16,
     borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     marginTop: 8,
   },
   previewTitle: {
@@ -1762,7 +1762,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: 1,
   },
   pickerHeaderButton: {
     fontSize: 16,
@@ -1781,7 +1781,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: 1,
   },
   pickerItemText: {
     fontSize: 16,
@@ -1810,7 +1810,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: 1,
     gap: 12,
   },
   searchInput: {
@@ -1887,7 +1887,7 @@ const styles = StyleSheet.create({
   },
   gameDetails: {
     paddingTop: 12,
-    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopWidth: 1,
     gap: 6,
   },
   detailRow: {
@@ -1914,7 +1914,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 120,
     borderRadius: 12,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: '#D1D5DB',
   },
   customBannerActions: {
     flexDirection: 'row',
@@ -2065,7 +2065,7 @@ const styles = StyleSheet.create({
     gap: 12,
     padding: 12,
     borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     marginBottom: 16,
     alignItems: 'center',
   },

@@ -446,7 +446,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: 1,
   },
   backButton: {
     width: 40,
@@ -471,7 +471,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     padding: 8,
     gap: 8,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: 1,
   },
   filterButton: {
     flex: 1,
@@ -533,7 +533,7 @@ const styles = StyleSheet.create({
   },
   requestCard: {
     borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     padding: 16,
     gap: 12,
   },

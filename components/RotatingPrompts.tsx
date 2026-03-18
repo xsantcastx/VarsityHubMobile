@@ -208,7 +208,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     gap: 12,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: '#D1D5DB',
   },
   containerCompact: {
     flexDirection: 'row',

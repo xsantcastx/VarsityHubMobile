@@ -65,10 +65,10 @@ export const Color = {
   textMuted: '#6B7280',
   background: '#FFFFFF',
   surface: '#F9FAFB',
-  border: '#E5E7EB',
+  border: '#D1D5DB',
   placeholder: '#9CA3AF',
   pageBg: '#F3F4F6',
-  tabBg: '#E5E7EB',
+  tabBg: '#D1D5DB',
   infoTile: '#DBEAFE',
   borderMuted: '#D1D5DB',
 };

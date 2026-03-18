@@ -1236,7 +1236,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#E5E7EB',
+    borderColor: '#D1D5DB',
     borderStyle: 'dashed',
   },
   avatarLoader: {

@@ -41,7 +41,7 @@ export default function HelpScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: 16, gap: 1 },
-  row: { flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: StyleSheet.hairlineWidth, gap: 12 },
+  row: { flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, gap: 12 },
   rowText: { flex: 1 },
   rowLabel: { fontSize: 16, fontWeight: '600' },
   rowSub: { fontSize: 13, marginTop: 2 },

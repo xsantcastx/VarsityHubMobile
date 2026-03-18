@@ -307,7 +307,7 @@ const styles = StyleSheet.create({
   successTitle: { fontSize: 26, fontWeight: '800', marginTop: 16 },
   card: {
     width: '100%', borderRadius: 16, padding: 20,
-    borderWidth: StyleSheet.hairlineWidth, marginBottom: 20,
+    borderWidth: 1, marginBottom: 20,
   },
   cardLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 1 },
   cardValue: { fontSize: 17, fontWeight: '600', marginTop: 2 },

@@ -295,7 +295,7 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   card: {
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderRadius: 16,
     padding: 16,
     gap: 12,

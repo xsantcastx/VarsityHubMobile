@@ -49,7 +49,7 @@ export default function CoreValuesScreen() {
             styles.card,
             {
               backgroundColor: isDark ? '#1F2937' : '#F9FAFB',
-              borderColor: isDark ? '#374151' : '#E5E7EB',
+              borderColor: isDark ? '#374151' : '#D1D5DB',
             },
           ]}
         >
@@ -77,7 +77,7 @@ export default function CoreValuesScreen() {
             styles.card,
             {
               backgroundColor: isDark ? '#1F2937' : '#F9FAFB',
-              borderColor: isDark ? '#374151' : '#E5E7EB',
+              borderColor: isDark ? '#374151' : '#D1D5DB',
             },
           ]}
         >
@@ -116,7 +116,7 @@ export default function CoreValuesScreen() {
             styles.card,
             {
               backgroundColor: isDark ? '#1F2937' : '#F9FAFB',
-              borderColor: isDark ? '#374151' : '#E5E7EB',
+              borderColor: isDark ? '#374151' : '#D1D5DB',
             },
           ]}
         >
@@ -155,7 +155,7 @@ export default function CoreValuesScreen() {
             styles.card,
             {
               backgroundColor: isDark ? '#1F2937' : '#F9FAFB',
-              borderColor: isDark ? '#374151' : '#E5E7EB',
+              borderColor: isDark ? '#374151' : '#D1D5DB',
             },
           ]}
         >

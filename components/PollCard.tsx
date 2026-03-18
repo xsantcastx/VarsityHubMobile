@@ -102,7 +102,7 @@ export default function PollCard({ poll, onVote }: PollCardProps) {
                   colors={
                     isSelected 
                       ? ['#3B82F6', '#2563EB'] 
-                      : ['#E5E7EB', '#D1D5DB']
+                      : ['#D1D5DB', '#D1D5DB']
                   }
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
@@ -183,7 +183,7 @@ const styles = StyleSheet.create({
   container: {
     borderRadius: 14,
     padding: 14,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     shadowColor: '#0f172a',
     shadowOpacity: 0.06,
     shadowRadius: 12,
@@ -263,8 +263,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingTop: 8,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#E5E7EB',
+    borderTopWidth: 1,
+    borderTopColor: '#D1D5DB',
   },
   footerLeft: {
     flexDirection: 'row',

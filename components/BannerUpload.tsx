@@ -472,7 +472,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     backgroundColor: 'rgba(255,255,255,0.9)',
     borderRadius: 9999,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.1)',
   },
   hintText: {

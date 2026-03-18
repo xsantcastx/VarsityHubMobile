@@ -158,7 +158,7 @@ function DraggableSticker({ sticker, onMove, onRemove, removeBtnBg, removeBtnCol
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 12, borderBottomWidth: StyleSheet.hairlineWidth },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 12, borderBottomWidth: 1 },
   headerText: { fontSize: 16, fontWeight: '600' },
   title: { fontSize: 18, fontWeight: '700' },
   canvas: { padding: 12 },
@@ -167,7 +167,7 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', justifyContent: 'center', height: 260 },
   filterOverlay: { position: 'absolute', left: 0, right: 0, top: 0, borderRadius: 0 },
   row: { flexDirection: 'row', padding: 12, gap: 8, justifyContent: 'center' },
-  filterBtn: { padding: 8, borderRadius: 8, borderWidth: StyleSheet.hairlineWidth },
+  filterBtn: { padding: 8, borderRadius: 8, borderWidth: 1 },
   filterText: { fontSize: 14, fontWeight: '600' },
   stickerBtn: { padding: 8 },
   sticker: { position: 'absolute' , alignItems: 'center', justifyContent: 'center' },

@@ -14,7 +14,7 @@ export const Colors = {
     background: '#FFFFFF',
     card: '#FFFFFF',
     surface: '#F3F4F6',
-    border: '#E5E7EB',
+    border: '#D1D5DB',
     mutedText: '#6B7280',
     elevated: '#FFFFFF',
     tint: tintColorLight,

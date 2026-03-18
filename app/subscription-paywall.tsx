@@ -578,7 +578,7 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: '#E5E7EB',
+    borderColor: '#D1D5DB',
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     position: 'relative',

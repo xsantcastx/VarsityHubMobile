@@ -78,7 +78,7 @@ export default function AdminMessagesScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  row: { padding: 12, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth },
+  row: { padding: 12, borderRadius: 12, borderWidth: 1 },
   msg: { fontWeight: '600' },
   meta: {},
   error: { padding: 12 },

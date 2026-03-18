@@ -119,7 +119,7 @@ export default function BlockedUsersScreen() {
             renderItem={({ item }) => (
               <View style={[styles.row, { 
                 backgroundColor: isDark ? '#1F2937' : '#F9FAFB',
-                borderColor: isDark ? '#374151' : '#E5E7EB'
+                borderColor: isDark ? '#374151' : '#D1D5DB'
               }]}>
                 <View>
                   <Text style={[styles.email, { color: theme.text }]}>{item.display_name || item.username || 'User'}</Text>
@@ -145,7 +145,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 24, fontWeight: '700', marginBottom: 4 },
   subtitle: { marginBottom: 8 },
   muted: {},
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 12, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth },
+  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 12, borderRadius: 12, borderWidth: 1 },
   email: { fontWeight: '600' },
   blockBtn: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, alignItems: 'center' as const, justifyContent: 'center' as const },
   blockBtnText: { color: '#FFFFFF', fontWeight: '700', fontSize: 15 },

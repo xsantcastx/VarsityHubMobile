@@ -196,9 +196,9 @@ export default function OrganizationDetailScreen() {
               })}
             >
               {team.logo_url || team.avatar_url ? (
-                <Image source={{ uri: (team.logo_url || team.avatar_url)! }} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colorScheme === 'dark' ? '#374151' : '#E5E7EB' }} />
+                <Image source={{ uri: (team.logo_url || team.avatar_url)! }} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colorScheme === 'dark' ? '#374151' : '#D1D5DB' }} />
               ) : (
-                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colorScheme === 'dark' ? '#374151' : '#E5E7EB', alignItems: 'center', justifyContent: 'center' }}>
+                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colorScheme === 'dark' ? '#374151' : '#D1D5DB', alignItems: 'center', justifyContent: 'center' }}>
                   <Ionicons name="people" size={20} color={theme.mutedText} />
                 </View>
               )}

@@ -27,7 +27,7 @@ const Textarea = React.forwardRef<TextInput, TextInputProps>((props, ref) => {
 const styles = StyleSheet.create({
   input: {
     minHeight: 88,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,

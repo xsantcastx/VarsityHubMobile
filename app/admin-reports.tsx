@@ -205,7 +205,7 @@ export default function AdminReportsScreen() {
           backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white',
           borderColor: isSelected 
             ? '#3B82F6' 
-            : (colorScheme === 'dark' ? '#374151' : '#E5E7EB'),
+            : (colorScheme === 'dark' ? '#374151' : '#D1D5DB'),
           borderWidth: isSelected ? 2 : 1,
         }]}
         onPress={() => toggleSelectReport(report.id)}
@@ -472,7 +472,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: '#D1D5DB',
   },
   backButton: {
     width: 40,

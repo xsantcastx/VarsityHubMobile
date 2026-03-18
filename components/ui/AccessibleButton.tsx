@@ -72,7 +72,7 @@ export function AccessibleButton({
           bg: '#F3F4F6',
           text: AccessibleColors.darkOnLight.text,
           borderColor: '#D1D5DB',
-          bgPressed: '#E5E7EB',
+          bgPressed: '#D1D5DB',
         };
     }
   };

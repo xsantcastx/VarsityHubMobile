@@ -82,7 +82,7 @@ export function CardFooter({ style, ...props }: ViewProps) {
 const styles = StyleSheet.create({
   card: {
     borderRadius: radius.md,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     overflow: 'hidden',
   },
   section: { 

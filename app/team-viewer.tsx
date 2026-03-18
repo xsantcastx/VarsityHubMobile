@@ -699,7 +699,7 @@ const styles = StyleSheet.create({
   headerCard: {
     margin: 16,
     borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     overflow: 'hidden',
   },
   headerGradient: {
@@ -783,7 +783,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginHorizontal: 16,
     marginBottom: 16,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: '#D1D5DB',
     borderRadius: 12,
     padding: 4,
   },
@@ -804,7 +804,7 @@ const styles = StyleSheet.create({
   sectionCard: {
     padding: 20,
     borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     marginBottom: 16,
   },
   sectionHeader: {
@@ -852,7 +852,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     marginBottom: 12,
   },
   gamePreviewInfo: {
@@ -888,7 +888,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: 16,
     borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     marginBottom: 12,
   },
   memberPreviewInfo: {
@@ -939,7 +939,7 @@ const styles = StyleSheet.create({
   fullMemberCard: {
     padding: 16,
     borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     marginBottom: 12,
   },
   fullMemberInfo: {
@@ -1006,7 +1006,7 @@ const styles = StyleSheet.create({
   fullGameCard: {
     padding: 16,
     borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     marginBottom: 12,
   },
   gameCardHeader: {

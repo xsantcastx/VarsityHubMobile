@@ -45,7 +45,7 @@ function RoleCard({
 
   const colors = {
     cardBg: isDark ? (selected ? '#1F2937' : '#111827') : (selected ? '#FFFFFF' : '#F9FAFB'),
-    cardBorder: isDark ? (selected ? accentColorLight : '#374151') : (selected ? accentColor : '#E5E7EB'),
+    cardBorder: isDark ? (selected ? accentColorLight : '#374151') : (selected ? accentColor : '#D1D5DB'),
     iconColor: isDark ? (selected ? accentColorLight : '#9CA3AF') : (selected ? accentColor : '#6B7280'),
     titleColor: isDark ? '#F9FAFB' : '#111827',
     descColor: isDark ? '#9CA3AF' : '#6B7280',

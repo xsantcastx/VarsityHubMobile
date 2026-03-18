@@ -173,7 +173,7 @@ export default function LeaguePendingApproval() {
         {!approved && orgId && (
           <>
             {/* Info card */}
-            <View style={[styles.infoCard, { backgroundColor: isDark ? '#1F2937' : '#FFFFFF', borderColor: isDark ? '#374151' : '#E5E7EB' }]}>
+            <View style={[styles.infoCard, { backgroundColor: isDark ? '#1F2937' : '#FFFFFF', borderColor: isDark ? '#374151' : '#D1D5DB' }]}>
               <View style={styles.infoRow}>
                 <MaterialIcons name="business" size={18} color={isDark ? '#60A5FA' : '#2563EB'} />
                 <Text style={[styles.infoLabel, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Organization:</Text>

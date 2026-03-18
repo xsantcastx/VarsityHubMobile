@@ -80,7 +80,7 @@ export default function GameReviewsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  card: { padding: 12, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth },
+  card: { padding: 12, borderRadius: 12, borderWidth: 1 },
   title: { fontWeight: '700', marginBottom: 6 },
   content: {},
   contentMuted: {},

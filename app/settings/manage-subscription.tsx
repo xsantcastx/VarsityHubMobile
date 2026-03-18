@@ -281,7 +281,7 @@ const styles = StyleSheet.create({
   contentContainer: { padding: 16, paddingTop: 24 },
   title: { fontSize: 22, fontWeight: '800', marginBottom: 4 },
   subtitle: { marginBottom: 12 },
-  card: { padding: 12, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth },
+  card: { padding: 12, borderRadius: 12, borderWidth: 1 },
   rowLabel: { fontSize: 12 },
   rowValue: { fontSize: 18, fontWeight: '700', marginTop: 6 },
   description: { marginTop: 12 },

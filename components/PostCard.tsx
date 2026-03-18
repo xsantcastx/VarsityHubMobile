@@ -540,10 +540,10 @@ const styles = StyleSheet.create({
   metaText: { color: '#6B7280', fontWeight: '700', fontSize: 12 },
   // Team ribbon styles
   teamRowOverlay: { position: 'absolute', top: 8, left: 8, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  teamPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: 'rgba(238,242,255,0.95)', borderWidth: StyleSheet.hairlineWidth, borderColor: '#C7D2FE' },
+  teamPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: 'rgba(238,242,255,0.95)', borderWidth: 1, borderColor: '#C7D2FE' },
   teamPillText: { fontWeight: '800', color: '#1E3A8A', fontSize: 12 },
-  vsText: { marginHorizontal: 2, color: '#E5E7EB', fontWeight: '900' },
-  teamPillAlt: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: 'rgba(220,252,231,0.95)', borderWidth: StyleSheet.hairlineWidth, borderColor: '#A7F3D0' },
+  vsText: { marginHorizontal: 2, color: '#D1D5DB', fontWeight: '900' },
+  teamPillAlt: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: 'rgba(220,252,231,0.95)', borderWidth: 1, borderColor: '#A7F3D0' },
   teamPillAltText: { fontWeight: '800', color: '#065F46', fontSize: 12 },
   // Author header styles
   authorRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
@@ -560,11 +560,11 @@ const styles = StyleSheet.create({
   actionsMenu: { backgroundColor: 'white', borderRadius: 12, minWidth: 160, paddingVertical: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4, elevation: 5 },
   actionItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, gap: 12 },
   actionText: { fontSize: 16, fontWeight: '500', color: '#374151' },
-  actionSeparator: { height: 1, backgroundColor: '#E5E7EB', marginHorizontal: 8 },
+  actionSeparator: { height: 1, backgroundColor: '#D1D5DB', marginHorizontal: 8 },
   
   // Edit modal styles
   editModal: { flex: 1, backgroundColor: 'white' },
-  editHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
+  editHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#D1D5DB' },
   editTitle: { fontSize: 18, fontWeight: '700', color: '#111827' },
   cancelButton: { fontSize: 16, color: '#6B7280' },
   saveButton: { fontSize: 16, fontWeight: '600', color: '#2563EB' },

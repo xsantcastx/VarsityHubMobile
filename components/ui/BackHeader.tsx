@@ -20,7 +20,7 @@ export function BackHeader({
   rightElement, 
   backgroundColor = '#ffffff',
   textColor = '#1F2937',
-  borderColor = '#E5E7EB',
+  borderColor = '#D1D5DB',
   showDivider = true,
 }: BackHeaderProps) {
   const router = useRouter();
@@ -41,7 +41,7 @@ export function BackHeader({
         {
           paddingTop: insets.top,
           backgroundColor,
-          borderBottomWidth: showDivider ? StyleSheet.hairlineWidth : 0,
+          borderBottomWidth: showDivider ? 1 : 0,
           borderBottomColor: borderColor,
         },
       ]}

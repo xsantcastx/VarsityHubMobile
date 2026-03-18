@@ -681,7 +681,7 @@ export default function FeedScreen() {
           padding: 10,
           borderRadius: 10,
           backgroundColor: colorScheme === 'dark' ? Colors[colorScheme].surface : '#FEF9C3',
-          borderWidth: StyleSheet.hairlineWidth,
+          borderWidth: 1,
           borderColor: colorScheme === 'dark' ? Colors[colorScheme].border : '#FDE68A',
           marginBottom: 12,
         }}
@@ -1458,7 +1458,7 @@ const styles = StyleSheet.create({
   headerGradient: {
     paddingHorizontal: 16,
     paddingBottom: 2,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: 1,
     borderBottomColor: 'rgba(0,0,0,0.05)',
     overflow: 'hidden',
   },
@@ -1473,7 +1473,7 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   brand: { fontSize: 26, fontWeight: '800', letterSpacing: -0.5, flexShrink: 1 },
-  searchBox: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 48, borderRadius: 12, paddingHorizontal: 12, marginBottom: 8, borderWidth: StyleSheet.hairlineWidth },
+  searchBox: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 48, borderRadius: 12, paddingHorizontal: 12, marginBottom: 8, borderWidth: 1 },
   searchInput: { flex: 1, height: 44 },
   mapsButton: {
     flexDirection: 'row',
@@ -1540,7 +1540,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
     padding: 24,
     borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     alignItems: 'center',
   },
   socialFeedEmptyTitle: {
@@ -1696,7 +1696,7 @@ const styles = StyleSheet.create({
   },
   gridDateText: { color: '#F9FAFB', fontWeight: '700', fontSize: 12 },
   gridTitle: { color: '#FFFFFF', fontWeight: '800', fontSize: 14, lineHeight: 18 },
-  gridMeta: { color: '#E5E7EB', fontSize: 12 },
+  gridMeta: { color: '#D1D5DB', fontSize: 12 },
   gridStatsRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   gridStat: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   gridStatText: { color: '#F9FAFB', fontSize: 11, fontWeight: '600' },
@@ -1704,7 +1704,7 @@ const styles = StyleSheet.create({
   gridFooter: { width: '100%', marginTop: 12, gap: 24, paddingHorizontal: 8, overflow: 'hidden' },
   sponsoredGridCard: {
     borderRadius: 18,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     padding: 20,
     gap: 12,
     shadowColor: '#0f172a',
@@ -1732,7 +1732,7 @@ const styles = StyleSheet.create({
   sponsoredGridCtaText: { color: '#FFFFFF', fontWeight: '700', fontSize: 13 },
   adInviteCard: {
     borderRadius: 18,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     padding: 18,
     gap: 6,
   },
@@ -1740,7 +1740,7 @@ const styles = StyleSheet.create({
   adInviteSubtitle: { fontSize: 13, lineHeight: 18 },
   loadingMore: { paddingVertical: 16, alignItems: 'center' },
   sectionTitle: { fontWeight: '800', marginBottom: 8 },
-  zipSuggestionList: { marginTop: 6, marginBottom: 8, borderRadius: 12, backgroundColor: '#FFFFFF', borderWidth: StyleSheet.hairlineWidth, borderColor: '#E2E8F0', overflow: 'hidden', shadowColor: '#0f172a', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
+  zipSuggestionList: { marginTop: 6, marginBottom: 8, borderRadius: 12, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', overflow: 'hidden', shadowColor: '#0f172a', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
   zipSuggestionItem: { paddingHorizontal: 16, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   zipSuggestionZip: { fontWeight: '700', fontSize: 15 },
   zipSuggestionCount: { color: '#6b7280', fontSize: 12 },
@@ -1765,7 +1765,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: 1,
   },
   menuTitle: {
     fontSize: 24,
@@ -1782,7 +1782,7 @@ const styles = StyleSheet.create({
   menuTabs: {
     flexDirection: 'row',
     paddingHorizontal: 20,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: 1,
   },
   menuTab: {
     flex: 1,
@@ -1820,7 +1820,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 12,
     backgroundColor: 'rgba(37, 99, 235, 0.05)',
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
   },
   menuItemTitle: {
     fontSize: 16,
@@ -1843,7 +1843,7 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingHorizontal: 20,
     paddingVertical: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: 1,
   },
   listRowUnread: {
     backgroundColor: 'rgba(37, 99, 235, 0.03)',

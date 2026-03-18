@@ -107,14 +107,14 @@ export default function LocationPicker({
             fontWeight: '500',
             backgroundColor: theme.surface,
             borderRadius: 12,
-            borderWidth: StyleSheet.hairlineWidth,
+            borderWidth: 1,
             borderColor: error ? '#EF4444' : theme.border,
             paddingHorizontal: 16,
             margin: 0,
           },
           listView: {
             backgroundColor: theme.surface,
-            borderWidth: StyleSheet.hairlineWidth,
+            borderWidth: 1,
             borderColor: theme.border,
             borderRadius: 12,
             marginTop: 4,
@@ -132,7 +132,7 @@ export default function LocationPicker({
             fontSize: 14,
           },
           separator: {
-            height: StyleSheet.hairlineWidth,
+            height: 1,
             backgroundColor: theme.border,
           },
         }}
@@ -149,7 +149,7 @@ export default function LocationPicker({
 
 const styles = StyleSheet.create({
   input: {
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,

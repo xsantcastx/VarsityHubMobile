@@ -943,7 +943,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   },
   locationSuggestionList: {
     marginTop: 6,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderColor: Colors[colorScheme].border,
     borderRadius: 12,
     backgroundColor: Colors[colorScheme].surface,
@@ -952,7 +952,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   locationSuggestionItem: {
     paddingVertical: 10,
     paddingHorizontal: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: 1,
     borderBottomColor: Colors[colorScheme].border,
   },
   locationSuggestionItemLast: {
@@ -1426,7 +1426,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.1)' : '#E5E7EB',
+    borderColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.1)' : '#D1D5DB',
   },
   orgCardContent: {
     marginBottom: 12,
