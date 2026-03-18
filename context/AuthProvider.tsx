@@ -22,6 +22,7 @@ import { User } from '@/api/entities';
 import { httpGet } from '@/api/http';
 import { clearPostCacheOnLogout } from '@/context/PostCacheContext';
 import { consumePendingDeepLink, handleDeepLink } from '@/utils/deepLinks';
+import { setUserContext as setSentryUser } from '@/utils/sentry';
 
 // Conditionally import notifications only if not in Expo Go
 const isExpoGo = Constants.executionEnvironment === 'storeClient';
@@ -268,6 +269,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
 
         // NOW set user — routing effect will fire with correct hasCompletedOnboarding
         setUser(me);
+        setSentryUser({ id: me.id, email: me.email, username: me.username });
         setPendingVerificationEmail(null);
 
         // Fetch subscription status (non-blocking)
@@ -282,6 +284,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         // For transient network/server errors, preserve the existing session.
         if (err?.status === 401) {
           setUser(null);
+          setSentryUser(null);
           setPendingVerificationEmail(null);
         } else {
           if (__DEV__) console.error('[AuthProvider] checkAuth transient error (session preserved):', err);
@@ -306,6 +309,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     } finally {
       clearPostCacheOnLogout();
       setUser(null);
+      setSentryUser(null);
       setPendingVerificationEmail(null);
       setHasCompletedOnboarding(false);
       setSubscriptionTier('rookie');

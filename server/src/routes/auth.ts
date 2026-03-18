@@ -860,10 +860,15 @@ authRouter.post('/password/change', requireAuth as any, async (req: AuthedReques
   // Hash new password
   const password_hash = await bcrypt.hash(new_password, 12);
   
-  // Update password
+  // Update password and invalidate all existing sessions
   await prisma.user.update({
     where: { id: user.id },
-    data: { password_hash, password_changed_at: new Date() },
+    data: {
+      password_hash,
+      password_changed_at: new Date(),
+      refresh_token: null,
+      refresh_token_expires: null,
+    },
   });
   
   // Send confirmation email

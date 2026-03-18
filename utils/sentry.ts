@@ -71,6 +71,19 @@ export function initSentry() {
   }
 }
 
+export function setUserContext(user: { id: string; email?: string; username?: string } | null) {
+  if (!sentryReady) return;
+  try {
+    if (user) {
+      Sentry.setUser({ id: user.id, email: user.email, username: user.username });
+    } else {
+      Sentry.setUser(null);
+    }
+  } catch {
+    // non-critical
+  }
+}
+
 export function captureException(error: Error | unknown, context?: Record<string, any>) {
   if (!sentryReady) {
     if (__DEV__) {
