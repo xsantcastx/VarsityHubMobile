@@ -54,18 +54,18 @@ function getTierConfig(tier: CoachTier) {
       return {
         label: 'Veteran',
         icon: 'shield-checkmark' as const,
-        backgroundColor: '#2563EB', // Blue
-        iconColor: '#FFFFFF',
-        textColor: '#1E40AF',
+        backgroundColor: '#C0C0C0', // Silver
+        iconColor: '#374151',
+        textColor: '#374151',
       };
     case 'rookie':
     default:
       return {
         label: 'Rookie',
         icon: 'medal' as const,
-        backgroundColor: '#9CA3AF', // Gray
+        backgroundColor: '#CD7F32', // Bronze
         iconColor: '#FFFFFF',
-        textColor: '#4B5563',
+        textColor: '#8B5A2B',
       };
   }
 }
@@ -167,7 +167,7 @@ function getTierBenefits(tier: CoachTier) {
           'Add teams beyond first 2 free',
           'Standard support',
           'Per-team administrators',
-          'Blue shield badge on profile',
+          'Silver shield badge on profile',
           'Event scheduling tools',
           'Parent communication',
         ],

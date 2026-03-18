@@ -86,7 +86,51 @@ On a **physical device** (required for store review):
 
 ---
 
-## 7. Reference checklists (existing)
+## 7. Store & backend configuration (your action items)
+
+Code is ready. The items below are **store/backend config** (not code changes). The codebase already has the following wired:
+
+### Already set in code (verified)
+
+| Item | Where | Notes |
+|------|--------|------|
+| **IAP product IDs** | `hooks/useIAP.ts` (`IAP_PRODUCT_IDS`), `server/src/routes/payments.ts` | App and server use **veteran_vhub** and **legend_vhub**; no code change needed. |
+| **ADMIN_EMAILS fallback** | `server` (payments, ads, email, auth, games, etc.) | If `ADMIN_EMAILS` is unset, server uses **emancero@varsityhub.app**. |
+| **Client admin email** | `app.json` → `EXPO_PUBLIC_ADMIN_EMAILS` | Set to **emancero@varsityhub.app** for in-app use (e.g. request-host-event). |
+| **SendGrid template keys** | `server/src/lib/email.ts` | All template IDs read from env (e.g. `SENDGRID_AD_PENDING_REVIEW_TEMPLATE_ID`); see `.env.example` for full list. |
+
+You only need to create products in the stores and set env vars on Railway (below).
+
+### App Store Connect — In-App Purchases
+
+1. App Store Connect → Your App → **In-App Purchases**.
+2. Create (if missing) and submit for review products that **match the IDs in code**:
+   - **veteran_vhub** — Auto-Renewable Subscription, $1.00/month.
+   - **legend_vhub** — Auto-Renewable Subscription, $19.99/year.
+3. SKUs must be **Ready to Submit** before they work in sandbox.
+
+### Google Play Console
+
+1. **Monetization → Subscriptions**: Create same product IDs: **veteran_vhub**, **legend_vhub**.
+
+### Railway (production API)
+
+Add or verify on your Railway production service:
+
+| Variable | Purpose |
+|----------|---------|
+| **ADMIN_EMAILS** | Comma-separated admin emails. Optional: code fallback is emancero@varsityhub.app; set this to override (e.g. production list). |
+| **SENDGRID_AD_PENDING_REVIEW_TEMPLATE_ID** | SendGrid dynamic template for ad pending-review. Create in SendGrid, paste ID. |
+| **SENDGRID_*** (others) | All keys in `server/src/lib/email.ts` and `server/.env.example`. Create templates in SendGrid and set IDs on Railway for each flow you use. |
+
+### Summary
+
+- **Code**: IAP IDs, admin fallback, and SendGrid env keys are already set. No code changes required.
+- **Your config**: Create **veteran_vhub** / **legend_vhub** in App Store Connect and Google Play; set SendGrid template IDs (and optionally ADMIN_EMAILS) on Railway.
+
+---
+
+## 8. Reference checklists (existing)
 
 - **TestFlight / config**: `docs/TESTFLIGHT_PRE_SUBMISSION_CHECKLIST.md`
 - **Go-live gate (P0)**: `docs/GO_LIVE_CHECKLIST.md`
@@ -97,6 +141,6 @@ On a **physical device** (required for store review):
 
 ## Summary
 
-- **Must do**: Run `validate:pre-launch` and `verify:release`; fix errors; confirm production API URL and Stripe key; ensure `ascAppId` in eas.json matches App Store Connect.
+- **Must do**: Run `validate:pre-launch` and `verify:release`; fix errors; confirm production API URL and Stripe key; ensure `ascAppId` in eas.json matches App Store Connect; complete **§7** (IAP SKUs, Railway/SendGrid config).
 - **Should do**: Add accessibility labels to primary flows; run `verify:p0:foundation`; smoke-test on a real device after upload.
-- **Already in place**: Privacy/Terms URLs, usage strings, encryption declaration, Apple Sign In, EAS production env (Stripe, Sentry).
+- **Already in place**: Privacy/Terms URLs, usage strings, encryption declaration, Apple Sign In, EAS production env (Stripe, Sentry). Coach badge colors and follow-button feedback are in code; single “Options” (no duplicate “More”) confirmed.

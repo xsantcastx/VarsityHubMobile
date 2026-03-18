@@ -653,7 +653,7 @@ export default function TeamScreen() {
                 style={[
                   styles.followButtonBelowBanner,
                   {
-                    backgroundColor: isFollowing ? '#FFD600' : '#FFD600',
+                    backgroundColor: isFollowing ? '#10B981' : '#FFD600',
                     borderWidth: 0,
                   }
                 ]}
