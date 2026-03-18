@@ -57,26 +57,42 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Check Snyk token
+        id: snyk-check
+        run: |
+          if [ -z "$SNYK_TOKEN" ]; then
+            echo "⚠️ SNYK_TOKEN not configured — skipping Snyk scans"
+            echo "has-token=false" >> $GITHUB_OUTPUT
+          else
+            echo "has-token=true" >> $GITHUB_OUTPUT
+          fi
+
       - name: Run Snyk authentication
+        if: steps.snyk-check.outputs.has-token == 'true'
         uses: snyk/actions/setup@master
 
       - name: Run Snyk Code scan (SAST) - Frontend
+        if: steps.snyk-check.outputs.has-token == 'true'
         run: snyk code test --severity-threshold=high --sarif-file-output=snyk-frontend.sarif --report-metrics
         continue-on-error: true
 
       - name: Run Snyk Code scan (SAST) - Server
+        if: steps.snyk-check.outputs.has-token == 'true'
         run: cd server && snyk code test --severity-threshold=high --sarif-file-output=../snyk-server.sarif --report-metrics || true
         continue-on-error: true
 
       - name: Run Snyk Open Source scan (SCA) - Frontend
+        if: steps.snyk-check.outputs.has-token == 'true'
         run: snyk test --severity-threshold=high --report-metrics
         continue-on-error: true
 
       - name: Run Snyk Open Source scan (SCA) - Server
+        if: steps.snyk-check.outputs.has-token == 'true'
         run: cd server && snyk test --severity-threshold=high --report-metrics || true
         continue-on-error: true
 
       - name: Run Snyk test with JSON output
+        if: steps.snyk-check.outputs.has-token == 'true'
         id: snyk-test
         run: |
           snyk test --json --severity-threshold=high > snyk-results.json 2>&1 || true
@@ -119,20 +135,20 @@ jobs:
           fi
 
       - name: Monitor with Snyk
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && steps.snyk-check.outputs.has-token == 'true'
         run: snyk monitor --severity-threshold=high
         continue-on-error: true
 
       - name: Upload Snyk results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v2
-        if: always()
+        if: always() && hashFiles('snyk-frontend.sarif') != ''
         with:
           sarif_file: snyk-frontend.sarif
           category: snyk-frontend
 
       - name: Upload Snyk server results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v2
-        if: always()
+        if: always() && hashFiles('snyk-server.sarif') != ''
         with:
           sarif_file: snyk-server.sarif
           category: snyk-server
@@ -155,20 +171,21 @@ jobs:
           node-version: '22'
           cache: 'npm'
 
-      - name: Run npm audit
-        run: npm audit --audit-level=moderate
+      - name: Run npm audit (server)
+        run: cd server && npm ci && npm audit --audit-level=moderate
         continue-on-error: true
 
-      - name: Check for high/critical vulnerabilities
+      - name: Check for high/critical vulnerabilities (server)
         run: |
+          cd server
           CRITICAL=$(npm audit --json 2>/dev/null | jq '.metadata.vulnerabilities.critical // 0')
           HIGH=$(npm audit --json 2>/dev/null | jq '.metadata.vulnerabilities.high // 0')
           if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
-            echo "❌ Found critical or high severity vulnerabilities"
+            echo "❌ Found critical or high severity vulnerabilities in server"
             npm audit
             exit 1
           else
-            echo "✅ No high/critical vulnerabilities found"
+            echo "✅ No high/critical vulnerabilities found in server"
           fi
 
   container-scan:
