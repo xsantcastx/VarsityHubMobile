@@ -97,7 +97,9 @@ export default function LeaguePendingApproval() {
   const handleLogout = async () => {
     try {
       await signOut();
-    } catch {}
+    } catch (err) {
+      if (__DEV__) console.warn('[league-pending-approval] Logout failed:', (err as Error)?.message ?? err);
+    }
     router.replace('/sign-in');
   };
 

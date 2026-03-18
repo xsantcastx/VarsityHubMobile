@@ -14,7 +14,9 @@ export default function MessagesTabIcon({ color }: { color: string }) {
         if (!alive) return;
         const count = (list || []).filter((m: any) => !m.read).length;
         setUnread(count);
-      } catch {}
+      } catch (err) {
+        if (__DEV__) console.warn('[MessagesTabIcon] Failed to load unread count:', (err as Error)?.message);
+      }
     };
     void load();
     const id = setInterval(() => void load(), 30000);

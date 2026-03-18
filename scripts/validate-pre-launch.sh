@@ -79,10 +79,10 @@ fi
 echo ""
 echo "[5/10] Checking environment configuration..."
 if [ -f ".env" ]; then
-    if grep -q "EXPO_PUBLIC_API_URL=https://api-production.varsityhub.net" .env; then
+    if grep -qE "EXPO_PUBLIC_API_URL=https://api-production.*\.(up\.railway\.app|varsityhub\.(app|net))" .env; then
         echo "✅ Production API URL configured"
     else
-        echo "⚠️  WARNING: API URL might not be production"
+        echo "⚠️  WARNING: API URL might not be production (expected api-production*.up.railway.app or varsityhub.app)"
         ((WARNINGS++))
     fi
 else

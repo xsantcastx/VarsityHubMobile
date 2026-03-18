@@ -108,16 +108,21 @@ export default function ManageSeasonScreen() {
 
   // Guard: restrict to coach role
   useEffect(() => {
+    let mounted = true;
     void (async () => {
       try {
         // @ts-ignore JS exports
         const { User } = await import('@/api/entities');
         const me: any = await User.me();
+        if (!mounted) return;
         if (me?.preferences?.role !== 'coach') {
           router.push('/(tabs)');
         }
-      } catch {}
-    })().catch(() => {});
+      } catch (err) {
+        if (__DEV__) console.warn('[manage-season] Failed to check coach role:', (err as Error)?.message ?? err);
+      }
+    })();
+    return () => { mounted = false; };
   }, [router]);
 
   const loadTeam = useCallback(async () => {

@@ -1,5 +1,5 @@
 # VarsityHub Mobile — Codebase Map
-**Last updated:** 2026-03-16
+**Last updated:** 2026-03-18
 **Purpose:** Session briefing document for AI assistants. Read this before making any changes.
 
 ---
@@ -1088,6 +1088,37 @@ The following features have been confirmed stable and should not be modified wit
 
 ### Tab Navigation
 - 5 visible tabs: Feed, Highlights, Create (center `+`), Discover, Profile
+
+---
+
+## AUDIT CONFIRMATION (2026-03-18)
+
+Front and backend audit against codebase map and recent security fixes. **Confirmed working as intended** unless noted.
+
+### Backend — Auth & middleware
+- **authMiddleware** (`server/src/middleware/auth.ts`): Runs on every request. Reads `Authorization: Bearer <token>`, verifies JWT via `verifyJwt()`, loads user from DB. Rejects banned/suspended users and tokens issued before `password_changed_at`. Sets `req.user = { id }`.
+- **requireAuth**: Returns 401 if `!req.user`. Used on /me, /me/preferences, /logout, /upgrade-to-coach, /me/complete-onboarding, etc.
+- **requireVerified**: Returns 403 "Email verification required" unless `email_verified` or narrow bypass (teams POST / or /create with `onboarding === true` during onboarding). **upgrade-to-coach** uses `requireVerified` (only email-verified users can upgrade).
+- **requireOnboarded**: Returns 403 if `onboarding_completed !== true`; blocks coaches with `approval_status !== 'APPROVED'`; verifies coach org `admin_approved`; blocks paid coaches who haven’t completed checkout when required. Used on games POST/PATCH/DELETE, teams POST/PUT/DELETE/invite, posts POST/PATCH/DELETE, organizations PATCH/invite/transfer, etc.
+
+### Backend — Key routes
+- **POST /auth/upgrade-to-coach**: `requireVerified` + requireAuth. Sets role coach, onboarding_completed false, approval_status PENDING. No role elevation without verification.
+- **POST /me/complete-onboarding**: requireAuth only (user may complete before verify in some flows). Validates coach has org or join_request_pending; sets coaches to PENDING unless org already admin_approved. Re-completion blocked (409).
+- **Organizations POST / and POST /create**: requireAuth only (correct — org is created during onboarding before completion). Coach approval and org admin_approved enforced by requireOnboarded on all mutating coach actions.
+
+### Frontend — Auth & routing
+- **AuthProvider**: Single source of truth. Redirects unauthenticated → sign-in; unverified → verify; needs onboarding → /onboarding/step-1-role; pending coach (no proceeding_as_fan) → /onboarding/pending-approval; coach needs checkout → /settings/manage-subscription; completed onboarding on onboarding route → /(tabs). Uses server `user.preferences.onboarding_completed` and `user.approval_status` (never trust AsyncStorage alone).
+- **app/index.tsx**: Passive splash; 3s fallback redirect if still on index (sign-in / verify / onboarding / tabs).
+- **app/onboarding/_layout.tsx**: Guards all onboarding: if !user after loading, redirect to sign-in; shows loading while loading or when !user.
+
+### Frontend — Coach UI gating
+- **Create screen** (`app/create.tsx`): "Create Team" and "Create Event" label only when `role === 'coach'` **and** `approval_status === 'APPROVED'` (isApprovedCoach). Prevents pending coaches from seeing coach-only options (backend would 403; UI now matches).
+- **Discover** (`app/(tabs)/discover/mobile-community.tsx`): Quick Add Game and userRole for game creation check `role === 'coach' && approval_status === 'APPROVED'`.
+- **create-fan-event**, **profile**, **event-approvals**, **manage-teams**, **create-team**, **my-team**: Use role and/or approval_status/onboarding_completed where appropriate.
+
+### Reference
+- Recent commits: security audit fixes, token invalidation, verification audit, back button migration, PDF LAST 101% fixes. See `git log --oneline -20`.
+- Backend audit details: `server/BACKEND_AUDIT_REPORT.md`.
 
 ---
 

@@ -54,7 +54,7 @@ export default function TabLayout() {
           title: 'Feed',
           tabBarButton: HapticTab,
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="square.grid.2x2.fill" color={color} />,
-          tabBarAccessibilityLabel: 'Feed tab',
+          tabBarAccessibilityLabel: 'Feed',
         }}
       />
       <Tabs.Screen
@@ -63,7 +63,7 @@ export default function TabLayout() {
           title: 'Highlights',
           tabBarButton: HapticTab,
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="video.fill" color={color} />,
-          tabBarAccessibilityLabel: 'Highlights tab',
+          tabBarAccessibilityLabel: 'Highlights',
         }}
       />
       <Tabs.Screen
@@ -72,7 +72,7 @@ export default function TabLayout() {
           title: '',
           tabBarLabel: '',
           tabBarButton: CenterTabButton,
-          tabBarAccessibilityLabel: 'Create post tab',
+          tabBarAccessibilityLabel: 'Create',
         }}
       />
       <Tabs.Screen
@@ -81,7 +81,7 @@ export default function TabLayout() {
           title: 'Discover',
           tabBarButton: HapticTab,
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="magnifyingglass" color={color} />,
-          tabBarAccessibilityLabel: 'Discover tab',
+          tabBarAccessibilityLabel: 'Discover',
         }}
       />
   {/* Hidden screens within (tabs) that should not appear as tabs */}
@@ -140,7 +140,7 @@ export default function TabLayout() {
           title: 'Profile',
           tabBarButton: HapticTab,
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="person.crop.circle" color={color} />,
-          tabBarAccessibilityLabel: 'Profile tab',
+          tabBarAccessibilityLabel: 'Profile',
         }}
       />
     </Tabs>

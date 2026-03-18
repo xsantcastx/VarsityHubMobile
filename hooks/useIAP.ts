@@ -102,7 +102,9 @@ export function useVHubIAP() {
         if (__DEV__) console.error('[useVHubIAP] receipt validation error:', err);
         try {
           await finishTransaction({ purchase, isConsumable: false });
-        } catch {}
+        } catch (finishErr) {
+          if (__DEV__) console.warn('[useVHubIAP] finishTransaction failed:', (finishErr as Error)?.message);
+        }
         setPurchasing(false);
         setError(err?.message || 'Receipt validation failed');
         purchaseResolveRef.current?.(false);

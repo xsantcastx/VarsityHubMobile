@@ -15,6 +15,8 @@ export default function CreateScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const verified = !!me?.email_verified;
+  // Coach-only options: only show when approved (backend requireOnboarded enforces this; UI should match)
+  const isApprovedCoach = me?.preferences?.role === 'coach' && (me as any)?.approval_status === 'APPROVED';
   useEffect(() => {
     let mounted = true;
     void (async () => {
@@ -87,16 +89,16 @@ export default function CreateScreen() {
         <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/create-post?type=highlight')}>
           <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>Share Highlight</Text>
         </Pressable>
-        {/* Team creation - COACH ONLY */}
-        {me?.preferences?.role === 'coach' && (
+        {/* Team creation - APPROVED COACH ONLY (pending coaches are blocked by backend requireOnboarded) */}
+        {isApprovedCoach && (
           <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/create-team')}>
             <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>Create Team</Text>
           </Pressable>
         )}
-        {/* Event creation - ALL USERS (fans pitch, coaches auto-approve) */}
+        {/* Event creation - ALL USERS (fans pitch, approved coaches auto-approve) */}
         <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/create-fan-event')}>
           <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>
-            {me?.preferences?.role === 'coach' ? 'Create Event' : 'Pitch Event'}
+            {isApprovedCoach ? 'Create Event' : 'Pitch Event'}
           </Text>
         </Pressable>
         <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/submit-ad')}>

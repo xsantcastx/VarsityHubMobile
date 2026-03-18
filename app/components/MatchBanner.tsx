@@ -55,7 +55,9 @@ export default function MatchBanner({ leftImage, rightImage, leftName = '', righ
       try {
         const enabled = await AccessibilityInfo.isReduceMotionEnabled();
         if (mounted) update(enabled);
-      } catch {}
+      } catch (err) {
+        if (__DEV__) console.warn('[MatchBanner] reduceMotion check failed:', (err as Error)?.message);
+      }
     };
 
     void fetch();
@@ -65,7 +67,7 @@ export default function MatchBanner({ leftImage, rightImage, leftName = '', righ
       if (subscription && typeof subscription.remove === 'function') {
         subscription.remove();
       } else if (subscription) {
-        try { (subscription as any)(); } catch {}
+        try { (subscription as any)(); } catch (err) { if (__DEV__) console.warn('[MatchBanner] remove subscription:', (err as Error)?.message); }
       }
     };
   }, []);

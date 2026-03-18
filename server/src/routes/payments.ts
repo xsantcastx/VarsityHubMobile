@@ -958,7 +958,11 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
       ]);
     } catch (holdErr) {
       // Cancel the payment intent since we can't hold the slots
-      try { await stripe.paymentIntents.cancel(paymentIntent.id); } catch {}
+      try {
+        await stripe.paymentIntents.cancel(paymentIntent.id);
+      } catch (cancelErr) {
+        console.warn('[payments] Failed to cancel payment intent after hold failure:', (cancelErr as Error)?.message);
+      }
       console.error('[payments] Failed to hold ad slots, cancelled payment:', (holdErr as any)?.message);
       return res.status(409).json({ error: 'Ad slots are no longer available. Please try different dates.' });
     }

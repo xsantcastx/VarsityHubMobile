@@ -350,10 +350,11 @@ organizationsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res
       return res.status(400).json({ error: filterResult.error, code: filterResult.code });
     }
     // Transaction: create org + owner membership + set coach to PENDING atomically
+    const { formatted_address: _fa, place_id: _pid, latitude: _lat, longitude: _lng, ...orgFields } = data;
     const organization = await prisma.$transaction(async (tx) => {
       const org = await tx.organization.create({
         data: {
-          ...data,
+          ...orgFields,
           season_start: data.season_start ? new Date(data.season_start) : null,
           season_end: data.season_end ? new Date(data.season_end) : null,
           updated_at: new Date(),
@@ -462,10 +463,6 @@ organizationsRouter.post('/create', requireAuth as any, async (req: AuthedReques
           sport: data.sport,
           org_type: data.org_type,
           location: data.location,
-          formatted_address: data.formatted_address,
-          place_id: data.place_id,
-          latitude: data.latitude,
-          longitude: data.longitude,
           zip_code: data.zip_code,
           season_start: data.season_start ? new Date(data.season_start) : null,
           season_end: data.season_end ? new Date(data.season_end) : null,

@@ -20,7 +20,9 @@ if (!isExpoGo) {
     getReceiptIOS = iap.getReceiptIOS;
     requestPurchase = iap.requestPurchase;
     finishTransaction = iap.finishTransaction;
-  } catch {}
+  } catch (err) {
+    if (__DEV__) console.warn('[useAdIAP] react-native-iap not available (e.g. Expo Go):', (err as Error)?.message);
+  }
 }
 
 const isIOS = Platform.OS === 'ios';
@@ -75,7 +77,9 @@ export function useAdIAP() {
           });
         }
         await rnFinishTransaction({ purchase, isConsumable: true });
-      } catch {}
+      } catch (err) {
+        if (__DEV__) console.warn('[useAdIAP] Receipt/finish failed:', (err as Error)?.message);
+      }
 
       const { weekdayBlocks, weekendBlocks } = pending;
       const hasWeekday = pending.receipts.some((r) => r.productId === AD_IAP_PRODUCT_IDS.weekday);

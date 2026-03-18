@@ -92,7 +92,9 @@ export default function PendingApproval() {
   const handleLogout = async () => {
     try {
       await signOut();
-    } catch {}
+    } catch (err) {
+      if (__DEV__) console.warn('[pending-approval] Logout failed:', (err as Error)?.message ?? err);
+    }
     router.replace('/sign-in');
   };
 

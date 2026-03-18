@@ -89,7 +89,9 @@ export default function SubmitAdScreen() {
         if (!normalizedEmail && typeof me?.email === 'string') {
           normalizedEmail = me.email.trim().toLowerCase();
         }
-      } catch {}
+      } catch (err) {
+        if (__DEV__) console.warn('[submit-ad.web] /me prefetch failed:', (err as Error)?.message ?? err);
+      }
 
       // Try server-side creation first
       let serverId: string | null = null;
@@ -154,7 +156,9 @@ export default function SubmitAdScreen() {
             await settings.setJson(baseKey, legacyFiltered);
           }
         }
-      } catch {}
+      } catch (err) {
+        if (__DEV__) console.warn('[submit-ad.web] Failed to cache draft locally:', (err as Error)?.message ?? err);
+      }
 
       router.push({ pathname: '/ad-calendar', params: { adId } });
     } catch (e: any) {

@@ -18,7 +18,7 @@ export default function MatchBannerLottie({ style, onLoaded, tintColor, size = 8
 
     if (disabled) {
       setLottieView(null);
-      try { onLoadedRef.current && onLoadedRef.current(false); } catch {}
+      try { onLoadedRef.current && onLoadedRef.current(false); } catch (e) { if (__DEV__) console.warn('[MatchBannerLottie] onLoaded(false):', (e as Error)?.message); }
       return () => {
         mounted = false;
       };
@@ -29,10 +29,10 @@ export default function MatchBannerLottie({ style, onLoaded, tintColor, size = 8
         const mod = await import('lottie-react-native');
         if (mounted) {
           setLottieView(() => mod.default || mod);
-          try { onLoadedRef.current && onLoadedRef.current(true); } catch {}
+          try { onLoadedRef.current && onLoadedRef.current(true); } catch (e) { if (__DEV__) console.warn('[MatchBannerLottie] onLoaded(true):', (e as Error)?.message); }
         }
       } catch {
-        try { onLoadedRef.current && onLoadedRef.current(false); } catch {}
+        try { onLoadedRef.current && onLoadedRef.current(false); } catch (e) { if (__DEV__) console.warn('[MatchBannerLottie] onLoaded(false):', (e as Error)?.message); }
       }
     })();
 

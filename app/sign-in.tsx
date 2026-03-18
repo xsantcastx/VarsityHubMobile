@@ -255,6 +255,7 @@ export default function SignInScreen() {
                 source={require('../assets/images/logo.png')}
                 style={styles.logo}
                 contentFit="contain"
+                accessibilityLabel="VarsityHub logo"
               />
             </View>
             <Text style={[styles.title, { color: palette.text }]}>Welcome back</Text>
@@ -273,6 +274,7 @@ export default function SignInScreen() {
                 buttonStyle={colorScheme === 'dark' ? AppleAuthenticationButtonStyle.WHITE : AppleAuthenticationButtonStyle.BLACK}
                 cornerRadius={8}
                 style={{ width: '100%', height: 50, marginBottom: 0 }}
+                accessibilityLabel="Sign in with Apple"
               />
             ) : null}
 
@@ -282,6 +284,8 @@ export default function SignInScreen() {
                 onPress={handleGoogleLogin}
                 disabled={googleLoading}
                 accessibilityRole="button"
+                accessibilityLabel="Continue with Google"
+                accessibilityHint="Double tap to sign in with your Google account"
               >
                 <Ionicons name="logo-google" size={20} color="#4285F4" style={styles.googleIcon} />
                 {googleLoading ? (
@@ -323,6 +327,8 @@ export default function SignInScreen() {
                 autoComplete="email"
                 keyboardType="email-address"
                 placeholderTextColor={palette.mutedText}
+                accessibilityLabel="Email"
+                accessibilityHint="Enter your email address"
                 style={[
                   styles.input,
                   {
@@ -344,6 +350,8 @@ export default function SignInScreen() {
                 autoCapitalize="none"
                 autoCorrect={false}
                 placeholderTextColor={palette.mutedText}
+                accessibilityLabel="Password"
+                accessibilityHint="Enter your password"
                 style={[
                   styles.input,
                   {
@@ -355,16 +363,33 @@ export default function SignInScreen() {
               />
             </View>
 
-            <Pressable style={styles.forgotLink} onPress={() => void router.push('/forgot-password')}>
+            <Pressable
+              style={styles.forgotLink}
+              onPress={() => void router.push('/forgot-password')}
+              accessibilityRole="button"
+              accessibilityLabel="Forgot password?"
+              accessibilityHint="Double tap to reset your password"
+            >
               <Text style={[styles.forgotLinkText, { color: palette.tint }]}>Forgot password?</Text>
             </Pressable>
 
-            <Button onPress={onSubmit} disabled={loading}>
+            <Button
+              onPress={onSubmit}
+              disabled={loading}
+              accessibilityLabel={loading ? 'Signing in' : 'Sign In'}
+              accessibilityHint="Double tap to sign in with email and password"
+            >
               {loading ? <ActivityIndicator color="white" /> : 'Sign In'}
             </Button>
           </View>
 
-          <Pressable style={styles.footer} onPress={() => void router.replace('/sign-up')}>
+          <Pressable
+            style={styles.footer}
+            onPress={() => void router.replace('/sign-up')}
+            accessibilityRole="button"
+            accessibilityLabel="Need an account? Create one"
+            accessibilityHint="Double tap to go to sign up"
+          >
             <Text style={[styles.footerText, { color: palette.mutedText }]}>Need an account?</Text>
             <Text style={[styles.footerLink, { color: palette.tint }]}>Create one</Text>
           </Pressable>
