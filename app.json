@@ -137,7 +137,7 @@
         "@sentry/react-native/expo",
         {
           "url": "https://sentry.io/",
-          "organization": "varsity-hub",
+          "organization": "lime-productions",
           "project": "varsity-hub-mobile",
           "uploadSourcemaps": false
         }

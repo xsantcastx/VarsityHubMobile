@@ -38,8 +38,8 @@ echo ""
 echo "2. Checking Sentry properties files..."
 if [ -f "android/sentry.properties" ]; then
     echo -e "${GREEN}✅ android/sentry.properties exists${NC}"
-    if grep -q "varsity-hub" android/sentry.properties; then
-        echo -e "${GREEN}   ✅ Organization configured: varsity-hub${NC}"
+    if grep -q "lime-productions" android/sentry.properties; then
+        echo -e "${GREEN}   ✅ Organization configured: lime-productions${NC}"
     else
         echo -e "${YELLOW}   ⚠️  Organization may not be configured correctly${NC}"
         WARNINGS=$((WARNINGS + 1))
