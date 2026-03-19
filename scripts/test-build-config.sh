@@ -125,11 +125,11 @@ else
     ERRORS=$((ERRORS + 1))
 fi
 
-if grep -q "SENTRY_ALLOW_FAILURE.*true" eas.json; then
-    echo -e "${GREEN}✅ SENTRY_ALLOW_FAILURE configured${NC}"
+if grep -q "SENTRY_ALLOW_FAILURE" eas.json; then
+    echo -e "${RED}❌ SENTRY_ALLOW_FAILURE found in eas.json — remove it so Sentry errors fail builds properly${NC}"
+    ERRORS=$((ERRORS + 1))
 else
-    echo -e "${YELLOW}⚠️  SENTRY_ALLOW_FAILURE not set to true${NC}"
-    WARNINGS=$((WARNINGS + 1))
+    echo -e "${GREEN}✅ No SENTRY_ALLOW_FAILURE — Sentry errors will properly fail builds${NC}"
 fi
 
 if grep -q "Sentry" android/app/build.gradle && (grep -q "whenTaskAdded" android/app/build.gradle || grep -q "tasks.all" android/app/build.gradle); then
