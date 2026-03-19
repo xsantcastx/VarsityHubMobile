@@ -33,7 +33,7 @@ const checks: Check[] = [
   { file: 'src/routes/payments.ts', mustContain: "paymentsRouter.post('/subscription/cancel', expressPkg.json(), requireVerified as any, paymentLimiter", label: 'payments subscription cancel limiter' },
   { file: 'src/routes/payments.ts', mustContain: "paymentsRouter.post('/update-subscription-quantity', expressPkg.json(), requireVerified as any, paymentLimiter", label: 'payments quantity update limiter' },
   { file: 'src/routes/payments.ts', mustContain: "paymentsRouter.post('/apple/verify-receipt', expressPkg.json(), requireAuth as any, paymentLimiter", label: 'payments apple receipt limiter' },
-  { file: 'src/routes/payments.ts', mustContain: "paymentsRouter.post('/apple/verify-ad-receipt', expressPkg.json(), requireAuth as any, paymentLimiter", label: 'payments apple ad receipt limiter' },
+  { file: 'src/routes/payments.ts', mustContain: "paymentsRouter.post('/apple/verify-ad-receipt', expressPkg.json(), requireVerified as any, paymentLimiter", label: 'payments apple ad receipt limiter' },
   { file: 'src/routes/payments.ts', mustContain: "paymentsRouter.post('/google/verify-purchase', expressPkg.json(), requireAuth as any, paymentLimiter", label: 'payments google purchase limiter' },
 
   // Uploads

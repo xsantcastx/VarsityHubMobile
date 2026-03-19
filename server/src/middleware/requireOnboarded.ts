@@ -13,7 +13,7 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
 
   const u = await prisma.user.findUnique({
     where: { id: req.user.id },
-    select: { preferences: true, approval_status: true, paid_by_owner: true },
+    select: { preferences: true, approval_status: true, paid_by_owner: true, subscription_status: true },
   });
   const prefs = u?.preferences as Record<string, unknown> | null;
 
@@ -55,12 +55,11 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
     const currentPlan = String((prefs?.plan as string | undefined) || '').toLowerCase();
     const selectedPlan = pendingPlan || currentPlan;
     const requiresPayment = selectedPlan === 'veteran' || selectedPlan === 'legend';
-    const paymentPending = prefs?.payment_pending === true;
     const paymentApproved = prefs?.payment_approved === true;
-    const joinRequestPending = prefs?.join_request_pending === true;
-    const canCheckoutNow = paymentApproved || !joinRequestPending;
+    const hasSubscriptionEvidence = typeof prefs?.subscription_id === 'string' || u?.subscription_status === 'active';
 
-    if (requiresPayment && paymentPending && canCheckoutNow) {
+    // Security: enforce payment based on plan intent, not on a client-provided payment_pending flag.
+    if (requiresPayment && !paymentApproved && !hasSubscriptionEvidence) {
       return res.status(403).json({
         error: 'Checkout required before accessing coach tools.',
         code: 'PAYMENT_REQUIRED',

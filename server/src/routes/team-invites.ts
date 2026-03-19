@@ -9,7 +9,7 @@ import { asyncHandler } from '../middleware/asyncHandler.js';
 
 export const teamInvitesRouter = Router();
 
-const VALID_INVITE_ROLES = ['owner', 'manager', 'coach', 'assistant_coach', 'player', 'parent', 'member', 'equipment', 'health_wellness'] as const;
+const VALID_INVITE_ROLES = ['manager', 'coach', 'assistant_coach', 'player', 'parent', 'member', 'equipment', 'health_wellness'] as const;
 
 // POST /team-invites { team_id, email, role }
 // SECURITY: Same permission checks as POST /teams/:id/invite
@@ -60,20 +60,20 @@ teamInvitesRouter.post('/', requireAuth as any, inviteLimiter, asyncHandler(asyn
   const plan = ownerPrefs.payment_pending ? 'rookie' : (ownerPrefs.plan || 'rookie');
   const limit = getAuthorizedUsersPerTeam(plan);
 
-  const existingInvite = await prisma.teamInvite.findUnique({
-    where: { team_id_email: { team_id: teamId, email: emailLower } } as any,
-  });
-
   let invite;
   try {
     invite = await prisma.$transaction(async (tx) => {
-      if (limit !== null && !existingInvite) {
+      const existingInvite = await tx.teamInvite.findUnique({
+        where: { team_id_email: { team_id: teamId, email: emailLower } } as any,
+      });
+      if (limit !== null) {
         const inviteCount = await tx.teamInvite.count({ where: { team_id: teamId, status: 'pending' } });
         const memberCount = await tx.teamMembership.count({
           where: { team_id: teamId, role: { in: ['manager', 'coach', 'assistant_coach', 'equipment', 'health_wellness'] } },
         });
-        const totalAuthorized = inviteCount + memberCount;
-        if (totalAuthorized >= limit) {
+        const existingPendingInvite = existingInvite?.status === 'pending' ? 1 : 0;
+        const projectedAuthorized = inviteCount + memberCount - existingPendingInvite + 1;
+        if (projectedAuthorized > limit) {
           throw new Error(`USER_LIMIT_REACHED:${plan} plan allows ${limit} authorized user${limit === 1 ? '' : 's'} per team`);
         }
       }
@@ -99,7 +99,7 @@ teamInvitesRouter.post('/', requireAuth as any, inviteLimiter, asyncHandler(asyn
   sendTeamInviteEmail({
     to: emailLower,
     teamName: team.name,
-    role: role || 'member',
+    role: assignedRole,
     inviterName: inviter?.display_name || 'VarsityHub Coach',
   }).catch((err) => {
     console.error('[team-invites] Failed to send invite email:', err);

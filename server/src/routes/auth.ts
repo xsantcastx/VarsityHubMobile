@@ -1,6 +1,7 @@
 import bcrypt from 'bcrypt';
 import crypto, { createPublicKey, type KeyObject } from 'crypto';
 import { Router, type Response } from 'express';
+import { OAuth2Client } from 'google-auth-library';
 import jwt, { type JwtPayload } from 'jsonwebtoken';
 import { z } from 'zod';
 import { sendPasswordChangedEmail, sendPasswordResetEmail, sendVerificationEmail, sendWelcomeEmail } from '../lib/email.js';
@@ -103,6 +104,7 @@ const GOOGLE_ALLOWED_AUDIENCES = (process.env.GOOGLE_OAUTH_CLIENT_IDS || process
   .split(',')
   .map((value) => value.trim())
   .filter((value) => value.length > 0);
+const googleOauthClient = new OAuth2Client();
 const APPLE_JWKS_URL = 'https://appleid.apple.com/auth/keys';
 const APPLE_JWKS_TTL_MS = 6 * 60 * 60 * 1000;
 const appleKeyCache = new Map<string, { key: KeyObject; expiresAt: number }>();
@@ -245,8 +247,8 @@ authRouter.post('/register', authLimiter, asyncHandler(async (req, res) => {
   // Bot detection: honeypot field — if filled, silently reject
   if (req.body?.website && typeof req.body.website === 'string' && req.body.website.trim().length > 0) {
     debugLog('[register] Honeypot triggered');
-    // Return fake success to confuse bots
-    return res.status(201).json({ access_token: 'ok', refresh_token: 'ok', user: {} });
+    // Return a generic success-like response without auth tokens.
+    return res.status(201).json({ ok: true });
   }
 
   // Bot detection: timing — if form submitted in under 2 seconds, likely a bot
@@ -254,7 +256,7 @@ authRouter.post('/register', authLimiter, asyncHandler(async (req, res) => {
     const elapsed = Date.now() - req.body._t;
     if (elapsed < 2000) {
       debugLog('[register] Form submitted too fast:', elapsed, 'ms');
-      return res.status(201).json({ access_token: 'ok', refresh_token: 'ok', user: {} });
+      return res.status(201).json({ ok: true });
     }
   }
 
@@ -423,21 +425,26 @@ authRouter.post('/google', authLimiter, async (req, res) => {
   const { id_token } = parsed.data;
 
   try {
-    const googleResponse = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(id_token)}`);
-    if (!googleResponse.ok) {
-      const detail = await googleResponse.text().catch(() => '');
-      req.log?.warn?.({ detail }, '[auth/google] tokeninfo rejected credential');
-      return res.status(401).json({ error: 'Google authentication failed' });
+    if (!GOOGLE_ALLOWED_AUDIENCES.length) {
+      req.log?.error?.('[auth/google] missing GOOGLE_OAUTH_CLIENT_IDS / GOOGLE_OAUTH_AUDIENCE');
+      return res.status(503).json({ error: 'Google authentication is not configured' });
     }
-
-    const payload = await googleResponse.json() as any;
+    const ticket = await googleOauthClient.verifyIdToken({
+      idToken: id_token,
+      audience: GOOGLE_ALLOWED_AUDIENCES,
+    });
+    const payload = ticket.getPayload() as any;
     const googleId = typeof payload?.sub === 'string' ? payload.sub : null;
     const audience = typeof payload?.aud === 'string' ? payload.aud : null;
     const email = typeof payload?.email === 'string' ? String(payload.email).toLowerCase() : null;
-    const emailVerified = payload?.email_verified === 'true' || payload?.email_verified === true;
+    const issuer = typeof payload?.iss === 'string' ? payload.iss : '';
+    const emailVerified = payload?.email_verified === true || payload?.email_verified === 'true';
 
     if (!googleId || !email) {
       return res.status(400).json({ error: 'Invalid Google credential' });
+    }
+    if (issuer !== 'https://accounts.google.com' && issuer !== 'accounts.google.com') {
+      return res.status(400).json({ error: 'Invalid Google token issuer' });
     }
 
     if (!emailVerified) {
@@ -549,10 +556,14 @@ authRouter.post('/apple', authLimiter, async (req, res) => {
   const { identity_token } = parsed.data;
 
   try {
+    const allowSimulatorTokens = process.env.ALLOW_APPLE_SIM_TOKENS === '1';
     // In development/simulator, accept tokens starting with 'sim-' for testing
     const isDevelopmentToken = identity_token.startsWith('sim-');
     if (isDevelopmentToken && process.env.NODE_ENV === 'production') {
       return res.status(400).json({ error: 'Development tokens are not allowed in production' });
+    }
+    if (isDevelopmentToken && !allowSimulatorTokens) {
+      return res.status(400).json({ error: 'Simulator Apple tokens are disabled on this server' });
     }
     
     let appleId: string;
@@ -1377,13 +1388,28 @@ authRouter.post('/me/complete-onboarding', requireAuth as any, asyncHandler(asyn
   }
 
   const finalRole = data.role !== undefined ? data.role : (currentPrefs.role || 'fan');
+  const requestedPendingPlan = typeof data.pending_plan === 'string' ? data.pending_plan : null;
+  const selectedPaidPlan = requestedPendingPlan === 'veteran' || requestedPendingPlan === 'legend'
+    ? requestedPendingPlan
+    : null;
+  const effectivePendingPlan = finalRole === 'coach' ? selectedPaidPlan : null;
+  const hasPendingJoinRequest = finalRole === 'coach'
+    ? !!(await prisma.organizationJoinRequest.findFirst({
+        where: {
+          user_id: req.user.id,
+          status: 'pending',
+          ...(data.organization_id ? { organization_id: data.organization_id } : {}),
+        },
+        select: { id: true },
+      }))
+    : false;
 
   if (finalRole === 'coach' && !data.username) {
     return res.status(400).json({ error: 'Username required for coach onboarding' });
   }
 
   // SECURITY: Coaches must create or join an organization — prevents bypassing approval flow
-  if (finalRole === 'coach' && !data.organization_id && !data.join_request_pending) {
+  if (finalRole === 'coach' && !data.organization_id && !hasPendingJoinRequest) {
     return res.status(400).json({
       error: 'Coaches must create or join an organization during onboarding.',
       code: 'ORG_REQUIRED',
@@ -1425,8 +1451,8 @@ authRouter.post('/me/complete-onboarding', requireAuth as any, asyncHandler(asyn
     role: finalRole, // Always set role explicitly - never leave undefined
     // Rule A: plan is 'rookie' for free, or set by Stripe webhook for paid plans.
     // pending_plan holds the coach's selected paid plan until payment completes.
-    plan: data.plan, // only 'rookie' allowed from client
-    pending_plan: data.pending_plan,
+    plan: data.plan || 'rookie', // only 'rookie' accepted from client
+    pending_plan: effectivePendingPlan,
     affiliation: data.affiliation,
     dob: data.dob,
     zip_code: data.zip_code || data.zip,
@@ -1434,7 +1460,7 @@ authRouter.post('/me/complete-onboarding', requireAuth as any, asyncHandler(asyn
     team_name: data.team_name,
     organization_id: data.organization_id,
     organization_name: data.organization_name,
-    join_request_pending: data.join_request_pending,
+    join_request_pending: hasPendingJoinRequest,
     sport: data.sport,
     season_start: data.season_start,
     season_end: data.season_end,
@@ -1445,7 +1471,8 @@ authRouter.post('/me/complete-onboarding', requireAuth as any, asyncHandler(asyn
     location_enabled: data.location_enabled,
     notifications_enabled: data.notifications_enabled,
     messaging_policy_accepted: data.messaging_policy_accepted,
-    payment_pending: data.payment_pending,
+    payment_pending: effectivePendingPlan ? currentPrefs.payment_approved !== true : false,
+    payment_approved: effectivePendingPlan ? currentPrefs.payment_approved === true : false,
     team_count_total: data.team_count_total,
     proceeding_as_fan: data.proceeding_as_fan,
   };
@@ -1507,8 +1534,7 @@ authRouter.post('/me/complete-onboarding', requireAuth as any, asyncHandler(asyn
   });
 }));
 
-// Request a new email verification code (authenticated)
-authRouter.post('/verify/request', requireAuth as any, verificationLimiter, asyncHandler(async (req: AuthedRequest, res) => {
+async function sendVerificationCodeForUser(req: AuthedRequest, res: Response) {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const user = await prisma.user.findUnique({ where: { id: req.user.id } });
   if (!user) return res.status(404).json({ error: 'Not found' });
@@ -1553,11 +1579,16 @@ authRouter.post('/verify/request', requireAuth as any, verificationLimiter, asyn
   // Record the send timestamp for 30s cooldown
   await rlSet(`${verifyKey}:last`, String(now), 30_000);
   return res.json(payload);
+}
+
+// Request a new email verification code (authenticated)
+authRouter.post('/verify/request', requireAuth as any, verificationLimiter, asyncHandler(async (req: AuthedRequest, res) => {
+  return sendVerificationCodeForUser(req, res);
 }));
 
 // Alias: /auth/verify/send
 authRouter.post('/verify/send', requireAuth as any, verificationLimiter, asyncHandler(async (req: AuthedRequest, res) => {
-  (authRouter as any).handle({ ...req, url: '/verify/request' }, res);
+  return sendVerificationCodeForUser(req, res);
 }));
 
 // Verify code (authenticated) — rate limited to prevent brute-force on 6-digit codes

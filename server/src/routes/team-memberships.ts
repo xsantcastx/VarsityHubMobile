@@ -7,11 +7,12 @@ import { requirePlan } from '../middleware/subscription.js';
 import { getMaxRosterSizePerTeam, resolvePlan } from '../lib/planLimits.js';
 
 const VALID_ROLES = ['owner', 'manager', 'coach', 'assistant_coach', 'player', 'parent', 'member', 'equipment', 'health_wellness'] as const;
+const ASSIGNABLE_ROLES = ['manager', 'coach', 'assistant_coach', 'player', 'parent', 'member', 'equipment', 'health_wellness'] as const;
 type ValidRole = typeof VALID_ROLES[number];
 
 export const teamMembershipsRouter = Router();
 
-async function canManageTeam(req: AuthedRequest, teamId: string): Promise<boolean> {
+async function getTeamManagerMembership(req: AuthedRequest, teamId: string) {
   if (!req.user) return false;
   const membership = await prisma.teamMembership.findFirst({
     where: {
@@ -20,8 +21,18 @@ async function canManageTeam(req: AuthedRequest, teamId: string): Promise<boolea
       role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
       status: 'active',
     },
+    select: { role: true },
   });
-  return Boolean(membership);
+  return membership;
+}
+
+function canAssignTeamRole(actorRole: string, targetRole: string): boolean {
+  if (!ASSIGNABLE_ROLES.includes(targetRole as typeof ASSIGNABLE_ROLES[number])) return false;
+  if (actorRole === 'owner') return true;
+  if (actorRole === 'manager' || actorRole === 'coach' || actorRole === 'assistant_coach') {
+    return !['manager', 'coach'].includes(targetRole);
+  }
+  return false;
 }
 
 // POST /team-memberships { team_id, user_id, role }
@@ -51,8 +62,14 @@ teamMembershipsRouter.post('/', requireAuth as any, requireOnboarded as any, req
 
     // Validate role against whitelist
     const assignedRole = String(role || 'member') as ValidRole;
-    if (!VALID_ROLES.includes(assignedRole)) {
-      return res.status(400).json({ error: 'Invalid role', valid_roles: VALID_ROLES });
+    if (!VALID_ROLES.includes(assignedRole) || !ASSIGNABLE_ROLES.includes(assignedRole as typeof ASSIGNABLE_ROLES[number])) {
+      return res.status(400).json({ error: 'Invalid role', valid_roles: ASSIGNABLE_ROLES });
+    }
+    if (!canAssignTeamRole(requesterMembership.role, assignedRole)) {
+      return res.status(403).json({
+        error: 'PERMISSION_DENIED',
+        message: 'You do not have permission to assign this role.',
+      });
     }
 
     const team = await prisma.team.findUnique({ where: { id: String(team_id) }, include: { organization: true } });
@@ -116,11 +133,17 @@ teamMembershipsRouter.patch('/:id', requireAuth as any, requireOnboarded as any,
     const membership = await prisma.teamMembership.findUnique({ where: { id } });
     if (!membership) return res.status(404).json({ error: 'Membership not found' });
 
-    const canManage = await canManageTeam(req, membership.team_id);
-    if (!canManage) {
+    const requesterMembership = await getTeamManagerMembership(req, membership.team_id);
+    if (!requesterMembership) {
       return res.status(403).json({
         error: 'PERMISSION_DENIED',
         message: 'Only team owners, managers, or coaches can update roles.',
+      });
+    }
+    if (membership.role === 'owner') {
+      return res.status(403).json({
+        error: 'PERMISSION_DENIED',
+        message: 'Owner role changes must use the transfer ownership flow.',
       });
     }
 
@@ -129,8 +152,14 @@ teamMembershipsRouter.patch('/:id', requireAuth as any, requireOnboarded as any,
     const data: Record<string, any> = {};
     if (role) {
       const validatedRole = String(role) as ValidRole;
-      if (!VALID_ROLES.includes(validatedRole)) {
-        return res.status(400).json({ error: 'Invalid role', valid_roles: VALID_ROLES });
+      if (!VALID_ROLES.includes(validatedRole) || !ASSIGNABLE_ROLES.includes(validatedRole as typeof ASSIGNABLE_ROLES[number])) {
+        return res.status(400).json({ error: 'Invalid role', valid_roles: ASSIGNABLE_ROLES });
+      }
+      if (!canAssignTeamRole(requesterMembership.role, validatedRole)) {
+        return res.status(403).json({
+          error: 'PERMISSION_DENIED',
+          message: 'You do not have permission to assign this role.',
+        });
       }
       data.role = validatedRole;
     }
@@ -157,8 +186,14 @@ teamMembershipsRouter.delete('/:id', requireAuth as any, requireOnboarded as any
     const membership = await prisma.teamMembership.findUnique({ where: { id } });
     if (!membership) return res.status(404).json({ error: 'Membership not found' });
 
-    const canManage = await canManageTeam(req, membership.team_id);
+    const canManage = await getTeamManagerMembership(req, membership.team_id);
     const isSelf = req.user.id === membership.user_id;
+    if (membership.role === 'owner' && !isSelf) {
+      return res.status(403).json({
+        error: 'PERMISSION_DENIED',
+        message: 'Team ownership cannot be removed from this endpoint.',
+      });
+    }
     if (!canManage && !isSelf) {
       return res.status(403).json({
         error: 'PERMISSION_DENIED',

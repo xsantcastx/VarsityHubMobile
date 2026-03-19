@@ -15,9 +15,9 @@ import { debugLog } from '../lib/debugLog.js';
 
 /**
  * Check if we're in development mode
- * In dev mode, rate limits are disabled for easier testing
  */
 const isDev = process.env.NODE_ENV !== 'production';
+const disableRateLimiting = process.env.DISABLE_RATE_LIMITING === '1';
 
 /**
  * Create a separate Redis connection for rate limiting only
@@ -27,7 +27,7 @@ let rateLimitRedis: any = null;
 let redisStore: Store | undefined;
 
 async function initializeRateLimitRedis() {
-  if (isDev || rateLimitRedis) return;
+  if (disableRateLimiting || isDev || rateLimitRedis) return;
   
   try {
     const REDIS_URL = process.env.REDIS_URL;
@@ -87,7 +87,7 @@ function createLimiter(options: Partial<Options> & { name: string }): ReturnType
     windowMs: 60 * 1000, // 1 minute default
     standardHeaders: true,
     legacyHeaders: false,
-    skip: () => isDev,
+    skip: () => disableRateLimiting,
     keyGenerator: getUserIdentifier,
     // Use Redis store in production if available
     ...(redisStore && !isDev ? { store: redisStore } : {}),

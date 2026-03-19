@@ -21,6 +21,7 @@ const debugLog = (...args: Parameters<typeof console.log>) => {
     console.log(...args);
   }
 };
+const VALID_TEAM_INVITE_ROLES = ['manager', 'coach', 'assistant_coach', 'player', 'parent', 'member', 'equipment', 'health_wellness'] as const;
 
 // Get teams managed by current user (requires authentication)
 teamsRouter.get('/managed', requireAuth as any, async (req: AuthedRequest, res) => {
@@ -460,7 +461,7 @@ teamsRouter.post('/', requireVerified as any, requireOnboarded as any, requirePl
     });
   }
   const userId = req.user!.id;
-  const me = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, preferences: true } });
+  const me = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, preferences: true, paid_by_owner: true } });
   if (!me) return res.status(401).json({ error: 'Unauthorized' });
 
   // SECURITY: Enforce coach role — allow if user has any coach-related DB membership,
@@ -506,13 +507,73 @@ teamsRouter.post('/', requireVerified as any, requireOnboarded as any, requirePl
 
   // Atomic limit check + create to prevent race condition on concurrent requests
   const userPrefs = (me.preferences && typeof me.preferences === 'object') ? (me.preferences as any) : {};
-  const userPlan = userPrefs.plan || 'rookie';
+  let userPlan = userPrefs.payment_pending ? 'rookie' : (userPrefs.plan || 'rookie');
+  let effectiveSubscriptionId = typeof userPrefs.subscription_id === 'string' ? userPrefs.subscription_id : undefined;
+  let teamCountSource: 'user' | 'org' = 'user';
+  let orgIdForTeamCount: string | undefined;
+
+  if (me.paid_by_owner) {
+    const orgForPlan = await prisma.organization.findUnique({
+      where: { id: parsed.data.organization_id },
+      select: { id: true, league_owner_id: true },
+    });
+    if (orgForPlan?.league_owner_id) {
+      const owner = await prisma.user.findUnique({
+        where: { id: orgForPlan.league_owner_id },
+        select: { preferences: true },
+      });
+      const ownerPrefs = (owner?.preferences && typeof owner.preferences === 'object') ? (owner.preferences as any) : {};
+      userPlan = ownerPrefs.payment_pending ? 'rookie' : (ownerPrefs.plan || 'rookie');
+      effectiveSubscriptionId = typeof ownerPrefs.subscription_id === 'string' ? ownerPrefs.subscription_id : undefined;
+      teamCountSource = 'org';
+      orgIdForTeamCount = orgForPlan.id;
+    } else {
+      userPlan = 'rookie';
+    }
+  }
+
+  let veteranPaidQuantity: number | null = null;
+  if (userPlan === 'veteran') {
+    if (!effectiveSubscriptionId) {
+      return res.status(403).json({
+        error: 'No active subscription',
+        message: me.paid_by_owner
+          ? 'The league owner needs an active Veteran subscription.'
+          : 'Veteran plan requires an active subscription. Please update your billing settings.',
+        code: 'NO_ACTIVE_SUBSCRIPTION',
+      });
+    }
+    try {
+      const stripe = await import('stripe');
+      const stripeClient = new stripe.default(process.env.STRIPE_SECRET_KEY || '', { apiVersion: '2024-06-20' });
+      const subscription = await stripeClient.subscriptions.retrieve(effectiveSubscriptionId);
+      if (subscription.status !== 'active' && subscription.status !== 'trialing') {
+        return res.status(403).json({
+          error: 'Subscription not active',
+          message: me.paid_by_owner
+            ? "The league owner's Veteran subscription is not active."
+            : 'Your Veteran subscription is not active. Please update your billing settings.',
+          code: 'SUBSCRIPTION_NOT_ACTIVE',
+        });
+      }
+      veteranPaidQuantity = subscription.items.data[0]?.quantity || 0;
+    } catch (err) {
+      console.error('[Teams] Failed to verify Veteran subscription:', err);
+      return res.status(500).json({
+        error: 'Subscription verification failed',
+        message: 'Unable to verify your subscription. Please try again or contact support.',
+      });
+    }
+  }
+
   const maxTeams = getMaxTeamsForPlan(userPlan) ?? Infinity;
 
   const t = await prisma.$transaction(async (tx) => {
-    const ownedTeamsCount = await tx.teamMembership.count({
-      where: { user_id: userId, role: 'owner', status: 'active' },
-    });
+    const ownedTeamsCount = teamCountSource === 'org' && orgIdForTeamCount
+      ? await tx.team.count({ where: { organization_id: orgIdForTeamCount } })
+      : await tx.teamMembership.count({
+          where: { user_id: userId, role: 'owner', status: 'active' },
+        });
 
     if (ownedTeamsCount >= maxTeams) {
       throw Object.assign(new Error('Team limit reached'), {
@@ -523,6 +584,19 @@ teamsRouter.post('/', requireVerified as any, requireOnboarded as any, requirePl
           owned_teams: ownedTeamsCount,
           max_teams: maxTeams,
           upgrade_required: true,
+        },
+      });
+    }
+    if (userPlan === 'veteran' && veteranPaidQuantity !== null && ownedTeamsCount >= veteranPaidQuantity) {
+      throw Object.assign(new Error('Subscription quantity exceeded'), {
+        status: 403,
+        body: {
+          error: 'SUBSCRIPTION_QUANTITY_EXCEEDED',
+          message: me.paid_by_owner
+            ? `The organization's subscription covers ${veteranPaidQuantity} team${veteranPaidQuantity === 1 ? '' : 's'} and cannot add another team.`
+            : `Your subscription covers ${veteranPaidQuantity} team${veteranPaidQuantity === 1 ? '' : 's'} and cannot add another team.`,
+          paid_quantity: veteranPaidQuantity,
+          current_teams: ownedTeamsCount,
         },
       });
     }
@@ -550,14 +624,18 @@ teamsRouter.post('/', requireVerified as any, requireOnboarded as any, requirePl
 
 // Update team (auth required). Only owners/admins can update.
 // Accept full URLs or relative paths (uploads return .path) or empty string to clear
-const logoUrlString = z.union([z.string().url(), z.string().regex(/^\/uploads\//).optional().or(z.string()), z.literal('')]);
+const logoUrlString = z.union([
+  z.string().url(),
+  z.string().regex(/^\/uploads\/[^\s]+$/),
+  z.literal(''),
+]);
 const updateSchema = z.object({
   name: z.string().trim().min(2).max(100).optional(),
   description: z.string().trim().optional(),
   sport: z.string().trim().optional(),
   season: z.string().trim().optional(),
   organization_id: z.string().optional().nullable(),
-  logo_url: z.string().optional().or(z.literal('')),
+  logo_url: logoUrlString.optional(),
   city: z.string().max(100).optional(),
   state: z.string().max(100).optional(),
   league: z.string().max(100).optional(),
@@ -618,7 +696,35 @@ teamsRouter.put('/:id', requireVerified as any, requireOnboarded as any, asyncHa
   if (parsed.data.sport !== undefined) updateData.sport = parsed.data.sport;
   if (parsed.data.season !== undefined) updateData.season = parsed.data.season;
   if (parsed.data.organization_id !== undefined) {
-    updateData.organization_id = parsed.data.organization_id === null ? null : parsed.data.organization_id;
+    const requestedOrgId = parsed.data.organization_id === null ? null : String(parsed.data.organization_id);
+    if (requestedOrgId !== team.organization_id) {
+      if (requestedOrgId === null) {
+        if (!isAdmin && !isOrgOwner) {
+          return res.status(403).json({ error: 'Only organization owners or admins can remove a team from an organization' });
+        }
+      } else {
+        const targetOrg = await prisma.organization.findUnique({
+          where: { id: requestedOrgId },
+          select: { id: true, status: true },
+        });
+        if (!targetOrg || targetOrg.status !== 'active') {
+          return res.status(404).json({ error: 'Target organization not found or inactive' });
+        }
+        const targetOrgAdmin = await prisma.organizationMembership.findFirst({
+          where: {
+            organization_id: requestedOrgId,
+            user_id: req.user.id,
+            role: { in: ['owner', 'manager'] },
+            status: 'active',
+          },
+          select: { id: true },
+        });
+        if (!isAdmin && !targetOrgAdmin) {
+          return res.status(403).json({ error: 'You must be an admin of the target organization to reassign this team' });
+        }
+      }
+    }
+    updateData.organization_id = requestedOrgId;
   }
   if (parsed.data.logo_url !== undefined) updateData.logo_url = parsed.data.logo_url === '' ? null : parsed.data.logo_url;
   
@@ -819,6 +925,11 @@ teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, req
     }
   }
 
+  const contentFilter = validateContent({ title: data.name, content: data.description ?? undefined });
+  if (!contentFilter.valid) {
+    return res.status(400).json({ error: contentFilter.error, code: contentFilter.code });
+  }
+
   // Guard: Coach must be approved before creating teams
   // Exception: League owners creating during onboarding — verified server-side (not client flag)
   if (isCoachByPrefs && me.approval_status !== 'APPROVED') {
@@ -846,8 +957,9 @@ teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, req
 
   if (me.paid_by_owner) {
     // Look up the org owner's plan
+    const preferredOrgId = data.organization_id || prefs.organization_id;
     const orgMembership = await prisma.organizationMembership.findFirst({
-      where: { user_id: userId, status: 'active' },
+      where: { user_id: userId, status: 'active', ...(preferredOrgId ? { organization_id: preferredOrgId } : {}) },
       select: { organization: { select: { id: true, league_owner_id: true } } },
     });
     const ownerId = orgMembership?.organization?.league_owner_id;
@@ -900,6 +1012,7 @@ teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, req
   }
 
   // Veteran plan: verify subscription quantity matches team count
+  let veteranPaidQuantity: number | null = null;
   if (userPlan === 'veteran') {
     const ownedTeamsCount = teamCountSource === 'org' && orgIdForTeamCount
       ? await prisma.team.count({ where: { organization_id: orgIdForTeamCount } })
@@ -936,6 +1049,7 @@ teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, req
       
       const subscriptionItem = subscription.items.data[0];
       const paidQuantity = subscriptionItem?.quantity || 0;
+      veteranPaidQuantity = paidQuantity;
       
       // Trying to create team number (ownedTeamsCount + 1)
       // Subscription must cover at least that many teams
@@ -1047,30 +1161,40 @@ teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, req
       }
     } catch (orgError: any) {
       console.error('[Teams] Failed to validate organization:', orgError);
-      // Surface the real error for debugging
-      const detail = orgError?.code === 'P2002' ? 'Organization membership already exists' : (orgError?.message || 'Unknown error');
       return res.status(500).json({
-        error: `Organization validation failed: ${detail}`,
+        error: 'Organization validation failed. Please try again.',
       });
     }
   }
   
-  // Now create team with guaranteed organization_id
+  // Create the team (organization link may still be null if auto-creation failed gracefully).
   // CRITICAL: Use transaction to prevent race condition bypassing team limits
   try {
     const team = await prisma.$transaction(async (tx) => {
       // Re-check team limit atomically within transaction to prevent race conditions
       if (userPlan === 'rookie' || !userPlan || userPlan === 'free') {
-        const ownedTeamsCount = await tx.teamMembership.count({
-          where: {
-            user_id: me.id,
-            role: 'owner',
-            status: 'active',
-          },
-        });
+        const ownedTeamsCount = teamCountSource === 'org' && orgIdForTeamCount
+          ? await tx.team.count({ where: { organization_id: orgIdForTeamCount } })
+          : await tx.teamMembership.count({
+              where: {
+                user_id: me.id,
+                role: 'owner',
+                status: 'active',
+              },
+            });
 
         if (ownedTeamsCount >= 2) {
           throw new Error('TEAM_LIMIT_EXCEEDED:Rookie plan allows maximum 2 teams');
+        }
+      }
+      if (userPlan === 'veteran' && veteranPaidQuantity !== null) {
+        const ownedTeamsCount = teamCountSource === 'org' && orgIdForTeamCount
+          ? await tx.team.count({ where: { organization_id: orgIdForTeamCount } })
+          : await tx.teamMembership.count({
+              where: { user_id: me.id, role: 'owner', status: 'active' },
+            });
+        if (ownedTeamsCount >= veteranPaidQuantity) {
+          throw new Error(`SUBSCRIPTION_QUANTITY_EXCEEDED:Subscription covers ${veteranPaidQuantity} team${veteranPaidQuantity === 1 ? '' : 's'}`);
         }
       }
 
@@ -1119,7 +1243,9 @@ teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, req
           .map(user => ({
             team_id: team.id,
             email: user.email!,
-            role: (user.role || 'member') as any,
+            role: ((VALID_TEAM_INVITE_ROLES as readonly string[]).includes(String(user.role || 'member').toLowerCase())
+              ? String(user.role || 'member').toLowerCase()
+              : 'member') as any,
           }));
         
         if (invites.length > 0) {
@@ -1184,11 +1310,16 @@ teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, req
         limit: 2
       });
     }
+    if (teamError?.message?.includes('SUBSCRIPTION_QUANTITY_EXCEEDED')) {
+      const [, message] = String(teamError.message).split(':');
+      return res.status(403).json({
+        error: 'SUBSCRIPTION_QUANTITY_EXCEEDED',
+        message: message || 'Your subscription does not cover another team yet.',
+      });
+    }
 
-    // Surface the real error for debugging
-    const detail = teamError?.message || 'Unknown error';
     return res.status(500).json({
-      error: `Team creation failed: ${detail}`,
+      error: 'Team creation failed. Please try again.',
     });
   }
 });
@@ -1206,6 +1337,13 @@ teamsRouter.post('/:id/invite', requireAuth as any, requireVerified as any, requ
     });
   }
   const { email, role } = parsed.data;
+  const normalizedRole = String(role || 'member').toLowerCase();
+  if (!(VALID_TEAM_INVITE_ROLES as readonly string[]).includes(normalizedRole)) {
+    return res.status(400).json({
+      error: 'Invalid role',
+      valid_roles: VALID_TEAM_INVITE_ROLES,
+    });
+  }
   const team = await prisma.team.findUnique({ where: { id } });
   if (!team) return res.status(404).json({ error: 'Team not found' });
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
@@ -1224,6 +1362,12 @@ teamsRouter.post('/:id/invite', requireAuth as any, requireVerified as any, requ
     return res.status(403).json({
       error: 'PERMISSION_DENIED',
       message: 'Only team owners, managers, or coaches can invite members to teams.'
+    });
+  }
+  if (requesterMembership.role !== 'owner' && ['manager', 'coach'].includes(normalizedRole)) {
+    return res.status(403).json({
+      error: 'PERMISSION_DENIED',
+      message: 'Only team owners can invite staff roles.',
     });
   }
   
@@ -1260,7 +1404,7 @@ teamsRouter.post('/:id/invite', requireAuth as any, requireVerified as any, requ
       }
 
       // Create invite within same transaction
-      return await tx.teamInvite.create({ data: { team_id: id, email, role: (role || 'member') as any } });
+      return await tx.teamInvite.create({ data: { team_id: id, email, role: normalizedRole as any } });
     });
   } catch (e: any) {
     // Handle specific limit errors
@@ -1285,7 +1429,7 @@ teamsRouter.post('/:id/invite', requireAuth as any, requireVerified as any, requ
       to: email,
       teamName: team.name,
       organizationName: null,
-      role: role || 'member',
+      role: normalizedRole,
       teamHeroUrl: team.logo_url || undefined,
       teamLogoUrl: team.avatar_url || undefined,
       inviterName: inviter?.display_name || 'Team Owner',
@@ -1311,7 +1455,7 @@ teamsRouter.post('/:id/invite', requireAuth as any, requireVerified as any, requ
             team_id: team.id,
             team_name: team.name,
             invite_id: invite.id,
-            role: role || 'member'
+            role: normalizedRole
           }
         }
       });

@@ -11,7 +11,7 @@ import { sendOrganizationApprovalEmail, sendPushNotification } from '../lib/noti
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
-import { requireAdmin, isEmailAdmin } from '../middleware/requireAdmin.js';
+import { getIsAdmin, requireAdmin, isEmailAdmin } from '../middleware/requireAdmin.js';
 import { debugLog } from '../lib/debugLog.js';
 import escapeHtml from 'escape-html';
 import { inviteLimiter, organizationsNearbyLimiter } from '../middleware/rateLimiters.js';
@@ -268,12 +268,24 @@ organizationsRouter.get('/:id', async (req, res) => {
   }
 });
 
-// Get organization members
-organizationsRouter.get('/:id/members', async (req, res) => {
+// Get organization members (private to members/admins)
+organizationsRouter.get('/:id/members', requireAuth as any, async (req: AuthedRequest, res) => {
   try {
     const id = String(req.params.id);
     const organization = await prisma.organization.findUnique({ where: { id } });
     if (!organization) return res.status(404).json({ error: 'Organization not found' });
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const [isAdmin, membership] = await Promise.all([
+      getIsAdmin(req),
+      prisma.organizationMembership.findFirst({
+        where: { organization_id: id, user_id: req.user.id, status: 'active' },
+        select: { id: true },
+      }),
+    ]);
+    if (!isAdmin && !membership) {
+      return res.status(403).json({ error: 'Organization membership required' });
+    }
 
     const members = await prisma.organizationMembership.findMany({
       where: { organization_id: id, status: 'active' },
@@ -584,10 +596,11 @@ organizationsRouter.post('/:id/invite', requireAuth as any, requireOnboarded as 
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
 
   const { email, role } = parsed.data;
+  const normalizedRole = role ? String(role).toLowerCase() : 'member';
 
   // Validate role against allowed org roles
-  const VALID_ORG_ROLES = ['owner', 'manager', 'member'];
-  if (role && !VALID_ORG_ROLES.includes(role)) {
+  const VALID_ORG_ROLES = ['manager', 'member'];
+  if (!VALID_ORG_ROLES.includes(normalizedRole)) {
     return res.status(400).json({ error: `Invalid role. Must be one of: ${VALID_ORG_ROLES.join(', ')}` });
   }
 
@@ -641,7 +654,7 @@ organizationsRouter.post('/:id/invite', requireAuth as any, requireOnboarded as 
       }
     }
     return tx.organizationInvite.create({
-      data: { organization_id: id, email, role: role || 'member' },
+      data: { organization_id: id, email, role: normalizedRole },
     });
   });
 
@@ -652,7 +665,7 @@ organizationsRouter.post('/:id/invite', requireAuth as any, requireOnboarded as 
     await sendOrganizationInviteEmail({
       to: email,
       organizationName: org.name,
-      role: role || 'member',
+      role: normalizedRole,
       inviterName: inviter?.display_name || 'An organizer',
       inviteToken: invite.id,
     }).then((sent) => {
@@ -711,7 +724,12 @@ organizationsRouter.post('/invites/:inviteId/accept', requireAuth as any, async 
       prisma.organizationMembership.upsert({
         where: { organization_id_user_id: { organization_id: invite.organization_id, user_id: user.id } as any },
         update: { status: 'active' }, // SECURITY: Only reactivate — never escalate role via invite
-        create: { organization_id: invite.organization_id, user_id: user.id, role: invite.role, status: 'active' }
+        create: {
+          organization_id: invite.organization_id,
+          user_id: user.id,
+          role: invite.role === 'owner' ? 'manager' : invite.role,
+          status: 'active',
+        }
       }),
       prisma.organizationInvite.update({ where: { id: inviteId }, data: { status: 'accepted' } }),
     ]);

@@ -57,6 +57,59 @@ const formatUsd = (cents?: number | null) => {
   return `$${(cents / 100).toFixed(2)}`;
 };
 
+const MAX_AD_BOOKING_HORIZON_DAYS = 56;
+const MAX_AD_SLOTS = 2;
+
+function parseIsoDatesInput(input: unknown): string[] {
+  if (Array.isArray(input)) {
+    return Array.from(new Set(input.map((d) => String(d).trim()).filter(Boolean)));
+  }
+  if (typeof input === 'string' && input.trim()) {
+    try {
+      const parsed = JSON.parse(input);
+      if (Array.isArray(parsed)) return Array.from(new Set(parsed.map((d) => String(d).trim()).filter(Boolean)));
+    } catch {
+      // ignore invalid JSON and return empty array
+    }
+  }
+  return [];
+}
+
+function enforceAdBookingHorizon(isoDates: string[]): { ok: true } | { ok: false; error: string } {
+  const today = new Date();
+  const todayUtc = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
+  const horizonUtc = new Date(todayUtc.getTime() + MAX_AD_BOOKING_HORIZON_DAYS * 24 * 60 * 60 * 1000);
+  for (const iso of isoDates) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+      return { ok: false, error: `Invalid date format: ${iso}` };
+    }
+    const candidate = new Date(`${iso}T00:00:00.000Z`);
+    if (Number.isNaN(candidate.getTime())) {
+      return { ok: false, error: `Invalid date value: ${iso}` };
+    }
+    if (candidate > horizonUtc) {
+      return { ok: false, error: `Dates must be within ${MAX_AD_BOOKING_HORIZON_DAYS} days of today` };
+    }
+  }
+  return { ok: true };
+}
+
+async function releaseHeldAdReservations(adId: string, isoDates: string[]) {
+  const ad = await prisma.ad.findUnique({
+    where: { id: adId },
+    select: { payment_status: true, status: true },
+  });
+  if (!ad || ad.payment_status !== 'hold') return;
+  const nextPaymentStatus = ad.status === 'active' ? 'paid' : 'unpaid';
+  const dateObjects = parseIsoDatesInput(isoDates).map((s) => new Date(`${s}T00:00:00.000Z`));
+  await prisma.$transaction([
+    ...(dateObjects.length > 0
+      ? [prisma.adReservation.deleteMany({ where: { ad_id: adId, date: { in: dateObjects } } })]
+      : []),
+    prisma.ad.update({ where: { id: adId }, data: { payment_status: nextPaymentStatus } }),
+  ]);
+}
+
 async function getUserEmail(userId?: string | null, fallbackEmail?: string | null) {
   if (fallbackEmail && fallbackEmail.includes('@')) return fallbackEmail;
   if (!userId) return null;
@@ -177,7 +230,7 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
   if (typeof planValue !== 'string' || !planValue.trim()) throw membershipError(400, 'plan is required');
   const raw = planValue.trim().toLowerCase();
   if (raw !== 'veteran' && raw !== 'legend') throw membershipError(400, 'Invalid plan for subscription');
-  const chosen = raw as MembershipPlan;
+  let chosen = raw as MembershipPlan;
 
   // Verify org ownership if organization_id provided
   if (organizationId) {
@@ -209,6 +262,13 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
   const userId = req.user!.id;
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true, approval_status: true } });
   const prefs = (user?.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
+  const pendingPlan = typeof prefs.pending_plan === 'string' ? prefs.pending_plan.toLowerCase() : '';
+  if (prefs.payment_pending === true && (pendingPlan === 'veteran' || pendingPlan === 'legend')) {
+    if (chosen !== pendingPlan) {
+      throw membershipError(400, `Complete checkout for your selected ${pendingPlan} plan first.`);
+    }
+    chosen = pendingPlan as MembershipPlan;
+  }
 
   // Block checkout if coach hasn't been approved yet
   if (prefs.role === 'coach' && user?.approval_status !== 'APPROVED') {
@@ -224,28 +284,27 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
 
   debugLog(`[payments] Plan upgrade: ${currentPlan} → ${chosen} for user ${userId}`);
 
-  // Check for recent payments to prevent duplicates
-  try {
-    const recentSessions = await stripe.checkout.sessions.list({
-      limit: 10,
-      created: { gte: Math.floor((Date.now() - 10 * 60 * 1000) / 1000) } // Last 10 minutes
-    });
-    
-    const recentUserSession = recentSessions.data.find(session => 
-      session.metadata?.user_id === userId && 
-      session.metadata?.plan === chosen &&
-      session.payment_status === 'paid' // Only consider actually paid sessions
-    );
-
-    if (recentUserSession) {
-      debugLog('[payments] Recent PAID session found, updating user preferences from Stripe session');
-      // Update user preferences from the recent successful session
-      await finalizeFromSession(recentUserSession);
-      throw membershipError(400, 'Payment already processed recently');
+  // Check for recent membership transactions for this user to prevent duplicate checkout races.
+  const recentTx = await prisma.transactionLog.findFirst({
+    where: {
+      user_id: userId,
+      transaction_type: 'SUBSCRIPTION_PURCHASE',
+      created_at: { gte: new Date(Date.now() - 10 * 60 * 1000) },
+      status: { in: ['PENDING', 'COMPLETED'] },
+    },
+    orderBy: { created_at: 'desc' },
+    select: { status: true, metadata: true },
+  });
+  if (recentTx) {
+    const txPlan = typeof (recentTx.metadata as any)?.plan === 'string'
+      ? String((recentTx.metadata as any).plan).toLowerCase()
+      : '';
+    if (!txPlan || txPlan === chosen) {
+      if (recentTx.status === 'COMPLETED') {
+        throw membershipError(400, 'Payment already processed recently');
+      }
+      throw membershipError(409, 'A subscription checkout is already in progress. Please finish or wait before starting another.');
     }
-  } catch (err: any) {
-    if (err.statusCode) throw err; // Re-throw our custom errors
-    console.warn('[payments] Failed to check recent sessions:', err?.message || err);
   }
   const priceIdRaw = membershipPriceIds[chosen];
   const normalizedPriceId = typeof priceIdRaw === 'string' ? priceIdRaw.trim() : '';
@@ -387,6 +446,10 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paym
   }
   if (!ad_id || !Array.isArray(dates) || dates.length === 0) return res.status(400).json({ error: 'ad_id and dates[] are required' });
   const isoDates: string[] = Array.from(new Set(dates.map((d: any) => String(d))));
+  const bookingWindow = enforceAdBookingHorizon(isoDates);
+  if (!bookingWindow.ok) {
+    return res.status(400).json({ error: bookingWindow.error });
+  }
 
   // Ensure at least one selected date is today or in the future
   const todayStr = new Date().toISOString().slice(0, 10);
@@ -409,7 +472,6 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paym
 
   // Slot availability check — reject before Stripe if any date is already full.
   // Up to MAX_AD_SLOTS different ads may run per date per zip.
-  const MAX_AD_SLOTS = 2;
   if (ad.target_zip_code) {
     // Include paid, hold, and pending_approval — align with PaymentSheet to prevent overfilling zip
     const reservedAdsInZip = await prisma.ad.findMany({
@@ -640,8 +702,13 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paym
       }),
     ]);
   } catch (holdErr) {
-    // Non-fatal: if hold fails, fall back to existing refund-on-conflict behavior
-    console.warn('[payments] Failed to create slot hold, continuing:', (holdErr as any)?.message);
+    try {
+      await stripe.checkout.sessions.expire(session.id);
+    } catch (expireErr) {
+      console.warn('[payments] Failed to expire session after hold failure:', (expireErr as any)?.message);
+    }
+    console.error('[payments] Failed to create slot hold. Checkout aborted:', (holdErr as any)?.message);
+    return res.status(409).json({ error: 'Ad slots are no longer available. Please try different dates.' });
   }
 
   // Log transaction
@@ -709,11 +776,15 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
   if (typeof plan === 'string' && plan.trim()) {
     const prefs = (user?.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
 
-    // Rule A: Fall back to pending_plan if plan param matches it, or use pending_plan directly
     const raw = plan.trim().toLowerCase();
-    const resolvedPlan = (raw === 'veteran' || raw === 'legend') ? raw : (prefs.pending_plan || '').toLowerCase();
-    if (resolvedPlan !== 'veteran' && resolvedPlan !== 'legend') return res.status(400).json({ error: 'Invalid plan for subscription' });
-    const chosen = resolvedPlan as MembershipPlan;
+    if (raw !== 'veteran' && raw !== 'legend') return res.status(400).json({ error: 'Invalid plan for subscription' });
+    const pendingPlan = typeof prefs.pending_plan === 'string' ? prefs.pending_plan.toLowerCase() : '';
+    if (prefs.payment_pending === true && (pendingPlan === 'veteran' || pendingPlan === 'legend') && raw !== pendingPlan) {
+      return res.status(400).json({ error: `Complete checkout for your selected ${pendingPlan} plan first.` });
+    }
+    const chosen = (prefs.payment_pending === true && (pendingPlan === 'veteran' || pendingPlan === 'legend')
+      ? pendingPlan
+      : raw) as MembershipPlan;
 
     // Verify org ownership if organization_id provided
     if (orgIdBody) {
@@ -848,6 +919,10 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
   // ── AD PAYMENT FLOW ──
   if (!ad_id || !Array.isArray(dates) || dates.length === 0) return res.status(400).json({ error: 'ad_id and dates[] are required (or plan for subscription)' });
   const isoDates: string[] = Array.from(new Set(dates.map((d: any) => String(d))));
+  const bookingWindow = enforceAdBookingHorizon(isoDates);
+  if (!bookingWindow.ok) {
+    return res.status(400).json({ error: bookingWindow.error });
+  }
 
   // Ensure at least one selected date is today or in the future
   const todayStr = new Date().toISOString().slice(0, 10);
@@ -868,7 +943,6 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
   }
 
   // Slot availability check — include 'hold' and 'pending_approval' ads
-  const MAX_AD_SLOTS = 2;
   if (ad.target_zip_code) {
     const reservedAdsInZip = await prisma.ad.findMany({
       where: { target_zip_code: ad.target_zip_code, payment_status: { in: ['paid', 'hold', 'pending_approval'] }, NOT: { id: String(ad_id) } },
@@ -1244,14 +1318,9 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
     const expiredAdId = session.metadata?.ad_id;
     if (expiredAdId) {
       try {
-        const heldAd = await prisma.ad.findUnique({ where: { id: expiredAdId }, select: { payment_status: true } });
-        if (heldAd?.payment_status === 'hold') {
-          await prisma.$transaction([
-            prisma.adReservation.deleteMany({ where: { ad_id: expiredAdId } }),
-            prisma.ad.update({ where: { id: expiredAdId }, data: { payment_status: 'unpaid' } }),
-          ]);
-          debugLog('[webhook] Released ad slot hold on checkout expiry', { ad_id: expiredAdId });
-        }
+        const expiredDates = parseIsoDatesInput(session.metadata?.dates);
+        await releaseHeldAdReservations(String(expiredAdId), expiredDates);
+        debugLog('[webhook] Released ad slot hold on checkout expiry', { ad_id: expiredAdId, dates: expiredDates });
       } catch (releaseErr) {
         console.error('[webhook] Failed to release ad hold on expiry:', (releaseErr as any)?.message);
         captureException(releaseErr as Error, { context: 'release_ad_hold_expired', adId: expiredAdId });
@@ -1275,14 +1344,9 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
     // Release ad slot holds on payment failure
     if (meta.ad_id) {
       try {
-        const heldAd = await prisma.ad.findUnique({ where: { id: meta.ad_id }, select: { payment_status: true } });
-        if (heldAd?.payment_status === 'hold') {
-          await prisma.$transaction([
-            prisma.adReservation.deleteMany({ where: { ad_id: meta.ad_id } }),
-            prisma.ad.update({ where: { id: meta.ad_id }, data: { payment_status: 'unpaid' } }),
-          ]);
-          debugLog('[webhook] Released ad slot hold on payment failure', { ad_id: meta.ad_id });
-        }
+        const failedDates = parseIsoDatesInput(meta.dates);
+        await releaseHeldAdReservations(String(meta.ad_id), failedDates);
+        debugLog('[webhook] Released ad slot hold on payment failure', { ad_id: meta.ad_id, dates: failedDates });
       } catch (releaseErr) {
         console.error('[webhook] Failed to release ad hold on payment failure:', (releaseErr as any)?.message);
         captureException(releaseErr as Error, { context: 'release_ad_hold_failed_pi', adId: meta.ad_id });
@@ -1498,15 +1562,10 @@ paymentsRouter.post('/cancel-intent', expressPkg.json(), requireVerified as any,
     // Release ad slot holds if this was an ad payment
     const cancelAdId = pi.metadata?.ad_id;
     if (cancelAdId) {
-      const heldAd = await prisma.ad.findUnique({ where: { id: cancelAdId }, select: { payment_status: true } });
-      if (heldAd?.payment_status === 'hold') {
-        await prisma.$transaction([
-          prisma.adReservation.deleteMany({ where: { ad_id: cancelAdId } }),
-          prisma.ad.update({ where: { id: cancelAdId }, data: { payment_status: 'unpaid' } }),
-        ]).catch(releaseErr => {
-          console.error('[payments] Failed to release hold on cancel-intent:', (releaseErr as any)?.message);
-        });
-      }
+      const cancelDates = parseIsoDatesInput(pi.metadata?.dates);
+      await releaseHeldAdReservations(String(cancelAdId), cancelDates).catch(releaseErr => {
+        console.error('[payments] Failed to release hold on cancel-intent:', (releaseErr as any)?.message);
+      });
     }
 
     return res.json({ canceled: true });
@@ -2080,14 +2139,6 @@ async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
         businessName: adForEmail?.business_name,
         zipCode: adForEmail?.target_zip_code,
       });
-      // Notify admin that a new ad needs approval
-      void sendAdPendingReviewEmail({
-        to: ADMIN_NOTIFY_EMAIL,
-        businessName: adForEmail?.business_name || undefined,
-        contactEmail: fallbackEmail || undefined,
-        zipCode: adForEmail?.target_zip_code || undefined,
-        adId: String(ad_id),
-      }).catch((err) => console.warn('[payments] Failed to send ad review email:', (err as any)?.message || err));
     } catch (e: any) {
       if (e?.slotFull) {
         // Expected: another payment beat this one to the last slot(s).
@@ -2484,7 +2535,7 @@ paymentsRouter.post('/apple/verify-receipt', expressPkg.json(), requireAuth as a
 });
 
 // Apple IAP ad receipt verification (consumable products: MOND_THURS, FRI_SUN)
-paymentsRouter.post('/apple/verify-ad-receipt', expressPkg.json(), requireAuth as any, paymentLimiter, async (req: AuthedRequest, res) => {
+paymentsRouter.post('/apple/verify-ad-receipt', expressPkg.json(), requireVerified as any, paymentLimiter, async (req: AuthedRequest, res) => {
   try {
     if (!APPLE_SHARED_SECRET) {
       return res.status(503).json({ error: 'IAP verification not configured. Please contact support.' });
@@ -2511,7 +2562,12 @@ paymentsRouter.post('/apple/verify-ad-receipt', expressPkg.json(), requireAuth a
       return res.status(403).json({ error: 'Ad must be approved before payment' });
     }
 
-    const expectedPricing = calculateAdPriceCents(dates);
+    const bookingWindow = enforceAdBookingHorizon(isoDateStrings);
+    if (!bookingWindow.ok) {
+      return res.status(400).json({ error: bookingWindow.error });
+    }
+
+    const expectedPricing = calculateAdPriceCents(isoDateStrings);
     let verifiedCents = 0;
     const orderIds: string[] = [];
 
@@ -2529,28 +2585,38 @@ paymentsRouter.post('/apple/verify-ad-receipt', expressPkg.json(), requireAuth a
         return res.status(400).json({ error: 'Receipt verification failed', appleStatus: result.status });
       }
 
-      const inApp = result.receipt?.in_app || [];
-      const matching = inApp.filter((t: any) => t.product_id === productId);
-      const qty = matching.length || quantity || 1;
-      verifiedCents += unitCents * qty;
-
-      const txId = matching[0]?.transaction_id || matching[0]?.original_transaction_id;
-      if (txId) orderIds.push(String(txId));
+      const inApp = Array.isArray(result.receipt?.in_app) ? result.receipt.in_app : [];
+      const matching = inApp
+        .filter((t: any) => t.product_id === productId)
+        .sort((a: any, b: any) => Number(b.purchase_date_ms || 0) - Number(a.purchase_date_ms || 0));
+      const claimedQty = Math.max(1, Number.isFinite(Number(quantity)) ? Math.floor(Number(quantity)) : 1);
+      const selectedTransactions = matching.slice(0, claimedQty);
+      if (selectedTransactions.length < claimedQty) {
+        return res.status(400).json({ error: `Receipt does not include ${claimedQty} valid ${productId} purchase(s)` });
+      }
+      verifiedCents += unitCents * selectedTransactions.length;
+      for (const tx of selectedTransactions) {
+        const txId = tx?.transaction_id || tx?.original_transaction_id;
+        if (txId) orderIds.push(String(txId));
+      }
     }
 
-    if (verifiedCents < expectedPricing.totalCents) {
+    if (verifiedCents !== expectedPricing.totalCents) {
       return res.status(400).json({ error: 'Receipt total does not match expected amount' });
     }
 
-    const orderId = orderIds.join('_') || `ad_iap_${ad_id}_${crypto.randomUUID()}`;
+    const orderId = Array.from(new Set(orderIds)).sort().join('_') || `ad_iap_${ad_id}_${crypto.randomUUID()}`;
     const existing = await prisma.transactionLog.findFirst({
       where: { order_id: orderId, transaction_type: 'AD_PURCHASE', status: 'COMPLETED' } as any,
+      select: { user_id: true },
     });
     if (existing) {
+      if (existing.user_id && existing.user_id !== userId) {
+        return res.status(409).json({ error: 'Receipt already used by another account' });
+      }
       return res.json({ ok: true, idempotent: true });
     }
 
-    const MAX_AD_SLOTS = 2;
     if (ad.target_zip_code) {
       const reservedAdsInZip = await prisma.ad.findMany({
         where: {
@@ -2562,7 +2628,7 @@ paymentsRouter.post('/apple/verify-ad-receipt', expressPkg.json(), requireAuth a
         take: 100,
       });
       if (reservedAdsInZip.length > 0) {
-        const dateObjects = dates.map((s: string) => new Date(s + 'T00:00:00.000Z'));
+        const dateObjects = isoDateStrings.map((s: string) => new Date(s + 'T00:00:00.000Z'));
         const bookedSlots = await prisma.adReservation.groupBy({
           by: ['date'],
           where: { ad_id: { in: reservedAdsInZip.map((a) => a.id) }, date: { in: dateObjects } },
@@ -2586,7 +2652,7 @@ paymentsRouter.post('/apple/verify-ad-receipt', expressPkg.json(), requireAuth a
         data: { payment_status: 'paid', status: 'active' },
       }),
       prisma.adReservation.createMany({
-        data: dates.map((s: string) => ({ ad_id: String(ad_id), date: new Date(s + 'T00:00:00.000Z') })),
+        data: isoDateStrings.map((s: string) => ({ ad_id: String(ad_id), date: new Date(s + 'T00:00:00.000Z') })),
         skipDuplicates: true,
       }),
       prisma.transactionLog.create({
@@ -2595,7 +2661,7 @@ paymentsRouter.post('/apple/verify-ad-receipt', expressPkg.json(), requireAuth a
           status: 'COMPLETED',
           user_id: userId,
           order_id: orderId,
-          metadata: { source: 'apple_iap', ad_id: String(ad_id), dates, receipts_count: receipts.length },
+          metadata: { source: 'apple_iap', ad_id: String(ad_id), dates: isoDateStrings, receipts_count: receipts.length, apple_transaction_ids: Array.from(new Set(orderIds)) },
         } as any,
       }),
     ]);

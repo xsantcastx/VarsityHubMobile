@@ -68,6 +68,21 @@ async function getZipCoordinatesWithFallback(zipCode: string): Promise<{ lat: nu
 }
 
 export const adsRouter = Router();
+const MAX_AD_SLOTS = 2;
+const MAX_AD_BOOKING_HORIZON_DAYS = 56;
+
+function validateBookingWindow(isoDates: string[]): { ok: true } | { ok: false; error: string } {
+  const today = new Date();
+  const todayUtc = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
+  const horizonUtc = new Date(todayUtc.getTime() + MAX_AD_BOOKING_HORIZON_DAYS * 24 * 60 * 60 * 1000);
+  for (const iso of isoDates) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return { ok: false, error: `Invalid date format: ${iso}` };
+    const d = new Date(`${iso}T00:00:00.000Z`);
+    if (Number.isNaN(d.getTime())) return { ok: false, error: `Invalid date: ${iso}` };
+    if (d > horizonUtc) return { ok: false, error: `Dates must be within ${MAX_AD_BOOKING_HORIZON_DAYS} days of today` };
+  }
+  return { ok: true };
+}
 
 type AdModerationAction = 'approve_ad' | 'reject_ad';
 type AdModerationTokenPayload = {
@@ -235,6 +250,10 @@ export async function handleAdSubmitForApproval(req: AuthedRequest, res: Respons
       return res.status(400).json({ error: 'dates[] is required' });
     }
     const isoDates = Array.from(new Set(dates.map((d: any) => String(d))));
+    const bookingWindow = validateBookingWindow(isoDates);
+    if (!bookingWindow.ok) {
+      return res.status(400).json({ error: bookingWindow.error });
+    }
     const ad = await prisma.ad.findUnique({ where: { id } });
     if (!ad) return res.status(404).json({ error: 'Ad not found' });
     if (ad.user_id !== req.user!.id) return res.status(403).json({ error: 'Not authorized' });
@@ -242,7 +261,6 @@ export async function handleAdSubmitForApproval(req: AuthedRequest, res: Respons
       return res.status(400).json({ error: `Ad status is '${ad.status}'. Submit for approval only from draft.` });
     }
 
-    const MAX_AD_SLOTS = 2;
     if (ad.target_zip_code) {
       const reservedAdsInZip = await prisma.ad.findMany({
         where: {
@@ -656,7 +674,7 @@ adsRouter.get('/reservations', requireAuth as any, async (req: AuthedRequest, re
  * GET /ads/availability?zip=12345&from=2025-01-15&to=2025-01-31
  * 
  * Returns availability status for each date in the range.
- * Each date can have up to 3 ads (slots). If 3+ ads already exist, date is full.
+ * Each date can have up to 2 ads (slots). If 2+ ads already exist, date is full.
  */
 adsRouter.get('/availability', async (req, res) => {
   try {
@@ -669,7 +687,7 @@ adsRouter.get('/availability', async (req, res) => {
       return res.status(400).json({ error: 'zip, from, and to are required' });
     }
 
-    const MAX_ADS_PER_DATE = 2; // Maximum ad slots per date
+    const MAX_ADS_PER_DATE = MAX_AD_SLOTS; // Maximum ad slots per date
 
     // Parse date range
     const fromDate = new Date(from + 'T00:00:00.000Z');
@@ -780,11 +798,10 @@ adsRouter.get('/alternative-zips', requireAuth as any, alternativeZipsLimiter, a
       return res.status(400).json({ error: 'Could not find coordinates for ZIP code. Please verify the ZIP code is valid.' });
     }
 
-    // Get all ads within approximate range (we'll use all ads for simplicity,
-    // but in production you'd want to filter by geographic bounds first)
+    // Build candidate zips from ads that already target nearby areas.
     const allAds = await prisma.ad.findMany({
       where: {
-        status: { in: ['draft', 'active'] },
+        target_zip_code: { not: null },
       },
       select: {
         id: true,
@@ -825,51 +842,44 @@ adsRouter.get('/alternative-zips', requireAuth as any, alternativeZipsLimiter, a
       }
     }
 
-    // Batch query: fetch all ads in nearby zips in a single query (avoids N+1)
+    // Reservation economics must match checkout/availability: count paid + hold + pending_approval.
+    const dateObjects = dateList.map((d) => new Date(`${d}T00:00:00.000Z`));
     const nearbyZips = Array.from(zipDistances.keys());
-    const allNearbyAds = nearbyZips.length > 0 ? await prisma.ad.findMany({
+    const activeReservationAds = nearbyZips.length > 0 ? await prisma.ad.findMany({
       where: {
         target_zip_code: { in: nearbyZips },
-        status: { in: ['draft', 'active'] },
+        payment_status: { in: ['paid', 'hold', 'pending_approval'] },
       },
-      include: {
-        reservations: {
-          where: {
-            date: { in: dateList.map(d => new Date(d + 'T00:00:00.000Z')) },
-          },
-        },
-      },
+      select: { id: true, target_zip_code: true },
       take: 200,
     }) : [];
 
-    // Group ads by zip code
-    const adsByZip = new Map<string, typeof allNearbyAds>();
-    for (const ad of allNearbyAds) {
-      const zip = ad.target_zip_code || '';
-      const list = adsByZip.get(zip) || [];
-      list.push(ad);
-      adsByZip.set(zip, list);
+    const adIds = activeReservationAds.map((a) => a.id);
+    const adIdToZip = new Map(activeReservationAds.map((a) => [a.id, String(a.target_zip_code || '')]));
+    const reservations = adIds.length > 0 ? await prisma.adReservation.findMany({
+      where: {
+        ad_id: { in: adIds },
+        date: { in: dateObjects },
+      },
+      select: { ad_id: true, date: true },
+    }) : [];
+
+    const zipDateCounts = new Map<string, Map<string, number>>();
+    for (const reservation of reservations) {
+      const zipForAd = adIdToZip.get(reservation.ad_id);
+      if (!zipForAd) continue;
+      const dateIso = reservation.date.toISOString().slice(0, 10);
+      const perDate = zipDateCounts.get(zipForAd) || new Map<string, number>();
+      perDate.set(dateIso, (perDate.get(dateIso) || 0) + 1);
+      zipDateCounts.set(zipForAd, perDate);
     }
 
     // Check availability for each nearby zip
     const alternatives: Array<{ zip: string; distance: number; available: boolean }> = [];
 
     for (const [nearbyZip, distance] of zipDistances.entries()) {
-      const adsInZip = adsByZip.get(nearbyZip) || [];
-
-      // If no ads exist in this zip, it's available
-      let hasAvailability = adsInZip.length === 0;
-
-      if (!hasAvailability) {
-        for (const ad of adsInZip) {
-          const bookedDates = new Set(ad.reservations.map(r => r.date.toISOString().split('T')[0]));
-          const allDatesBooked = dateList.every(date => bookedDates.has(date));
-          if (!allDatesBooked) {
-            hasAvailability = true;
-            break;
-          }
-        }
-      }
+      const perDate = zipDateCounts.get(nearbyZip);
+      const hasAvailability = dateList.every((date) => (perDate?.get(date) || 0) < MAX_AD_SLOTS);
 
       alternatives.push({
         zip: nearbyZip,
