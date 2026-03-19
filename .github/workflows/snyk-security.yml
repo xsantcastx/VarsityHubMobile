@@ -34,9 +34,8 @@ jobs:
   snyk-scan:
     runs-on: ubuntu-latest
     name: Snyk Code & Dependency Scan
-    # Allow opting out via commit message tag or repo variable
     # NOTE: Requires SNYK_TOKEN secret to be configured in GitHub repo settings
-    # Add at: Settings → Secrets and variables → Actions → New repository secret
+    # Add at: Settings > Secrets and variables > Actions > New repository secret
     if: >-
       !contains(github.event.head_commit.message, '[skip snyk]') &&
       (github.event_name != 'pull_request' || !contains(github.event.pull_request.title, '[skip snyk]')) &&
@@ -55,99 +54,58 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci && cd server && npm ci
 
       - name: Check Snyk token
         id: snyk-check
         run: |
           if [ -z "$SNYK_TOKEN" ]; then
-            echo "⚠️ SNYK_TOKEN not configured — skipping Snyk scans"
+            echo "SNYK_TOKEN not configured — skipping Snyk scans"
             echo "has-token=false" >> $GITHUB_OUTPUT
           else
             echo "has-token=true" >> $GITHUB_OUTPUT
           fi
 
-      - name: Run Snyk authentication
+      - name: Set up Snyk
         if: steps.snyk-check.outputs.has-token == 'true'
         uses: snyk/actions/setup@master
 
       - name: Run Snyk Code scan (SAST) - Frontend
         if: steps.snyk-check.outputs.has-token == 'true'
-        run: snyk code test --severity-threshold=high --sarif-file-output=snyk-frontend.sarif --report-metrics
+        run: snyk code test --severity-threshold=high --sarif-file-output=snyk-frontend.sarif
         continue-on-error: true
 
       - name: Run Snyk Code scan (SAST) - Server
         if: steps.snyk-check.outputs.has-token == 'true'
-        run: cd server && snyk code test --severity-threshold=high --sarif-file-output=../snyk-server.sarif --report-metrics || true
+        run: cd server && snyk code test --severity-threshold=high --sarif-file-output=../snyk-server.sarif
         continue-on-error: true
 
       - name: Run Snyk Open Source scan (SCA) - Frontend
         if: steps.snyk-check.outputs.has-token == 'true'
-        run: snyk test --severity-threshold=high --report-metrics
+        run: snyk test --severity-threshold=high
         continue-on-error: true
 
       - name: Run Snyk Open Source scan (SCA) - Server
         if: steps.snyk-check.outputs.has-token == 'true'
-        run: cd server && snyk test --severity-threshold=high --report-metrics || true
+        run: cd server && snyk test --severity-threshold=high
         continue-on-error: true
 
-      - name: Run Snyk test with JSON output
-        if: steps.snyk-check.outputs.has-token == 'true'
-        id: snyk-test
-        run: |
-          snyk test --json --severity-threshold=high > snyk-results.json 2>&1 || true
-          echo "snyk-test-complete=true" >> $GITHUB_OUTPUT
-
-      - name: Send Snyk results to Sentry
-        if: always() && steps.snyk-test.outputs.snyk-test-complete
-        env:
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
-          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
-        run: |
-          if [ -f snyk-results.json ]; then
-            SNYK_RESULTS=$(cat snyk-results.json)
-            curl -X POST "https://sentry.io/api/0/projects/${SENTRY_ORG}/${SENTRY_PROJECT}/events/" \
-              -H "Authorization: Bearer ${SENTRY_AUTH_TOKEN}" \
-              -H "Content-Type: application/json" \
-              -d "{
-                \"message\": \"Snyk Security Scan - GitHub Actions\",
-                \"level\": \"info\",
-                \"environment\": \"ci\",
-                \"tags\": {
-                  \"source\": \"snyk\",
-                  \"type\": \"security-scan\",
-                  \"branch\": \"${{ github.ref_name }}\",
-                  \"commit\": \"${{ github.sha }}\"
-                },
-                \"contexts\": {
-                  \"github\": {
-                    \"event\": \"${{ github.event_name }}\",
-                    \"actor\": \"${{ github.actor }}\",
-                    \"workflow\": \"${{ github.workflow }}\",
-                    \"run_id\": \"${{ github.run_id }}\"
-                  }
-                },
-                \"extra\": {
-                  \"snyk_scan_results\": ${SNYK_RESULTS}
-                }
-              }" || echo "Failed to send to Sentry, but continuing..."
-          fi
-
-      - name: Monitor with Snyk
+      - name: Monitor with Snyk (main only)
         if: github.ref == 'refs/heads/main' && steps.snyk-check.outputs.has-token == 'true'
-        run: snyk monitor --severity-threshold=high
+        run: |
+          snyk monitor --project-name=varsityhubmobile-frontend
+          cd server && snyk monitor --project-name=varsityhubmobile-server
         continue-on-error: true
 
-      - name: Upload Snyk results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v2
+      - name: Upload frontend SARIF to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
         if: always() && hashFiles('snyk-frontend.sarif') != ''
         with:
           sarif_file: snyk-frontend.sarif
           category: snyk-frontend
 
-      - name: Upload Snyk server results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v2
+      - name: Upload server SARIF to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
         if: always() && hashFiles('snyk-server.sarif') != ''
         with:
           sarif_file: snyk-server.sarif
@@ -157,9 +115,9 @@ jobs:
     runs-on: ubuntu-latest
     name: npm audit
     if: >-
-      ${{ !contains(github.event.head_commit.message, '[skip snyk]') &&
-          (github.event_name != 'pull_request' || !contains(github.event.pull_request.title, '[skip snyk]')) &&
-          (vars.SKIP_SNYK != 'true') }}
+      !contains(github.event.head_commit.message, '[skip snyk]') &&
+      (github.event_name != 'pull_request' || !contains(github.event.pull_request.title, '[skip snyk]')) &&
+      (vars.SKIP_SNYK != 'true')
 
     steps:
       - name: Checkout code
@@ -181,51 +139,20 @@ jobs:
           CRITICAL=$(npm audit --json 2>/dev/null | jq '.metadata.vulnerabilities.critical // 0')
           HIGH=$(npm audit --json 2>/dev/null | jq '.metadata.vulnerabilities.high // 0')
           if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
-            echo "❌ Found critical or high severity vulnerabilities in server"
+            echo "Found critical or high severity vulnerabilities in server"
             npm audit
             exit 1
           else
-            echo "✅ No high/critical vulnerabilities found in server"
+            echo "No high/critical vulnerabilities found in server"
           fi
 
   container-scan:
     runs-on: ubuntu-latest
     name: Container Security Scan
     if: >-
-      ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' &&
-          !contains(github.event.head_commit.message, '[skip snyk]') &&
-          (vars.SKIP_SNYK != 'true') }}
-    env:
-      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Build Docker image
-        run: |
-          if [ -f Dockerfile ]; then
-            docker build -t varsityhubmobile:latest .
-          else
-            echo "No Dockerfile found, skipping container scan"
-          fi
-        continue-on-error: true
-
-      - name: Run Snyk container scan
-        uses: snyk/actions/docker@master
-        if: hashFiles('Dockerfile') != ''
-        with:
-          image: varsityhubmobile:latest
-          args: --severity-threshold=high
-        continue-on-error: true
-
-  iac-scan:
-    runs-on: ubuntu-latest
-    name: Infrastructure as Code Scan
-    if: >-
-      ${{ !contains(github.event.head_commit.message, '[skip snyk]') &&
-          (github.event_name != 'pull_request' || !contains(github.event.pull_request.title, '[skip snyk]')) &&
-          (vars.SKIP_SNYK != 'true') }}
+      github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      !contains(github.event.head_commit.message, '[skip snyk]') &&
+      (vars.SKIP_SNYK != 'true')
     env:
       SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
@@ -236,8 +163,16 @@ jobs:
       - name: Set up Snyk
         uses: snyk/actions/setup@master
 
-      - name: Scan Infrastructure as Code
-        run: snyk iac test --severity-threshold=high || true
+      - name: Build Docker image
+        run: docker build -t varsityhub-server:latest -f server/Dockerfile server/
+
+      - name: Run Snyk container scan
+        run: snyk container test varsityhub-server:latest --severity-threshold=high --file=server/Dockerfile
+        continue-on-error: true
+
+      - name: Monitor container
+        run: snyk container monitor varsityhub-server:latest --project-name=varsityhub-server-container --file=server/Dockerfile
+        continue-on-error: true
 
   security-report:
     runs-on: ubuntu-latest
@@ -248,12 +183,12 @@ jobs:
     steps:
       - name: Check scan results
         run: |
-          echo "🔒 Security Scanning Complete"
-          echo "✅ Snyk Code scanning (SAST) - completed"
-          echo "✅ Snyk Open Source scanning (SCA) - completed"
-          echo "✅ npm audit - completed"
+          echo "Security Scanning Complete"
+          echo "- Snyk Code scanning (SAST) - completed"
+          echo "- Snyk Open Source scanning (SCA) - completed"
+          echo "- npm audit - completed"
           echo ""
-          echo "📊 Next steps:"
+          echo "Next steps:"
           echo "  1. Review security tab for detailed findings"
           echo "  2. Check Snyk dashboard for continuous monitoring"
           echo "  3. Address high/critical issues before merge"

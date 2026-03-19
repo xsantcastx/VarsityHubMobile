@@ -13,6 +13,7 @@ import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireAdmin, isEmailAdmin } from '../middleware/requireAdmin.js';
 import { debugLog } from '../lib/debugLog.js';
+import escapeHtml from 'escape-html';
 import { inviteLimiter, organizationsNearbyLimiter } from '../middleware/rateLimiters.js';
 import { requireOnboarded } from '../middleware/requireOnboarded.js';
 import { getAuthorizedUsersOrgLimit } from '../lib/planLimits.js';
@@ -1400,7 +1401,7 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
 
     // If accessed via browser link, show a simple HTML confirmation (escape org.name to prevent XSS)
     if (token) {
-      const safeName = String(org.name || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      const safeName = escapeHtml(String(org.name || ''));
       return res.send(`<html><body style="font-family:Arial;text-align:center;padding:60px"><h1 style="color:#16A34A">League Approved</h1><p>"${safeName}" is now live on VarsityHub.</p></body></html>`);
     }
 
@@ -1487,7 +1488,7 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
     }).catch(() => {});
 
     if (token) {
-      const safeName = String(org.name || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      const safeName = escapeHtml(String(org.name || ''));
       return res.send(`<html><body style="font-family:Arial;text-align:center;padding:60px"><h1 style="color:#DC2626">League Rejected</h1><p>"${safeName}" has been declined.</p></body></html>`);
     }
 

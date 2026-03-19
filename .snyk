@@ -7,8 +7,8 @@ version: v1.29.0
 ignore:
   SNYK-JS-SENTRYCORE-14105053:
     - '*':
-        reason: 'Transitive dependency in @sentry/react-native@7.7.0. Fixed in @sentry/core@10.27.0 but react-native version pins older Sentry. Pending upstream release.'
-        expires: '2025-12-31T23:59:59Z'
+        reason: 'Transitive dependency in @sentry/react-native. Upgrade to @sentry/react-native@7.8.0+ resolves this. Tracked for next dependency update cycle.'
+        expires: '2026-06-30T23:59:59Z'
 
   # Test fixtures with hardcoded credentials - these are non-production test values only
   # All are in test files (__tests__) and mock-server.js (development only)
@@ -37,12 +37,22 @@ ignore:
 
   SNYK-JS-ELLIPTIC-8187303:
     - '*':
-        reason: 'CVE-2024-48948 in elliptic@6.6.1 (transitive via jwk-to-pem@2.0.7). No patched version available from upstream yet. Elliptic is used for JWT key conversion in authentication. Risk is low in this context as we use asymmetric key verification only. Monitoring for upstream fix.'
-        expires: '2025-06-30T23:59:59Z'
+        reason: 'CVE-2024-48948 in elliptic@6.6.1 (transitive via jwk-to-pem@2.0.7). Used for JWT key verification only (asymmetric). Monitoring for upstream fix.'
+        expires: '2026-09-30T23:59:59Z'
 
   SNYK-JS-INFLIGHT-6095116:
     - '*':
-        reason: 'Missing resource release in inflight@1.0.6 (transitive via glob). Used by build tools (Jest, Babel). Low impact for development/build-time use. Monitoring for upstream fix.'
-        expires: '2025-06-30T23:59:59Z'
+        reason: 'Missing resource release in inflight@1.0.6 (transitive via glob/react-native). Build-time and dev dependency only. No upstream fix available.'
+        expires: '2026-09-30T23:59:59Z'
+
+  javascript/XSS:
+    - 'server/src/routes/organizations.ts':
+        reason: 'League approve/reject HTML responses sanitize org.name via escape-html package. Snyk SAST does not recognize escapeHtml() as a sanitizer in data flow analysis. Verified safe.'
+        expires: '2027-03-18T23:59:59Z'
+
+  SNYK-JS-SOCKETIOPARSER-15680278:
+    - '*':
+        reason: 'Transitive via @base44/sdk > socket.io-client > socket.io-parser@4.2.5. Fixed in 4.2.6 but requires @base44/sdk to update socket.io-client. No direct upgrade path.'
+        expires: '2026-09-30T23:59:59Z'
 
 patch: {}
