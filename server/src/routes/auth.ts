@@ -174,8 +174,12 @@ authRouter.post('/logout', requireAuth as any, async (req: AuthedRequest, res) =
     }
     return res.json({ ok: true });
   } catch (err) {
-    // Best-effort — even if DB fails, client should still clear local tokens
-    return res.json({ ok: true });
+    req.log?.error?.({ err }, '[auth/logout] failed to revoke refresh token(s)');
+    return res.status(500).json({
+      ok: false,
+      error: 'Logout failed on server. Please clear local session and try again.',
+      should_clear_local_tokens: true,
+    });
   }
 });
 
