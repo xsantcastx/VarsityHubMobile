@@ -281,7 +281,7 @@ authRouter.post('/register', authLimiter, asyncHandler(async (req, res) => {
     });
   }
   const password_hash = await bcrypt.hash(password, 12);
-  const code = crypto.randomBytes(4).toString('hex').toUpperCase(); // 8 hex chars = 4 billion possibilities
+  const code = crypto.randomBytes(6).toString('hex').toUpperCase(); // 12 hex chars = 281 trillion possibilities
   debugLog(`[verify-code] [register] Verification code generated for ${sanitizedEmail}`);
   if (process.env.NODE_ENV === 'development') console.log(`[verify-code] [register] Code generated: ${code} for ${sanitizedEmail}`);
   const exp = new Date(Date.now() + 30 * 60 * 1000);
@@ -1517,7 +1517,7 @@ authRouter.post('/verify/request', requireAuth as any, verificationLimiter, asyn
     return res.status(429).json({ error: 'Too many requests' });
   }
 
-  const code = crypto.randomBytes(4).toString('hex').toUpperCase(); // 8 hex chars = 4 billion possibilities
+  const code = crypto.randomBytes(6).toString('hex').toUpperCase(); // 12 hex chars = 281 trillion possibilities
   debugLog(`[verify-code] [verify/request] Verification code generated for user ${user.id}`);
   if (process.env.NODE_ENV === 'development') console.log(`[verify-code] [verify/request] Code generated: ${code} for user ${user.id} (${user.email})`);
   const exp = new Date(Date.now() + 30 * 60 * 1000);

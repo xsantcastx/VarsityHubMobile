@@ -78,7 +78,7 @@ export default function PendingApproval() {
     } finally {
       setChecking(false);
     }
-  }, [markOnboardingCompleteLocally, ob.affiliation, ob.dob, ob.organization_id, ob.organization_name, ob.username, ob.zip, ob.zip_code, router]);
+  }, [markOnboardingCompleteLocally, ob.affiliation, ob.dob, ob.organization_id, ob.organization_name, ob.parental_consent_given, ob.username, ob.zip, ob.zip_code, router]);
 
   useEffect(() => {
     // Initial check

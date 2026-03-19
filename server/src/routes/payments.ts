@@ -2330,12 +2330,19 @@ async function verifyAppleReceipt(receiptData: string, useSandbox = false): Prom
     password: APPLE_SHARED_SECRET,
     'exclude-old-transactions': true,
   });
-  const resp = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body,
-  });
-  return resp.json();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
+  try {
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+      signal: controller.signal,
+    });
+    return resp.json();
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 // Apple IAP receipt validation — uses requireAuth (not requireVerified) because Apple
