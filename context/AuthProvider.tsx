@@ -296,10 +296,10 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
           setUser(null);
           setSentryUser(null);
           setPendingVerificationEmail(null);
-        } else {
-          if (__DEV__) console.error('[AuthProvider] checkAuth transient error (session preserved):', err);
+          throw err; // Rethrow 401 so callers (sign-in, sign-up) can handle it
         }
-        throw err;
+        if (__DEV__) console.error('[AuthProvider] checkAuth transient error (session preserved):', err);
+        return null; // Don't crash the app on transient network/server errors
       }
     },
     []

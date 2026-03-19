@@ -8,6 +8,7 @@ import { useOnboarding } from '@/context/OnboardingContext';
 // @ts-ignore
 import { User } from '@/api/entities';
 import { httpGet } from '@/api/http';
+import { captureException } from '@/utils/sentry';
 
 export default function LeaguePendingApproval() {
   const router = useRouter();
@@ -58,6 +59,9 @@ export default function LeaguePendingApproval() {
           completed = true;
         } catch (err) {
           if (__DEV__) console.warn('[league-pending-approval] Failed to complete onboarding:', err);
+          captureException(err instanceof Error ? err : new Error(String(err)), {
+            tags: { component: 'LeaguePendingApproval', action: 'completeOnboarding' },
+          });
         }
         if (!completed) {
           try {
@@ -112,6 +116,7 @@ export default function LeaguePendingApproval() {
         dob: me?.dob || ob.dob,
         zip_code: me?.zip_code || ob.zip_code || ob.zip,
         affiliation: me?.preferences?.affiliation || ob.affiliation,
+        parental_consent_given: (me?.preferences as any)?.parental_consent_given || ob.parental_consent_given || false,
         proceeding_as_fan: true,
       });
       await markOnboardingCompleteLocally();
@@ -119,7 +124,10 @@ export default function LeaguePendingApproval() {
       router.replace('/(tabs)' as any);
     } catch (err) {
       if (__DEV__) console.warn('[league-pending-approval] Failed to proceed as fan:', err);
-      Alert.alert('Failed', 'Could not complete setup. Please try again.');
+      captureException(err instanceof Error ? err : new Error(String(err)), {
+        tags: { component: 'LeaguePendingApproval', action: 'proceedAsFan' },
+      });
+      Alert.alert('Setup Issue', 'Could not complete setup. Please check your connection and try again. If this persists, try signing out and back in.');
     }
   };
 

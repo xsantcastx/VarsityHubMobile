@@ -1,5 +1,5 @@
-const WEEKDAY_BLOCK_PRICE = 5; // USD per Mon–Thu slot
-const WEEKEND_BLOCK_PRICE = 8; // USD per Fri–Sun slot
+const WEEKDAY_BLOCK_PRICE = 4.99; // USD per Mon–Thu slot
+const WEEKEND_BLOCK_PRICE = 7.99; // USD per Fri–Sun slot
 
 export const WEEKDAY_BLOCK_PRICE_CENTS = WEEKDAY_BLOCK_PRICE * 100;
 export const WEEKEND_BLOCK_PRICE_CENTS = WEEKEND_BLOCK_PRICE * 100;

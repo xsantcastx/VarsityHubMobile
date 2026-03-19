@@ -32,6 +32,7 @@ export const Organization = {
   }) => httpPost('/organizations', data),
   createWithTeams: (data: any) => httpPost('/organizations/create', data),
   invite: (organizationId: string, email: string, role?: string) => httpPost(`/organizations/${encodeURIComponent(organizationId)}/invite`, { email, role }),
+  transferOwnership: (organizationId: string, newOwnerId: string) => httpPost(`/organizations/${encodeURIComponent(organizationId)}/transfer-ownership`, { new_owner_id: newOwnerId }),
   myInvites: () => httpGet('/organizations/invites/me'),
   acceptInvite: (inviteId: string) => httpPost(`/organizations/invites/${encodeURIComponent(inviteId)}/accept`, {}),
   declineInvite: (inviteId: string) => httpPost(`/organizations/invites/${encodeURIComponent(inviteId)}/decline`, {}),

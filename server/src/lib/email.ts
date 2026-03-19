@@ -401,10 +401,30 @@ export async function sendAdPendingReviewEmail(params: {
     console.warn('[email] No review template configured, using plain-text fallback');
   }
 
-  // Plain-text fallback via EmailService
-  const fallbackSent = await sendEmail({ to: adminTo, subject, text: plainBody });
+  // HTML fallback with styled email (matches league approval email style)
+  const dashboardUrl = `${APP_BASE_URL}/admin/ads`;
+  const htmlBody = `
+<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+  <div style="text-align:center;margin-bottom:24px;">
+    <img src="${getCommonTemplateData().logo_url}" alt="VarsityHub" style="height:48px;" />
+  </div>
+  <h2 style="color:#1B3A6B;text-align:center;margin-bottom:20px;">Ad Pending Review</h2>
+  <table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
+    <tr><td style="padding:8px 12px;font-weight:bold;color:#374151;border-bottom:1px solid #E5E7EB;">Business:</td><td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;">${params.businessName || 'N/A'}</td></tr>
+    <tr><td style="padding:8px 12px;font-weight:bold;color:#374151;border-bottom:1px solid #E5E7EB;">Contact:</td><td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;">${params.contactName || 'N/A'} (<a href="mailto:${params.contactEmail || ''}">${params.contactEmail || 'N/A'}</a>)</td></tr>
+    <tr><td style="padding:8px 12px;font-weight:bold;color:#374151;border-bottom:1px solid #E5E7EB;">Zip Code:</td><td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;">${params.zipCode || 'N/A'}</td></tr>
+    <tr><td style="padding:8px 12px;font-weight:bold;color:#374151;border-bottom:1px solid #E5E7EB;">Ad ID:</td><td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;">${params.adId || 'N/A'}</td></tr>
+  </table>
+  ${params.bannerUrl ? `<div style="text-align:center;margin-bottom:20px;"><img src="${params.bannerUrl}" alt="Ad Banner" style="max-width:100%;border-radius:8px;border:1px solid #E5E7EB;" /></div>` : ''}
+  <div style="text-align:center;">
+    <a href="${dashboardUrl}" style="display:inline-block;background:#1B3A6B;color:#fff;padding:12px 32px;border-radius:8px;text-decoration:none;font-weight:600;">Review in Dashboard</a>
+  </div>
+  <p style="text-align:center;color:#9CA3AF;font-size:13px;margin-top:24px;">&copy; ${new Date().getFullYear()} Lime Productions. All rights reserved.</p>
+</div>`;
+
+  const fallbackSent = await sendEmail({ to: adminTo, subject, text: plainBody, html: htmlBody });
   if (fallbackSent) return true;
-  console.error('[email] Ad pending review plain-text fallback also failed via EmailService');
+  console.error('[email] Ad pending review HTML fallback also failed via EmailService');
 
   // Last-resort: direct SendGrid API call bypassing the service layer
   if (SENDGRID_API_KEY) {
@@ -415,6 +435,7 @@ export async function sendAdPendingReviewEmail(params: {
         from: EMAIL_FROM,
         subject,
         text: plainBody,
+        html: htmlBody,
       });
       console.log(`[email] Ad pending review sent via direct SendGrid to ${adminTo}`);
       return true;

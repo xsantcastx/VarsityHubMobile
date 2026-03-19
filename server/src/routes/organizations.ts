@@ -583,6 +583,12 @@ organizationsRouter.post('/:id/invite', requireAuth as any, requireOnboarded as 
 
   const { email, role } = parsed.data;
 
+  // Validate role against allowed org roles
+  const VALID_ORG_ROLES = ['owner', 'manager', 'member'];
+  if (role && !VALID_ORG_ROLES.includes(role)) {
+    return res.status(400).json({ error: `Invalid role. Must be one of: ${VALID_ORG_ROLES.join(', ')}` });
+  }
+
   // Check if user is a member of the organization
   const membership = await prisma.organizationMembership.findUnique({
     where: { organization_id_user_id: { organization_id: id, user_id: req.user!.id } as any }
@@ -1187,6 +1193,20 @@ organizationsRouter.post('/join-requests/:requestId/approve', requireAuth as any
     console.error('Failed to send join request approved push notification:', err);
   }
 
+  // In-app notification so it shows in the Updates page
+  try {
+    await prisma.notification.create({
+      data: {
+        user_id: joinRequest.user_id,
+        actor_id: req.user?.id || null,
+        type: 'JOIN_REQUEST_APPROVED',
+        meta: { organization_id: joinRequest.organization_id, organization_name: joinRequest.organization.name },
+      },
+    });
+  } catch (err) {
+    console.error('Failed to create join request approved notification:', err);
+  }
+
   return res.json({ message: 'Join request approved' });
   } catch (err) {
     console.error('[organizations] POST /join-requests/:requestId/approve error:', err);
@@ -1387,6 +1407,24 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
         to: org.leagueOwner.email,
         ownerName: org.leagueOwner.display_name || 'League Owner',
         leagueName: org.name,
+      }).catch(() => {});
+    }
+
+    // Push notification + in-app notification for league owner
+    if (org.leagueOwner?.id) {
+      sendPushNotification(
+        org.leagueOwner.id,
+        'Organization Approved!',
+        `Your organization "${org.name}" has been approved on VarsityHub.`,
+        { type: 'ORG_APPROVED', organization_id: orgId }
+      ).catch(() => {});
+
+      prisma.notification.create({
+        data: {
+          user_id: org.leagueOwner.id,
+          type: 'ORG_APPROVED',
+          meta: { organization_id: orgId, organization_name: org.name },
+        }
       }).catch(() => {});
     }
 

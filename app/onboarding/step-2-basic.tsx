@@ -4,7 +4,7 @@ import PrimaryButton from '@/components/ui/PrimaryButton';
 import { Type } from '@/ui/tokens';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Animated, Image, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
@@ -15,6 +15,11 @@ import { ZipCodeMapPreview } from '@/components/ZipCodeMapPreview';
 import { useFocusEffect } from '@react-navigation/native';
 import { safeGoBack } from '@/utils/navigation';
 import OnboardingLayout from './components/OnboardingLayout';
+import * as ImagePicker from 'expo-image-picker';
+import * as Notifications from 'expo-notifications';
+import * as Location from 'expo-location';
+import { Ionicons } from '@expo/vector-icons';
+import { uploadFile } from '@/api/upload';
 
 // Username validation: lowercase letters, numbers, dots, underscores only (matches backend)
 // Spaces are normalized to underscores BEFORE validation
@@ -90,6 +95,8 @@ export default function Step2Basic() {
   const [available, setAvailable] = useState<boolean | null>(null);
   const [saving, setSaving] = useState(false);
   const [emailVerified, setEmailVerified] = useState<boolean | null>(null);
+  const [avatarUri, setAvatarUri] = useState<string | null>(null);
+  const [bio, setBio] = useState('');
 
   const styles = useMemo(() => createStyles(colorScheme), [colorScheme]);
 
@@ -170,6 +177,43 @@ export default function Step2Basic() {
 
     return () => clearTimeout(timeoutId);
   }, [username]);
+
+  const pickAvatar = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+      if (!result.canceled && result.assets[0]) {
+        setAvatarUri(result.assets[0].uri);
+      }
+    } catch (err) {
+      if (__DEV__) console.warn('[step-2] Avatar pick failed:', err);
+    }
+  };
+
+  const requestPermissions = async () => {
+    // Push notifications — ask with explanation
+    try {
+      const { status: pushStatus } = await Notifications.getPermissionsAsync();
+      if (pushStatus !== 'granted') {
+        await Notifications.requestPermissionsAsync();
+      }
+    } catch (err) {
+      if (__DEV__) console.warn('[step-2] Push permission request failed:', err);
+    }
+    // Location — ask with explanation
+    try {
+      const { status: locStatus } = await Location.getForegroundPermissionsAsync();
+      if (locStatus !== 'granted') {
+        await Location.requestForegroundPermissionsAsync();
+      }
+    } catch (err) {
+      if (__DEV__) console.warn('[step-2] Location permission request failed:', err);
+    }
+  };
 
   const dobError = dob && (new Date(dob).getFullYear() < 1920 || new Date(dob) > new Date());
   const isUnder13 = dob && (() => {
@@ -269,8 +313,27 @@ export default function Step2Basic() {
         setProgress(2);
         router.replace('/onboarding/step-3-league' as any);
       } else {
-        // Fans are DONE — complete onboarding right here
+        // Fans are DONE — upload avatar, save bio, request permissions, then complete
         try {
+          // Upload avatar if selected (non-blocking — don't fail onboarding if upload fails)
+          let avatarUrl: string | undefined;
+          if (avatarUri) {
+            try {
+              const uploaded = await uploadFile(avatarUri, 'image');
+              avatarUrl = uploaded?.url || uploaded?.secure_url;
+            } catch (uploadErr) {
+              if (__DEV__) console.warn('[step-2] Avatar upload failed (continuing):', uploadErr);
+            }
+          }
+
+          // Save bio + avatar before completing onboarding
+          if (bio.trim() || avatarUrl) {
+            await User.patchMe({
+              ...(bio.trim() ? { bio: bio.trim() } : {}),
+              ...(avatarUrl ? { avatar_url: avatarUrl } : {}),
+            }).catch((err: any) => { if (__DEV__) console.warn('[step-2] Bio/avatar save failed (continuing):', err); });
+          }
+
           await User.completeOnboarding({
             role: 'fan',
             username: finalUsername,
@@ -280,6 +343,10 @@ export default function Step2Basic() {
             parental_consent_given: ob.parental_consent_given || false,
           });
           await markOnboardingCompleteLocally();
+
+          // Request push + location permissions (non-blocking)
+          await requestPermissions();
+
           dispatch({ type: 'SAVE_SUCCESS', data: updatedDataWithRole });
           router.replace('/(tabs)' as any);
         } catch (completeErr: any) {
@@ -312,6 +379,18 @@ export default function Step2Basic() {
     >
       <Stack.Screen options={{ headerShown: false }} />
       
+      {/* Profile Picture (optional) */}
+      <Pressable onPress={pickAvatar} style={{ alignSelf: 'center', marginBottom: 16 }} accessibilityLabel="Choose profile picture" accessibilityRole="button">
+        <View style={{ width: 90, height: 90, borderRadius: 45, backgroundColor: Colors[colorScheme].surface, borderWidth: 2, borderColor: Colors[colorScheme].border, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+          {avatarUri ? (
+            <Image source={{ uri: avatarUri }} style={{ width: 90, height: 90 }} />
+          ) : (
+            <Ionicons name="camera-outline" size={32} color={Colors[colorScheme].mutedText} />
+          )}
+        </View>
+        <Text style={[styles.muted, { textAlign: 'center', marginTop: 4 }]}>Add photo</Text>
+      </Pressable>
+
       <Text style={styles.label}>Username</Text>
       <Input value={username} onChangeText={setUsername} autoCapitalize="none" placeholder="username" style={{ marginBottom: 4, letterSpacing: 0 }} onEndEditing={async () => {
         if (!usernameRe.test(username)) { setAvailable(null); return; }
@@ -392,6 +471,29 @@ export default function Step2Basic() {
         maxLength={5}
       />
       <ZipCodeMapPreview zipCode={zip} title="Your Area" subtitle="We'll use this to show you local content near ZIP {zip}" showCircle={false} />
+
+      <Text style={styles.label}>Bio <Text style={styles.muted}>(optional)</Text></Text>
+      <TextInput
+        value={bio}
+        onChangeText={(t) => setBio(t.slice(0, 160))}
+        placeholder="Tell us about yourself..."
+        placeholderTextColor={Colors[colorScheme].mutedText}
+        multiline
+        maxLength={160}
+        style={{
+          minHeight: 60,
+          borderWidth: 1,
+          borderColor: Colors[colorScheme].border,
+          borderRadius: 10,
+          padding: 12,
+          color: Colors[colorScheme].text,
+          backgroundColor: Colors[colorScheme].surface,
+          fontSize: 15,
+          textAlignVertical: 'top',
+        }}
+        accessibilityLabel="Bio"
+      />
+      <Text style={[styles.muted, { textAlign: 'right', fontSize: 12 }]}>{bio.length}/160</Text>
 
       <View style={{ marginTop: 20 }}>
         <PrimaryButton

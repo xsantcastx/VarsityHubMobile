@@ -2320,15 +2320,14 @@ const APPLE_VERIFY_URL_PRODUCTION = 'https://buy.itunes.apple.com/verifyReceipt'
 const APPLE_VERIFY_URL_SANDBOX = 'https://sandbox.itunes.apple.com/verifyReceipt';
 
 const APPLE_PRODUCT_TO_PLAN: Record<string, string> = {
-  veteran_vhub: 'veteran',
-  Legend_vhub: 'legend',
-  legend_vhub: 'legend',
+  MIDTIER: 'veteran',
+  TOPTIER: 'legend',
 };
 
-const APPLE_AD_PRODUCTS = ['ad_weekday_vhub', 'ad_weekend_vhub'] as const;
+const APPLE_AD_PRODUCTS = ['MOND_THURS', 'FRI_SUN'] as const;
 const AD_PRODUCT_CENTS: Record<string, number> = {
-  ad_weekday_vhub: 500,
-  ad_weekend_vhub: 800,
+  MOND_THURS: 499,
+  FRI_SUN: 799,
 };
 
 async function verifyAppleReceipt(receiptData: string, useSandbox = false): Promise<any> {
@@ -2484,7 +2483,7 @@ paymentsRouter.post('/apple/verify-receipt', expressPkg.json(), requireAuth as a
   }
 });
 
-// Apple IAP ad receipt verification (consumable products: ad_weekday_vhub, ad_weekend_vhub)
+// Apple IAP ad receipt verification (consumable products: MOND_THURS, FRI_SUN)
 paymentsRouter.post('/apple/verify-ad-receipt', expressPkg.json(), requireAuth as any, paymentLimiter, async (req: AuthedRequest, res) => {
   try {
     if (!APPLE_SHARED_SECRET) {
@@ -2853,9 +2852,8 @@ paymentsRouter.post('/apple/notifications', expressPkg.json(), async (req, res) 
 
 // ── Google Play Billing verification ────────────────────────────────
 const GOOGLE_PRODUCT_TO_PLAN: Record<string, string> = {
-  veteran_vhub: 'veteran',
-  Legend_vhub: 'legend',
-  legend_vhub: 'legend',
+  MIDTIER: 'veteran',
+  TOPTIER: 'legend',
 };
 const GOOGLE_ALLOWED_PACKAGES = (process.env.GOOGLE_PLAY_PACKAGE_NAMES || 'com.varsityhub.varsityhub')
   .split(',')

@@ -108,6 +108,7 @@ export default function PendingApproval() {
         dob: me?.dob || ob.dob,
         zip_code: me?.zip_code || ob.zip_code || ob.zip,
         affiliation: me?.preferences?.affiliation || ob.affiliation,
+        parental_consent_given: (me?.preferences as any)?.parental_consent_given || ob.parental_consent_given || false,
         proceeding_as_fan: true,
       });
       await markOnboardingCompleteLocally();

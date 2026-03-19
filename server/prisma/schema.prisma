@@ -692,6 +692,9 @@ enum NotificationType {
   COMMENT_REPLY
   SHARE
   GAME_REMINDER
+  AD_APPROVED
+  ORG_APPROVED
+  JOIN_REQUEST_APPROVED
 }
 
 model Notification {

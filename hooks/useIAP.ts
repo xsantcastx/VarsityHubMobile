@@ -35,14 +35,14 @@ const isAndroid = Platform.OS === 'android';
 
 // IAP product IDs — must match App Store Connect / Google Play Console exactly (use lowercase)
 export const IAP_PRODUCT_IDS = {
-  veteran: 'veteran_vhub',
-  legend: 'legend_vhub',
+  veteran: 'MIDTIER',
+  legend: 'TOPTIER',
 } as const;
 
-// Aliases for resilience across historical casing (App Store Connect may use Legend_vhub)
+// Aliases for resilience across historical casing
 const PLAN_SKUS: Record<'veteran' | 'legend', string[]> = {
   veteran: [IAP_PRODUCT_IDS.veteran],
-  legend: [IAP_PRODUCT_IDS.legend, 'Legend_vhub'],
+  legend: [IAP_PRODUCT_IDS.legend],
 };
 const ALL_SKUS = Array.from(new Set([...PLAN_SKUS.veteran, ...PLAN_SKUS.legend]));
 

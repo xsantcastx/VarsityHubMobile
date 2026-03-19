@@ -779,7 +779,7 @@ export default function CommunityDiscoverScreen() {
       ) : null}
 
       {/* Calendar - Right below search */}
-      <View style={[styles.calendarSection, { backgroundColor: colorScheme === 'light' ? '#FFFFFF' : Colors[colorScheme].background }]}>
+      <View style={[styles.calendarSection, { backgroundColor: colorScheme === 'light' ? '#FFFFFF' : Colors[colorScheme].background, borderColor: colorScheme === 'light' ? '#E5E7EB' : Colors[colorScheme].border }]}>
         <Calendar
           onDayPress={(day) => {
             setSelectedDate(day.dateString);
@@ -814,26 +814,29 @@ export default function CommunityDiscoverScreen() {
           theme={{
             backgroundColor: colorScheme === 'light' ? '#FFFFFF' : Colors[colorScheme].background,
             calendarBackground: colorScheme === 'light' ? '#FFFFFF' : Colors[colorScheme].background,
-            textSectionTitleColor: Colors[colorScheme].text,
+            textSectionTitleColor: colorScheme === 'light' ? '#374151' : Colors[colorScheme].text,
             selectedDayBackgroundColor: Colors[colorScheme].tint,
             selectedDayTextColor: '#FFFFFF',
             todayTextColor: Colors[colorScheme].tint,
-            dayTextColor: Colors[colorScheme].text,
-            textDisabledColor: Colors[colorScheme].mutedText,
-            arrowColor: Colors[colorScheme].tint,
-            monthTextColor: Colors[colorScheme].text,
+            dayTextColor: colorScheme === 'light' ? '#111827' : Colors[colorScheme].text,
+            textDisabledColor: colorScheme === 'light' ? '#9CA3AF' : Colors[colorScheme].mutedText,
+            arrowColor: colorScheme === 'light' ? '#111827' : Colors[colorScheme].tint,
+            monthTextColor: colorScheme === 'light' ? '#111827' : Colors[colorScheme].text,
             textDayFontWeight: '500',
             textMonthFontWeight: '800',
             textDayHeaderFontWeight: '600',
+            textDayFontSize: 15,
             // @ts-ignore - headerStyle not in TS types but supported by react-native-calendars
             'stylesheet.calendar.header': {
               header: {
-                backgroundColor: colorScheme === 'light' ? '#FFFFFF' : Colors[colorScheme].background,
+                backgroundColor: colorScheme === 'light' ? '#F9FAFB' : Colors[colorScheme].background,
                 flexDirection: 'row',
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 paddingHorizontal: 10,
                 paddingVertical: 10,
+                borderBottomWidth: colorScheme === 'light' ? 1 : 0,
+                borderBottomColor: '#E5E7EB',
               },
             },
           }}
@@ -1307,6 +1310,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: 'hidden',
     padding: 4,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
   searchBox: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 48, borderRadius: 12, paddingHorizontal: 12, marginBottom: 8, borderWidth: 1 },
   searchInput: { flex: 1, height: 44 },

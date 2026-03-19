@@ -313,18 +313,44 @@ export default function OrganizationScreen() {
 
         {/* Admin: View Join Requests */}
         {isOrgAdmin && organization?.id && (
-          <Pressable
-            onPress={() =>
-              router.push({
-                pathname: '/organization-join-requests',
-                params: { organization_id: organization.id, organization_name: organization.name || orgName },
-              })
-            }
-            style={[styles.adminButton, { backgroundColor: theme.tint }]}
-          >
-            <Ionicons name="people" size={20} color="#fff" />
-            <Text style={styles.adminButtonText}>Coach Requests</Text>
-          </Pressable>
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+            <Pressable
+              onPress={() =>
+                router.push({
+                  pathname: '/organization-join-requests',
+                  params: { organization_id: organization.id, organization_name: organization.name || orgName },
+                })
+              }
+              style={[styles.adminButton, { backgroundColor: theme.tint, flex: 1 }]}
+            >
+              <Ionicons name="people" size={20} color="#fff" />
+              <Text style={styles.adminButtonText}>Coach Requests</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                Alert.prompt(
+                  'Invite Coach',
+                  'Enter the email address of the coach to invite:',
+                  async (email) => {
+                    if (!email?.trim()) return;
+                    try {
+                      await Organization.invite(organization.id, email.trim(), 'member');
+                      Alert.alert('Invited', `Invitation sent to ${email.trim()}`);
+                    } catch (err: any) {
+                      Alert.alert('Error', err?.data?.error || err?.message || 'Failed to send invite');
+                    }
+                  },
+                  'plain-text',
+                  '',
+                  'email-address'
+                );
+              }}
+              style={[styles.adminButton, { backgroundColor: theme.card, borderWidth: 1, borderColor: theme.border, flex: 1 }]}
+            >
+              <Ionicons name="person-add-outline" size={20} color={theme.text} />
+              <Text style={[styles.adminButtonText, { color: theme.text }]}>Invite Coach</Text>
+            </Pressable>
+          </View>
         )}
 
         {/* Cover Image */}

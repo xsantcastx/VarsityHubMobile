@@ -2,8 +2,8 @@
  * League Subscription Paywall
  *
  * Only shown to league owners — coaches are covered by their league owner's plan.
- * iOS: Uses Apple IAP (react-native-iap) for veteran_vhub / Legend_vhub
- * Android: Uses Google Play Billing (react-native-iap) for veteran_vhub / Legend_vhub
+ * iOS: Uses Apple IAP (react-native-iap) for MIDTIER / TOPTIER
+ * Android: Uses Google Play Billing (react-native-iap) for MIDTIER / TOPTIER
  * Web: checkout is disabled (mobile app only)
  * Other fallback: Uses Stripe Payment Sheets
  */

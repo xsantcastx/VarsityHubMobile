@@ -1,5 +1,5 @@
 /**
- * useAdIAP — IAP for ad hosting (ad_weekday_vhub, ad_weekend_vhub).
+ * useAdIAP — IAP for ad hosting (MOND_THURS, FRI_SUN).
  * iOS: Apple IAP. Android: Stripe fallback.
  */
 
@@ -28,8 +28,8 @@ if (!isExpoGo) {
 const isIOS = Platform.OS === 'ios';
 
 export const AD_IAP_PRODUCT_IDS = {
-  weekday: 'ad_weekday_vhub',
-  weekend: 'ad_weekend_vhub',
+  weekday: 'MOND_THURS',
+  weekend: 'FRI_SUN',
 } as const;
 
 const AD_SKUS = [AD_IAP_PRODUCT_IDS.weekday, AD_IAP_PRODUCT_IDS.weekend];
