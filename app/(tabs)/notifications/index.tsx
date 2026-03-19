@@ -155,7 +155,7 @@ export default function NotificationsScreen() {
       } else if (item.type === 'GAME_REMINDER' && (item.event?.id || item.meta?.event_id)) {
         router.push(`/event-detail?id=${encodeURIComponent(item.event?.id || item.meta?.event_id || '')}` as any);
       } else if (item.type === 'AD_APPROVED' && item.meta?.ad_id) {
-        router.push(`/billing?adId=${encodeURIComponent(item.meta.ad_id)}` as any);
+        router.push(`/ad-calendar?adId=${encodeURIComponent(item.meta.ad_id)}` as any);
       } else if (item.type === 'ORG_APPROVED') {
         router.push('/(tabs)' as any);
       }

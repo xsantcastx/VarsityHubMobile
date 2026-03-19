@@ -3,6 +3,7 @@ import type { FounderMetricsReport } from './founderMetrics.js';
 import type { EmailResult } from '../services/email/types.js';
 import type { EmailService } from '../services/email/EmailService.js';
 import sgMail from '@sendgrid/mail';
+import { signJwt } from './jwt.js';
 
 const isTestEnv = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID != null;
 
@@ -19,6 +20,7 @@ const getEmailService = async (): Promise<EmailService | null> => {
 const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY || '';
 const EMAIL_FROM = process.env.EMAIL_FROM || process.env.FROM_EMAIL || 'noreply@varsityhub.app';
 const APP_BASE_URL = (process.env.APP_BASE_URL || 'https://varsityhub.app').replace(/\/$/, '');
+const API_BASE_URL = (process.env.API_BASE_URL || 'https://api-production-8ac3.up.railway.app').replace(/\/$/, '');
 const CUSTOMER_SERVICE_EMAIL = process.env.CUSTOMER_SERVICE_EMAIL || 'support@varsityhub.app';
 
 // Common template data (social links, privacy policy, etc.) added to all emails
@@ -354,9 +356,29 @@ export async function sendAdPendingReviewEmail(params: {
   zipCode?: string;
   bannerUrl?: string;
   adId?: string;
+  approveUrl?: string;
+  rejectUrl?: string;
 }): Promise<boolean> {
   const adminTo = params.to || process.env.ADMIN_EMAILS?.split(',')[0]?.trim() || 'emancero@varsityhub.app';
   const subject = `Ad Pending Review — ${params.businessName || 'Unknown Business'}`;
+  const dashboardUrl = `${APP_BASE_URL}/admin/ads`;
+  const actionLinks = (() => {
+    if (!params.adId) return null;
+    try {
+      const approveToken = signJwt({ adId: params.adId, action: 'approve_ad' }, '7d');
+      const rejectToken = signJwt({ adId: params.adId, action: 'reject_ad' }, '7d');
+      return {
+        approveUrl: `${API_BASE_URL}/ads/${params.adId}/approve?token=${approveToken}`,
+        rejectUrl: `${API_BASE_URL}/ads/${params.adId}/reject?token=${rejectToken}`,
+      };
+    } catch (err) {
+      console.warn('[email] Failed generating ad moderation tokens; falling back to dashboard-only links:', (err as any)?.message || err);
+      return null;
+    }
+  })();
+  const approveUrl = params.approveUrl || actionLinks?.approveUrl || dashboardUrl;
+  const rejectUrl = params.rejectUrl || actionLinks?.rejectUrl || dashboardUrl;
+
   const plainBody = [
     `A new ad needs your review on VarsityHub.`,
     ``,
@@ -366,7 +388,9 @@ export async function sendAdPendingReviewEmail(params: {
     `Ad ID: ${params.adId || 'N/A'}`,
     params.bannerUrl ? `Banner: ${params.bannerUrl}` : '',
     ``,
-    `Review this ad in the admin dashboard.`,
+    `Approve now: ${approveUrl}`,
+    `Reject now: ${rejectUrl}`,
+    `Review in dashboard: ${dashboardUrl}`,
   ].filter(Boolean).join('\n');
 
   // Try ad-specific template first, then fall back to league approval template (same layout)
@@ -385,6 +409,9 @@ export async function sendAdPendingReviewEmail(params: {
         zip_code: params.zipCode || 'N/A',
         banner_url: params.bannerUrl || '',
         ad_id: params.adId || '',
+        approve_url: approveUrl,
+        reject_url: rejectUrl,
+        review_url: dashboardUrl,
         // Map to league template fields so it renders in either template
         league_name: params.businessName || 'N/A',
         owner_name: params.contactName || 'N/A',
@@ -402,7 +429,6 @@ export async function sendAdPendingReviewEmail(params: {
   }
 
   // HTML fallback with styled email (matches league approval email style)
-  const dashboardUrl = `${APP_BASE_URL}/admin/ads`;
   const htmlBody = `
 <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
   <div style="text-align:center;margin-bottom:24px;">
@@ -416,8 +442,10 @@ export async function sendAdPendingReviewEmail(params: {
     <tr><td style="padding:8px 12px;font-weight:bold;color:#374151;border-bottom:1px solid #E5E7EB;">Ad ID:</td><td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;">${params.adId || 'N/A'}</td></tr>
   </table>
   ${params.bannerUrl ? `<div style="text-align:center;margin-bottom:20px;"><img src="${params.bannerUrl}" alt="Ad Banner" style="max-width:100%;border-radius:8px;border:1px solid #E5E7EB;" /></div>` : ''}
-  <div style="text-align:center;">
-    <a href="${dashboardUrl}" style="display:inline-block;background:#1B3A6B;color:#fff;padding:12px 32px;border-radius:8px;text-decoration:none;font-weight:600;">Review in Dashboard</a>
+  <div style="text-align:center;display:flex;justify-content:center;gap:10px;flex-wrap:wrap;">
+    <a href="${approveUrl}" style="display:inline-block;background:#16A34A;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:700;">Approve Ad</a>
+    <a href="${rejectUrl}" style="display:inline-block;background:#DC2626;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:700;">Reject Ad</a>
+    <a href="${dashboardUrl}" style="display:inline-block;background:#1B3A6B;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">Open Dashboard</a>
   </div>
   <p style="text-align:center;color:#9CA3AF;font-size:13px;margin-top:24px;">&copy; ${new Date().getFullYear()} Lime Productions. All rights reserved.</p>
 </div>`;
@@ -1431,8 +1459,6 @@ export async function sendWelcomeEmail(_to: string, _name?: string): Promise<boo
 // League / Coach Approval Emails (SendGrid templates only)
 // =====================================================
 
-const API_BASE_URL = (process.env.API_BASE_URL || 'https://api-production-8ac3.up.railway.app').replace(/\/$/, '');
-
 /**
  * Notify super admin that a new league was created and needs approval.
  * Uses SendGrid LEAGUE_PENDING_APPROVAL template.
@@ -1446,6 +1472,7 @@ export async function sendLeagueApprovalRequestEmail(params: {
   orgType?: string;
   approveToken: string;
   rejectToken: string;
+  supportingDocumentUrl?: string;
 }): Promise<boolean> {
   const approveUrl = `${API_BASE_URL}/organizations/${params.leagueId}/approve?token=${params.approveToken}`;
   const rejectUrl = `${API_BASE_URL}/organizations/${params.leagueId}/reject?token=${params.rejectToken}`;
@@ -1468,6 +1495,8 @@ export async function sendLeagueApprovalRequestEmail(params: {
       created_date: new Date().toLocaleDateString(),
       approve_url: approveUrl,
       reject_url: rejectUrl,
+      supporting_document_url: params.supportingDocumentUrl || '',
+      supporting_document_link: params.supportingDocumentUrl || '',
     },
     `League approval request sent to ${to}`
   );
@@ -1485,6 +1514,7 @@ export async function sendLeagueApprovalRequestEmail(params: {
         `Type: ${params.orgType || 'Not specified'}`,
         `Sport: ${params.sport || 'Not specified'}`,
         `Submitted: ${new Date().toLocaleDateString()}`,
+        params.supportingDocumentUrl ? `Supporting document: ${params.supportingDocumentUrl}` : '',
         ``,
         `APPROVE: ${approveUrl}`,
         ``,

@@ -400,6 +400,7 @@ organizationsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res
       orgType: data.org_type,
       approveToken,
       rejectToken,
+      supportingDocumentUrl: data.supporting_document_url,
     }).then((sent) => {
       if (!sent) {
         console.warn('[organizations] League approval request email reported unsent (/). Check mail provider config.');
@@ -508,6 +509,7 @@ organizationsRouter.post('/create', requireAuth as any, async (req: AuthedReques
       orgType: data.org_type,
       approveToken,
       rejectToken,
+      supportingDocumentUrl: data.supporting_document_url,
     }).then((sent) => {
       if (!sent) {
         console.warn('[organizations] League approval request email reported unsent (/create). Check mail provider config.');
