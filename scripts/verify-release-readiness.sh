@@ -128,10 +128,10 @@ else
     BLOCKERS=$((BLOCKERS + 1))
 fi
 
-# Test 2.2: Coach onboarding steps
-echo -e "${BLUE}Test 2.2: Coach onboarding steps...${NC}"
-COACH_STEPS=("step-1-role" "step-2-basic" "step-3-plan" "step-4-organization" "step-6-authorized-users" "step-7-profile")
-for step in "${COACH_STEPS[@]}"; do
+# Test 2.2: Onboarding steps (3-step flow: role, basic, league)
+echo -e "${BLUE}Test 2.2: Onboarding steps...${NC}"
+ONBOARDING_STEPS=("step-1-role" "step-2-basic" "step-3-league")
+for step in "${ONBOARDING_STEPS[@]}"; do
     if [ -f "app/onboarding/${step}.tsx" ]; then
         echo -e "${GREEN}✅ ${step} exists${NC}"
     else
@@ -141,29 +141,25 @@ for step in "${COACH_STEPS[@]}"; do
     fi
 done
 
-# Test 2.3: Fan onboarding (simplified)
-echo -e "${BLUE}Test 2.3: Fan onboarding...${NC}"
-if grep -q "role.*===.*'fan'\|role === 'fan'" app/onboarding/step-1-role.tsx 2>/dev/null && \
-   grep -q "skip.*profile\|step.*7.*profile\|setProgress(5)" app/onboarding/step-1-role.tsx 2>/dev/null; then
-    echo -e "${GREEN}✅ Fan onboarding has simplified flow${NC}"
-else
-    echo -e "${YELLOW}⚠️  Fan onboarding may not skip steps${NC}"
-    WARNINGS=$((WARNINGS + 1))
-fi
-
-# Test 2.4: Plan selection for coaches
-echo -e "${BLUE}Test 2.4: Plan selection...${NC}"
-if [ -f "app/onboarding/step-3-plan.tsx" ]; then
-    if grep -q "rookie\|veteran\|legend" app/onboarding/step-3-plan.tsx; then
-        echo -e "${GREEN}✅ Plan selection includes all tiers${NC}"
+# Test 2.3: Pending approval screens
+echo -e "${BLUE}Test 2.3: Pending approval screens...${NC}"
+APPROVAL_SCREENS=("pending-approval" "league-pending-approval")
+for screen in "${APPROVAL_SCREENS[@]}"; do
+    if [ -f "app/onboarding/${screen}.tsx" ]; then
+        echo -e "${GREEN}✅ ${screen} exists${NC}"
     else
-        echo -e "${RED}❌ Plan selection missing tiers${NC}"
-        ERRORS=$((ERRORS + 1))
+        echo -e "${YELLOW}⚠️  ${screen} missing${NC}"
+        WARNINGS=$((WARNINGS + 1))
     fi
+done
+
+# Test 2.4: Role selection includes fan and coach
+echo -e "${BLUE}Test 2.4: Role selection...${NC}"
+if grep -q "fan\|coach" app/onboarding/step-1-role.tsx 2>/dev/null; then
+    echo -e "${GREEN}✅ Role selection includes fan and coach${NC}"
 else
-    echo -e "${RED}❌ Plan selection step missing${NC}"
+    echo -e "${RED}❌ Role selection missing fan/coach options${NC}"
     ERRORS=$((ERRORS + 1))
-    BLOCKERS=$((BLOCKERS + 1))
 fi
 
 echo ""

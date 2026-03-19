@@ -190,7 +190,7 @@ export default function OrganizationScreen() {
     } finally {
       if (mounted.current) setLoading(false);
     }
-  }, [params.id]);
+  }, [params.id, user]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);

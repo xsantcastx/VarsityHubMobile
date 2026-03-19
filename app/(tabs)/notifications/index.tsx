@@ -27,7 +27,7 @@ type Notif = {
 };
 
 export default function NotificationsScreen() {
-  const { user } = useAuth();
+  const { user: _user } = useAuth();
   const router = useRouter();
   const colorScheme = useColorScheme();
   const insets = useSafeAreaInsets();

@@ -176,7 +176,7 @@ export default function PaymentSuccessScreen() {
             <Pressable
               style={styles.linkBtn}
               onPress={() => {
-                Linking.openURL('mailto:support@varsityhub.app?subject=Payment%20Verification%20Issue');
+                void Linking.openURL('mailto:support@varsityhub.app?subject=Payment%20Verification%20Issue');
               }}
             >
               <Text style={[styles.linkBtnText, { color: theme.tint }]}>Contact Support</Text>

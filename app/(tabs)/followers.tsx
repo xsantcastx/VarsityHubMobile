@@ -14,7 +14,7 @@ import SwipeBackContainer from '@/components/SwipeBackContainer';
 import { safeGoBack } from '@/utils/navigation';
 
 export default function FollowersScreen() {
-  const { user } = useAuth();
+  const { user: _user } = useAuth();
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const { id, username } = useLocalSearchParams<{ id: string; username?: string }>();

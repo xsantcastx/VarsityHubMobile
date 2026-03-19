@@ -76,7 +76,7 @@ const deriveTeamLabels = (game: GameItem): { teamA: string; teamB: string } => {
 };
 
 export default function CommunityDiscoverScreen() {
-  const { user } = useAuth();
+  const { user: _user } = useAuth();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';

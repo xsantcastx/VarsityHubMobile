@@ -66,7 +66,7 @@ export default function ManageTeamsSimpleScreen() {
       setError('Unable to load teams. Please try again.');
       setTeams([]);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     void loadTeams().finally(() => setLoading(false)).catch((e) => { if (__DEV__) console.warn('[ManageTeams] load error:', e); });

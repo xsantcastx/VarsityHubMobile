@@ -25,7 +25,7 @@ const ORG_TYPES = [
 const AUTO_DESC_PATTERN = /^(School|Organization)( in .+)?$/;
 
 export default function EditOrganizationScreen() {
-  const { user } = useAuth();
+  const { user: _user } = useAuth();
   const router = useRouter();
   const params = useLocalSearchParams<{ id?: string }>();
   const colorScheme = useColorScheme() ?? 'light';

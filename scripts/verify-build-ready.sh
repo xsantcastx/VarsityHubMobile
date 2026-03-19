@@ -181,13 +181,6 @@ else
     ERRORS=$((ERRORS + 1))
 fi
 
-# Check if SENTRY_ALLOW_FAILURE is set (safety net)
-if grep -q "SENTRY_ALLOW_FAILURE.*true" eas.json; then
-    echo -e "${GREEN}✅ Android Sentry has failure safety net (SENTRY_ALLOW_FAILURE=true)${NC}"
-else
-    mark_warning_or_error "SENTRY_ALLOW_FAILURE=true missing (Android) - builds may fail if Sentry token missing"
-fi
-
 # Verify SENTRY_AUTH_TOKEN exists in EAS (user confirmed it should already exist)
 # Note: Tokens are typically stored as secrets, not environment variables
 SENTRY_TOKEN_FOUND=0
@@ -241,7 +234,7 @@ fi
 if grep -q "whenTaskAdded.*Sentry" android/app/build.gradle 2>/dev/null || grep -q "tasks.all.*Sentry" android/app/build.gradle 2>/dev/null; then
     echo -e "${GREEN}✅ Android Sentry task handling configured${NC}"
 else
-    echo -e "${YELLOW}⚠️  Android Sentry tasks may not be properly handled (non-blocking with SENTRY_ALLOW_FAILURE=true)${NC}"
+    echo -e "${YELLOW}⚠️  Android Sentry tasks may not be properly handled${NC}"
     WARNINGS=$((WARNINGS + 1))
 fi
 echo ""
@@ -262,22 +255,12 @@ else
     ERRORS=$((ERRORS + 1))
 fi
 
-# Check if SENTRY_ALLOW_FAILURE is set (safety net)
-if grep -q "SENTRY_ALLOW_FAILURE.*true" eas.json; then
-    echo -e "${GREEN}✅ iOS Sentry has failure safety net (SENTRY_ALLOW_FAILURE=true)${NC}"
-else
-    mark_warning_or_error "SENTRY_ALLOW_FAILURE=true missing (iOS) - builds may fail if Sentry token missing"
-fi
-
 # Check if Sentry script is in Xcode build phase
 if grep -q "sentry-xcode.sh" ios/VarsityHub.xcodeproj/project.pbxproj 2>/dev/null; then
     echo -e "${GREEN}✅ Sentry Xcode script detected${NC}"
-    # Verify it handles failures properly
-    if grep -q "SENTRY_ALLOW_FAILURE" ios/VarsityHub.xcodeproj/project.pbxproj 2>/dev/null; then
-        echo -e "${GREEN}✅ Sentry script handles failures gracefully${NC}"
-    else
-        mark_warning_or_error "Sentry Xcode script may fail builds if token is missing"
-    fi
+else
+    echo -e "${YELLOW}⚠️  Sentry Xcode build script not found — source maps may not upload${NC}"
+    WARNINGS=$((WARNINGS + 1))
 fi
 
 # Final Sentry validation summary

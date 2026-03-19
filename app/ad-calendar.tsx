@@ -123,7 +123,7 @@ export default function AdCalendarScreen() {
   }, [selected, setDirty]);
 
   const [submitting, setSubmitting] = useState(false);
-  const [reserved, setReserved] = useState<Set<string>>(new Set());
+  const [_reserved, setReserved] = useState<Set<string>>(new Set());
   const [fullDates, setFullDates] = useState<Set<string>>(new Set()); // Dates with 2/2 slots filled
   const [_dateAvailability, setDateAvailability] = useState<Record<string, { slotsUsed: number; slotsRemaining: number }>>({});
   const [promo, setPromo] = useState('');
