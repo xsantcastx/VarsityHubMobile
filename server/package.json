@@ -28,7 +28,8 @@
     "verify:coach-approval": "tsx scripts/verify-coach-approval.ts",
     "audit:prod": "npm audit --omit=dev",
     "load:smoke": "tsx scripts/load/p0-load-smoke.ts",
-    "load:validate-lock": "tsx scripts/load/validate-distributed-lock.ts"
+    "load:validate-lock": "tsx scripts/load/validate-distributed-lock.ts",
+    "lint": "expo lint"
   },
   "dependencies": {
     "@googlemaps/google-maps-services-js": "^3.4.2",

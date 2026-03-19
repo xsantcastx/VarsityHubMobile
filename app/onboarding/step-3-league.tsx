@@ -4,6 +4,7 @@ import { Colors } from '@/constants/Colors';
 import { Type } from '@/ui/tokens';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useColorScheme, View } from 'react-native';
@@ -53,6 +54,7 @@ export default function Step3League() {
   const dupCheckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [supportingDocumentUri, setSupportingDocumentUri] = useState<string | null>(null);
   const [supportingDocumentUrl, setSupportingDocumentUrl] = useState<string | null>(null);
+  const [supportingDocumentName, setSupportingDocumentName] = useState<string | null>(null);
   const [_uploadingDocument, setUploadingDocument] = useState(false);
 
   const styles = useMemo(() => createStyles(colorScheme), [colorScheme]);
@@ -397,7 +399,10 @@ export default function Step3League() {
       if (!docUrl && supportingDocumentUri) {
         setUploadingDocument(true);
         try {
-          const result = await uploadFile(getApiBaseUrl(), supportingDocumentUri, 'supporting-doc.jpg', 'image/jpeg');
+          const isPdf = supportingDocumentName?.toLowerCase().endsWith('.pdf');
+          const fileName = supportingDocumentName || 'supporting-doc.jpg';
+          const mimeType = isPdf ? 'application/pdf' : 'image/jpeg';
+          const result = await uploadFile(getApiBaseUrl(), supportingDocumentUri, fileName, mimeType);
           docUrl = result?.url || result?.secure_url || result?.path || (typeof result === 'string' ? result : null);
           if (docUrl) setSupportingDocumentUrl(docUrl);
         } catch (uploadErr: any) {
@@ -620,30 +625,59 @@ export default function Step3League() {
                 styles.selectField,
                 { borderColor: isDark ? '#374151' : '#E2E8F0', backgroundColor: isDark ? '#1F2937' : '#F9FAFB', minHeight: 80, paddingVertical: 12 }
               ]}
-              onPress={async () => {
-                const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-                if (status !== 'granted') {
-                  Alert.alert('Permission Needed', 'Please allow access to your photos to upload a supporting document.');
-                  return;
-                }
-                const result = await ImagePicker.launchImageLibraryAsync({
-                  mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                  allowsEditing: false,
-                  quality: 0.9,
-                });
-                if (!result.canceled && result.assets?.[0]?.uri) {
-                  setSupportingDocumentUri(result.assets[0].uri);
-                  setSupportingDocumentUrl(null);
-                }
+              onPress={() => {
+                Alert.alert('Upload Document', 'Choose a source for your supporting document', [
+                  {
+                    text: 'Photo Library',
+                    onPress: async () => {
+                      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                      if (status !== 'granted') {
+                        Alert.alert('Permission Needed', 'Please allow access to your photos to upload a supporting document.');
+                        return;
+                      }
+                      const result = await ImagePicker.launchImageLibraryAsync({
+                        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                        allowsEditing: false,
+                        quality: 0.9,
+                      });
+                      if (!result.canceled && result.assets?.[0]?.uri) {
+                        setSupportingDocumentUri(result.assets[0].uri);
+                        setSupportingDocumentUrl(null);
+                        setSupportingDocumentName(null);
+                      }
+                    },
+                  },
+                  {
+                    text: 'Choose File',
+                    onPress: async () => {
+                      const result = await DocumentPicker.getDocumentAsync({
+                        type: ['application/pdf', 'image/*'],
+                        copyToCacheDirectory: true,
+                      });
+                      if (!result.canceled && result.assets?.[0]?.uri) {
+                        setSupportingDocumentUri(result.assets[0].uri);
+                        setSupportingDocumentUrl(null);
+                        setSupportingDocumentName(result.assets[0].name || 'Document');
+                      }
+                    },
+                  },
+                  { text: 'Cancel', style: 'cancel' },
+                ]);
               }}
               accessibilityRole="button"
               accessibilityLabel="Upload supporting document"
             >
               {supportingDocumentUri ? (
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                  <Image source={{ uri: supportingDocumentUri }} style={{ width: 48, height: 48, borderRadius: 8 }} />
-                  <Text style={[styles.selectFieldText, { flex: 1 }]}>Document selected</Text>
-                  <Pressable onPress={() => { setSupportingDocumentUri(null); setSupportingDocumentUrl(null); }} hitSlop={8}>
+                  {supportingDocumentName && supportingDocumentName.toLowerCase().endsWith('.pdf') ? (
+                    <View style={{ width: 48, height: 48, borderRadius: 8, backgroundColor: isDark ? '#374151' : '#E5E7EB', alignItems: 'center', justifyContent: 'center' }}>
+                      <MaterialIcons name="picture-as-pdf" size={28} color={isDark ? '#F87171' : '#DC2626'} />
+                    </View>
+                  ) : (
+                    <Image source={{ uri: supportingDocumentUri }} style={{ width: 48, height: 48, borderRadius: 8 }} />
+                  )}
+                  <Text style={[styles.selectFieldText, { flex: 1 }]}>{supportingDocumentName || 'Document selected'}</Text>
+                  <Pressable onPress={() => { setSupportingDocumentUri(null); setSupportingDocumentUrl(null); setSupportingDocumentName(null); }} hitSlop={8}>
                     <MaterialIcons name="close" size={20} color={isDark ? '#9CA3AF' : '#6B7280'} />
                   </Pressable>
                 </View>
@@ -762,11 +796,13 @@ export default function Step3League() {
         {!showSearch && (
           <>
             <Text style={styles.label}>Location</Text>
-            <LocationPicker
-              value={location}
-              onLocationSelect={handleLocationSelect}
-              placeholder="Start typing an address, school, or city"
-            />
+            <View style={{ zIndex: 10, overflow: 'visible' }}>
+              <LocationPicker
+                value={location}
+                onLocationSelect={handleLocationSelect}
+                placeholder="Start typing an address, school, or city"
+              />
+            </View>
             {duplicateOrg && (
               <View style={styles.duplicateWarningBox}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>

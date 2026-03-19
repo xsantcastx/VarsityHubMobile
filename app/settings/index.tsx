@@ -79,7 +79,7 @@ function SwitchRow({ title, subtitle, value, onValueChange, isLast }: { title: s
   const cs = useColorScheme();
   const palette = Colors[cs ?? 'light'];
   return (
-    <View style={[styles.rowBetween, !isLast && { borderBottomWidth: 1, borderBottomColor: '#D1D5DB' }]}>
+    <View style={[styles.rowBetween, !isLast && { borderBottomWidth: 1, borderBottomColor: palette.border }]}>
       <View style={{ flex: 1 }}>
         <Text style={[styles.rowTitle, { color: palette.text }]}>{title}</Text>
         {subtitle && <Text style={[styles.mutedSmall, { color: palette.mutedText }]}>{subtitle}</Text>}

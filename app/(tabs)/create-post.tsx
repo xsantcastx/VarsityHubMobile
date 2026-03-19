@@ -638,11 +638,6 @@ export default function CreatePostScreen() {
       if (__DEV__) console.warn('[CreatePost] selectedGameId:', selectedGameId, '| isSample:', isSelectedSample);
 
       if (selectedGameId) {
-        if (isSelectedSample) {
-          setError('This is a sample game. Create a real game first to post here.');
-          setSubmitting(false);
-          return;
-        }
         payload.game_id = selectedGameId;
       }
       
@@ -1122,7 +1117,7 @@ export default function CreatePostScreen() {
             </Pressable>
           </View>
 
-          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }}>
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, flexGrow: 1, justifyContent: 'center' }}>
             {/* Preview Card - Shows how post will look in feed */}
             <View style={[styles.previewCard, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
               <Text style={[styles.previewLabel, { color: Colors[colorScheme].mutedText }]}>

@@ -223,11 +223,11 @@ export default function VerifyScreen() {
       <View style={styles.codeSection}>
         <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Verification Code</Text>
         <Input
-          placeholder="Enter code"
+          placeholder="Enter 6-digit code"
           value={code}
-          onChangeText={(t: string) => setCode(t.toUpperCase())}
-          autoCapitalize="characters"
-          maxLength={8}
+          onChangeText={(t: string) => setCode(t.replace(/[^0-9]/g, ''))}
+          keyboardType="number-pad"
+          maxLength={6}
           style={styles.codeInput}
         />
       </View>
@@ -239,7 +239,7 @@ export default function VerifyScreen() {
       ) : (
         <Button
           onPress={onVerify}
-          disabled={loading || code.trim().length < 4}
+          disabled={loading || code.trim().length < 6}
           style={styles.verifyButton}
         >
           {loading ? <ActivityIndicator color="#fff" /> : 'Verify Email'}

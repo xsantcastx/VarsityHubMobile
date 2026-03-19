@@ -20,6 +20,9 @@ export { Card, CardContent, CardFooter, CardHeader } from './card';
 export type { CardProps } from './card';
 
 // Layout Components
+export { Divider } from './Divider';
+export type { DividerProps } from './Divider';
+
 export { SectionHeader } from './SectionHeader';
 export type { SectionHeaderProps } from './SectionHeader';
 

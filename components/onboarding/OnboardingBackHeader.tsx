@@ -1,8 +1,10 @@
+import { Colors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRouter } from 'expo-router';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { safeGoBack } from '@/utils/navigation';
 
 type Props = {
@@ -15,6 +17,8 @@ type Props = {
 export function OnboardingBackHeader({ title, subtitle, onBack, rightSlot }: Props) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const colorScheme = useColorScheme() ?? 'light';
+  const borderColor = Colors[colorScheme].border;
   const handleBack = () => {
     if (onBack) {
       onBack();
@@ -24,7 +28,10 @@ export function OnboardingBackHeader({ title, subtitle, onBack, rightSlot }: Pro
   };
 
   return (
-    <SafeAreaView edges={['top', 'left', 'right']} style={[styles.safeArea, { paddingTop: Math.max(insets.top, 16) }]}>
+    <SafeAreaView
+      edges={['top', 'left', 'right']}
+      style={[styles.safeArea, { paddingTop: Math.max(insets.top, 16), borderBottomColor: borderColor }]}
+    >
       <View style={styles.headerRow}>
         <Pressable accessibilityRole="button" onPress={handleBack} style={styles.backButton}>
           <MaterialIcons name="chevron-left" size={24} color="#111827" />
@@ -45,7 +52,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#D1D5DB',
   },
   headerRow: {
     flexDirection: 'row',

@@ -3,6 +3,8 @@ import { Button, Text, View } from 'react-native';
 import { captureException } from '@/utils/sentry';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Updates from 'expo-updates';
 
 export default function GlobalError({ error, retry }: ErrorBoundaryProps) {
   const colorScheme = useColorScheme() ?? 'light';
@@ -16,6 +18,16 @@ export default function GlobalError({ error, retry }: ErrorBoundaryProps) {
     });
   }
 
+  const handleSignOutAndRestart = async () => {
+    try {
+      await AsyncStorage.clear();
+      await Updates.reloadAsync();
+    } catch {
+      // If Updates.reloadAsync fails (e.g. in dev), retry as fallback
+      retry();
+    }
+  };
+
   return (
     <View style={{ flex: 1, padding: 16, justifyContent: 'center', gap: 12, backgroundColor: colors.background }}>
       <Text style={{ fontSize: 18, fontWeight: 'bold', color: colors.text }}>Something went wrong</Text>
@@ -23,7 +35,8 @@ export default function GlobalError({ error, retry }: ErrorBoundaryProps) {
         <Text selectable style={{ color: colors.mutedText }}>{String(error?.message ?? error)}</Text>
       ) : null}
       <Text style={{ color: colors.mutedText }}>Please restart the app or try again.</Text>
-      <Button title="Try again" onPress={retry} />
+      <Button title="Try Again" onPress={retry} />
+      <Button title="Sign Out & Restart" onPress={handleSignOutAndRestart} color={colors.destructive} />
     </View>
   );
 }

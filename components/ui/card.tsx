@@ -1,10 +1,11 @@
 import { Colors } from '@/constants/Colors';
-import { radius, shadows, spacing } from '@/constants/Theme';
+import { borderWidth, radius, shadows, spacing } from '@/constants/Theme';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Pressable, StyleSheet, View, ViewProps } from 'react-native';
 
 export interface CardProps extends ViewProps {
-  variant?: 'default' | 'elevated' | 'outlined';
+  /** default: no border (flat). outlined: 1px border. strong: 2px border for major workflow/section boundaries. elevated: shadow only. */
+  variant?: 'default' | 'elevated' | 'outlined' | 'strong';
   pressable?: boolean;
   onPress?: () => void;
   padding?: keyof typeof spacing;
@@ -26,15 +27,19 @@ export function Card({
   
   const Wrapper = pressable ? Pressable : View;
   
+  const borderStyle =
+    variant === 'default' ? { borderWidth: 0 } :
+    variant === 'strong' ? { borderWidth: borderWidth.medium, borderColor: Colors[colorScheme].border } :
+    { borderWidth: borderWidth.thin, borderColor: Colors[colorScheme].border };
+
   const cardStyle = [
     styles.card,
     {
       backgroundColor: Colors[colorScheme].surface,
-      borderColor: Colors[colorScheme].border,
       padding: spacing[padding],
+      ...borderStyle,
     },
     variant === 'elevated' && shadows.md,
-    variant === 'default' && { borderWidth: 0 },
     style
   ];
   
@@ -82,7 +87,6 @@ export function CardFooter({ style, ...props }: ViewProps) {
 const styles = StyleSheet.create({
   card: {
     borderRadius: radius.md,
-    borderWidth: 1,
     overflow: 'hidden',
   },
   section: { 

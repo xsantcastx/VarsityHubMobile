@@ -472,7 +472,7 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
         onRequestClose={() => setEditModalVisible(false)}
       >
         <View style={[styles.editModal, { backgroundColor: theme.background }]}>
-          <View style={[styles.editHeader, { borderBottomColor: theme.border }]}>
+          <View style={[styles.editHeader, { borderBottomWidth: 1, borderBottomColor: theme.border }]}>
             <Pressable onPress={() => setEditModalVisible(false)} accessibilityRole="button" accessibilityLabel="Cancel editing">
               <Text style={[styles.cancelButton, { color: theme.mutedText }]}>Cancel</Text>
             </Pressable>
@@ -570,7 +570,7 @@ const styles = StyleSheet.create({
   
   // Edit modal styles
   editModal: { flex: 1, backgroundColor: 'white' },
-  editHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#D1D5DB' },
+  editHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 },
   editTitle: { fontSize: 18, fontWeight: '700', color: '#111827' },
   cancelButton: { fontSize: 16, color: '#6B7280' },
   saveButton: { fontSize: 16, fontWeight: '600', color: '#2563EB' },

@@ -10,6 +10,7 @@ import { requireVerified } from '../middleware/requireVerified.js';
 import { debugLog } from '../lib/debugLog.js';
 import { adCreationLimiter, alternativeZipsLimiter } from '../middleware/rateLimiters.js';
 import { sendAdApprovedEmail, sendAdPendingReviewEmail, sendAdRejectedEmail } from '../lib/email.js';
+import { sendPushNotification } from '../lib/notifications.js';
 import { z } from 'zod';
 
 const adCreateSchema = z.object({
@@ -790,6 +791,25 @@ adsRouter.post('/:id([a-z0-9]{15,50})/approve', requireAdmin as any, async (req:
         businessName: ad.business_name || undefined,
       }).catch((err) => console.warn('[ads] approve email failed:', (err as any)?.message || err));
     }
+
+    // Send push notification and create in-app notification
+    if (ad.user_id) {
+      sendPushNotification(
+        ad.user_id,
+        'Ad Approved!',
+        `Your ad for "${ad.business_name || 'your business'}" has been approved. Tap to complete payment.`,
+        { type: 'AD_APPROVED', ad_id: id }
+      ).catch(() => {});
+
+      prisma.notification.create({
+        data: {
+          user_id: ad.user_id,
+          type: 'AD_APPROVED',
+          meta: { ad_id: id, business_name: ad.business_name },
+        }
+      }).catch(() => {});
+    }
+
     return res.json(updated);
   } catch (err) {
     console.error('[ads] POST /:id/approve error:', err);

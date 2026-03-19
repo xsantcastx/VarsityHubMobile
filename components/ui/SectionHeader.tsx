@@ -8,6 +8,8 @@ export interface SectionHeaderProps {
   title: string;
   subtitle?: string;
   action?: React.ReactNode;
+  /** Show a bottom border to clearly separate this section from content below (default: true for strong workflow boundaries) */
+  showBorder?: boolean;
   style?: ViewStyle;
 }
 
@@ -26,12 +28,19 @@ export function SectionHeader({
   title, 
   subtitle, 
   action, 
+  showBorder = true,
   style 
 }: SectionHeaderProps) {
   const colorScheme = useColorScheme() ?? 'light';
 
   return (
-    <View style={[styles.container, style]}>
+    <View
+      style={[
+        styles.container,
+        showBorder && { borderBottomWidth: 1, borderBottomColor: Colors[colorScheme].border },
+        style,
+      ]}
+    >
       <View style={styles.textContainer}>
         <Text 
           style={[

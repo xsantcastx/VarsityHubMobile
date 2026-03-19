@@ -105,6 +105,7 @@ export const shadows = {
   },
 } as const;
 
+/** Use for consistent workflow boundaries: thin = list/section dividers, medium = major section/card boundaries */
 export const borderWidth = {
   thin: 1,
   medium: 2,
