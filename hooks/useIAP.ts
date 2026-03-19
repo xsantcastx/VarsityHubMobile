@@ -2,7 +2,7 @@
  * useVHubIAP — Wraps react-native-iap's useIAP hook for VarsityHub subscriptions.
  *
  * Handles product fetching, purchasing, and server-side receipt validation
- * for veteran_vhub and Legend_vhub IAP products on iOS and Android.
+ * for MIDTIER and TOPTIER IAP products on iOS and Android.
  */
 
 import { useEffect, useCallback, useState, useRef } from 'react';
@@ -145,6 +145,42 @@ export function useVHubIAP() {
       setError(err instanceof Error ? err.message : 'Failed to load subscription products');
     });
   }, [connected, fetchProducts]);
+
+  // Recover pending/unacknowledged purchases on startup (prevents stuck purchases after crash)
+  const pendingRecoveryDone = useRef(false);
+  useEffect(() => {
+    if (isExpoGo || (!isIOS && !isAndroid) || !connected || pendingRecoveryDone.current) return;
+    pendingRecoveryDone.current = true;
+    (async () => {
+      try {
+        const purchases = await getAvailablePurchasesFn({ onlyIncludeActiveItemsIOS: true });
+        const pending = Array.isArray(purchases) ? purchases.filter((p: any) =>
+          PLAN_SKUS.veteran.includes(p.productId ?? '') || PLAN_SKUS.legend.includes(p.productId ?? '')
+        ) : [];
+        for (const p of pending) {
+          try {
+            if (isIOS) {
+              let receipt: string | undefined;
+              try { receipt = await getReceiptIOS(); } catch { receipt = (p as any).transactionReceipt; }
+              if (receipt) await httpPost('/payments/apple/verify-receipt', { receipt, productId: p.productId });
+            } else if (isAndroid && (p as any).purchaseToken) {
+              await httpPost('/payments/google/verify-purchase', {
+                purchase_token: (p as any).purchaseToken,
+                product_id: p.productId,
+                package_name: (p as any).packageNameAndroid || 'com.varsityhub.varsityhub',
+              });
+            }
+            await finishTransaction({ purchase: p, isConsumable: false }).catch(() => {});
+          } catch (e) {
+            if (__DEV__) console.warn('[useVHubIAP] Pending purchase recovery failed for', p.productId, e);
+          }
+        }
+        if (pending.length && __DEV__) console.log(`[useVHubIAP] Recovered ${pending.length} pending purchase(s)`);
+      } catch (err) {
+        if (__DEV__) console.warn('[useVHubIAP] Pending purchase scan failed:', err);
+      }
+    })();
+  }, [connected, finishTransaction]);
 
   const purchase = useCallback(
     async (plan: 'veteran' | 'legend'): Promise<boolean> => {
