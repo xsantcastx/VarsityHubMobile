@@ -145,12 +145,15 @@ export default function SubscriptionPaywallScreen() {
       });
 
       if (data?.paymentIntent && typeof data.paymentIntent === 'string') {
+        const isIOS = Platform.OS === 'ios';
         const { error: initError } = await initPaymentSheet({
           paymentIntentClientSecret: data.paymentIntent,
           customerEphemeralKeySecret: data.ephemeralKey,
           customerId: data.customer,
           merchantDisplayName: 'Varsity Hub',
-          paymentMethodOrder: ['card'],
+          applePay: isIOS ? { merchantCountryCode: 'US' } : undefined,
+          googlePay: !isIOS ? { merchantCountryCode: 'US', testEnv: __DEV__ } : undefined,
+          paymentMethodOrder: ['apple_pay', 'google_pay', 'card'],
         });
         if (initError) {
           Alert.alert('Error', initError.message);

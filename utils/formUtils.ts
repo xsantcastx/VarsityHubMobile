@@ -51,7 +51,8 @@ export interface ValidationResult {
  */
 export function validateEmail(email: string): ValidationResult {
   if (!email) return { valid: false, error: 'Email is required' };
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  // Stricter regex aligned with backend Zod z.string().email() (RFC 5322 subset)
+  const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
   if (!emailRegex.test(email)) {
     return { valid: false, error: 'Please enter a valid email address' };
   }

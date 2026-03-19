@@ -523,7 +523,7 @@ export default function AdCalendarScreen() {
       }
 
       if (data?.paymentIntent) {
-        // Android: Stripe PaymentSheet
+        // Android: Stripe PaymentSheet with Google Pay
         let initError: any = null;
         const { error: err1 } = await initPaymentSheet({
           paymentIntentClientSecret: data.paymentIntent,
@@ -531,6 +531,7 @@ export default function AdCalendarScreen() {
           customerId: data.customer,
           merchantDisplayName: 'Varsity Hub',
           googlePay: { merchantCountryCode: 'US', testEnv: __DEV__ },
+          paymentMethodOrder: ['google_pay', 'card'],
           allowsDelayedPaymentMethods: false,
         });
         initError = err1;

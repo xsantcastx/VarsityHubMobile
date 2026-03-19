@@ -24,14 +24,14 @@ const CUSTOMER_SERVICE_EMAIL = process.env.CUSTOMER_SERVICE_EMAIL || 'support@va
 // Common template data (social links, privacy policy, etc.) added to all emails
 const getCommonTemplateData = () => ({
   logo_url: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765655742/6C37232F-74BC-4486-95A1-7EE208A63D06_aj2j8k.png',
-  privacy_policy_url: 'https://limeprod.com/VarsityHubPrivacy',
-  community_guidelines_url: 'https://limeprod.com/VarsityHubPrivacy',
+  privacy_policy_url: 'https://varsityhub.app/privacy',
+  community_guidelines_url: 'https://varsityhub.app/privacy',
   instagram_url: 'https://www.instagram.com/varsityhub_?igsh=cGQ1ZDM2NzVxNm13',
   tiktok_url: 'https://www.tiktok.com/@varsity.hub?_r=1&_t=ZT-92J1z0MRGpi',
   youtube_url: 'https://youtube.com/@varsityhub?si=XTvXQD0P7GAeo9n-',
   facebook_url: 'https://www.facebook.com/share/17t7MJa9vx/?mibextid=wwXIfr',
   x_url: 'https://x.com/varsityhub00',
-  website_url: 'https://limeprod.com',
+  website_url: 'https://varsityhub.app',
   customer_service_email: CUSTOMER_SERVICE_EMAIL,
 });
 
@@ -194,8 +194,17 @@ export async function initEmailService() {
   // Also check for missing templates (legacy check)
   const missing = getMissingEmailTemplates();
   if (missing.length) {
-    console.error(`[email] ⛔ ${missing.length} SendGrid template IDs missing: ${missing.join(', ')}`);
+    console.error(`[email] ⛔ ${missing.length} critical SendGrid template IDs missing: ${missing.join(', ')}`);
+    if (process.env.NODE_ENV === 'production') {
+      console.error('[email] FATAL: Critical email templates must be configured in production. Set them in Railway environment variables.');
+      process.exit(1);
+    }
     console.error('[email] Emails using these templates will silently fail. Set them in Railway environment variables.');
+  }
+
+  const missingRecommended = getMissingRecommendedTemplates();
+  if (missingRecommended.length) {
+    console.warn(`[email] ⚠️  ${missingRecommended.length} recommended SendGrid template IDs missing: ${missingRecommended.join(', ')}`);
   }
 
   return result;
@@ -360,8 +369,8 @@ export async function sendAdPendingReviewEmail(params: {
     `Review this ad in the admin dashboard.`,
   ].filter(Boolean).join('\n');
 
-  // Try template first
-  const templateId = TEMPLATE_IDS.AD_PENDING_REVIEW;
+  // Try ad-specific template first, then fall back to league approval template (same layout)
+  const templateId = TEMPLATE_IDS.AD_PENDING_REVIEW || TEMPLATE_IDS.LEAGUE_PENDING_APPROVAL;
   if (templateId) {
     const sent = await sendTemplateEmail(
       templateId,
@@ -369,19 +378,27 @@ export async function sendAdPendingReviewEmail(params: {
       subject,
       {
         ...getCommonTemplateData(),
+        // Ad-specific fields
         business_name: params.businessName || 'N/A',
         contact_name: params.contactName || 'N/A',
         contact_email: params.contactEmail || 'N/A',
         zip_code: params.zipCode || 'N/A',
         banner_url: params.bannerUrl || '',
         ad_id: params.adId || '',
+        // Map to league template fields so it renders in either template
+        league_name: params.businessName || 'N/A',
+        owner_name: params.contactName || 'N/A',
+        owner_email: params.contactEmail || 'N/A',
+        sport: `Ad • ZIP ${params.zipCode || 'N/A'}`,
+        org_type: 'advertisement',
+        created_date: new Date().toLocaleDateString(),
       },
       `Ad pending review email sent to ${adminTo}`
     );
     if (sent) return true;
     console.error('[email] Ad pending review template email failed, falling back to plain text');
   } else {
-    console.warn('[email] AD_PENDING_REVIEW template ID not configured, using plain-text fallback');
+    console.warn('[email] No review template configured, using plain-text fallback');
   }
 
   // Plain-text fallback via EmailService

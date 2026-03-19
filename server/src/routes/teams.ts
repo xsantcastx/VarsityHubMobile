@@ -699,16 +699,27 @@ teamsRouter.delete('/:id', requireVerified as any, requireOnboarded as any, asyn
   }
   
   try {
-    // Delete all related data first (cascade delete)
+    // Cascade delete: remove all related data, then the team itself
     await prisma.$transaction([
       // Delete team memberships
       prisma.teamMembership.deleteMany({ where: { team_id: teamId } }),
       // Delete team invites
       prisma.teamInvite.deleteMany({ where: { team_id: teamId } }),
+      // Delete team follows
+      prisma.teamFollow.deleteMany({ where: { team_id: teamId } }),
+      // Unlink posts (soft: set team_id to null so posts are preserved)
+      prisma.post.updateMany({ where: { team_id: teamId }, data: { team_id: null } }),
+      // Unlink group chats
+      prisma.groupChat.updateMany({ where: { team_id: teamId }, data: { team_id: null } }),
+      // Unlink games (home and away)
+      prisma.game.updateMany({ where: { home_team_id: teamId }, data: { home_team_id: null } }),
+      prisma.game.updateMany({ where: { away_team_id: teamId }, data: { away_team_id: null } }),
+      // Unlink events
+      prisma.event.updateMany({ where: { team_id: teamId }, data: { team_id: null } }),
       // Delete the team itself
       prisma.team.delete({ where: { id: teamId } }),
     ]);
-    
+
     return res.json({ ok: true, message: 'Team deleted successfully' });
   } catch (err: any) {
     console.error('[teams] delete error:', err);

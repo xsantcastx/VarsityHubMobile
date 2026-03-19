@@ -24,16 +24,24 @@ const AUTH_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 const MAX_RESET_FAILURES = 5;
 const RESET_LOCKOUT_MS = 15 * 60 * 1000; // 15 minutes
 const RESET_FAILURE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const MAX_TOTAL_RESET_ATTEMPTS = 15; // Hard cap: 15 total failures per 24h window — locks out for remainder
 
 async function checkResetAttempt(email: string): Promise<{ allowed: boolean; retryAfterMs?: number }> {
   const raw = await rlGet(`resetfail:${email}`);
   if (!raw) return { allowed: true };
 
-  const record = JSON.parse(raw) as { attempts: number; lockedUntil: number };
+  const record = JSON.parse(raw) as { attempts: number; lockedUntil: number; totalAttempts?: number };
 
-  // Lock expired — clear and allow
+  // Hard cap: 15 total failures in 24h window — no more attempts
+  if ((record.totalAttempts || record.attempts) >= MAX_TOTAL_RESET_ATTEMPTS) {
+    return { allowed: false, retryAfterMs: RESET_FAILURE_TTL_MS };
+  }
+
+  // Lock expired — allow but keep cumulative count (don't clear record)
   if (record.lockedUntil && Date.now() >= record.lockedUntil) {
-    await rlDel(`resetfail:${email}`);
+    record.lockedUntil = 0;
+    record.attempts = 0; // Reset per-lockout counter, keep totalAttempts
+    await rlSet(`resetfail:${email}`, JSON.stringify(record), RESET_FAILURE_TTL_MS);
     return { allowed: true };
   }
 
@@ -48,9 +56,12 @@ async function checkResetAttempt(email: string): Promise<{ allowed: boolean; ret
 async function recordResetFailure(email: string): Promise<void> {
   const now = Date.now();
   const raw = await rlGet(`resetfail:${email}`);
-  let record = raw ? JSON.parse(raw) as { attempts: number; lockedUntil: number } : { attempts: 0, lockedUntil: 0 };
+  let record = raw
+    ? JSON.parse(raw) as { attempts: number; lockedUntil: number; totalAttempts?: number }
+    : { attempts: 0, lockedUntil: 0, totalAttempts: 0 };
 
   record.attempts++;
+  record.totalAttempts = (record.totalAttempts || 0) + 1;
   if (record.attempts >= MAX_RESET_FAILURES) {
     record.lockedUntil = now + RESET_LOCKOUT_MS;
   }
@@ -281,7 +292,7 @@ authRouter.post('/register', authLimiter, asyncHandler(async (req, res) => {
     });
   }
   const password_hash = await bcrypt.hash(password, 12);
-  const code = crypto.randomBytes(6).toString('hex').toUpperCase(); // 12 hex chars = 281 trillion possibilities
+  const code = String(crypto.randomInt(100000, 999999)); // 6-digit numeric code
   debugLog(`[verify-code] [register] Verification code generated for ${sanitizedEmail}`);
   if (process.env.NODE_ENV === 'development') console.log(`[verify-code] [register] Code generated: ${code} for ${sanitizedEmail}`);
   const exp = new Date(Date.now() + 30 * 60 * 1000);
@@ -728,7 +739,7 @@ authRouter.post('/password/forgot', passwordResetLimiter, asyncHandler(async (re
   }
   debugLog('[password-reset] User found:', user.id);
 
-  const code = crypto.randomBytes(6).toString('hex'); // 12-char hex code (~281 trillion possibilities)
+  const code = String(crypto.randomInt(100000, 999999)); // 6-digit numeric code
   const expires = new Date(Date.now() + 30 * 60 * 1000);
 
   await prisma.user.update({
@@ -892,13 +903,14 @@ authRouter.get('/me', requireAuth as any, asyncHandler(async (req: AuthedRequest
       subscription_expires_at: true,
       max_teams: true,
       paid_by_owner: true,
-      // Needed for auth_provider and has_password detection (not exposed by sanitizeUser)
+      // Needed for auth_provider detection (not exposed by sanitizeUser)
       apple_id: true,
       google_id: true,
-      password_hash: true,
     },
   });
   if (!user) return res.status(404).json({ error: 'Not found' });
+  // Derive has_password without loading the hash into memory
+  const has_password = !!(await prisma.user.findUnique({ where: { id: req.user.id }, select: { password_hash: true } }))?.password_hash;
   const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
   const is_admin = user.email ? adminEmails.includes(user.email.toLowerCase()) : false;
   const defaults = {
@@ -917,7 +929,6 @@ authRouter.get('/me', requireAuth as any, asyncHandler(async (req: AuthedRequest
   const hasApple = !!user.apple_id;
   const hasGoogle = !!user.google_id;
   const auth_provider = hasApple && hasGoogle ? 'apple,google' : hasApple ? 'apple' : hasGoogle ? 'google' : null;
-  const has_password = !!user.password_hash;
   return res.json({ ...sanitized, ...(is_admin ? { role: 'admin' } : {}), preferences: prefs, is_admin, auth_provider, has_password });
 }));
 
@@ -1517,7 +1528,7 @@ authRouter.post('/verify/request', requireAuth as any, verificationLimiter, asyn
     return res.status(429).json({ error: 'Too many requests' });
   }
 
-  const code = crypto.randomBytes(6).toString('hex').toUpperCase(); // 12 hex chars = 281 trillion possibilities
+  const code = String(crypto.randomInt(100000, 999999)); // 6-digit numeric code
   debugLog(`[verify-code] [verify/request] Verification code generated for user ${user.id}`);
   if (process.env.NODE_ENV === 'development') console.log(`[verify-code] [verify/request] Code generated: ${code} for user ${user.id} (${user.email})`);
   const exp = new Date(Date.now() + 30 * 60 * 1000);

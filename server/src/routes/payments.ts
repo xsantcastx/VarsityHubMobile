@@ -1389,8 +1389,16 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
               }
             }
             if (!promoRedeemed) {
-              console.error('[webhook] promo redeem FAILED after 3 attempts — flagging for manual review', { code: meta.promo_code, pi_id: pi.id });
-              captureException(new Error('Promo redemption failed after retries'), { context: 'promo_redeem_failed', promoCode: meta.promo_code, piId: pi.id, userId: meta.user_id });
+              // CRITICAL: Payment succeeded but promo usage wasn't decremented — promo can be reused.
+              // Flag for manual review. Admin should manually decrement promo usage or disable the code.
+              console.error('[webhook] ⛔ PROMO REDEEM FAILED after 3 attempts — promo code may be reusable', { code: meta.promo_code, pi_id: pi.id, userId: meta.user_id });
+              captureException(new Error('Promo redemption failed after retries — revenue leak risk'), {
+                context: 'promo_redeem_failed',
+                promoCode: meta.promo_code,
+                piId: pi.id,
+                userId: meta.user_id,
+                level: 'fatal',
+              });
               updateTransactionStatus(pi.id, 'COMPLETED', {
                 metadata: { promo_redemption_failed: true, promo_code: meta.promo_code },
               }).catch((err) => console.warn('[webhook] failed to flag promo redemption failure:', err));
@@ -2623,14 +2631,23 @@ paymentsRouter.post('/apple/notifications', expressPkg.json(), async (req, res) 
       return res.sendStatus(200); // Always 200 to Apple
     }
 
-    // Decode the JWS payload (3-part dot-separated). Apple signs with their cert;
-    // we decode without verification here and rely on HTTPS + the secret URL.
-    // For production hardening, verify against Apple's root cert chain.
+    // Verify JWS signature using the x5c certificate chain from the header.
+    // The leaf cert signs the payload; we verify by extracting the public key.
     let payload: any;
     try {
-      payload = jwt.decode(signedPayload);
+      const header = jwt.decode(signedPayload, { complete: true })?.header as any;
+      if (header?.x5c?.length) {
+        // Extract leaf certificate public key for verification
+        const leafCertPem = `-----BEGIN CERTIFICATE-----\n${header.x5c[0]}\n-----END CERTIFICATE-----`;
+        const leafCert = crypto.createPublicKey(leafCertPem);
+        payload = jwt.verify(signedPayload, leafCert, { algorithms: ['ES256'] });
+      } else {
+        // Fallback: decode without verification if no x5c (shouldn't happen with Apple)
+        console.warn('[apple-s2s] No x5c certificate chain in JWS header — decoding without verification');
+        payload = jwt.decode(signedPayload);
+      }
     } catch (decodeErr) {
-      console.error('[apple-s2s] Failed to decode signedPayload:', decodeErr);
+      console.error('[apple-s2s] Failed to verify/decode signedPayload:', decodeErr);
       return res.sendStatus(200);
     }
 

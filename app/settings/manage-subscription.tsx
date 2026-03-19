@@ -133,12 +133,15 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
     try {
       const res = await httpPost('/payments/create-payment-sheet', { plan: targetPlan }) as PaymentSheetResponse;
       if (res?.paymentIntent && typeof res.paymentIntent === 'string') {
+        const isIOS = Platform.OS === 'ios';
         const { error: initError } = await initPaymentSheet({
           paymentIntentClientSecret: res.paymentIntent,
           customerEphemeralKeySecret: res.ephemeralKey,
           customerId: res.customer,
           merchantDisplayName: 'Varsity Hub',
-          paymentMethodOrder: ['card'],
+          applePay: isIOS ? { merchantCountryCode: 'US' } : undefined,
+          googlePay: !isIOS ? { merchantCountryCode: 'US', testEnv: __DEV__ } : undefined,
+          paymentMethodOrder: ['apple_pay', 'google_pay', 'card'],
         });
         if (initError) {
           Alert.alert('Error', initError.message);
