@@ -47,6 +47,7 @@ export default function PendingApproval() {
             affiliation: me?.preferences?.affiliation || ob.affiliation,
             organization_id: me?.preferences?.organization_id || ob.organization_id,
             organization_name: me?.preferences?.organization_name || ob.organization_name,
+            parental_consent_given: (me?.preferences as any)?.parental_consent_given || ob.parental_consent_given || false,
           });
           await markOnboardingCompleteLocally();
           completed = true;

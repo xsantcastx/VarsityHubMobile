@@ -131,6 +131,18 @@ function isUnder13(dob: string | null | undefined): boolean {
   return age < 13;
 }
 
+/** Returns true if DOB indicates user is under 18. */
+function isUnder18(dob: string | null | undefined): boolean {
+  if (!dob || typeof dob !== 'string') return false;
+  const d = new Date(dob);
+  if (isNaN(d.getTime())) return false;
+  const now = new Date();
+  let age = now.getFullYear() - d.getFullYear();
+  const m = now.getMonth() - d.getMonth();
+  if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--;
+  return age < 18;
+}
+
 // ---- Logout — invalidate refresh token server-side ----
 authRouter.post('/logout', requireAuth as any, async (req: AuthedRequest, res) => {
   try {
@@ -1263,10 +1275,12 @@ const completeOnboardingSchema = z.object({
     'school',
     'independent',
   ]).optional(),
-  dob: z.string().optional(),
+  dob: z.string().min(1, 'Date of birth is required'),
   zip: z.string().optional(),
   zip_code: z.string().optional(),
-  
+  parental_consent_given: z.boolean().optional(),
+  parent_guardian_email: z.string().optional(),
+
   // Rule A: Client sends pending_plan for paid plans, plan only for rookie (free).
   // The real plan field is set by Stripe webhook after payment succeeds.
   plan: z.enum(['rookie']).optional(),
@@ -1324,13 +1338,21 @@ authRouter.post('/me/complete-onboarding', requireAuth as any, asyncHandler(asyn
   const data = parsed.data;
 
   // COPPA: Reject if DOB indicates under 13 - do not store
-  if (data.dob !== undefined && isUnder13(data.dob)) {
+  if (isUnder13(data.dob)) {
     return res.status(403).json({
       error: 'COPPA_UNDER_13',
       message: 'VarsityHub is not available for users under 13. Please have a parent or guardian contact support@varsityhub.app.',
     });
   }
-  
+
+  // Parental consent required for users aged 13-17
+  if (isUnder18(data.dob) && !data.parental_consent_given) {
+    return res.status(403).json({
+      error: 'PARENTAL_CONSENT_REQUIRED',
+      message: 'Users under 18 must have parental consent to use VarsityHub.',
+    });
+  }
+
   // Single DB fetch to prevent race conditions between concurrent requests
   const currentUser = await prisma.user.findUnique({
     where: { id: req.user.id },

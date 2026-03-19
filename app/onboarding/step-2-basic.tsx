@@ -277,6 +277,7 @@ export default function Step2Basic() {
             dob,
             zip_code: zip || undefined,
             affiliation,
+            parental_consent_given: ob.parental_consent_given || false,
           });
           await markOnboardingCompleteLocally();
           dispatch({ type: 'SAVE_SUCCESS', data: updatedDataWithRole });
