@@ -152,6 +152,8 @@
   },
   "overrides": {
     "react-native-safe-area-context": "5.6.2",
-    "undici": "^6.24.0"
+    "undici": "^6.24.0",
+    "fast-xml-parser": "5.5.6",
+    "@tootallnate/once": "3.0.1"
   }
 }
