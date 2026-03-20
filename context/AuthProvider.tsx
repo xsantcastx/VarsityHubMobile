@@ -22,7 +22,7 @@ import { User } from '@/api/entities';
 import { httpGet } from '@/api/http';
 import { clearPostCacheOnLogout } from '@/context/PostCacheContext';
 import { consumePendingDeepLink, handleDeepLink } from '@/utils/deepLinks';
-import { setUserContext as setSentryUser } from '@/utils/sentry';
+import { captureException, setUserContext as setSentryUser } from '@/utils/sentry';
 
 // Conditionally import notifications only if not in Expo Go
 const isExpoGo = Constants.executionEnvironment === 'storeClient';
@@ -283,7 +283,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         setPendingVerificationEmail(null);
 
         // Fetch subscription status (non-blocking)
-        fetchSubscription().catch(() => {});
+        fetchSubscription().catch((e) => captureException(e, { tags: { context: 'subscription_fetch' } }));
 
         // Push notifications are requested during onboarding step 9 (with pre-prompt),
         // not immediately after login.
@@ -422,8 +422,8 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         // Skip if we checked less than 5 seconds ago (prevents infinite loop from rapid foreground events)
         if (now - lastForegroundCheckRef.current < 5000) return;
         lastForegroundCheckRef.current = now;
-        checkAuthRef.current().catch(() => {});
-        fetchSubscription().catch(() => {});
+        checkAuthRef.current().catch((e) => captureException(e, { tags: { context: 'foreground_auth_refresh' } }));
+        fetchSubscription().catch((e) => captureException(e, { tags: { context: 'foreground_subscription_refresh' } }));
       }
     });
     return () => subscription.remove();
