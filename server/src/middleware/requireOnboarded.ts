@@ -1,6 +1,7 @@
 import type { Response, NextFunction } from 'express';
 import type { AuthedRequest } from './auth.js';
 import { prisma } from '../lib/prisma.js';
+import { isEmailAdmin } from './requireAdmin.js';
 
 /**
  * Middleware that rejects requests from users who haven't completed onboarding.
@@ -13,9 +14,14 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
 
   const u = await prisma.user.findUnique({
     where: { id: req.user.id },
-    select: { preferences: true, approval_status: true, paid_by_owner: true, subscription_status: true },
+    select: { email: true, preferences: true, approval_status: true, paid_by_owner: true, subscription_status: true },
   });
   const prefs = u?.preferences as Record<string, unknown> | null;
+
+  // Platform admins should never be blocked by onboarding/payment gates.
+  if (isEmailAdmin(u?.email)) {
+    return next();
+  }
 
   if (prefs?.onboarding_completed !== true) {
     return res.status(403).json({ error: 'Please complete onboarding before creating content.' });

@@ -215,37 +215,6 @@ adminRouter.get('/activity-log', requireVerified as any, requireAdminMiddleware 
 type AuthedRequest = express.Request & { user?: { id: string } };
 
 /**
- * Middleware to check if user is admin (LEGACY - use requireAdminMiddleware for new routes)
- */
-async function requireAdmin(req: AuthedRequest, res: express.Response, next: express.NextFunction) {
-  try {
-    if (!req.user?.id) {
-      return res.status(401).json({ error: 'Authentication required' });
-    }
-
-    const user = await prisma.user.findUnique({ 
-      where: { id: req.user.id },
-      select: { email: true }
-    });
-
-    // Check if user is admin using ADMIN_EMAILS environment variable
-    const adminEmails = (process.env.ADMIN_EMAILS || '')
-      .split(',')
-      .map(e => e.trim().toLowerCase())
-      .filter(Boolean);
-
-    if (!user || !adminEmails.includes(user.email?.toLowerCase() || '')) {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
-
-    next();
-  } catch (error) {
-    console.error('[admin] Error checking admin status:', error);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
-}
-
-/**
  * GET /admin/transactions
  * Get all transactions with optional filters
  * Query params:
@@ -257,7 +226,7 @@ async function requireAdmin(req: AuthedRequest, res: express.Response, next: exp
  * - limit: number of results (default 50)
  * - offset: pagination offset (default 0)
  */
-adminRouter.get('/transactions', requireVerified as any, requireAdmin as any, async (req: AuthedRequest, res) => {
+adminRouter.get('/transactions', requireVerified as any, requireAdminMiddleware as any, async (req: AuthedRequest, res) => {
   try {
     const {
       type,
@@ -310,7 +279,7 @@ adminRouter.get('/transactions', requireVerified as any, requireAdmin as any, as
  * - startDate: start of date range (ISO string, optional)
  * - endDate: end of date range (ISO string, optional)
  */
-adminRouter.get('/transactions/summary', requireVerified as any, requireAdmin as any, async (req: AuthedRequest, res) => {
+adminRouter.get('/transactions/summary', requireVerified as any, requireAdminMiddleware as any, async (req: AuthedRequest, res) => {
   try {
     const { startDate, endDate } = req.query;
 
@@ -337,7 +306,7 @@ adminRouter.get('/transactions/summary', requireVerified as any, requireAdmin as
  * GET /admin/transactions/:sessionId
  * Get a specific transaction by Stripe session ID
  */
-adminRouter.get('/transactions/:sessionId', requireVerified as any, requireAdmin as any, async (req: AuthedRequest, res) => {
+adminRouter.get('/transactions/:sessionId', requireVerified as any, requireAdminMiddleware as any, async (req: AuthedRequest, res) => {
   try {
     const { sessionId } = req.params;
 

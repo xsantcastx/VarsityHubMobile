@@ -11,7 +11,7 @@ import { sendOrganizationApprovalEmail, sendPushNotification } from '../lib/noti
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
-import { getIsAdmin, requireAdmin, isEmailAdmin } from '../middleware/requireAdmin.js';
+import { getIsAdmin, requireAdmin } from '../middleware/requireAdmin.js';
 import { debugLog } from '../lib/debugLog.js';
 import escapeHtml from 'escape-html';
 import { inviteLimiter, organizationsNearbyLimiter } from '../middleware/rateLimiters.js';
@@ -1387,8 +1387,8 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
     } else {
       // Require authenticated admin
       if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-      const me = await prisma.user.findUnique({ where: { id: req.user.id }, select: { email: true } });
-      if (!isEmailAdmin(me?.email)) return res.status(403).json({ error: 'Admin only' });
+      const isAdmin = await getIsAdmin(req as any);
+      if (!isAdmin) return res.status(403).json({ error: 'Admin only' });
       adminUserId = req.user.id;
     }
 
@@ -1488,8 +1488,8 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
       }
     } else {
       if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-      const me = await prisma.user.findUnique({ where: { id: req.user.id }, select: { email: true } });
-      if (!isEmailAdmin(me?.email)) return res.status(403).json({ error: 'Admin only' });
+      const isAdmin = await getIsAdmin(req as any);
+      if (!isAdmin) return res.status(403).json({ error: 'Admin only' });
     }
 
     const org = await prisma.organization.findUnique({

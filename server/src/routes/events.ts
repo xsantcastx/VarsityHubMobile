@@ -409,7 +409,7 @@ const createEventSchema = z.object({
   latitude: z.number().optional(),
   longitude: z.number().optional(),
   description: z.string().trim().max(5000).optional(),
-  event_type: z.enum(['game', 'watch_party', 'fundraiser', 'tryout', 'bbq', 'other']).optional(),
+  event_type: z.enum(['game', 'watch_party', 'fundraiser', 'tryout', 'bbq', 'team_meal', 'team_trip', 'host_request', 'other']).optional(),
   linked_league: z.string().trim().optional(),
   max_attendees: z.number().optional(),
   contact_info: z.string().trim().optional(),
@@ -453,10 +453,11 @@ eventsRouter.post('/', requireVerified as any, requireOnboarded as any, eventCre
   }
   
   const userId = req.user!.id;
+  const isPlatformAdmin = await getIsAdmin(req as any);
   const userIsOrgAdmin = await isOrgAdmin(userId);
 
-  // Auto-approve only if user is coach/admin of the specific team, not just any team
-  let autoApprove = userIsOrgAdmin;
+  // Auto-approve for platform admins, org admins, and coaches/admins of the selected team.
+  let autoApprove = userIsOrgAdmin || isPlatformAdmin;
   if (!autoApprove && data.home_team_id) {
     const teamMembership = await prisma.teamMembership.findFirst({
       where: {
@@ -513,7 +514,9 @@ eventsRouter.post('/', requireVerified as any, requireOnboarded as any, eventCre
         game_id: data.game_id,
         team_id: data.home_team_id || null,
         creator_id: userId,
-        creator_role: autoApprove ? (userIsOrgAdmin ? 'organizer' : 'coach') : 'fan',
+        creator_role: autoApprove
+          ? (isPlatformAdmin || userIsOrgAdmin ? 'organizer' : 'coach')
+          : 'fan',
         approval_status: autoApprove ? 'approved' : 'pending',
         status: autoApprove ? 'approved' : 'draft',
         approved_at: autoApprove ? new Date() : null,
