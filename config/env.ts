@@ -20,7 +20,10 @@ type EnvKey =
 
 type RawEnv = Partial<Record<EnvKey, string | undefined>>;
 
-const expoConfigExtra = ((Constants?.expoConfig as any)?.extra ?? {}) as Record<string, any>;
+const constantsAny = Constants as any;
+const expoConfigExtra = (constantsAny?.expoConfig?.extra ?? {}) as Record<string, any>;
+const manifestExtra = (constantsAny?.manifest?.extra ?? {}) as Record<string, any>;
+const manifest2Extra = (constantsAny?.manifest2?.extra ?? {}) as Record<string, any>;
 const processEnv: RawEnv =
   (typeof process !== 'undefined' ? ((process as any).env as RawEnv | undefined) : undefined) ?? {};
 
@@ -30,7 +33,11 @@ const DEFAULT_WEB_BASE = 'https://varsityhub.app';
 const normalizeUrl = (value: string) => value.replace(/\/$/, '');
 
 function readEnv(key: EnvKey, fallback?: string): string {
-  const raw = processEnv[key] ?? (expoConfigExtra[key] as string | undefined);
+  const raw =
+    processEnv[key] ??
+    (expoConfigExtra[key] as string | undefined) ??
+    (manifestExtra[key] as string | undefined) ??
+    (manifest2Extra[key] as string | undefined);
   if (raw === undefined || raw === null || raw === '') {
     return fallback ?? '';
   }

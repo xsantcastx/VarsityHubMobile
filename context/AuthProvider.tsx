@@ -22,13 +22,22 @@ import { User } from '@/api/entities';
 import { httpGet } from '@/api/http';
 import { clearPostCacheOnLogout } from '@/context/PostCacheContext';
 import { consumePendingDeepLink, handleDeepLink } from '@/utils/deepLinks';
-import { setUserContext as setSentryUser } from '@/utils/sentry';
+import { captureException, setUserContext as setSentryUser } from '@/utils/sentry';
 
 // Conditionally import notifications only if not in Expo Go
 const isExpoGo = Constants.executionEnvironment === 'storeClient';
 let Notifications: any = null;
 if (!isExpoGo) {
-  Notifications = require('expo-notifications');
+  try {
+    Notifications = require('expo-notifications');
+  } catch (error) {
+    Notifications = null;
+    if (__DEV__) {
+      console.warn('[notifications] expo-notifications unavailable:', error);
+    } else {
+      captureException(error, { tags: { context: 'notifications_module_load_auth_provider' } });
+    }
+  }
 }
 
 interface AuthUser {

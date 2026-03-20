@@ -6,11 +6,21 @@ import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
 import { useAuth } from '@/context/AuthProvider';
+import { captureException } from '@/utils/sentry';
 
 const isExpoGo = Constants.executionEnvironment === 'storeClient';
 let Notifications: any = null;
 if (!isExpoGo) {
-  Notifications = require('expo-notifications');
+  try {
+    Notifications = require('expo-notifications');
+  } catch (error) {
+    Notifications = null;
+    if (__DEV__) {
+      console.warn('[notifications] expo-notifications unavailable in NotificationTapHandler:', error);
+    } else {
+      captureException(error, { tags: { context: 'notifications_module_load_tap_handler' } });
+    }
+  }
 }
 
 const devLog = (...args: unknown[]) => {
