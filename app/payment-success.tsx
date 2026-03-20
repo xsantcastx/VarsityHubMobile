@@ -56,7 +56,7 @@ export default function PaymentSuccessScreen() {
     ]).start();
   };
 
-  const verifiedRef = React.useRef(false);
+  const verifiedRef = useRef(false);
   useEffect(() => {
     if (verifiedRef.current) return; // Prevent duplicate finalization calls
     verifiedRef.current = true;
