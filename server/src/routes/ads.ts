@@ -422,7 +422,9 @@ adsRouter.get('/for-feed', async (req, res) => {
 
     const whereAd: any = {
       payment_status: 'paid',
-      status: 'active',
+      // A paid ad can be "approved" (future-only schedule) or "active" (currently running).
+      // Feed visibility is date-driven via reservations below, not status-only.
+      status: { in: ['active', 'approved'] },
       target_zip_code: { not: null }, // Only show ads with a target zip code
     };
 
@@ -464,11 +466,23 @@ adsRouter.get('/for-feed', async (req, res) => {
       return dist <= 5.59; // Fixed 9km radius (5.59 miles)
     });
 
-    const result = filtered.slice(0, limit);
+    // Defense-in-depth: never return more than MAX_AD_SLOTS ads for the same ZIP/date.
+    // Booking checks should already enforce this; this protects feed integrity under race conditions.
+    const perZipCounts = new Map<string, number>();
+    const cappedByZip = filtered.filter((ad) => {
+      const zip = String(ad.target_zip_code || '');
+      if (!zip) return false;
+      const current = perZipCounts.get(zip) || 0;
+      if (current >= MAX_AD_SLOTS) return false;
+      perZipCounts.set(zip, current + 1);
+      return true;
+    });
+    const result = cappedByZip.slice(0, limit);
 
     debugLog('[ads] for-feed found ads:', {
       totalFetched: ads.length,
       afterFilter: filtered.length,
+      afterZipCap: cappedByZip.length,
       returned: result.length,
       ads: result.map(ad => ({
         id: ad.id,

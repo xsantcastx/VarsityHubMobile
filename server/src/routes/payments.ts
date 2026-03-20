@@ -60,6 +60,53 @@ const formatUsd = (cents?: number | null) => {
 const MAX_AD_BOOKING_HORIZON_DAYS = 56;
 const MAX_AD_SLOTS = 2;
 
+function getAdStatusAfterSuccessfulPayment(isoDates: string[]): 'active' | 'approved' {
+  const todayIso = new Date().toISOString().slice(0, 10);
+  return isoDates.some((d) => d <= todayIso) ? 'active' : 'approved';
+}
+
+async function assertAdSlotCapacity(
+  tx: Prisma.TransactionClient,
+  adId: string,
+  isoDates: string[]
+) {
+  if (!isoDates.length) return;
+
+  const adRecord = await tx.ad.findUnique({
+    where: { id: adId },
+    select: { target_zip_code: true },
+  });
+  if (!adRecord?.target_zip_code) return;
+
+  const reservedAdsInZip = await tx.ad.findMany({
+    where: {
+      target_zip_code: adRecord.target_zip_code,
+      payment_status: { in: ['paid', 'hold', 'pending_approval'] },
+      NOT: { id: adId },
+    },
+    select: { id: true },
+    take: 200,
+  });
+  if (reservedAdsInZip.length === 0) return;
+
+  const dateObjects = isoDates.map((s) => new Date(`${s}T00:00:00.000Z`));
+  const bookedSlots = await tx.adReservation.groupBy({
+    by: ['date'],
+    where: {
+      ad_id: { in: reservedAdsInZip.map((a) => a.id) },
+      date: { in: dateObjects },
+    },
+    _count: { date: true },
+  });
+  const fullDates = bookedSlots.filter((s) => s._count.date >= MAX_AD_SLOTS);
+  if (fullDates.length > 0) {
+    const err = new Error('SLOT_FULL') as any;
+    err.slotFull = true;
+    err.dates = fullDates.map((s) => s.date.toISOString().slice(0, 10));
+    throw err;
+  }
+}
+
 function parseIsoDatesInput(input: unknown): string[] {
   if (Array.isArray(input)) {
     return Array.from(new Set(input.map((d) => String(d).trim()).filter(Boolean)));
@@ -528,11 +575,21 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paym
       await redeemPromo({ code: appliedCode, subtotalCents: subtotal, userId: req.user!.id, service: 'booking', orderId: `FREE-${crypto.randomUUID()}` });
     }
     try {
-      await prisma.$transaction([
-        prisma.ad.update({ where: { id: String(ad_id) }, data: { payment_status: 'paid', status: 'active' } }),
-        prisma.adReservation.createMany({ data: isoDates.map((s) => ({ ad_id: String(ad_id), date: new Date(s + 'T00:00:00.000Z') })), skipDuplicates: true }),
-      ]);
-    } catch (e) {
+      await prisma.$transaction(async (tx) => {
+        await assertAdSlotCapacity(tx, String(ad_id), isoDates);
+        await tx.ad.update({
+          where: { id: String(ad_id) },
+          data: { payment_status: 'paid', status: getAdStatusAfterSuccessfulPayment(isoDates) },
+        });
+        await tx.adReservation.createMany({
+          data: isoDates.map((s) => ({ ad_id: String(ad_id), date: new Date(s + 'T00:00:00.000Z') })),
+          skipDuplicates: true,
+        });
+      }, { isolationLevel: 'Serializable' });
+    } catch (e: any) {
+      if (e?.slotFull) {
+        return res.status(409).json({ error: 'Ad slots are no longer available. Please try different dates.', dates: e.dates });
+      }
       console.error('Failed to create ad reservations for free promo:', e);
       return res.status(500).json({ error: 'Failed to reserve ad dates. Please try again.' });
     }
@@ -986,11 +1043,21 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
       await redeemPromo({ code: appliedCode, subtotalCents: subtotal, userId, service: 'booking', orderId: `FREE-${crypto.randomUUID()}` });
     }
     try {
-      await prisma.$transaction([
-        prisma.ad.update({ where: { id: String(ad_id) }, data: { payment_status: 'paid', status: 'active' } }),
-        prisma.adReservation.createMany({ data: isoDates.map((s) => ({ ad_id: String(ad_id), date: new Date(s + 'T00:00:00.000Z') })), skipDuplicates: true }),
-      ]);
-    } catch (e) {
+      await prisma.$transaction(async (tx) => {
+        await assertAdSlotCapacity(tx, String(ad_id), isoDates);
+        await tx.ad.update({
+          where: { id: String(ad_id) },
+          data: { payment_status: 'paid', status: getAdStatusAfterSuccessfulPayment(isoDates) },
+        });
+        await tx.adReservation.createMany({
+          data: isoDates.map((s) => ({ ad_id: String(ad_id), date: new Date(s + 'T00:00:00.000Z') })),
+          skipDuplicates: true,
+        });
+      }, { isolationLevel: 'Serializable' });
+    } catch (e: any) {
+      if (e?.slotFull) {
+        return res.status(409).json({ error: 'Ad slots are no longer available. Please try different dates.', dates: e.dates });
+      }
       console.error('Failed to create ad reservations for free promo:', e);
       return res.status(500).json({ error: 'Failed to reserve ad dates. Please try again.' });
     }
@@ -1409,7 +1476,10 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
               throw new Error(`AD_NOT_APPROVED: Ad ${adId} status is ${adCheck?.status}, cannot activate`);
             }
 
-            await tx.ad.update({ where: { id: adId }, data: { payment_status: 'paid', status: 'active' } });
+            await tx.ad.update({
+              where: { id: adId },
+              data: { payment_status: 'paid', status: getAdStatusAfterSuccessfulPayment(piDates) },
+            });
             await tx.adReservation.createMany({
               data: piDates.map((s) => ({ ad_id: adId, date: new Date(s + 'T00:00:00.000Z') })),
               skipDuplicates: true,
@@ -2106,7 +2176,7 @@ async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
 
         await tx.ad.update({
           where: { id: ad_id },
-          data: { payment_status: 'paid', status: 'active' },
+          data: { payment_status: 'paid', status: getAdStatusAfterSuccessfulPayment(dates) },
         });
         await tx.adReservation.createMany({
           data: dates.map((s) => ({ ad_id, date: new Date(s + 'T00:00:00.000Z') })),
@@ -2646,25 +2716,33 @@ paymentsRouter.post('/apple/verify-ad-receipt', expressPkg.json(), requireVerifi
       return res.status(403).json({ error: 'Ad must be approved before payment', current_status: ad.status });
     }
 
-    await prisma.$transaction([
-      prisma.ad.update({
-        where: { id: String(ad_id) },
-        data: { payment_status: 'paid', status: 'active' },
-      }),
-      prisma.adReservation.createMany({
-        data: isoDateStrings.map((s: string) => ({ ad_id: String(ad_id), date: new Date(s + 'T00:00:00.000Z') })),
-        skipDuplicates: true,
-      }),
-      prisma.transactionLog.create({
-        data: {
-          transaction_type: 'AD_PURCHASE',
-          status: 'COMPLETED',
-          user_id: userId,
-          order_id: orderId,
-          metadata: { source: 'apple_iap', ad_id: String(ad_id), dates: isoDateStrings, receipts_count: receipts.length, apple_transaction_ids: Array.from(new Set(orderIds)) },
-        } as any,
-      }),
-    ]);
+    try {
+      await prisma.$transaction(async (tx) => {
+        await assertAdSlotCapacity(tx, String(ad_id), isoDateStrings);
+        await tx.ad.update({
+          where: { id: String(ad_id) },
+          data: { payment_status: 'paid', status: getAdStatusAfterSuccessfulPayment(isoDateStrings) },
+        });
+        await tx.adReservation.createMany({
+          data: isoDateStrings.map((s: string) => ({ ad_id: String(ad_id), date: new Date(s + 'T00:00:00.000Z') })),
+          skipDuplicates: true,
+        });
+        await tx.transactionLog.create({
+          data: {
+            transaction_type: 'AD_PURCHASE',
+            status: 'COMPLETED',
+            user_id: userId,
+            order_id: orderId,
+            metadata: { source: 'apple_iap', ad_id: String(ad_id), dates: isoDateStrings, receipts_count: receipts.length, apple_transaction_ids: Array.from(new Set(orderIds)) },
+          } as any,
+        });
+      }, { isolationLevel: 'Serializable' });
+    } catch (txErr: any) {
+      if (txErr?.slotFull) {
+        return res.status(409).json({ error: 'One or more dates are fully booked', dates: txErr.dates || [] });
+      }
+      throw txErr;
+    }
 
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
     sendAdPaymentEmail({
