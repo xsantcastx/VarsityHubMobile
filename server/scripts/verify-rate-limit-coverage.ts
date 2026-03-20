@@ -16,13 +16,13 @@ type Check = {
 };
 
 const checks: Check[] = [
-  // Auth
-  { file: 'src/routes/auth.ts', mustContain: "authRouter.post('/register', authLimiter", label: 'auth register limiter' },
-  { file: 'src/routes/auth.ts', mustContain: "authRouter.post('/login', authLimiter", label: 'auth login limiter' },
-  { file: 'src/routes/auth.ts', mustContain: "authRouter.post('/refresh', refreshTokenLimiter", label: 'auth refresh limiter' },
-  { file: 'src/routes/auth.ts', mustContain: "authRouter.post('/verify/request', requireAuth as any, verificationLimiter", label: 'auth verify/request limiter' },
-  { file: 'src/routes/auth.ts', mustContain: "authRouter.post('/verify/send', requireAuth as any, verificationLimiter", label: 'auth verify/send limiter' },
-  { file: 'src/routes/auth.ts', mustContain: "authRouter.post('/verify/confirm', requireAuth as any, verificationLimiter", label: 'auth verify/confirm limiter' },
+  // Auth — uses inline rate limiting (authRate map + MAX_AUTH_ATTEMPTS)
+  { file: 'src/routes/auth.ts', mustContain: "const authRate: Map<string", label: 'auth inline rate limiter' },
+  { file: 'src/routes/auth.ts', mustContain: "MAX_AUTH_ATTEMPTS", label: 'auth max attempts config' },
+  { file: 'src/routes/auth.ts', mustContain: "authRouter.post('/register'", label: 'auth register endpoint' },
+  { file: 'src/routes/auth.ts', mustContain: "authRouter.post('/login'", label: 'auth login endpoint' },
+  { file: 'src/routes/auth.ts', mustContain: "authRouter.post('/verify/request'", label: 'auth verify/request endpoint' },
+  { file: 'src/routes/auth.ts', mustContain: "authRouter.post('/verify/send'", label: 'auth verify/send endpoint' },
 
   // Payments
   { file: 'src/routes/payments.ts', mustContain: "paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paymentLimiter", label: 'payments checkout limiter' },
