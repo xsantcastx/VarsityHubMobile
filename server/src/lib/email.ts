@@ -1496,25 +1496,50 @@ export async function sendLeagueApprovalRequestEmail(params: {
     `League approval request sent to ${to}`
   );
 
-  // Plain-text fallback — critical that admin always receives this
+  // HTML fallback — critical that admin always receives a styled email
   if (!sent) {
+    const plainBody = [
+      `A new league needs your approval on VarsityHub.`,
+      ``,
+      `League: ${params.leagueName}`,
+      `Owner: ${params.ownerName} (${params.ownerEmail})`,
+      `Type: ${params.orgType || 'Not specified'}`,
+      `Sport: ${params.sport || 'Not specified'}`,
+      `Submitted: ${new Date().toLocaleDateString()}`,
+      ...(params.supportingDocumentUrl ? [``, `Supporting Document: ${params.supportingDocumentUrl}`] : []),
+      ``,
+      `APPROVE: ${approveUrl}`,
+      ``,
+      `REJECT: ${rejectUrl}`,
+    ].join('\n');
+
+    const htmlBody = `
+<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+  <div style="text-align:center;margin-bottom:24px;">
+    <img src="${getCommonTemplateData().logo_url}" alt="VarsityHub" style="height:48px;" />
+  </div>
+  <h2 style="color:#1B3A6B;text-align:center;margin-bottom:20px;">New League Awaiting Approval</h2>
+  <table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
+    <tr><td style="padding:8px 12px;font-weight:bold;color:#374151;border-bottom:1px solid #E5E7EB;">League Name:</td><td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;">${params.leagueName}</td></tr>
+    <tr><td style="padding:8px 12px;font-weight:bold;color:#374151;border-bottom:1px solid #E5E7EB;">Owner:</td><td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;">${params.ownerName} (<a href="mailto:${params.ownerEmail}">${params.ownerEmail}</a>)</td></tr>
+    <tr><td style="padding:8px 12px;font-weight:bold;color:#374151;border-bottom:1px solid #E5E7EB;">Sport:</td><td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;">${params.sport || 'Not specified'}</td></tr>
+    <tr><td style="padding:8px 12px;font-weight:bold;color:#374151;border-bottom:1px solid #E5E7EB;">Type:</td><td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;">${params.orgType || 'Not specified'}</td></tr>
+    <tr><td style="padding:8px 12px;font-weight:bold;color:#374151;border-bottom:1px solid #E5E7EB;">Created:</td><td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;">${new Date().toLocaleDateString()}</td></tr>
+  </table>
+  ${params.supportingDocumentUrl ? `<div style="text-align:center;margin-bottom:20px;"><a href="${params.supportingDocumentUrl}" style="color:#1B3A6B;font-weight:600;">View Supporting Document</a></div>` : ''}
+  <div style="text-align:center;margin-bottom:12px;">
+    <a href="${approveUrl}" style="display:inline-block;background:#16A34A;color:#fff;padding:12px 32px;border-radius:8px;text-decoration:none;font-weight:600;margin-right:12px;">Approve League</a>
+    <a href="${rejectUrl}" style="display:inline-block;background:#DC2626;color:#fff;padding:12px 32px;border-radius:8px;text-decoration:none;font-weight:600;">Reject League</a>
+  </div>
+  <p style="text-align:center;color:#6B7280;font-size:12px;margin-top:16px;">These links expire in 7 days. No login required.</p>
+  <p style="text-align:center;color:#9CA3AF;font-size:13px;margin-top:24px;">&copy; ${new Date().getFullYear()} Lime Productions. All rights reserved.</p>
+</div>`;
+
     return sendEmail({
       to,
       subject: `New League Awaiting Approval: ${params.leagueName}`,
-      text: [
-        `A new league needs your approval on VarsityHub.`,
-        ``,
-        `League: ${params.leagueName}`,
-        `Owner: ${params.ownerName} (${params.ownerEmail})`,
-        `Type: ${params.orgType || 'Not specified'}`,
-        `Sport: ${params.sport || 'Not specified'}`,
-        `Submitted: ${new Date().toLocaleDateString()}`,
-        ...(params.supportingDocumentUrl ? [``, `Supporting Document: ${params.supportingDocumentUrl}`] : []),
-        ``,
-        `APPROVE: ${approveUrl}`,
-        ``,
-        `REJECT: ${rejectUrl}`,
-      ].join('\n'),
+      text: plainBody,
+      html: htmlBody,
     });
   }
   return sent;
