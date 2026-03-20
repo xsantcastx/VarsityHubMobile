@@ -5,7 +5,7 @@ import Stripe from 'stripe';
 import { Prisma } from '@prisma/client';
 import { debugLog } from '../lib/debugLog.js';
 import { withDistributedLock } from '../lib/distributedLock.js';
-import { sendAdPaymentConfirmedEmail, sendAdPendingReviewEmail, sendBillingNoticeEmail } from '../lib/email.js';
+import { sendAdPaymentConfirmedEmail, sendBillingNoticeEmail } from '../lib/email.js';
 import { getAllPlanDefinitions, getMaxTeamsForPlan } from '../lib/planLimits.js';
 import { prisma } from '../lib/prisma.js';
 import { previewPromo, redeemPromo } from '../lib/promos.js';
@@ -509,13 +509,6 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paym
       businessName: ad.business_name,
       zipCode: ad.target_zip_code,
     }).catch((err) => console.warn('[payments] Free promo ad email failed:', err?.message || err));
-    // Notify admin for review
-    sendAdPendingReviewEmail({
-      to: ADMIN_NOTIFY_EMAIL,
-      businessName: ad.business_name || undefined,
-      zipCode: ad.target_zip_code || undefined,
-      adId: String(ad_id),
-    }).catch((err) => console.warn('[payments] Free promo admin review email failed:', err?.message || err));
     return res.json({ free: true });
   }
 
@@ -955,13 +948,6 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
       captureException(err as Error, { context: 'free_promo_transaction_log_pi', adId: String(ad_id) });
     });
     sendAdPaymentEmail({ userId, adId: String(ad_id), dates: isoDates, totalCents: 0, businessName: ad.business_name, zipCode: ad.target_zip_code }).catch((err) => console.warn('[payments] Free promo ad email failed:', err?.message || err));
-    // Notify admin for review
-    sendAdPendingReviewEmail({
-      to: ADMIN_NOTIFY_EMAIL,
-      businessName: ad.business_name || undefined,
-      zipCode: ad.target_zip_code || undefined,
-      adId: String(ad_id),
-    }).catch((err) => console.warn('[payments] Free promo admin review email failed:', err?.message || err));
     return res.json({ free: true });
   }
 
@@ -1383,16 +1369,7 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
             businessName: adForEmail?.business_name,
             zipCode: adForEmail?.target_zip_code,
           }).catch((err) => console.warn('[webhook] ad payment email failed:', err?.message || err));
-          // Notify admin that a new ad needs approval
-          sendAdPendingReviewEmail({
-            to: ADMIN_NOTIFY_EMAIL,
-            businessName: adForEmail?.business_name || undefined,
-            contactName: adForEmail?.contact_name || undefined,
-            contactEmail: adForEmail?.contact_email || undefined,
-            zipCode: adForEmail?.target_zip_code || undefined,
-            bannerUrl: adForEmail?.banner_url || undefined,
-            adId,
-          }).catch((err) => captureException(err as Error, { context: 'ad_pending_review_email_pi' }));
+          // Ad was already approved before payment — no admin review needed
 
           // Redeem promo code if one was used — retry up to 3 times to prevent reuse
           if (meta.promo_code && meta.user_id) {
@@ -2100,14 +2077,7 @@ async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
         businessName: adForEmail?.business_name,
         zipCode: adForEmail?.target_zip_code,
       });
-      // Notify admin that a new ad needs approval
-      void sendAdPendingReviewEmail({
-        to: ADMIN_NOTIFY_EMAIL,
-        businessName: adForEmail?.business_name || undefined,
-        contactEmail: fallbackEmail || undefined,
-        zipCode: adForEmail?.target_zip_code || undefined,
-        adId: String(ad_id),
-      }).catch((err) => console.warn('[payments] Failed to send ad review email:', (err as any)?.message || err));
+      // Ad was already approved before payment — no admin review needed
     } catch (e: any) {
       if (e?.slotFull) {
         // Expected: another payment beat this one to the last slot(s).

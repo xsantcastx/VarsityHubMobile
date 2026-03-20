@@ -222,7 +222,7 @@ organizationsRouter.get('/:id', async (req, res) => {
     const organization = await prisma.organization.findUnique({
       where: { id },
       include: {
-        _count: { select: { followers: true } },
+        _count: { select: { followers: true, memberships: true } },
         teams: {
           orderBy: { name: 'asc' },
           select: {
@@ -242,21 +242,15 @@ organizationsRouter.get('/:id', async (req, res) => {
               }
             }
           }
-        },
-        memberships: {
-          include: {
-            user: {
-              select: { id: true, display_name: true, avatar_url: true }
-            }
-          },
-          orderBy: { created_at: 'desc' }
         }
+        // memberships excluded from public endpoint — use GET /:id/members (requires auth)
       }
     });
 
     if (!organization) return res.status(404).json({ error: 'Organization not found' });
     const payload = { ...organization } as any;
     payload.followers_count = (organization as any)._count?.followers ?? 0;
+    payload.members_count = (organization as any)._count?.memberships ?? 0;
     payload.is_following = currentUserId
       ? !!(await prisma.organizationFollow.findFirst({ where: { user_id: currentUserId, organization_id: id } }))
       : null;
@@ -1496,7 +1490,7 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
     await prisma.$transaction(async (tx) => {
       await tx.organization.update({
         where: { id: orgId },
-        data: { status: 'rejected' },
+        data: { status: 'rejected', admin_approved: false },
       });
 
       // Unlink teams from rejected org so they can't be used for coach actions
