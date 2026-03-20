@@ -201,36 +201,9 @@ const FeedCard = memo(
 
     const confirmDelete = async () => {
       try {
-        const res: any = await Post.delete(post.id);
+        await Post.delete(post.id);
         setShowDeleteConfirm(false);
-        const undoUntil = res?.undo_until ? new Date(res.undo_until).getTime() : null;
-        const timeoutMs = undoUntil ? Math.max(0, undoUntil - Date.now()) : 5000;
-        if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current);
-        deleteTimerRef.current = setTimeout(() => {
-          onDeletePost?.();
-        }, timeoutMs || 1);
-        Alert.alert(
-          'Post deleted',
-          'You can undo this action for a short time.',
-          [
-            {
-              text: 'Undo',
-              onPress: async () => {
-                if (deleteTimerRef.current) {
-                  clearTimeout(deleteTimerRef.current);
-                  deleteTimerRef.current = null;
-                }
-                try {
-                  await Post.restore(post.id);
-                } catch (restoreError: any) {
-                  onDeletePost?.();
-                  Alert.alert('Error', restoreError?.message || 'Restore window expired.');
-                }
-              },
-            },
-            { text: 'Dismiss', style: 'cancel' },
-          ]
-        );
+        onDeletePost?.();
       } catch (error) {
         if (__DEV__) console.error('Failed to delete post:', error);
       }

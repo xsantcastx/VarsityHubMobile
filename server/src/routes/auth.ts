@@ -1062,9 +1062,7 @@ authRouter.post('/me/complete-onboarding', authLimiter, requireAuth as any, requ
   if (data.bio) updateData.bio = data.bio;
   
   const currentUser = await prisma.user.findUnique({ where: { id: req.user.id } });
-  if (data.role === 'fan' && !currentUser?.bio && !data.bio) {
-    updateData.bio = "Sports enthusiast following local teams and supporting young athletes 🏆";
-  }
+  // Do not auto-set default bio — if user leaves bio blank, keep it blank
   
   // Prepare preferences update
   

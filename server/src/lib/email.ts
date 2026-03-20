@@ -472,10 +472,11 @@ export async function sendAdApprovedEmail(params: {
   to: string;
   businessName?: string;
 }): Promise<boolean> {
-  return sendTemplateEmail(
+  const subject = 'Your Ad Has Been Approved — VarsityHub';
+  const sent = await sendTemplateEmail(
     TEMPLATE_IDS.AD_APPROVED,
     params.to,
-    'Your Ad Has Been Approved — VarsityHub',
+    subject,
     {
       ...getCommonTemplateData(),
       business_name: params.businessName || 'your business',
@@ -483,6 +484,31 @@ export async function sendAdApprovedEmail(params: {
     },
     `Ad approved email sent to ${params.to}`
   );
+  if (sent) return true;
+
+  // HTML fallback when template is not configured
+  const htmlBody = `
+<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+  <div style="text-align:center;margin-bottom:24px;">
+    <img src="${getCommonTemplateData().logo_url}" alt="VarsityHub" style="height:48px;" />
+  </div>
+  <h2 style="color:#16A34A;text-align:center;">Your Ad Has Been Approved!</h2>
+  <p style="text-align:center;color:#374151;font-size:16px;">
+    Your ad for <strong>${params.businessName || 'your business'}</strong> has been approved on VarsityHub.
+  </p>
+  <p style="text-align:center;color:#374151;">Open the app to complete payment and go live.</p>
+  <div style="text-align:center;margin-top:24px;">
+    <a href="${APP_BASE_URL}" style="display:inline-block;background:#1B3A6B;color:#fff;padding:12px 32px;border-radius:8px;text-decoration:none;font-weight:600;">Open VarsityHub</a>
+  </div>
+  <p style="text-align:center;color:#9CA3AF;font-size:13px;margin-top:24px;">&copy; ${new Date().getFullYear()} Lime Productions. All rights reserved.</p>
+</div>`;
+
+  return sendEmail({
+    to: params.to,
+    subject,
+    text: `Your ad for ${params.businessName || 'your business'} has been approved on VarsityHub. Open the app to complete payment.`,
+    html: htmlBody,
+  });
 }
 
 export async function sendAdRejectedEmail(params: {

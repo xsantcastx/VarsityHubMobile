@@ -811,20 +811,33 @@ async function approveAd(id: string, note?: string | null) {
     data: { status: 'approved', ...(note ? { admin_note: note } : {}) },
   });
 
+  // Notify the ad owner — email, push, and in-app notification
   if (ad.contact_email) {
-    sendAdApprovedEmail({ to: ad.contact_email, businessName: ad.business_name || undefined })
-      .catch((err) => console.warn('[ads] approve email failed:', (err as any)?.message || err));
+    try {
+      const sent = await sendAdApprovedEmail({ to: ad.contact_email, businessName: ad.business_name || undefined });
+      if (!sent) console.warn('[ads] approve email template failed for', ad.contact_email);
+    } catch (err) {
+      console.error('[ads] approve email error:', (err as any)?.message || err);
+    }
   }
   if (ad.user_id) {
-    sendPushNotification(
-      ad.user_id,
-      'Ad Approved!',
-      `Your ad for "${ad.business_name || 'your business'}" has been approved. Tap to complete payment.`,
-      { type: 'AD_APPROVED', ad_id: id }
-    ).catch(() => {});
-    prisma.notification.create({
-      data: { user_id: ad.user_id, type: 'AD_APPROVED', meta: { ad_id: id, business_name: ad.business_name } },
-    }).catch(() => {});
+    try {
+      await sendPushNotification(
+        ad.user_id,
+        'Ad Approved!',
+        `Your ad for "${ad.business_name || 'your business'}" has been approved. Tap to complete payment.`,
+        { type: 'AD_APPROVED', ad_id: id }
+      );
+    } catch (err) {
+      console.warn('[ads] push notification failed:', (err as any)?.message || err);
+    }
+    try {
+      await prisma.notification.create({
+        data: { user_id: ad.user_id, type: 'AD_APPROVED', meta: { ad_id: id, business_name: ad.business_name } },
+      });
+    } catch (err) {
+      console.error('[ads] FAILED to create in-app notification:', (err as any)?.message || err);
+    }
   }
 
   return { ad: updated };

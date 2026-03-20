@@ -1004,7 +1004,7 @@ organizationsRouter.post('/join-requests', requireAuth as any, async (req: Authe
         ).catch(() => {});
 
         // In-app notification record for league owner
-        prisma.notification.create({
+        await prisma.notification.create({
           data: {
             user_id: owner.user.id,
             actor_id: req.user!.id,
@@ -1016,7 +1016,7 @@ organizationsRouter.post('/join-requests', requireAuth as any, async (req: Authe
               coach_name: joinRequest.user.display_name || 'A coach',
             },
           },
-        }).catch(() => {});
+        }).catch((err) => console.error('[orgs] FAILED to create join request notification:', (err as any)?.message));
       } catch (err) {
         console.error('Failed to send join request email to admin:', err);
       }
@@ -1420,20 +1420,28 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
 
     // Push notification + in-app notification for league owner
     if (org.leagueOwner?.id) {
-      sendPushNotification(
-        org.leagueOwner.id,
-        'Organization Approved!',
-        `Your organization "${org.name}" has been approved on VarsityHub.`,
-        { type: 'ORG_APPROVED', organization_id: orgId }
-      ).catch(() => {});
+      try {
+        await sendPushNotification(
+          org.leagueOwner.id,
+          'Organization Approved!',
+          `Your organization "${org.name}" has been approved on VarsityHub.`,
+          { type: 'ORG_APPROVED', organization_id: orgId }
+        );
+      } catch (err) {
+        console.warn('[orgs] push notification failed:', (err as any)?.message || err);
+      }
 
-      prisma.notification.create({
-        data: {
-          user_id: org.leagueOwner.id,
-          type: 'ORG_APPROVED',
-          meta: { organization_id: orgId, organization_name: org.name },
-        }
-      }).catch(() => {});
+      try {
+        await prisma.notification.create({
+          data: {
+            user_id: org.leagueOwner.id,
+            type: 'ORG_APPROVED',
+            meta: { organization_id: orgId, organization_name: org.name },
+          }
+        });
+      } catch (err) {
+        console.error('[orgs] FAILED to create in-app notification:', (err as any)?.message || err);
+      }
     }
 
     // Confirm action to super admin (SendGrid template)
@@ -1657,26 +1665,34 @@ organizationsRouter.post('/:id/coaches/:userId/approve', requireAuth as any, req
     }
 
     // Push notification to coach
-    sendPushNotification(
-      coachId,
-      'Application Approved!',
-      `${org?.name || 'Your league'} approved your coach application`,
-      { type: 'coach_approved', screen: 'onboarding', organization_id: orgId },
-    ).catch(() => {});
+    try {
+      await sendPushNotification(
+        coachId,
+        'Application Approved!',
+        `${org?.name || 'Your league'} approved your coach application`,
+        { type: 'coach_approved', screen: 'onboarding', organization_id: orgId },
+      );
+    } catch (err) {
+      console.warn('[orgs] coach approval push failed:', (err as any)?.message || err);
+    }
 
     // In-app notification for coach
-    prisma.notification.create({
-      data: {
-        user_id: coachId,
-        actor_id: req.user.id,
-        type: 'TEAM_INVITE', // Closest available type
-        meta: {
-          coach_approved: true,
-          organization_id: orgId,
-          organization_name: org?.name || 'your league',
+    try {
+      await prisma.notification.create({
+        data: {
+          user_id: coachId,
+          actor_id: req.user!.id,
+          type: 'TEAM_INVITE', // Closest available type
+          meta: {
+            coach_approved: true,
+            organization_id: orgId,
+            organization_name: org?.name || 'your league',
+          },
         },
-      },
-    }).catch(() => {});
+      });
+    } catch (err) {
+      console.error('[orgs] FAILED to create coach approval notification:', (err as any)?.message || err);
+    }
 
     return res.json({ message: 'Coach approved', coach_id: coachId });
   } catch (err: any) {
