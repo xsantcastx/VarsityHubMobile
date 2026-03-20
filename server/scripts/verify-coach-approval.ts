@@ -33,11 +33,11 @@ function check(name: string, ok: boolean, msg?: string) {
 
 console.log('\n🔍 Coach Approval System Verification\n');
 
-// 1. requireOnboarded blocks PENDING coaches
+// 1. requireOnboarded blocks non-approved coaches
 const onboarded = read('src/middleware/requireOnboarded.ts');
 check(
-  'requireOnboarded blocks PENDING coaches',
-  onboarded.includes("approval_status === 'PENDING'") && onboarded.includes("prefs?.role === 'coach'"),
+  'requireOnboarded blocks non-approved coaches',
+  onboarded.includes("prefs?.role === 'coach'") && onboarded.includes("u?.approval_status !== 'APPROVED'"),
 );
 
 // 2. POST /organizations sets creator to PENDING

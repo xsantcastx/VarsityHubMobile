@@ -750,12 +750,16 @@ usersRouter.post('/:id/accept-follow', requireAuth as any, asyncHandler(async (r
         where: { id: currentUserId },
         select: { display_name: true },
       });
-      sendPushNotification(
-        followerId,
-        'Follow Request Accepted',
-        `${currentUser?.display_name || 'Someone'} accepted your follow request`,
-        { type: 'new_follower', screen: 'user-profile', user_id: currentUserId }
-      ).catch(() => {});
+      try {
+        await sendPushNotification(
+          followerId,
+          'Follow Request Accepted',
+          `${currentUser?.display_name || 'Someone'} accepted your follow request`,
+          { type: 'new_follower', screen: 'user-profile', user_id: currentUserId }
+        );
+      } catch (err) {
+        console.warn('[users] Failed to send follow accepted push notification:', err);
+      }
     } catch (e) {
       console.error('Failed to send follow accept notification:', e);
     }

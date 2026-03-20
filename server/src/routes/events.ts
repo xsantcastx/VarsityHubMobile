@@ -396,6 +396,19 @@ eventsRouter.post('/:id/rsvp', requireAuth as any, rsvpLimiter, asyncHandler(asy
 }));
 
 // Create event (fans & coaches)
+const EVENT_TYPE_VALUES = [
+  'game',
+  'watch_party',
+  'fundraiser',
+  'tryout',
+  'bbq',
+  'team_meal',
+  'team_trip',
+  'team_meeting',
+  'host_request',
+  'other',
+] as const;
+
 const createEventSchema = z.object({
   title: z.string().trim().min(1).max(200),
   date: z.string().refine((dateStr) => {
@@ -409,7 +422,7 @@ const createEventSchema = z.object({
   latitude: z.number().optional(),
   longitude: z.number().optional(),
   description: z.string().trim().max(5000).optional(),
-  event_type: z.enum(['game', 'watch_party', 'fundraiser', 'tryout', 'bbq', 'team_meal', 'team_trip', 'host_request', 'other']).optional(),
+  event_type: z.enum(EVENT_TYPE_VALUES).optional(),
   linked_league: z.string().trim().optional(),
   max_attendees: z.number().optional(),
   contact_info: z.string().trim().optional(),
@@ -795,7 +808,7 @@ const updateEventSchema = z.object({
   latitude: z.number().optional(),
   longitude: z.number().optional(),
   description: z.string().optional(),
-  event_type: z.enum(['game', 'watch_party', 'fundraiser', 'tryout', 'bbq', 'other']).optional(),
+  event_type: z.enum(EVENT_TYPE_VALUES).optional(),
   linked_league: z.string().optional(),
   max_attendees: z.number().optional(),
   contact_info: z.string().optional(),
@@ -1074,7 +1087,11 @@ eventsRouter.patch('/:id/cancel', requireAuth as any, requireOnboarded as any, a
 
   // Cancel scheduled reminders for all RSVPed users
   for (const rsvp of rsvps) {
-    await cancelGameReminders(eventId, rsvp.user_id).catch(() => {});
+    try {
+      await cancelGameReminders(eventId, rsvp.user_id);
+    } catch (err) {
+      console.warn('[events] Failed to cancel game reminders for RSVP user:', { eventId, userId: rsvp.user_id, err });
+    }
   }
 
   return res.json({
