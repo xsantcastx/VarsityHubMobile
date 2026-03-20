@@ -10,6 +10,7 @@ import { requireVerified } from '../middleware/requireVerified.js';
 import { debugLog } from '../lib/debugLog.js';
 import { adCreationLimiter, alternativeZipsLimiter } from '../middleware/rateLimiters.js';
 import { sendAdApprovedEmail, sendAdPendingReviewEmail, sendAdRejectedEmail } from '../lib/email.js';
+import { signJwt, verifyJwt } from '../lib/jwt.js';
 import { sendPushNotification } from '../lib/notifications.js';
 import { z } from 'zod';
 
@@ -119,6 +120,22 @@ export async function handleAdSubmitForApproval(req: AuthedRequest, res: Respons
       return res.status(400).json({ error: `Ad status is '${ad.status}'. Submit for approval only from draft.` });
     }
 
+    // Enforce booking horizon — dates must be within 56 days from today
+    const MAX_BOOKING_HORIZON_DAYS = 56;
+    const horizonCutoff = new Date();
+    horizonCutoff.setDate(horizonCutoff.getDate() + MAX_BOOKING_HORIZON_DAYS);
+    const pastHorizon = isoDates.filter(d => new Date(d + 'T00:00:00.000Z') > horizonCutoff);
+    if (pastHorizon.length > 0) {
+      return res.status(400).json({
+        error: `Dates must be within ${MAX_BOOKING_HORIZON_DAYS} days from today`,
+        dates: pastHorizon,
+      });
+    }
+    const pastDates = isoDates.filter(d => new Date(d + 'T00:00:00.000Z') < new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00.000Z'));
+    if (pastDates.length > 0) {
+      return res.status(400).json({ error: 'Cannot book dates in the past', dates: pastDates });
+    }
+
     const MAX_AD_SLOTS = 2;
     if (ad.target_zip_code) {
       const reservedAdsInZip = await prisma.ad.findMany({
@@ -158,6 +175,10 @@ export async function handleAdSubmitForApproval(req: AuthedRequest, res: Respons
       }),
     ]);
 
+    // Generate signed tokens for one-click approve/reject from email (7-day expiry)
+    const approveToken = signJwt({ adId: id, action: 'approve_ad' }, '7d');
+    const rejectToken = signJwt({ adId: id, action: 'reject_ad' }, '7d');
+
     // Ad approval emails always go to emancero@varsityhub.app (primary admin)
     sendAdPendingReviewEmail({
       to: (process.env.ADMIN_EMAILS?.split(',')[0]?.trim() || 'emancero@varsityhub.app'),
@@ -167,6 +188,8 @@ export async function handleAdSubmitForApproval(req: AuthedRequest, res: Respons
       zipCode: ad.target_zip_code || undefined,
       bannerUrl: ad.banner_url || undefined,
       adId: id,
+      approveToken,
+      rejectToken,
     }).then((sent) => {
       if (!sent) console.error('[ads] submit-for-approval email returned false — email NOT delivered for ad', id);
     }).catch((err) => console.error('[ads] submit-for-approval email failed:', (err as any)?.message || err));
@@ -771,79 +794,144 @@ adsRouter.get('/alternative-zips', requireAuth as any, alternativeZipsLimiter, a
   }
 });
 
-// Admin: Approve a pending ad — sets status to 'approved' (user must pay before ad goes live)
-// No one is charged until approved by emancero@varsityhub.app
-adsRouter.post('/:id([a-z0-9]{15,50})/approve', requireAdmin as any, async (req: AuthedRequest, res) => {
-  try {
-    const id = String(req.params.id);
-    const ad = await prisma.ad.findUnique({ where: { id } });
-    if (!ad) return res.status(404).json({ error: 'Ad not found' });
-    if (ad.status !== 'pending') return res.status(400).json({ error: `Ad status is '${ad.status}', not 'pending'` });
+// ── Shared helpers for ad moderation (used by POST, GET, and /review routes) ──
 
-    const updated = await prisma.ad.update({
+async function approveAd(id: string, note?: string | null) {
+  const ad = await prisma.ad.findUnique({ where: { id } });
+  if (!ad) return { error: 'Ad not found', status: 404 };
+  if (ad.status !== 'pending') return { error: `Ad status is '${ad.status}', not 'pending'`, status: 400 };
+
+  const updated = await prisma.ad.update({
+    where: { id },
+    data: { status: 'approved', ...(note ? { admin_note: note } : {}) },
+  });
+
+  if (ad.contact_email) {
+    sendAdApprovedEmail({ to: ad.contact_email, businessName: ad.business_name || undefined })
+      .catch((err) => console.warn('[ads] approve email failed:', (err as any)?.message || err));
+  }
+  if (ad.user_id) {
+    sendPushNotification(
+      ad.user_id,
+      'Ad Approved!',
+      `Your ad for "${ad.business_name || 'your business'}" has been approved. Tap to complete payment.`,
+      { type: 'AD_APPROVED', ad_id: id }
+    ).catch(() => {});
+    prisma.notification.create({
+      data: { user_id: ad.user_id, type: 'AD_APPROVED', meta: { ad_id: id, business_name: ad.business_name } },
+    }).catch(() => {});
+  }
+
+  return { ad: updated };
+}
+
+async function rejectAd(id: string, reason?: string | null) {
+  const ad = await prisma.ad.findUnique({ where: { id } });
+  if (!ad) return { error: 'Ad not found', status: 404 };
+
+  await prisma.$transaction([
+    prisma.adReservation.deleteMany({ where: { ad_id: id } }),
+    prisma.ad.update({
       where: { id },
-      data: { status: 'approved' },
-    });
+      data: { status: 'draft', payment_status: 'unpaid', ...(reason ? { admin_note: reason } : {}) },
+    }),
+  ]);
 
-    if (ad.contact_email) {
-      sendAdApprovedEmail({
-        to: ad.contact_email,
-        businessName: ad.business_name || undefined,
-      }).catch((err) => console.warn('[ads] approve email failed:', (err as any)?.message || err));
-    }
-
-    // Send push notification and create in-app notification
-    if (ad.user_id) {
-      sendPushNotification(
-        ad.user_id,
-        'Ad Approved!',
-        `Your ad for "${ad.business_name || 'your business'}" has been approved. Tap to complete payment.`,
-        { type: 'AD_APPROVED', ad_id: id }
-      ).catch(() => {});
-
-      prisma.notification.create({
-        data: {
-          user_id: ad.user_id,
-          type: 'AD_APPROVED',
-          meta: { ad_id: id, business_name: ad.business_name },
-        }
-      }).catch(() => {});
-    }
-
-    return res.json(updated);
-  } catch (err) {
-    console.error('[ads] POST /:id/approve error:', err);
-    return res.status(500).json({ error: 'Internal server error' });
+  if (ad.contact_email) {
+    sendAdRejectedEmail({ to: ad.contact_email, businessName: ad.business_name || undefined, reason: reason || undefined })
+      .catch((err) => console.warn('[ads] reject email failed:', (err as any)?.message || err));
   }
-});
 
-// Admin: Reject a pending ad — clears reservations, back to draft
-adsRouter.post('/:id([a-z0-9]{15,50})/reject', requireAdmin as any, async (req: AuthedRequest, res) => {
+  const updated = await prisma.ad.findUnique({ where: { id } });
+  return { ad: updated };
+}
+
+/** Verify a signed moderation token and check it matches the ad + action */
+function verifyModerationToken(token: string, adId: string, expectedAction: string): boolean {
+  const payload = verifyJwt<{ adId: string; action: string }>(token);
+  return !!payload && payload.adId === adId && payload.action === expectedAction;
+}
+
+/** Simple HTML confirmation page for browser-based token actions */
+function confirmationPage(title: string, message: string, success: boolean) {
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:500px;margin:60px auto;padding:20px;text-align:center;">
+<h2 style="color:${success ? '#16A34A' : '#DC2626'};">${title}</h2>
+<p style="color:#374151;">${message}</p>
+<p style="margin-top:24px;"><a href="${process.env.APP_BASE_URL || 'https://varsityhub.app'}" style="color:#1B3A6B;">Return to VarsityHub</a></p>
+</body></html>`;
+}
+
+// Admin: Approve a pending ad (POST admin-auth or GET token-based from email)
+async function handleAdApprove(req: AuthedRequest, res: Response) {
   try {
     const id = String(req.params.id);
-    const ad = await prisma.ad.findUnique({ where: { id } });
-    if (!ad) return res.status(404).json({ error: 'Ad not found' });
+    const token = (req.query?.token as string) || undefined;
 
-    await prisma.$transaction([
-      prisma.adReservation.deleteMany({ where: { ad_id: id } }),
-      prisma.ad.update({
-        where: { id },
-        data: { status: 'draft', payment_status: 'unpaid' },
-      }),
-    ]);
-
-    if (ad.contact_email) {
-      sendAdRejectedEmail({ to: ad.contact_email, businessName: ad.business_name || undefined, reason: req.body?.reason || undefined }).catch((err) =>
-        console.warn('[ads] reject email failed:', (err as any)?.message || err)
-      );
+    // Auth: either valid moderation token OR authenticated admin
+    if (token) {
+      if (!verifyModerationToken(token, id, 'approve_ad')) {
+        if (req.method === 'GET') return res.status(401).send(confirmationPage('Invalid Link', 'This approval link is invalid or has expired.', false));
+        return res.status(401).json({ error: 'Invalid or expired approval token' });
+      }
+    } else {
+      const isAdmin = await getIsAdmin(req);
+      if (!isAdmin) {
+        return res.status(403).json({ error: 'Admin only' });
+      }
     }
-    const updated = await prisma.ad.findUnique({ where: { id } });
-    return res.json(updated);
+
+    const result = await approveAd(id, typeof req.body?.note === 'string' ? req.body.note.trim() : null);
+    if (result.error) {
+      if (req.method === 'GET') return res.status(result.status!).send(confirmationPage('Error', result.error, false));
+      return res.status(result.status!).json({ error: result.error });
+    }
+
+    if (req.method === 'GET') return res.send(confirmationPage('Ad Approved', 'The ad has been approved. The advertiser has been notified.', true));
+    return res.json(result.ad);
   } catch (err) {
-    console.error('[ads] POST /:id/reject error:', err);
+    console.error('[ads] approve error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
+
+adsRouter.get('/:id([a-z0-9]{15,50})/approve', handleAdApprove as any);
+adsRouter.post('/:id([a-z0-9]{15,50})/approve', requireAdmin as any, handleAdApprove as any);
+
+// Admin: Reject a pending ad (POST admin-auth or GET token-based from email)
+async function handleAdReject(req: AuthedRequest, res: Response) {
+  try {
+    const id = String(req.params.id);
+    const token = (req.query?.token as string) || undefined;
+
+    if (token) {
+      if (!verifyModerationToken(token, id, 'reject_ad')) {
+        if (req.method === 'GET') return res.status(401).send(confirmationPage('Invalid Link', 'This rejection link is invalid or has expired.', false));
+        return res.status(401).json({ error: 'Invalid or expired rejection token' });
+      }
+    } else {
+      const isAdmin = await getIsAdmin(req);
+      if (!isAdmin) {
+        return res.status(403).json({ error: 'Admin only' });
+      }
+    }
+
+    const result = await rejectAd(id, req.body?.reason || (req.query?.reason as string) || null);
+    if (result.error) {
+      if (req.method === 'GET') return res.status(result.status!).send(confirmationPage('Error', result.error, false));
+      return res.status(result.status!).json({ error: result.error });
+    }
+
+    if (req.method === 'GET') return res.send(confirmationPage('Ad Rejected', 'The ad has been rejected and the advertiser has been notified.', true));
+    return res.json(result.ad);
+  } catch (err) {
+    console.error('[ads] reject error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+adsRouter.get('/:id([a-z0-9]{15,50})/reject', handleAdReject as any);
+adsRouter.post('/:id([a-z0-9]{15,50})/reject', requireAdmin as any, handleAdReject as any);
 
 // Admin: Review an ad (approve or reject) — used by admin-ads screen
 adsRouter.post('/:id([a-z0-9]{15,50})/review', requireAdmin as any, async (req: AuthedRequest, res) => {
@@ -853,32 +941,16 @@ adsRouter.post('/:id([a-z0-9]{15,50})/review', requireAdmin as any, async (req: 
     if (action !== 'approve' && action !== 'reject') {
       return res.status(400).json({ error: 'action must be "approve" or "reject"' });
     }
-    const ad = await prisma.ad.findUnique({ where: { id } });
-    if (!ad) return res.status(404).json({ error: 'Ad not found' });
-    if (ad.status !== 'pending') return res.status(400).json({ error: `Ad status is '${ad.status}', not 'pending'` });
-
     const note = typeof req.body?.note === 'string' ? req.body.note.trim() : null;
 
     if (action === 'approve') {
-      const updated = await prisma.ad.update({ where: { id }, data: { status: 'approved', ...(note ? { admin_note: note } : {}) } });
-      if (ad.contact_email) {
-        sendAdApprovedEmail({ to: ad.contact_email, businessName: ad.business_name || undefined }).catch((err) =>
-          console.warn('[ads] approve email failed:', (err as any)?.message || err)
-        );
-      }
-      return res.json(updated);
+      const result = await approveAd(id, note);
+      if (result.error) return res.status(result.status!).json({ error: result.error });
+      return res.json(result.ad);
     } else {
-      await prisma.$transaction([
-        prisma.adReservation.deleteMany({ where: { ad_id: id } }),
-        prisma.ad.update({ where: { id }, data: { status: 'draft', payment_status: 'unpaid', ...(note ? { admin_note: note } : {}) } }),
-      ]);
-      if (ad.contact_email) {
-        sendAdRejectedEmail({ to: ad.contact_email, businessName: ad.business_name || undefined, reason: note || undefined }).catch((err) =>
-          console.warn('[ads] reject email failed:', (err as any)?.message || err)
-        );
-      }
-      const updated = await prisma.ad.findUnique({ where: { id } });
-      return res.json(updated);
+      const result = await rejectAd(id, note);
+      if (result.error) return res.status(result.status!).json({ error: result.error });
+      return res.json(result.ad);
     }
   } catch (err) {
     console.error('[ads] POST /:id/review error:', err);

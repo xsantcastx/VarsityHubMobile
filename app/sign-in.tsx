@@ -255,9 +255,11 @@ export default function SignInScreen() {
             <View style={[
               styles.logoContainer,
               {
-                backgroundColor: colorScheme === 'dark' ? '#1a2744' : '#E8EDF4',
+                backgroundColor: colorScheme === 'dark' ? '#1e293b' : '#FFFFFF',
+                borderWidth: 1,
+                borderColor: colorScheme === 'dark' ? '#334155' : '#E5E7EB',
                 shadowColor: '#000000',
-                shadowOpacity: 0.15,
+                shadowOpacity: colorScheme === 'dark' ? 0.3 : 0.1,
                 shadowOffset: { width: 0, height: 4 },
                 shadowRadius: 12,
                 elevation: 6,

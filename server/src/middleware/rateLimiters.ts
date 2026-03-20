@@ -14,10 +14,10 @@ import { RedisStore } from 'rate-limit-redis';
 import { debugLog } from '../lib/debugLog.js';
 
 /**
- * Check if we're in development mode
- * In dev mode, rate limits are disabled for easier testing
+ * Rate limiting is always active unless explicitly disabled via DISABLE_RATE_LIMITING=1.
+ * This ensures dev and staging environments behave like production by default.
  */
-const isDev = process.env.NODE_ENV !== 'production';
+const rateLimitingDisabled = process.env.DISABLE_RATE_LIMITING === '1';
 
 /**
  * Create a separate Redis connection for rate limiting only
@@ -27,7 +27,7 @@ let rateLimitRedis: any = null;
 let redisStore: Store | undefined;
 
 async function initializeRateLimitRedis() {
-  if (isDev || rateLimitRedis) return;
+  if (rateLimitingDisabled || rateLimitRedis) return;
   
   try {
     const REDIS_URL = process.env.REDIS_URL;
@@ -87,10 +87,10 @@ function createLimiter(options: Partial<Options> & { name: string }): ReturnType
     windowMs: 60 * 1000, // 1 minute default
     standardHeaders: true,
     legacyHeaders: false,
-    skip: () => isDev,
+    skip: () => rateLimitingDisabled,
     keyGenerator: getUserIdentifier,
     // Use Redis store in production if available
-    ...(redisStore && !isDev ? { store: redisStore } : {}),
+    ...(redisStore && !rateLimitingDisabled ? { store: redisStore } : {}),
     handler: (req: Request, res: Response) => {
       console.warn(`[RateLimit] ${name}: User ${getUserIdentifier(req)} exceeded limit`);
       res.status(429).json({
@@ -114,7 +114,7 @@ function createLimiter(options: Partial<Options> & { name: string }): ReturnType
 export const authLimiter = createLimiter({
   name: 'auth',
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: isDev ? 100000 : 20,
+  max: rateLimitingDisabled ? 100000 : 20,
   keyGenerator: (req) => `ip:${req.ip}`, // Always use IP for auth
   message: 'Too many login attempts. Please try again in 15 minutes.',
 });
@@ -126,7 +126,7 @@ export const authLimiter = createLimiter({
 export const passwordResetLimiter = createLimiter({
   name: 'password-reset',
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: isDev ? 100000 : 5,
+  max: rateLimitingDisabled ? 100000 : 5,
   keyGenerator: (req) => `ip:${req.ip}`,
 });
 
@@ -137,7 +137,7 @@ export const passwordResetLimiter = createLimiter({
 export const refreshTokenLimiter = createLimiter({
   name: 'refresh-token',
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: isDev ? 100000 : 30,
+  max: rateLimitingDisabled ? 100000 : 30,
   keyGenerator: (req) => `ip:${req.ip}`,
 });
 
@@ -148,7 +148,7 @@ export const refreshTokenLimiter = createLimiter({
 export const verificationLimiter = createLimiter({
   name: 'verification',
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: isDev ? 100000 : 10,
+  max: rateLimitingDisabled ? 100000 : 10,
 });
 
 // ============================================
@@ -162,7 +162,7 @@ export const verificationLimiter = createLimiter({
 export const postCreationLimiter = createLimiter({
   name: 'post-creation',
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: isDev ? 100000 : 20,
+  max: rateLimitingDisabled ? 100000 : 20,
 });
 
 /**
@@ -172,7 +172,7 @@ export const postCreationLimiter = createLimiter({
 export const commentLimiter = createLimiter({
   name: 'comment',
   windowMs: 5 * 60 * 1000, // 5 minutes
-  max: isDev ? 100000 : 30,
+  max: rateLimitingDisabled ? 100000 : 30,
 });
 
 /**
@@ -182,7 +182,7 @@ export const commentLimiter = createLimiter({
 export const messageLimiter = createLimiter({
   name: 'message',
   windowMs: 60 * 1000, // 1 minute
-  max: isDev ? 100000 : 60,
+  max: rateLimitingDisabled ? 100000 : 60,
 });
 
 /**
@@ -192,7 +192,7 @@ export const messageLimiter = createLimiter({
 export const groupMessageLimiter = createLimiter({
   name: 'group-message',
   windowMs: 60 * 1000, // 1 minute
-  max: isDev ? 100000 : 30,
+  max: rateLimitingDisabled ? 100000 : 30,
 });
 
 // ============================================
@@ -206,7 +206,7 @@ export const groupMessageLimiter = createLimiter({
 export const followLimiter = createLimiter({
   name: 'follow',
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: isDev ? 100000 : 100,
+  max: rateLimitingDisabled ? 100000 : 100,
 });
 
 /**
@@ -216,7 +216,7 @@ export const followLimiter = createLimiter({
 export const interactionLimiter = createLimiter({
   name: 'interaction',
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: isDev ? 100000 : 200,
+  max: rateLimitingDisabled ? 100000 : 200,
 });
 
 /**
@@ -226,7 +226,7 @@ export const interactionLimiter = createLimiter({
 export const reportLimiter = createLimiter({
   name: 'report',
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: isDev ? 100000 : 10,
+  max: rateLimitingDisabled ? 100000 : 10,
 });
 
 // ============================================
@@ -240,7 +240,7 @@ export const reportLimiter = createLimiter({
 export const teamCreationLimiter = createLimiter({
   name: 'team-creation',
   windowMs: 24 * 60 * 60 * 1000, // 24 hours
-  max: isDev ? 100000 : 5,
+  max: rateLimitingDisabled ? 100000 : 5,
 });
 
 /**
@@ -250,7 +250,7 @@ export const teamCreationLimiter = createLimiter({
 export const eventCreationLimiter = createLimiter({
   name: 'event-creation',
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: isDev ? 100000 : 20,
+  max: rateLimitingDisabled ? 100000 : 20,
 });
 
 /**
@@ -260,7 +260,7 @@ export const eventCreationLimiter = createLimiter({
 export const gameCreationLimiter = createLimiter({
   name: 'game-creation',
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: isDev ? 100000 : 40,
+  max: rateLimitingDisabled ? 100000 : 40,
 });
 
 /**
@@ -270,7 +270,7 @@ export const gameCreationLimiter = createLimiter({
 export const inviteLimiter = createLimiter({
   name: 'invite',
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: isDev ? 100000 : 50,
+  max: rateLimitingDisabled ? 100000 : 50,
 });
 
 // ============================================
@@ -284,7 +284,7 @@ export const inviteLimiter = createLimiter({
 export const uploadLimiter = createLimiter({
   name: 'upload',
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: isDev ? 100000 : 30,
+  max: rateLimitingDisabled ? 100000 : 30,
 });
 
 // ============================================
@@ -298,7 +298,7 @@ export const uploadLimiter = createLimiter({
 export const rsvpLimiter = createLimiter({
   name: 'rsvp',
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: isDev ? 100000 : 50,
+  max: rateLimitingDisabled ? 100000 : 50,
 });
 
 // ============================================
@@ -312,7 +312,7 @@ export const rsvpLimiter = createLimiter({
 export const voteLimiter = createLimiter({
   name: 'vote',
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: isDev ? 100000 : 100,
+  max: rateLimitingDisabled ? 100000 : 100,
 });
 
 // ============================================
@@ -326,7 +326,7 @@ export const voteLimiter = createLimiter({
 export const adCreationLimiter = createLimiter({
   name: 'ad-creation',
   windowMs: 24 * 60 * 60 * 1000, // 24 hours
-  max: isDev ? 100000 : 10,
+  max: rateLimitingDisabled ? 100000 : 10,
 });
 
 /**
@@ -336,7 +336,7 @@ export const adCreationLimiter = createLimiter({
 export const paymentLimiter = createLimiter({
   name: 'payment',
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: isDev ? 100000 : 10,
+  max: rateLimitingDisabled ? 100000 : 10,
 });
 
 /**
@@ -346,7 +346,7 @@ export const paymentLimiter = createLimiter({
 export const alternativeZipsLimiter = createLimiter({
   name: 'alternative-zips',
   windowMs: 60 * 1000, // 1 minute
-  max: isDev ? 100000 : 30,
+  max: rateLimitingDisabled ? 100000 : 30,
   keyGenerator: (req) => `ip:${req.ip || 'unknown'}`,
 });
 
@@ -357,7 +357,7 @@ export const alternativeZipsLimiter = createLimiter({
 export const usernameAvailableLimiter = createLimiter({
   name: 'username-available',
   windowMs: 60 * 1000, // 1 minute
-  max: isDev ? 100000 : 30,
+  max: rateLimitingDisabled ? 100000 : 30,
   keyGenerator: (req) => `ip:${req.ip || 'unknown'}`,
 });
 
@@ -368,7 +368,7 @@ export const usernameAvailableLimiter = createLimiter({
 export const searchLimiter = createLimiter({
   name: 'search',
   windowMs: 60 * 1000, // 1 minute
-  max: isDev ? 100000 : 60,
+  max: rateLimitingDisabled ? 100000 : 60,
   keyGenerator: (req) => `ip:${req.ip || 'unknown'}`,
 });
 
@@ -379,7 +379,7 @@ export const searchLimiter = createLimiter({
 export const supportLimiter = createLimiter({
   name: 'support',
   windowMs: 60 * 1000, // 1 minute
-  max: isDev ? 100000 : 10,
+  max: rateLimitingDisabled ? 100000 : 10,
 });
 
 /**
@@ -389,7 +389,7 @@ export const supportLimiter = createLimiter({
 export const organizationsNearbyLimiter = createLimiter({
   name: 'organizations-nearby',
   windowMs: 60 * 1000, // 1 minute
-  max: isDev ? 100000 : 30,
+  max: rateLimitingDisabled ? 100000 : 30,
   keyGenerator: (req) => `ip:${req.ip || 'unknown'}`,
 });
 
@@ -400,7 +400,7 @@ export const organizationsNearbyLimiter = createLimiter({
 export const userLookupLimiter = createLimiter({
   name: 'user-lookup',
   windowMs: 60 * 1000, // 1 minute
-  max: isDev ? 100000 : 10,
+  max: rateLimitingDisabled ? 100000 : 10,
 });
 
 /**
@@ -410,7 +410,7 @@ export const userLookupLimiter = createLimiter({
 export const mentionsSearchLimiter = createLimiter({
   name: 'mentions-search',
   windowMs: 60 * 1000, // 1 minute
-  max: isDev ? 100000 : 30,
+  max: rateLimitingDisabled ? 100000 : 30,
 });
 
 // ============================================

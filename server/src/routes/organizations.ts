@@ -268,12 +268,23 @@ organizationsRouter.get('/:id', async (req, res) => {
   }
 });
 
-// Get organization members
-organizationsRouter.get('/:id/members', async (req, res) => {
+// Get organization members (requires auth + membership or admin)
+organizationsRouter.get('/:id/members', requireAuth as any, async (req: AuthedRequest, res) => {
   try {
     const id = String(req.params.id);
     const organization = await prisma.organization.findUnique({ where: { id } });
     if (!organization) return res.status(404).json({ error: 'Organization not found' });
+
+    // Caller must be a member of this org or a platform admin
+    const callerMembership = await prisma.organizationMembership.findUnique({
+      where: { organization_id_user_id: { organization_id: id, user_id: req.user!.id } as any },
+    });
+    if (!callerMembership) {
+      const caller = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { email: true } });
+      if (!isEmailAdmin(caller?.email)) {
+        return res.status(403).json({ error: 'You must be a member of this organization' });
+      }
+    }
 
     const members = await prisma.organizationMembership.findMany({
       where: { organization_id: id, status: 'active' },
@@ -400,6 +411,7 @@ organizationsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res
       orgType: data.org_type,
       approveToken,
       rejectToken,
+      supportingDocumentUrl: data.supporting_document_url,
     }).then((sent) => {
       if (!sent) {
         console.warn('[organizations] League approval request email reported unsent (/). Check mail provider config.');
@@ -474,6 +486,7 @@ organizationsRouter.post('/create', requireAuth as any, async (req: AuthedReques
           org_type: data.org_type,
           location: data.location,
           zip_code: data.zip_code,
+          supporting_document_url: data.supporting_document_url,
           season_start: data.season_start ? new Date(data.season_start) : null,
           season_end: data.season_end ? new Date(data.season_end) : null,
           updated_at: new Date(),
@@ -508,6 +521,7 @@ organizationsRouter.post('/create', requireAuth as any, async (req: AuthedReques
       orgType: data.org_type,
       approveToken,
       rejectToken,
+      supportingDocumentUrl: data.supporting_document_url,
     }).then((sent) => {
       if (!sent) {
         console.warn('[organizations] League approval request email reported unsent (/create). Check mail provider config.');
@@ -584,9 +598,9 @@ organizationsRouter.post('/:id/invite', requireAuth as any, requireOnboarded as 
   const { email, role } = parsed.data;
 
   // Validate role against allowed org roles
-  const VALID_ORG_ROLES = ['owner', 'manager', 'member'];
-  if (role && !VALID_ORG_ROLES.includes(role)) {
-    return res.status(400).json({ error: `Invalid role. Must be one of: ${VALID_ORG_ROLES.join(', ')}` });
+  const VALID_ORG_INVITE_ROLES = ['manager', 'member'];
+  if (role && !VALID_ORG_INVITE_ROLES.includes(role)) {
+    return res.status(400).json({ error: `Invalid role. Must be one of: ${VALID_ORG_INVITE_ROLES.join(', ')}` });
   }
 
   // Check if user is a member of the organization

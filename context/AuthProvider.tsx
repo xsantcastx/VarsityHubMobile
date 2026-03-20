@@ -413,16 +413,21 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     };
   }, [navReady, checkHealth]);
 
-  // Re-check auth when app comes to foreground
+  // Re-check auth when app comes to foreground (debounced to prevent rapid-fire)
+  const lastForegroundCheckRef = React.useRef<number>(0);
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextState) => {
       if (nextState === 'active' && !initializing) {
-        checkAuth().catch(() => {});
+        const now = Date.now();
+        // Skip if we checked less than 5 seconds ago (prevents infinite loop from rapid foreground events)
+        if (now - lastForegroundCheckRef.current < 5000) return;
+        lastForegroundCheckRef.current = now;
+        checkAuthRef.current().catch(() => {});
         fetchSubscription().catch(() => {});
       }
     });
     return () => subscription.remove();
-  }, [checkAuth, fetchSubscription, initializing]);
+  }, [fetchSubscription, initializing]);
 
   // Safety timeout - force initialization complete after 5 seconds
   useEffect(() => {
@@ -619,7 +624,10 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         router.replace('/sign-in');
       }
     }
-  }, [user, pendingVerificationEmail, initializing, healthOk, router, hasCompletedOnboarding, segments]);
+  // NOTE: `segments` is intentionally excluded — we read segmentsRef.current inside.
+  // Including segments causes an infinite loop: route change -> segments update -> effect re-runs -> route change.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, pendingVerificationEmail, initializing, healthOk, router, hasCompletedOnboarding]);
 
   const value = useMemo<AuthContextType>(() => ({
     user,

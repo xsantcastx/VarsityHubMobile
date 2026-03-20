@@ -354,9 +354,20 @@ export async function sendAdPendingReviewEmail(params: {
   zipCode?: string;
   bannerUrl?: string;
   adId?: string;
+  approveToken?: string;
+  rejectToken?: string;
 }): Promise<boolean> {
   const adminTo = params.to || process.env.ADMIN_EMAILS?.split(',')[0]?.trim() || 'emancero@varsityhub.app';
   const subject = `Ad Pending Review — ${params.businessName || 'Unknown Business'}`;
+
+  // Build one-click approve/reject URLs when tokens are provided
+  const approveUrl = params.approveToken && params.adId
+    ? `${API_BASE_URL}/ads/${params.adId}/approve?token=${params.approveToken}`
+    : '';
+  const rejectUrl = params.rejectToken && params.adId
+    ? `${API_BASE_URL}/ads/${params.adId}/reject?token=${params.rejectToken}`
+    : '';
+
   const plainBody = [
     `A new ad needs your review on VarsityHub.`,
     ``,
@@ -366,6 +377,8 @@ export async function sendAdPendingReviewEmail(params: {
     `Ad ID: ${params.adId || 'N/A'}`,
     params.bannerUrl ? `Banner: ${params.bannerUrl}` : '',
     ``,
+    ...(approveUrl ? [`APPROVE: ${approveUrl}`, ``] : []),
+    ...(rejectUrl ? [`REJECT: ${rejectUrl}`, ``] : []),
     `Review this ad in the admin dashboard.`,
   ].filter(Boolean).join('\n');
 
@@ -385,6 +398,8 @@ export async function sendAdPendingReviewEmail(params: {
         zip_code: params.zipCode || 'N/A',
         banner_url: params.bannerUrl || '',
         ad_id: params.adId || '',
+        approve_url: approveUrl,
+        reject_url: rejectUrl,
         // Map to league template fields so it renders in either template
         league_name: params.businessName || 'N/A',
         owner_name: params.contactName || 'N/A',
@@ -416,8 +431,12 @@ export async function sendAdPendingReviewEmail(params: {
     <tr><td style="padding:8px 12px;font-weight:bold;color:#374151;border-bottom:1px solid #E5E7EB;">Ad ID:</td><td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;">${params.adId || 'N/A'}</td></tr>
   </table>
   ${params.bannerUrl ? `<div style="text-align:center;margin-bottom:20px;"><img src="${params.bannerUrl}" alt="Ad Banner" style="max-width:100%;border-radius:8px;border:1px solid #E5E7EB;" /></div>` : ''}
+  <div style="text-align:center;margin-bottom:12px;">
+    ${approveUrl ? `<a href="${approveUrl}" style="display:inline-block;background:#16A34A;color:#fff;padding:12px 32px;border-radius:8px;text-decoration:none;font-weight:600;margin-right:12px;">Approve Ad</a>` : ''}
+    ${rejectUrl ? `<a href="${rejectUrl}" style="display:inline-block;background:#DC2626;color:#fff;padding:12px 32px;border-radius:8px;text-decoration:none;font-weight:600;">Reject Ad</a>` : ''}
+  </div>
   <div style="text-align:center;">
-    <a href="${dashboardUrl}" style="display:inline-block;background:#1B3A6B;color:#fff;padding:12px 32px;border-radius:8px;text-decoration:none;font-weight:600;">Review in Dashboard</a>
+    <a href="${dashboardUrl}" style="display:inline-block;color:#1B3A6B;padding:8px 16px;text-decoration:underline;font-size:13px;">or Review in Dashboard</a>
   </div>
   <p style="text-align:center;color:#9CA3AF;font-size:13px;margin-top:24px;">&copy; ${new Date().getFullYear()} Lime Productions. All rights reserved.</p>
 </div>`;
@@ -1446,6 +1465,7 @@ export async function sendLeagueApprovalRequestEmail(params: {
   orgType?: string;
   approveToken: string;
   rejectToken: string;
+  supportingDocumentUrl?: string;
 }): Promise<boolean> {
   const approveUrl = `${API_BASE_URL}/organizations/${params.leagueId}/approve?token=${params.approveToken}`;
   const rejectUrl = `${API_BASE_URL}/organizations/${params.leagueId}/reject?token=${params.rejectToken}`;
@@ -1468,6 +1488,10 @@ export async function sendLeagueApprovalRequestEmail(params: {
       created_date: new Date().toLocaleDateString(),
       approve_url: approveUrl,
       reject_url: rejectUrl,
+      supporting_document_url: params.supportingDocumentUrl || '',
+      supporting_document_link: params.supportingDocumentUrl
+        ? `<a href="${params.supportingDocumentUrl}">View Supporting Document</a>`
+        : '',
     },
     `League approval request sent to ${to}`
   );
@@ -1485,6 +1509,7 @@ export async function sendLeagueApprovalRequestEmail(params: {
         `Type: ${params.orgType || 'Not specified'}`,
         `Sport: ${params.sport || 'Not specified'}`,
         `Submitted: ${new Date().toLocaleDateString()}`,
+        ...(params.supportingDocumentUrl ? [``, `Supporting Document: ${params.supportingDocumentUrl}`] : []),
         ``,
         `APPROVE: ${approveUrl}`,
         ``,

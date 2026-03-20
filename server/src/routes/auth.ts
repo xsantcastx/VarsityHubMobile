@@ -1,6 +1,7 @@
 import bcrypt from 'bcrypt';
 import crypto, { createPublicKey, type KeyObject } from 'crypto';
 import { Router, type Response } from 'express';
+import { OAuth2Client } from 'google-auth-library';
 import jwt, { type JwtPayload } from 'jsonwebtoken';
 import { z } from 'zod';
 import { sendPasswordChangedEmail, sendPasswordResetEmail, sendVerificationEmail, sendWelcomeEmail } from '../lib/email.js';
@@ -423,18 +424,27 @@ authRouter.post('/google', authLimiter, async (req, res) => {
   const { id_token } = parsed.data;
 
   try {
-    const googleResponse = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(id_token)}`);
-    if (!googleResponse.ok) {
-      const detail = await googleResponse.text().catch(() => '');
-      req.log?.warn?.({ detail }, '[auth/google] tokeninfo rejected credential');
+    // Verify Google ID token using google-auth-library (cryptographic signature verification)
+    const googleClient = new OAuth2Client();
+    let ticket;
+    try {
+      ticket = await googleClient.verifyIdToken({
+        idToken: id_token,
+        audience: GOOGLE_ALLOWED_AUDIENCES.length ? GOOGLE_ALLOWED_AUDIENCES : undefined,
+      });
+    } catch (verifyErr) {
+      req.log?.warn?.({ err: (verifyErr as Error)?.message }, '[auth/google] ID token verification failed');
       return res.status(401).json({ error: 'Google authentication failed' });
     }
 
-    const payload = await googleResponse.json() as any;
-    const googleId = typeof payload?.sub === 'string' ? payload.sub : null;
-    const audience = typeof payload?.aud === 'string' ? payload.aud : null;
-    const email = typeof payload?.email === 'string' ? String(payload.email).toLowerCase() : null;
-    const emailVerified = payload?.email_verified === 'true' || payload?.email_verified === true;
+    const payload = ticket.getPayload();
+    if (!payload) {
+      return res.status(401).json({ error: 'Google authentication failed' });
+    }
+
+    const googleId = payload.sub;
+    const email = typeof payload.email === 'string' ? payload.email.toLowerCase() : null;
+    const emailVerified = payload.email_verified === true;
 
     if (!googleId || !email) {
       return res.status(400).json({ error: 'Invalid Google credential' });
@@ -444,15 +454,10 @@ authRouter.post('/google', authLimiter, async (req, res) => {
       return res.status(400).json({ error: 'Google account email is not verified' });
     }
 
-    if (GOOGLE_ALLOWED_AUDIENCES.length && (!audience || !GOOGLE_ALLOWED_AUDIENCES.includes(audience))) {
-      req.log?.warn?.({ audience }, '[auth/google] audience mismatch');
-      return res.status(400).json({ error: 'Google credential not issued for this application' });
-    }
-
-    const displayNameSource = typeof payload?.name === 'string' && payload.name.trim().length
+    const displayNameSource = typeof payload.name === 'string' && payload.name.trim().length
       ? payload.name.trim()
       : email.split('@')[0];
-    const avatarUrl = typeof payload?.picture === 'string' ? payload.picture : null;
+    const avatarUrl = typeof payload.picture === 'string' ? payload.picture : null;
 
     let user = await prisma.user.findUnique({ where: { google_id: googleId } });
     let created = false;
@@ -549,10 +554,10 @@ authRouter.post('/apple', authLimiter, async (req, res) => {
   const { identity_token } = parsed.data;
 
   try {
-    // In development/simulator, accept tokens starting with 'sim-' for testing
+    // Simulator tokens require explicit opt-in via ALLOW_APPLE_SIM_TOKENS=1
     const isDevelopmentToken = identity_token.startsWith('sim-');
-    if (isDevelopmentToken && process.env.NODE_ENV === 'production') {
-      return res.status(400).json({ error: 'Development tokens are not allowed in production' });
+    if (isDevelopmentToken && process.env.ALLOW_APPLE_SIM_TOKENS !== '1') {
+      return res.status(400).json({ error: 'Development tokens are not allowed' });
     }
     
     let appleId: string;

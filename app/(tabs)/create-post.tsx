@@ -1117,9 +1117,9 @@ export default function CreatePostScreen() {
             </Pressable>
           </View>
 
-          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, flexGrow: 1, justifyContent: 'center' }}>
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, flexGrow: 1, justifyContent: 'center', alignItems: 'center' }}>
             {/* Preview Card - Shows how post will look in feed */}
-            <View style={[styles.previewCard, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
+            <View style={[styles.previewCard, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border, width: '100%', maxWidth: 500 }]}>
               <Text style={[styles.previewLabel, { color: Colors[colorScheme].mutedText }]}>
                 This is how your post will appear in the feed:
               </Text>

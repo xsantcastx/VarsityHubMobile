@@ -393,6 +393,14 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paym
   if (!isoDates.some((d) => d >= todayStr)) {
     return res.status(400).json({ error: 'All selected dates are in the past. Please choose at least one future date.' });
   }
+  // Enforce booking horizon — no dates beyond 56 days from today
+  const MAX_BOOKING_HORIZON_DAYS = 56;
+  const horizonCutoff = new Date();
+  horizonCutoff.setDate(horizonCutoff.getDate() + MAX_BOOKING_HORIZON_DAYS);
+  const pastHorizon = isoDates.filter(d => new Date(d + 'T00:00:00.000Z') > horizonCutoff);
+  if (pastHorizon.length > 0) {
+    return res.status(400).json({ error: `Dates must be within ${MAX_BOOKING_HORIZON_DAYS} days from today`, dates: pastHorizon });
+  }
 
   // Ensure ad exists and belongs to the requesting user
   const ad = await prisma.ad.findUnique({ where: { id: String(ad_id) } });
@@ -854,6 +862,14 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
   if (!isoDates.some((d) => d >= todayStr)) {
     return res.status(400).json({ error: 'All selected dates are in the past. Please choose at least one future date.' });
   }
+  // Enforce booking horizon — no dates beyond 56 days from today
+  const MAX_BOOKING_HORIZON_DAYS = 56;
+  const horizonCutoff = new Date();
+  horizonCutoff.setDate(horizonCutoff.getDate() + MAX_BOOKING_HORIZON_DAYS);
+  const pastHorizon = isoDates.filter(d => new Date(d + 'T00:00:00.000Z') > horizonCutoff);
+  if (pastHorizon.length > 0) {
+    return res.status(400).json({ error: `Dates must be within ${MAX_BOOKING_HORIZON_DAYS} days from today`, dates: pastHorizon });
+  }
 
   const ad = await prisma.ad.findUnique({ where: { id: String(ad_id) } });
   if (!ad) return res.status(404).json({ error: 'Ad not found' });
@@ -1029,6 +1045,10 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
 // for route /payments/webhook BEFORE express.json(). Do not add parsers here.
 paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
   const sig = req.headers['stripe-signature'];
+  if (!sig) {
+    // No signature = not from Stripe (bot, crawler, health check). Reject silently.
+    return res.status(400).json({ error: 'Missing stripe-signature header' });
+  }
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || '';
   if (!webhookSecret) {
     console.error('STRIPE_WEBHOOK_SECRET is not set!');
@@ -2502,6 +2522,14 @@ paymentsRouter.post('/apple/verify-ad-receipt', expressPkg.json(), requireAuth a
     const isoDateStrings: string[] = dates.map((d: any) => String(d));
     if (!isoDateStrings.some((d) => d >= todayStr)) {
       return res.status(400).json({ error: 'All selected dates are in the past. Please choose at least one future date.' });
+    }
+    // Enforce booking horizon — no dates beyond 56 days from today
+    const MAX_BOOKING_HORIZON_DAYS = 56;
+    const horizonCutoff = new Date();
+    horizonCutoff.setDate(horizonCutoff.getDate() + MAX_BOOKING_HORIZON_DAYS);
+    const pastHorizon = isoDateStrings.filter(d => new Date(d + 'T00:00:00.000Z') > horizonCutoff);
+    if (pastHorizon.length > 0) {
+      return res.status(400).json({ error: `Dates must be within ${MAX_BOOKING_HORIZON_DAYS} days from today`, dates: pastHorizon });
     }
 
     const ad = await prisma.ad.findUnique({ where: { id: String(ad_id) } });
