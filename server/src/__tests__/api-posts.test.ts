@@ -115,7 +115,7 @@ describeDb('Posts API Endpoints', () => {
       testPostId = res.body.id;
     });
 
-    it('should allow delete + restore within undo window', async () => {
+    it('should delete post without undo window', async () => {
       const created = await request(app)
         .post('/posts')
         .set('Authorization', `Bearer ${testUserToken}`)
@@ -133,14 +133,8 @@ describeDb('Posts API Endpoints', () => {
         .set('Authorization', `Bearer ${testUserToken}`);
 
       expect(del.statusCode).toEqual(200);
-      expect(del.body.undo_until).toBeDefined();
-
-      const restore = await request(app)
-        .post(`/posts/${postId}/restore`)
-        .set('Authorization', `Bearer ${testUserToken}`);
-
-      expect(restore.statusCode).toEqual(200);
-      expect(restore.body.deleted_at).toBeNull();
+      expect(del.body.undo_until).toBeUndefined();
+      expect(del.body.deleted_at).toBeDefined();
 
       await prisma.post.delete({ where: { id: postId } }).catch(() => {});
     });

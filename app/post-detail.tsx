@@ -587,26 +587,10 @@ export default function PostDetailScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              const _res: any = await PostApi.delete(currentPostId);
-              Alert.alert(
-                'Post deleted',
-                'You can undo this action for a short time.',
-                [
-                  {
-                    text: 'Undo',
-                    onPress: async () => {
-                      try {
-                        await PostApi.restore(currentPostId);
-                        await load();
-                      } catch (restoreError: any) {
-                        Alert.alert('Error', restoreError?.message || 'Restore window expired.');
-                        safeGoBack(router);
-                      }
-                    }
-                  },
-                  { text: 'Close', style: 'destructive', onPress: () => { safeGoBack(router); } },
-                ]
-              );
+              await PostApi.delete(currentPostId);
+              Alert.alert('Post deleted', 'Your post was deleted successfully.', [
+                { text: 'Close', style: 'default', onPress: () => { safeGoBack(router); } },
+              ]);
             } catch (error: any) {
               Alert.alert('Error', error.message || 'Failed to delete post');
             }

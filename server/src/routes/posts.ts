@@ -14,7 +14,6 @@ import { asyncHandler } from '../middleware/asyncHandler.js';
 
 export const postsRouter = Router();
 
-const POST_UNDO_WINDOW_MS = 5 * 60 * 1000;
 const debugLog = (...args: Parameters<typeof console.log>) => {
   if (process.env.ENABLE_SERVER_DEBUG_LOGS === 'true' || process.env.NODE_ENV !== 'production') {
     console.log(...args);
@@ -1315,7 +1314,6 @@ postsRouter.delete('/:id', requireAuth as any, requireOnboarded as any, asyncHan
     res.json({
       message: 'Post deleted successfully',
       deleted_at: deletedAt.toISOString(),
-      undo_until: new Date(deletedAt.getTime() + POST_UNDO_WINDOW_MS).toISOString(),
     });
   } catch (error) {
     console.error('Error deleting post:', error);
@@ -1323,56 +1321,9 @@ postsRouter.delete('/:id', requireAuth as any, requireOnboarded as any, asyncHan
   }
 }));
 
-// Restore a recently deleted post (author only)
-postsRouter.post('/:id/restore', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
-  const postId = String(req.params.id);
-  const userId = req.user!.id;
-
-  try {
-    const post = await prisma.post.findFirst({
-      where: { id: postId },
-      select: { id: true, author_id: true, deleted_at: true },
-    });
-    if (!post) return res.status(404).json({ error: 'Post not found' });
-    if (post.author_id !== userId) {
-      return res.status(403).json({ error: 'You can only restore your own posts' });
-    }
-    if (!post.deleted_at) {
-      return res.status(400).json({ error: 'Post is not deleted' });
-    }
-    const deletedAtMs = post.deleted_at.getTime();
-    if (Date.now() - deletedAtMs > POST_UNDO_WINDOW_MS) {
-      return res.status(410).json({ error: 'Restore window has expired' });
-    }
-
-    let restored: any;
-    try {
-      restored = await prisma.post.update({
-        where: { id: postId },
-        data: { deleted_at: null },
-        include: {
-          author: { select: { id: true, username: true, display_name: true, avatar_url: true } },
-          _count: { select: { comments: true, bookmarks: true } },
-          poll: { include: { options: true } },
-        },
-      });
-    } catch (error: any) {
-      if (!isMissingPollSchemaError(error)) throw error;
-      logPollSchemaFallback('POST /posts/:id/restore', error);
-      restored = await prisma.post.update({
-        where: { id: postId },
-        data: { deleted_at: null },
-        include: {
-          author: { select: { id: true, username: true, display_name: true, avatar_url: true } },
-          _count: { select: { comments: true, bookmarks: true } },
-        },
-      });
-    }
-    return res.json(restored);
-  } catch (error) {
-    console.error('Error restoring post:', error);
-    return res.status(500).json({ error: 'Failed to restore post' });
-  }
+// Legacy route preserved with explicit denial so old clients fail predictably.
+postsRouter.post('/:id/restore', requireAuth as any, asyncHandler(async (_req: AuthedRequest, res) => {
+  return res.status(410).json({ error: 'Post restore is no longer supported' });
 }));
 
 // Update post (author: content/title/is_pinned; coach of team: is_pinned only)

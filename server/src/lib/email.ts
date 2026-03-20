@@ -481,10 +481,11 @@ export async function sendAdApprovedEmail(params: {
   to: string;
   businessName?: string;
 }): Promise<boolean> {
-  return sendTemplateEmail(
+  const subject = 'Your Ad Has Been Approved — VarsityHub';
+  const sent = await sendTemplateEmail(
     TEMPLATE_IDS.AD_APPROVED,
     params.to,
-    'Your Ad Has Been Approved — VarsityHub',
+    subject,
     {
       ...getCommonTemplateData(),
       business_name: params.businessName || 'your business',
@@ -492,6 +493,35 @@ export async function sendAdApprovedEmail(params: {
     },
     `Ad approved email sent to ${params.to}`
   );
+  if (sent) return true;
+
+  // Fallback for cases where template IDs are missing or template delivery fails.
+  const businessName = params.businessName || 'your business';
+  const textBody = [
+    `Great news — your ad for ${businessName} has been approved.`,
+    '',
+    'Next step: complete checkout to schedule your ad dates.',
+    `Open VarsityHub: ${APP_BASE_URL}`,
+  ].join('\n');
+  const htmlBody = `
+<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+  <div style="text-align:center;margin-bottom:24px;">
+    <img src="${getCommonTemplateData().logo_url}" alt="VarsityHub" style="height:48px;" />
+  </div>
+  <h2 style="color:#16A34A;text-align:center;margin-bottom:16px;">Your ad is approved</h2>
+  <p style="color:#334155;line-height:1.6;text-align:center;margin:0 0 20px 0;">
+    Great news &mdash; your ad for <strong>${businessName}</strong> is approved.
+  </p>
+  <p style="color:#334155;line-height:1.6;text-align:center;margin:0 0 24px 0;">
+    Complete checkout to schedule your ad dates.
+  </p>
+  <div style="text-align:center;">
+    <a href="${APP_BASE_URL}" style="display:inline-block;background:#1B3A6B;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:700;">
+      Open VarsityHub
+    </a>
+  </div>
+</div>`;
+  return sendEmail({ to: params.to, subject, text: textBody, html: htmlBody });
 }
 
 export async function sendAdRejectedEmail(params: {

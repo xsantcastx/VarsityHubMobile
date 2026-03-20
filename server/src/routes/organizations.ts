@@ -1008,27 +1008,35 @@ organizationsRouter.post('/join-requests', requireAuth as any, async (req: Authe
         });
 
         // Push notification to league owner
-        sendPushNotification(
-          owner.user.id,
-          'New coach request',
-          `${joinRequest.user.display_name || 'A coach'} wants to join ${organization.name}`,
-          { type: 'coach_request', screen: 'approvals', organization_id: organization.id },
-        ).catch(() => {});
+        try {
+          await sendPushNotification(
+            owner.user.id,
+            'New coach request',
+            `${joinRequest.user.display_name || 'A coach'} wants to join ${organization.name}`,
+            { type: 'coach_request', screen: 'approvals', organization_id: organization.id },
+          );
+        } catch (err) {
+          console.error('[organizations] Failed to send coach request push notification:', err);
+        }
 
         // In-app notification record for league owner
-        prisma.notification.create({
-          data: {
-            user_id: owner.user.id,
-            actor_id: req.user!.id,
-            type: 'TEAM_INVITE', // Closest available type for coach request
-            meta: {
-              coach_request: true,
-              organization_id: organization.id,
-              organization_name: organization.name,
-              coach_name: joinRequest.user.display_name || 'A coach',
+        try {
+          await prisma.notification.create({
+            data: {
+              user_id: owner.user.id,
+              actor_id: req.user!.id,
+              type: 'TEAM_INVITE', // Closest available type for coach request
+              meta: {
+                coach_request: true,
+                organization_id: organization.id,
+                organization_name: organization.name,
+                coach_name: joinRequest.user.display_name || 'A coach',
+              },
             },
-          },
-        }).catch(() => {});
+          });
+        } catch (err) {
+          console.error('[organizations] Failed to create coach request notification row:', err);
+        }
       } catch (err) {
         console.error('Failed to send join request email to admin:', err);
       }
@@ -1423,39 +1431,55 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
 
     // Email league owner
     if (org.leagueOwner?.email) {
-      sendLeagueApprovedEmail({
-        to: org.leagueOwner.email,
-        ownerName: org.leagueOwner.display_name || 'League Owner',
-        leagueName: org.name,
-      }).catch(() => {});
+      try {
+        await sendLeagueApprovedEmail({
+          to: org.leagueOwner.email,
+          ownerName: org.leagueOwner.display_name || 'League Owner',
+          leagueName: org.name,
+        });
+      } catch (err) {
+        console.error('[organizations] Failed to send league approved email:', err);
+      }
     }
 
     // Push notification + in-app notification for league owner
     if (org.leagueOwner?.id) {
-      sendPushNotification(
-        org.leagueOwner.id,
-        'Organization Approved!',
-        `Your organization "${org.name}" has been approved on VarsityHub.`,
-        { type: 'ORG_APPROVED', organization_id: orgId }
-      ).catch(() => {});
+      try {
+        await sendPushNotification(
+          org.leagueOwner.id,
+          'Organization Approved!',
+          `Your organization "${org.name}" has been approved on VarsityHub.`,
+          { type: 'ORG_APPROVED', organization_id: orgId }
+        );
+      } catch (err) {
+        console.error('[organizations] Failed to send ORG_APPROVED push notification:', err);
+      }
 
-      prisma.notification.create({
-        data: {
-          user_id: org.leagueOwner.id,
-          type: 'ORG_APPROVED',
-          meta: { organization_id: orgId, organization_name: org.name },
-        }
-      }).catch(() => {});
+      try {
+        await prisma.notification.create({
+          data: {
+            user_id: org.leagueOwner.id,
+            type: 'ORG_APPROVED',
+            meta: { organization_id: orgId, organization_name: org.name },
+          }
+        });
+      } catch (err) {
+        console.error('[organizations] Failed to create ORG_APPROVED notification row:', err);
+      }
     }
 
     // Confirm action to super admin (SendGrid template)
-    sendAdminActionConfirmationEmail({
-      to: 'emancero@varsityhub.app',
-      action: 'league_approved',
-      leagueName: org.name,
-      ownerName: org.leagueOwner?.display_name || undefined,
-      ownerEmail: org.leagueOwner?.email || undefined,
-    }).catch(() => {});
+    try {
+      await sendAdminActionConfirmationEmail({
+        to: 'emancero@varsityhub.app',
+        action: 'league_approved',
+        leagueName: org.name,
+        ownerName: org.leagueOwner?.display_name || undefined,
+        ownerEmail: org.leagueOwner?.email || undefined,
+      });
+    } catch (err) {
+      console.error('[organizations] Failed to send admin action confirmation email (approve):', err);
+    }
 
     // If accessed via browser link, show a simple HTML confirmation (escape org.name to prevent XSS)
     if (token) {
@@ -1527,23 +1551,31 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
 
     // Email league owner
     if (org.leagueOwner?.email) {
-      sendLeagueRejectedEmail({
-        to: org.leagueOwner.email,
-        ownerName: org.leagueOwner.display_name || 'League Owner',
-        leagueName: org.name,
-        reason,
-      }).catch(() => {});
+      try {
+        await sendLeagueRejectedEmail({
+          to: org.leagueOwner.email,
+          ownerName: org.leagueOwner.display_name || 'League Owner',
+          leagueName: org.name,
+          reason,
+        });
+      } catch (err) {
+        console.error('[organizations] Failed to send league rejected email:', err);
+      }
     }
 
     // Confirm action to super admin (SendGrid template)
-    sendAdminActionConfirmationEmail({
-      to: 'emancero@varsityhub.app',
-      action: 'league_rejected',
-      leagueName: org.name,
-      ownerName: org.leagueOwner?.display_name || undefined,
-      ownerEmail: org.leagueOwner?.email || undefined,
-      reason,
-    }).catch(() => {});
+    try {
+      await sendAdminActionConfirmationEmail({
+        to: 'emancero@varsityhub.app',
+        action: 'league_rejected',
+        leagueName: org.name,
+        ownerName: org.leagueOwner?.display_name || undefined,
+        ownerEmail: org.leagueOwner?.email || undefined,
+        reason,
+      });
+    } catch (err) {
+      console.error('[organizations] Failed to send admin action confirmation email (reject):', err);
+    }
 
     if (token) {
       const safeName = escapeHtml(String(org.name || ''));
@@ -1661,34 +1693,46 @@ organizationsRouter.post('/:id/coaches/:userId/approve', requireAuth as any, req
 
     // Email the coach
     if (coach?.email) {
-      sendCoachApprovedEmail({
-        to: coach.email,
-        coachName: coach.display_name || 'Coach',
-        leagueName: org?.name || 'your league',
-      }).catch(() => {});
+      try {
+        await sendCoachApprovedEmail({
+          to: coach.email,
+          coachName: coach.display_name || 'Coach',
+          leagueName: org?.name || 'your league',
+        });
+      } catch (err) {
+        console.error('[organizations] Failed to send coach approved email:', err);
+      }
     }
 
     // Push notification to coach
-    sendPushNotification(
-      coachId,
-      'Application Approved!',
-      `${org?.name || 'Your league'} approved your coach application`,
-      { type: 'coach_approved', screen: 'onboarding', organization_id: orgId },
-    ).catch(() => {});
+    try {
+      await sendPushNotification(
+        coachId,
+        'Application Approved!',
+        `${org?.name || 'Your league'} approved your coach application`,
+        { type: 'coach_approved', screen: 'onboarding', organization_id: orgId },
+      );
+    } catch (err) {
+      console.error('[organizations] Failed to send coach approved push notification:', err);
+    }
 
     // In-app notification for coach
-    prisma.notification.create({
-      data: {
-        user_id: coachId,
-        actor_id: req.user.id,
-        type: 'TEAM_INVITE', // Closest available type
-        meta: {
-          coach_approved: true,
-          organization_id: orgId,
-          organization_name: org?.name || 'your league',
+    try {
+      await prisma.notification.create({
+        data: {
+          user_id: coachId,
+          actor_id: req.user.id,
+          type: 'TEAM_INVITE', // Closest available type
+          meta: {
+            coach_approved: true,
+            organization_id: orgId,
+            organization_name: org?.name || 'your league',
+          },
         },
-      },
-    }).catch(() => {});
+      });
+    } catch (err) {
+      console.error('[organizations] Failed to create coach approved notification row:', err);
+    }
 
     return res.json({ message: 'Coach approved', coach_id: coachId });
   } catch (err: any) {
@@ -1749,12 +1793,16 @@ organizationsRouter.post('/:id/coaches/:userId/reject', requireAuth as any, requ
     ]);
 
     if (coach?.email) {
-      sendCoachRejectedEmail({
-        to: coach.email,
-        coachName: coach.display_name || 'Coach',
-        leagueName: org?.name || 'the league',
-        reason,
-      }).catch(() => {});
+      try {
+        await sendCoachRejectedEmail({
+          to: coach.email,
+          coachName: coach.display_name || 'Coach',
+          leagueName: org?.name || 'the league',
+          reason,
+        });
+      } catch (err) {
+        console.error('[organizations] Failed to send coach rejected email:', err);
+      }
     }
 
     return res.json({ message: 'Coach request rejected', coach_id: coachId });

@@ -8,7 +8,7 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Alert, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { optimizeImageUrl } from '@/utils/imageUrl';
@@ -42,15 +42,7 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
   const [updating, setUpdating] = useState(false);
   const [showReportMenu, setShowReportMenu] = useState(false);
   const [reportSubmitting, setReportSubmitting] = useState(false);
-  const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [mediaError, setMediaError] = useState(false);
-
-  // Cleanup delete timer on unmount to prevent memory leak
-  useEffect(() => {
-    return () => {
-      if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current);
-    };
-  }, []);
 
   const REPORT_REASONS = [
     { value: 'copyright', label: 'Copyright / broadcast footage' },
@@ -128,36 +120,9 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
           style: 'destructive',
           onPress: async () => {
             try {
-              const res: any = await Post.delete(String(post.id));
-              const undoUntil = res?.undo_until ? new Date(res.undo_until).getTime() : null;
-              const timeoutMs = undoUntil ? Math.max(0, undoUntil - Date.now()) : 5000;
-              if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current);
-              deleteTimerRef.current = setTimeout(() => {
-                onDeleted?.(String(post.id));
-              }, timeoutMs || 1);
-              Alert.alert(
-                'Post deleted',
-                'You can undo this action for a short time.',
-                [
-                  {
-                    text: 'Undo',
-                    onPress: async () => {
-                      if (deleteTimerRef.current) {
-                        clearTimeout(deleteTimerRef.current);
-                        deleteTimerRef.current = null;
-                      }
-                      try {
-                        const restored = await Post.restore(String(post.id));
-                        onUpdated?.(restored);
-                      } catch (restoreError: any) {
-                        onDeleted?.(String(post.id));
-                        Alert.alert('Error', restoreError?.message || 'Restore window expired.');
-                      }
-                    },
-                  },
-                  { text: 'Dismiss', style: 'cancel' },
-                ]
-              );
+              await Post.delete(String(post.id));
+              onDeleted?.(String(post.id));
+              Alert.alert('Post deleted', 'Your post was deleted successfully.');
             } catch (error: any) {
               Alert.alert('Error', error.message || 'Failed to delete post');
             }

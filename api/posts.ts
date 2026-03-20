@@ -103,7 +103,6 @@ export const Post = {
   deleteComment: (postId: string, commentId: string) => httpDelete(`/posts/${encodeURIComponent(postId)}/comments/${encodeURIComponent(commentId)}`),
   updateComment: (postId: string, commentId: string, content: string) => httpPatch(`/posts/${encodeURIComponent(postId)}/comments/${encodeURIComponent(commentId)}`, { content }),
   delete: (id: string) => httpDelete('/posts/' + encodeURIComponent(id)),
-  restore: (id: string) => httpPost(`/posts/${encodeURIComponent(id)}/restore`, {}),
   update: (id: string, data: { content?: string; title?: string }) => httpPatch('/posts/' + encodeURIComponent(id), data),
   toggleUpvote: (id: string) => httpPost(`/posts/${encodeURIComponent(id)}/upvote`, {}),
   toggleBookmark: (id: string) => httpPost(`/posts/${encodeURIComponent(id)}/bookmark`, {}),
