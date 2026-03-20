@@ -175,8 +175,6 @@ export default function RootLayout() {
                         <Stack screenOptions={{ headerShown: false }}>
                         <Stack.Screen name="index" options={{ headerShown: false }} />
                         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                        {/* Game detail at root so back returns to previous screen (Spotify-like nav) */}
-                        <Stack.Screen name="game" options={{ headerShown: false }} />
                         {/* Auth screens - lazy loaded */}
                         <Stack.Screen name="sign-in" options={{ headerShown: false }} />
                         <Stack.Screen name="sign-up" options={{ headerShown: false }} />
@@ -190,7 +188,6 @@ export default function RootLayout() {
                         {/* Onboarding - lazy loaded */}
                         <Stack.Screen name="onboarding" options={{ headerShown: false }} />
                         {/* Organization & league detail pages */}
-                        <Stack.Screen name="organizations" options={{ headerShown: false }} />
                         <Stack.Screen name="league" options={{ headerShown: false }} />
                         {/* Settings */}
                         <Stack.Screen name="settings" options={{ headerShown: false }} />
@@ -233,7 +230,6 @@ export default function RootLayout() {
                         <Stack.Screen name="favorites" options={{ headerShown: false }} />
                         <Stack.Screen name="messages" options={{ headerShown: false }} />
                         <Stack.Screen name="game-map" options={{ headerShown: false }} />
-                        <Stack.Screen name="game-details" options={{ headerShown: false }} />
                         <Stack.Screen name="game-detail" options={{ headerShown: false }} />
                         <Stack.Screen name="game-highlights" options={{ headerShown: false }} />
                         <Stack.Screen name="game-photos" options={{ headerShown: false }} />
@@ -292,8 +288,6 @@ export default function RootLayout() {
                       <Stack screenOptions={{ headerShown: false }}>
                     <Stack.Screen name="index" options={{ headerShown: false }} />
                     <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                    {/* Game detail at root so back returns to previous screen (Spotify-like nav) */}
-                    <Stack.Screen name="game" options={{ headerShown: false }} />
                     {/* Auth screens - lazy loaded */}
                     <Stack.Screen name="sign-in" options={{ headerShown: false }} />
                     <Stack.Screen name="sign-up" options={{ headerShown: false }} />
@@ -307,7 +301,6 @@ export default function RootLayout() {
                     {/* Onboarding - lazy loaded */}
                     <Stack.Screen name="onboarding" options={{ headerShown: false }} />
                     {/* Organization & league detail pages */}
-                    <Stack.Screen name="organizations" options={{ headerShown: false }} />
                     <Stack.Screen name="league" options={{ headerShown: false }} />
                     {/* Settings */}
                     <Stack.Screen name="settings" options={{ headerShown: false }} />
@@ -350,7 +343,6 @@ export default function RootLayout() {
                     <Stack.Screen name="favorites" options={{ headerShown: false }} />
                     <Stack.Screen name="messages" options={{ headerShown: false }} />
                     <Stack.Screen name="game-map" options={{ headerShown: false }} />
-                    <Stack.Screen name="game-details" options={{ headerShown: false }} />
                     <Stack.Screen name="game-detail" options={{ headerShown: false }} />
                     <Stack.Screen name="game-highlights" options={{ headerShown: false }} />
                     <Stack.Screen name="game-photos" options={{ headerShown: false }} />
