@@ -1,5 +1,8 @@
-import { Component, ErrorInfo, ReactNode } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View, useColorScheme } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useRouter } from 'expo-router';
+import * as Updates from 'expo-updates';
+import { Component, ErrorInfo, ReactNode, useState } from 'react';
+import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View, useColorScheme } from 'react-native';
 import { captureException } from '@/utils/sentry';
 import { Colors } from '@/constants/Colors';
 
@@ -72,6 +75,23 @@ export class ErrorBoundary extends Component<Props, State> {
 function ErrorBoundaryFallback({ error, onReset }: { error: Error | null; onReset: () => void }) {
   const colorScheme = useColorScheme() ?? 'light';
   const colors = Colors[colorScheme];
+  const router = useRouter();
+  const [recovering, setRecovering] = useState(false);
+
+  const handleSignOutAndRestart = async () => {
+    setRecovering(true);
+    try {
+      // Full storage clear prevents repeat crashes from stale persisted state.
+      await AsyncStorage.clear();
+      await Updates.reloadAsync();
+    } catch {
+      // Fallback: route to sign-in if native reload is unavailable.
+      router.replace('/sign-in');
+      onReset();
+    } finally {
+      setRecovering(false);
+    }
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -86,8 +106,20 @@ function ErrorBoundaryFallback({ error, onReset }: { error: Error | null; onRese
         <TouchableOpacity 
           style={[styles.button, { backgroundColor: colors.tint }]} 
           onPress={onReset}
+          disabled={recovering}
         >
           <Text style={styles.buttonText}>Try Again</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.button, styles.secondaryButton, { borderColor: colors.destructive }]}
+          onPress={handleSignOutAndRestart}
+          disabled={recovering}
+        >
+          {recovering ? (
+            <ActivityIndicator color={colors.destructive} />
+          ) : (
+            <Text style={[styles.buttonText, { color: colors.destructive }]}>Sign Out & Restart</Text>
+          )}
         </TouchableOpacity>
       </View>
     </View>
@@ -127,6 +159,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
+    minWidth: 180,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  secondaryButton: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
   },
   buttonText: {
     color: '#ffffff',
