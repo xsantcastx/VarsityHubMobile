@@ -60,7 +60,7 @@ export default function OrganizationJoinRequestsScreen() {
     setLoading(true);
     setError(null);
     try {
-      const status = filter === 'pending' ? 'pending' : ('all' as const);
+      const status = filter === 'pending' ? 'pending' : undefined;
       const data = await Organization.getJoinRequests(params.organization_id, status);
       const raw = Array.isArray(data) ? data : [];
       const orgName = params.organization_name || 'Organization';

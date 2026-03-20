@@ -76,6 +76,9 @@ export const User = {
   // GDPR/CCPA data portability - export all user data as JSON (longer timeout for large exports)
   exportMyData: () => httpGet('/users/me/export', {}, 60000),
   upgradeToCoach: (plan: 'rookie' | 'veteran' | 'legend') => httpPost('/auth/upgrade-to-coach', { plan }),
+  deleteAccount: (password: string) => httpDelete('/users/me', { password }),
+  acceptFollow: (followId: string) => httpPost(`/follows/${encodeURIComponent(followId)}/accept`, {}),
+  rejectFollow: (followId: string) => httpPost(`/follows/${encodeURIComponent(followId)}/reject`, {}),
 };
 
 export const Game = {
@@ -321,6 +324,7 @@ export const Message = {
   send: (data: { content: string; conversation_id?: string; recipient_id?: string; recipient_email?: string }) => httpPost('/messages', data),
   markReadByConversation: (conversationId: string) => httpPost('/messages/mark-read', { conversation_id: conversationId }),
   markReadWith: (email: string) => httpPost('/messages/mark-read', { with: email }),
+  unreadCount: () => httpGet('/messages/unread-count'),
 };
 
 // Stubs for future entities
@@ -367,6 +371,10 @@ export const Organization = {
   },
   approveJoinRequest: (requestId: string) => httpPost(`/organizations/join-requests/${encodeURIComponent(requestId)}/approve`, {}),
   rejectJoinRequest: (requestId: string, reason?: string) => httpPost(`/organizations/join-requests/${encodeURIComponent(requestId)}/reject`, { reason }),
+  update: (id: string, data: Record<string, any>) => httpPatch(`/organizations/${encodeURIComponent(id)}`, data),
+  pendingCoaches: (organizationId: string) => httpGet(`/organizations/${encodeURIComponent(organizationId)}/coaches/pending`),
+  approveCoach: (organizationId: string, userId: string) => httpPost(`/organizations/${encodeURIComponent(organizationId)}/coaches/${encodeURIComponent(userId)}/approve`, {}),
+  rejectCoach: (organizationId: string, userId: string, reason?: string) => httpPost(`/organizations/${encodeURIComponent(organizationId)}/coaches/${encodeURIComponent(userId)}/reject`, { reason }),
 };
 
 export const Team = {
@@ -447,6 +455,7 @@ export const Team = {
     httpDelete(`/team-memberships/${encodeURIComponent(membershipId)}`, reason ? { reason } : undefined),
   delete: (id: string) => httpDelete('/teams/' + encodeURIComponent(id)),
   limits: () => httpGet('/teams/limits'),
+  transferOwnership: (teamId: string, newOwnerId: string) => httpPost(`/teams/${encodeURIComponent(teamId)}/transfer-ownership`, { new_owner_id: newOwnerId }),
 };
 
 export const Support = {
@@ -529,6 +538,7 @@ export const Notification = {
   },
   markRead: (id: string) => httpPost(`/notifications/${encodeURIComponent(id)}/read`, {}),
   markAllRead: () => httpPost('/notifications/mark-read-all', {}),
+  unreadCount: () => httpGet('/notifications/unread-count'),
 };
 
 export const CollaborativePost = {} as any;
@@ -553,13 +563,17 @@ export const Advertisement = {
   get: (id: string) => httpGet('/ads/' + encodeURIComponent(id)),
   update: (id: string, data: any) => httpPut('/ads/' + encodeURIComponent(id), data),
   delete: (id: string) => httpDelete('/ads/' + encodeURIComponent(id)),
-  forFeed: (dateISO?: string, zip?: string, limit: number = 1) => {
+  forFeed: (dateISO?: string, zip?: string, limit: number = 1, lat?: number, lng?: number) => {
     const q: string[] = [];
     if (dateISO) q.push('date=' + encodeURIComponent(dateISO));
     if (zip) q.push('zip=' + encodeURIComponent(zip));
     if (limit) q.push('limit=' + String(limit));
+    if (lat != null) q.push('lat=' + String(lat));
+    if (lng != null) q.push('lng=' + String(lng));
     return httpGet('/ads/for-feed' + (q.length ? '?' + q.join('&') : ''));
   },
+  submitForApproval: (adId: string, dates: string[]) => httpPost(`/ads/${encodeURIComponent(adId)}/submit-for-approval`, { dates }),
+  review: (adId: string, action: 'approve' | 'reject', note?: string) => httpPost(`/ads/${encodeURIComponent(adId)}/review`, { action, note }),
 };
 
 export const Search = {
