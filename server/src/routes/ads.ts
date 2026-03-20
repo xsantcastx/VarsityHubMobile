@@ -70,6 +70,9 @@ async function getZipCoordinatesWithFallback(zipCode: string): Promise<{ lat: nu
 export const adsRouter = Router();
 const MAX_AD_SLOTS = 2;
 const MAX_AD_BOOKING_HORIZON_DAYS = 56;
+const APPROVAL_EMAIL =
+  (process.env.ADMIN_EMAILS || '').split(',').map((s) => s.trim()).filter(Boolean)[0] ||
+  'customerservice@varsityhub.app';
 
 function validateBookingWindow(isoDates: string[]): { ok: true } | { ok: false; error: string } {
   const today = new Date();
@@ -314,9 +317,9 @@ export async function handleAdSubmitForApproval(req: AuthedRequest, res: Respons
       }),
     ]);
 
-    // Ad approval emails always go to emancero@varsityhub.app (primary admin)
+    // Ad approval emails go to the configured approval inbox.
     sendAdPendingReviewEmail({
-      to: (process.env.ADMIN_EMAILS?.split(',')[0]?.trim() || 'emancero@varsityhub.app'),
+      to: APPROVAL_EMAIL,
       businessName: ad.business_name || undefined,
       contactName: ad.contact_name || undefined,
       contactEmail: ad.contact_email || undefined,
@@ -578,7 +581,7 @@ adsRouter.put('/:id([a-z0-9]{15,50})', requireAuth as any, async (req: AuthedReq
     // Notify admin when banner or target URL needs review
     if ((bannerChanged && data.banner_url) || targetUrlChanged) {
       void sendAdPendingReviewEmail({
-        to: 'emancero@varsityhub.app',
+        to: APPROVAL_EMAIL,
         businessName: updated.business_name || undefined,
         contactName: updated.contact_name || undefined,
         contactEmail: updated.contact_email || undefined,
@@ -934,7 +937,7 @@ adsRouter.get('/alternative-zips', requireAuth as any, alternativeZipsLimiter, a
 });
 
 // Admin: Approve a pending ad — supports admin auth or signed moderation token from email.
-// No one is charged until approved by emancero@varsityhub.app.
+// No one is charged until approved by the configured approval inbox.
 async function handleAdApprove(req: AuthedRequest, res: Response) {
   try {
     const id = String(req.params.id);

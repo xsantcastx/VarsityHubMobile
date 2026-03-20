@@ -220,7 +220,7 @@ router.post('/org-denial', async (req, res) => {
 });
 
 router.post('/transaction-report', async (req, res) => {
-  const { to = 'emancero@varsityhub.app', date } = req.body || {};
+  const { to = 'customerservice@varsityhub.app', date } = req.body || {};
   
   try {
     // Get report for specified date or today

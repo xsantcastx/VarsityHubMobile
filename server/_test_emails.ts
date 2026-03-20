@@ -27,7 +27,7 @@ svc.send = async (params: any) => {
   return { success: true, provider: 'test', messageId: 'test-' + Date.now() };
 };
 
-const TO = 'emancero@varsityhub.app';
+const TO = 'customerservice@varsityhub.app';
 
 // ── Email 1: Event Submission Received ──
 console.log('\n=== 1. sendEventSubmissionReceivedEmail ===');

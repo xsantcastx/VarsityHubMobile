@@ -22,6 +22,7 @@ const EMAIL_FROM = process.env.EMAIL_FROM || process.env.FROM_EMAIL || 'noreply@
 const APP_BASE_URL = (process.env.APP_BASE_URL || 'https://varsityhub.app').replace(/\/$/, '');
 const API_BASE_URL = (process.env.API_BASE_URL || 'https://api-production-8ac3.up.railway.app').replace(/\/$/, '');
 const CUSTOMER_SERVICE_EMAIL = process.env.CUSTOMER_SERVICE_EMAIL || 'support@varsityhub.app';
+const DEFAULT_APPROVAL_EMAIL = 'customerservice@varsityhub.app';
 
 // Common template data (social links, privacy policy, etc.) added to all emails
 const getCommonTemplateData = () => ({
@@ -359,7 +360,7 @@ export async function sendAdPendingReviewEmail(params: {
   approveUrl?: string;
   rejectUrl?: string;
 }): Promise<boolean> {
-  const adminTo = params.to || process.env.ADMIN_EMAILS?.split(',')[0]?.trim() || 'emancero@varsityhub.app';
+  const adminTo = params.to || process.env.ADMIN_EMAILS?.split(',')[0]?.trim() || DEFAULT_APPROVAL_EMAIL;
   const subject = `Ad Pending Review — ${params.businessName || 'Unknown Business'}`;
   const dashboardUrl = `${APP_BASE_URL}/admin/ads`;
   const actionLinks = (() => {
@@ -1508,7 +1509,7 @@ export async function sendLeagueApprovalRequestEmail(params: {
   const rejectUrl = `${API_BASE_URL}/organizations/${params.leagueId}/reject?token=${params.rejectToken}`;
 
   const to =
-    (process.env.ADMIN_EMAILS || '').split(',')[0]?.trim() || 'emancero@varsityhub.app';
+    (process.env.ADMIN_EMAILS || '').split(',')[0]?.trim() || DEFAULT_APPROVAL_EMAIL;
 
   // Try SendGrid template first; fall back to plain-text so admin always gets notified
   const sent = await sendTemplateEmail(

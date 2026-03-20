@@ -30,7 +30,9 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 // Admin notification email — falls back to first ADMIN_EMAILS entry
-const ADMIN_NOTIFY_EMAIL = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim()).filter(Boolean)[0] || 'emancero@varsityhub.app';
+const ADMIN_NOTIFY_EMAIL =
+  (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim()).filter(Boolean)[0] ||
+  'customerservice@varsityhub.app';
 
 export const paymentsRouter = Router();
 
@@ -991,7 +993,7 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
   if (!ad) return res.status(404).json({ error: 'Ad not found' });
   if (ad.user_id !== req.user?.id) return res.status(403).json({ error: 'You can only pay for your own ads' });
 
-  // No charge until approved by emancero@varsityhub.app. Once approved, no re-approval needed for future runs.
+  // No charge until approved by the configured approval inbox. Once approved, no re-approval needed for future runs.
   if (ad.status !== 'approved' && ad.status !== 'active') {
     return res.status(403).json({
       error: 'APPROVAL_REQUIRED',

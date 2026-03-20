@@ -85,7 +85,7 @@ export class EmailService {
 
     // --- Non-production email redirect & audit log ---
     const isProduction = process.env.NODE_ENV === 'production';
-    const overrideRecipient = process.env.EMAIL_OVERRIDE_TO; // e.g. emancero@varsityhub.app
+    const overrideRecipient = process.env.EMAIL_OVERRIDE_TO; // e.g. customerservice@varsityhub.app
     const originalRecipient = this.extractRecipient(options.to);
 
     if (!isProduction && overrideRecipient) {

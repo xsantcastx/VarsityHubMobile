@@ -20,6 +20,8 @@ import { getAuthorizedUsersOrgLimit } from '../lib/planLimits.js';
 import { signJwt, verifyJwt } from '../lib/jwt.js';
 
 export const organizationsRouter = Router();
+const APPROVAL_NOTIFICATION_EMAIL =
+  (process.env.ADMIN_EMAILS || '').split(',')[0]?.trim() || 'customerservice@varsityhub.app';
 
 // ---------------------------------------------
 // Duplicate Detection & Admin Helpers
@@ -1366,7 +1368,7 @@ organizationsRouter.post('/:id/transfer-ownership', requireAuth as any, requireO
 });
 
 // =====================================================
-// SUPER ADMIN LEAGUE APPROVAL (emancero@varsityhub.app)
+// SUPER ADMIN LEAGUE APPROVAL (approval inbox configurable via ADMIN_EMAILS)
 // =====================================================
 
 /**
@@ -1468,10 +1470,10 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
       }
     }
 
-    // Confirm action to super admin (SendGrid template)
+    // Confirm action to approval inbox (SendGrid template)
     try {
       await sendAdminActionConfirmationEmail({
-        to: 'emancero@varsityhub.app',
+        to: APPROVAL_NOTIFICATION_EMAIL,
         action: 'league_approved',
         leagueName: org.name,
         ownerName: org.leagueOwner?.display_name || undefined,
@@ -1563,10 +1565,10 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
       }
     }
 
-    // Confirm action to super admin (SendGrid template)
+    // Confirm action to approval inbox (SendGrid template)
     try {
       await sendAdminActionConfirmationEmail({
-        to: 'emancero@varsityhub.app',
+        to: APPROVAL_NOTIFICATION_EMAIL,
         action: 'league_rejected',
         leagueName: org.name,
         ownerName: org.leagueOwner?.display_name || undefined,

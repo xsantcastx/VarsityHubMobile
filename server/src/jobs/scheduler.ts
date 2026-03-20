@@ -106,7 +106,7 @@ const SCHEDULED_JOBS: ScheduledJob[] = [
         // Get recipient email from environment variable or use first admin email
         const reportEmail = process.env.TRANSACTION_REPORT_EMAIL || 
           (process.env.ADMIN_EMAILS || '').split(',')[0]?.trim() ||
-          'emancero@varsityhub.app'; // Fallback to primary admin
+          'customerservice@varsityhub.app'; // Fallback to approval inbox
         
         if (!reportEmail) {
           console.warn('[Scheduler] No email configured for transaction reports');
@@ -315,7 +315,7 @@ function setupFallbackCron(): boolean {
           
           const reportEmail = process.env.TRANSACTION_REPORT_EMAIL || 
             (process.env.ADMIN_EMAILS || '').split(',')[0]?.trim() ||
-            'emancero@varsityhub.app';
+            'customerservice@varsityhub.app';
           
           if (reportEmail) {
             await sendEndOfDayTransactionReport({
