@@ -49,6 +49,32 @@ function isOrganizationAdmin(role: string | null | undefined): boolean {
   return role === 'owner' || role === 'manager';
 }
 
+function buildApprovedCoachPreferences(
+  existingPreferences: unknown,
+  opts: {
+    organizationId?: string;
+    organizationName?: string | null;
+    clearJoinRequestPending?: boolean;
+  }
+) {
+  const base =
+    existingPreferences && typeof existingPreferences === 'object' && !Array.isArray(existingPreferences)
+      ? ({ ...(existingPreferences as Record<string, any>) } as Record<string, any>)
+      : ({} as Record<string, any>);
+
+  const next: Record<string, any> = {
+    ...base,
+    role: 'coach',
+    proceeding_as_fan: false,
+  };
+
+  if (opts.organizationId) next.organization_id = opts.organizationId;
+  if (opts.organizationName) next.organization_name = opts.organizationName;
+  if (opts.clearJoinRequestPending) next.join_request_pending = false;
+
+  return next;
+}
+
 // List organizations (public, with optional search)
 organizationsRouter.get('/', async (req, res) => {
   try {
@@ -1136,7 +1162,8 @@ organizationsRouter.post('/join-requests/:requestId/approve', requireAuth as any
         select: {
           id: true,
           email: true,
-          display_name: true
+          display_name: true,
+          preferences: true,
         }
       }
     }
@@ -1190,7 +1217,15 @@ organizationsRouter.post('/join-requests/:requestId/approve', requireAuth as any
     }),
     prisma.user.update({
       where: { id: joinRequest.user_id },
-      data: { approval_status: 'APPROVED', paid_by_owner: true }
+      data: {
+        approval_status: 'APPROVED',
+        paid_by_owner: true,
+        preferences: buildApprovedCoachPreferences((joinRequest.user as any)?.preferences, {
+          organizationId: joinRequest.organization_id,
+          organizationName: joinRequest.organization.name,
+          clearJoinRequestPending: true,
+        }),
+      }
     }),
   ]);
   
@@ -1425,9 +1460,19 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
 
     // Approve the league owner so they get coach tools
     if (org.leagueOwner?.id) {
+      const ownerRecord = await prisma.user.findUnique({
+        where: { id: org.leagueOwner.id },
+        select: { preferences: true },
+      });
       await prisma.user.update({
         where: { id: org.leagueOwner.id },
-        data: { approval_status: 'APPROVED' },
+        data: {
+          approval_status: 'APPROVED',
+          preferences: buildApprovedCoachPreferences(ownerRecord?.preferences, {
+            organizationId: orgId,
+            organizationName: org.name,
+          }),
+        },
       });
     }
 
@@ -1664,7 +1709,7 @@ organizationsRouter.post('/:id/coaches/:userId/approve', requireAuth as any, req
     // Get org and coach info
     const [org, coach] = await Promise.all([
       prisma.organization.findUnique({ where: { id: orgId }, select: { name: true } }),
-      prisma.user.findUnique({ where: { id: coachId }, select: { display_name: true, email: true } }),
+      prisma.user.findUnique({ where: { id: coachId }, select: { display_name: true, email: true, preferences: true } }),
     ]);
 
     // Approve: update join request, create org membership, assign to team, set coach approval status
@@ -1678,7 +1723,15 @@ organizationsRouter.post('/:id/coaches/:userId/approve', requireAuth as any, req
       }),
       prisma.user.update({
         where: { id: coachId },
-        data: { approval_status: 'APPROVED', paid_by_owner: true },
+        data: {
+          approval_status: 'APPROVED',
+          paid_by_owner: true,
+          preferences: buildApprovedCoachPreferences(coach?.preferences, {
+            organizationId: orgId,
+            organizationName: org?.name || null,
+            clearJoinRequestPending: true,
+          }),
+        },
       }),
     ];
 
@@ -1748,7 +1801,20 @@ organizationsRouter.post('/:id/coaches/:userId/approve', requireAuth as any, req
       });
       await prisma.user.update({
         where: { id: coachId },
-        data: { approval_status: 'APPROVED', paid_by_owner: true },
+        data: {
+          approval_status: 'APPROVED',
+          paid_by_owner: true,
+          preferences: buildApprovedCoachPreferences(
+            (await prisma.user.findUnique({
+              where: { id: coachId },
+              select: { preferences: true },
+            }))?.preferences,
+            {
+              organizationId: orgId,
+              clearJoinRequestPending: true,
+            }
+          ),
+        },
       });
       return res.json({ message: 'Coach approved (already a member)', coach_id: coachId });
     }
