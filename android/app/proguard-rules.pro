@@ -1,6 +1,4 @@
-# Stripe push provisioning — classes not bundled but referenced at build time
--dontwarn com.stripe.android.pushProvisioning.PushProvisioningActivity$g
--dontwarn com.stripe.android.pushProvisioning.PushProvisioningActivityStarter$Args
--dontwarn com.stripe.android.pushProvisioning.PushProvisioningActivityStarter$Error
--dontwarn com.stripe.android.pushProvisioning.PushProvisioningActivityStarter
--dontwarn com.stripe.android.pushProvisioning.PushProvisioningEphemeralKeyProvider
+# Stripe push provisioning — optional module referenced by stripe-react-native
+# but not included in the build (push provisioning is not used).
+# R8 treats missing classes as errors; these rules suppress them.
+-dontwarn com.stripe.android.pushProvisioning.**
