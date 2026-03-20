@@ -1,5 +1,4 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useRouter } from 'expo-router';
 import * as Updates from 'expo-updates';
 import { Component, ErrorInfo, ReactNode, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View, useColorScheme } from 'react-native';
@@ -75,7 +74,6 @@ export class ErrorBoundary extends Component<Props, State> {
 function ErrorBoundaryFallback({ error, onReset }: { error: Error | null; onReset: () => void }) {
   const colorScheme = useColorScheme() ?? 'light';
   const colors = Colors[colorScheme];
-  const router = useRouter();
   const [recovering, setRecovering] = useState(false);
 
   const handleSignOutAndRestart = async () => {
@@ -85,8 +83,7 @@ function ErrorBoundaryFallback({ error, onReset }: { error: Error | null; onRese
       await AsyncStorage.clear();
       await Updates.reloadAsync();
     } catch {
-      // Fallback: route to sign-in if native reload is unavailable.
-      router.replace('/sign-in');
+      // Fallback: clear boundary state and let AuthProvider route from fresh storage.
       onReset();
     } finally {
       setRecovering(false);

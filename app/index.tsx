@@ -66,7 +66,7 @@ export default function Index() {
       gap: 24,
     }}>
       <Image
-        source={require('../assets/images/logo.svg')}
+        source={require('../assets/images/logo.png')}
         style={{ width: 80, height: 80, borderRadius: 16 }}
       />
       <ActivityIndicator size="large" color={Colors[colorScheme].tint} />

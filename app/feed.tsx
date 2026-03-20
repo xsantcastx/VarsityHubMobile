@@ -729,7 +729,7 @@ export default function FeedScreen() {
             accessibilityRole="button"
             accessibilityLabel="Open VarsityHub Instagram"
           >
-            <Image source={require('../assets/images/logo.svg')} style={styles.logoImage} />
+            <Image source={require('../assets/images/logo.png')} style={styles.logoImage} />
             <Text style={[styles.brand, { color: Colors[colorScheme].text }]} numberOfLines={1} allowFontScaling={false}>Varsity Hub</Text>
           </Pressable>
           <View style={{ flex: 1 }} />
