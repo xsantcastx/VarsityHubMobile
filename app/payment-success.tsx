@@ -56,7 +56,10 @@ export default function PaymentSuccessScreen() {
     ]).start();
   };
 
+  const verifiedRef = React.useRef(false);
   useEffect(() => {
+    if (verifiedRef.current) return; // Prevent duplicate finalization calls
+    verifiedRef.current = true;
     const verify = async () => {
       try {
         if (!params.session_id) {

@@ -419,11 +419,16 @@ adsRouter.put('/:id([a-z0-9]{15,50})', requireAuth as any, async (req: AuthedReq
       if (k in safeBody) data[k] = v;
     }
 
-    // If banner_url or target_url changed, set status to pending for admin review
+    // If banner_url or target_url changed, require re-approval — but only if ad hasn't been paid for yet
     const bannerChanged = 'banner_url' in data && data.banner_url !== ad.banner_url;
     const targetUrlChanged = 'target_url' in data && data.target_url !== ad.target_url;
     if ((bannerChanged && data.banner_url) || targetUrlChanged) {
-      data.status = 'pending';
+      if (ad.payment_status === 'paid') {
+        // Already paid — don't revert status, but flag for review
+        data.admin_note = `[Auto] Content changed after payment — banner: ${bannerChanged}, target_url: ${targetUrlChanged}`;
+      } else {
+        data.status = 'pending';
+      }
     }
 
     const updated = await prisma.ad.update({ where: { id }, data });
@@ -828,6 +833,7 @@ async function approveAd(id: string, note?: string | null) {
 async function rejectAd(id: string, reason?: string | null) {
   const ad = await prisma.ad.findUnique({ where: { id } });
   if (!ad) return { error: 'Ad not found', status: 404 };
+  if (ad.status !== 'pending') return { error: `Ad status is '${ad.status}', not 'pending'`, status: 400 };
 
   await prisma.$transaction([
     prisma.adReservation.deleteMany({ where: { ad_id: id } }),

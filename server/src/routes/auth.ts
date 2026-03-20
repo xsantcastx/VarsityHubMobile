@@ -1343,7 +1343,7 @@ const completeOnboardingSchema = z.object({
   proceeding_as_fan: z.boolean().optional(),
 });
 
-authRouter.post('/me/complete-onboarding', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
+authRouter.post('/me/complete-onboarding', authLimiter, requireAuth as any, requireVerified as any, asyncHandler(async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const parsed = completeOnboardingSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -1428,9 +1428,9 @@ authRouter.post('/me/complete-onboarding', requireAuth as any, asyncHandler(asyn
   const preferencesUpdate: any = {
     onboarding_completed: true,
     role: finalRole, // Always set role explicitly - never leave undefined
-    // Rule A: plan is 'rookie' for free, or set by Stripe webhook for paid plans.
-    // pending_plan holds the coach's selected paid plan until payment completes.
-    plan: data.plan, // only 'rookie' allowed from client
+    // Rule A: plan is ALWAYS 'rookie' at onboarding — paid plans set by Stripe webhook only.
+    // Never trust client-sent plan value even though Zod restricts to 'rookie'.
+    plan: 'rookie',
     pending_plan: data.pending_plan,
     affiliation: data.affiliation,
     dob: data.dob,

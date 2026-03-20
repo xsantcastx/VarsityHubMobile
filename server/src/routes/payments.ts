@@ -972,16 +972,35 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
       idempotencyKey: `ad_pi_${userId}_${ad_id}_${Math.floor(Date.now() / 120000)}`,
     });
 
-    // Hold slots to prevent race conditions — fail if slots can't be held
+    // Hold slots atomically — re-check capacity inside transaction to prevent race conditions
     try {
-      await prisma.$transaction([
-        prisma.ad.update({ where: { id: String(ad_id) }, data: { payment_status: 'hold' } }),
-        prisma.adReservation.createMany({
+      await prisma.$transaction(async (tx) => {
+        // Re-verify slot capacity inside transaction to prevent concurrent overbooking
+        if (ad.target_zip_code) {
+          const competingAds = await tx.ad.findMany({
+            where: { target_zip_code: ad.target_zip_code, payment_status: { in: ['paid', 'hold', 'pending_approval'] }, NOT: { id: String(ad_id) } },
+            select: { id: true },
+          });
+          if (competingAds.length > 0) {
+            const dateObjects = isoDates.map((s) => new Date(s + 'T00:00:00.000Z'));
+            const bookedSlots = await tx.adReservation.groupBy({
+              by: ['date'],
+              where: { ad_id: { in: competingAds.map((a) => a.id) }, date: { in: dateObjects } },
+              _count: { date: true },
+            });
+            const fullDates = bookedSlots.filter((s) => s._count.date >= MAX_AD_SLOTS);
+            if (fullDates.length > 0) {
+              throw Object.assign(new Error('Slots full'), { slotFull: true, dates: fullDates.map((s) => s.date.toISOString().slice(0, 10)) });
+            }
+          }
+        }
+        await tx.ad.update({ where: { id: String(ad_id) }, data: { payment_status: 'hold' } });
+        await tx.adReservation.createMany({
           data: isoDates.map((s) => ({ ad_id: String(ad_id), date: new Date(s + 'T00:00:00.000Z') })),
           skipDuplicates: true,
-        }),
-      ]);
-    } catch (holdErr) {
+        });
+      });
+    } catch (holdErr: any) {
       // Cancel the payment intent since we can't hold the slots
       try {
         await stripe.paymentIntents.cancel(paymentIntent.id);
