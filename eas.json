@@ -55,7 +55,7 @@
         "NODE_ENV": "production",
         "SENTRY_ORG": "lime-productions",
         "SENTRY_PROJECT": "varsity-hub-mobile",
-        "SENTRY_DISABLE_AUTO_UPLOAD": "false",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true",
         "EXPO_PUBLIC_SENTRY_DSN": "https://dba14af58de85862ac7f1cb132e19ff5@o4510445730070528.ingest.us.sentry.io/4510445740687360",
         "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_live_51RtgdGGJt8CsPE1E5nDpNo8bfow30VYpeqZwJfp6y1SP49NbwaruTcMWOi04SxujUTjACB3fwJwFSTgItU4IlA4S00HFBL7D3p"
       },
