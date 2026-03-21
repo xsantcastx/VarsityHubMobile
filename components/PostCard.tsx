@@ -9,7 +9,7 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Alert, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { optimizeImageUrl } from '@/utils/imageUrl';
@@ -43,15 +43,7 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
   const [updating, setUpdating] = useState(false);
   const [showReportMenu, setShowReportMenu] = useState(false);
   const [reportSubmitting, setReportSubmitting] = useState(false);
-  const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [mediaError, setMediaError] = useState(false);
-
-  // Cleanup delete timer on unmount to prevent memory leak
-  useEffect(() => {
-    return () => {
-      if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current);
-    };
-  }, []);
 
   const REPORT_REASONS = [
     { value: 'copyright', label: 'Copyright / broadcast footage' },

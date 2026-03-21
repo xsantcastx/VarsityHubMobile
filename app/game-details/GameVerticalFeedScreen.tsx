@@ -171,13 +171,6 @@ const FeedCard = memo(
     const [showEditModal, setShowEditModal] = useState(false);
     const [showOptionsMenu, setShowOptionsMenu] = useState(false);
     const [editCaption, setEditCaption] = useState('');
-    const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-    useEffect(() => {
-      return () => {
-        if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current);
-      };
-    }, []);
 
     // Load current user
     useEffect(() => {

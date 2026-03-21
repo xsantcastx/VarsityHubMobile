@@ -1,7 +1,7 @@
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, StyleSheet, Text, View, useColorScheme, Pressable, ActivityIndicator } from 'react-native';
+import { Alert, StyleSheet, Text, View, useColorScheme, Pressable, ActivityIndicator, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { User } from '@/api/entities';
@@ -127,7 +127,7 @@ export default function PendingApproval() {
       <View style={styles.content}>
         {/* Logo */}
         <View style={styles.logoRow}>
-          <Ionicons name="shield-checkmark" size={28} color="#1B3A6B" />
+          <Image source={require('../../assets/images/logo.png')} style={styles.logoImage} resizeMode="contain" />
           <Text style={[styles.logoText, { color: isDark ? '#F9FAFB' : '#111827' }]}>VarsityHub</Text>
         </View>
 
@@ -205,6 +205,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { flex: 1, paddingHorizontal: 24, paddingTop: 40, alignItems: 'center' },
   logoRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 40 },
+  logoImage: { width: 28, height: 28, borderRadius: 6 },
   logoText: { fontSize: 22, fontWeight: '800', letterSpacing: -0.5 },
   iconCircle: {
     width: 100, height: 100, borderRadius: 50,

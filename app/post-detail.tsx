@@ -924,7 +924,15 @@ export default function PostDetailScreen() {
                 </Pressable>
               </View>
             )}
-            <View style={styles.addCommentContainer}>
+            <View
+              style={[
+                styles.addCommentContainer,
+                {
+                  backgroundColor: Colors[colorScheme].surface,
+                  borderColor: Colors[colorScheme].border,
+                },
+              ]}
+            >
             {currentUser?.avatar_url ? (
               <ExpoImage source={{ uri: currentUser.avatar_url }} style={styles.commentAvatar} />
             ) : (
@@ -935,12 +943,12 @@ export default function PostDetailScreen() {
             <TextInput
               testID="comment-input"
               style={[styles.commentInput, {
-                backgroundColor: '#222',
-                borderColor: '#333',
-                color: '#fff'
+                backgroundColor: Colors[colorScheme].card,
+                borderColor: Colors[colorScheme].border,
+                color: Colors[colorScheme].text,
               }]}
               placeholder={replyingToComment ? `Reply to ${replyingToComment.authorName}...` : 'Add a comment...'}
-              placeholderTextColor="#888"
+              placeholderTextColor={Colors[colorScheme].mutedText}
               value={comment}
               onChangeText={setComment}
               multiline
@@ -954,7 +962,7 @@ export default function PostDetailScreen() {
               <Ionicons 
                 name="send" 
                 size={18} 
-                color={(commenting || !comment.trim()) ? "#555" : "#3B82F6"}
+                color={(commenting || !comment.trim()) ? Colors[colorScheme].mutedText : Colors[colorScheme].tint}
               />
             </Pressable>
             </View>
@@ -1649,7 +1657,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: 12,
     padding: 16,
-    backgroundColor: '#111',
+    borderWidth: 1,
     borderRadius: 12,
   },
   replyingToBar: {

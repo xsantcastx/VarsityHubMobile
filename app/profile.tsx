@@ -6,7 +6,6 @@ import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { useUser } from '@/hooks/useUser';
-import { calculateContrastRatio } from '@/utils/accessibility';
 import events from '@/utils/events';
 import { pickerMediaTypesProp } from '@/utils/picker';
 import { getGradientForColor } from '@/utils/theme';
@@ -146,7 +145,7 @@ export default function ProfileScreen() {
   const viewingUserId = params.id;
   const [isFollowing, setIsFollowing] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [userTeams, setUserTeams] = useState<Array<{ id: string; name: string; logo_url?: string | null; avatar_url?: string | null; role?: string; position?: string | null; jersey_number?: string | number | null }>>([]);
+  const [userTeams, _setUserTeams] = useState<Array<{ id: string; name: string; logo_url?: string | null; avatar_url?: string | null; role?: string; position?: string | null; jersey_number?: string | number | null }>>([]);
   const [avatarViewerVisible, setAvatarViewerVisible] = useState(false);
 
   const isOwnProfile = !viewingUserId || viewingUserId === currentUserId;
@@ -629,39 +628,6 @@ export default function ProfileScreen() {
   const heroGradientColors: [string, string, ...string[]] = headerBackgroundImage
     ? ['rgba(4,7,20,0.85)', 'rgba(15,23,42,0.45)']
     : (getGradientForColor(userThemeColor) as [string, string, ...string[]]);
-  
-  // Helper function to determine text color based on background contrast
-  // White is default, but switches to black if white has insufficient contrast
-  const getTextColorForBackground = (bgColor: string): string => {
-    // Convert rgba to hex if needed
-    let hexColor = bgColor;
-    if (bgColor.startsWith('rgba')) {
-      const match = bgColor.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
-      if (match) {
-        const r = parseInt(match[1], 10);
-        const g = parseInt(match[2], 10);
-        const b = parseInt(match[3], 10);
-        hexColor = `#${[r, g, b].map(x => {
-          const hex = x.toString(16);
-          return hex.length === 1 ? '0' + hex : hex;
-        }).join('')}`;
-      }
-    }
-    
-    // Calculate contrast ratio for white text (default)
-    const whiteContrast = calculateContrastRatio('#FFFFFF', hexColor);
-    
-    // If white has sufficient contrast (>= 3.0 for large text), use white
-    // Otherwise, use black
-    if (whiteContrast && whiteContrast >= 3.0) {
-      return '#FFFFFF';
-    }
-    return '#000000';
-  };
-  
-  // Get the first gradient color to determine text color
-  const firstGradientColor = heroGradientColors[0] || userThemeColor;
-  const userNameTextColor = getTextColorForBackground(firstGradientColor);
   
   const _stats = [
     { label: 'posts', value: me?._count?.posts ?? 0 },

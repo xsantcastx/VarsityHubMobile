@@ -28,13 +28,14 @@ export default function LocationPicker({
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
 
-  // Resolve API key: env var first, then app.json native config fallback, then hardcoded
-  const apiKey =
+  // Resolve API key from app config only. Never fall back to a hardcoded key.
+  const apiKey = (
     getConfig().mapsKey ||
     (Constants.expoConfig as any)?.ios?.config?.googleMapsApiKey ||
     (Constants.expoConfig as any)?.android?.config?.googleMaps?.apiKey ||
     (Constants.expoConfig as any)?.extra?.googleMapsApiKey ||
-    'AIzaSyDKZL34B2z-qVvfWKfLUVsAL7I_jCXbGFA';
+    ''
+  ).trim();
 
   // Pre-fill the input when editing an existing venue
   const autocompleteRef = useRef<any>(null);
@@ -47,6 +48,9 @@ export default function LocationPicker({
 
   // Fallback: plain TextInput when API key is unavailable
   if (!apiKey) {
+    if (__DEV__) {
+      console.warn('[LocationPicker] Google Maps API key missing. Falling back to manual address entry.');
+    }
     return (
       <View>
         <TextInput

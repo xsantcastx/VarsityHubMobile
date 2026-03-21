@@ -24,7 +24,7 @@ export default function GlobalError({ error, retry }: ErrorBoundaryProps) {
       await Updates.reloadAsync();
     } catch {
       // If Updates.reloadAsync fails (e.g. in dev), retry as fallback
-      retry();
+      void retry();
     }
   };
 
