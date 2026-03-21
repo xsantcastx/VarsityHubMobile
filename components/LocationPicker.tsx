@@ -28,13 +28,13 @@ export default function LocationPicker({
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
 
-  // Resolve API key: env var first, then app.json native config fallback, then hardcoded
+  // Resolve API key from env/config only — no hardcoded keys
   const apiKey =
     getConfig().mapsKey ||
     (Constants.expoConfig as any)?.ios?.config?.googleMapsApiKey ||
     (Constants.expoConfig as any)?.android?.config?.googleMaps?.apiKey ||
     (Constants.expoConfig as any)?.extra?.googleMapsApiKey ||
-    'AIzaSyDKZL34B2z-qVvfWKfLUVsAL7I_jCXbGFA';
+    '';
 
   // Pre-fill the input when editing an existing venue
   const autocompleteRef = useRef<any>(null);
