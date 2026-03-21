@@ -144,7 +144,7 @@ describeDb('Checkout session finalization', () => {
         business_name: 'Finalize Test Ad',
         contact_email: user.email,
         target_zip_code: '10001',
-        status: 'pending',
+        status: 'approved',
         payment_status: 'hold',
       },
     });
