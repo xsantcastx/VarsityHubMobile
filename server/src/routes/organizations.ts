@@ -1411,11 +1411,16 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
 
     // Email league owner
     if (org.leagueOwner?.email) {
-      sendLeagueApprovedEmail({
-        to: org.leagueOwner.email,
-        ownerName: org.leagueOwner.display_name || 'League Owner',
-        leagueName: org.name,
-      }).catch(() => {});
+      try {
+        const emailSent = await sendLeagueApprovedEmail({
+          to: org.leagueOwner.email,
+          ownerName: org.leagueOwner.display_name || 'League Owner',
+          leagueName: org.name,
+        });
+        if (!emailSent) console.error('[orgs] League approved email FAILED to send to', org.leagueOwner.email);
+      } catch (err) {
+        console.error('[orgs] League approved email error:', (err as any)?.message || err);
+      }
     }
 
     // Push notification + in-app notification for league owner

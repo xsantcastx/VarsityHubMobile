@@ -1580,10 +1580,11 @@ export async function sendLeagueApprovedEmail(params: {
   ownerName: string;
   leagueName: string;
 }): Promise<boolean> {
-  return sendTemplateEmail(
+  const subject = `Your league "${params.leagueName}" is live!`;
+  const sent = await sendTemplateEmail(
     TEMPLATE_IDS.ORG_APPROVAL,
     params.to,
-    `Your league "${params.leagueName}" is live!`,
+    subject,
     {
       ...getCommonTemplateData(),
       org_name: params.leagueName,
@@ -1593,6 +1594,31 @@ export async function sendLeagueApprovedEmail(params: {
     },
     `League approved email sent to ${params.to}`
   );
+  if (sent) return true;
+
+  // HTML fallback when template is not configured
+  const htmlBody = `
+<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+  <div style="text-align:center;margin-bottom:24px;">
+    <img src="${getCommonTemplateData().logo_url}" alt="VarsityHub" style="height:48px;" />
+  </div>
+  <h2 style="color:#16A34A;text-align:center;">Your League Is Live!</h2>
+  <p style="text-align:center;color:#374151;font-size:16px;">
+    Hi ${params.ownerName}, your league <strong>${params.leagueName}</strong> has been approved on VarsityHub!
+  </p>
+  <p style="text-align:center;color:#374151;">Open the app to set up your teams and start managing your league.</p>
+  <div style="text-align:center;margin-top:24px;">
+    <a href="${APP_BASE_URL}" style="display:inline-block;background:#1B3A6B;color:#fff;padding:12px 32px;border-radius:8px;text-decoration:none;font-weight:600;">Open VarsityHub</a>
+  </div>
+  <p style="text-align:center;color:#9CA3AF;font-size:13px;margin-top:24px;">&copy; ${new Date().getFullYear()} Lime Productions. All rights reserved.</p>
+</div>`;
+
+  return sendEmail({
+    to: params.to,
+    subject,
+    text: `Hi ${params.ownerName}, your league ${params.leagueName} has been approved on VarsityHub! Open the app to get started.`,
+    html: htmlBody,
+  });
 }
 
 /**
