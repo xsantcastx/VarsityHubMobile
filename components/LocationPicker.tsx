@@ -68,12 +68,12 @@ export default function LocationPicker({
   }
 
   return (
-    <View style={{ zIndex: 1 }}>
+    <View style={{ zIndex: 9999, position: 'relative' }}>
       <GooglePlacesAutocomplete
         ref={autocompleteRef}
         placeholder={placeholder}
         fetchDetails
-        disableScroll
+        keyboardShouldPersistTaps="handled"
         query={{
           key: apiKey,
           language: 'en',
@@ -120,7 +120,11 @@ export default function LocationPicker({
             borderRadius: 12,
             marginTop: 4,
             maxHeight: 200,
-            zIndex: 1000,
+            position: 'absolute' as const,
+            top: 56,
+            left: 0,
+            right: 0,
+            zIndex: 9999,
             elevation: 10,
           },
           row: {
