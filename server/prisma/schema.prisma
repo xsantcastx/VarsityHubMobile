@@ -720,6 +720,9 @@ model Notification {
   @@index([user_id, read_at])
   @@index([actor_id])
   @@index([type, created_at])
+  @@index([post_id])
+  @@index([comment_id])
+  @@index([message_id])
 }
 
 // ===========================

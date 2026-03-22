@@ -2729,9 +2729,11 @@ paymentsRouter.post('/apple/notifications', expressPkg.json(), async (req, res) 
 
     // Find user by apple_original_transaction_id stored in preferences JSON
     // This was saved during verify-receipt (see line ~2430)
+    // Escape LIKE wildcards to prevent injection via crafted transaction IDs
+    const escapedTxId = originalTransactionId.replace(/[%_\\]/g, '\\$&');
     const users = await (prisma as any).$queryRaw`
       SELECT id, preferences FROM "User"
-      WHERE preferences::text LIKE ${'%' + originalTransactionId + '%'}
+      WHERE preferences::text LIKE ${'%' + escapedTxId + '%'} ESCAPE '\\'
       LIMIT 1
     `;
     const matchedUser = Array.isArray(users) && users.length > 0 ? users[0] : null;
