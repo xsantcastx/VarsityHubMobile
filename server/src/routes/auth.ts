@@ -9,6 +9,7 @@ import { ConflictError } from '../lib/errors/ConflictError.js';
 import { ValidationError } from '../lib/errors/ValidationError.js';
 import { signJwt } from '../lib/jwt.js';
 import { prisma } from '../lib/prisma.js';
+import { captureException } from '../lib/sentry.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
@@ -268,30 +269,47 @@ authRouter.post('/google', async (req, res) => {
 
   const { id_token } = parsed.data;
 
+  let stage = 'tokeninfo';
   try {
+    // Stage 1: Verify token with Google
     const googleResponse = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(id_token)}`);
     if (!googleResponse.ok) {
       const detail = await googleResponse.text().catch(() => '');
-      req.log?.warn?.({ detail }, '[auth/google] tokeninfo rejected credential');
+      console.error('[auth/google] tokeninfo rejected', { status: googleResponse.status, detail: detail.slice(0, 500) });
+      captureException(new Error(`Google tokeninfo ${googleResponse.status}`), { stage: 'tokeninfo', status: googleResponse.status, detail: detail.slice(0, 200) });
       return res.status(401).json({ error: 'Google authentication failed' });
     }
 
-    const payload = await googleResponse.json() as any;
+    // Stage 2: Parse payload
+    stage = 'parse-payload';
+    let payload: any;
+    try {
+      payload = await googleResponse.json();
+    } catch (jsonErr: any) {
+      console.error('[auth/google] failed to parse tokeninfo JSON', { message: jsonErr?.message });
+      captureException(jsonErr instanceof Error ? jsonErr : new Error(String(jsonErr)), { stage: 'parse-payload' });
+      return res.status(500).json({ error: 'Failed to authenticate with Google' });
+    }
+
     const googleId = typeof payload?.sub === 'string' ? payload.sub : null;
     const audience = typeof payload?.aud === 'string' ? payload.aud : null;
     const email = typeof payload?.email === 'string' ? String(payload.email).toLowerCase() : null;
     const emailVerified = payload?.email_verified === 'true' || payload?.email_verified === true;
 
+    // Stage 3: Validate fields
+    stage = 'validate';
     if (!googleId || !email) {
+      console.warn('[auth/google] missing sub or email', { hasGoogleId: !!googleId, hasEmail: !!email });
       return res.status(400).json({ error: 'Invalid Google credential' });
     }
 
     if (!emailVerified) {
+      console.warn('[auth/google] email not verified', { email });
       return res.status(400).json({ error: 'Google account email is not verified' });
     }
 
     if (GOOGLE_ALLOWED_AUDIENCES.length && (!audience || !GOOGLE_ALLOWED_AUDIENCES.includes(audience))) {
-      req.log?.warn?.({ audience }, '[auth/google] audience mismatch');
+      console.warn('[auth/google] audience mismatch', { audience, allowed: GOOGLE_ALLOWED_AUDIENCES });
       return res.status(400).json({ error: 'Google credential not issued for this application' });
     }
 
@@ -300,13 +318,17 @@ authRouter.post('/google', async (req, res) => {
       : email.split('@')[0];
     const avatarUrl = typeof payload?.picture === 'string' ? payload.picture : null;
 
+    // Stage 4: User lookup/creation
+    stage = 'user-lookup';
     let user = await prisma.user.findUnique({ where: { google_id: googleId } });
     let created = false;
 
     if (!user) {
+      stage = 'user-resolve';
       const existingByEmail = await prisma.user.findUnique({ where: { email } });
 
       if (existingByEmail) {
+        stage = 'link-google';
         const currentPrefs = (existingByEmail as any)?.preferences || {};
         const prefPatch: Record<string, unknown> = {};
         if (typeof currentPrefs.role !== 'string') prefPatch.role = 'fan';
@@ -324,6 +346,7 @@ authRouter.post('/google', async (req, res) => {
         }
         user = await prisma.user.update({ where: { id: existingByEmail.id }, data: updates });
       } else {
+        stage = 'create-user';
         const randomSecret = crypto.randomBytes(32).toString('hex');
         const password_hash = await bcrypt.hash(randomSecret, 10);
         user = await prisma.user.create({
@@ -340,6 +363,7 @@ authRouter.post('/google', async (req, res) => {
         created = true;
       }
     } else if (!user.email_verified) {
+      stage = 'verify-existing';
       user = await prisma.user.update({
         where: { id: user.id },
         data: {
@@ -350,6 +374,8 @@ authRouter.post('/google', async (req, res) => {
       });
     }
 
+    // Stage 5: Generate JWT
+    stage = 'jwt';
     const sanitized = sanitizeUser(user);
     const access_token = signJwt({ id: sanitized.id });
     const needsOnboarding = sanitized?.preferences?.onboarding_completed === false;
@@ -361,13 +387,13 @@ authRouter.post('/google', async (req, res) => {
       created,
     });
   } catch (err: any) {
-    console.error('[auth/google] unexpected error', {
+    console.error(`[auth/google] error at stage="${stage}"`, {
       message: err?.message,
       code: err?.code,
-      meta: err?.meta,
       name: err?.name,
       stack: err?.stack?.split('\n').slice(0, 5).join('\n'),
     });
+    captureException(err instanceof Error ? err : new Error(String(err?.message || err)), { stage, context: 'google-auth' });
     return res.status(500).json({ error: 'Failed to authenticate with Google' });
   }
 });
