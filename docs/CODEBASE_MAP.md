@@ -1,5 +1,5 @@
 # VarsityHub Mobile — Codebase Map
-**Last updated:** 2026-03-18
+**Last updated:** 2026-03-22
 **Purpose:** Session briefing document for AI assistants. Read this before making any changes.
 **Related docs:** `docs/FRONT_BACKEND_WIRING_AUDIT.md`, `docs/SYSTEM_ARCHITECTURE_AUDIT.md`
 
@@ -431,6 +431,7 @@ Server entry: `server/src/index.ts` → `server/src/app.ts`
 | POST | /auth/google | No (rate-limited) | Google OAuth login (id_token in body) | useGoogleAuth |
 | POST | /auth/apple | No (rate-limited) | Apple Sign In (identity_token in body) | useAppleAuth |
 | POST | /auth/refresh | No (rate-limited) | Refresh access token using refresh_token | api/auth.ts |
+| POST | /auth/upgrade-to-coach | Required + verified | Promote fan to coach onboarding flow; paid tiers stay pending (`pending_plan`) until checkout completes | onboarding step-3, settings |
 | GET | /me | Required | Get current user profile (includes `auth_provider`: 'apple'\|'google'\|'apple,google') | AuthProvider, everywhere |
 | PUT | /auth/me | Required | Update profile (display_name, bio, avatar_url, etc.) | edit-profile |
 | PATCH | /me | Required | Partial update of profile | profile screen |
@@ -622,6 +623,8 @@ Server entry: `server/src/index.ts` → `server/src/app.ts`
 | POST | /payments/apple/verify-receipt | Required + rate-limited | Apple IAP subscription receipt validation | useIAP (iOS) |
 | POST | /payments/apple/verify-ad-receipt | Required + rate-limited | Apple IAP ad slot receipt validation | useAdIAP (iOS) |
 | POST | /payments/google/verify-purchase | Required + rate-limited | Google Play purchase validation | useIAP (Android) |
+
+> Note: Admin/debug payment endpoints exist for diagnostics, but return 404 in production to reduce attack surface (`/payments/debug/subscription-status`, `/payments/debug/reset-to-rookie`).
 
 ### Search Route — `routes/search.ts`
 
@@ -1091,7 +1094,7 @@ The following features have been confirmed stable and should not be modified wit
 
 ---
 
-## AUDIT CONFIRMATION (2026-03-18)
+## AUDIT CONFIRMATION (2026-03-22)
 
 Front and backend audit against codebase map and recent security fixes. **Confirmed working as intended** unless noted.
 
@@ -1102,9 +1105,11 @@ Front and backend audit against codebase map and recent security fixes. **Confir
 - **requireOnboarded**: Returns 403 if `onboarding_completed !== true`; blocks coaches with `approval_status !== 'APPROVED'`; verifies coach org `admin_approved`; blocks paid coaches who haven’t completed checkout when required. Used on games POST/PATCH/DELETE, teams POST/PUT/DELETE/invite, posts POST/PATCH/DELETE, organizations PATCH/invite/transfer, etc.
 
 ### Backend — Key routes
-- **POST /auth/upgrade-to-coach**: `requireVerified` + requireAuth. Sets role coach, onboarding_completed false, approval_status PENDING. No role elevation without verification.
+- **POST /auth/upgrade-to-coach**: `requireVerified` + requireAuth. Sets role coach, onboarding_completed false, approval_status PENDING. For paid selections, keeps `plan='rookie'`, sets `pending_plan` and `payment_pending=true` until payment finalization. No role elevation without verification.
 - **POST /me/complete-onboarding**: requireAuth only (user may complete before verify in some flows). Validates coach has org or join_request_pending; sets coaches to PENDING unless org already admin_approved. Re-completion blocked (409).
 - **Organizations POST / and POST /create**: requireAuth only (correct — org is created during onboarding before completion). Coach approval and org admin_approved enforced by requireOnboarded on all mutating coach actions.
+- **Organizations approval writes**: coach/owner approval transitions are persisted with atomic and consistent preference updates (`organization_id`, `organization_name`, `join_request_pending`, role context) to prevent partial-state corruption in approval flows.
+- **Debug-only endpoints in production**: `/payments/debug/*` and `/posts/debug/follows` are intentionally hidden (404) when `NODE_ENV=production`.
 
 ### Frontend — Auth & routing
 - **AuthProvider**: Single source of truth. Redirects unauthenticated → sign-in; unverified → verify; needs onboarding → /onboarding/step-1-role; pending coach (no proceeding_as_fan) → /onboarding/pending-approval; coach needs checkout → /settings/manage-subscription; completed onboarding on onboarding route → /(tabs). Uses server `user.preferences.onboarding_completed` and `user.approval_status` (never trust AsyncStorage alone).
@@ -1117,7 +1122,12 @@ Front and backend audit against codebase map and recent security fixes. **Confir
 - **create-fan-event**, **profile**, **event-approvals**, **manage-teams**, **create-team**, **my-team**: Use role and/or approval_status/onboarding_completed where appropriate.
 
 ### Reference
-- Recent commits: security audit fixes, token invalidation, verification audit, back button migration, PDF LAST 101% fixes. See `git log --oneline -20`.
+- Recent hardening commits:
+  - `807ba03f` — full pipeline audit (proxy routes, onboarding retry, ad refresh, email/approval flow hardening)
+  - `4e5d0d06` — upgrade-to-coach now enforces PENDING approval state
+  - `0938beec` — approval DB writes made atomic to avoid state corruption
+  - `988a0014` — granular Google OAuth Sentry stage logging
+  - `f617dd47` — production hardening for debug endpoint exposure + verified upgrade gate
 - Backend audit details: `server/BACKEND_AUDIT_REPORT.md`.
 
 ---
