@@ -100,14 +100,9 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
   
   const router = useRouter();
   const segments = useSegments();
+  const segmentPath = Array.isArray(segments) ? segments.join('/') : '';
   
   const lastRedirectRef = React.useRef<string | null>(null);
-  const segmentsRef = React.useRef(segments);
-  
-  // Update segments ref on every render
-  React.useEffect(() => {
-    segmentsRef.current = segments;
-  }, [segments]);
 
   // Derived state
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN' || user?.is_admin === true;
@@ -485,7 +480,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       return;
     }
 
-    const firstSegment = Array.isArray(segmentsRef.current) && segmentsRef.current.length ? String(segmentsRef.current[0]) : '';
+    const firstSegment = Array.isArray(segments) && segments.length ? String(segments[0]) : '';
     const publicRoutes = new Set(['sign-in', 'sign-up', 'verify-email', 'verify', 'verify-identity', 'forgot-password', 'reset-password', 'reset', 'public-event']);
     const isPublic = publicRoutes.has(firstSegment);
 
@@ -525,7 +520,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       // Unless they chose "Continue as Fan" to use the app while waiting
       const isPendingCoach = user.approval_status === 'PENDING' && user.preferences?.role === 'coach';
       const proceedingAsFan = user.preferences?.proceeding_as_fan === true;
-      const currentPath = Array.isArray(segmentsRef.current) ? segmentsRef.current.join('/') : '';
+      const currentPath = segmentPath;
       const isOnPendingScreen = currentPath.includes('pending-approval') || currentPath.includes('league-pending-approval');
       if (isPendingCoach && !proceedingAsFan && !isOnPendingScreen && firstSegment !== 'sign-in' && firstSegment !== 'sign-up') {
         if (__DEV__) console.log('[AuthProvider] Pending coach blocked — must wait for approval');
@@ -624,10 +619,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         router.replace('/sign-in');
       }
     }
-  // NOTE: `segments` is intentionally excluded — we read segmentsRef.current inside.
-  // Including segments causes an infinite loop: route change -> segments update -> effect re-runs -> route change.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, pendingVerificationEmail, initializing, healthOk, router, hasCompletedOnboarding]);
+  }, [user, pendingVerificationEmail, initializing, healthOk, router, hasCompletedOnboarding, segments, segmentPath]);
 
   const value = useMemo<AuthContextType>(() => ({
     user,

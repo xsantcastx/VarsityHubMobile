@@ -238,7 +238,17 @@ export default function SignInScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.root, { backgroundColor: palette.background, borderLeftWidth: 0, borderRightWidth: 0 }]} edges={['top', 'bottom']}>
+    <SafeAreaView
+      style={[
+        styles.root,
+        {
+          backgroundColor: palette.background,
+          borderWidth: 2,
+          borderColor: palette.border,
+        },
+      ]}
+      edges={['top', 'bottom']}
+    >
       <Stack.Screen options={{ title: 'Sign In', headerShown: false }} />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -276,7 +286,7 @@ export default function SignInScreen() {
             <Text style={[styles.subtitle, { color: palette.mutedText }]}>Sign in to keep your community in sync.</Text>
           </View>
 
-          <View style={[styles.card, { backgroundColor: palette.elevated, borderColor: palette.border, borderWidth: 2 }]}>
+          <View style={[styles.card, { backgroundColor: palette.elevated, borderColor: palette.border, borderWidth: 3 }]}>
             {error ? (
               <Text style={[styles.error, { color: palette.destructive }]}>{error}</Text>
             ) : null}

@@ -21,14 +21,11 @@ export default function Index() {
   const router = useRouter();
   const segments = useSegments();
   const colorScheme = useColorScheme() ?? 'light';
-  const e2eMode = String(process.env.EXPO_PUBLIC_E2E || '').trim() === '1';
 
   // Fallback: if AuthProvider doesn't redirect within 3 seconds, do it manually
   // BUT: Only navigate if we're still on the index route (AuthProvider hasn't navigated yet)
   useEffect(() => {
     const timeout = setTimeout(() => {
-      if (e2eMode) return;
-
       // Check if we're still on index route - if not, AuthProvider already navigated
       // When on index route, segments array is empty or first segment is empty string
       const firstSegment = Array.isArray(segments) && segments.length ? String(segments[0]) : '';
@@ -53,7 +50,7 @@ export default function Index() {
     }, 3000);
 
     return () => clearTimeout(timeout);
-  }, [user, router, e2eMode, segments, loading]);
+  }, [user, router, segments, loading]);
 
   // AuthProvider handles all routing logic
   // This screen shows loading state while AuthProvider determines where to navigate

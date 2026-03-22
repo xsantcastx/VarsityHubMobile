@@ -787,6 +787,11 @@ authRouter.put('/me', async (req: AuthedRequest, res) => {
     });
   }
   const data = parsed.data as any;
+  if (data?.preferences?.onboarding_completed === true) {
+    return res.status(403).json({
+      error: 'onboarding_completed cannot be set directly. Use /me/complete-onboarding.',
+    });
+  }
   let patch: any = { ...data };
   
   // Validate username availability if provided
@@ -845,6 +850,11 @@ authRouter.patch('/me', async (req: AuthedRequest, res) => {
     });
   }
   const data = parsed.data as any;
+  if (data?.preferences?.onboarding_completed === true) {
+    return res.status(403).json({
+      error: 'onboarding_completed cannot be set directly. Use /me/complete-onboarding.',
+    });
+  }
   let patch: any = { ...data };
   
   // Validate username availability if provided
@@ -963,6 +973,11 @@ authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
     });
   }
   const incoming = parsed.data as any;
+  if (incoming.onboarding_completed === true) {
+    return res.status(403).json({
+      error: 'onboarding_completed cannot be set directly. Use /me/complete-onboarding.',
+    });
+  }
   // COPPA: Reject if DOB indicates under 13 - do not store
   if (incoming.dob !== undefined && isUnder13(incoming.dob)) {
     return res.status(403).json({

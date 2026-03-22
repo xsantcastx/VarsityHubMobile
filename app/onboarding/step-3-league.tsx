@@ -76,7 +76,6 @@ export default function Step3League() {
     void (async () => {
       setChecking(true);
       try {
-        const e2e = String(process.env.EXPO_PUBLIC_E2E || '').trim() === '1';
         // Check for existing managed teams
         const teams = await Team.managed();
         if (teams && teams.length > 0) {
@@ -96,13 +95,6 @@ export default function Step3League() {
 
           // DON'T auto-skip - let user see step 4 even if team exists
           // They can still review/update organization info
-          // Only skip in E2E tests
-          if (e2e) {
-            setOB((prev) => ({ ...prev, step_3_visited: true }));
-            // E2E: skip to feed
-            router.replace('/(tabs)' as any);
-            return;
-          }
         } else {
           // Check for existing organizations that the user can manage
           const orgs = await Organization.mine();
@@ -116,12 +108,6 @@ export default function Step3League() {
               organization_id: firstOrg.id,
               organization_name: firstOrg.name
             }));
-
-            if (e2e) {
-              setOB((prev) => ({ ...prev, step_3_visited: true }));
-              router.replace('/(tabs)' as any);
-              return;
-            }
           }
         }
       } catch {
