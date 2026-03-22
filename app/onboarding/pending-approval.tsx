@@ -49,7 +49,6 @@ export default function PendingApproval() {
             affiliation: mePrefs.affiliation || ob.affiliation,
             organization_id: mePrefs.organization_id || ob.organization_id,
             organization_name: mePrefs.organization_name || ob.organization_name,
-            parental_consent_given: mePrefs.parental_consent_given || ob.parental_consent_given || false,
             plan: mePrefs.plan || (ob as any).plan || 'rookie',
             team_id: mePrefs.team_id || (ob as any).team_id,
             team_name: mePrefs.team_name || (ob as any).team_name,
@@ -84,7 +83,7 @@ export default function PendingApproval() {
     } finally {
       setChecking(false);
     }
-  }, [markOnboardingCompleteLocally, ob.affiliation, ob.dob, ob.organization_id, ob.organization_name, ob.parental_consent_given, ob.username, ob.zip, ob.zip_code, router]);
+  }, [markOnboardingCompleteLocally, ob.affiliation, ob.dob, ob.organization_id, ob.organization_name, ob.username, ob.zip, ob.zip_code, router]);
 
   useEffect(() => {
     // Initial check
@@ -114,7 +113,6 @@ export default function PendingApproval() {
         dob: me?.dob || ob.dob,
         zip_code: me?.zip_code || ob.zip_code || ob.zip,
         affiliation: me?.preferences?.affiliation || ob.affiliation,
-        parental_consent_given: (me?.preferences as any)?.parental_consent_given || ob.parental_consent_given || false,
         proceeding_as_fan: true,
       });
       await markOnboardingCompleteLocally();
