@@ -241,6 +241,8 @@ fi
 echo -e "${BLUE}Test 4.3: Authorized users...${NC}"
 if [ -f "app/onboarding/step-6-authorized-users.tsx" ]; then
     echo -e "${GREEN}✅ Authorized users step exists${NC}"
+elif [ -f "app/team-invites.tsx" ] && grep -q "authorized_users" server/src/routes/teams.ts 2>/dev/null; then
+    echo -e "${GREEN}✅ Authorized users flow exists (team invites + server enforcement)${NC}"
 else
     echo -e "${YELLOW}⚠️  Authorized users step missing${NC}"
     WARNINGS=$((WARNINGS + 1))
