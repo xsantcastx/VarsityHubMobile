@@ -115,7 +115,7 @@ organizationsRouter.get('/mine', requireAuth as any, async (req: AuthedRequest, 
 // Update organization (admin only)
 // H3: zip_code aligned with ads — 5-digit US format when provided
 const updateOrgSchema = z.object({
-  name: z.string().min(1).max(200).optional(),
+  name: z.string().min(1).max(255).optional(),
   description: z.string().max(2000).optional().nullable(),
   logo_url: z.string().url().max(2000).refine(
     (url) => { try { const h = new URL(url).hostname; return ['res.cloudinary.com','varsityhub.app','cdn.varsityhub.app'].some(d => h.endsWith(d)); } catch { return false; } },

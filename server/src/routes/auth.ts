@@ -133,9 +133,14 @@ function isUnder13(dob: string | null | undefined): boolean {
   return age < 13;
 }
 
+const passwordRequirement = z.string().min(8).refine(
+  (val) => /[a-zA-Z]/.test(val) && /[0-9]/.test(val),
+  { message: 'Password must contain at least one letter and one number' }
+);
+
 const registerSchema = z.object({
   email: z.string().trim().email(),
-  password: z.string().min(8),
+  password: passwordRequirement,
   display_name: z.string().optional(),
   // Rookie is a coach plan, not a role
   role: z.enum(['fan', 'coach']).optional(),
@@ -179,7 +184,7 @@ authRouter.post('/register', asyncHandler(async (req, res) => {
     });
   }
   const password_hash = await bcrypt.hash(password, 10);
-  const code = String(Math.floor(100000 + Math.random() * 900000));
+  const code = String(crypto.randomInt(100000, 999999));
   if (process.env.NODE_ENV === 'development') console.log(`[verify-code] [register] Code generated: ${code} for ${sanitizedEmail}`);
   const exp = new Date(Date.now() + 30 * 60 * 1000);
   const userRole = role || 'fan';
@@ -582,7 +587,7 @@ authRouter.post('/password/forgot', async (req, res) => {
   }
   debugLog('[password-reset] User found:', user.id, user.email);
 
-  const code = String(Math.floor(10000000 + Math.random() * 90000000)); // 8-digit code (~90M possibilities)
+  const code = String(crypto.randomInt(10000000, 99999999)); // 8-digit cryptographically secure code
   const expires = new Date(Date.now() + 30 * 60 * 1000);
 
   await prisma.user.update({
@@ -613,7 +618,7 @@ authRouter.post('/password/forgot', async (req, res) => {
 const passwordResetSchema = z.object({
   email: z.string().email(),
   code: z.string().min(4).max(10),
-  password: z.string().min(8),
+  password: passwordRequirement,
 });
 
 authRouter.post('/password/reset', async (req, res) => {
@@ -666,7 +671,7 @@ authRouter.post('/password/reset', async (req, res) => {
 
 const passwordChangeSchema = z.object({
   current_password: z.string().min(1),
-  new_password: z.string().min(8),
+  new_password: passwordRequirement,
 });
 
 authRouter.post('/password/change', asyncHandler(async (req: AuthedRequest, res) => {
@@ -795,7 +800,7 @@ const updateMeSchema = z.object({
     }, { message: 'Avatar URL must be from an allowed domain (Cloudinary or VarsityHub CDN)' })
     .optional()
     .nullable(),
-  bio: z.string().max(1000).transform((val) => val === '' ? null : val).optional().nullable(),
+  bio: z.string().max(300).transform((val) => val === '' ? null : val).optional().nullable(),
   preferences: z.any().optional(),
 });
 
@@ -1034,7 +1039,7 @@ const completeOnboardingSchema = z.object({
   // Core identity fields
   // Rookie is not a role
   role: z.enum(['fan', 'coach']).optional(),
-  username: z.string().min(3).max(20).optional(),
+  username: z.string().min(3).max(20).regex(/^[a-z0-9_.]+$/, 'Username must contain only lowercase letters, numbers, dots, and underscores').optional(),
   display_name: z.string().optional(),
   affiliation: z.enum(['none', 'university', 'high_school', 'club', 'youth', 'school', 'independent']).optional(),
   dob: z.string().optional(),
@@ -1212,7 +1217,7 @@ authRouter.post('/verify/request', async (req: AuthedRequest, res) => {
   if (now - rec.hourStart > 3600_000) { rec.hourStart = now; rec.count = 0; }
   if (now - rec.last < 30_000) return res.status(429).json({ error: 'Please wait before requesting another code' });
   if (rec.count >= 5) return res.status(429).json({ error: 'Too many requests' });
-  const code = String(Math.floor(100000 + Math.random() * 900000));
+  const code = String(crypto.randomInt(100000, 999999));
   if (process.env.NODE_ENV === 'development') console.log(`[verify-code] [verify/request] Code generated: ${code} for user ${user.id} (${user.email})`);
   const exp = new Date(Date.now() + 30 * 60 * 1000);
   await prisma.user.update({ where: { id: user.id }, data: { email_verification_code: code, email_verification_expires: exp } });

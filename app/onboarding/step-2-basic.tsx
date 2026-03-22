@@ -471,7 +471,7 @@ export default function Step2Basic() {
         placeholder="Tell us about yourself..."
         placeholderTextColor={Colors[colorScheme].mutedText}
         multiline
-        maxLength={160}
+        maxLength={300}
         style={{
           minHeight: 60,
           borderWidth: 1,
@@ -485,7 +485,7 @@ export default function Step2Basic() {
         }}
         accessibilityLabel="Bio"
       />
-      <Text style={[styles.muted, { textAlign: 'right', fontSize: 12 }]}>{bio.length}/160</Text>
+      <Text style={[styles.muted, { textAlign: 'right', fontSize: 12 }]}>{bio.length}/300</Text>
 
       <View style={{ marginTop: 20 }}>
         <PrimaryButton
