@@ -297,13 +297,6 @@ export default function Step2Basic() {
       // Save username (not display_name) - this is the single identifier
       await User.patchMe({ username: finalUsername, preferences: { affiliation, dob, zip_code: zip || undefined } });
       
-      // If user is 13-17 and hasn't already given parental consent, redirect to consent screen
-      if (isUnder18 && !isUnder13 && !ob.parental_consent_given) {
-        dispatch({ type: 'SAVE_SUCCESS', data: updatedData });
-        router.replace('/onboarding/parental-consent' as any);
-        return;
-      }
-
       const currentRole = ob.role;
       const updatedDataWithRole = { ...updatedData, role: currentRole };
 

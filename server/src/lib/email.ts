@@ -23,7 +23,8 @@ const CUSTOMER_SERVICE_EMAIL = process.env.CUSTOMER_SERVICE_EMAIL || 'support@va
 
 // Common template data (social links, privacy policy, etc.) added to all emails
 const getCommonTemplateData = () => ({
-  logo_url: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765655742/6C37232F-74BC-4486-95A1-7EE208A63D06_aj2j8k.png',
+  logo_url: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765997882/365220-200_mvbdz7.png',
+  hero_image_url: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765655742/6C37232F-74BC-4486-95A1-7EE208A63D06_ai2j8k.png',
   privacy_policy_url: 'https://varsityhub.app/privacy',
   community_guidelines_url: 'https://varsityhub.app/privacy',
   instagram_url: 'https://www.instagram.com/varsityhub_?igsh=cGQ1ZDM2NzVxNm13',
@@ -775,13 +776,15 @@ export async function sendStaffInvitationEmail(params: any): Promise<boolean> {
  */
 export async function sendVerificationEmail(email: string, token: string, userName?: string): Promise<boolean> {
   const displayName = userName || 'VarsityHub User';
+  const subject = `${token} is your VarsityHub verification code`;
 
-  return sendTemplateEmail(
+  const sent = await sendTemplateEmail(
     TEMPLATE_IDS.VERIFICATION,
     email,
-    `${token} is your VarsityHub verification code`,
+    subject,
     {
       ...getCommonTemplateData(),
+      subject: subject,
       token: token,
       verification_code: token,
       code: token,
@@ -791,6 +794,39 @@ export async function sendVerificationEmail(email: string, token: string, userNa
     },
     `Verification email sent to ${email}`
   );
+  if (sent) return true;
+
+  // HTML fallback when SendGrid template is not configured or fails
+  const htmlBody = `
+<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+  <div style="text-align:center;margin-bottom:24px;">
+    <img src="${getCommonTemplateData().logo_url}" alt="VarsityHub" style="height:48px;" />
+  </div>
+  <h2 style="color:#1B3A6B;text-align:center;">Email Verification</h2>
+  <p style="text-align:center;color:#374151;font-size:16px;">
+    Hi ${displayName}, use the code below to verify your email address.
+  </p>
+  <div style="text-align:center;margin:24px 0;">
+    <span style="display:inline-block;background:#F3F4F6;padding:16px 32px;border-radius:12px;font-size:32px;font-weight:800;letter-spacing:8px;color:#1B3A6B;">${token}</span>
+  </div>
+  <p style="text-align:center;color:#6B7280;font-size:14px;">This code expires in 30 minutes.</p>
+  <p style="text-align:center;color:#6B7280;font-size:14px;">If you didn't request this, you can safely ignore this email.</p>
+  <div style="text-align:center;margin-top:32px;padding-top:16px;border-top:1px solid #E5E7EB;">
+    <a href="${getCommonTemplateData().instagram_url}" style="margin:0 6px;"><img src="https://cdn-icons-png.flaticon.com/512/174/174855.png" alt="Instagram" style="width:24px;height:24px;" /></a>
+    <a href="${getCommonTemplateData().tiktok_url}" style="margin:0 6px;"><img src="https://cdn-icons-png.flaticon.com/512/3046/3046121.png" alt="TikTok" style="width:24px;height:24px;" /></a>
+    <a href="${getCommonTemplateData().youtube_url}" style="margin:0 6px;"><img src="https://cdn-icons-png.flaticon.com/512/174/174883.png" alt="YouTube" style="width:24px;height:24px;" /></a>
+    <a href="${getCommonTemplateData().facebook_url}" style="margin:0 6px;"><img src="https://cdn-icons-png.flaticon.com/512/174/174848.png" alt="Facebook" style="width:24px;height:24px;" /></a>
+    <a href="${getCommonTemplateData().x_url}" style="margin:0 6px;"><img src="https://cdn-icons-png.flaticon.com/512/5969/5969020.png" alt="X" style="width:24px;height:24px;" /></a>
+  </div>
+  <p style="text-align:center;color:#9CA3AF;font-size:13px;margin-top:16px;">&copy; ${new Date().getFullYear()} Lime Productions. All rights reserved.</p>
+</div>`;
+
+  return sendEmail({
+    to: email,
+    subject,
+    text: `Your VarsityHub verification code is: ${token}. This code expires in 30 minutes.`,
+    html: htmlBody,
+  });
 }
 
 /**
@@ -798,18 +834,46 @@ export async function sendVerificationEmail(email: string, token: string, userNa
  * Uses SendGrid dynamic template
  */
 export async function sendPasswordResetEmail(email: string, code: string): Promise<boolean> {
-  return sendTemplateEmail(
+  const subject = `${code} is your VarsityHub password reset code`;
+  const sent = await sendTemplateEmail(
     TEMPLATE_IDS.PASSWORD_RESET,
     email,
-    `${code} is your VarsityHub password reset code`,
+    subject,
     {
       ...getCommonTemplateData(),
+      subject: subject,
       reset_code: code,
       code: code,
       expires_in: '30 minutes',
     },
     `Password reset email sent to ${email}`
   );
+  if (sent) return true;
+
+  // HTML fallback when SendGrid template is not configured or fails
+  const htmlBody = `
+<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+  <div style="text-align:center;margin-bottom:24px;">
+    <img src="${getCommonTemplateData().logo_url}" alt="VarsityHub" style="height:48px;" />
+  </div>
+  <h2 style="color:#1B3A6B;text-align:center;">Password Reset</h2>
+  <p style="text-align:center;color:#374151;font-size:16px;">
+    Use the code below to reset your password.
+  </p>
+  <div style="text-align:center;margin:24px 0;">
+    <span style="display:inline-block;background:#F3F4F6;padding:16px 32px;border-radius:12px;font-size:32px;font-weight:800;letter-spacing:8px;color:#1B3A6B;">${code}</span>
+  </div>
+  <p style="text-align:center;color:#6B7280;font-size:14px;">This code expires in 30 minutes.</p>
+  <p style="text-align:center;color:#6B7280;font-size:14px;">If you didn't request this, you can safely ignore this email.</p>
+  <p style="text-align:center;color:#9CA3AF;font-size:13px;margin-top:24px;">&copy; ${new Date().getFullYear()} Lime Productions. All rights reserved.</p>
+</div>`;
+
+  return sendEmail({
+    to: email,
+    subject,
+    text: `Your VarsityHub password reset code is: ${code}. This code expires in 30 minutes.`,
+    html: htmlBody,
+  });
 }
 
 /**
@@ -1655,10 +1719,11 @@ export async function sendCoachApprovedEmail(params: {
   coachName: string;
   leagueName: string;
 }): Promise<boolean> {
-  return sendTemplateEmail(
+  const subject = `You're approved — welcome to ${params.leagueName}!`;
+  const sent = await sendTemplateEmail(
     TEMPLATE_IDS.JOIN_REQUEST_APPROVED,
     params.to,
-    `You're approved — welcome to ${params.leagueName}!`,
+    subject,
     {
       ...getCommonTemplateData(),
       user_name: params.coachName,
@@ -1669,6 +1734,38 @@ export async function sendCoachApprovedEmail(params: {
     },
     `Coach approved email sent to ${params.to}`
   );
+  if (sent) return true;
+
+  // HTML fallback when template is not configured (matches ad approval email format)
+  const htmlBody = `
+<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+  <div style="text-align:center;margin-bottom:24px;">
+    <img src="${getCommonTemplateData().logo_url}" alt="VarsityHub" style="height:48px;" />
+  </div>
+  <h2 style="color:#16A34A;text-align:center;">You're Approved!</h2>
+  <p style="text-align:center;color:#374151;font-size:16px;">
+    Hi ${params.coachName}, your coach application to <strong>${params.leagueName}</strong> has been approved on VarsityHub!
+  </p>
+  <p style="text-align:center;color:#374151;">Open the app to start managing your team.</p>
+  <div style="text-align:center;margin-top:24px;">
+    <a href="${APP_BASE_URL}" style="display:inline-block;background:#1B3A6B;color:#fff;padding:12px 32px;border-radius:8px;text-decoration:none;font-weight:600;">Open VarsityHub</a>
+  </div>
+  <div style="text-align:center;margin-top:32px;padding-top:16px;border-top:1px solid #E5E7EB;">
+    <a href="${getCommonTemplateData().instagram_url}" style="margin:0 6px;"><img src="https://cdn-icons-png.flaticon.com/512/174/174855.png" alt="Instagram" style="width:24px;height:24px;" /></a>
+    <a href="${getCommonTemplateData().tiktok_url}" style="margin:0 6px;"><img src="https://cdn-icons-png.flaticon.com/512/3046/3046121.png" alt="TikTok" style="width:24px;height:24px;" /></a>
+    <a href="${getCommonTemplateData().youtube_url}" style="margin:0 6px;"><img src="https://cdn-icons-png.flaticon.com/512/174/174883.png" alt="YouTube" style="width:24px;height:24px;" /></a>
+    <a href="${getCommonTemplateData().facebook_url}" style="margin:0 6px;"><img src="https://cdn-icons-png.flaticon.com/512/174/174848.png" alt="Facebook" style="width:24px;height:24px;" /></a>
+    <a href="${getCommonTemplateData().x_url}" style="margin:0 6px;"><img src="https://cdn-icons-png.flaticon.com/512/5969/5969020.png" alt="X" style="width:24px;height:24px;" /></a>
+  </div>
+  <p style="text-align:center;color:#9CA3AF;font-size:13px;margin-top:16px;">&copy; ${new Date().getFullYear()} Lime Productions. All rights reserved.</p>
+</div>`;
+
+  return sendEmail({
+    to: params.to,
+    subject,
+    text: `Hi ${params.coachName}, your coach application to ${params.leagueName} has been approved on VarsityHub! Open the app to get started.`,
+    html: htmlBody,
+  });
 }
 
 /**
@@ -1681,10 +1778,11 @@ export async function sendCoachRejectedEmail(params: {
   leagueName: string;
   reason?: string;
 }): Promise<boolean> {
-  return sendTemplateEmail(
+  const subject = `Coach request for ${params.leagueName} — declined`;
+  const sent = await sendTemplateEmail(
     TEMPLATE_IDS.JOIN_REQUEST_DENIED,
     params.to,
-    `Coach request for ${params.leagueName} — declined`,
+    subject,
     {
       ...getCommonTemplateData(),
       user_name: params.coachName,
@@ -1694,6 +1792,33 @@ export async function sendCoachRejectedEmail(params: {
     },
     `Coach rejected email sent to ${params.to}`
   );
+  if (sent) return true;
+
+  // HTML fallback when template is not configured
+  const reasonText = params.reason ? `<p style="text-align:center;color:#6B7280;font-size:14px;">Reason: ${params.reason}</p>` : '';
+  const htmlBody = `
+<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+  <div style="text-align:center;margin-bottom:24px;">
+    <img src="${getCommonTemplateData().logo_url}" alt="VarsityHub" style="height:48px;" />
+  </div>
+  <h2 style="color:#DC2626;text-align:center;">Coach Request Declined</h2>
+  <p style="text-align:center;color:#374151;font-size:16px;">
+    Hi ${params.coachName}, your request to join <strong>${params.leagueName}</strong> was not approved.
+  </p>
+  ${reasonText}
+  <p style="text-align:center;color:#374151;">You can still use VarsityHub as a fan. If you have questions, please contact support.</p>
+  <div style="text-align:center;margin-top:24px;">
+    <a href="mailto:${CUSTOMER_SERVICE_EMAIL}" style="display:inline-block;background:#1B3A6B;color:#fff;padding:12px 32px;border-radius:8px;text-decoration:none;font-weight:600;">Contact Support</a>
+  </div>
+  <p style="text-align:center;color:#9CA3AF;font-size:13px;margin-top:24px;">&copy; ${new Date().getFullYear()} Lime Productions. All rights reserved.</p>
+</div>`;
+
+  return sendEmail({
+    to: params.to,
+    subject,
+    text: `Hi ${params.coachName}, your request to join ${params.leagueName} was not approved.${params.reason ? ` Reason: ${params.reason}` : ''} You can still use VarsityHub as a fan.`,
+    html: htmlBody,
+  });
 }
 
 /**
@@ -1744,10 +1869,11 @@ export async function sendNewCoachRequestEmail(params: {
     ? `${APP_BASE_URL}/organizations/join-requests/${params.requestId}/deny`
     : `${APP_BASE_URL}/organizations`;
 
-  return sendTemplateEmail(
+  const subject = `New coach request for ${params.leagueName}: ${params.coachName}`;
+  const sent = await sendTemplateEmail(
     TEMPLATE_IDS.JOIN_REQUEST_ADMIN,
     params.to,
-    `New coach request for ${params.leagueName}: ${params.coachName}`,
+    subject,
     {
       ...getCommonTemplateData(),
       admin_name: params.ownerName,
@@ -1761,4 +1887,35 @@ export async function sendNewCoachRequestEmail(params: {
     },
     `New coach request sent to ${params.to}`
   );
+  if (sent) return true;
+
+  // HTML fallback with Approve/Deny buttons (matches ad pending review email format)
+  const htmlBody = `
+<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+  <div style="text-align:center;margin-bottom:24px;">
+    <img src="${getCommonTemplateData().logo_url}" alt="VarsityHub" style="height:48px;" />
+  </div>
+  <h2 style="color:#1B3A6B;text-align:center;margin-bottom:20px;">New Coach Request</h2>
+  <p style="text-align:center;color:#374151;font-size:16px;">
+    Hi ${params.ownerName}, a coach wants to join your league.
+  </p>
+  <table style="width:100%;border-collapse:collapse;margin:20px 0;">
+    <tr><td style="padding:8px 12px;font-weight:bold;color:#374151;border-bottom:1px solid #E5E7EB;">Coach:</td><td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;">${params.coachName}</td></tr>
+    <tr><td style="padding:8px 12px;font-weight:bold;color:#374151;border-bottom:1px solid #E5E7EB;">Email:</td><td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;"><a href="mailto:${params.coachEmail}">${params.coachEmail}</a></td></tr>
+    <tr><td style="padding:8px 12px;font-weight:bold;color:#374151;border-bottom:1px solid #E5E7EB;">League:</td><td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;">${params.leagueName}</td></tr>
+  </table>
+  <div style="text-align:center;margin-bottom:12px;">
+    <a href="${approveUrl}" style="display:inline-block;background:#16A34A;color:#fff;padding:12px 32px;border-radius:8px;text-decoration:none;font-weight:600;margin-right:12px;">Approve Coach</a>
+    <a href="${denyUrl}" style="display:inline-block;background:#DC2626;color:#fff;padding:12px 32px;border-radius:8px;text-decoration:none;font-weight:600;">Deny Coach</a>
+  </div>
+  <p style="text-align:center;color:#6B7280;font-size:12px;margin-top:16px;">You can also manage requests in the VarsityHub app under Approvals.</p>
+  <p style="text-align:center;color:#9CA3AF;font-size:13px;margin-top:24px;">&copy; ${new Date().getFullYear()} Lime Productions. All rights reserved.</p>
+</div>`;
+
+  return sendEmail({
+    to: params.to,
+    subject,
+    text: `Hi ${params.ownerName}, ${params.coachName} (${params.coachEmail}) wants to join ${params.leagueName}. Approve: ${approveUrl} | Deny: ${denyUrl}`,
+    html: htmlBody,
+  });
 }

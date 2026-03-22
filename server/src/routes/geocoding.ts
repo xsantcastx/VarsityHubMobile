@@ -77,6 +77,10 @@ geocodingRouter.get('/autocomplete', requireAuth, async (req: AuthedRequest, res
       },
     });
 
+    if (response.data.status === 'ZERO_RESULTS') {
+      return res.json({ suggestions: [] });
+    }
+
     if (response.data.status !== 'OK') {
       console.warn(`Autocomplete for "${input}" failed with status: ${response.data.status}`);
       return res.status(500).json({ error: 'Failed to fetch place suggestions' });

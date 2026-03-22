@@ -133,8 +133,12 @@ export default function NotificationsScreen() {
       ? `Game reminder: ${(item.event?.title || item.meta?.event_title) || 'Your game'}`
       : item.type === 'AD_APPROVED'
       ? `Your ad${item.meta?.business_name ? ` for "${item.meta.business_name}"` : ''} has been approved! Tap to complete payment.`
+      : item.type === 'AD_REJECTED'
+      ? `Your ad${item.meta?.business_name ? ` for "${item.meta.business_name}"` : ''} needs changes.${item.meta?.reason ? ` ${item.meta.reason}` : ' Please review and resubmit.'}`
       : item.type === 'ORG_APPROVED'
       ? `Your organization${item.meta?.organization_name ? ` "${item.meta.organization_name}"` : ''} has been approved!`
+      : item.type === 'JOIN_REQUEST_APPROVED'
+      ? `Your request to join${item.meta?.organization_name ? ` "${item.meta.organization_name}"` : ''} was approved!`
       : 'Notification';
     const onPress = () => {
       if ((item.type === 'FOLLOW' || item.type === 'FOLLOW_REQUEST') && item.actor?.id) {
@@ -156,7 +160,11 @@ export default function NotificationsScreen() {
         router.push(`/event-detail?id=${encodeURIComponent(item.event?.id || item.meta?.event_id || '')}` as any);
       } else if (item.type === 'AD_APPROVED' && item.meta?.ad_id) {
         router.push(`/ad-calendar?adId=${encodeURIComponent(item.meta.ad_id)}` as any);
+      } else if (item.type === 'AD_REJECTED' && item.meta?.ad_id) {
+        router.push(`/ad-calendar?adId=${encodeURIComponent(item.meta.ad_id)}` as any);
       } else if (item.type === 'ORG_APPROVED') {
+        router.push('/(tabs)' as any);
+      } else if (item.type === 'JOIN_REQUEST_APPROVED') {
         router.push('/(tabs)' as any);
       }
       // Mark read optimistically

@@ -713,6 +713,7 @@ export default function PostDetailScreen() {
     return (
     <ScrollView
       style={[styles.content, { backgroundColor: Colors[colorScheme].background }]}
+      contentContainerStyle={{ paddingBottom: 40 }}
       showsVerticalScrollIndicator={false}
       scrollEnabled
       nestedScrollEnabled={isInsidePager}
@@ -829,7 +830,7 @@ export default function PostDetailScreen() {
           )}
 
           {/* Author Info */}
-          <View style={styles.authorSection}>
+          <View style={[styles.authorSection, { borderBottomColor: Colors[colorScheme].border }]}>
             <Pressable 
               style={styles.authorInfo}
               onPress={() => { if (postData.author_id) { void router.push(`/user-profile?id=${postData.author_id}`);
@@ -862,7 +863,7 @@ export default function PostDetailScreen() {
                 <Text style={[styles.statText, { color: Colors[colorScheme].text }]}>{formatCount(postData.upvotes_count || 0)}</Text>
               </View>
               <View style={styles.stat}>
-                <Ionicons name="chatbubble-outline" size={18} color="#fff" />
+                <Ionicons name="chatbubble-outline" size={18} color={Colors[colorScheme].mutedText} />
                 <Text style={[styles.statText, { color: Colors[colorScheme].text }]}>{formatCount(localComments.length || 0)}</Text>
               </View>
               <View style={styles.stat}>
@@ -924,7 +925,7 @@ export default function PostDetailScreen() {
                 </Pressable>
               </View>
             )}
-            <View style={styles.addCommentContainer}>
+            <View style={[styles.addCommentContainer, { backgroundColor: Colors[colorScheme].card }]}>
             {currentUser?.avatar_url ? (
               <ExpoImage source={{ uri: currentUser.avatar_url }} style={styles.commentAvatar} />
             ) : (
@@ -935,12 +936,12 @@ export default function PostDetailScreen() {
             <TextInput
               testID="comment-input"
               style={[styles.commentInput, {
-                backgroundColor: '#222',
-                borderColor: '#333',
-                color: '#fff'
+                backgroundColor: Colors[colorScheme].surface,
+                borderColor: Colors[colorScheme].border,
+                color: Colors[colorScheme].text
               }]}
               placeholder={replyingToComment ? `Reply to ${replyingToComment.authorName}...` : 'Add a comment...'}
-              placeholderTextColor="#888"
+              placeholderTextColor={Colors[colorScheme].mutedText}
               value={comment}
               onChangeText={setComment}
               multiline
@@ -990,6 +991,11 @@ export default function PostDetailScreen() {
                         <Text style={[styles.commentAuthorName, { color: Colors[colorScheme].text }]}>
                           {c.author?.username ? `@${c.author.username}` : c.author?.display_name ? `@${c.author.display_name}` : 'User'}
                         </Text>
+                        {c.created_at && (
+                          <Text style={[styles.commentDate, { color: Colors[colorScheme].mutedText }]}>
+                            {timeAgo(c.created_at)}
+                          </Text>
+                        )}
                       </View>
                     </Pressable>
                     
@@ -1045,7 +1051,7 @@ export default function PostDetailScreen() {
     <SafeAreaView style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]} edges={['top']}>
       <StatusBar barStyle={colorScheme === 'dark' ? "light-content" : "dark-content"} backgroundColor={Colors[colorScheme].background} />
       <Stack.Screen options={{ headerShown: false }} />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }} keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }} keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}>
       
       {/* Custom Header */}
       <View style={[styles.header, { backgroundColor: Colors[colorScheme].surface, borderBottomColor: 'transparent' }]}>
@@ -1544,7 +1550,6 @@ const styles = StyleSheet.create({
   statText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#6B7280',
   },
   actions: {
     flexDirection: 'row',
@@ -1649,7 +1654,6 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: 12,
     padding: 16,
-    backgroundColor: '#111',
     borderRadius: 12,
   },
   replyingToBar: {

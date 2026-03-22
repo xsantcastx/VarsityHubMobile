@@ -808,7 +808,12 @@ async function approveAd(id: string, note?: string | null) {
 
   const updated = await prisma.ad.update({
     where: { id },
-    data: { status: 'approved', ...(note ? { admin_note: note } : {}) },
+    data: {
+      status: 'approved',
+      // Move payment_status from pending_approval → unpaid so the user can now pay
+      ...(ad.payment_status === 'pending_approval' ? { payment_status: 'unpaid' } : {}),
+      ...(note ? { admin_note: note } : {}),
+    },
   });
 
   // Notify the ad owner — email, push, and in-app notification
@@ -859,6 +864,27 @@ async function rejectAd(id: string, reason?: string | null) {
   if (ad.contact_email) {
     sendAdRejectedEmail({ to: ad.contact_email, businessName: ad.business_name || undefined, reason: reason || undefined })
       .catch((err) => console.warn('[ads] reject email failed:', (err as any)?.message || err));
+  }
+
+  // Push notification + in-app notification for ad owner
+  if (ad.user_id) {
+    try {
+      await sendPushNotification(
+        ad.user_id,
+        'Ad Needs Changes',
+        `Your ad for "${ad.business_name || 'your business'}" was not approved.${reason ? ` Reason: ${reason}` : ' Please review and resubmit.'}`,
+        { type: 'AD_REJECTED', ad_id: id }
+      );
+    } catch (err) {
+      console.warn('[ads] reject push notification failed:', (err as any)?.message || err);
+    }
+    try {
+      await prisma.notification.create({
+        data: { user_id: ad.user_id, type: 'AD_REJECTED', meta: { ad_id: id, business_name: ad.business_name, reason: reason || null } },
+      });
+    } catch (err) {
+      console.error('[ads] FAILED to create ad rejected in-app notification:', (err as any)?.message || err);
+    }
   }
 
   const updated = await prisma.ad.findUnique({ where: { id } });

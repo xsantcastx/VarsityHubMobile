@@ -11,7 +11,7 @@ import { Colors } from '@/constants/Colors';
 
 export default function ResetPasswordScreen() {
   const colorScheme = useColorScheme();
-  const { refresh: refreshUser, user } = useUser(false);
+  const { refresh: refreshUser, user } = useUser(true);
   const { checkAuth } = useAuth();
   const [current, setCurrent] = useState('');
   const [password, setPassword] = useState('');

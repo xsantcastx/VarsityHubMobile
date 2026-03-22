@@ -17,6 +17,10 @@ const summarize = (n: any) => {
     case 'COMMENT_REPLY': return 'replied to your comment';
     case 'SHARE': return 'shared your post';
     case 'GAME_REMINDER': return 'game reminder';
+    case 'AD_APPROVED': return 'your ad has been approved';
+    case 'AD_REJECTED': return 'your ad needs changes';
+    case 'ORG_APPROVED': return 'your organization has been approved';
+    case 'JOIN_REQUEST_APPROVED': return 'your join request was approved';
     default: return 'did something';
   }
 };

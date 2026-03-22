@@ -24,7 +24,7 @@ import settings from '@/api/settings';
 import { uploadFile } from '@/api/upload';
 import VideoPlayer from '@/components/VideoPlayer';
 import VideoTrimmer from '@/components/VideoTrimmer';
-import GameVerticalFeedScreen from './GameVerticalFeedScreen';
+import GameVerticalFeedScreen, { mapHighlightToFeedPost } from './GameVerticalFeedScreen';
 import { applyClearVote, applyVoteSelection, buildVoteSummary, parseVoteSummary, type VoteOption, type VoteSummary } from '@/utils/voteSummary';
 
 import type { ColorValue } from 'react-native';
@@ -395,15 +395,13 @@ const canAddStory = (eventIso?: string | null, gameId?: string | null) => {
   const eventDate = new Date(eventIso);
   if (Number.isNaN(eventDate.getTime())) return true;
 
-  const now = Date.now();
-  const eventTime = eventDate.getTime();
-  // Match the server's geofencing window:
-  // 12 hours before the event up to 12 hours after it ends.
-  // Previously this blocked once the event started (now <= eventTime), which
-  // prevented users at the venue from adding stories during the game.
-  const windowStart = eventTime - 12 * 60 * 60 * 1000;
-  const windowEnd   = eventTime + 12 * 60 * 60 * 1000;
-  return now >= windowStart && now <= windowEnd;
+  // Stories can only be posted on the day of the event (midnight to midnight local time).
+  // Stories remain visible after the event for viewing.
+  const now = new Date();
+  const eventDay = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate());
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
+  return eventDay.getTime() === todayStart.getTime() && now.getTime() < todayEnd.getTime();
 };
 
 const capCount = (count?: number | null, capacity?: number | null) => {
@@ -638,15 +636,25 @@ const GameDetailsScreen = () => {
   // Derives from the already-ticking `nowTs` — no extra interval needed.
   const storyUnlockCountdown = useMemo(() => {
     if (!vm?.date || !vm?.gameId || isSampleId(vm.gameId)) return null;
-    const eventTime = new Date(vm.date).getTime();
-    if (!Number.isFinite(eventTime)) return null;
-    const windowStart = eventTime - 12 * 60 * 60 * 1000; // same as canAddStory
-    const msUntil = windowStart - nowTs;
-    if (msUntil <= 0) return null; // window already open
+    const eventDate = new Date(vm.date);
+    if (!Number.isFinite(eventDate.getTime())) return null;
+
+    // Stories unlock at midnight on the day of the event
+    const now = new Date(nowTs);
+    const eventDay = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate());
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    // If the event is today or in the past, no countdown needed
+    if (eventDay.getTime() <= todayStart.getTime()) return null;
+
+    const msUntil = eventDay.getTime() - nowTs;
+    if (msUntil <= 0) return null;
     const totalSecs = Math.ceil(msUntil / 1000);
-    const hours = Math.floor(totalSecs / 3600);
+    const days = Math.floor(totalSecs / 86400);
+    const hours = Math.floor((totalSecs % 86400) / 3600);
     const mins = Math.floor((totalSecs % 3600) / 60);
     const secs = totalSecs % 60;
+    if (days > 0) return `Opens in ${days}d ${hours}h`;
     if (hours > 0) return `Opens in ${hours}h ${mins}m ${secs}s`;
     if (mins > 0) return `Opens in ${mins}m ${secs}s`;
     return `Opens in ${secs}s`;
@@ -2216,7 +2224,11 @@ const renderBanner = () => {
             >
               {isVideo ? (
                 <>
-                  <Image source={{ uri: item.thumbnail_url || item.url }} style={styles.mediaThumbContent} contentFit="cover" />
+                  {item.thumbnail_url ? (
+                    <Image source={{ uri: item.thumbnail_url }} style={styles.mediaThumbContent} contentFit="cover" />
+                  ) : (
+                    <View style={[styles.mediaThumbContent, { backgroundColor: '#0f172a' }]} />
+                  )}
                   <View style={[styles.mediaThumbContent, styles.mediaVideo]}>
                     <Ionicons name="play" size={24} color="#fff" />
                   </View>
@@ -2407,16 +2419,15 @@ const renderBanner = () => {
                                    <View style={styles.gridImageOverlay} />
                                  </View>
                                ) : isVideo && mediaUrl ? (
-                                 <View style={styles.gridImageContainer}>
-                                   <VideoPlayer uri={mediaUrl} style={styles.gridImage} nativeControls={false} />
-                                   <View style={styles.gridImageOverlay} />
+                                 <View style={[styles.gridImageContainer, { backgroundColor: '#0f172a', alignItems: 'center', justifyContent: 'center' }]}>
+                                   <Ionicons name="play-circle" size={48} color="#94a3b8" />
                                  </View>
                                ) : (
                                  <View style={[styles.gridImage, styles.gridImageFallback]}>
-                                   <LinearGradient 
-                                     colors={["#667eea", "#764ba2", "#f093fb"]} 
-                                     style={StyleSheet.absoluteFillObject as any} 
-                                     start={{ x: 0, y: 0 }} 
+                                   <LinearGradient
+                                     colors={["#667eea", "#764ba2", "#f093fb"]}
+                                     style={StyleSheet.absoluteFillObject as any}
+                                     start={{ x: 0, y: 0 }}
                                      end={{ x: 1, y: 1 }}
                                    />
                                    <View style={styles.textPostOverlay}>
@@ -2447,7 +2458,7 @@ const renderBanner = () => {
                            );
                          })}
                      </View>
-                     
+
                      {/* Column 2 */}
                      <View style={styles.masonryColumn}>
                        {(vm?.posts || [])
@@ -2480,16 +2491,15 @@ const renderBanner = () => {
                                    <View style={styles.gridImageOverlay} />
                                  </View>
                                ) : isVideo && mediaUrl ? (
-                                 <View style={styles.gridImageContainer}>
-                                   <VideoPlayer uri={mediaUrl} style={styles.gridImage} nativeControls={false} />
-                                   <View style={styles.gridImageOverlay} />
+                                 <View style={[styles.gridImageContainer, { backgroundColor: '#0f172a', alignItems: 'center', justifyContent: 'center' }]}>
+                                   <Ionicons name="play-circle" size={48} color="#94a3b8" />
                                  </View>
                                ) : (
                                  <View style={[styles.gridImage, styles.gridImageFallback]}>
-                                   <LinearGradient 
-                                     colors={["#667eea", "#764ba2", "#f093fb"]} 
-                                     style={StyleSheet.absoluteFillObject as any} 
-                                     start={{ x: 0, y: 0 }} 
+                                   <LinearGradient
+                                     colors={["#667eea", "#764ba2", "#f093fb"]}
+                                     style={StyleSheet.absoluteFillObject as any}
+                                     start={{ x: 0, y: 0 }}
                                      end={{ x: 1, y: 1 }}
                                    />
                                    <View style={styles.textPostOverlay}>
@@ -2632,6 +2642,7 @@ const renderBanner = () => {
           <GameVerticalFeedScreen
             onClose={() => setVerticalFeedOpen(false)}
             gameId={vm?.gameId || null}
+            initialPosts={!vm?.gameId && Array.isArray(vm?.posts) ? (vm.posts.map(mapHighlightToFeedPost).filter(Boolean) as any[]) : undefined}
             excludeMediaUrls={(vm?.media || []).map((m) => m.url).filter(Boolean) as string[]}
           />
         </View>

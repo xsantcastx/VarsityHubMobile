@@ -643,7 +643,7 @@ const passwordChangeSchema = z.object({
   new_password: z.string().min(8),
 });
 
-authRouter.post('/password/change', async (req: AuthedRequest, res) => {
+authRouter.post('/password/change', asyncHandler(async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const parsed = passwordChangeSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
@@ -677,7 +677,42 @@ authRouter.post('/password/change', async (req: AuthedRequest, res) => {
   }
   
   return res.json({ ok: true });
+}));
+
+// Upgrade a fan account to coach
+const upgradeToCoachSchema = z.object({
+  plan: z.enum(['rookie', 'veteran', 'legend']),
 });
+
+authRouter.post('/upgrade-to-coach', asyncHandler(async (req: AuthedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+  const parsed = upgradeToCoachSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
+  const { plan } = parsed.data;
+
+  const user = await prisma.user.findUnique({ where: { id: req.user.id }, select: { id: true, preferences: true } });
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  const currentPrefs = (user.preferences as any) || {};
+  // If already a coach, reject
+  if (currentPrefs.role === 'coach') {
+    return res.status(400).json({ error: 'Account is already a coach account.' });
+  }
+
+  // Update role to coach and set plan, reset onboarding so they complete coach steps
+  const merged = {
+    ...currentPrefs,
+    role: 'coach',
+    plan,
+    onboarding_completed: false,
+  };
+  const updated = await prisma.user.update({
+    where: { id: user.id },
+    data: { preferences: merged },
+  });
+
+  return res.json({ ok: true, preferences: updated.preferences });
+}));
 
 authRouter.get('/me', async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
@@ -1041,27 +1076,35 @@ authRouter.post('/me/complete-onboarding', authLimiter, requireAuth as any, requ
   const finalRole = data.role !== undefined ? data.role : (currentPrefs.role || 'fan');
   
   // CRITICAL: For coaches, validate required steps are completed
+  // Fall back to existing DB values for retry scenarios where payload may be incomplete
+  const currentUser = await prisma.user.findUnique({ where: { id: req.user.id } });
   if (finalRole === 'coach') {
-    // Coaches MUST have: username, plan, and team/org
-    if (!data.username) {
+    const effectiveUsername = data.username || currentUser?.username;
+    const effectivePlan = data.plan || currentPrefs.plan;
+    const effectiveOrgId = data.organization_id || currentPrefs.organization_id;
+    const effectiveTeamId = data.team_id || currentPrefs.team_id;
+    if (!effectiveUsername) {
       return res.status(400).json({ error: 'Username required for coach onboarding' });
     }
-    if (!data.plan) {
+    if (!effectivePlan) {
       return res.status(400).json({ error: 'Plan selection required for coach onboarding' });
     }
-    if (!data.team_id && !data.organization_id) {
+    if (!effectiveTeamId && !effectiveOrgId) {
       return res.status(400).json({ error: 'Team or organization required for coach onboarding' });
     }
+    // Use DB values as fallback if not in payload
+    if (!data.username && effectiveUsername) data.username = effectiveUsername;
+    if (!data.plan && effectivePlan) (data as any).plan = effectivePlan;
+    if (!data.organization_id && effectiveOrgId) data.organization_id = effectiveOrgId;
+    if (!data.team_id && effectiveTeamId) data.team_id = effectiveTeamId;
   }
-  
+
   // Update user with direct fields
   const updateData: any = {};
   if (data.username) updateData.username = data.username;
   if (data.display_name) updateData.display_name = data.display_name;
   if (data.avatar_url) updateData.avatar_url = data.avatar_url;
   if (data.bio) updateData.bio = data.bio;
-  
-  const currentUser = await prisma.user.findUnique({ where: { id: req.user.id } });
   // Do not auto-set default bio — if user leaves bio blank, keep it blank
   
   // Prepare preferences update

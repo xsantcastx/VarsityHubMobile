@@ -228,11 +228,14 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
 debugLog('📚 API documentation available at /api-docs');
 
 app.use('/auth', authLimiter, authRouter);
-app.get('/me', noStore, (req, res, next) => (authRouter as any).handle({ ...req, url: '/me' }, res, next));
-app.patch('/me/preferences', noStore, (req, res, next) => (authRouter as any).handle({ ...req, url: '/me/preferences' }, res, next));
-app.patch('/me', noStore, (req, res, next) => (authRouter as any).handle({ ...req, url: '/me' }, res, next));
-app.post('/me/complete-onboarding', noStore, (req, res, next) => (authRouter as any).handle({ ...req, url: '/me/complete-onboarding' }, res, next));
-app.get('/me/subscription', noStore, (req, res, next) => (authRouter as any).handle({ ...req, url: '/me/subscription' }, res, next));
+// Proxy shorthand /me/* routes to authRouter (rewrite URL so the router sees /me/*)
+app.use('/me', noStore, (req, res, next) => {
+  // Express strips the mount path (/me), so req.url is "/" or "/preferences" etc.
+  // Prepend /me back so the authRouter matches its /me, /me/preferences, etc. routes
+  const suffix = req.url === '/' ? '' : req.url;  // avoid double slash for bare /me
+  req.url = '/me' + suffix;
+  authRouter(req, res, next);
+});
 app.use('/games', apiLimiter, gamesRouter);
 app.use('/posts', apiLimiter, postsRouter);
 app.use('/notifications', noStore, apiLimiter, notificationsRouter);

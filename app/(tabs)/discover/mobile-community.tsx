@@ -781,6 +781,7 @@ export default function CommunityDiscoverScreen() {
       {/* Calendar - Right below search */}
       <View style={[styles.calendarSection, { backgroundColor: colorScheme === 'light' ? '#FFFFFF' : Colors[colorScheme].background, borderColor: colorScheme === 'light' ? '#E5E7EB' : Colors[colorScheme].border }]}>
         <Calendar
+          key={`calendar-${colorScheme}`}
           onDayPress={(day) => {
             setSelectedDate(day.dateString);
           }}

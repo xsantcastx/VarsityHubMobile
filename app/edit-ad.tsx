@@ -9,6 +9,7 @@ import * as ImagePicker from 'expo-image-picker';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
+import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -35,7 +36,7 @@ export default function EditAdScreen() {
   const [targetUrl, setTargetUrl] = useState('');
   const [desc, setDesc] = useState('');
   const [status, setStatus] = useState<'draft'|'pending'|'active'|'rejected'|'archived'>('draft');
-  const [payment, setPayment] = useState<'unpaid'|'paid'|'refunded'>('unpaid');
+  const [payment, setPayment] = useState<'unpaid'|'paid'|'refunded'|'pending_approval'|'hold'>('unpaid');
   const [uploading, setUploading] = useState(false);
   const [bookedDates, setBookedDates] = useState<string[]>([]);
 
@@ -95,6 +96,9 @@ export default function EditAdScreen() {
 
   useEffect(() => { void load(); }, [load]);
 
+  // Refresh ad data when screen regains focus (e.g. after admin approval or payment)
+  useFocusEffect(useCallback(() => { if (id) void load(); }, [id, load]));
+
   const pickBanner = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) return;
@@ -148,10 +152,10 @@ export default function EditAdScreen() {
           <Text style={[styles.loadingText, { color: theme.mutedText }]}>Loading ad details...</Text>
         </View>
       ) : (
-        <KeyboardAvoidingView 
-          style={{ flex: 1 }} 
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 20 : 0}
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
         >
           <ScrollView 
             contentContainerStyle={styles.scrollContent}
@@ -272,7 +276,7 @@ export default function EditAdScreen() {
 
               <View style={[styles.infoCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
                 <Text style={[styles.infoLabel, { color: theme.mutedText }]}>Payment Status</Text>
-                <Text style={[styles.infoValue, { color: theme.text }]}>{payment.charAt(0).toUpperCase() + payment.slice(1)}</Text>
+                <Text style={[styles.infoValue, { color: theme.text }]}>{{ pending_approval: 'Awaiting Approval', unpaid: 'Unpaid', paid: 'Paid', refunded: 'Refunded', hold: 'On Hold' }[payment] || payment.charAt(0).toUpperCase() + payment.slice(1)}</Text>
               </View>
             </View>
 

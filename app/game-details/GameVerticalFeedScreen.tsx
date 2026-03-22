@@ -443,7 +443,7 @@ const FeedCard = memo(
 
         {/* Edit Modal */}
         <Modal visible={showEditModal} transparent animationType="fade">
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalOverlay}>
             <View style={styles.modalContent}>
               <Text style={styles.modalTitle}>Edit Post</Text>
               <TextInput

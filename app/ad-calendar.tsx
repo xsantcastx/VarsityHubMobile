@@ -1003,6 +1003,9 @@ export default function AdCalendarScreen() {
                   Payments are temporarily disabled while Stripe is configured. Please try again later.
                 </Text>
               )}
+              <Text style={{ color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280', fontSize: 12, textAlign: 'center', marginTop: 6 }}>
+                All transactions are final.
+              </Text>
             </>
           )}
           {isDraft && (

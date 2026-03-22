@@ -1015,53 +1015,64 @@ export default function ProfileScreen() {
             const _isVideo = !!thumb && VIDEO_EXT.test(thumb);
             const likes = item.upvotes_count ?? 0;
             const comments = item.comments_count ?? item?._count?.comments ?? 0;
+            const caption = String(item.caption || item.content || '').trim();
+            const author = item?.author;
+            const isTextOnly = !thumb;
             return (
               <Pressable
-                style={styles.gridItem}
+                style={isTextOnly ? [styles.gridItem, styles.gridItemTextCard, { backgroundColor: theme.card }] : styles.gridItem}
                 onPress={() => {
                   const mapped = (posts || []).map(toFeedPost);
                   const items = mapped.filter(Boolean) as FeedPost[];
                   const targetId = mapped[index]?.id;
                   const targetIdx = targetId ? items.findIndex((p) => p.id === targetId) : index;
-                  // Debug: Profile opening viewer
                   setViewerItems(items);
                   setViewerIndex(Math.max(0, targetIdx));
                   setViewerOpen(true);
                 }}
               >
                 {thumb ? (
-                  <View style={styles.gridImageContainer}>
-                    <Image source={{ uri: thumb }} style={styles.gridImage} contentFit="cover" />
-                    <View style={styles.gridImageOverlay} />
-                  </View>
+                  <>
+                    <View style={styles.gridImageContainer}>
+                      <Image source={{ uri: thumb }} style={styles.gridImage} contentFit="cover" />
+                      <View style={styles.gridImageOverlay} />
+                    </View>
+                    <View style={styles.gridCounts}>
+                      <View style={styles.gridCountItem}>
+                        <Ionicons name="arrow-up" size={12} color="#fff" />
+                        <Text style={styles.gridCountText}>{likes}</Text>
+                      </View>
+                      <View style={styles.gridCountItem}>
+                        <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
+                        <Text style={styles.gridCountText}>{comments}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.gridIconBadge}>
+                      <Ionicons name="camera-outline" size={14} color="#fff" />
+                    </View>
+                  </>
                 ) : (
-                  <View style={[styles.gridImage, styles.gridImageFallback]}>
-                    <LinearGradient 
-                      colors={["#667eea", "#764ba2", "#f093fb"]} 
-                      style={StyleSheet.absoluteFillObject as any} 
-                      start={{ x: 0, y: 0 }} 
-                      end={{ x: 1, y: 1 }}
-                    />
-                    <View style={styles.textPostOverlay}>
-                      <Text numberOfLines={4} style={styles.gridTextOnly}>{String(item.caption || item.content || '').trim() || 'Post'}</Text>
+                  <View style={styles.textCardInner}>
+                    {author?.username ? (
+                      <Text numberOfLines={1} style={[styles.textCardAuthor, { color: theme.mutedText }]}>
+                        @{author.username}
+                      </Text>
+                    ) : null}
+                    <Text numberOfLines={5} style={[styles.textCardCaption, { color: theme.text }]}>
+                      {caption || 'Post'}
+                    </Text>
+                    <View style={styles.textCardFooter}>
+                      <View style={styles.textCardStat}>
+                        <Ionicons name="arrow-up" size={13} color={theme.mutedText} />
+                        <Text style={[styles.textCardStatText, { color: theme.mutedText }]}>{likes}</Text>
+                      </View>
+                      <View style={styles.textCardStat}>
+                        <Ionicons name="chatbubble-ellipses" size={13} color={theme.mutedText} />
+                        <Text style={[styles.textCardStatText, { color: theme.mutedText }]}>{comments}</Text>
+                      </View>
                     </View>
                   </View>
                 )}
-                {/* Counts overlay (shown for both media and text tiles) */}
-                <View style={styles.gridCounts}>
-                  <View style={styles.gridCountItem}>
-                    <Ionicons name="arrow-up" size={12} color="#fff" />
-                    <Text style={styles.gridCountText}>{likes}</Text>
-                  </View>
-                  <View style={styles.gridCountItem}>
-                    <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
-                    <Text style={styles.gridCountText}>{comments}</Text>
-                  </View>
-                </View>
-                {/* Bottom-right badge: camera for media, text icon for text-only */}
-                <View style={styles.gridIconBadge}>
-                  <Ionicons name={thumb ? 'camera-outline' : 'text'} size={14} color="#fff" />
-                </View>
               </Pressable>
             );
           }}
@@ -1088,9 +1099,12 @@ export default function ProfileScreen() {
             const _isVideo = !!thumb && VIDEO_EXT.test(thumb);
             const likes = postItem?.upvotes_count ?? 0;
             const comments = postItem?.comments_count ?? postItem?._count?.comments ?? 0;
+            const caption = String(postItem?.caption || postItem?.content || '').trim();
+            const author = postItem?.author;
+            const isTextOnly = !thumb;
             return (
               <Pressable
-                style={styles.gridItem}
+                style={isTextOnly ? [styles.gridItem, styles.gridItemTextCard, { backgroundColor: theme.card }] : styles.gridItem}
                 onPress={() => {
                   const mapped = (replies || []).map(unwrapPost).map(toFeedPost);
                   const items = mapped.filter(Boolean) as FeedPost[];
@@ -1102,38 +1116,47 @@ export default function ProfileScreen() {
                 }}
               >
                 {thumb ? (
-                  <View style={styles.gridImageContainer}>
-                    <Image source={{ uri: thumb }} style={styles.gridImage} contentFit="cover" />
-                    <View style={styles.gridImageOverlay} />
-                  </View>
+                  <>
+                    <View style={styles.gridImageContainer}>
+                      <Image source={{ uri: thumb }} style={styles.gridImage} contentFit="cover" />
+                      <View style={styles.gridImageOverlay} />
+                    </View>
+                    <View style={styles.gridCounts}>
+                      <View style={styles.gridCountItem}>
+                        <Ionicons name="arrow-up" size={12} color="#fff" />
+                        <Text style={styles.gridCountText}>{likes}</Text>
+                      </View>
+                      <View style={styles.gridCountItem}>
+                        <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
+                        <Text style={styles.gridCountText}>{comments}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.gridIconBadge}>
+                      <Ionicons name="camera-outline" size={14} color="#fff" />
+                    </View>
+                  </>
                 ) : (
-                  <View style={[styles.gridImage, styles.gridImageFallback]}>
-                    <LinearGradient 
-                      colors={["#667eea", "#764ba2", "#f093fb"]} 
-                      style={StyleSheet.absoluteFillObject as any} 
-                      start={{ x: 0, y: 0 }} 
-                      end={{ x: 1, y: 1 }}
-                    />
-                    <View style={styles.textPostOverlay}>
-                      <Text numberOfLines={4} style={styles.gridTextOnly}>{String(postItem?.caption || postItem?.content || '').trim() || 'Post'}</Text>
+                  <View style={styles.textCardInner}>
+                    {author?.username ? (
+                      <Text numberOfLines={1} style={[styles.textCardAuthor, { color: theme.mutedText }]}>
+                        @{author.username}
+                      </Text>
+                    ) : null}
+                    <Text numberOfLines={5} style={[styles.textCardCaption, { color: theme.text }]}>
+                      {caption || 'Post'}
+                    </Text>
+                    <View style={styles.textCardFooter}>
+                      <View style={styles.textCardStat}>
+                        <Ionicons name="arrow-up" size={13} color={theme.mutedText} />
+                        <Text style={[styles.textCardStatText, { color: theme.mutedText }]}>{likes}</Text>
+                      </View>
+                      <View style={styles.textCardStat}>
+                        <Ionicons name="chatbubble-ellipses" size={13} color={theme.mutedText} />
+                        <Text style={[styles.textCardStatText, { color: theme.mutedText }]}>{comments}</Text>
+                      </View>
                     </View>
                   </View>
                 )}
-                {/* Counts overlay (shown for both media and text tiles) */}
-                <View style={styles.gridCounts}>
-                  <View style={styles.gridCountItem}>
-                    <Ionicons name="arrow-up" size={12} color="#fff" />
-                    <Text style={styles.gridCountText}>{likes}</Text>
-                  </View>
-                  <View style={styles.gridCountItem}>
-                    <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
-                    <Text style={styles.gridCountText}>{comments}</Text>
-                  </View>
-                </View>
-                {/* Bottom-right badge: camera for media, text icon for text-only */}
-                <View style={styles.gridIconBadge}>
-                  <Ionicons name={thumb ? 'camera-outline' : 'text'} size={14} color="#fff" />
-                </View>
               </Pressable>
             );
           }}
@@ -1160,9 +1183,12 @@ export default function ProfileScreen() {
             const _isVideo = !!thumb && VIDEO_EXT.test(thumb);
             const likes = postItem?.upvotes_count ?? 0;
             const comments = postItem?.comments_count ?? postItem?._count?.comments ?? 0;
+            const caption = String(postItem?.caption || postItem?.content || '').trim();
+            const author = postItem?.author;
+            const isTextOnly = !thumb;
             return (
               <Pressable
-                style={styles.gridItem}
+                style={isTextOnly ? [styles.gridItem, styles.gridItemTextCard, { backgroundColor: theme.card }] : styles.gridItem}
                 onPress={() => {
                   const mapped = (upvotes || []).map(unwrapPost).map(toFeedPost);
                   const items = mapped.filter(Boolean) as FeedPost[];
@@ -1174,38 +1200,47 @@ export default function ProfileScreen() {
                 }}
               >
                 {thumb ? (
-                  <View style={styles.gridImageContainer}>
-                    <Image source={{ uri: thumb }} style={styles.gridImage} contentFit="cover" />
-                    <View style={styles.gridImageOverlay} />
-                  </View>
+                  <>
+                    <View style={styles.gridImageContainer}>
+                      <Image source={{ uri: thumb }} style={styles.gridImage} contentFit="cover" />
+                      <View style={styles.gridImageOverlay} />
+                    </View>
+                    <View style={styles.gridCounts}>
+                      <View style={styles.gridCountItem}>
+                        <Ionicons name="arrow-up" size={12} color="#fff" />
+                        <Text style={styles.gridCountText}>{likes}</Text>
+                      </View>
+                      <View style={styles.gridCountItem}>
+                        <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
+                        <Text style={styles.gridCountText}>{comments}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.gridIconBadge}>
+                      <Ionicons name="camera-outline" size={14} color="#fff" />
+                    </View>
+                  </>
                 ) : (
-                  <View style={[styles.gridImage, styles.gridImageFallback]}>
-                    <LinearGradient 
-                      colors={["#667eea", "#764ba2", "#f093fb"]} 
-                      style={StyleSheet.absoluteFillObject as any} 
-                      start={{ x: 0, y: 0 }} 
-                      end={{ x: 1, y: 1 }}
-                    />
-                    <View style={styles.textPostOverlay}>
-                      <Text numberOfLines={4} style={styles.gridTextOnly}>{String(postItem?.caption || postItem?.content || '').trim() || 'Post'}</Text>
+                  <View style={styles.textCardInner}>
+                    {author?.username ? (
+                      <Text numberOfLines={1} style={[styles.textCardAuthor, { color: theme.mutedText }]}>
+                        @{author.username}
+                      </Text>
+                    ) : null}
+                    <Text numberOfLines={5} style={[styles.textCardCaption, { color: theme.text }]}>
+                      {caption || 'Post'}
+                    </Text>
+                    <View style={styles.textCardFooter}>
+                      <View style={styles.textCardStat}>
+                        <Ionicons name="arrow-up" size={13} color={theme.mutedText} />
+                        <Text style={[styles.textCardStatText, { color: theme.mutedText }]}>{likes}</Text>
+                      </View>
+                      <View style={styles.textCardStat}>
+                        <Ionicons name="chatbubble-ellipses" size={13} color={theme.mutedText} />
+                        <Text style={[styles.textCardStatText, { color: theme.mutedText }]}>{comments}</Text>
+                      </View>
                     </View>
                   </View>
                 )}
-                {/* Counts overlay (shown for both media and text tiles) */}
-                <View style={styles.gridCounts}>
-                  <View style={styles.gridCountItem}>
-                    <Ionicons name="arrow-up" size={12} color="#fff" />
-                    <Text style={styles.gridCountText}>{likes}</Text>
-                  </View>
-                  <View style={styles.gridCountItem}>
-                    <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
-                    <Text style={styles.gridCountText}>{comments}</Text>
-                  </View>
-                </View>
-                {/* Bottom-right badge: camera for media, text icon for text-only */}
-                <View style={styles.gridIconBadge}>
-                  <Ionicons name={thumb ? 'camera-outline' : 'text'} size={14} color="#fff" />
-                </View>
               </Pressable>
             );
           }}
@@ -1796,6 +1831,43 @@ const styles = StyleSheet.create({
   },
   gridCountItem: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   gridCountText: { color: '#fff', fontSize: 10, fontWeight: '700' },
+  // Text-only post card styles (clean card instead of gradient)
+  gridItemTextCard: {
+    aspectRatio: undefined,
+    minHeight: 140,
+    backgroundColor: undefined, // will be set by theme
+  },
+  textCardInner: {
+    flex: 1,
+    padding: 12,
+    justifyContent: 'space-between',
+  },
+  textCardAuthor: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  textCardCaption: {
+    fontSize: 13,
+    fontWeight: '500',
+    lineHeight: 18,
+    flex: 1,
+  },
+  textCardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 8,
+  },
+  textCardStat: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  textCardStatText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
   
   // Organizations Section
   organizationsSection: {

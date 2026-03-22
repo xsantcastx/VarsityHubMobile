@@ -47,16 +47,21 @@ export default function LeaguePendingApproval() {
         try {
           // Use server data (me) as primary source, fall back to local state (ob)
           const me: any = await User.me().catch(() => null);
+          const mePrefs = me?.preferences || {};
           await User.completeOnboarding({
             role: 'coach',
-            username: me?.username || ob.username,
-            dob: me?.dob || ob.dob,
-            zip_code: me?.zip_code || ob.zip_code || ob.zip,
-            affiliation: me?.preferences?.affiliation || ob.affiliation,
-            organization_id: orgId || me?.preferences?.organization_id || ob.organization_id,
-            organization_name: leagueName || me?.preferences?.organization_name || ob.organization_name,
+            username: me?.username || ob.username || mePrefs.username,
+            dob: me?.dob || ob.dob || mePrefs.dob,
+            zip_code: me?.zip_code || ob.zip_code || ob.zip || mePrefs.zip_code,
+            affiliation: mePrefs.affiliation || ob.affiliation,
+            organization_id: orgId || mePrefs.organization_id || ob.organization_id,
+            organization_name: leagueName || mePrefs.organization_name || ob.organization_name,
+            plan: mePrefs.plan || (ob as any).plan || 'rookie',
+            team_id: mePrefs.team_id || (ob as any).team_id,
+            team_name: mePrefs.team_name || (ob as any).team_name,
           });
           await markOnboardingCompleteLocally();
+          await checkAuth();
           completed = true;
         } catch (err) {
           if (__DEV__) console.warn('[league-pending-approval] Failed to complete onboarding:', err);
@@ -144,12 +149,8 @@ export default function LeaguePendingApproval() {
         </View>
 
         {/* Icon */}
-        <View style={[styles.iconCircle, { backgroundColor: isDark ? 'rgba(218,165,32,0.15)' : '#FEF9C3' }]}>
-          {approved ? (
-            <MaterialIcons name="check-circle" size={56} color="#16A34A" />
-          ) : (
-            <MaterialIcons name="verified" size={56} color="#DAA520" />
-          )}
+        <View style={[styles.iconCircle, { backgroundColor: approved ? (isDark ? 'rgba(22,163,74,0.15)' : '#D1FAE5') : (isDark ? 'rgba(218,165,32,0.15)' : '#FEF9C3') }]}>
+          <Image source={{ uri: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765997882/365220-200_mvbdz7.png' }} style={{ width: 56, height: 56 }} contentFit="contain" />
         </View>
 
         {/* Heading */}

@@ -1,11 +1,16 @@
-import { getConfig } from '@/config/env';
+import { autocompleteLocations, PlaceSuggestion } from '@/api/geocoding';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import Constants from 'expo-constants';
-import { useEffect, useRef } from 'react';
-import { StyleSheet, Text, TextInput, View } from 'react-native';
-// @ts-ignore — install with: npx expo install react-native-google-places-autocomplete
-import { GooglePlacesAutocomplete } from 'react-native-google-places-autocomplete';
+import { MaterialIcons } from '@expo/vector-icons';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 
 interface LocationPickerProps {
   value: string;
@@ -28,125 +33,147 @@ export default function LocationPicker({
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
 
-  // Resolve API key from env/config only — no hardcoded keys
-  const apiKey =
-    getConfig().mapsKey ||
-    (Constants.expoConfig as any)?.ios?.config?.googleMapsApiKey ||
-    (Constants.expoConfig as any)?.android?.config?.googleMaps?.apiKey ||
-    (Constants.expoConfig as any)?.extra?.googleMapsApiKey ||
-    '';
+  const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
+  const [querying, setQuerying] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Track whether a suggestion was just selected to avoid re-fetching
+  const justSelectedRef = useRef(false);
 
-  // Pre-fill the input when editing an existing venue
-  const autocompleteRef = useRef<any>(null);
+  // Cleanup timer on unmount
   useEffect(() => {
-    if (autocompleteRef.current && value) {
-      autocompleteRef.current.setAddressText(value);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
   }, []);
 
-  // Fallback: plain TextInput when API key is unavailable
-  if (!apiKey) {
-    return (
-      <View>
-        <TextInput
-          style={[styles.input, {
-            backgroundColor: theme.surface,
-            borderColor: error ? '#EF4444' : theme.border,
-            color: theme.text,
-            minHeight: 52,
-            paddingVertical: 14,
-          }]}
-          placeholder={placeholder}
-          placeholderTextColor={theme.mutedText}
-          value={value}
-          onChangeText={(text) => onLocationSelect({ address: text })}
-        />
-        {error && <Text style={styles.errorText}>{error}</Text>}
-      </View>
-    );
-  }
+  const fetchSuggestions = useCallback((text: string) => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+
+    if (text.trim().length < 3) {
+      setSuggestions([]);
+      setQuerying(false);
+      return;
+    }
+
+    setQuerying(true);
+    timerRef.current = setTimeout(async () => {
+      try {
+        const results = await autocompleteLocations(text, 6);
+        setSuggestions(results);
+      } catch (err) {
+        if (__DEV__) console.warn('[LocationPicker] Autocomplete failed:', err);
+        setSuggestions([]);
+      } finally {
+        setQuerying(false);
+      }
+    }, 300);
+  }, []);
+
+  const handleChangeText = useCallback(
+    (text: string) => {
+      // Always notify parent so form validation stays in sync
+      onLocationSelect({ address: text });
+
+      if (justSelectedRef.current) {
+        justSelectedRef.current = false;
+        return;
+      }
+
+      fetchSuggestions(text);
+    },
+    [onLocationSelect, fetchSuggestions],
+  );
+
+  const handleSelect = useCallback(
+    (suggestion: PlaceSuggestion) => {
+      justSelectedRef.current = true;
+      setSuggestions([]);
+      setQuerying(false);
+      onLocationSelect({
+        address: suggestion.description,
+        placeId: suggestion.place_id,
+      });
+    },
+    [onLocationSelect],
+  );
 
   return (
     <View style={{ zIndex: 9999, position: 'relative' }}>
-      <GooglePlacesAutocomplete
-        ref={autocompleteRef}
-        placeholder={placeholder}
-        fetchDetails
-        keyboardShouldPersistTaps="handled"
-        query={{
-          key: apiKey,
-          language: 'en',
-          types: 'establishment|geocode',
-        }}
-        onPress={(data: any, details: any = null) => {
-          onLocationSelect({
-            address: data.description,
-            placeId: data.place_id,
-            latitude: details?.geometry?.location?.lat,
-            longitude: details?.geometry?.location?.lng,
-          });
-        }}
-        onFail={(err: any) => { if (__DEV__) console.warn('[LocationPicker] Places error:', err); }}
-        textInputProps={{
-          placeholderTextColor: theme.mutedText,
-          onChangeText: (text: string) => {
-            // Keep parent in sync so canContinue works for typed addresses
-            onLocationSelect({ address: text });
-          },
-        }}
-        styles={{
-          container: { flex: 0 },
-          textInputContainer: {
-            backgroundColor: 'transparent',
-          },
-          textInput: {
-            minHeight: 52,
-            paddingVertical: 14,
-            color: theme.text,
-            fontSize: 16,
-            fontWeight: '500',
+      <TextInput
+        style={[
+          styles.input,
+          {
             backgroundColor: theme.surface,
-            borderRadius: 12,
-            borderWidth: 1,
             borderColor: error ? '#EF4444' : theme.border,
-            paddingHorizontal: 16,
-            margin: 0,
-          },
-          listView: {
-            backgroundColor: theme.surface,
-            borderWidth: 1,
-            borderColor: theme.border,
-            borderRadius: 12,
-            marginTop: 4,
-            maxHeight: 200,
-            position: 'absolute' as const,
-            top: 56,
-            left: 0,
-            right: 0,
-            zIndex: 9999,
-            elevation: 10,
-          },
-          row: {
-            backgroundColor: theme.surface,
-            paddingVertical: 12,
-            paddingHorizontal: 16,
-          },
-          description: {
             color: theme.text,
-            fontSize: 14,
           },
-          separator: {
-            height: 1,
-            backgroundColor: theme.border,
-          },
-        }}
-        enablePoweredByContainer={false}
-        minLength={2}
-        debounce={300}
-        keepResultsAfterBlur={false}
-        listViewDisplayed="auto"
+        ]}
+        placeholder={placeholder}
+        placeholderTextColor={theme.mutedText}
+        value={value}
+        onChangeText={handleChangeText}
+        autoCapitalize="words"
+        autoCorrect={false}
       />
+
+      {querying && (
+        <ActivityIndicator
+          size="small"
+          color={theme.tint}
+          style={styles.spinner}
+        />
+      )}
+
+      {suggestions.length > 0 && (
+        <View
+          style={[
+            styles.listView,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.border,
+            },
+          ]}
+        >
+          {suggestions.map((suggestion, index) => (
+            <Pressable
+              key={suggestion.place_id}
+              style={[
+                styles.row,
+                { borderBottomColor: theme.border },
+                index === suggestions.length - 1 && styles.rowLast,
+              ]}
+              onPress={() => handleSelect(suggestion)}
+            >
+              <MaterialIcons
+                name="location-on"
+                size={16}
+                color={theme.tint}
+                style={{ marginRight: 8 }}
+              />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.mainText, { color: theme.text }]}>
+                  {suggestion.structured_formatting?.main_text ||
+                    suggestion.description}
+                </Text>
+                {suggestion.structured_formatting?.secondary_text && (
+                  <Text
+                    style={[
+                      styles.secondaryText,
+                      { color: theme.mutedText },
+                    ]}
+                  >
+                    {suggestion.structured_formatting.secondary_text}
+                  </Text>
+                )}
+              </View>
+            </Pressable>
+          ))}
+        </View>
+      )}
+
       {error && <Text style={styles.errorText}>{error}</Text>}
     </View>
   );
@@ -154,12 +181,49 @@ export default function LocationPicker({
 
 const styles = StyleSheet.create({
   input: {
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 16,
+    minHeight: 52,
     paddingVertical: 14,
+    paddingHorizontal: 16,
     fontSize: 16,
     fontWeight: '500',
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  spinner: {
+    position: 'absolute',
+    right: 14,
+    top: 16,
+  },
+  listView: {
+    borderWidth: 1,
+    borderRadius: 12,
+    marginTop: 4,
+    maxHeight: 240,
+    overflow: 'hidden',
+    position: 'absolute',
+    top: 56,
+    left: 0,
+    right: 0,
+    zIndex: 9999,
+    elevation: 10,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+  },
+  rowLast: {
+    borderBottomWidth: 0,
+  },
+  mainText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  secondaryText: {
+    fontSize: 12,
+    marginTop: 2,
   },
   errorText: {
     color: '#EF4444',
