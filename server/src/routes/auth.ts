@@ -700,6 +700,8 @@ authRouter.post('/upgrade-to-coach', asyncHandler(async (req: AuthedRequest, res
   }
 
   // Update role to coach and set plan, reset onboarding so they complete coach steps
+  // CRITICAL: Set approval_status to PENDING so the coach must go through the
+  // approval flow (create/join org → admin approval) before accessing coach tools.
   const merged = {
     ...currentPrefs,
     role: 'coach',
@@ -708,7 +710,7 @@ authRouter.post('/upgrade-to-coach', asyncHandler(async (req: AuthedRequest, res
   };
   const updated = await prisma.user.update({
     where: { id: user.id },
-    data: { preferences: merged },
+    data: { preferences: merged, approval_status: 'PENDING' },
   });
 
   return res.json({ ok: true, preferences: updated.preferences });

@@ -31,9 +31,12 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
   // The Prisma default is APPROVED (for fans), but coaches must be set to PENDING
   // during onboarding and only transition to APPROVED via god-admin or org-admin action.
   if (prefs?.role === 'coach' && u?.approval_status !== 'APPROVED') {
+    const isRejected = u?.approval_status === 'REJECTED';
     return res.status(403).json({
-      error: 'Your coach account is pending approval.',
-      code: 'APPROVAL_REQUIRED',
+      error: isRejected
+        ? 'Your coach application was not approved. Contact support@varsityhub.app for assistance.'
+        : 'Your coach account is pending approval.',
+      code: isRejected ? 'APPROVAL_REJECTED' : 'APPROVAL_REQUIRED',
     });
   }
 
