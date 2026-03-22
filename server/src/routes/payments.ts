@@ -1685,7 +1685,11 @@ paymentsRouter.post('/update-subscription-quantity', expressPkg.json(), requireV
 });
 
 // Debug endpoint to check and fix subscription status discrepancies
+// Hidden in production to reduce attack surface.
 paymentsRouter.get('/debug/subscription-status', requireVerified as any, requireAdmin as any, async (req: AuthedRequest, res) => {
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(404).json({ error: 'Not found' });
+  }
   try {
     const userId = req.user!.id;
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } });
@@ -1793,7 +1797,11 @@ paymentsRouter.get('/subscription/summary', requireVerified as any, async (req: 
 });
 
 // Endpoint to reset subscription status to rookie (for fixing invalid states)
+// Hidden in production to reduce attack surface.
 paymentsRouter.post('/debug/reset-to-rookie', requireVerified as any, requireAdmin as any, async (req: AuthedRequest, res) => {
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(404).json({ error: 'Not found' });
+  }
   try {
     const userId = req.user!.id;
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } });

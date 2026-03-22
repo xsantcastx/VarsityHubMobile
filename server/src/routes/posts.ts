@@ -451,6 +451,9 @@ postsRouter.get('/trending', async (req: AuthedRequest, res) => {
 
 // Debug endpoint to check follow relationships (admin only)
 postsRouter.get('/debug/follows', requireAuth, asyncHandler(async (req: AuthedRequest, res) => {
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(404).json({ error: 'Not found' });
+  }
   const isAdmin = await getIsAdmin(req as any);
   if (!isAdmin) {
     return res.status(403).json({ error: 'Admin access required' });
