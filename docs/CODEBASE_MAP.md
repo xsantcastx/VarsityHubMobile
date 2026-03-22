@@ -1,7 +1,7 @@
 # VarsityHub Mobile — Codebase Map
 **Last updated:** 2026-03-22
 **Purpose:** Session briefing document for AI assistants. Read this before making any changes.
-**Related docs:** `docs/FRONT_BACKEND_WIRING_AUDIT.md`, `docs/SYSTEM_ARCHITECTURE_AUDIT.md`
+**Related docs:** `docs/FRONT_BACKEND_WIRING_AUDIT.md`, `docs/SYSTEM_ARCHITECTURE_AUDIT.md`, `docs/LOGIN_ONBOARDING_SECURITY_MATRIX.md`
 
 ---
 

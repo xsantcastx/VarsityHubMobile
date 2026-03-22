@@ -741,12 +741,8 @@ authRouter.get('/me', async (req: AuthedRequest, res) => {
     notifications: { game_event_reminders: false, team_updates: false, comments_upvotes: false, follows_notifications: true, messages_notifications: true },
     is_parent: false,
     zip_code: null,
-    // Only set onboarding_completed=true for admin accounts
-    ...(is_admin ? { onboarding_completed: true } : {}),
   };
-  // CRITICAL: Admin defaults must override DB values (second arg overrides first in mergePreferences)
-  // This ensures admin accounts always have onboarding_completed=true regardless of DB state
-  // Non-admin users' preferences are merged without forcing onboarding_completed
+  // Merge DB prefs on top of defaults; onboarding completion remains server-owned.
   const userPrefs = (user as any).preferences || {};
   const prefs = mergePreferences(userPrefs, defaults);
   const { password_hash, ...rest } = user as any;
@@ -985,7 +981,7 @@ authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
       message: 'VarsityHub is not available for users under 13. Please have a parent or guardian contact support@varsityhub.app.',
     });
   }
-  const current = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true, email: true } });
+  const current = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true } });
   const currentPrefs = current?.preferences as any || {};
 
   // SECURITY FIX: Prevent role changes after onboarding is completed
@@ -995,15 +991,10 @@ authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
       error: 'Cannot change role after onboarding is complete. Contact support if you need to change your account type.',
     });
   }
-  // Check if user is admin (same logic as GET /me endpoint)
-  const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-  const is_admin = current?.email ? adminEmails.includes(current.email.toLowerCase()) : false;
   const defaults = {
     notifications: { game_event_reminders: false, team_updates: false, comments_upvotes: false, follows_notifications: true, messages_notifications: true },
     is_parent: false,
     zip_code: null,
-    // Only set onboarding_completed=true for admin accounts (same as GET /me)
-    ...(is_admin ? { onboarding_completed: true } : {}),
     plan: null, // Plans only for coaches - don't default to 'rookie'
     role: 'fan',
     sports_interests: [],

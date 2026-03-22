@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 import { clearAuthToken, getApiBaseUrl, getAuthToken, httpGet, httpPost, httpPostLongTimeout, setAuthToken } from './http';
@@ -5,6 +6,33 @@ import { clearAuthToken, getApiBaseUrl, getAuthToken, httpGet, httpPost, httpPos
 // Storage keys for authentication tokens (not secrets, just key names)
 const TOKEN_KEY = 'auth_token_key';
 const REFRESH_TOKEN_KEY = 'refresh_token_key';
+const INSTALL_SENTINEL_KEY = '@auth_install_sentinel_v1';
+
+function createInstallSentinel(): string {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+async function enforceInstallScopedSession(token: string | null): Promise<string | null> {
+  // LocalStorage is cleared on uninstall; this edge mainly affects native keychain persistence.
+  if (Platform.OS === 'web') return token;
+  try {
+    const sentinel = await AsyncStorage.getItem(INSTALL_SENTINEL_KEY);
+    if (sentinel) return token;
+
+    // First launch for this app install. If a token exists now, it likely survived from an
+    // older install in keychain/secure storage — clear it to force explicit sign-in.
+    await AsyncStorage.setItem(INSTALL_SENTINEL_KEY, createInstallSentinel());
+    if (!token) return null;
+
+    await SecureStore.deleteItemAsync(TOKEN_KEY);
+    await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
+    clearAuthToken();
+    return null;
+  } catch (error) {
+    if (__DEV__) console.warn('[auth] Failed install-scope session check:', error);
+    return token;
+  }
+}
 
 async function saveToken(token: string | null) {
   setAuthToken(token);
@@ -53,6 +81,7 @@ export async function loadToken(): Promise<string | null> {
   } catch (error) {
     if (__DEV__) console.error('[auth] Failed to load token from secure storage:', error);
   }
+  t = await enforceInstallScopedSession(t);
   if (t) setAuthToken(t);
   return t;
 }
