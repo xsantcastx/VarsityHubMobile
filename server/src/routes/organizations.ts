@@ -930,45 +930,46 @@ organizationsRouter.post('/join-requests', requireAuth as any, async (req: Authe
       return res.status(400).json({ error: 'You already have a pending request for this organization' });
     }
 
-    // Create or update join request
-    const joinRequest = await prisma.organizationJoinRequest.upsert({
-      where: {
-        organization_id_user_id: {
-          organization_id,
-          user_id: req.user!.id
-        } as any
-      },
-      create: {
-        organization_id,
-        user_id: req.user!.id,
-        message,
-        status: 'pending'
-      },
-      update: {
-        message,
-        status: 'pending',
-        created_at: new Date(),
-        reviewed_at: null,
-        reviewed_by: null
-      },
-      include: {
-        user: {
-          select: { id: true, display_name: true, email: true }
-        }
-      }
-    });
+    // Check if requester is a coach before the write so we can set PENDING atomically
+    const requester = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { preferences: true } });
+    const isCoachRole = (requester?.preferences as any)?.role === 'coach';
 
-    // Set coach approval_status to PENDING (if they're a coach)
-    const requesterPrefs = (joinRequest.user as any)?.preferences;
-    const isCoachRole = requesterPrefs?.role === 'coach' ||
-      (await prisma.user.findUnique({ where: { id: req.user!.id }, select: { preferences: true } })
-        .then(u => (u?.preferences as any)?.role === 'coach'));
-    if (isCoachRole) {
-      await prisma.user.update({
-        where: { id: req.user!.id },
-        data: { approval_status: 'PENDING' },
-      });
-    }
+    // Create join request + set coach to PENDING atomically
+    const [joinRequest] = await prisma.$transaction([
+      prisma.organizationJoinRequest.upsert({
+        where: {
+          organization_id_user_id: {
+            organization_id,
+            user_id: req.user!.id
+          } as any
+        },
+        create: {
+          organization_id,
+          user_id: req.user!.id,
+          message,
+          status: 'pending'
+        },
+        update: {
+          message,
+          status: 'pending',
+          created_at: new Date(),
+          reviewed_at: null,
+          reviewed_by: null
+        },
+        include: {
+          user: {
+            select: { id: true, display_name: true, email: true }
+          }
+        }
+      }),
+      // Always update approval_status for coaches — atomic with join request
+      ...(isCoachRole ? [
+        prisma.user.update({
+          where: { id: req.user!.id },
+          data: { approval_status: 'PENDING' },
+        })
+      ] : []),
+    ]);
 
     // Send email notification to organization owners
     if (organization.memberships.length > 0) {
@@ -1387,27 +1388,30 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
     if (!org) return res.status(404).json({ error: 'Organization not found' });
     if (org.admin_approved) return res.json({ message: 'Already approved' });
 
-    // Atomic approval: WHERE admin_approved=false prevents race condition
-    // if two admins approve simultaneously
-    const updated = await prisma.organization.updateMany({
-      where: { id: orgId, admin_approved: false },
-      data: {
-        admin_approved: true,
-        approved_by: adminUserId || 'email-token',
-        approved_at: new Date(),
-      },
-    });
+    // Atomic approval: org + owner approval_status in one transaction
+    // WHERE admin_approved=false prevents race condition if two admins approve simultaneously
+    const txOps: any[] = [
+      prisma.organization.updateMany({
+        where: { id: orgId, admin_approved: false },
+        data: {
+          admin_approved: true,
+          approved_by: adminUserId || 'email-token',
+          approved_at: new Date(),
+        },
+      }),
+    ];
+    if (org.leagueOwner?.id) {
+      txOps.push(
+        prisma.user.update({
+          where: { id: org.leagueOwner.id },
+          data: { approval_status: 'APPROVED' },
+        })
+      );
+    }
+    const [updated] = await prisma.$transaction(txOps);
 
     // If no rows updated, another request already approved it
     if (updated.count === 0) return res.json({ message: 'Already approved' });
-
-    // Approve the league owner so they get coach tools
-    if (org.leagueOwner?.id) {
-      await prisma.user.update({
-        where: { id: org.leagueOwner.id },
-        data: { approval_status: 'APPROVED' },
-      });
-    }
 
     // Email league owner
     if (org.leagueOwner?.email) {
@@ -1703,16 +1707,18 @@ organizationsRouter.post('/:id/coaches/:userId/approve', requireAuth as any, req
   } catch (err: any) {
     // Handle unique constraint violation (coach already a member)
     if (err?.code === 'P2002') {
-      // Already a member — just update the join request and approval status
+      // Already a member — atomically update join request + approval status
       const { id: orgId, userId: coachId } = req.params;
-      await prisma.organizationJoinRequest.updateMany({
-        where: { organization_id: orgId, user_id: coachId, status: 'pending' },
-        data: { status: 'approved', reviewed_at: new Date(), reviewed_by: req.user!.id },
-      });
-      await prisma.user.update({
-        where: { id: coachId },
-        data: { approval_status: 'APPROVED', paid_by_owner: true },
-      });
+      await prisma.$transaction([
+        prisma.organizationJoinRequest.updateMany({
+          where: { organization_id: orgId, user_id: coachId, status: 'pending' },
+          data: { status: 'approved', reviewed_at: new Date(), reviewed_by: req.user!.id },
+        }),
+        prisma.user.update({
+          where: { id: coachId },
+          data: { approval_status: 'APPROVED', paid_by_owner: true },
+        }),
+      ]);
       return res.json({ message: 'Coach approved (already a member)', coach_id: coachId });
     }
     console.error('[organizations] POST /:id/coaches/:userId/approve error:', err);
