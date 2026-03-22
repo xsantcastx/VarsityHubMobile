@@ -516,6 +516,10 @@ export default function SettingsScreen() {
                       </SectionCard>
                     )}
 
+                    <SectionCard title="Events">
+                      <NavRow title="Request to Host Event" subtitle="Submit a community event for review" isLast onPress={() => void router.push('/settings/request-host-event')} />
+                    </SectionCard>
+
                     {/* Session */}
                     <SectionCard title="Session">
                       <NavRow title="Log Out" destructive onPress={() => {

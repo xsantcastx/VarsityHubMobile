@@ -188,7 +188,6 @@ export default function RootLayout() {
                     <Stack.Screen name="manage-users" options={{ headerShown: false }} />
                     <Stack.Screen name="team-invites" options={{ headerShown: false }} />
                     <Stack.Screen name="team-viewer" options={{ headerShown: false }} />
-                    <Stack.Screen name="archive-seasons" options={{ headerShown: false }} />
                     <Stack.Screen name="season-stats" options={{ headerShown: false }} />
                     {/* Organization join flow */}
                     <Stack.Screen name="request-join-organization" options={{ headerShown: false }} />

@@ -1198,7 +1198,9 @@ export default function ManageSeasonScreen() {
               {currentTeam?.name || 'Select Team'}
             </Text>
           </Pressable>
-          <View style={{ width: 40 }} />
+          <Pressable onPress={() => { if (currentTeam?.id) router.push(`/season-stats?teamId=${currentTeam.id}`); }} style={{ padding: 8 }}>
+            <Ionicons name="stats-chart" size={22} color={currentTeam?.id ? Colors[colorScheme].tint : Colors[colorScheme].border} />
+          </Pressable>
         </View>
       </View>
 
