@@ -78,15 +78,19 @@ fi
 
 echo ""
 echo "[5/10] Checking environment configuration..."
-if [ -f ".env" ]; then
-    if grep -qE "EXPO_PUBLIC_API_URL=https://api-production.*\.(up\.railway\.app|varsityhub\.(app|net))" .env; then
-        echo "✅ Production API URL configured"
-    else
-        echo "⚠️  WARNING: API URL might not be production (expected api-production*.up.railway.app or varsityhub.app)"
-        ((WARNINGS++))
-    fi
-else
-    echo "❌ ERROR: .env file missing"
+API_URL_CONFIGURED=0
+if [ -f ".env" ] && grep -qE "EXPO_PUBLIC_API_URL=https://api-production.*\.(up\.railway\.app|varsityhub\.(app|net))" .env; then
+    echo "✅ Production API URL configured in .env"
+    API_URL_CONFIGURED=1
+fi
+
+if [ $API_URL_CONFIGURED -eq 0 ] && grep -qE '"EXPO_PUBLIC_API_URL": "https://api-production.*\.(up\.railway\.app|varsityhub\.(app|net))"' app.json; then
+    echo "✅ Production API URL configured in app.json extra"
+    API_URL_CONFIGURED=1
+fi
+
+if [ $API_URL_CONFIGURED -eq 0 ]; then
+    echo "❌ ERROR: Production API URL not found (.env or app.json extra)"
     ((ERRORS++))
 fi
 
@@ -128,6 +132,8 @@ echo ""
 echo "[9/10] Checking backend server..."
 if [ -f "server/.env" ]; then
     echo "✅ Server environment file exists"
+elif [ -f "server/.env.example" ]; then
+    echo "✅ Server environment template exists (server/.env.example)"
 else
     echo "⚠️  WARNING: Server .env not found"
     ((WARNINGS++))

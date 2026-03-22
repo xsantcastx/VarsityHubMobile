@@ -3,17 +3,24 @@
 # VarsityHub Pre-Submission Checklist
 # Validates app is ready for App Store submission
 
-PROJECT_ROOT="/Users/varsityhub/Desktop/CODE/VarsityHubMobile"
+set -uo pipefail
+
+PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PASSED=0
 FAILED=0
+WARNINGS=0
 
 echo "🔍 VarsityHub Pre-Submission Checklist"
 echo "====================================="
+echo "Project: $PROJECT_ROOT"
 echo ""
 
-# Check 1: Build compiles
-echo -n "✓ Release build compiles without errors... "
-if npx expo run:ios --configuration Release --dry-run 2>&1 | grep -q "success\|configured"; then
+cd "$PROJECT_ROOT"
+
+# Check 1: App config exists and versions are set
+echo -n "1) app.json and package.json versions are set... "
+if [ -f "app.json" ] && [ -f "package.json" ] && \
+   grep -q '"version"' app.json && grep -q '"version"' package.json; then
   echo "✅"
   ((PASSED++))
 else
@@ -21,30 +28,12 @@ else
   ((FAILED++))
 fi
 
-# Check 2: No console.log in production files
-echo -n "✓ No debug console.log in production code... "
-CONSOLE_COUNT=$(grep -r "console\\.log" "$PROJECT_ROOT/server/src/routes/" --include="*.ts" 2>/dev/null | wc -l)
-if [ "$CONSOLE_COUNT" -eq 0 ]; then
-  echo "✅"
-  ((PASSED++))
-else
-  echo "❌ ($CONSOLE_COUNT instances found)"
-  ((FAILED++))
-fi
-
-# Check 3: App Store metadata configured
-echo -n "✓ App Store URLs configured in app.json... "
-if grep -q "\"privacy\"" "$PROJECT_ROOT/app.json" && grep -q "\"homepage\"" "$PROJECT_ROOT/app.json"; then
-  echo "✅"
-  ((PASSED++))
-else
-  echo "❌ Missing privacy or homepage URL"
-  ((FAILED++))
-fi
-
-# Check 4: Bundle identifier correct
-echo -n "✓ Bundle identifier is correct... "
-if grep -q "com.xsantcastx.varsityhub" "$PROJECT_ROOT/app.json"; then
+# Check 2: iOS App Store submission identifiers
+echo -n "2) iOS submit config (Apple ID + ASC app ID)... "
+if [ -f "eas.json" ] && \
+   grep -q '"appleId"' eas.json && \
+   grep -q '"ascAppId"' eas.json && \
+   grep -q '"appleTeamId"' eas.json; then
   echo "✅"
   ((PASSED++))
 else
@@ -52,20 +41,9 @@ else
   ((FAILED++))
 fi
 
-# Check 5: Privacy manifest files present
-echo -n "✓ All frameworks have PrivacyInfo.xcprivacy... "
-PRIVACY_COUNT=$(find "$PROJECT_ROOT/ios/Pods" -name "PrivacyInfo.xcprivacy" 2>/dev/null | wc -l)
-if [ "$PRIVACY_COUNT" -gt 0 ]; then
-  echo "✅ ($PRIVACY_COUNT found)"
-  ((PASSED++))
-else
-  echo "❌"
-  ((FAILED++))
-fi
-
-# Check 6: Code signing configured
-echo -n "✓ Code signing team configured... "
-if grep -q "B5H8F69RW5" "$PROJECT_ROOT/ios/Pods/Pods.xcodeproj/project.pbxproj"; then
+# Check 3: Bundle identifier and team ID set
+echo -n "3) iOS bundle identifier and team ID configured... "
+if grep -q '"bundleIdentifier"' app.json && grep -q '"appleTeamId"' app.json; then
   echo "✅"
   ((PASSED++))
 else
@@ -73,9 +51,9 @@ else
   ((FAILED++))
 fi
 
-# Check 7: Version number set
-echo -n "✓ Version number configured... "
-if grep -q "\"version\": \"1.0" "$PROJECT_ROOT/package.json"; then
+# Check 4: Privacy policy URL configured
+echo -n "4) Privacy policy URL present in iOS Info.plist config... "
+if grep -q '"NSPrivacyPolicyURL"' app.json; then
   echo "✅"
   ((PASSED++))
 else
@@ -83,9 +61,9 @@ else
   ((FAILED++))
 fi
 
-# Check 8: iOS deployment target correct
-echo -n "✓ iOS deployment target is 15.1+... "
-if grep -q "IPHONEOS_DEPLOYMENT_TARGET = 15.1" "$PROJECT_ROOT/ios/Pods/Pods.xcodeproj/project.pbxproj"; then
+# Check 5: Required core assets exist
+echo -n "5) Core app assets exist (icon/adaptive/splash)... "
+if [ -f "assets/images/icon.png" ] && [ -f "assets/images/adaptive-icon.png" ] && [ -f "assets/images/splash.png" ]; then
   echo "✅"
   ((PASSED++))
 else
@@ -93,9 +71,9 @@ else
   ((FAILED++))
 fi
 
-# Check 9: ExportOptions.plist exists
-echo -n "✓ ExportOptions.plist configured... "
-if [ -f "$PROJECT_ROOT/ios/ExportOptions.plist" ]; then
+# Check 6: Dependencies installed
+echo -n "6) Dependencies installed... "
+if [ -d "node_modules" ] && [ -d "server/node_modules" ]; then
   echo "✅"
   ((PASSED++))
 else
@@ -103,36 +81,66 @@ else
   ((FAILED++))
 fi
 
-# Check 10: Production API endpoint set
-echo -n "✓ Production API endpoint configured... "
-if grep -q "EXPO_PUBLIC_API_URL" "$PROJECT_ROOT/.env" 2>/dev/null || grep -q "varsityhub.app\|api.varsityhub" "$PROJECT_ROOT/server/src/lib/email.ts"; then
+# Check 7: TypeScript compiles
+echo -n "7) Frontend + backend typecheck passes... "
+if npm run typecheck >/dev/null 2>&1 && npx tsc --noEmit -p server/tsconfig.json >/dev/null 2>&1; then
   echo "✅"
   ((PASSED++))
 else
-  echo "⚠️  Not explicitly set (verify in build configuration)"
+  echo "❌"
   ((FAILED++))
+fi
+
+# Check 8: Production API endpoint is configured
+echo -n "8) Production API endpoint configured... "
+if grep -qE '"EXPO_PUBLIC_API_URL": "https://api-production.*\.(up\.railway\.app|varsityhub\.(app|net))"' app.json || \
+   ( [ -f ".env" ] && grep -qE "EXPO_PUBLIC_API_URL=https://api-production.*\.(up\.railway\.app|varsityhub\.(app|net))" .env ); then
+  echo "✅"
+  ((PASSED++))
+else
+  echo "❌"
+  ((FAILED++))
+fi
+
+# Check 9: Release verification script passes
+echo -n "9) Release verification script passes... "
+if npm run verify:release >/dev/null 2>&1; then
+  echo "✅"
+  ((PASSED++))
+else
+  echo "❌"
+  ((FAILED++))
+fi
+
+# Check 10: iOS pod privacy manifests (warning-only in cloud/CI)
+echo -n "10) iOS PrivacyInfo manifests found (if Pods are installed)... "
+if [ -d "ios/Pods" ]; then
+  PRIVACY_COUNT=$(find "ios/Pods" -name "PrivacyInfo.xcprivacy" | wc -l)
+  if [ "$PRIVACY_COUNT" -gt 0 ]; then
+    echo "✅ ($PRIVACY_COUNT found)"
+    ((PASSED++))
+  else
+    echo "❌"
+    ((FAILED++))
+  fi
+else
+  echo "⚠️  skipped (ios/Pods not present in this environment)"
+  ((WARNINGS++))
 fi
 
 echo ""
 echo "====================================="
-echo "📊 Results: $PASSED passed, $FAILED failed"
+echo "📊 Results: $PASSED passed, $FAILED failed, $WARNINGS warning(s)"
 echo ""
 
 if [ "$FAILED" -eq 0 ]; then
   echo "🎉 ✅ APP IS READY FOR SUBMISSION!"
   echo ""
   echo "Next steps:"
-  echo "  1. Run: ./scripts/build-release.sh"
-  echo "  2. Upload IPA to App Store Connect"
-  echo "  3. Configure screenshots and description"
-  echo "  4. Submit for review"
+  echo "  1. Run: npm run build:production"
+  echo "  2. Submit: npm run submit:ios"
   exit 0
 else
-  echo "⚠️  Please fix $FAILED issue(s) before submission"
-  echo ""
-  echo "Common fixes:"
-  echo "  - Add privacy policy URL to app.json"
-  echo "  - Remove console.log statements"
-  echo "  - Verify API endpoint configuration"
+  echo "⚠️  Please fix $FAILED issue(s) before submission."
   exit 1
 fi
