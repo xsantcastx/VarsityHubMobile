@@ -3,7 +3,7 @@
  * iOS: Apple IAP. Android: Stripe fallback.
  */
 
-import { useEffect, useCallback, useState, useRef } from 'react';
+import { useEffect, useCallback, useState } from 'react';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { httpPost } from '@/api/http';
@@ -11,15 +11,15 @@ import { httpPost } from '@/api/http';
 const isExpoGo = Constants.executionEnvironment === 'storeClient';
 let useRNIAP: any = () => ({});
 let getReceiptIOS: any = async () => '';
-let requestPurchase: any = async () => {};
-let finishTransaction: any = async () => {};
+let _requestPurchase: any = async () => {};
+let _finishTransaction: any = async () => {};
 if (!isExpoGo) {
   try {
     const iap = require('react-native-iap');
     useRNIAP = iap.useIAP;
     getReceiptIOS = iap.getReceiptIOS;
-    requestPurchase = iap.requestPurchase;
-    finishTransaction = iap.finishTransaction;
+    _requestPurchase = iap.requestPurchase;
+    _finishTransaction = iap.finishTransaction;
   } catch (err) {
     if (__DEV__) console.warn('[useAdIAP] react-native-iap not available (e.g. Expo Go):', (err as Error)?.message);
   }

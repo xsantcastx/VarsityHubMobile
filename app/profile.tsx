@@ -146,7 +146,7 @@ export default function ProfileScreen() {
   const viewingUserId = params.id;
   const [isFollowing, setIsFollowing] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [userTeams, setUserTeams] = useState<Array<{ id: string; name: string; logo_url?: string | null; avatar_url?: string | null; role?: string; position?: string | null; jersey_number?: string | number | null }>>([]);
+  const [userTeams, _setUserTeams] = useState<Array<{ id: string; name: string; logo_url?: string | null; avatar_url?: string | null; role?: string; position?: string | null; jersey_number?: string | number | null }>>([]);
   const [avatarViewerVisible, setAvatarViewerVisible] = useState(false);
 
   const isOwnProfile = !viewingUserId || viewingUserId === currentUserId;
@@ -661,7 +661,7 @@ export default function ProfileScreen() {
   
   // Get the first gradient color to determine text color
   const firstGradientColor = heroGradientColors[0] || userThemeColor;
-  const userNameTextColor = getTextColorForBackground(firstGradientColor);
+  const _userNameTextColor = getTextColorForBackground(firstGradientColor);
   
   const _stats = [
     { label: 'posts', value: me?._count?.posts ?? 0 },

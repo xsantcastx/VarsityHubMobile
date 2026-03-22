@@ -83,7 +83,7 @@ interface TeamMember {
 export default function TeamChatScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const _insets = useSafeAreaInsets();
   const colorScheme = useColorScheme() ?? 'light';
   
   // Modal state for replacing Alert.alert

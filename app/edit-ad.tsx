@@ -22,7 +22,7 @@ import { sanitizeText } from '@/utils/formUtils';
 export default function EditAdScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const _insets = useSafeAreaInsets();
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
   const [loading, setLoading] = useState(true);

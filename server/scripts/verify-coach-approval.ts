@@ -37,7 +37,8 @@ console.log('\n🔍 Coach Approval System Verification\n');
 const onboarded = read('src/middleware/requireOnboarded.ts');
 check(
   'requireOnboarded blocks PENDING coaches',
-  onboarded.includes("approval_status === 'PENDING'") && onboarded.includes("prefs?.role === 'coach'"),
+  // Middleware uses !== 'APPROVED' which implicitly blocks PENDING, REJECTED, and null
+  onboarded.includes("approval_status !== 'APPROVED'") && onboarded.includes("prefs?.role === 'coach'"),
 );
 
 // 2. POST /organizations sets creator to PENDING
