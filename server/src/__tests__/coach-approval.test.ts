@@ -323,9 +323,13 @@ describe('Coach Approval Workflow', () => {
 
       const userAfter = await prisma.user.findUnique({
         where: { id: coach.id },
-        select: { approval_status: true },
+        select: { approval_status: true, preferences: true },
       });
       expect(userAfter?.approval_status).toBe('PENDING');
+      const pendingPrefs = (userAfter?.preferences || {}) as any;
+      expect(pendingPrefs.organization_id).toBe(orgId);
+      expect(pendingPrefs.organization_name).toBeTruthy();
+      expect(pendingPrefs.join_request_pending).toBe(true);
 
       const joinReq = await prisma.organizationJoinRequest.findFirst({
         where: { user_id: coach.id, organization_id: orgId },
@@ -370,10 +374,14 @@ describe('Coach Approval Workflow', () => {
 
       const userAfter = await prisma.user.findUnique({
         where: { id: coach.id },
-        select: { approval_status: true, paid_by_owner: true },
+        select: { approval_status: true, paid_by_owner: true, preferences: true },
       });
       expect(userAfter?.approval_status).toBe('APPROVED');
       expect(userAfter?.paid_by_owner).toBe(true);
+      const approvedPrefs = (userAfter?.preferences || {}) as any;
+      expect(approvedPrefs.organization_id).toBe(orgId);
+      expect(approvedPrefs.organization_name).toBeTruthy();
+      expect(approvedPrefs.join_request_pending).toBe(false);
 
       await prisma.organizationJoinRequest.deleteMany({
         where: { user_id: coach.id, organization_id: orgId },
@@ -382,6 +390,38 @@ describe('Coach Approval Workflow', () => {
         where: { user_id: coach.id, organization_id: orgId },
       });
       await prisma.user.delete({ where: { id: coach.id } });
+    });
+  });
+
+  describe('Upgrade-to-coach keeps paid tiers pending', () => {
+    it('veteran selection stays pending until checkout', async () => {
+      const fanHash = await bcrypt.hash(PASSWORD, 10);
+      const fan = await prisma.user.create({
+        data: {
+          email: `upgrade-fan-${ts}@example.com`,
+          password_hash: fanHash,
+          display_name: 'Upgrade Fan',
+          email_verified: true,
+          preferences: { role: 'fan', onboarding_completed: true },
+          approval_status: 'APPROVED',
+        },
+      });
+      const token = signJwt({ id: fan.id });
+
+      const res = await request(app)
+        .post('/auth/upgrade-to-coach')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ plan: 'veteran' });
+
+      expect(res.status).toBe(200);
+      const prefs = (res.body?.preferences || {}) as any;
+      expect(prefs.role).toBe('coach');
+      expect(prefs.plan).toBe('rookie');
+      expect(prefs.pending_plan).toBe('veteran');
+      expect(prefs.payment_pending).toBe(true);
+      expect(prefs.onboarding_completed).toBe(false);
+
+      await prisma.user.delete({ where: { id: fan.id } });
     });
   });
 });

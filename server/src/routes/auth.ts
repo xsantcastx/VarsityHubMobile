@@ -699,11 +699,17 @@ authRouter.post('/upgrade-to-coach', asyncHandler(async (req: AuthedRequest, res
     return res.status(400).json({ error: 'Account is already a coach account.' });
   }
 
-  // Update role to coach and set plan, reset onboarding so they complete coach steps
+  // Rule A: selected paid tiers stay pending until payment confirms.
+  // Keep active plan rookie until webhook/finalization upgrades it.
+  const selectedPaidTier = plan === 'veteran' || plan === 'legend' ? plan : null;
   const merged = {
     ...currentPrefs,
     role: 'coach',
-    plan,
+    plan: 'rookie',
+    pending_plan: selectedPaidTier,
+    payment_pending: selectedPaidTier !== null,
+    payment_approved: false,
+    proceeding_as_fan: false,
     onboarding_completed: false,
   };
   const updated = await prisma.user.update({
@@ -1076,16 +1082,75 @@ authRouter.post('/me/complete-onboarding', authLimiter, requireAuth as any, requ
   const finalRole = data.role !== undefined ? data.role : (currentPrefs.role || 'fan');
   
   // CRITICAL: For coaches, validate required steps are completed
-  // Fall back to existing DB values for retry scenarios where payload may be incomplete
-  const currentUser = await prisma.user.findUnique({ where: { id: req.user.id } });
+  // and resolve missing org/team context from authoritative DB records.
+  const currentUser = await prisma.user.findUnique({
+    where: { id: req.user.id },
+    select: { username: true },
+  });
   if (finalRole === 'coach') {
     const effectiveUsername = data.username || currentUser?.username;
-    const effectivePlan = data.plan || currentPrefs.plan;
-    const effectiveOrgId = data.organization_id || currentPrefs.organization_id;
-    const effectiveTeamId = data.team_id || currentPrefs.team_id;
-    if (!effectiveUsername) {
-      return res.status(400).json({ error: 'Username required for coach onboarding' });
+    const effectivePlan = data.plan || currentPrefs.plan || currentPrefs.pending_plan;
+    let effectiveOrgId = data.organization_id || currentPrefs.organization_id;
+    let effectiveOrgName = data.organization_name || currentPrefs.organization_name;
+    let effectiveTeamId = data.team_id || currentPrefs.team_id;
+    let effectiveTeamName = data.team_name || currentPrefs.team_name;
+
+    if (!effectiveOrgId || !effectiveOrgName || !effectiveTeamId || !effectiveTeamName) {
+      const [ownedOrg, orgMembership, latestJoinRequest, teamMembership] = await Promise.all([
+        prisma.organization.findFirst({
+          where: { league_owner_id: req.user.id, status: { not: 'rejected' } },
+          orderBy: { created_at: 'desc' },
+          select: { id: true, name: true },
+        }),
+        prisma.organizationMembership.findFirst({
+          where: { user_id: req.user.id, status: 'active' },
+          orderBy: { created_at: 'desc' },
+          include: { organization: { select: { id: true, name: true } } },
+        }),
+        prisma.organizationJoinRequest.findFirst({
+          where: { user_id: req.user.id, status: { in: ['approved', 'pending'] } },
+          orderBy: [{ reviewed_at: 'desc' }, { created_at: 'desc' }],
+          include: { organization: { select: { id: true, name: true } } },
+        }),
+        prisma.teamMembership.findFirst({
+          where: {
+            user_id: req.user.id,
+            status: 'active',
+            role: { in: ['owner', 'coach', 'manager', 'assistant_coach'] },
+          },
+          orderBy: { created_at: 'desc' },
+          include: {
+            team: {
+              select: {
+                id: true,
+                name: true,
+                organization_id: true,
+                organization: { select: { name: true } },
+              },
+            },
+          },
+        }),
+      ]);
+
+      if (!effectiveOrgId) {
+        effectiveOrgId = ownedOrg?.id || orgMembership?.organization_id || latestJoinRequest?.organization_id || teamMembership?.team?.organization_id;
+      }
+      if (!effectiveOrgName) {
+        effectiveOrgName =
+          ownedOrg?.name ||
+          orgMembership?.organization?.name ||
+          latestJoinRequest?.organization?.name ||
+          teamMembership?.team?.organization?.name ||
+          undefined;
+      }
+      if (!effectiveTeamId) {
+        effectiveTeamId = teamMembership?.team_id || teamMembership?.team?.id;
+      }
+      if (!effectiveTeamName) {
+        effectiveTeamName = teamMembership?.team?.name || undefined;
+      }
     }
+
     if (!effectivePlan) {
       return res.status(400).json({ error: 'Plan selection required for coach onboarding' });
     }
@@ -1096,7 +1161,9 @@ authRouter.post('/me/complete-onboarding', authLimiter, requireAuth as any, requ
     if (!data.username && effectiveUsername) data.username = effectiveUsername;
     if (!data.plan && effectivePlan) (data as any).plan = effectivePlan;
     if (!data.organization_id && effectiveOrgId) data.organization_id = effectiveOrgId;
+    if (!data.organization_name && effectiveOrgName) data.organization_name = effectiveOrgName;
     if (!data.team_id && effectiveTeamId) data.team_id = effectiveTeamId;
+    if (!data.team_name && effectiveTeamName) data.team_name = effectiveTeamName;
   }
 
   // Update user with direct fields

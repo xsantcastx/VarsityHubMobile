@@ -28,8 +28,19 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
   }
 
   // Block coaches whose approval_status is not explicitly APPROVED.
-  // The Prisma default is APPROVED (for fans), but coaches must be set to PENDING
-  // during onboarding and only transition to APPROVED via god-admin or org-admin action.
+  // PENDING and REJECTED are handled explicitly so clients can show accurate UX.
+  if (prefs?.role === 'coach' && u?.approval_status === 'PENDING') {
+    return res.status(403).json({
+      error: 'Your coach account is pending approval.',
+      code: 'APPROVAL_REQUIRED',
+    });
+  }
+  if (prefs?.role === 'coach' && u?.approval_status === 'REJECTED') {
+    return res.status(403).json({
+      error: 'Your coach application was rejected. Please contact support.',
+      code: 'APPROVAL_REJECTED',
+    });
+  }
   if (prefs?.role === 'coach' && u?.approval_status !== 'APPROVED') {
     return res.status(403).json({
       error: 'Your coach account is pending approval.',
