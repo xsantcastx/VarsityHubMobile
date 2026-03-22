@@ -141,6 +141,20 @@ notificationsRouter.get('/', requireAuth as any, async (req: AuthedRequest, res)
   }
 });
 
+// GET /notifications/unread-count
+notificationsRouter.get('/unread-count', requireAuth as any, async (req: AuthedRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const count = await prisma.notification.count({
+      where: { user_id: userId, read_at: null },
+    });
+    return res.json({ count });
+  } catch (error: any) {
+    console.error('[notifications] Error counting unread:', error);
+    return res.json({ count: 0 });
+  }
+});
+
 // POST /notifications/mark-read-all  (must be before /:id/read to avoid Express treating "mark-read-all" as an :id)
 notificationsRouter.post('/mark-read-all', requireAuth as any, async (req: AuthedRequest, res) => {
   try {

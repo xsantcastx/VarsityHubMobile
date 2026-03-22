@@ -77,8 +77,8 @@ export const User = {
   exportMyData: () => httpGet('/users/me/export', {}, 60000),
   upgradeToCoach: (plan: 'rookie' | 'veteran' | 'legend') => httpPost('/auth/upgrade-to-coach', { plan }),
   deleteAccount: (password: string) => httpDelete('/users/me', { password }),
-  acceptFollow: (followId: string) => httpPost(`/follows/${encodeURIComponent(followId)}/accept`, {}),
-  rejectFollow: (followId: string) => httpPost(`/follows/${encodeURIComponent(followId)}/reject`, {}),
+  acceptFollow: (userId: string) => httpPost(`/users/${encodeURIComponent(userId)}/accept-follow`, {}),
+  rejectFollow: (userId: string) => httpPost(`/users/${encodeURIComponent(userId)}/reject-follow`, {}),
 };
 
 export const Game = {
