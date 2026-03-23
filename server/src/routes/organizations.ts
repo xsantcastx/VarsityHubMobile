@@ -1149,7 +1149,7 @@ organizationsRouter.get('/join-requests/me', requireAuth as any, async (req: Aut
 });
 
 // Approve join request
-organizationsRouter.post('/join-requests/:requestId/approve', requireAuth as any, async (req: AuthedRequest, res) => {
+organizationsRouter.post('/join-requests/:requestId/approve', requireAuth as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
   try {
   const requestId = String(req.params.requestId);
 
@@ -1274,7 +1274,7 @@ const denyJoinRequestSchema = z.object({
   reason: z.string().max(500).optional(),
 });
 
-organizationsRouter.post('/join-requests/:requestId/deny', requireAuth as any, async (req: AuthedRequest, res) => {
+organizationsRouter.post('/join-requests/:requestId/deny', requireAuth as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
   try {
   const requestId = String(req.params.requestId);
   const parsed = denyJoinRequestSchema.safeParse(req.body);

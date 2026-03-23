@@ -86,7 +86,8 @@ export default function ManageTeamsSimpleScreen() {
         const me: any = await User.me();
         const prefs = me?.preferences || {};
         const role = prefs.role;
-        if (role !== 'coach') {
+        const isApprovedCoach = role === 'coach' && me?.approval_status === 'APPROVED';
+        if (!isApprovedCoach) {
           Alert.alert('Restricted', 'Only coach accounts can access Manage Teams.');
           router.push('/(tabs)');
           return;

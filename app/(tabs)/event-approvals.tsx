@@ -162,8 +162,9 @@ export default function EventApprovalsScreen() {
   useEffect(() => {
     void (async () => {
       try {
-        const me = await User.me() as { preferences?: { role?: string } };
-        if (me?.preferences?.role !== 'coach') {
+        const me = await User.me() as { preferences?: { role?: string }; approval_status?: string };
+        const isApprovedCoach = me?.preferences?.role === 'coach' && me?.approval_status === 'APPROVED';
+        if (!isApprovedCoach) {
           Alert.alert('Restricted', 'Only coach accounts can access Approvals.');
           safeGoBack(router);
 

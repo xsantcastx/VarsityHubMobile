@@ -1170,7 +1170,8 @@ gamesRouter.put('/:id/approve', requireAuth as any, requireOnboarded as any, asy
       where: {
         team_id: { in: gameTeamIds },
         user_id: req.user.id,
-        role: { in: ['coach', 'manager', 'owner', 'assistant_coach'] }
+        role: { in: ['coach', 'manager', 'owner', 'assistant_coach'] },
+        status: 'active',
       }
     });
     isCoach = !!membership;
