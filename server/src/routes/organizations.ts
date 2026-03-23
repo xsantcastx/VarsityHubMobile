@@ -1675,6 +1675,15 @@ organizationsRouter.post('/:id/coaches/:userId/approve', requireAuth as any, req
     });
     if (!membership) return res.status(403).json({ error: 'Only the league owner can approve coaches' });
 
+    const org = await prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { name: true, admin_approved: true },
+    });
+    if (!org) return res.status(404).json({ error: 'Organization not found' });
+    if (!org.admin_approved) {
+      return res.status(403).json({ error: 'Organization must be approved by VarsityHub before accepting members.' });
+    }
+
     // Idempotency: if coach is already approved, return success without writing again
     const coachUser = await prisma.user.findUnique({ where: { id: coachId }, select: { approval_status: true } });
     if (coachUser?.approval_status === 'APPROVED') {
@@ -1701,8 +1710,7 @@ organizationsRouter.post('/:id/coaches/:userId/approve', requireAuth as any, req
     }
 
     // Get org and coach info
-    const [org, coach] = await Promise.all([
-      prisma.organization.findUnique({ where: { id: orgId }, select: { name: true } }),
+    const [coach] = await Promise.all([
       prisma.user.findUnique({ where: { id: coachId }, select: { display_name: true, email: true } }),
     ]);
 

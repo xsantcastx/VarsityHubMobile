@@ -134,7 +134,7 @@ describeDb('Approval workflows confidence pack (DB-backed)', () => {
     }
   });
 
-  it('coach approval flow blocks pending coach and unlocks team creation after approval', async () => {
+  it('coach approval via app route records update note and unlocks team creation', async () => {
     if (!dbReady) return;
 
     const owner = await createUser({
@@ -207,11 +207,13 @@ describeDb('Approval workflows confidence pack (DB-backed)', () => {
       pendingAliasRes.body.some((req: any) => req?.user?.id === applicant.id)
     ).toBe(true);
 
+    const approvalNote = 'Approved in app. Please finish setup from the onboarding screen.';
     const approveRes = await request(approvalApp)
-      .post(`/organizations/join-requests/${joinRes.body.id}/approve`)
+      .post(`/organizations/${org.id}/coaches/${applicant.id}/approve`)
       .set('Authorization', `Bearer ${owner.token}`)
-      .send({});
+      .send({ note: approvalNote });
     expect(approveRes.status).toBe(200);
+    expect(approveRes.body?.note_sent).toBe(true);
 
     const applicantAfterApproval = await prisma.user.findUnique({
       where: { id: applicant.id },
@@ -219,6 +221,23 @@ describeDb('Approval workflows confidence pack (DB-backed)', () => {
     });
     expect(applicantAfterApproval?.approval_status).toBe('APPROVED');
     expect(applicantAfterApproval?.paid_by_owner).toBe(true);
+
+    const approvedJoinRequest = await prisma.organizationJoinRequest.findUnique({
+      where: { id: joinRes.body.id },
+      select: { status: true, reviewed_by: true },
+    });
+    expect(approvedJoinRequest?.status).toBe('approved');
+    expect(approvedJoinRequest?.reviewed_by).toBe(owner.id);
+
+    const approvalNotifications = await prisma.notification.findMany({
+      where: { user_id: applicant.id, type: 'TEAM_INVITE' },
+      orderBy: { created_at: 'desc' },
+      take: 5,
+    });
+    const approvedNotification = approvalNotifications.find((n: any) => Boolean(n?.meta?.coach_approved));
+    expect(approvedNotification).toBeTruthy();
+    expect(approvedNotification?.meta?.organization_id).toBe(org.id);
+    expect(approvedNotification?.meta?.note).toBe(approvalNote);
 
     const unblockedRes = await request(approvalApp)
       .post('/teams/create')
@@ -228,6 +247,66 @@ describeDb('Approval workflows confidence pack (DB-backed)', () => {
 
     const teamId = unblockedRes.body?.id || unblockedRes.body?.team?.id;
     if (teamId) createdTeamIds.push(teamId);
+  });
+
+  it('blocks coach approval when organization itself is not VarsityHub-approved', async () => {
+    if (!dbReady) return;
+
+    const owner = await createUser({
+      email: `unapproved-owner-${ts}@example.com`,
+      displayName: 'Unapproved Owner',
+      role: 'coach',
+      plan: 'veteran',
+      approvalStatus: 'APPROVED',
+    });
+    const applicant = await createUser({
+      email: `unapproved-applicant-${ts}@example.com`,
+      displayName: 'Unapproved Applicant',
+      role: 'coach',
+      plan: 'rookie',
+      approvalStatus: 'APPROVED',
+    });
+
+    const org = await prisma.organization.create({
+      data: {
+        name: `Unapproved Org ${ts}`,
+        org_type: 'club',
+        admin_approved: false,
+        updated_at: new Date(),
+        league_owner_id: owner.id,
+      },
+    });
+    createdOrgIds.push(org.id);
+
+    await prisma.organizationMembership.create({
+      data: { organization_id: org.id, user_id: owner.id, role: 'owner', status: 'active' },
+    });
+
+    const joinRes = await request(approvalApp)
+      .post(`/organizations/${org.id}/join-requests`)
+      .set('Authorization', `Bearer ${applicant.token}`)
+      .send({ message: 'Requesting access' });
+    expect(joinRes.status).toBe(201);
+    createdJoinRequestIds.push(joinRes.body.id);
+
+    const approveRes = await request(approvalApp)
+      .post(`/organizations/${org.id}/coaches/${applicant.id}/approve`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ note: 'Should not apply while org is unapproved' });
+    expect(approveRes.status).toBe(403);
+    expect(String(approveRes.body?.error || '')).toMatch(/organization must be approved/i);
+
+    const applicantAfterBlocked = await prisma.user.findUnique({
+      where: { id: applicant.id },
+      select: { approval_status: true },
+    });
+    expect(applicantAfterBlocked?.approval_status).toBe('PENDING');
+
+    const joinRequestAfterBlocked = await prisma.organizationJoinRequest.findUnique({
+      where: { id: joinRes.body.id },
+      select: { status: true },
+    });
+    expect(joinRequestAfterBlocked?.status).toBe('pending');
   });
 
   it('coach rejection flow records denied status and in-app update note', async () => {
