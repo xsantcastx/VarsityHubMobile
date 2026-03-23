@@ -579,6 +579,21 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         return;
       }
 
+      // Approved coaches must accept the Coach Agreement before accessing tools
+      const isCoachWithoutAgreement = !needsOnboarding
+        && user.preferences?.role === 'coach'
+        && user.approval_status === 'APPROVED'
+        && !user.preferences?.coach_agreement_accepted_at
+        && !coachNeedsCheckout;
+      const isOnAgreementScreen = currentPath.includes('coach-agreement');
+      if (isCoachWithoutAgreement && !isOnAgreementScreen) {
+        if (lastRedirectRef.current !== '/onboarding/coach-agreement') {
+          lastRedirectRef.current = '/onboarding/coach-agreement';
+          router.replace('/onboarding/coach-agreement');
+        }
+        return;
+      }
+
       // If needs onboarding and not already there, redirect to start onboarding
       if (needsOnboarding && firstSegment !== 'onboarding') {
         if (__DEV__) console.log('[AuthProvider] User needs onboarding, redirecting to step 1');
