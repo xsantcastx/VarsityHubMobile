@@ -1375,6 +1375,18 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
       if (!payload || payload.orgId !== orgId || payload.action !== 'approve_league') {
         return res.status(401).json({ error: 'Invalid or expired approval token' });
       }
+      // GET: show confirmation form — don't perform write on GET (email scanner safe)
+      if (req.method === 'GET') {
+        const orgInfo = await prisma.organization.findUnique({ where: { id: orgId }, select: { name: true, admin_approved: true } });
+        if (orgInfo?.admin_approved) return res.send(`<html><body style="font-family:Arial;text-align:center;padding:60px"><h1>Already Approved</h1><p>This league was already approved.</p></body></html>`);
+        const safeName = (orgInfo?.name || 'Unknown').replace(/[<>"&]/g, '');
+        return res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Approve League</title></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:500px;margin:60px auto;padding:20px;text-align:center;">
+<h2>Approve this league?</h2><p><strong>${safeName}</strong></p>
+<form method="POST" action="?token=${encodeURIComponent(token)}">
+<button type="submit" style="background:#16A34A;color:#fff;border:none;padding:12px 32px;border-radius:8px;font-size:16px;cursor:pointer;">Approve League</button>
+</form></body></html>`);
+      }
     } else {
       // Require authenticated admin
       if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
@@ -1492,6 +1504,17 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
       const payload = verifyJwt<{ orgId: string; action: string }>(token);
       if (!payload || payload.orgId !== orgId || payload.action !== 'reject_league') {
         return res.status(401).json({ error: 'Invalid or expired rejection token' });
+      }
+      // GET: show confirmation form — don't perform write on GET
+      if (req.method === 'GET') {
+        const orgInfo = await prisma.organization.findUnique({ where: { id: orgId }, select: { name: true } });
+        const safeName = (orgInfo?.name || 'Unknown').replace(/[<>"&]/g, '');
+        return res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Reject League</title></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:500px;margin:60px auto;padding:20px;text-align:center;">
+<h2>Reject this league?</h2><p><strong>${safeName}</strong></p>
+<form method="POST" action="?token=${encodeURIComponent(token)}">
+<button type="submit" style="background:#DC2626;color:#fff;border:none;padding:12px 32px;border-radius:8px;font-size:16px;cursor:pointer;">Reject League</button>
+</form></body></html>`);
       }
     } else {
       if (!req.user) return res.status(401).json({ error: 'Unauthorized' });

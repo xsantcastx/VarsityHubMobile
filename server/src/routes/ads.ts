@@ -920,7 +920,7 @@ function verifyModerationToken(token: string, adId: string, expectedAction: stri
   return !!payload && payload.adId === adId && payload.action === expectedAction;
 }
 
-/** Simple HTML confirmation page for browser-based token actions */
+/** Simple HTML result page for browser-based token actions */
 function confirmationPage(title: string, message: string, success: boolean) {
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title></head>
 <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:500px;margin:60px auto;padding:20px;text-align:center;">
@@ -930,33 +930,56 @@ function confirmationPage(title: string, message: string, success: boolean) {
 </body></html>`;
 }
 
-// Admin: Approve a pending ad (POST admin-auth or GET token-based from email)
+/** HTML confirmation form — GET shows this, user clicks button to POST */
+function confirmationForm(action: string, adId: string, token: string, businessName: string) {
+  const color = action === 'approve' ? '#16A34A' : '#DC2626';
+  const verb = action === 'approve' ? 'Approve' : 'Reject';
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${verb} Ad</title></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:500px;margin:60px auto;padding:20px;text-align:center;">
+<h2>${verb} this ad?</h2>
+<p style="color:#374151;">Ad: <strong>${businessName}</strong></p>
+<form method="POST" action="?token=${encodeURIComponent(token)}">
+<button type="submit" style="background:${color};color:#fff;border:none;padding:12px 32px;border-radius:8px;font-size:16px;cursor:pointer;margin-top:16px;">${verb} Ad</button>
+</form>
+<p style="margin-top:24px;color:#9CA3AF;font-size:12px;">Click the button to confirm. This link is single-use.</p>
+</body></html>`;
+}
+
+// Admin: Approve a pending ad
+// GET with token → shows confirmation form (safe from email scanners)
+// POST with token → performs the approval
+// POST with admin auth → performs the approval (admin dashboard)
 async function handleAdApprove(req: AuthedRequest, res: Response) {
   try {
     const id = String(req.params.id);
     const token = (req.query?.token as string) || undefined;
 
-    // Auth: either valid moderation token OR authenticated admin
     if (token) {
       if (!verifyModerationToken(token, id, 'approve_ad')) {
-        if (req.method === 'GET') return res.status(401).send(confirmationPage('Invalid Link', 'This approval link is invalid or has expired.', false));
-        return res.status(401).json({ error: 'Invalid or expired approval token' });
+        return req.method === 'GET'
+          ? res.status(401).send(confirmationPage('Invalid Link', 'This approval link is invalid or has expired.', false))
+          : res.status(401).json({ error: 'Invalid or expired approval token' });
+      }
+      // GET: show confirmation form, don't perform the action
+      if (req.method === 'GET') {
+        const ad = await prisma.ad.findUnique({ where: { id }, select: { business_name: true } });
+        return res.send(confirmationForm('approve', id, token, ad?.business_name || 'Unknown'));
       }
     } else {
       const isAdmin = await getIsAdmin(req);
-      if (!isAdmin) {
-        return res.status(403).json({ error: 'Admin only' });
-      }
+      if (!isAdmin) return res.status(403).json({ error: 'Admin only' });
     }
 
     const result = await approveAd(id, typeof req.body?.note === 'string' ? req.body.note.trim() : null);
     if (result.error) {
-      if (req.method === 'GET') return res.status(result.status!).send(confirmationPage('Error', result.error, false));
-      return res.status(result.status!).json({ error: result.error });
+      return req.method === 'POST' && token
+        ? res.status(result.status!).send(confirmationPage('Error', result.error, false))
+        : res.status(result.status!).json({ error: result.error });
     }
 
-    if (req.method === 'GET') return res.send(confirmationPage('Ad Approved', 'The ad has been approved. The advertiser has been notified.', true));
-    return res.json(result.ad);
+    return req.method === 'POST' && token
+      ? res.send(confirmationPage('Ad Approved', 'The ad has been approved. The advertiser has been notified.', true))
+      : res.json(result.ad);
   } catch (err) {
     console.error('[ads] approve error:', err);
     return res.status(500).json({ error: 'Internal server error' });
@@ -964,9 +987,9 @@ async function handleAdApprove(req: AuthedRequest, res: Response) {
 }
 
 adsRouter.get('/:id([a-z0-9]{15,50})/approve', handleAdApprove as any);
-adsRouter.post('/:id([a-z0-9]{15,50})/approve', requireAdmin as any, handleAdApprove as any);
+adsRouter.post('/:id([a-z0-9]{15,50})/approve', handleAdApprove as any);
 
-// Admin: Reject a pending ad (POST admin-auth or GET token-based from email)
+// Admin: Reject a pending ad (same confirmation-form pattern as approve)
 async function handleAdReject(req: AuthedRequest, res: Response) {
   try {
     const id = String(req.params.id);
@@ -974,24 +997,29 @@ async function handleAdReject(req: AuthedRequest, res: Response) {
 
     if (token) {
       if (!verifyModerationToken(token, id, 'reject_ad')) {
-        if (req.method === 'GET') return res.status(401).send(confirmationPage('Invalid Link', 'This rejection link is invalid or has expired.', false));
-        return res.status(401).json({ error: 'Invalid or expired rejection token' });
+        return req.method === 'GET'
+          ? res.status(401).send(confirmationPage('Invalid Link', 'This rejection link is invalid or has expired.', false))
+          : res.status(401).json({ error: 'Invalid or expired rejection token' });
+      }
+      if (req.method === 'GET') {
+        const ad = await prisma.ad.findUnique({ where: { id }, select: { business_name: true } });
+        return res.send(confirmationForm('reject', id, token, ad?.business_name || 'Unknown'));
       }
     } else {
       const isAdmin = await getIsAdmin(req);
-      if (!isAdmin) {
-        return res.status(403).json({ error: 'Admin only' });
-      }
+      if (!isAdmin) return res.status(403).json({ error: 'Admin only' });
     }
 
     const result = await rejectAd(id, req.body?.reason || (req.query?.reason as string) || null);
     if (result.error) {
-      if (req.method === 'GET') return res.status(result.status!).send(confirmationPage('Error', result.error, false));
-      return res.status(result.status!).json({ error: result.error });
+      return req.method === 'POST' && token
+        ? res.status(result.status!).send(confirmationPage('Error', result.error, false))
+        : res.status(result.status!).json({ error: result.error });
     }
 
-    if (req.method === 'GET') return res.send(confirmationPage('Ad Rejected', 'The ad has been rejected and the advertiser has been notified.', true));
-    return res.json(result.ad);
+    return req.method === 'POST' && token
+      ? res.send(confirmationPage('Ad Rejected', 'The ad has been rejected and the advertiser has been notified.', true))
+      : res.json(result.ad);
   } catch (err) {
     console.error('[ads] reject error:', err);
     return res.status(500).json({ error: 'Internal server error' });
@@ -999,7 +1027,7 @@ async function handleAdReject(req: AuthedRequest, res: Response) {
 }
 
 adsRouter.get('/:id([a-z0-9]{15,50})/reject', handleAdReject as any);
-adsRouter.post('/:id([a-z0-9]{15,50})/reject', requireAdmin as any, handleAdReject as any);
+adsRouter.post('/:id([a-z0-9]{15,50})/reject', handleAdReject as any);
 
 // Admin: Review an ad (approve or reject) — used by admin-ads screen
 adsRouter.post('/:id([a-z0-9]{15,50})/review', requireAdmin as any, async (req: AuthedRequest, res) => {
