@@ -108,7 +108,6 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Allow VarsityHub to use your location to show nearby events.",
           "locationWhenInUsePermission": "Allow VarsityHub to use your location to show nearby events on the map."
         }
       ],
