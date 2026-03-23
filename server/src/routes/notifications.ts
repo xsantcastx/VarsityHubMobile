@@ -8,13 +8,18 @@ export const notificationsRouter = Router();
 registerIdValidation(notificationsRouter);
 
 const summarize = (n: any) => {
+  const meta = (n?.meta as any) || {};
   switch (n.type) {
     case 'FOLLOW': return 'followed you';
     case 'FOLLOW_REQUEST': return 'requested to follow you';
     case 'UPVOTE': return 'upvoted your post';
     case 'COMMENT': return 'commented on your post';
     case 'MESSAGE': return 'sent you a message';
-    case 'TEAM_INVITE': return 'invited you to a team';
+    case 'TEAM_INVITE':
+      if (meta.coach_request) return 'requested coach approval';
+      if (meta.coach_approved) return 'your coach application was approved';
+      if (meta.coach_denied) return 'your coach application was declined';
+      return 'invited you to a team';
     case 'MENTION': return 'mentioned you';
     case 'COMMENT_REPLY': return 'replied to your comment';
     case 'SHARE': return 'shared your post';
@@ -26,6 +31,27 @@ const summarize = (n: any) => {
     default: return 'did something';
   }
 };
+
+const CURSOR_SEPARATOR = '::';
+const encodeCursor = (row: { created_at: Date; id: string }) =>
+  `${new Date(row.created_at).toISOString()}${CURSOR_SEPARATOR}${row.id}`;
+
+async function resolveCursor(cursor: string): Promise<{ created_at: Date; id: string } | null> {
+  if (!cursor) return null;
+  if (cursor.includes(CURSOR_SEPARATOR)) {
+    const [iso, id] = cursor.split(CURSOR_SEPARATOR);
+    const created_at = new Date(iso);
+    if (!id || Number.isNaN(created_at.getTime())) return null;
+    return { created_at, id };
+  }
+
+  // Backward compatibility for older clients that still send plain ID cursors.
+  const row = await prisma.notification.findUnique({
+    where: { id: cursor },
+    select: { id: true, created_at: true },
+  });
+  return row ? { id: row.id, created_at: row.created_at } : null;
+}
 
 // GET /notifications?cursor=...&limit=...&unread=1
 notificationsRouter.get('/', requireAuth as any, async (req: AuthedRequest, res) => {
@@ -43,8 +69,22 @@ notificationsRouter.get('/', requireAuth as any, async (req: AuthedRequest, res)
 
     // Handle cursor pagination
     if (cursor) {
-      // For cursor pagination, use id-based cursor (simpler and more reliable)
-      where.id = { lt: cursor };
+      const resolvedCursor = await resolveCursor(cursor);
+      if (resolvedCursor) {
+        // Stable pagination for created_at desc, id desc ordering.
+        where.OR = [
+          { created_at: { lt: resolvedCursor.created_at } },
+          {
+            AND: [
+              { created_at: resolvedCursor.created_at },
+              { id: { lt: resolvedCursor.id } },
+            ],
+          },
+        ];
+      } else {
+        // Graceful fallback for malformed cursors.
+        where.id = { lt: cursor };
+      }
     }
 
     // Standard orderBy - always use created_at desc, id desc for consistency
@@ -99,9 +139,10 @@ notificationsRouter.get('/', requireAuth as any, async (req: AuthedRequest, res)
     });
 
     const rows = await Promise.race([queryPromise, timeoutPromise]).finally(() => clearTimeout(timeoutHandle!)) as any[];
-    const items = rows.slice(0, limit);
-    // Use id as cursor (simpler and works with our where clause)
-    const nextCursor = rows.length > limit ? rows[limit].id : null;
+    const hasMore = rows.length > limit;
+    const items = hasMore ? rows.slice(0, limit) : rows;
+    const lastReturned = items.length ? items[items.length - 1] : null;
+    const nextCursor = hasMore && lastReturned ? encodeCursor(lastReturned) : null;
 
     const payload = items.map((n: any) => {
       const meta = (n.meta as any) || {};

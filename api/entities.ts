@@ -528,6 +528,21 @@ export const Notification = {
       // Polling endpoint: do not retry aggressively.
       return await httpGet('/notifications' + qs, {}, timeout, 0);
     } catch (error: any) {
+      const fallbackItems = Array.isArray(error?.data?.items)
+        ? error.data.items
+        : Array.isArray(error?.response?.data?.items)
+        ? error.response.data.items
+        : null;
+      const fallbackNextCursor =
+        (typeof error?.data?.nextCursor === 'string' ? error.data.nextCursor : null) ??
+        (typeof error?.response?.data?.nextCursor === 'string' ? error.response.data.nextCursor : null);
+
+      // Server may intentionally return graceful payloads on timeout (e.g., 504 with empty items).
+      if (error?.status === 504 && fallbackItems) {
+        if (__DEV__) console.warn('[Notification.listPage] 504 fallback payload received');
+        return { items: fallbackItems, cursor: null, nextCursor: fallbackNextCursor };
+      }
+
       // If unauthorized (not logged in), return empty page
       if (error?.message?.includes('Unauthorized') || error?.status === 401) {
         if (__DEV__) console.log('[Notification.listPage] Not authenticated, returning empty results');

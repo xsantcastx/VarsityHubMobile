@@ -3,7 +3,8 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback, useState } from 'react';
 import { safeGoBack } from '@/utils/navigation';
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -57,9 +58,15 @@ export default function NotificationsScreen() {
     }
   }, [refreshing]);
 
-  useEffect(() => {
-    void load(null, false).catch(() => {});
-  }, [load]);
+  useFocusEffect(
+    useCallback(() => {
+      void load(null, false).catch(() => {});
+      const interval = setInterval(() => {
+        void load(null, false).catch(() => {});
+      }, 15000);
+      return () => clearInterval(interval);
+    }, [load])
+  );
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -270,7 +277,7 @@ export default function NotificationsScreen() {
               <MaterialIcons name="notifications-none" size={56} color={Colors[colorScheme ?? 'light'].mutedText} />
               <Text style={[S.emptyTitle, { color: Colors[colorScheme ?? 'light'].text }]}>All caught up!</Text>
               <Text style={[S.emptySubtitle, { color: Colors[colorScheme ?? 'light'].mutedText }]}>
-                You'll see notifications for follows, upvotes, and comments here.
+                You'll see notifications for approvals, follows, comments, and messages here.
               </Text>
             </View>
           }
