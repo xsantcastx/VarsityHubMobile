@@ -107,15 +107,62 @@ gamesRouter.get('/', async (req, res) => {
   const dateFromRaw = req.query.from ? new Date(String(req.query.from)) : null;
   const dateToRaw = req.query.to ? new Date(String(req.query.to)) : null;
 
+  const authedReq = req as AuthedRequest;
+
   // By default, only show approved games unless specifically requested otherwise
   const showPending = req.query.show_pending === 'true';
   const approvalStatus = req.query.approval_status as string;
+  const normalizedApprovalStatus = typeof approvalStatus === 'string' ? approvalStatus.trim().toLowerCase() : '';
+  const wantsNonApproved =
+    showPending || (normalizedApprovalStatus !== '' && normalizedApprovalStatus !== 'approved');
+
+  let canViewNonApproved = false;
+  if (wantsNonApproved) {
+    if (!authedReq.user?.id) {
+      return res.status(403).json({ error: 'Only coaches and admins can view non-approved games' });
+    }
+
+    const requester = await prisma.user.findUnique({
+      where: { id: authedReq.user.id },
+      select: { email: true },
+    });
+    const isAdmin = isEmailAdmin(requester?.email);
+    if (isAdmin) {
+      canViewNonApproved = true;
+    } else {
+      const [teamRole, orgRole] = await Promise.all([
+        prisma.teamMembership.findFirst({
+          where: {
+            user_id: authedReq.user.id,
+            role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
+            status: 'active',
+          },
+          select: { id: true },
+        }),
+        prisma.organizationMembership.findFirst({
+          where: {
+            user_id: authedReq.user.id,
+            role: { in: ['owner', 'manager'] },
+            status: 'active',
+          },
+          select: { id: true },
+        }),
+      ]);
+      canViewNonApproved = !!teamRole || !!orgRole;
+    }
+
+    if (!canViewNonApproved) {
+      return res.status(403).json({ error: 'Only coaches and admins can view non-approved games' });
+    }
+  }
 
   // Build where clause
   let whereClause: any = {};
-  if (approvalStatus && ['pending', 'approved', 'rejected'].includes(approvalStatus)) {
-    whereClause.approval_status = approvalStatus;
-  } else if (!showPending) {
+  if (normalizedApprovalStatus && ['pending', 'approved', 'rejected'].includes(normalizedApprovalStatus)) {
+    whereClause.approval_status = normalizedApprovalStatus;
+  } else if (showPending) {
+    whereClause.approval_status = 'pending';
+  } else {
     whereClause.approval_status = 'approved';
   }
 

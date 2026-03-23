@@ -227,7 +227,7 @@ eventsRouter.get('/my-events', requireAuth as any, async (req: AuthedRequest, re
 });
 
 // Get pending events for approval (admins & coaches only) - MUST be before /:id to avoid "pending" matching as id
-eventsRouter.get('/pending', requireAuth as any, async (req: AuthedRequest, res) => {
+eventsRouter.get('/pending', requireAuth as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
   try {
     const userId = req.user!.id;
     const isAdmin = await getIsAdmin(req as any);
@@ -237,8 +237,42 @@ eventsRouter.get('/pending', requireAuth as any, async (req: AuthedRequest, res)
       return res.status(403).json({ error: 'Only coaches and admins can view pending events' });
     }
 
+    let where: any = { approval_status: 'pending' };
+    if (!isAdmin) {
+      const [managedTeams, managedOrgs] = await Promise.all([
+        prisma.teamMembership.findMany({
+          where: {
+            user_id: userId,
+            role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
+            status: 'active',
+          },
+          select: { team_id: true },
+        }),
+        prisma.organizationMembership.findMany({
+          where: {
+            user_id: userId,
+            role: { in: ['owner', 'manager'] },
+            status: 'active',
+          },
+          select: { organization_id: true },
+        }),
+      ]);
+
+      const managedTeamIds = managedTeams.map((m) => m.team_id);
+      const managedOrgIds = managedOrgs.map((m) => m.organization_id);
+      const scope: any[] = [];
+      if (managedTeamIds.length > 0) scope.push({ team_id: { in: managedTeamIds } });
+      if (managedOrgIds.length > 0) scope.push({ team: { organization_id: { in: managedOrgIds } } });
+      where = scope.length > 0
+        ? {
+            approval_status: 'pending',
+            OR: scope,
+          }
+        : { approval_status: 'pending', team_id: '__no_visible_pending_events__' };
+    }
+
     const events = await prisma.event.findMany({
-      where: { approval_status: 'pending' },
+      where,
       orderBy: { created_at: 'desc' },
       include: {
         game: { select: { id: true, title: true, cover_image_url: true, date: true, location: true } },
@@ -467,11 +501,26 @@ eventsRouter.post('/', requireVerified as any, requireOnboarded as any, eventCre
   }
   
   const userId = req.user!.id;
-  const userIsOrgAdmin = await isOrgAdmin(userId);
+  const isAdminUser = await getIsAdmin(req as any);
 
-  // Auto-approve only if user is coach/admin of the specific team, not just any team
-  let autoApprove = userIsOrgAdmin;
-  if (!autoApprove && data.home_team_id) {
+  // Auto-approve only for scoped authority:
+  // - platform admins
+  // - staff on the selected home team
+  // - owner/manager of the selected home team's organization
+  let autoApprove = false;
+  let creatorRole: 'fan' | 'coach' | 'organizer' = 'fan';
+  if (isAdminUser) {
+    autoApprove = true;
+    creatorRole = 'organizer';
+  } else if (data.home_team_id) {
+    const homeTeam = await prisma.team.findUnique({
+      where: { id: data.home_team_id },
+      select: { id: true, organization_id: true },
+    });
+    if (!homeTeam) {
+      return res.status(400).json({ error: 'Home team not found' });
+    }
+
     const teamMembership = await prisma.teamMembership.findFirst({
       where: {
         user_id: userId,
@@ -480,7 +529,24 @@ eventsRouter.post('/', requireVerified as any, requireOnboarded as any, eventCre
         status: 'active',
       },
     });
-    autoApprove = !!teamMembership;
+
+    let isHomeOrgAdmin = false;
+    if (homeTeam.organization_id) {
+      const orgMembership = await prisma.organizationMembership.findFirst({
+        where: {
+          organization_id: homeTeam.organization_id,
+          user_id: userId,
+          role: { in: ['owner', 'manager'] },
+          status: 'active',
+        },
+      });
+      isHomeOrgAdmin = !!orgMembership;
+    }
+
+    autoApprove = !!teamMembership || isHomeOrgAdmin;
+    if (autoApprove) {
+      creatorRole = isHomeOrgAdmin ? 'organizer' : 'coach';
+    }
   }
 
   // Use capacity if provided, otherwise max_attendees (for backward compatibility)
@@ -527,7 +593,7 @@ eventsRouter.post('/', requireVerified as any, requireOnboarded as any, eventCre
         game_id: data.game_id,
         team_id: data.home_team_id || null,
         creator_id: userId,
-        creator_role: autoApprove ? (userIsOrgAdmin ? 'organizer' : 'coach') : 'fan',
+        creator_role: creatorRole,
         approval_status: autoApprove ? 'approved' : 'pending',
         status: autoApprove ? 'approved' : 'draft',
         approved_at: autoApprove ? new Date() : null,

@@ -49,13 +49,36 @@ function isOrganizationAdmin(role: string | null | undefined): boolean {
   return role === 'owner' || role === 'manager';
 }
 
+async function isCurrentUserPlatformAdmin(req: AuthedRequest): Promise<boolean> {
+  if (!req.user?.id) return false;
+  const user = await prisma.user.findUnique({
+    where: { id: req.user.id },
+    select: { email: true },
+  });
+  return isEmailAdmin(user?.email);
+}
+
 // List organizations (public, with optional search)
 organizationsRouter.get('/', async (req, res) => {
   try {
+    const authedReq = req as AuthedRequest;
+    const currentUserId = authedReq.user?.id ?? null;
+    const isAdminUser = await isCurrentUserPlatformAdmin(authedReq);
     const q = String((req.query as any).q || '').trim();
     const limit = Math.min(parseInt(String((req.query as any).limit || '20'), 10) || 20, 50);
 
     const where: any = q ? { name: { startsWith: q, mode: 'insensitive' } } : {};
+    if (!isAdminUser) {
+      if (currentUserId) {
+        where.OR = [
+          { admin_approved: true },
+          { memberships: { some: { user_id: currentUserId, status: 'active' } } },
+          { joinRequests: { some: { user_id: currentUserId, status: 'pending' } } },
+        ];
+      } else {
+        where.admin_approved = true;
+      }
+    }
 
     const organizations = await prisma.organization.findMany({
       where,
@@ -220,7 +243,8 @@ organizationsRouter.delete('/:id/follow', requireAuth as any, async (req: Authed
 organizationsRouter.get('/:id', async (req, res) => {
   try {
     const id = String(req.params.id);
-    const currentUserId = (req as AuthedRequest).user?.id ?? null;
+    const authedReq = req as AuthedRequest;
+    const currentUserId = authedReq.user?.id ?? null;
     const organization = await prisma.organization.findUnique({
       where: { id },
       include: {
@@ -250,6 +274,26 @@ organizationsRouter.get('/:id', async (req, res) => {
     });
 
     if (!organization) return res.status(404).json({ error: 'Organization not found' });
+
+    if (!organization.admin_approved) {
+      const isAdminUser = await isCurrentUserPlatformAdmin(authedReq);
+      if (!isAdminUser) {
+        if (!currentUserId) return res.status(404).json({ error: 'Organization not found' });
+        const [membership, pendingJoin] = await Promise.all([
+          prisma.organizationMembership.findUnique({
+            where: { organization_id_user_id: { organization_id: id, user_id: currentUserId } },
+            select: { status: true },
+          }),
+          prisma.organizationJoinRequest.findUnique({
+            where: { organization_id_user_id: { organization_id: id, user_id: currentUserId } },
+            select: { status: true },
+          }),
+        ]);
+        const hasAccess = membership?.status === 'active' || pendingJoin?.status === 'pending';
+        if (!hasAccess) return res.status(404).json({ error: 'Organization not found' });
+      }
+    }
+
     const payload = { ...organization } as any;
     payload.followers_count = (organization as any)._count?.followers ?? 0;
     payload.members_count = (organization as any)._count?.memberships ?? 0;
@@ -1670,9 +1714,15 @@ organizationsRouter.post('/:id/coaches/:userId/approve', requireAuth as any, req
 
     // Get org and coach info
     const [org, coach] = await Promise.all([
-      prisma.organization.findUnique({ where: { id: orgId }, select: { name: true } }),
+      prisma.organization.findUnique({ where: { id: orgId }, select: { name: true, admin_approved: true } }),
       prisma.user.findUnique({ where: { id: coachId }, select: { display_name: true, email: true } }),
     ]);
+    if (!org) return res.status(404).json({ error: 'Organization not found' });
+    if (!org.admin_approved) {
+      return res.status(403).json({
+        error: 'Organization must be approved by VarsityHub before approving coaches.',
+      });
+    }
 
     // Approve: update join request, create org membership, assign to team, set coach approval status
     const txOps: any[] = [
