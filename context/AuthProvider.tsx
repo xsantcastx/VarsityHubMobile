@@ -110,7 +110,8 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
   }, [segments]);
 
   // Derived state
-  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN' || user?.is_admin === true;
+  const normalizedRole = String(user?.role || '').toLowerCase();
+  const isAdmin = normalizedRole === 'admin' || normalizedRole === 'super_admin' || user?.is_admin === true;
 
   // Check backend health (once on startup)
   const checkHealth = useCallback(async () => {

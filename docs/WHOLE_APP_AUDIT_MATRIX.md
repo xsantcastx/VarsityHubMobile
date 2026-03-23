@@ -4,6 +4,19 @@ Last updated: 2026-03-23
 Scope: frontend (`app/`, `context/`, `api/`) + backend (`server/src/`) + release/config scripts.  
 Method: static code audit (line-referenced). No end-to-end runtime testing in this cloud runner.
 
+## Remediation update (same day)
+
+The following high-priority findings from this matrix were remediated in subsequent commits:
+
+- Locked down `/auth/me` profile update routes so preferences can no longer be overposted there (must use `/me/preferences`).
+- Added approval visibility enforcement to `GET /games/:id` and `GET /games/:id/summary`.
+- Added game visibility enforcement to stories/media listing handlers.
+- Hardened group chat creation to require a team context and active authorized team membership.
+- Restricted `/api-docs` in production to authenticated admin access and disabled persisted auth there.
+- Gated debug verification/reset code response fields behind explicit `ENABLE_DEV_CODES=1` in development/test only.
+- Tightened frontend approvals loading behavior and deep-link public route alignment.
+- Aligned pre-launch script version checks and rate-limit env naming compatibility.
+
 ## 1) Control Matrix (whole app)
 
 | Area | Verdict | Notes |

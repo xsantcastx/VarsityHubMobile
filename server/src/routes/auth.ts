@@ -90,6 +90,9 @@ function checkAuthRateLimit(identifier: string): boolean {
 
 // simple in-memory rate limiting for verification send: 1/30s, 5/hour per user
 const verifyRate: Map<string, { last: number; count: number; hourStart: number }> = new Map();
+const shouldExposeDevCodes =
+  process.env.ENABLE_DEV_CODES === '1' &&
+  (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test');
 const GOOGLE_ALLOWED_AUDIENCES = (process.env.GOOGLE_OAUTH_CLIENT_IDS || process.env.GOOGLE_OAUTH_AUDIENCE || '')
   .split(',')
   .map((value) => value.trim())
@@ -238,7 +241,7 @@ authRouter.post('/register', asyncHandler(async (req, res) => {
   await prisma.refreshToken.create({ data: { token_hash: regTokenHash, user_id: user.id, expires_at: regExpiry } });
 
   const payload: any = { access_token, refresh_token: rawRefreshReg, user: sanitizeUser(user) };
-  if (process.env.NODE_ENV !== 'production') payload.dev_verification_code = code;
+  if (shouldExposeDevCodes) payload.dev_verification_code = code;
   debugLog('[register] Completed in', Date.now() - start, 'ms');
   res.status(201).json(payload);
 }));
@@ -724,7 +727,7 @@ authRouter.post('/password/forgot', asyncHandler(async (req, res) => {
     req.log?.warn?.({ err: e }, 'Password reset email failed');
   }
 
-  if (process.env.NODE_ENV !== 'production') payload.dev_reset_code = code;
+  if (shouldExposeDevCodes) payload.dev_reset_code = code;
   return res.json(payload);
 }));
 
@@ -922,12 +925,18 @@ const updateMeSchema = z.object({
     .optional()
     .nullable(),
   bio: z.string().max(300).transform((val) => val === '' ? null : val).optional().nullable(),
-  preferences: z.any().optional(),
 });
 
 authRouter.put('/me', asyncHandler(async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  const parsed = updateMeSchema.safeParse(req.body);
+  const body = (req.body || {}) as Record<string, unknown>;
+  if (Object.prototype.hasOwnProperty.call(body, 'preferences')) {
+    return res.status(400).json({
+      error: 'Invalid payload',
+      message: 'Use PATCH /me/preferences to update preferences.',
+    });
+  }
+  const parsed = updateMeSchema.safeParse(body);
   if (!parsed.success) {
     return res.status(400).json({
       error: 'Invalid payload',
@@ -962,30 +971,23 @@ authRouter.put('/me', asyncHandler(async (req: AuthedRequest, res) => {
     if (!filterResult.valid) {
       return res.status(400).json({ error: filterResult.error, code: filterResult.code });
     }
-  }
-  
-  if (data.preferences) {
-    // COPPA: Reject if DOB in preferences indicates under 13
-    const dobToCheck = data.preferences?.dob;
-    if (dobToCheck !== undefined && isUnder13(dobToCheck)) {
-      return res.status(403).json({
-        error: 'COPPA_UNDER_13',
-        message: 'VarsityHub is not available for users under 13. Please have a parent or guardian contact support@varsityhub.app.',
-      });
-    }
-    const current = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true } });
-    const mergedPrefs = mergePreferences(current?.preferences || {}, data.preferences);
-    patch.preferences = mergedPrefs;
   }
   const { preferences, ...rest } = patch;
   const user = await prisma.user.update({ where: { id: req.user.id }, data: { ...rest, ...(preferences ? { preferences } : {}) } });
   return res.json(sanitizeUser(user));
 }));
 
-// PATCH /me (alias) to support partial updates including preferences
+// PATCH /me (alias) to support partial profile updates (preferences use /me/preferences)
 authRouter.patch('/me', asyncHandler(async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  const parsed = updateMeSchema.safeParse(req.body);
+  const body = (req.body || {}) as Record<string, unknown>;
+  if (Object.prototype.hasOwnProperty.call(body, 'preferences')) {
+    return res.status(400).json({
+      error: 'Invalid payload',
+      message: 'Use PATCH /me/preferences to update preferences.',
+    });
+  }
+  const parsed = updateMeSchema.safeParse(body);
   if (!parsed.success) {
     return res.status(400).json({
       error: 'Invalid payload',
@@ -1020,20 +1022,6 @@ authRouter.patch('/me', asyncHandler(async (req: AuthedRequest, res) => {
     if (!filterResult.valid) {
       return res.status(400).json({ error: filterResult.error, code: filterResult.code });
     }
-  }
-  
-  if (data.preferences) {
-    // COPPA: Reject if DOB in preferences indicates under 13
-    const dobToCheck = data.preferences?.dob;
-    if (dobToCheck !== undefined && isUnder13(dobToCheck)) {
-      return res.status(403).json({
-        error: 'COPPA_UNDER_13',
-        message: 'VarsityHub is not available for users under 13. Please have a parent or guardian contact support@varsityhub.app.',
-      });
-    }
-    const current = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true } });
-    const mergedPrefs = mergePreferences(current?.preferences || {}, data.preferences);
-    patch.preferences = mergedPrefs;
   }
   const { preferences, ...rest } = patch;
   const user = await prisma.user.update({ where: { id: req.user.id }, data: { ...rest, ...(preferences ? { preferences } : {}) } });
@@ -1395,7 +1383,7 @@ authRouter.post('/verify/request', asyncHandler(async (req: AuthedRequest, res) 
     req.log?.warn?.({ err: e }, 'Email send failed');
   }
   const payload: any = { ok: true };
-  if (process.env.NODE_ENV !== 'production') payload.dev_verification_code = code;
+  if (shouldExposeDevCodes) payload.dev_verification_code = code;
   rec.last = now; rec.count += 1; verifyRate.set(key, rec);
   return res.json(payload);
 }));

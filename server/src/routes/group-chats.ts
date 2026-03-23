@@ -198,32 +198,36 @@ groupChatsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) =
       return res.status(400).json({ error: 'At least one member required' });
     }
 
-    // If teamId provided, verify user has permission (coach, manager, admin)
-    if (teamId) {
-      const membership = await prisma.teamMembership.findFirst({
-        where: {
-          team_id: teamId,
-          user_id: req.user.id,
-          role: {
-            in: ['coach', 'manager', 'owner'] as any,
-          },
+    // Security hardening: only team-bound group chats are allowed.
+    if (!teamId || typeof teamId !== 'string') {
+      return res.status(400).json({ error: 'teamId is required to create a group chat' });
+    }
+
+    // Verify requester has permission (coach/manager/owner/assistant_coach)
+    const membership = await prisma.teamMembership.findFirst({
+      where: {
+        team_id: teamId,
+        user_id: req.user.id,
+        role: {
+          in: ['coach', 'assistant_coach', 'manager', 'owner'] as any,
         },
-      });
+        status: 'active',
+      },
+    });
 
-      if (!membership) {
-        return res.status(403).json({ error: 'No permission to create team chat' });
-      }
+    if (!membership) {
+      return res.status(403).json({ error: 'No permission to create team chat' });
+    }
 
-      // Verify all members are on this team
-      const teamMembers = await prisma.teamMembership.findMany({
-        where: { team_id: teamId, user_id: { in: memberIds }, status: 'active' },
-        select: { user_id: true },
-      });
-      const teamMemberIds = new Set(teamMembers.map(m => m.user_id));
-      const invalidMembers = memberIds.filter((id: string) => !teamMemberIds.has(id) && id !== req.user!.id);
-      if (invalidMembers.length > 0) {
-        return res.status(400).json({ error: 'Some members are not on this team', invalid: invalidMembers });
-      }
+    // Verify all members are active on this team
+    const teamMembers = await prisma.teamMembership.findMany({
+      where: { team_id: teamId, user_id: { in: memberIds }, status: 'active' },
+      select: { user_id: true },
+    });
+    const teamMemberIds = new Set(teamMembers.map(m => m.user_id));
+    const invalidMembers = memberIds.filter((id: string) => !teamMemberIds.has(id) && id !== req.user!.id);
+    if (invalidMembers.length > 0) {
+      return res.status(400).json({ error: 'Some members are not on this team', invalid: invalidMembers });
     }
 
     // Create the group chat

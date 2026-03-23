@@ -152,6 +152,13 @@ export default function EventApprovalsScreen() {
 
   const loadAll = useCallback(async () => {
     setError(null);
+    try {
+      const me = await User.me() as { preferences?: { role?: string }; approval_status?: string };
+      const isApprovedCoach = me?.preferences?.role === 'coach' && me?.approval_status === 'APPROVED';
+      if (!isApprovedCoach) return;
+    } catch {
+      return;
+    }
     await Promise.allSettled([loadEvents(), loadTeamInvites(), loadOrgRequests()]);
     if (loadEventsFailedRef.current && loadInvitesFailedRef.current && loadOrgFailedRef.current) {
       setError('Failed to load approvals. Pull down to refresh.');
