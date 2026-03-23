@@ -506,6 +506,16 @@ teamsRouter.post('/', requireVerified as any, requireOnboarded as any, requirePl
   // Validate organization exists
   const org = await prisma.organization.findUnique({ where: { id: parsed.data.organization_id } });
   if (!org) return res.status(400).json({ error: 'Organization not found' });
+  const orgMembership = await prisma.organizationMembership.findUnique({
+    where: { organization_id_user_id: { organization_id: parsed.data.organization_id, user_id: userId } },
+    select: { status: true },
+  });
+  if (!orgMembership || orgMembership.status !== 'active') {
+    return res.status(403).json({
+      error: 'ORGANIZATION_MEMBERSHIP_REQUIRED',
+      message: 'You must be an active member of this organization to create a team under it.',
+    });
+  }
 
   // Atomic limit check + create to prevent race condition on concurrent requests
   const userPrefs = (me.preferences && typeof me.preferences === 'object') ? (me.preferences as any) : {};
@@ -621,16 +631,39 @@ teamsRouter.put('/:id', requireVerified as any, requireOnboarded as any, asyncHa
   if (parsed.data.sport !== undefined) updateData.sport = parsed.data.sport;
   if (parsed.data.season !== undefined) updateData.season = parsed.data.season;
   if (parsed.data.organization_id !== undefined) {
-    // Validate: user must be a member of the target org (or admin) to move a team there
-    if (parsed.data.organization_id !== null && !isAdmin) {
-      const targetOrgMembership = await prisma.organizationMembership.findUnique({
-        where: { organization_id_user_id: { organization_id: parsed.data.organization_id, user_id: req.user!.id } }
+    if (parsed.data.organization_id === null) {
+      updateData.organization_id = null;
+    } else {
+      const targetOrganizationId = parsed.data.organization_id;
+      const targetOrg = await prisma.organization.findUnique({
+        where: { id: targetOrganizationId },
+        select: { id: true, status: true },
       });
-      if (!targetOrgMembership) {
-        return res.status(403).json({ error: 'You must be a member of the target organization to move a team there.' });
+      if (!targetOrg || targetOrg.status !== 'active') {
+        return res.status(400).json({ error: 'Target organization not found or inactive' });
       }
+
+      // Team may only be moved into orgs where the requester is an active member (unless platform admin).
+      if (!isAdmin && targetOrganizationId !== team.organization_id) {
+        const targetMembership = await prisma.organizationMembership.findUnique({
+          where: {
+            organization_id_user_id: {
+              organization_id: targetOrganizationId,
+              user_id: req.user.id,
+            },
+          },
+          select: { status: true },
+        });
+        if (!targetMembership || targetMembership.status !== 'active') {
+          return res.status(403).json({
+            error: 'ORGANIZATION_MEMBERSHIP_REQUIRED',
+            message: 'You must be an active member of the target organization to move this team.',
+          });
+        }
+      }
+
+      updateData.organization_id = targetOrganizationId;
     }
-    updateData.organization_id = parsed.data.organization_id === null ? null : parsed.data.organization_id;
   }
   if (parsed.data.logo_url !== undefined) updateData.logo_url = parsed.data.logo_url === '' ? null : parsed.data.logo_url;
   
@@ -1040,20 +1073,18 @@ teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, req
         });
       }
 
-      // Verify the coach is already an org member (owner, manager, or coach)
-      // Coaches cannot add teams to orgs they don't belong to
+      // Enforce org hierarchy: requester must already be an active member of target org.
       const orgMembership = await prisma.organizationMembership.findUnique({
-        where: { organization_id_user_id: { organization_id: organizationId, user_id: me.id } }
+        where: { organization_id_user_id: { organization_id: organizationId, user_id: me.id } },
+        select: { status: true },
       });
 
-      if (!orgMembership) {
-        const callerIsAdmin = await getIsAdmin(req as any);
-        if (!callerIsAdmin) {
-          return res.status(403).json({
-            error: 'You must be a member of this organization to create teams under it.',
-            code: 'ORG_MEMBERSHIP_REQUIRED'
-          });
-        }
+      if (!orgMembership || orgMembership.status !== 'active') {
+        return res.status(403).json({
+          error: 'ORGANIZATION_MEMBERSHIP_REQUIRED',
+          message: 'You must be an active member of this organization to create a team under it.',
+          code: 'ORGANIZATION_MEMBERSHIP_REQUIRED',
+        });
       }
     } catch (orgError: any) {
       console.error('[Teams] Failed to validate organization:', orgError);
@@ -1124,13 +1155,17 @@ teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, req
     // Handle authorized users if provided
     if (data.authorized_users && Array.isArray(data.authorized_users) && data.authorized_users.length > 0) {
       try {
+      const validInviteRoles = new Set(['manager', 'coach', 'assistant_coach', 'player', 'parent', 'member', 'equipment', 'health_wellness']);
         const invites = data.authorized_users
           .filter(user => user.email)
-          .map(user => ({
+        .map(user => {
+          const requestedRole = String(user.role || 'member');
+          return {
             team_id: team.id,
             email: user.email!,
-            role: (user.role || 'member') as any,
-          }));
+            role: (validInviteRoles.has(requestedRole) ? requestedRole : 'member') as any,
+          };
+        });
         
         if (invites.length > 0) {
           await prisma.teamInvite.createMany({
@@ -1205,6 +1240,7 @@ teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, req
 
 // Invite user by email to a team
 const inviteSchema = z.object({ email: z.string().email(), role: z.string().optional() });
+const VALID_TEAM_INVITE_ROLES = ['manager', 'coach', 'assistant_coach', 'player', 'parent', 'member', 'equipment', 'health_wellness'] as const;
 teamsRouter.post('/:id/invite', requireAuth as any, requireVerified as any, requireOnboarded as any, inviteLimiter, asyncHandler(async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const id = String(req.params.id);
@@ -1216,6 +1252,13 @@ teamsRouter.post('/:id/invite', requireAuth as any, requireVerified as any, requ
     });
   }
   const { email, role } = parsed.data;
+  const assignedRole = String(role || 'member');
+  if (!(VALID_TEAM_INVITE_ROLES as readonly string[]).includes(assignedRole)) {
+    return res.status(400).json({
+      error: 'Invalid role',
+      valid_roles: VALID_TEAM_INVITE_ROLES,
+    });
+  }
   const team = await prisma.team.findUnique({ where: { id } });
   if (!team) return res.status(404).json({ error: 'Team not found' });
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
@@ -1270,7 +1313,7 @@ teamsRouter.post('/:id/invite', requireAuth as any, requireVerified as any, requ
       }
 
       // Create invite within same transaction
-      return await tx.teamInvite.create({ data: { team_id: id, email, role: (role || 'member') as any } });
+      return await tx.teamInvite.create({ data: { team_id: id, email, role: assignedRole as any } });
     });
   } catch (e: any) {
     // Handle specific limit errors
@@ -1295,7 +1338,7 @@ teamsRouter.post('/:id/invite', requireAuth as any, requireVerified as any, requ
       to: email,
       teamName: team.name,
       organizationName: null,
-      role: role || 'member',
+      role: assignedRole,
       teamHeroUrl: team.logo_url || undefined,
       teamLogoUrl: team.avatar_url || undefined,
       inviterName: inviter?.display_name || 'Team Owner',
@@ -1321,7 +1364,7 @@ teamsRouter.post('/:id/invite', requireAuth as any, requireVerified as any, requ
             team_id: team.id,
             team_name: team.name,
             invite_id: invite.id,
-            role: role || 'member'
+            role: assignedRole
           }
         }
       });
@@ -1372,16 +1415,9 @@ teamsRouter.post('/invites/:inviteId/accept', requireAuth as any, async (req: Au
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const inviteId = String(req.params.inviteId);
   const invite = await prisma.teamInvite.findUnique({ where: { id: inviteId } });
-  if (!invite || invite.status !== 'pending') return res.status(404).json({ error: 'Invite not found or expired' });
-  // Expire invites older than 30 days
-  const INVITE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
-  if (Date.now() - new Date(invite.created_at).getTime() > INVITE_MAX_AGE_MS) {
-    await prisma.teamInvite.update({ where: { id: invite.id }, data: { status: 'declined' } });
-    return res.status(404).json({ error: 'Invite not found or expired' });
-  }
+  if (!invite || invite.status !== 'pending') return res.status(404).json({ error: 'Invite not found' });
   const user = await prisma.user.findUnique({ where: { id: req.user.id } });
-  // Uniform error message prevents invite enumeration
-  if (!user?.email || user.email.toLowerCase() !== invite.email.toLowerCase()) return res.status(404).json({ error: 'Invite not found or expired' });
+  if (!user?.email || user.email.toLowerCase() !== invite.email.toLowerCase()) return res.status(403).json({ error: 'Invite not for this user' });
   const existingMembership = await prisma.teamMembership.findUnique({
     where: {
       team_id_user_id: {
@@ -1466,9 +1502,9 @@ teamsRouter.post('/invites/:inviteId/decline', requireAuth as any, async (req: A
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const inviteId = String(req.params.inviteId);
   const invite = await prisma.teamInvite.findUnique({ where: { id: inviteId } });
-  if (!invite || invite.status !== 'pending') return res.status(404).json({ error: 'Invite not found or expired' });
+  if (!invite || invite.status !== 'pending') return res.status(404).json({ error: 'Invite not found' });
   const user = await prisma.user.findUnique({ where: { id: req.user.id } });
-  if (!user?.email || user.email.toLowerCase() !== invite.email.toLowerCase()) return res.status(404).json({ error: 'Invite not found or expired' });
+  if (!user?.email || user.email.toLowerCase() !== invite.email.toLowerCase()) return res.status(403).json({ error: 'Invite not for this user' });
   await prisma.teamInvite.update({ where: { id: invite.id }, data: { status: 'declined' } });
   return res.json({ ok: true });
   } catch (err) {

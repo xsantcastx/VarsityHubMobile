@@ -46,7 +46,7 @@ export function BannerAd({
       return;
     }
 
-    // SECURITY: Allow only https and http schemes — reject javascript:, data:, file:, etc.
+    // SECURITY: Allow only web schemes, then enforce HTTPS before opening.
     const trimmed = targetUrl.trim().toLowerCase();
     const hasProtocol = trimmed.match(/^[a-z]+:/);
     if (hasProtocol && !trimmed.startsWith('https://') && !trimmed.startsWith('http://')) {
@@ -54,10 +54,16 @@ export function BannerAd({
       return;
     }
 
-    // Normalize the URL - add https:// if no protocol is present
+    // Normalize to HTTPS: add protocol when missing and upgrade http:// links.
     let normalizedUrl = targetUrl.trim();
-    if (!normalizedUrl.match(/^https?:\/\//i)) {
+    if (normalizedUrl.match(/^http:\/\//i)) {
+      normalizedUrl = normalizedUrl.replace(/^http:\/\//i, 'https://');
+    } else if (!normalizedUrl.match(/^https?:\/\//i)) {
       normalizedUrl = `https://${normalizedUrl}`;
+    }
+    if (!normalizedUrl.match(/^https:\/\//i)) {
+      Alert.alert('Invalid Link', 'Only secure (HTTPS) links are allowed.');
+      return;
     }
 
     // Show confirmation dialog before opening external link

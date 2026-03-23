@@ -6,13 +6,78 @@ import { clearAuthToken, getApiBaseUrl, getAuthToken, httpGet, httpPost, httpPos
 const TOKEN_KEY = 'auth_token_key';
 const REFRESH_TOKEN_KEY = 'refresh_token_key';
 
+function getWebSessionStorage(): Storage | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return window.sessionStorage;
+  } catch {
+    return null;
+  }
+}
+
+function getWebLocalStorage(): Storage | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+function readWebToken(key: string): string | null {
+  const session = getWebSessionStorage();
+  const sessionValue = session?.getItem(key) ?? null;
+  if (sessionValue) return sessionValue;
+
+  // One-time migration from legacy localStorage to sessionStorage.
+  const local = getWebLocalStorage();
+  const legacyValue = local?.getItem(key) ?? null;
+  if (legacyValue && session) {
+    try {
+      session.setItem(key, legacyValue);
+      local?.removeItem(key);
+    } catch {
+      // Best-effort migration only.
+    }
+  }
+  return legacyValue;
+}
+
+function clearWebToken(key: string) {
+  try {
+    getWebSessionStorage()?.removeItem(key);
+  } catch {
+    // no-op
+  }
+  try {
+    getWebLocalStorage()?.removeItem(key);
+  } catch {
+    // no-op
+  }
+}
+
+function clearLegacyWebToken(key: string) {
+  try {
+    getWebLocalStorage()?.removeItem(key);
+  } catch {
+    // no-op
+  }
+}
+
 async function saveToken(token: string | null) {
   setAuthToken(token);
   try {
     if (Platform.OS === 'web') {
-      window.localStorage.setItem(TOKEN_KEY, token || '');
+      const session = getWebSessionStorage();
+      if (token) {
+        if (session) session.setItem(TOKEN_KEY, token);
+      } else {
+        clearWebToken(TOKEN_KEY);
+      }
+      clearLegacyWebToken(TOKEN_KEY);
     } else {
-      await SecureStore.setItemAsync(TOKEN_KEY, token || '');
+      if (token) await SecureStore.setItemAsync(TOKEN_KEY, token);
+      else await SecureStore.deleteItemAsync(TOKEN_KEY);
     }
   } catch (error) {
     if (__DEV__) console.error('[auth] Failed to save token to secure storage:', error);
@@ -22,8 +87,14 @@ async function saveToken(token: string | null) {
 async function saveRefreshToken(token: string | null) {
   try {
     if (Platform.OS === 'web') {
-      if (token) window.localStorage.setItem(REFRESH_TOKEN_KEY, token);
-      else window.localStorage.removeItem(REFRESH_TOKEN_KEY);
+      const session = getWebSessionStorage();
+      if (token) {
+        if (session) session.setItem(REFRESH_TOKEN_KEY, token);
+      } else {
+        clearWebToken(REFRESH_TOKEN_KEY);
+      }
+      // Ensure no legacy refresh token remains in persistent storage.
+      clearLegacyWebToken(REFRESH_TOKEN_KEY);
     } else {
       if (token) await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, token);
       else await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
@@ -35,7 +106,7 @@ async function saveRefreshToken(token: string | null) {
 
 async function loadRefreshToken(): Promise<string | null> {
   try {
-    if (Platform.OS === 'web') return window.localStorage.getItem(REFRESH_TOKEN_KEY);
+    if (Platform.OS === 'web') return readWebToken(REFRESH_TOKEN_KEY);
     return await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
   } catch (error) {
     if (__DEV__) console.error('[auth] Failed to load refresh token from secure storage:', error);
@@ -48,7 +119,7 @@ export async function loadToken(): Promise<string | null> {
   if (cached) return cached;
   let t: string | null = null;
   try {
-    if (Platform.OS === 'web') t = window.localStorage.getItem(TOKEN_KEY);
+    if (Platform.OS === 'web') t = readWebToken(TOKEN_KEY);
     else t = await SecureStore.getItemAsync(TOKEN_KEY);
   } catch (error) {
     if (__DEV__) console.error('[auth] Failed to load token from secure storage:', error);
@@ -63,8 +134,8 @@ export const auth = {
     clearAuthToken();
     try {
       if (Platform.OS === 'web') {
-        window.localStorage.removeItem(TOKEN_KEY);
-        window.localStorage.removeItem(REFRESH_TOKEN_KEY);
+        clearWebToken(TOKEN_KEY);
+        clearWebToken(REFRESH_TOKEN_KEY);
       } else {
         await SecureStore.deleteItemAsync(TOKEN_KEY);
         await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
@@ -130,8 +201,8 @@ export const auth = {
     clearAuthToken();
     try {
       if (Platform.OS === 'web') {
-        window.localStorage.removeItem(TOKEN_KEY);
-        window.localStorage.removeItem(REFRESH_TOKEN_KEY);
+        clearWebToken(TOKEN_KEY);
+        clearWebToken(REFRESH_TOKEN_KEY);
       } else {
         await SecureStore.deleteItemAsync(TOKEN_KEY);
         await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);

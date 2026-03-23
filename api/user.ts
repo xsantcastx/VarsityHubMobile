@@ -71,5 +71,6 @@ export const User = {
   acceptFollow: (id: string) => httpPost(`/users/${encodeURIComponent(id)}/accept-follow`, {}),
   rejectFollow: (id: string) => httpPost(`/users/${encodeURIComponent(id)}/reject-follow`, {}),
   getFollowRequests: () => httpGet('/users/me/follow-requests'),
-  deleteAccount: (password: string) => httpDelete('/users/me', { password }),
+  deleteAccount: (payload?: { password?: string; delete_confirmation?: string }) =>
+    httpDelete('/users/me', payload || {}),
 };

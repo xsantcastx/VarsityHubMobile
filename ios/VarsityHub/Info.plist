@@ -40,7 +40,7 @@
     <key>CFBundleVersion</key>
     <string>49</string>
     <key>GMSApiKey</key>
-    <string>AIzaSyDKZL34B2z-qVvfWKfLUVsAL7I_jCXbGFA</string>
+    <string>$(GOOGLE_MAPS_API_KEY)</string>
     <key>ITSAppUsesNonExemptEncryption</key>
     <false/>
     <key>LSMinimumSystemVersion</key>
@@ -56,12 +56,6 @@
     </dict>
     <key>NSCameraUsageDescription</key>
     <string>Allow VarsityHub to use the camera for capturing photos and videos.</string>
-    <key>NSFaceIDUsageDescription</key>
-    <string>Allow VarsityHub to access your Face ID biometric data.</string>
-    <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-    <string>Allow VarsityHub to use your location to show nearby events.</string>
-    <key>NSLocationAlwaysUsageDescription</key>
-    <string>Allow VarsityHub to access your location.</string>
     <key>NSLocationWhenInUseUsageDescription</key>
     <string>Allow VarsityHub to use your location to show nearby events on the map.</string>
     <key>NSMicrophoneUsageDescription</key>

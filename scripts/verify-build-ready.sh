@@ -310,18 +310,29 @@ echo ""
 # Critical blockers check (from READINESS_CHECKLIST)
 echo -e "${BLUE}Step 9: Critical blockers verification...${NC}"
 
-# Google Maps API Key check (iOS + Android)
-IOS_GMAPS_KEY=$(node -e "console.log(JSON.parse(require('fs').readFileSync('app.json', 'utf8')).expo.ios?.config?.googleMapsApiKey || '')" 2>/dev/null)
-ANDROID_GMAPS_KEY=$(node -e "console.log(JSON.parse(require('fs').readFileSync('app.json', 'utf8')).expo.android?.config?.googleMaps?.apiKey || '')" 2>/dev/null)
-if [ -n "$IOS_GMAPS_KEY" ] && [ "$IOS_GMAPS_KEY" != "YOUR_GOOGLE_MAPS_API_KEY" ]; then
-    echo -e "${GREEN}✅ iOS Google Maps API key configured${NC}"
-else
-    mark_warning_or_error "iOS Google Maps API key missing or placeholder (ios.config.googleMapsApiKey)"
+# Google Maps API Key check (env-driven config supported)
+MAPS_KEY=$(node -e "console.log(JSON.parse(require('fs').readFileSync('app.json', 'utf8')).expo.extra?.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '')" 2>/dev/null)
+MAPS_KEY_FROM_EAS=0
+if [ -z "$MAPS_KEY" ] || [ "$MAPS_KEY" = "" ]; then
+    MAPS_KEY=$(get_eas_env_value "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY")
+    if [ "$MAPS_KEY" = "__EAS_ENV_PRESENT__" ]; then
+        MAPS_KEY_FROM_EAS=1
+    fi
 fi
-if [ -n "$ANDROID_GMAPS_KEY" ] && [ "$ANDROID_GMAPS_KEY" != "YOUR_GOOGLE_MAPS_API_KEY" ]; then
-    echo -e "${GREEN}✅ Android Google Maps API key configured${NC}"
+
+ANDROID_PLACEHOLDER_OK=0
+IOS_PLACEHOLDER_OK=0
+if grep -q 'com.google.android.geo.API_KEY' android/app/src/main/AndroidManifest.xml 2>/dev/null && grep -q '\${GOOGLE_MAPS_API_KEY}' android/app/src/main/AndroidManifest.xml 2>/dev/null; then
+    ANDROID_PLACEHOLDER_OK=1
+fi
+if grep -q 'GOOGLE_MAPS_API_KEY' ios/VarsityHub.xcodeproj/project.pbxproj 2>/dev/null && grep -q '\$(GOOGLE_MAPS_API_KEY)' ios/VarsityHub/Info.plist 2>/dev/null; then
+    IOS_PLACEHOLDER_OK=1
+fi
+
+if [ "$MAPS_KEY_FROM_EAS" -eq 1 ] || [ -n "$MAPS_KEY" ] || { [ "$ANDROID_PLACEHOLDER_OK" -eq 1 ] && [ "$IOS_PLACEHOLDER_OK" -eq 1 ]; }; then
+    echo -e "${GREEN}✅ Google Maps API key configured (env-driven)${NC}"
 else
-    mark_warning_or_error "Android Google Maps API key missing or placeholder (android.config.googleMaps.apiKey)"
+    mark_warning_or_error "Google Maps API key not configured (set EXPO_PUBLIC_GOOGLE_MAPS_API_KEY in EAS env/secrets)"
 fi
 
 # Apple submission info check

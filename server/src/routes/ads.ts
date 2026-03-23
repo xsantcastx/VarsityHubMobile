@@ -22,8 +22,8 @@ const adCreateSchema = z.object({
   banner_url: z.string().url().max(2048).nullish(),
   banner_fit_mode: z.enum(['cover', 'contain', 'fill']).nullish(),
   target_url: z.string().url().max(2048).refine(
-    (url) => /^https?:\/\//i.test(url),
-    { message: 'target_url must use http or https protocol' }
+    (url) => /^https:\/\//i.test(url),
+    { message: 'target_url must use https protocol' }
   ).nullish(),
   target_zip_code: z.string().regex(/^\d{5}$/, 'Must be a 5-digit US zip code'),
   radius: z.number().optional(),
@@ -37,8 +37,8 @@ const adUpdateSchema = z.object({
   banner_url: z.string().url().max(2048).nullish(),
   banner_fit_mode: z.enum(['cover', 'contain', 'fill']).nullish(),
   target_url: z.string().url().max(2048).refine(
-    (url) => /^https?:\/\//i.test(url),
-    { message: 'target_url must use http or https protocol' }
+    (url) => /^https:\/\//i.test(url),
+    { message: 'target_url must use https protocol' }
   ).nullish(),
   target_zip_code: z.string().regex(/^\d{5}$/, 'Must be a 5-digit US zip code').optional(),
   radius: z.number().optional(),

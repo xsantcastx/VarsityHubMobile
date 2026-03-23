@@ -27,6 +27,9 @@ interface UserMeResponse {
   avatar_url?: string | null;
   bio?: string;
   preferences?: Record<string, unknown>;
+  google_id?: string | null;
+  apple_id?: string | null;
+  has_password?: boolean;
 }
 
 type CommentPermission = 'everyone' | 'following' | 'none';
@@ -121,6 +124,7 @@ export default function SettingsScreen() {
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deletePassword, setDeletePassword] = useState('');
+  const [deleteRequiresPassword, setDeleteRequiresPassword] = useState(true);
   const [deletingAccount, setDeletingAccount] = useState(false);
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
@@ -222,14 +226,22 @@ export default function SettingsScreen() {
 
               const performDeleteAccount = async () => {
                 if (deletingAccount) return;
+                if (deleteConfirmText.trim().toUpperCase() !== 'DELETE') {
+                  Alert.alert('Confirmation required', 'Type DELETE to confirm account deletion.');
+                  return;
+                }
                 const pwd = deletePassword.trim();
-                if (!pwd) {
+                if (deleteRequiresPassword && !pwd) {
                   Alert.alert('Password required', 'Enter your password to confirm account deletion.');
                   return;
                 }
                 setDeletingAccount(true);
                 try {
-                  await User.deleteAccount(pwd);
+                  if (deleteRequiresPassword) {
+                    await User.deleteAccount({ password: pwd });
+                  } else {
+                    await User.deleteAccount({ delete_confirmation: 'DELETE' });
+                  }
                 } catch (error: any) {
                   if (__DEV__) console.error('[settings] Account deletion failed:', error);
                   const msg = error?.data?.message || error?.message || 'Could not delete your account.';
@@ -286,6 +298,11 @@ export default function SettingsScreen() {
                     setPlan(serverPrefs?.plan ?? null);
                     const effectiveRole = (serverPrefs?.role || me?.role || null) as string | null;
                     setRole(effectiveRole);
+                    const hasOauthProvider = !!(me?.google_id || me?.apple_id);
+                    const hasPassword = typeof me?.has_password === 'boolean'
+                      ? me.has_password
+                      : !hasOauthProvider;
+                    setDeleteRequiresPassword(hasPassword);
 
                     // Fetch pending host event requests for coaches
                     if (effectiveRole === 'coach') {
@@ -605,7 +622,9 @@ export default function SettingsScreen() {
                         <View style={[styles.deleteModalCard, { backgroundColor: Colors[colorScheme ?? 'light'].card, borderColor: Colors[colorScheme ?? 'light'].border }]}>
                           <Text style={[styles.deleteModalTitle, { color: Colors[colorScheme ?? 'light'].text }]}>Delete Account</Text>
                           <Text style={[styles.deleteModalBody, { color: Colors[colorScheme ?? 'light'].mutedText }]}>
-                            This permanently deletes your account. Type DELETE and enter your password to confirm.
+                            {deleteRequiresPassword
+                              ? 'This permanently deletes your account. Type DELETE and enter your password to confirm.'
+                              : 'This permanently deletes your account. Type DELETE to confirm.'}
                           </Text>
                           <TextInput
                             value={deleteConfirmText}
@@ -617,15 +636,17 @@ export default function SettingsScreen() {
                             placeholderTextColor={Colors[colorScheme ?? 'light'].mutedText}
                             style={[styles.deleteInput, { color: Colors[colorScheme ?? 'light'].text, borderColor: Colors[colorScheme ?? 'light'].border }]}
                           />
-                          <TextInput
-                            value={deletePassword}
-                            onChangeText={setDeletePassword}
-                            editable={!deletingAccount}
-                            placeholder="Password"
-                            placeholderTextColor={Colors[colorScheme ?? 'light'].mutedText}
-                            secureTextEntry
-                            style={[styles.deleteInput, { color: Colors[colorScheme ?? 'light'].text, borderColor: Colors[colorScheme ?? 'light'].border, marginTop: 8 }]}
-                          />
+                          {deleteRequiresPassword && (
+                            <TextInput
+                              value={deletePassword}
+                              onChangeText={setDeletePassword}
+                              editable={!deletingAccount}
+                              placeholder="Password"
+                              placeholderTextColor={Colors[colorScheme ?? 'light'].mutedText}
+                              secureTextEntry
+                              style={[styles.deleteInput, { color: Colors[colorScheme ?? 'light'].text, borderColor: Colors[colorScheme ?? 'light'].border, marginTop: 8 }]}
+                            />
+                          )}
                           <View style={styles.deleteModalActions}>
                             <Pressable
                               style={[styles.deleteActionBtn, styles.deleteCancelBtn]}
@@ -639,9 +660,11 @@ export default function SettingsScreen() {
                               style={[
                                 styles.deleteActionBtn,
                                 styles.deleteConfirmBtn,
-                                (deleteConfirmText.trim() !== 'DELETE' || !deletePassword.trim() || deletingAccount) && styles.deleteConfirmBtnDisabled,
+                                (deleteConfirmText.trim().toUpperCase() !== 'DELETE' ||
+                                  (deleteRequiresPassword && !deletePassword.trim()) ||
+                                  deletingAccount) && styles.deleteConfirmBtnDisabled,
                               ]}
-                              disabled={deleteConfirmText.trim() !== 'DELETE' || !deletePassword.trim() || deletingAccount}
+                              disabled={deleteConfirmText.trim().toUpperCase() !== 'DELETE' || (deleteRequiresPassword && !deletePassword.trim()) || deletingAccount}
                               onPress={() => { void performDeleteAccount(); }}
                             >
                               <Text style={styles.deleteConfirmText}>{deletingAccount ? 'Deleting…' : 'Delete'}</Text>

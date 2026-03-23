@@ -28,9 +28,6 @@
       "appleTeamId": "B5H8F69RW5",
       "bundleIdentifier": "com.varsithub.varsityhub-ios",
       "usesAppleSignIn": true,
-      "config": {
-        "googleMapsApiKey": "AIzaSyDKZL34B2z-qVvfWKfLUVsAL7I_jCXbGFA"
-      },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "VarsityHub needs camera access to capture photos and videos for your sports content.",
@@ -57,11 +54,6 @@
       "softwareKeyboardLayoutMode": "pan",
       "edgeToEdgeEnabled": true,
       "package": "com.varsityhub.varsityhub",
-      "config": {
-        "googleMaps": {
-          "apiKey": "AIzaSyDKZL34B2z-qVvfWKfLUVsAL7I_jCXbGFA"
-        }
-      },
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_MEDIA_IMAGES",
@@ -169,7 +161,8 @@
       "EXPO_PUBLIC_WEB_BASE_URL": "https://varsityhub.app",
       "APP_STORE_PRIVACY_POLICY_URL": "https://varsityhub.app/privacy-policy",
       "EXPO_PUBLIC_SENTRY_DSN": "https://dba14af58de85862ac7f1cb132e19ff5@o4510445730070528.ingest.us.sentry.io/4510445740687360",
-      "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_live_51RtgdGGJt8CsPE1E5nDpNo8bfow30VYpeqZwJfp6y1SP49NbwaruTcMWOi04SxujUTjACB3fwJwFSTgItU4IlA4S00HFBL7D3p",
+      "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "",
+      "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "",
       "EXPO_PUBLIC_ADMIN_EMAILS": "emancero@varsityhub.app",
       "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "514463516787-bhvkja2devf8mrk204pcti7nld90d2g9.apps.googleusercontent.com",
       "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "514463516787-dm665i3u3a6un7eties8q73eik17vcs3.apps.googleusercontent.com",

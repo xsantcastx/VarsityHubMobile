@@ -76,7 +76,8 @@ export const User = {
   // GDPR/CCPA data portability - export all user data as JSON (longer timeout for large exports)
   exportMyData: () => httpGet('/users/me/export', {}, 60000),
   upgradeToCoach: (plan: 'rookie' | 'veteran' | 'legend') => httpPost('/auth/upgrade-to-coach', { plan }),
-  deleteAccount: (password: string) => httpDelete('/users/me', { password }),
+  deleteAccount: (payload?: { password?: string; delete_confirmation?: string }) =>
+    httpDelete('/users/me', payload || {}),
   acceptFollow: (userId: string) => httpPost(`/users/${encodeURIComponent(userId)}/accept-follow`, {}),
   rejectFollow: (userId: string) => httpPost(`/users/${encodeURIComponent(userId)}/reject-follow`, {}),
 };

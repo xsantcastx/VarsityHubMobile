@@ -12,8 +12,11 @@ const { withInfoPlist } = require('expo/config-plugins');
 
 function withGoogleMaps(config) {
   return withInfoPlist(config, (config) => {
-    // Get API key from ios.config.googleMapsApiKey in app.json
-    const apiKey = config.ios?.config?.googleMapsApiKey;
+    // Prefer env-driven key and fall back to app config if present.
+    const apiKey =
+      process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ||
+      process.env.GOOGLE_MAPS_API_KEY ||
+      config.ios?.config?.googleMapsApiKey;
     
     if (apiKey) {
       // Add GMSApiKey to Info.plist for react-native-maps

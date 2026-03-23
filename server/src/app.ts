@@ -14,6 +14,7 @@ import { swaggerSpec } from './lib/swagger.js';
 import { authMiddleware } from './middleware/auth.js';
 import { requireAuth } from './middleware/requireAuth.js';
 import { requireVerified } from './middleware/requireVerified.js';
+import { requireOnboarded } from './middleware/requireOnboarded.js';
 import adminRouter from './routes/admin.js';
 import { adminReportsRouter } from './routes/adminReports.js';
 import { adsRouter, handleAdSubmitForApproval } from './routes/ads.js';
@@ -247,7 +248,7 @@ app.use('/group-chats', noStore, apiLimiter, groupChatsRouter);
 app.use('/uploads', uploadsRouter);
 
 // App-level route for submit-for-approval (guarantees it's registered before any router)
-app.post('/ads/:id/submit-for-approval', requireAuth as any, requireVerified as any, handleAdSubmitForApproval as any);
+app.post('/ads/:id/submit-for-approval', requireAuth as any, requireVerified as any, requireOnboarded as any, handleAdSubmitForApproval as any);
 app.use('/ads', adsRouter);
 app.use('/payments', paymentsRouter);
 app.use('/admin', noStore, apiLimiter, adminRouter);
