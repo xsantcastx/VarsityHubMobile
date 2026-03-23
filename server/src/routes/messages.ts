@@ -165,11 +165,18 @@ if (!toId && conversation_id) {
   const dmMatch = conversation_id.match(/^dm:(.+)__(.+)$/);
   if (dmMatch) {
     const [, id1, id2] = dmMatch;
+    // Verify sender is actually a participant in this conversation
+    if (id1 !== meId && id2 !== meId) {
+      return res.status(403).json({ error: 'You are not a participant in this conversation' });
+    }
     toId = id1 === meId ? id2 : id1;
   } else {
-    // Fallback: look up the other participant from existing messages
+    // Fallback: look up the other participant from existing messages — verify sender is a participant
     const existing = await prisma.message.findFirst({
-      where: { conversation_id },
+      where: {
+        conversation_id,
+        OR: [{ sender_id: meId }, { recipient_id: meId }],
+      },
       select: { sender_id: true, recipient_id: true },
     });
     if (existing) {
@@ -226,13 +233,21 @@ if (dmPolicy === 'no_one') {
   return res.status(403).json({ error: 'DM_RESTRICTED', message: 'This user does not accept direct messages.' });
 }
 if (dmPolicy === 'following') {
-  // Recipient only accepts DMs from people they follow
-  const recipientFollowsSender = await prisma.follows.findUnique({
-    where: { follower_id_following_id: { follower_id: toId!, following_id: meId } },
+  // Recipient only accepts DMs from people they follow (must be accepted, not pending)
+  const recipientFollowsSender = await prisma.follows.findFirst({
+    where: { follower_id: toId!, following_id: meId, status: 'accepted' },
   });
   if (!recipientFollowsSender) {
     return res.status(403).json({ error: 'DM_RESTRICTED', message: 'This user only accepts messages from people they follow.' });
   }
+}
+
+// Block check: cannot message blocked/blocking users
+const blockCheck = await prisma.blockedUser.findFirst({
+  where: { OR: [{ blocker_id: meId, blocked_id: toId! }, { blocker_id: toId!, blocked_id: meId }] },
+});
+if (blockCheck) {
+  return res.status(403).json({ error: 'Cannot send message to this user.' });
 }
 
 const senderAge = ageFromDob((me?.preferences as any)?.dob);
@@ -240,8 +255,8 @@ const recipientAge = ageFromDob(recipientPrefs?.dob);
 
 // Minor (under 18) may only message accounts they follow
 if (senderAge !== null && senderAge < 18) {
-  const follows = await prisma.follows.findUnique({
-    where: { follower_id_following_id: { follower_id: meId, following_id: toId! } }
+  const follows = await prisma.follows.findFirst({
+    where: { follower_id: meId, following_id: toId!, status: 'accepted' },
   });
   if (!follows) {
     return res.status(403).json({

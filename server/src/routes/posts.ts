@@ -1033,6 +1033,12 @@ postsRouter.post('/:id/comments', requireAuth as any, commentLimiter, asyncHandl
   });
   if (!post) return res.status(404).json({ error: 'Post not found' });
 
+  // Block interaction with hidden/blocked authors' posts
+  const isHidden = await isAuthorHiddenFromViewer(post.author_id, req.user!.id);
+  if (isHidden) return res.status(404).json({ error: 'Post not found' });
+  const blockedIds = await getBlockedUserIds(req.user!.id);
+  if (blockedIds.includes(post.author_id)) return res.status(404).json({ error: 'Post not found' });
+
   // Enforce comment_permission: everyone | following | none (post author's preference)
   const prefs = ((post as any).author?.preferences || {}) as any;
   const commentPermission = prefs?.comment_permission ?? 'everyone';
@@ -1043,8 +1049,8 @@ postsRouter.post('/:id/comments', requireAuth as any, commentLimiter, asyncHandl
     });
   }
   if (commentPermission === 'following' && post.author_id !== req.user!.id) {
-    const follows = await prisma.follows.findUnique({
-      where: { follower_id_following_id: { follower_id: req.user!.id, following_id: post.author_id } },
+    const follows = await prisma.follows.findFirst({
+      where: { follower_id: req.user!.id, following_id: post.author_id, status: 'accepted' },
       select: { follower_id: true },
     });
     if (!follows) {
@@ -1168,8 +1174,12 @@ postsRouter.post('/:id/upvote', requireAuth as any, interactionLimiter, async (r
   const postId = String(req.params.id);
   const userId = req.user!.id;
 
-  const postExists = await prisma.post.findFirst({ where: { id: postId, deleted_at: null }, select: { id: true } });
+  const postExists = await prisma.post.findFirst({ where: { id: postId, deleted_at: null }, select: { id: true, author_id: true } });
   if (!postExists) return res.status(404).json({ error: 'Post not found' });
+  const upvoteHidden = await isAuthorHiddenFromViewer(postExists.author_id, userId);
+  if (upvoteHidden) return res.status(404).json({ error: 'Post not found' });
+  const upvoteBlocked = await getBlockedUserIds(userId);
+  if (upvoteBlocked.includes(postExists.author_id)) return res.status(404).json({ error: 'Post not found' });
 
   const existing = await prisma.postUpvote.findUnique({ where: { post_id_user_id: { post_id: postId, user_id: userId } } });
   if (existing) {
@@ -1230,8 +1240,12 @@ postsRouter.post('/:id/bookmark', requireAuth as any, interactionLimiter, async 
   const postId = String(req.params.id);
   const userId = req.user!.id;
 
-  const postExists = await prisma.post.findFirst({ where: { id: postId, deleted_at: null }, select: { id: true } });
+  const postExists = await prisma.post.findFirst({ where: { id: postId, deleted_at: null }, select: { id: true, author_id: true } });
   if (!postExists) return res.status(404).json({ error: 'Post not found' });
+  const bmHidden = await isAuthorHiddenFromViewer(postExists.author_id, userId);
+  if (bmHidden) return res.status(404).json({ error: 'Post not found' });
+  const bmBlocked = await getBlockedUserIds(userId);
+  if (bmBlocked.includes(postExists.author_id)) return res.status(404).json({ error: 'Post not found' });
 
   const existing = await prisma.postBookmark.findUnique({ where: { post_id_user_id: { post_id: postId, user_id: userId } } });
   if (existing) {
@@ -1260,6 +1274,10 @@ postsRouter.post('/:id/share', requireAuth as any, async (req: AuthedRequest, re
     select: { id: true, author_id: true, author: { select: { display_name: true } } },
   });
   if (!post) return res.status(404).json({ error: 'Post not found' });
+  const shareHidden = await isAuthorHiddenFromViewer(post.author_id, userId);
+  if (shareHidden) return res.status(404).json({ error: 'Post not found' });
+  const shareBlocked = await getBlockedUserIds(userId);
+  if (shareBlocked.includes(post.author_id)) return res.status(404).json({ error: 'Post not found' });
 
   const postAuthorId = post.author_id;
   if (postAuthorId && postAuthorId !== userId) {

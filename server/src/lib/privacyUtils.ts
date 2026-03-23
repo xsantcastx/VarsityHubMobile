@@ -22,6 +22,7 @@ export async function getExcludedPrivateAuthorIds(viewerId: string | null): Prom
     where: {
       follower_id: viewerId,
       following_id: { in: privateIds },
+      status: 'accepted',
     },
     select: { following_id: true },
   });
@@ -73,8 +74,12 @@ export async function isAuthorHiddenFromViewer(authorId: string, viewerId: strin
 
   if (!viewerId) return true;
 
-  const rel = await prisma.follows.findUnique({
-    where: { follower_id_following_id: { follower_id: viewerId, following_id: authorId } },
+  const rel = await prisma.follows.findFirst({
+    where: {
+      follower_id: viewerId,
+      following_id: authorId,
+      status: 'accepted',
+    },
     select: { follower_id: true },
   });
 
