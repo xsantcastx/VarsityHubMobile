@@ -71,6 +71,14 @@ export async function autocompleteLocations(query: string, limit: number = 6): P
       if (__DEV__) console.log('[geocoding] Autocomplete endpoint not available, returning empty results');
       return [];
     }
-    throw error;
+    if (__DEV__) console.warn('[geocoding] Autocomplete failed, falling back to typed query', error?.message || error);
+    return [{
+      description: trimmed,
+      place_id: `manual_${encodeURIComponent(normalized)}`,
+      structured_formatting: {
+        main_text: trimmed,
+        secondary_text: 'Use typed location',
+      },
+    }];
   }
 }

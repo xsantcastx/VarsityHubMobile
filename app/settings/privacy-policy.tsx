@@ -10,9 +10,7 @@ export default function PrivacyPolicyScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['bottom']}>
       <Stack.Screen options={{ title: 'Privacy Policy' }} />
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={[styles.updatedAt, { color: Colors[colorScheme].mutedText }]}>
-          Last updated: January 19, 2025
-        </Text>
+        <Text style={[styles.updatedAt, { color: Colors[colorScheme].mutedText }]}>Last updated: March 23, 2026</Text>
 
         <PolicySection colorScheme={colorScheme} title="Introduction"
           body={'VarsityHub ("we", "our", or "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our mobile application.'} />
@@ -54,7 +52,7 @@ export default function PrivacyPolicyScreen() {
           body="We may update this Privacy Policy periodically. We will notify you of significant changes via in-app notification or email to your registered address." />
 
         <PolicySection colorScheme={colorScheme} title="Contact Us"
-          body="If you have questions about this Privacy Policy, email us at support@varsityhub.app." />
+          body="If you have questions about this Privacy Policy, email us at support@varsityhub.app. Full legal policy: varsityhub.app/legal" />
 
         <Text style={[styles.footer, { color: Colors[colorScheme].mutedText }]}>
           © 2026 VarsityHub. All rights reserved.

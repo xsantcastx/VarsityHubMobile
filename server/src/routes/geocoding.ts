@@ -57,16 +57,25 @@ geocodingRouter.post('/location', requireAuth, async (req: AuthedRequest, res) =
 const autocompleteSchema = z.object({
   input: z.string().min(1),
   sessiontoken: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(10).optional(),
 });
 
 geocodingRouter.get('/autocomplete', requireAuth, async (req: AuthedRequest, res) => {
   try {
-    const { input, sessiontoken } = autocompleteSchema.parse(req.query);
+    const { input, sessiontoken, limit } = autocompleteSchema.parse(req.query);
     const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+    const fallbackSuggestions = [{
+      description: input,
+      place_id: `manual_${encodeURIComponent(input.trim().toLowerCase())}`,
+      structured_formatting: {
+        main_text: input,
+        secondary_text: 'Use typed location',
+      },
+    }];
 
     if (!apiKey) {
-      console.error('Autocomplete error: GOOGLE_MAPS_API_KEY is not set.');
-      return res.status(500).json({ error: 'Server configuration error' });
+      console.warn('Autocomplete fallback: GOOGLE_MAPS_API_KEY is not set.');
+      return res.json({ suggestions: fallbackSuggestions });
     }
 
     const response = await axios.get('https://maps.googleapis.com/maps/api/place/autocomplete/json', {
@@ -83,14 +92,14 @@ geocodingRouter.get('/autocomplete', requireAuth, async (req: AuthedRequest, res
 
     if (response.data.status !== 'OK') {
       console.warn(`Autocomplete for "${input}" failed with status: ${response.data.status}`);
-      return res.status(500).json({ error: 'Failed to fetch place suggestions' });
+      return res.json({ suggestions: fallbackSuggestions });
     }
 
     const suggestions = response.data.predictions.map((p: any) => ({
       description: p.description,
       place_id: p.place_id,
       structured_formatting: p.structured_formatting,
-    }));
+    })).slice(0, limit || 6);
 
     return res.json({ suggestions });
   } catch (error) {
