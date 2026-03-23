@@ -1,8 +1,6 @@
-const WEEKDAY_BLOCK_PRICE = 4.99; // USD per Mon–Thu slot
-const WEEKEND_BLOCK_PRICE = 7.99; // USD per Fri–Sun slot
-
-export const WEEKDAY_BLOCK_PRICE_CENTS = WEEKDAY_BLOCK_PRICE * 100;
-export const WEEKEND_BLOCK_PRICE_CENTS = WEEKEND_BLOCK_PRICE * 100;
+// Keep canonical values in cents to avoid floating point drift.
+export const WEEKDAY_BLOCK_PRICE_CENTS = 500; // USD per Mon–Thu slot
+export const WEEKEND_BLOCK_PRICE_CENTS = 800; // USD per Fri–Sun slot
 
 type WeekUsage = { hasWeekday: boolean; hasWeekend: boolean };
 
