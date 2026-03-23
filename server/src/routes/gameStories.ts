@@ -49,10 +49,70 @@ type StoryDeps = { prisma: PrismaClient };
 
 const STORY_EXPIRY_HOURS = 24;
 
+async function canViewGameMedia(
+  prisma: PrismaClient,
+  gameId: string,
+  req: AuthedRequest,
+): Promise<{ allowed: boolean; exists: boolean }> {
+  const game = await prisma.game.findUnique({
+    where: { id: gameId },
+    select: {
+      id: true,
+      approval_status: true,
+      created_by_id: true,
+      home_team_id: true,
+      away_team_id: true,
+    } as any,
+  });
+  if (!game) return { allowed: false, exists: false };
+  if ((game as any).approval_status === 'approved') return { allowed: true, exists: true };
+
+  const viewerId = req.user?.id ?? null;
+  if (!viewerId) return { allowed: false, exists: true };
+  if ((game as any).created_by_id && (game as any).created_by_id === viewerId) return { allowed: true, exists: true };
+  if (await getIsAdmin(req as any)) return { allowed: true, exists: true };
+
+  const teamIds = [(game as any).home_team_id, (game as any).away_team_id].filter(Boolean) as string[];
+  if (teamIds.length === 0) return { allowed: false, exists: true };
+
+  const teamMembership = await prisma.teamMembership.findFirst({
+    where: {
+      user_id: viewerId,
+      team_id: { in: teamIds },
+      role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
+      status: 'active',
+    },
+    select: { id: true },
+  });
+  if (teamMembership) return { allowed: true, exists: true };
+
+  const teams = await prisma.team.findMany({
+    where: { id: { in: teamIds } },
+    select: { organization_id: true },
+  });
+  const organizationIds = teams.map((team) => team.organization_id).filter(Boolean) as string[];
+  if (organizationIds.length === 0) return { allowed: false, exists: true };
+
+  const orgMembership = await prisma.organizationMembership.findFirst({
+    where: {
+      user_id: viewerId,
+      organization_id: { in: organizationIds },
+      role: { in: ['owner', 'manager'] },
+      status: 'active',
+    },
+    select: { id: true },
+  });
+  return { allowed: !!orgMembership, exists: true };
+}
+
 export const makeListMediaHandler = ({ prisma }: StoryDeps) => async (req: Request, res: Response) => {
   const id = String(req.params.id);
   const now = new Date();
   try {
+    const visibility = await canViewGameMedia(prisma, id, req as AuthedRequest);
+    if (!visibility.exists) return res.status(404).json({ error: 'Not found' });
+    if (!visibility.allowed) return res.status(404).json({ error: 'Not found' });
+
     const items = await prisma.story.findMany({
       where: {
         game_id: id,

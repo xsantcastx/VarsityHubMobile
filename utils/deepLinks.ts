@@ -33,7 +33,6 @@ const PUBLIC_DEEP_LINK_ROUTES = new Set([
   '/reset-password',
   '/verify',
   '/verify-email',
-  '/onboarding',
 ]);
 
 // Pending deep link URL — deferred until auth settles

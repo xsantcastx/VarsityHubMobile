@@ -17,7 +17,9 @@ import { debugLog } from '../lib/debugLog.js';
  * Rate limiting is always active unless explicitly disabled via DISABLE_RATE_LIMITING=1.
  * This ensures dev and staging environments behave like production by default.
  */
-const rateLimitingDisabled = process.env.DISABLE_RATE_LIMITING === '1';
+const rateLimitingDisabled =
+  process.env.DISABLE_RATE_LIMITING === '1' ||
+  process.env.RATE_LIMIT_DISABLE === '1';
 
 /**
  * Create a separate Redis connection for rate limiting only

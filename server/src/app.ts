@@ -12,6 +12,7 @@ import { verifyMediaSignature } from './lib/mediaAccess.js';
 import { addSentryErrorHandler, initSentry } from './lib/sentry.js';
 import { swaggerSpec } from './lib/swagger.js';
 import { authMiddleware } from './middleware/auth.js';
+import { requireAdmin } from './middleware/requireAdmin.js';
 import { requireAuth } from './middleware/requireAuth.js';
 import { requireVerified } from './middleware/requireVerified.js';
 import { requireOnboarded } from './middleware/requireOnboarded.js';
@@ -223,11 +224,16 @@ app.use('/health', healthRouter);
 app.use('/.well-known', wellKnownRouter);
 
 // API Documentation
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+const swaggerUiOptions = swaggerUi.setup(swaggerSpec, {
   swaggerOptions: {
-    persistAuthorization: true,
+    persistAuthorization: !isProd,
   },
-}));
+});
+if (isProd) {
+  app.use('/api-docs', requireAuth as any, requireAdmin as any, swaggerUi.serve, swaggerUiOptions);
+} else {
+  app.use('/api-docs', swaggerUi.serve, swaggerUiOptions);
+}
 debugLog('📚 API documentation available at /api-docs');
 
 app.use('/auth', authLimiter, authRouter);

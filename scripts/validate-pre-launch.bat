@@ -15,11 +15,11 @@ if not exist "app.json" (
     echo ❌ ERROR: app.json not found
     set /a ERRORS+=1
 ) else (
-    findstr /C:"1.0.0" app.json >nul
+    findstr /C:"1.0.1" app.json >nul
     if %errorlevel% equ 0 (
-        echo ✅ Version found: 1.0.0
+        echo ✅ Version found: 1.0.1
     ) else (
-        echo ⚠️  WARNING: Version not set to 1.0.0
+        echo ⚠️  WARNING: Version not set to 1.0.1
         set /a WARNINGS+=1
     )
 )

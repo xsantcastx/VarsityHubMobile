@@ -95,7 +95,7 @@ usersRouter.get('/:id/full', requireAdmin as any, async (req, res) => {
 usersRouter.get('/me/export', requireAuth as any, async (req: AuthedRequest, res) => {
   const id = req.user!.id;
   try {
-    const [user, posts, comments, messagesSent, following, followers] = await Promise.all([
+    const [user, posts, comments, messagesSent, following, followers, ads] = await Promise.all([
       prisma.user.findUnique({
         where: { id },
         select: {
@@ -160,7 +160,42 @@ usersRouter.get('/me/export', requireAuth as any, async (req: AuthedRequest, res
         take: 10000,
         select: { follower_id: true, created_at: true },
       }),
+      prisma.ad.findMany({
+        where: { user_id: id },
+        orderBy: { created_at: 'desc' },
+        take: 5000,
+        select: {
+          id: true,
+          contact_name: true,
+          contact_email: true,
+          business_name: true,
+          banner_url: true,
+          target_url: true,
+          target_zip_code: true,
+          radius: true,
+          description: true,
+          status: true,
+          payment_status: true,
+          created_at: true,
+          updated_at: true,
+        },
+      }),
     ]);
+    const adIds = ads.map((ad) => ad.id);
+    const adReservations = adIds.length > 0
+      ? await prisma.adReservation.findMany({
+          where: { ad_id: { in: adIds } },
+          orderBy: { date: 'asc' },
+          take: 10000,
+          select: { ad_id: true, date: true, created_at: true },
+        })
+      : [];
+    const reservationDatesByAdId = new Map<string, string[]>();
+    for (const reservation of adReservations) {
+      const list = reservationDatesByAdId.get(reservation.ad_id) || [];
+      list.push(reservation.date instanceof Date ? reservation.date.toISOString() : String(reservation.date));
+      reservationDatesByAdId.set(reservation.ad_id, list);
+    }
 
     const exportData = {
       exported_at: new Date().toISOString(),
@@ -197,6 +232,12 @@ usersRouter.get('/me/export', requireAuth as any, async (req: AuthedRequest, res
       followers: followers.map((f) => ({
         user_id: f.follower_id,
         created_at: f.created_at instanceof Date ? f.created_at.toISOString() : f.created_at,
+      })),
+      ads: ads.map((ad) => ({
+        ...ad,
+        created_at: ad.created_at instanceof Date ? ad.created_at.toISOString() : ad.created_at,
+        updated_at: ad.updated_at instanceof Date ? ad.updated_at.toISOString() : ad.updated_at,
+        reservation_dates: reservationDatesByAdId.get(ad.id) || [],
       })),
     };
 
@@ -547,6 +588,13 @@ usersRouter.delete('/me', requireAuth as any, async (req: AuthedRequest, res) =>
 
       // Delete refresh tokens
       await tx.refreshToken.deleteMany({ where: { user_id: id } });
+
+      // Delete ad records (and dependent reservations) to avoid orphaned PII on account deletion.
+      await tx.ad.deleteMany({ where: { user_id: id } });
+
+      // Delete user-created stories and events that otherwise retain nullable foreign keys.
+      await tx.story.deleteMany({ where: { user_id: id } });
+      await tx.event.deleteMany({ where: { creator_id: id } });
 
       // Delete user's posts
       await tx.post.deleteMany({ where: { author_id: id } });

@@ -87,6 +87,57 @@ const summarizeVotes = async (gameId: string, userId?: string | null) => {
   return { teamA, teamB, total, pctA, pctB, userVote: mine?.team ?? null };
 };
 
+type GameVisibilityRecord = {
+  approval_status?: string | null;
+  created_by_id?: string | null;
+  home_team_id?: string | null;
+  away_team_id?: string | null;
+};
+
+async function canViewGameRecord(record: GameVisibilityRecord, viewerId?: string | null): Promise<boolean> {
+  if (record.approval_status === 'approved') return true;
+  if (!viewerId) return false;
+  if (record.created_by_id && record.created_by_id === viewerId) return true;
+
+  const viewer = await prisma.user.findUnique({
+    where: { id: viewerId },
+    select: { email: true },
+  });
+  if (isEmailAdmin(viewer?.email)) return true;
+
+  const teamIds = [record.home_team_id, record.away_team_id].filter(Boolean) as string[];
+  if (teamIds.length === 0) return false;
+
+  const teamMembership = await prisma.teamMembership.findFirst({
+    where: {
+      user_id: viewerId,
+      team_id: { in: teamIds },
+      role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
+      status: 'active',
+    },
+    select: { id: true },
+  });
+  if (teamMembership) return true;
+
+  const teams = await prisma.team.findMany({
+    where: { id: { in: teamIds } },
+    select: { organization_id: true },
+  });
+  const organizationIds = teams.map((team) => team.organization_id).filter(Boolean) as string[];
+  if (organizationIds.length === 0) return false;
+
+  const orgMembership = await prisma.organizationMembership.findFirst({
+    where: {
+      user_id: viewerId,
+      organization_id: { in: organizationIds },
+      role: { in: ['owner', 'manager'] },
+      status: 'active',
+    },
+    select: { id: true },
+  });
+  return !!orgMembership;
+}
+
 gamesRouter.get('/', async (req, res) => {
   try {
   const sort = String(req.query.sort || '').trim();
@@ -552,6 +603,7 @@ gamesRouter.get('/votes-summary', async (req: AuthedRequest, res) => {
 gamesRouter.get('/:id', async (req, res) => {
   try {
   const id = String(req.params.id);
+  const authedReq = req as AuthedRequest;
   const game = await (prisma.game.findUnique as any)({
     where: { id },
     include: {
@@ -561,6 +613,9 @@ gamesRouter.get('/:id', async (req, res) => {
     },
   });
   if (!game) return res.status(404).json({ error: 'Not found' });
+  if (!(await canViewGameRecord(game as GameVisibilityRecord, authedReq.user?.id ?? null))) {
+    return res.status(404).json({ error: 'Not found' });
+  }
   const gameData = game as any; // Type assertion for relation fields
   const event = gameData.events[0] ?? null;
   const { events, ...rest } = gameData;
@@ -587,6 +642,9 @@ gamesRouter.get('/:id/summary', async (req: AuthedRequest, res) => {
     },
   });
   if (!game) return res.status(404).json({ error: 'Not found' });
+  if (!(await canViewGameRecord(game as GameVisibilityRecord, req.user?.id ?? null))) {
+    return res.status(404).json({ error: 'Not found' });
+  }
 
   const g = game as any; // Type assertion for relation fields
   const event = g.events[0] ?? null;
@@ -1170,7 +1228,8 @@ gamesRouter.put('/:id/approve', requireAuth as any, requireOnboarded as any, asy
       where: {
         team_id: { in: gameTeamIds },
         user_id: req.user.id,
-        role: { in: ['coach', 'manager', 'owner', 'assistant_coach'] }
+        role: { in: ['coach', 'manager', 'owner', 'assistant_coach'] },
+        status: 'active',
       }
     });
     isCoach = !!membership;

@@ -296,7 +296,8 @@ export default function Step2Basic() {
       
       // Save username (not display_name) - this is the single identifier
       try {
-        await User.patchMe({ username: finalUsername, preferences: { affiliation, dob, zip_code: zip || undefined } });
+        await User.patchMe({ username: finalUsername });
+        await User.updatePreferences({ affiliation, dob, zip_code: zip || undefined });
       } catch (patchErr: any) {
         // Detect username conflict specifically
         const msg = patchErr?.message || patchErr?.data?.error || '';

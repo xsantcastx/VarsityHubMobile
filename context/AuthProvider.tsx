@@ -14,7 +14,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import { useRouter, useSegments } from 'expo-router';
-import { AppState, Platform } from 'react-native';
+import { AppState } from 'react-native';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 // @ts-ignore JS exports
 import auth from '@/api/auth';
@@ -110,7 +110,8 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
   }, [segments]);
 
   // Derived state
-  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN' || user?.is_admin === true;
+  const normalizedRole = String(user?.role || '').toLowerCase();
+  const isAdmin = normalizedRole === 'admin' || normalizedRole === 'super_admin' || user?.is_admin === true;
 
   // Check backend health (once on startup)
   const checkHealth = useCallback(async () => {
@@ -549,13 +550,12 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         && user.preferences?.payment_pending === true
         && (pendingPlan === 'veteran' || pendingPlan === 'legend')
         && (user.preferences?.payment_approved === true || user.preferences?.join_request_pending !== true);
-      const isWebRuntime = Platform.OS === 'web';
       const isOnPaymentPath = currentPath.includes('settings/manage-subscription')
         || currentPath.includes('subscription-paywall')
         || currentPath.includes('payment-success')
         || currentPath.includes('billing');
 
-      if (!needsOnboarding && coachNeedsCheckout && !isOnPaymentPath && !isWebRuntime) {
+      if (!needsOnboarding && coachNeedsCheckout && !isOnPaymentPath) {
         if (__DEV__) console.log('[AuthProvider] Approved coach must complete checkout before tools');
         if (lastRedirectRef.current !== '/settings/manage-subscription') {
           lastRedirectRef.current = '/settings/manage-subscription';
