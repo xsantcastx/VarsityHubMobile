@@ -4,9 +4,7 @@
     "slug": "varsityhub",
     "owner": "varsity-hub",
     "version": "1.0.1",
-    "runtimeVersion": {
-      "policy": "fingerprint"
-    },
+    "runtimeVersion": "1.0.1",
     "description": "The ultimate sports team management and social platform for athletes, coaches, and fans.",
     "githubUrl": "https://github.com/xsantcastx/VarsityHubMobile",
     "icon": "./assets/images/splash.png",
