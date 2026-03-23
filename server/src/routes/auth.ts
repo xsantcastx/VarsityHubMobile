@@ -909,9 +909,9 @@ authRouter.get('/me', asyncHandler(async (req: AuthedRequest, res) => {
   // Non-admin users' preferences are merged without forcing onboarding_completed
   const userPrefs = (user as any).preferences || {};
   const prefs = mergePreferences(userPrefs, defaults);
-  const { password_hash, ...rest } = user as any;
-  const has_password = !!password_hash;
-  return res.json({ ...rest, has_password, ...(is_admin ? { role: 'admin' } : {}), preferences: prefs, is_admin });
+  const has_password = !!(user as any).password_hash;
+  const safe = sanitizeUser(user);
+  return res.json({ ...safe, has_password, ...(is_admin ? { role: 'admin' } : {}), preferences: prefs, is_admin });
 }));
 
 const updateMeSchema = z.object({
