@@ -11,7 +11,7 @@ export default function TermsOfServiceScreen() {
       <Stack.Screen options={{ title: 'Terms of Service' }} />
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={[styles.updatedAt, { color: Colors[colorScheme].mutedText }]}>
-          Last updated: January 19, 2025
+          Last updated: March 22, 2026
         </Text>
 
         <TermSection colorScheme={colorScheme} title="1. Acceptance of Terms"
@@ -30,7 +30,7 @@ export default function TermsOfServiceScreen() {
           body={'Your Content:\n• You retain ownership of content you post\n• By posting, you grant VarsityHub a worldwide, non-exclusive, royalty-free license to use, display, and distribute your content within the App\n• You represent that you have rights to all content you post\n\nVarsityHub Content:\n• VarsityHub owns all proprietary content, features, and functionality\n• You may not copy, modify, or create derivative works without permission'} />
 
         <TermSection colorScheme={colorScheme} title="6. Subscriptions and Payments"
-          body={'Subscription Tiers:\n• Rookie (Free): First two teams are free; basic features\n• Veteran ($1.00/month per additional team): Enhanced features\n• Legend ($20/year): Flat annual pricing with premium features\n\nBilling:\n• Subscriptions auto-renew unless cancelled\n• Prices are in USD and subject to change with 30 days notice\n• Payment processing handled by Stripe\n• Refunds handled on a case-by-case basis\n• You can cancel anytime through app settings'} />
+          body={'Subscription Tiers:\n• Rookie (Free): First two teams are free; basic features\n• Veteran ($1.50/month per additional team): Enhanced features\n• Legend ($20/year): Flat annual pricing with premium features\n\nBilling:\n• Subscriptions auto-renew unless cancelled\n• Prices are in USD and subject to change with 30 days notice\n• Payment processing handled by Stripe\n• Refunds handled on a case-by-case basis\n• You can cancel anytime through app settings'} />
 
         <TermSection colorScheme={colorScheme} title="7. Advertising"
           body={'• Paid advertisers can promote content through our Ad Calendar\n• Ad content must comply with our Content Guidelines\n• We reserve the right to reject or remove ads\n• Ad pricing and placements subject to our Ad Policies'} />
@@ -54,7 +54,7 @@ export default function TermsOfServiceScreen() {
           body="You agree to indemnify and hold VarsityHub harmless from any claims, damages, or expenses arising from your use of the App, your content, or your violation of these Terms." />
 
         <TermSection colorScheme={colorScheme} title="14. Dispute Resolution"
-          body={'Governing Law: These Terms are governed by the laws of the State of Texas, United States.\n\nArbitration: Disputes will be resolved through binding arbitration, except for small claims court or injunctive relief cases.\n\nClass Action Waiver: You waive the right to participate in class actions against VarsityHub.'} />
+          body={'Governing Law: These Terms are governed by the laws of the State of Connecticut, United States.\n\nArbitration: Disputes will be resolved through binding arbitration, except for small claims court or injunctive relief cases.\n\nClass Action Waiver: You waive the right to participate in class actions against VarsityHub.'} />
 
         <TermSection colorScheme={colorScheme} title="15. Changes to Terms"
           body="We may modify these Terms at any time. We will notify you of material changes via in-app notification or email. Continued use after changes constitutes acceptance." />

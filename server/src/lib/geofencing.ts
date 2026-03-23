@@ -85,15 +85,13 @@ export function isWithinGeofence(
 
 /**
  * Check if posting window is open for stories
- * Stories: 24-hour window around game day (12 hours before to 12 hours after)
+ * Stories: game-day only (same UTC calendar day as the event)
  */
 export function isStoryPostingWindowOpen(eventDate: Date): boolean {
   const now = new Date();
-  const eventTime = new Date(eventDate);
-  const windowStart = new Date(eventTime.getTime() - 12 * 60 * 60 * 1000); // 12 hours before
-  const windowEnd = new Date(eventTime.getTime() + 12 * 60 * 60 * 1000); // 12 hours after
-  
-  return now >= windowStart && now <= windowEnd;
+  const eventDay = eventDate.toISOString().slice(0, 10);
+  const todayDay = now.toISOString().slice(0, 10);
+  return eventDay === todayDay;
 }
 
 /**
@@ -149,15 +147,13 @@ export async function verifyStoryPostingPermission(
     return { allowed: false, code: 'EVENT_NOT_FOUND', reason: 'Event not found' };
   }
 
-  // Check if story posting window is open (24-hour window around game day)
+  // Check if story posting window is open (game-day only)
   if (!isStoryPostingWindowOpen(event.date)) {
-    const eventTime = new Date(event.date);
-    const windowStart = new Date(eventTime.getTime() - 12 * 60 * 60 * 1000);
-    const windowEnd = new Date(eventTime.getTime() + 12 * 60 * 60 * 1000);
+    const gameDay = new Date(event.date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
     return {
       allowed: false,
       code: 'POSTING_WINDOW_CLOSED',
-      reason: `Story posting opens ${formatWindowDateTime(windowStart)} and closes ${formatWindowDateTime(windowEnd)}.`,
+      reason: `Stories can only be posted on game day (${gameDay}).`,
     };
   }
 
