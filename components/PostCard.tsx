@@ -3,6 +3,7 @@ import { Report } from '@/api/misc';
 import { Colors } from '@/constants/Colors';
 import { sanitizeTitle } from '@/lib/sanitizeTitle';
 import { useAuth } from '@/context/AuthProvider';
+import { usePostCache } from '@/context/PostCacheContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as Haptics from 'expo-haptics';
@@ -30,6 +31,7 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
   const rank = typeof post.rank === 'number' ? post.rank : null;
   const router = useRouter();
   const { user: currentUser } = useAuth(); // Get user from auth context instead of API call
+  const { remove: removeFromCache } = usePostCache();
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
   const [bookmarked, setBookmarked] = useState<boolean>(!!post.has_bookmarked);
@@ -130,6 +132,7 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
           onPress: async () => {
             try {
               await Post.delete(String(post.id));
+              removeFromCache(String(post.id));
               onDeleted?.(String(post.id));
             } catch (error: any) {
               Alert.alert('Error', error.message || 'Failed to delete post');

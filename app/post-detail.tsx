@@ -588,6 +588,7 @@ export default function PostDetailScreen() {
           onPress: async () => {
             try {
               await PostApi.delete(currentPostId);
+              postCache.remove(currentPostId);
               safeGoBack(router);
             } catch (error: any) {
               Alert.alert('Error', error.message || 'Failed to delete post');
@@ -627,15 +628,21 @@ export default function PostDetailScreen() {
   }
 
   if (error && !loading) {
+    const is404 = error.toLowerCase().includes('not found') || error.toLowerCase().includes('deleted');
     return (
       <SafeAreaView style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
         <StatusBar barStyle={colorScheme === 'dark' ? "light-content" : "dark-content"} backgroundColor={Colors[colorScheme].background} />
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle" size={48} color={Colors[colorScheme].destructive} />
-          <Text style={[styles.errorText, { color: Colors[colorScheme].text }]}>{error}</Text>
-          <Pressable testID="retry-button" style={styles.retryButton} onPress={() => void load()}>
-            <Text style={styles.retryButtonText}>Try Again</Text>
+          <Ionicons name={is404 ? "document-text-outline" : "alert-circle"} size={48} color={Colors[colorScheme].mutedText} />
+          <Text style={[styles.errorText, { color: Colors[colorScheme].text }]}>{is404 ? 'This post is no longer available' : error}</Text>
+          {!is404 && (
+            <Pressable testID="retry-button" style={styles.retryButton} onPress={() => void load()}>
+              <Text style={styles.retryButtonText}>Try Again</Text>
+            </Pressable>
+          )}
+          <Pressable style={[styles.retryButton, !is404 && { marginTop: 8 }, { backgroundColor: Colors[colorScheme].surface }]} onPress={() => { safeGoBack(router); }}>
+            <Text style={[styles.retryButtonText, { color: Colors[colorScheme].text }]}>Go Back</Text>
           </Pressable>
         </View>
       </SafeAreaView>

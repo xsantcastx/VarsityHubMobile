@@ -19,6 +19,7 @@ import { useDeviceLocation } from '@/hooks/useDeviceLocation';
 import SwipeBackContainer from '@/components/SwipeBackContainer';
 import { pickerMediaTypeFor } from '@/utils/picker';
 import { sanitizeText } from '@/utils/formUtils';
+import { usePostCache } from '@/context/PostCacheContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -70,6 +71,7 @@ const isSampleEvent = (id?: string | null): boolean => {
 
 export default function CreatePostScreen() {
   const router = useRouter();
+  const { clear: clearPostCache } = usePostCache();
   const colorScheme = useColorScheme() ?? 'light';
   const params = useLocalSearchParams<{ gameId?: string; type?: string }>();
   const gameId = params?.gameId ? String(params.gameId) : undefined;
@@ -651,6 +653,7 @@ export default function CreatePostScreen() {
       
       if (__DEV__) console.warn('[CreatePost] Calling Post.create...');
       const created = await Post.create(payload);
+      clearPostCache();
       if (__DEV__) console.warn('[CreatePost] Post created successfully!');
       try {
         await settings.setJson(settings.SETTINGS_KEYS.POST_DRAFT, null);

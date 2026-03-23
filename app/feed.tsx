@@ -470,31 +470,34 @@ export default function FeedScreen() {
   );
 
   // Lightweight polling to keep unread dots fresh while on the Feed
-  useEffect(() => {
-    let mounted = true;
-    const tick = async () => {
-      try {
-        // Add timeout to prevent hanging
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Notification poll timeout')), 10000)
-        );
-        const [page, unreadRes] = await Promise.all([
-          Promise.race([NotificationApi.listPage(null, 1, true), timeoutPromise]) as Promise<any>,
-          Message.unreadCount().catch(() => ({ count: 0 })),
-        ]);
-        if (!mounted) return;
-        setHasUnreadAlerts(Array.isArray(page?.items) && page.items.length > 0);
-        setUnreadMessagesCount(typeof unreadRes?.count === 'number' ? unreadRes.count : 0);
-      } catch (err: any) {
-        // ignore notification poll errors, but log in dev
-        if (__DEV__ && err?.message !== 'Notification poll timeout') {
-          if (__DEV__) console.warn('[Feed] Notification poll error:', err?.message);
+  // Uses useFocusEffect so interval only runs when the feed tab is visible
+  useFocusEffect(
+    useCallback(() => {
+      let mounted = true;
+      const tick = async () => {
+        try {
+          // Add timeout to prevent hanging
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Notification poll timeout')), 10000)
+          );
+          const [page, unreadRes] = await Promise.all([
+            Promise.race([NotificationApi.listPage(null, 1, true), timeoutPromise]) as Promise<any>,
+            Message.unreadCount().catch(() => ({ count: 0 })),
+          ]);
+          if (!mounted) return;
+          setHasUnreadAlerts(Array.isArray(page?.items) && page.items.length > 0);
+          setUnreadMessagesCount(typeof unreadRes?.count === 'number' ? unreadRes.count : 0);
+        } catch (err: any) {
+          // ignore notification poll errors, but log in dev
+          if (__DEV__ && err?.message !== 'Notification poll timeout') {
+            if (__DEV__) console.warn('[Feed] Notification poll error:', err?.message);
+          }
         }
-      }
-    };
-    const id = setInterval(tick, 60000); // Poll every 60 seconds (reduced frequency to prevent timeouts)
-    return () => { mounted = false; clearInterval(id); };
-  }, []);
+      };
+      const id = setInterval(tick, 60000); // Poll every 60 seconds (reduced frequency to prevent timeouts)
+      return () => { mounted = false; clearInterval(id); };
+    }, []),
+  );
 
   // Load notifications when modal opens
   useEffect(() => {

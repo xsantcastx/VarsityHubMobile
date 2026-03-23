@@ -12,6 +12,8 @@ interface PostCacheContextType {
   get: (id: string) => CachedPost | undefined;
   set: (id: string, post: CachedPost) => void;
   setBatch: (posts: CachedPost[]) => void;
+  remove: (id: string) => void;
+  invalidate: (id: string) => void;
   clear: () => void;
 }
 
@@ -69,6 +71,15 @@ export const PostCacheProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     evictIfNeeded(cache);
   }, [cache]);
 
+  const remove = useCallback((id: string) => {
+    cache.delete(id);
+  }, [cache]);
+
+  /** Alias for remove — drops a single post so the next fetch gets fresh data */
+  const invalidate = useCallback((id: string) => {
+    cache.delete(id);
+  }, [cache]);
+
   const clear = useCallback(() => {
     cache.clear();
   }, [cache]);
@@ -78,8 +89,10 @@ export const PostCacheProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     get,
     set,
     setBatch,
+    remove,
+    invalidate,
     clear,
-  }), [cache, get, set, setBatch, clear]);
+  }), [cache, get, set, setBatch, remove, invalidate, clear]);
 
   return (
     <PostCacheContext.Provider value={value}>

@@ -62,8 +62,13 @@ export default function MessageThreadScreen() {
       // Show oldest first in chat view
       list = Array.isArray(list) ? list.slice().reverse() : [];
       setMsgs(list);
-    } catch {
-      setError('Unable to load conversation. You may need to sign in.');
+    } catch (err: any) {
+      const status = err?.response?.status || err?.status;
+      if (status === 404) {
+        setError('This conversation is no longer available.');
+      } else {
+        setError('Unable to load conversation. You may need to sign in.');
+      }
     } finally {
       setLoading(false);
     }
@@ -330,7 +335,15 @@ export default function MessageThreadScreen() {
           {loading && (
             <View style={styles.center}><ActivityIndicator /></View>
           )}
-          {error && !loading && <Text style={styles.error}>{error}</Text>}
+          {error && !loading && (
+            <View style={styles.emptyState}>
+              <MaterialIcons name={error.includes('no longer') ? 'chat-bubble-outline' : 'error-outline'} size={48} color={Colors[colorScheme].mutedText} />
+              <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text }]}>{error}</Text>
+              <Pressable onPress={() => safeGoBack(router)} style={{ marginTop: 16, paddingVertical: 12, paddingHorizontal: 24, backgroundColor: Colors[colorScheme].surface, borderRadius: 10 }}>
+                <Text style={{ color: Colors[colorScheme].text, fontSize: 16, fontWeight: '600' }}>Go Back</Text>
+              </Pressable>
+            </View>
+          )}
           {!loading && !error && msgs.length === 0 && (
             <View style={styles.emptyState}>
               <MaterialIcons name="chat-bubble-outline" size={48} color={Colors[colorScheme].mutedText} />

@@ -145,6 +145,7 @@ export default function ProfileScreen() {
   const params = useLocalSearchParams<{ id?: string }>();
   const viewingUserId = params.id;
   const [isFollowing, setIsFollowing] = useState(false);
+  const [followLoading, setFollowLoading] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [userTeams, _setUserTeams] = useState<Array<{ id: string; name: string; logo_url?: string | null; avatar_url?: string | null; role?: string; position?: string | null; jersey_number?: string | number | null }>>([]);
   const [avatarViewerVisible, setAvatarViewerVisible] = useState(false);
@@ -164,11 +165,12 @@ export default function ProfileScreen() {
   }, []);
 
   const handleFollowToggle = useCallback(async () => {
-    if (!viewingUserId) return;
-    
+    if (!viewingUserId || followLoading) return;
+
+    setFollowLoading(true);
     const previousState = isFollowing;
     setIsFollowing(!isFollowing); // Optimistic update
-    
+
     try {
       if (isFollowing) {
         await User.unfollow(viewingUserId);
@@ -194,8 +196,10 @@ export default function ProfileScreen() {
     } catch (error) {
       console.error('[profile] Follow toggle failed:', error);
       setIsFollowing(previousState); // Revert on error
+    } finally {
+      setFollowLoading(false);
     }
-  }, [viewingUserId, isFollowing]);
+  }, [viewingUserId, isFollowing, followLoading]);
 
   const refreshPosts = useCallback(async (userId: string) => {
     if (postsRequestInFlight.current) return;
@@ -366,7 +370,7 @@ export default function ProfileScreen() {
         u = currentUser;
       }
       
-      if (u && !u._isNotModified) {
+      if (u) {
         meRef.current = u ?? null;
         setMe(u ?? null);
       }
@@ -729,9 +733,11 @@ export default function ProfileScreen() {
                 styles.headerFollowButton,
                 isFollowing
                   ? { backgroundColor: 'transparent', borderColor: '#FFB800', borderWidth: 1.5 }
-                  : { backgroundColor: 'transparent', borderColor: '#FFFFFF', borderWidth: 1.5 }
+                  : { backgroundColor: 'transparent', borderColor: '#FFFFFF', borderWidth: 1.5 },
+                followLoading && { opacity: 0.5 }
               ]}
               onPress={handleFollowToggle}
+              disabled={followLoading}
             >
               {isFollowing ? (
                 <Ionicons name="checkmark-circle" size={18} color="#FFB800" />
