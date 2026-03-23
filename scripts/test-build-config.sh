@@ -149,10 +149,10 @@ else
     WARNINGS=$((WARNINGS + 1))
 fi
 
-if grep -q "googleMaps\|googleMapsApiKey" app.json; then
-    echo -e "${GREEN}✅ Google Maps configured${NC}"
+if grep -q "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY" app.json && grep -q '\${GOOGLE_MAPS_API_KEY}' android/app/src/main/AndroidManifest.xml; then
+    echo -e "${GREEN}✅ Google Maps configured (env-driven)${NC}"
 else
-    echo -e "${YELLOW}⚠️  Google Maps may not be configured${NC}"
+    echo -e "${YELLOW}⚠️  Google Maps may not be configured (set EXPO_PUBLIC_GOOGLE_MAPS_API_KEY in build env)${NC}"
     WARNINGS=$((WARNINGS + 1))
 fi
 echo ""

@@ -25,17 +25,11 @@ fi
 
 echo ""
 echo "[2/10] Checking Google Maps API keys..."
-if grep -q '"googleMapsApiKey":' app.json && ! grep -q '"googleMapsApiKey": ""' app.json; then
-    echo "✅ iOS Google Maps API key configured"
+MAPS_KEY=$(node -e "const a=JSON.parse(require('fs').readFileSync('app.json','utf8')); console.log(a.expo.extra?.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '')" 2>/dev/null || echo "")
+if [ -n "$MAPS_KEY" ] || { grep -q '\${GOOGLE_MAPS_API_KEY}' android/app/src/main/AndroidManifest.xml 2>/dev/null && grep -q 'GOOGLE_MAPS_API_KEY' ios/VarsityHub.xcodeproj/project.pbxproj 2>/dev/null; }; then
+    echo "✅ Google Maps API key configured (env-driven)"
 else
-    echo "❌ ERROR: iOS Google Maps API key missing or empty"
-    ((ERRORS++))
-fi
-
-if grep -q '"apiKey":' app.json && ! grep -q '"apiKey": ""' app.json; then
-    echo "✅ Android Google Maps API key configured"
-else
-    echo "❌ ERROR: Android Google Maps API key missing or empty"
+    echo "❌ ERROR: Google Maps API key missing (set EXPO_PUBLIC_GOOGLE_MAPS_API_KEY in build env)"
     ((ERRORS++))
 fi
 

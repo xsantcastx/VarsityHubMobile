@@ -26,19 +26,21 @@ if not exist "app.json" (
 
 echo.
 echo [2/10] Checking Google Maps API keys...
-findstr /C:"googleMapsApiKey" app.json | findstr /V /C:"\"\"" >nul
-if %errorlevel% equ 0 (
-    echo ✅ iOS Google Maps API key configured
-) else (
-    echo ❌ ERROR: iOS Google Maps API key missing
-    set /a ERRORS+=1
+set "MAPS_OK=0"
+findstr /C:"EXPO_PUBLIC_GOOGLE_MAPS_API_KEY" app.json | findstr /V /C:"\"EXPO_PUBLIC_GOOGLE_MAPS_API_KEY\": \"\"" >nul
+if %errorlevel% equ 0 set "MAPS_OK=1"
+if exist "android\app\src\main\AndroidManifest.xml" (
+    findstr /C:"${GOOGLE_MAPS_API_KEY}" "android\app\src\main\AndroidManifest.xml" >nul
+    if %errorlevel% equ 0 set "MAPS_OK=1"
 )
-
-findstr /C:"\"apiKey\"" app.json | findstr /V /C:"\"\"" >nul
-if %errorlevel% equ 0 (
-    echo ✅ Android Google Maps API key configured  
+if exist "ios\VarsityHub.xcodeproj\project.pbxproj" (
+    findstr /C:"GOOGLE_MAPS_API_KEY" "ios\VarsityHub.xcodeproj\project.pbxproj" >nul
+    if %errorlevel% equ 0 set "MAPS_OK=1"
+)
+if %MAPS_OK% equ 1 (
+    echo ✅ Google Maps API key configured ^(env-driven^)
 ) else (
-    echo ❌ ERROR: Android Google Maps API key missing
+    echo ❌ ERROR: Google Maps API key missing ^(set EXPO_PUBLIC_GOOGLE_MAPS_API_KEY in build env^)
     set /a ERRORS+=1
 )
 

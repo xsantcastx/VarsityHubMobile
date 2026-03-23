@@ -244,11 +244,13 @@ fi
 echo ""
 
 echo -e "${BLUE}4.2 Google Maps API key...${NC}"
-MAPS_KEY=$(node -e "const a=JSON.parse(require('fs').readFileSync('app.json','utf8')); console.log(a.expo.ios?.config?.googleMapsApiKey || a.expo.android?.config?.googleMaps?.apiKey || '')" 2>/dev/null || echo "")
+MAPS_KEY=$(node -e "const a=JSON.parse(require('fs').readFileSync('app.json','utf8')); console.log(a.expo.extra?.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '')" 2>/dev/null || echo "")
 if [ -n "$MAPS_KEY" ] && [ "$MAPS_KEY" != "your-maps-key" ]; then
-    echo -e "${GREEN}✅ Google Maps API key configured${NC}"
+    echo -e "${GREEN}✅ Google Maps API key configured in app config${NC}"
+elif grep -q '\${GOOGLE_MAPS_API_KEY}' android/app/src/main/AndroidManifest.xml 2>/dev/null && grep -q 'GOOGLE_MAPS_API_KEY' ios/VarsityHub.xcodeproj/project.pbxproj 2>/dev/null; then
+    echo -e "${GREEN}✅ Google Maps API key configured via build-time environment${NC}"
 else
-    echo -e "${YELLOW}⚠️  Google Maps API key missing or placeholder${NC}"
+    echo -e "${YELLOW}⚠️  Google Maps API key missing (set EXPO_PUBLIC_GOOGLE_MAPS_API_KEY in build env)${NC}"
     WARNINGS=$((WARNINGS + 1))
 fi
 echo ""
