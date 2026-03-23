@@ -955,7 +955,7 @@ export default function PostDetailScreen() {
               <Ionicons 
                 name="send" 
                 size={18} 
-                color={(commenting || !comment.trim()) ? "#555" : "#3B82F6"}
+                color={(commenting || !comment.trim()) ? Colors[colorScheme].mutedText : Colors[colorScheme].tint}
               />
             </Pressable>
             </View>

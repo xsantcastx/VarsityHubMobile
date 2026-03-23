@@ -598,6 +598,7 @@ export default function Step3League() {
               onChangeText={handleOrgNameChange}
               placeholder="Westhill High School"
               style={{ marginBottom: 12, minHeight: 64, paddingVertical: 18, fontSize: 16 }}
+              autoCorrect={false}
             />
             
             <Text style={styles.label}>Organization Type</Text>
@@ -709,11 +710,13 @@ export default function Step3League() {
 
                   <Text style={styles.label}>Search by Name or Zip Code</Text>
                   <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
-                    <Input 
-                      value={searchZip} 
-                      onChangeText={handleSearchInput} 
-                      placeholder="e.g., Westhill or 06902" 
-                      style={{ flex: 1, minHeight: 56, paddingVertical: 16, fontSize: 16 }} 
+                    <Input
+                      value={searchZip}
+                      onChangeText={handleSearchInput}
+                      placeholder="e.g., Westhill or 06902"
+                      style={{ flex: 1, minHeight: 56, paddingVertical: 16, fontSize: 16 }}
+                      autoCorrect={false}
+                      autoComplete="off"
                     />
                     <TouchableOpacity
                       style={styles.searchActionButton}

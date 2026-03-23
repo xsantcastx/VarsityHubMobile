@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { AuthedRequest } from '../middleware/auth.js';
 import type { PrismaClient } from '@prisma/client';
 import { verifyStoryPostingPermission } from '../lib/geofencing.js';
+import { getVideoPreviewUrl } from '../lib/mediaUtils.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
 
 export const isVideoUrl = (url?: string | null) => {
@@ -11,15 +12,19 @@ export const isVideoUrl = (url?: string | null) => {
   return ['.mp4', '.mov', '.m4v', '.webm', '.avi', '.mkv'].some((ext) => sanitized.endsWith(ext));
 };
 
-export const serializeMedia = (story: any) => ({
-  id: story.id,
-  url: story.media_url,
-  kind: isVideoUrl(story.media_url) ? 'video' : 'photo',
-  created_at: story.created_at instanceof Date ? story.created_at.toISOString() : story.created_at,
-  caption: story.caption ?? null,
-  user_id: story.user_id ?? null,
-  expires_at: story.expires_at instanceof Date ? story.expires_at.toISOString() : (story.expires_at ?? null),
-});
+export const serializeMedia = (story: any) => {
+  const isVideo = isVideoUrl(story.media_url);
+  return {
+    id: story.id,
+    url: story.media_url,
+    kind: isVideo ? 'video' : 'photo',
+    thumbnail_url: isVideo ? getVideoPreviewUrl(story.media_url) : null,
+    created_at: story.created_at instanceof Date ? story.created_at.toISOString() : story.created_at,
+    caption: story.caption ?? null,
+    user_id: story.user_id ?? null,
+    expires_at: story.expires_at instanceof Date ? story.expires_at.toISOString() : (story.expires_at ?? null),
+  };
+};
 
 const isMissingStoryLocationColumnError = (error: any): boolean => {
   if (!error || error.code !== 'P2022') return false;

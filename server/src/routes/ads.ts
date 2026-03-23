@@ -1,4 +1,4 @@
-import { Router, type Response } from 'express';
+import { Router, type Response, type NextFunction } from 'express';
 import { getZipCoordinates, haversineDistance } from '../lib/geoUtils.js';
 import { geocodeLocation } from '../lib/geocoding.js';
 import { prisma } from '../lib/prisma.js';
@@ -930,14 +930,21 @@ function confirmationPage(title: string, message: string, success: boolean) {
 </body></html>`;
 }
 
+/** Require auth only when no moderation token is present (email links skip auth) */
+function requireAuthUnlessToken(req: AuthedRequest, res: Response, next: NextFunction) {
+  if (req.query?.token) return next();
+  return requireAuth(req, res, next);
+}
+
 /** HTML confirmation form — GET shows this, user clicks button to POST */
 function confirmationForm(action: string, adId: string, token: string, businessName: string) {
   const color = action === 'approve' ? '#16A34A' : '#DC2626';
   const verb = action === 'approve' ? 'Approve' : 'Reject';
+  const safeName = businessName.replace(/[<>"&]/g, '');
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${verb} Ad</title></head>
 <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:500px;margin:60px auto;padding:20px;text-align:center;">
 <h2>${verb} this ad?</h2>
-<p style="color:#374151;">Ad: <strong>${businessName}</strong></p>
+<p style="color:#374151;">Ad: <strong>${safeName}</strong></p>
 <form method="POST" action="?token=${encodeURIComponent(token)}">
 <button type="submit" style="background:${color};color:#fff;border:none;padding:12px 32px;border-radius:8px;font-size:16px;cursor:pointer;margin-top:16px;">${verb} Ad</button>
 </form>
@@ -987,7 +994,7 @@ async function handleAdApprove(req: AuthedRequest, res: Response) {
 }
 
 adsRouter.get('/:id([a-z0-9]{15,50})/approve', handleAdApprove as any);
-adsRouter.post('/:id([a-z0-9]{15,50})/approve', handleAdApprove as any);
+adsRouter.post('/:id([a-z0-9]{15,50})/approve', requireAuthUnlessToken as any, handleAdApprove as any);
 
 // Admin: Reject a pending ad (same confirmation-form pattern as approve)
 async function handleAdReject(req: AuthedRequest, res: Response) {
@@ -1027,7 +1034,7 @@ async function handleAdReject(req: AuthedRequest, res: Response) {
 }
 
 adsRouter.get('/:id([a-z0-9]{15,50})/reject', handleAdReject as any);
-adsRouter.post('/:id([a-z0-9]{15,50})/reject', handleAdReject as any);
+adsRouter.post('/:id([a-z0-9]{15,50})/reject', requireAuthUnlessToken as any, handleAdReject as any);
 
 // Admin: Review an ad (approve or reject) — used by admin-ads screen
 adsRouter.post('/:id([a-z0-9]{15,50})/review', requireAdmin as any, async (req: AuthedRequest, res) => {

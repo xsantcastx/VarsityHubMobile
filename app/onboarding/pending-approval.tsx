@@ -149,7 +149,7 @@ export default function PendingApproval() {
               ? (isDark ? 'rgba(22,163,74,0.15)' : '#D1FAE5')
               : (isDark ? 'rgba(218,165,32,0.15)' : '#FEF9C3')
         }]}>
-          <Image source={{ uri: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765997882/365220-200_mvbdz7.png' }} style={{ width: 56, height: 56 }} contentFit="contain" />
+          <Image source={require('../../assets/images/logo.png')} style={{ width: 56, height: 56 }} contentFit="contain" />
         </View>
 
         {/* Heading */}

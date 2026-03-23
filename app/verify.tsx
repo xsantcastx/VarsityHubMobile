@@ -1,7 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Keyboard, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { User } from '@/api/entities';
@@ -225,7 +225,13 @@ export default function VerifyScreen() {
         <Input
           placeholder="Enter 6-digit code"
           value={code}
-          onChangeText={(t: string) => setCode(t.replace(/[^0-9]/g, ''))}
+          onChangeText={(t: string) => {
+            const cleaned = t.replace(/[^0-9]/g, '');
+            setCode(cleaned);
+            if (cleaned.length === 6) {
+              Keyboard.dismiss();
+            }
+          }}
           keyboardType="number-pad"
           maxLength={6}
           style={styles.codeInput}

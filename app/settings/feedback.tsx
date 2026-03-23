@@ -183,7 +183,7 @@ export default function FeedbackScreen() {
 
         {/* Submit */}
         <Pressable
-          style={[styles.submitBtn, (sending || uploading) && styles.submitBtnDisabled]}
+          style={[styles.submitBtn, { backgroundColor: theme.tint }, (sending || uploading) && styles.submitBtnDisabled]}
           onPress={onSubmit}
           disabled={sending || uploading}
         >
@@ -265,7 +265,6 @@ const styles = StyleSheet.create({
     borderRadius: 14,
   },
   submitBtn: {
-    backgroundColor: '#111827',
     height: 50,
     borderRadius: 12,
     alignItems: 'center',

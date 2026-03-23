@@ -11,15 +11,11 @@ import { httpPost } from '@/api/http';
 const isExpoGo = Constants.executionEnvironment === 'storeClient';
 let useRNIAP: any = () => ({});
 let getReceiptIOS: any = async () => '';
-let _requestPurchase: any = async () => {};
-let _finishTransaction: any = async () => {};
 if (!isExpoGo) {
   try {
     const iap = require('react-native-iap');
     useRNIAP = iap.useIAP;
     getReceiptIOS = iap.getReceiptIOS;
-    _requestPurchase = iap.requestPurchase;
-    _finishTransaction = iap.finishTransaction;
   } catch (err) {
     if (__DEV__) console.warn('[useAdIAP] react-native-iap not available (e.g. Expo Go):', (err as Error)?.message);
   }

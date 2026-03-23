@@ -395,13 +395,12 @@ const canAddStory = (eventIso?: string | null, gameId?: string | null) => {
   const eventDate = new Date(eventIso);
   if (Number.isNaN(eventDate.getTime())) return true;
 
-  // Stories can only be posted on the day of the event (midnight to midnight local time).
-  // Stories remain visible after the event for viewing.
+  // Stories can only be posted on the day of the event (same UTC calendar day).
+  // Must match server-side check in geofencing.ts which uses UTC.
   const now = new Date();
-  const eventDay = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate());
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
-  return eventDay.getTime() === todayStart.getTime() && now.getTime() < todayEnd.getTime();
+  const eventDayUTC = eventDate.toISOString().slice(0, 10);
+  const todayUTC = now.toISOString().slice(0, 10);
+  return eventDayUTC === todayUTC;
 };
 
 const capCount = (count?: number | null, capacity?: number | null) => {
@@ -639,15 +638,15 @@ const GameDetailsScreen = () => {
     const eventDate = new Date(vm.date);
     if (!Number.isFinite(eventDate.getTime())) return null;
 
-    // Stories unlock at midnight on the day of the event
+    // Stories unlock at midnight UTC on the day of the event (matches server)
+    const eventDayUTC = Date.UTC(eventDate.getUTCFullYear(), eventDate.getUTCMonth(), eventDate.getUTCDate());
     const now = new Date(nowTs);
-    const eventDay = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate());
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayUTC = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
 
     // If the event is today or in the past, no countdown needed
-    if (eventDay.getTime() <= todayStart.getTime()) return null;
+    if (eventDayUTC <= todayUTC) return null;
 
-    const msUntil = eventDay.getTime() - nowTs;
+    const msUntil = eventDayUTC - nowTs;
     if (msUntil <= 0) return null;
     const totalSecs = Math.ceil(msUntil / 1000);
     const days = Math.floor(totalSecs / 86400);
@@ -1700,10 +1699,11 @@ const GameDetailsScreen = () => {
   }, [vm?.gameId, vm?.eventId, vm?.isPast, router]);
 
   const renderStoriesCarousel = () => {
-    const mediaItems = (vm?.media ?? []).map((m) => ({ 
-      id: m.id, 
-      url: m.url, 
-      kind: m.kind, 
+    const mediaItems = (vm?.media ?? []).map((m) => ({
+      id: m.id,
+      url: m.url,
+      thumbnail_url: m.thumbnail_url ?? (m as any).preview_url ?? undefined,
+      kind: m.kind,
       user_id: m.user_id,
       created_at: m.created_at,
       caption: m.caption,
@@ -1748,7 +1748,12 @@ const GameDetailsScreen = () => {
                 <View style={styles.storyTile}>
                   {isVideo ? (
                     <View style={[styles.storyThumb, styles.storyThumbVideo]}>
-                      <Ionicons name="play" size={32} color={Colors[colorScheme].background} />
+                      {it.thumbnail_url ? (
+                        <Image source={{ uri: it.thumbnail_url }} style={styles.storyThumb} contentFit="cover" transition={200} />
+                      ) : null}
+                      <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]}>
+                        <Ionicons name="play" size={32} color="#fff" />
+                      </View>
                     </View>
                   ) : (
                     <Image source={{ uri: it.url }} style={styles.storyThumb} contentFit="cover" transition={200} cachePolicy="memory-disk" recyclingKey={it.url}

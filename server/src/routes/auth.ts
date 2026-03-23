@@ -245,7 +245,7 @@ authRouter.post('/register', asyncHandler(async (req, res) => {
 
 const loginSchema = z.object({ email: z.string().email(), password: z.string().min(1) });
 
-authRouter.post('/login', async (req, res) => {
+authRouter.post('/login', asyncHandler(async (req, res) => {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid credentials' });
   const { email, password } = parsed.data;
@@ -277,7 +277,7 @@ authRouter.post('/login', async (req, res) => {
   const body: any = { access_token, refresh_token: rawRefresh, user: sanitized, needs_onboarding: needsOnboarding };
   if (!user.email_verified) body.needs_verification = true;
   return res.json(body);
-});
+}));
 
 /**
  * POST /auth/refresh
@@ -286,7 +286,7 @@ authRouter.post('/login', async (req, res) => {
  */
 const refreshSchema = z.object({ refresh_token: z.string().min(32) });
 
-authRouter.post('/refresh', authLimiter, async (req, res) => {
+authRouter.post('/refresh', authLimiter, asyncHandler(async (req, res) => {
   const parsed = refreshSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'refresh_token is required' });
 
@@ -338,37 +338,37 @@ authRouter.post('/refresh', authLimiter, async (req, res) => {
 
   const access_token = signJwt({ id: user.id });
   return res.json({ access_token, refresh_token: newRawRefresh });
-});
+}));
 
 /**
  * POST /auth/revoke-all-tokens
  * Invalidates every refresh token for the current user.
  * Use when a security breach is detected.
  */
-authRouter.post('/revoke-all-tokens', requireAuth as any, async (req: AuthedRequest, res) => {
+authRouter.post('/revoke-all-tokens', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const { count } = await prisma.refreshToken.deleteMany({ where: { user_id: req.user.id } });
   return res.json({ ok: true, revoked: count });
-});
+}));
 
 /**
  * POST /auth/logout
  * Invalidates the provided refresh token.
  */
-authRouter.post('/logout', async (req, res) => {
+authRouter.post('/logout', asyncHandler(async (req, res) => {
   const { refresh_token } = req.body || {};
   if (refresh_token && typeof refresh_token === 'string') {
     const tokenHash = hashRefreshToken(refresh_token);
     await prisma.refreshToken.deleteMany({ where: { token_hash: tokenHash } }).catch(() => {});
   }
   return res.json({ ok: true });
-});
+}));
 
 const googleAuthSchema = z.object({
   id_token: z.string().min(10),
 });
 
-authRouter.post('/google', oauthLimiter, async (req, res) => {
+authRouter.post('/google', oauthLimiter, asyncHandler(async (req, res) => {
   const parsed = googleAuthSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
 
@@ -507,13 +507,13 @@ authRouter.post('/google', oauthLimiter, async (req, res) => {
     captureException(err instanceof Error ? err : new Error(String(err?.message || err)), { stage, context: 'google-auth' });
     return res.status(500).json({ error: 'Failed to authenticate with Google' });
   }
-});
+}));
 
 const appleAuthSchema = z.object({
   identity_token: z.string().min(1),
 });
 
-authRouter.post('/apple', oauthLimiter, async (req, res) => {
+authRouter.post('/apple', oauthLimiter, asyncHandler(async (req, res) => {
   const APPLE_CLIENT_ID = process.env.APPLE_CLIENT_ID;
   if (!APPLE_CLIENT_ID) {
     return res.status(503).json({ error: 'Apple Sign-In is not configured' });
@@ -676,11 +676,11 @@ authRouter.post('/apple', oauthLimiter, async (req, res) => {
     console.error('[auth/apple] unexpected error', err);
     return res.status(500).json({ error: 'Failed to authenticate with Apple' });
   }
-});
+}));
 
 const passwordResetRequestSchema = z.object({ email: z.string().email() });
 
-authRouter.post('/password/forgot', async (req, res) => {
+authRouter.post('/password/forgot', asyncHandler(async (req, res) => {
   const parsed = passwordResetRequestSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
   const email = parsed.data.email.trim().toLowerCase();
@@ -726,7 +726,7 @@ authRouter.post('/password/forgot', async (req, res) => {
 
   if (process.env.NODE_ENV !== 'production') payload.dev_reset_code = code;
   return res.json(payload);
-});
+}));
 
 const passwordResetSchema = z.object({
   email: z.string().email(),
@@ -734,7 +734,7 @@ const passwordResetSchema = z.object({
   password: passwordRequirement,
 });
 
-authRouter.post('/password/reset', async (req, res) => {
+authRouter.post('/password/reset', asyncHandler(async (req, res) => {
   const parsed = passwordResetSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
   const { email, code, password } = parsed.data;
@@ -784,7 +784,7 @@ authRouter.post('/password/reset', async (req, res) => {
   ]);
 
   return res.json({ ok: true });
-});
+}));
 
 const passwordChangeSchema = z.object({
   current_password: z.string().min(1),
@@ -867,7 +867,7 @@ authRouter.post('/upgrade-to-coach', asyncHandler(async (req: AuthedRequest, res
   return res.json({ ok: true, preferences: updated.preferences });
 }));
 
-authRouter.get('/me', async (req: AuthedRequest, res) => {
+authRouter.get('/me', asyncHandler(async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const user = await prisma.user.findUnique({
     where: { id: req.user.id },
@@ -898,7 +898,7 @@ authRouter.get('/me', async (req: AuthedRequest, res) => {
   const prefs = mergePreferences(userPrefs, defaults);
   const { password_hash, ...rest } = user as any;
   return res.json({ ...rest, ...(is_admin ? { role: 'admin' } : {}), preferences: prefs, is_admin });
-});
+}));
 
 const updateMeSchema = z.object({
   display_name: z.string().min(1).max(120).refine((val) => val.trim().length > 0, { message: 'Display name cannot be only whitespace' }).optional(),
@@ -924,7 +924,7 @@ const updateMeSchema = z.object({
   preferences: z.any().optional(),
 });
 
-authRouter.put('/me', async (req: AuthedRequest, res) => {
+authRouter.put('/me', asyncHandler(async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const parsed = updateMeSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -979,10 +979,10 @@ authRouter.put('/me', async (req: AuthedRequest, res) => {
   const { preferences, ...rest } = patch;
   const user = await prisma.user.update({ where: { id: req.user.id }, data: { ...rest, ...(preferences ? { preferences } : {}) } });
   return res.json(sanitizeUser(user));
-});
+}));
 
 // PATCH /me (alias) to support partial updates including preferences
-authRouter.patch('/me', async (req: AuthedRequest, res) => {
+authRouter.patch('/me', asyncHandler(async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const parsed = updateMeSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -1037,7 +1037,7 @@ authRouter.patch('/me', async (req: AuthedRequest, res) => {
   const { preferences, ...rest } = patch;
   const user = await prisma.user.update({ where: { id: req.user.id }, data: { ...rest, ...(preferences ? { preferences } : {}) } });
   return res.json(sanitizeUser(user));
-});
+}));
 
 // Utility to deep-merge preferences, preserving nested notification keys
 function mergePreferences(base: any, incoming: any) {
@@ -1086,7 +1086,7 @@ function stripProtectedKeys(obj: Record<string, unknown>): Record<string, unknow
 }
 
 // Partial update for user preferences
-authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
+authRouter.patch('/me/preferences', asyncHandler(async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const schema = z.object({
     notifications: z.object({
@@ -1185,7 +1185,7 @@ authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
     },
   });
   return res.json({ preferences: updated.preferences });
-});
+}));
 
 // Complete onboarding endpoint
 const completeOnboardingSchema = z.object({
@@ -1235,7 +1235,7 @@ const completeOnboardingSchema = z.object({
   messaging_policy_accepted: z.boolean().optional(),
 });
 
-authRouter.post('/me/complete-onboarding', authLimiter, requireAuth as any, requireVerified as any, async (req: AuthedRequest, res) => {
+authRouter.post('/me/complete-onboarding', authLimiter, requireAuth as any, requireVerified as any, asyncHandler(async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const parsed = completeOnboardingSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -1362,10 +1362,10 @@ authRouter.post('/me/complete-onboarding', authLimiter, requireAuth as any, requ
     message: 'Onboarding completed successfully',
     user: sanitizeUser(updated)
   });
-});
+}));
 
 // Request a new email verification code (authenticated)
-authRouter.post('/verify/request', async (req: AuthedRequest, res) => {
+authRouter.post('/verify/request', asyncHandler(async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const user = await prisma.user.findUnique({ where: { id: req.user.id } });
   if (!user) return res.status(404).json({ error: 'Not found' });
@@ -1397,15 +1397,15 @@ authRouter.post('/verify/request', async (req: AuthedRequest, res) => {
   if (process.env.NODE_ENV !== 'production') payload.dev_verification_code = code;
   rec.last = now; rec.count += 1; verifyRate.set(key, rec);
   return res.json(payload);
-});
+}));
 
 // Alias: /auth/verify/send
-authRouter.post('/verify/send', async (req: AuthedRequest, res) => {
+authRouter.post('/verify/send', asyncHandler(async (req: AuthedRequest, res) => {
   (authRouter as any).handle({ ...req, url: '/verify/request' }, res);
-});
+}));
 
 // Verify code (authenticated)
-authRouter.post('/verify/confirm', verificationConfirmLimiter, async (req: AuthedRequest, res) => {
+authRouter.post('/verify/confirm', verificationConfirmLimiter, asyncHandler(async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const schema = z.object({ code: z.string().min(4).max(8) });
   const parsed = schema.safeParse(req.body);
@@ -1419,7 +1419,7 @@ authRouter.post('/verify/confirm', verificationConfirmLimiter, async (req: Authe
   if (String(code) !== String(user.email_verification_code)) return res.status(400).json({ error: 'Invalid code' });
   const updated = await prisma.user.update({ where: { id: user.id }, data: { email_verified: true, email_verification_code: null, email_verification_expires: null } });
   return res.json({ ok: true, user: sanitizeUser(updated) });
-});
+}));
 
 function sanitizeUser(u: any) {
   const {
@@ -1434,7 +1434,7 @@ function sanitizeUser(u: any) {
 }
 
 // Test email endpoint (development only)
-authRouter.post('/test-email', async (req, res) => {
+authRouter.post('/test-email', asyncHandler(async (req, res) => {
   if (process.env.NODE_ENV === 'production') {
     return res.status(403).json({ error: 'Test endpoint not available in production' });
   }
@@ -1455,6 +1455,6 @@ authRouter.post('/test-email', async (req, res) => {
     console.error('[email-test] Test email failed:', error);
     res.status(500).json({ success: false, error: (error as any).message || 'Unknown error' });
   }
-});
+}));
 
 export default authRouter;
