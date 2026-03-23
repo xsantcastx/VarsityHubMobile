@@ -295,8 +295,18 @@ export default function Step2Basic() {
       }));
       
       // Save username (not display_name) - this is the single identifier
-      await User.patchMe({ username: finalUsername, preferences: { affiliation, dob, zip_code: zip || undefined } });
-      
+      try {
+        await User.patchMe({ username: finalUsername, preferences: { affiliation, dob, zip_code: zip || undefined } });
+      } catch (patchErr: any) {
+        // Detect username conflict specifically
+        const msg = patchErr?.message || patchErr?.data?.error || '';
+        if (msg.toLowerCase().includes('username') || msg.toLowerCase().includes('unique') || msg.toLowerCase().includes('taken')) {
+          setAvailable(false);
+          throw new Error('That username was just taken. Please choose a different one.');
+        }
+        throw patchErr;
+      }
+
       const currentRole = ob.role;
       const updatedDataWithRole = { ...updatedData, role: currentRole };
 
@@ -307,55 +317,55 @@ export default function Step2Basic() {
         router.replace('/onboarding/step-3-league' as any);
       } else {
         // Fans are DONE — upload avatar, save bio, request permissions, then complete
-        try {
-          // Upload avatar if selected (non-blocking — don't fail onboarding if upload fails)
-          let avatarUrl: string | undefined;
-          if (avatarUri) {
-            try {
-              const uploaded = await uploadFile(avatarUri, 'image');
-              avatarUrl = uploaded?.url || uploaded?.secure_url;
-            } catch (uploadErr) {
-              if (__DEV__) console.warn('[step-2] Avatar upload failed (continuing):', uploadErr);
-            }
+        // Upload avatar if selected (non-blocking — don't fail onboarding if upload fails)
+        let avatarUrl: string | undefined;
+        if (avatarUri) {
+          try {
+            const uploaded = await uploadFile(avatarUri, 'image');
+            avatarUrl = uploaded?.url || uploaded?.secure_url;
+          } catch (uploadErr) {
+            if (__DEV__) console.warn('[step-2] Avatar upload failed (continuing):', uploadErr);
           }
-
-          // Save bio + avatar before completing onboarding
-          if (bio.trim() || avatarUrl) {
-            await User.patchMe({
-              ...(bio.trim() ? { bio: bio.trim() } : {}),
-              ...(avatarUrl ? { avatar_url: avatarUrl } : {}),
-            }).catch((err: any) => { if (__DEV__) console.warn('[step-2] Bio/avatar save failed (continuing):', err); });
-          }
-
-          await User.completeOnboarding({
-            role: 'fan',
-            username: finalUsername,
-            dob,
-            zip_code: zip || undefined,
-            affiliation,
-          });
-          await markOnboardingCompleteLocally();
-
-          // Request push + location permissions (non-blocking)
-          await requestPermissions();
-
-          dispatch({ type: 'SAVE_SUCCESS', data: updatedDataWithRole });
-          router.replace('/(tabs)' as any);
-        } catch (completeErr: any) {
-          if (__DEV__) console.error('[step-2] Failed to complete fan onboarding:', completeErr);
-          dispatch({ type: 'SAVE_FAIL', error: completeErr });
-          Alert.alert('Failed to complete setup', 'Please try again.', [{ text: 'OK' }]);
         }
+
+        // Save bio + avatar before completing onboarding
+        if (bio.trim() || avatarUrl) {
+          await User.patchMe({
+            ...(bio.trim() ? { bio: bio.trim() } : {}),
+            ...(avatarUrl ? { avatar_url: avatarUrl } : {}),
+          }).catch((err: any) => { if (__DEV__) console.warn('[step-2] Bio/avatar save failed (continuing):', err); });
+        }
+
+        await User.completeOnboarding({
+          role: 'fan',
+          username: finalUsername,
+          dob,
+          zip_code: zip || undefined,
+          affiliation,
+        });
+
+        // Mark complete locally — non-fatal if AsyncStorage write fails
+        try {
+          await markOnboardingCompleteLocally();
+        } catch (localErr) {
+          if (__DEV__) console.warn('[step-2] markOnboardingCompleteLocally failed (continuing):', localErr);
+        }
+
+        // Request push + location permissions (non-blocking)
+        await requestPermissions();
+
+        dispatch({ type: 'SAVE_SUCCESS', data: updatedDataWithRole });
+        router.replace('/(tabs)' as any);
       }
-    } catch (e: any) { 
+    } catch (e: any) {
       if (__DEV__) console.error('[step-2-basic] Failed to save:', e);
       dispatch({ type: 'SAVE_FAIL', error: e });
-      const errorMessage = e?.message || e?.data?.error || 'Please try again';
+      const errorMessage = e?.message || e?.data?.error || 'Please try again.';
       Alert.alert('Failed to save', errorMessage, [
         { text: 'OK', style: 'default' }
-      ]); 
-    } finally { 
-      setSaving(false); 
+      ]);
+    } finally {
+      setSaving(false);
     }
   };
 

@@ -131,6 +131,7 @@
       "./plugins/withAndroidManifestCleanup",
       "./plugins/withAndroidLintExtraTranslationFix",
       "./plugins/withAndroidBuildConfig",
+      "./plugins/withStripeProguardFix",
       "./plugins/withGoogleMaps",
       "./plugins/withGoogleOAuth",
       [
