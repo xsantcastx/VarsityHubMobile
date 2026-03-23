@@ -473,7 +473,7 @@ adsRouter.put('/:id([a-z0-9]{15,50})', requireAuth as any, async (req: AuthedReq
 });
 
 // Delete an Ad (owner-only if authenticated)
-adsRouter.delete('/:id([a-z0-9]{15,50})', requireVerified as any, async (req: AuthedRequest, res) => {
+adsRouter.delete('/:id([a-z0-9]{15,50})', requireVerified as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
   try {
     const id = String(req.params.id);
     debugLog('[ads] DELETE /:id request', { id, userId: req.user?.id });

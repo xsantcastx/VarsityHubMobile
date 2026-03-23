@@ -250,6 +250,23 @@ organizationsRouter.get('/:id', async (req, res) => {
     });
 
     if (!organization) return res.status(404).json({ error: 'Organization not found' });
+
+    // Hide unapproved orgs from non-members (members/admins can still see their own)
+    if (!organization.admin_approved) {
+      let canView = false;
+      if (currentUserId) {
+        const membership = await prisma.organizationMembership.findUnique({
+          where: { organization_id_user_id: { organization_id: id, user_id: currentUserId } as any }
+        });
+        if (membership) canView = true;
+        if (!canView) {
+          const viewer = await prisma.user.findUnique({ where: { id: currentUserId }, select: { email: true } });
+          if (isEmailAdmin(viewer?.email)) canView = true;
+        }
+      }
+      if (!canView) return res.status(404).json({ error: 'Organization not found' });
+    }
+
     const payload = { ...organization } as any;
     payload.followers_count = (organization as any)._count?.followers ?? 0;
     payload.members_count = (organization as any)._count?.memberships ?? 0;

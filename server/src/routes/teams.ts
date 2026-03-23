@@ -621,6 +621,15 @@ teamsRouter.put('/:id', requireVerified as any, requireOnboarded as any, asyncHa
   if (parsed.data.sport !== undefined) updateData.sport = parsed.data.sport;
   if (parsed.data.season !== undefined) updateData.season = parsed.data.season;
   if (parsed.data.organization_id !== undefined) {
+    // Validate: user must be a member of the target org (or admin) to move a team there
+    if (parsed.data.organization_id !== null && !isAdmin) {
+      const targetOrgMembership = await prisma.organizationMembership.findUnique({
+        where: { organization_id_user_id: { organization_id: parsed.data.organization_id, user_id: req.user!.id } }
+      });
+      if (!targetOrgMembership) {
+        return res.status(403).json({ error: 'You must be a member of the target organization to move a team there.' });
+      }
+    }
     updateData.organization_id = parsed.data.organization_id === null ? null : parsed.data.organization_id;
   }
   if (parsed.data.logo_url !== undefined) updateData.logo_url = parsed.data.logo_url === '' ? null : parsed.data.logo_url;
@@ -1031,22 +1040,20 @@ teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, req
         });
       }
 
-      // Team creation only requires COACH role — org approval is enforced at event posting, not here.
-      // If the coach isn't an org member yet, add them as a 'coach' member so the link exists.
+      // Verify the coach is already an org member (owner, manager, or coach)
+      // Coaches cannot add teams to orgs they don't belong to
       const orgMembership = await prisma.organizationMembership.findUnique({
         where: { organization_id_user_id: { organization_id: organizationId, user_id: me.id } }
       });
 
       if (!orgMembership) {
-        // Join as coach member — never auto-claim ownership during team creation.
-        // Org ownership is established during org creation or via admin transfer.
-        await prisma.organizationMembership.create({
-          data: {
-            organization_id: organizationId,
-            user_id: me.id,
-            role: 'coach',
-          }
-        });
+        const callerIsAdmin = await getIsAdmin(req as any);
+        if (!callerIsAdmin) {
+          return res.status(403).json({
+            error: 'You must be a member of this organization to create teams under it.',
+            code: 'ORG_MEMBERSHIP_REQUIRED'
+          });
+        }
       }
     } catch (orgError: any) {
       console.error('[Teams] Failed to validate organization:', orgError);
