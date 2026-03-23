@@ -902,8 +902,7 @@ authRouter.get('/me', asyncHandler(async (req: AuthedRequest, res) => {
     notifications: { game_event_reminders: false, team_updates: false, comments_upvotes: false, follows_notifications: true, messages_notifications: true },
     is_parent: false,
     zip_code: null,
-    // Only set onboarding_completed=true for admin accounts
-    ...(is_admin ? { onboarding_completed: true } : {}),
+    // Admin accounts go through normal onboarding like everyone else
   };
   // CRITICAL: Admin defaults must override DB values (second arg overrides first in mergePreferences)
   // This ensures admin accounts always have onboarding_completed=true regardless of DB state
@@ -1164,7 +1163,6 @@ authRouter.patch('/me/preferences', asyncHandler(async (req: AuthedRequest, res)
     notifications: { game_event_reminders: false, team_updates: false, comments_upvotes: false, follows_notifications: true, messages_notifications: true },
     is_parent: false,
     zip_code: null,
-    ...(is_admin ? { onboarding_completed: true } : {}),
     plan: null,
     role: 'fan',
     sports_interests: [],
