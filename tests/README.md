@@ -33,6 +33,16 @@ npm run test:smoke
 npm run test:api
 ```
 
+### Runtime Onboarding Contract (real API payload)
+```bash
+API_URL=https://api-production-8ac3.up.railway.app npm run test:runtime:onboarding
+```
+
+### Runtime User Boundary Suite (privacy + isolation)
+```bash
+API_URL=https://api-production-8ac3.up.railway.app npm run test:runtime:boundaries
+```
+
 ### E2E Tests (10-30 minutes)
 ```bash
 npm run test:e2e
@@ -94,6 +104,12 @@ npm run test:smoke:debug
 - **Duration**: 5-10 minutes
 - **When**: On every commit, before deployments
 - **Files**: `tests/api/*.spec.ts`
+
+### Runtime Contract & Boundary Tests
+- **Purpose**: Validate real client payloads and cross-user isolation on a live server
+- **Duration**: 5-15 minutes
+- **When**: Before OTA/TestFlight rollout and before production release
+- **Files**: `tests/api/onboarding-runtime-contract.spec.ts`, `tests/api/user-boundaries-runtime.spec.ts`
 
 ### E2E Tests
 - **Purpose**: Test complete user flows

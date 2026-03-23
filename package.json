@@ -46,6 +46,8 @@
     "typecheck": "tsc --noEmit",
     "test": "jest --runInBand",
     "test:api": "npm run test:server",
+    "test:runtime:onboarding": "cross-env PLAYWRIGHT_SKIP_SERVER=1 playwright test tests/api/onboarding-runtime-contract.spec.ts",
+    "test:runtime:boundaries": "cross-env PLAYWRIGHT_SKIP_SERVER=1 playwright test tests/api/user-boundaries-runtime.spec.ts",
     "test:e2e": "npm run test:smoke",
     "test:server": "npm --prefix server test",
     "verify:p0:foundation": "npm audit --omit=dev && npm --prefix server audit --omit=dev && npm --prefix server run verify:rate-limits && npm --prefix server run test:payments:confidence",
