@@ -486,35 +486,51 @@ usersRouter.get('/:id/teams', async (req: AuthedRequest, res) => {
 });
 
 // Delete own account (hard-delete user and all their data)
-// Requires password confirmation to prevent compromised session from deleting account
-const deleteAccountSchema = z.object({ password: z.string().min(1, 'Password is required') });
+// Password users must provide password. OAuth-only users must provide explicit "DELETE" confirmation.
+const deleteAccountSchema = z.object({
+  password: z.string().min(1, 'Password is required').optional(),
+  delete_confirmation: z.string().optional(),
+});
 usersRouter.delete('/me', requireAuth as any, async (req: AuthedRequest, res) => {
   const id = req.user!.id;
   const parsed = deleteAccountSchema.safeParse(req.body || {});
   if (!parsed.success) {
-    return res.status(400).json({ error: 'Password confirmation required', message: 'Provide your password to delete your account.' });
+    return res.status(400).json({
+      error: 'Invalid confirmation payload',
+      message: 'Provide your password or type DELETE to confirm account deletion.',
+    });
   }
-  const { password } = parsed.data;
+  const { password, delete_confirmation } = parsed.data;
   try {
     const user = await prisma.user.findUnique({ where: { id }, select: { password_hash: true, google_id: true, apple_id: true } });
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    // OAuth-only users without a password cannot verify via password
-    if (!user.password_hash) {
-      const provider = user.google_id ? 'Google' : user.apple_id ? 'Apple' : 'your social account';
-      return res.status(400).json({
-        error: 'No password set',
-        message: `Your account uses ${provider} sign-in. Please set a password in Settings first, then delete your account.`,
-      });
+    if (user.password_hash) {
+      if (!password) {
+        return res.status(400).json({
+          error: 'Password confirmation required',
+          message: 'Provide your password to delete your account.',
+        });
+      }
+      const isValid = await bcrypt.compare(password, user.password_hash);
+      if (!isValid) {
+        return res.status(403).json({
+          error: 'Invalid password',
+          message: 'Password does not match.',
+        });
+      }
+    } else {
+      // OAuth-only users cannot confirm with password; require explicit destructive confirmation instead.
+      const confirmation = (delete_confirmation || '').trim().toUpperCase();
+      if (confirmation !== 'DELETE') {
+        const provider = user.google_id ? 'Google' : user.apple_id ? 'Apple' : 'your social account';
+        return res.status(400).json({
+          error: 'Delete confirmation required',
+          message: `Your account uses ${provider} sign-in. Type DELETE to confirm account deletion.`,
+        });
+      }
     }
 
-    const isValid = await bcrypt.compare(password, user.password_hash);
-    if (!isValid) {
-      return res.status(403).json({
-        error: 'Invalid password',
-        message: 'Password does not match.',
-      });
-    }
     await prisma.$transaction(async (tx) => {
       // Delete user's interactions
       await tx.postUpvote.deleteMany({ where: { user_id: id } });
