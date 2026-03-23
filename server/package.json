@@ -21,6 +21,7 @@
     "test:watch": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --watch",
     "test:coverage": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --coverage",
     "test:payments:confidence": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --runTestsByPath src/__tests__/distributedLock.test.ts src/__tests__/transaction-logger-update.test.ts src/__tests__/payments-finalization.test.ts",
+    "test:approvals:confidence": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --runTestsByPath src/__tests__/coach-approval.test.ts src/__tests__/approval-workflows.e2e.test.ts",
     "verify:email": "tsx scripts/verify-email-config.ts",
     "verify:production-health": "tsx scripts/verify-production-health.ts",
     "verify:rate-limits": "tsx scripts/verify-rate-limit-coverage.ts",
