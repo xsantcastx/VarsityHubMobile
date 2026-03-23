@@ -34,7 +34,7 @@ export default function TermsOfServiceScreen() {
           body={'• Paid advertisers can promote content through our Ad Calendar\n• Ad content must comply with our Content Guidelines\n• We reserve the right to reject or remove ads\n• Ad pricing and placements subject to our Ad Policies'} />
 
         <TermSection colorScheme={colorScheme} title="8. Intellectual Property"
-          body={'• We respect intellectual property rights\n• Report copyright violations to: dmca@varsityhub.com\n• Repeat infringers will be terminated\n• VarsityHub trademarks may not be used without written permission'} />
+          body={'• We respect intellectual property rights\n• Report copyright violations to: support@varsityhub.app\n• Repeat infringers will be terminated\n• VarsityHub trademarks may not be used without written permission'} />
 
         <TermSection colorScheme={colorScheme} title="9. Privacy"
           body="Your use of the App is subject to our Privacy Policy, which is accessible from Settings." />
@@ -64,7 +64,7 @@ export default function TermsOfServiceScreen() {
           body={'Minors: Users aged 13-17 must have parental consent to use the App.\n\nContent Guidelines:\n• Be respectful and sportsmanlike\n• Keep content appropriate for all ages\n• Report violations using in-app reporting\n\nData Retention:\n• We retain data as long as your account is active\n• When you delete your account, we immediately anonymize your personal data; there is no grace period\n• Some data may be retained for legal compliance'} />
 
         <TermSection colorScheme={colorScheme} title="Contact Us"
-          body={'For questions about these Terms:\nEmail: support@varsityhub.app'} />
+          body={'For questions about these Terms:\nEmail: support@varsityhub.app\nWebsite: varsityhub.app/legal'} />
 
         <Text style={[styles.footer, { color: Colors[colorScheme].mutedText }]}>
           © 2026 VarsityHub. All rights reserved.

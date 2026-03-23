@@ -230,6 +230,78 @@ describeDb('Approval workflows confidence pack (DB-backed)', () => {
     if (teamId) createdTeamIds.push(teamId);
   });
 
+  it('coach rejection flow records denied status and in-app update note', async () => {
+    if (!dbReady) return;
+
+    const owner = await createUser({
+      email: `reject-owner-${ts}@example.com`,
+      displayName: 'Reject Owner',
+      role: 'coach',
+      plan: 'veteran',
+      approvalStatus: 'APPROVED',
+    });
+    const applicant = await createUser({
+      email: `reject-applicant-${ts}@example.com`,
+      displayName: 'Reject Applicant',
+      role: 'coach',
+      plan: 'rookie',
+      approvalStatus: 'APPROVED',
+    });
+
+    const org = await prisma.organization.create({
+      data: {
+        name: `Rejection Confidence Org ${ts}`,
+        org_type: 'club',
+        admin_approved: true,
+        updated_at: new Date(),
+        league_owner_id: owner.id,
+      },
+    });
+    createdOrgIds.push(org.id);
+
+    await prisma.organizationMembership.create({
+      data: { organization_id: org.id, user_id: owner.id, role: 'owner', status: 'active' },
+    });
+
+    const joinRes = await request(approvalApp)
+      .post(`/organizations/${org.id}/join-requests`)
+      .set('Authorization', `Bearer ${applicant.token}`)
+      .send({ message: 'Please approve me as coach' });
+    expect(joinRes.status).toBe(201);
+    createdJoinRequestIds.push(joinRes.body.id);
+
+    const reason = 'Need verified league documentation before approving.';
+    const rejectRes = await request(approvalApp)
+      .post(`/organizations/${org.id}/coaches/${applicant.id}/reject`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ reason });
+    expect(rejectRes.status).toBe(200);
+
+    const applicantAfterReject = await prisma.user.findUnique({
+      where: { id: applicant.id },
+      select: { approval_status: true },
+    });
+    expect(applicantAfterReject?.approval_status).toBe('REJECTED');
+
+    const joinRequestAfterReject = await prisma.organizationJoinRequest.findUnique({
+      where: { id: joinRes.body.id },
+      select: { status: true, message: true },
+    });
+    expect(joinRequestAfterReject?.status).toBe('denied');
+    expect(joinRequestAfterReject?.message).toBe(reason);
+
+    const notifications = await prisma.notification.findMany({
+      where: { user_id: applicant.id, type: 'TEAM_INVITE' },
+      orderBy: { created_at: 'desc' },
+      take: 5,
+    });
+
+    const deniedNotification = notifications.find((n: any) => Boolean(n?.meta?.coach_denied));
+    expect(deniedNotification).toBeTruthy();
+    expect(deniedNotification?.meta?.organization_id).toBe(org.id);
+    expect(deniedNotification?.meta?.reason).toBe(reason);
+  });
+
   it('ad approval + payment finalization transitions ad to active/paid', async () => {
     if (!dbReady) return;
 

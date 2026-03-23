@@ -1116,6 +1116,7 @@ organizationsRouter.get('/join-requests/me', requireAuth as any, async (req: Aut
 organizationsRouter.post('/join-requests/:requestId/approve', requireAuth as any, async (req: AuthedRequest, res) => {
   try {
   const requestId = String(req.params.requestId);
+  const approvalNote = typeof req.body?.note === 'string' ? req.body.note.trim().slice(0, 500) : '';
 
   const joinRequest = await prisma.organizationJoinRequest.findUnique({
     where: { id: requestId },
@@ -1205,8 +1206,8 @@ organizationsRouter.post('/join-requests/:requestId/approve', requireAuth as any
     await sendPushNotification(
       joinRequest.user_id,
       'Join Request Approved',
-      `Your request to join ${joinRequest.organization.name} was approved!`,
-      { type: 'join_request_approved', organization_id: joinRequest.organization_id }
+      `Your request to join ${joinRequest.organization.name} was approved!${approvalNote ? ` Note: ${approvalNote}` : ''}`,
+      { type: 'join_request_approved', organization_id: joinRequest.organization_id, note: approvalNote || undefined }
     );
   } catch (err) {
     console.error('Failed to send join request approved push notification:', err);
@@ -1219,14 +1220,18 @@ organizationsRouter.post('/join-requests/:requestId/approve', requireAuth as any
         user_id: joinRequest.user_id,
         actor_id: req.user?.id || null,
         type: 'JOIN_REQUEST_APPROVED',
-        meta: { organization_id: joinRequest.organization_id, organization_name: joinRequest.organization.name },
+        meta: {
+          organization_id: joinRequest.organization_id,
+          organization_name: joinRequest.organization.name,
+          note: approvalNote || null,
+        },
       },
     });
   } catch (err) {
     console.error('Failed to create join request approved notification:', err);
   }
 
-  return res.json({ message: 'Join request approved' });
+  return res.json({ message: 'Join request approved', note_sent: !!approvalNote });
   } catch (err) {
     console.error('[organizations] POST /join-requests/:requestId/approve error:', err);
     return res.status(500).json({ error: 'Internal server error' });
@@ -1302,6 +1307,39 @@ async function handleDenyJoinRequest(req: AuthedRequest, res: any) {
     });
   } catch (err) {
     console.error('Failed to send join request denied email:', err);
+  }
+
+  // Push + in-app notification so denied users see outcome in Updates.
+  try {
+    await sendPushNotification(
+      joinRequest.user_id,
+      'Join Request Declined',
+      `Your request to join ${joinRequest.organization.name} was declined.${reason ? ` Reason: ${reason}` : ''}`,
+      {
+        type: 'coach_denied',
+        organization_id: joinRequest.organization_id,
+        reason: reason || undefined,
+      }
+    );
+  } catch (err) {
+    console.error('Failed to send join request denied push notification:', err);
+  }
+  try {
+    await prisma.notification.create({
+      data: {
+        user_id: joinRequest.user_id,
+        actor_id: req.user?.id || null,
+        type: 'TEAM_INVITE',
+        meta: {
+          coach_denied: true,
+          organization_id: joinRequest.organization_id,
+          organization_name: joinRequest.organization.name,
+          reason: reason || null,
+        },
+      },
+    });
+  } catch (err) {
+    console.error('Failed to create join request denied notification:', err);
   }
   
   return res.json({ message: 'Join request denied' });
@@ -1629,6 +1667,7 @@ organizationsRouter.post('/:id/coaches/:userId/approve', requireAuth as any, req
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const { id: orgId, userId: coachId } = req.params;
     const { team_id: teamId } = req.body || {};
+    const approvalNote = typeof req.body?.note === 'string' ? req.body.note.trim().slice(0, 500) : '';
 
     // Verify requester is league owner
     const membership = await prisma.organizationMembership.findFirst({
@@ -1702,6 +1741,7 @@ organizationsRouter.post('/:id/coaches/:userId/approve', requireAuth as any, req
             coach_approved: true,
             organization_id: orgId,
             organization_name: org?.name || 'your league',
+            note: approvalNote || null,
           },
         },
       })
@@ -1724,13 +1764,13 @@ organizationsRouter.post('/:id/coaches/:userId/approve', requireAuth as any, req
     sendPushNotification(
       coachId,
       'Application Approved!',
-      `${org?.name || 'Your league'} approved your coach application`,
-      { type: 'coach_approved', screen: 'onboarding', organization_id: orgId },
+      `${org?.name || 'Your league'} approved your coach application.${approvalNote ? ` Note: ${approvalNote}` : ''}`,
+      { type: 'coach_approved', screen: 'onboarding', organization_id: orgId, note: approvalNote || undefined },
     ).catch((err) => {
       console.warn('[orgs] coach approval push failed:', (err as any)?.message || err);
     });
 
-    return res.json({ message: 'Coach approved', coach_id: coachId });
+    return res.json({ message: 'Coach approved', coach_id: coachId, note_sent: !!approvalNote });
   } catch (err: any) {
     // Handle unique constraint violation (coach already a member)
     if (err?.code === 'P2002') {
@@ -1798,6 +1838,31 @@ organizationsRouter.post('/:id/coaches/:userId/reject', requireAuth as any, requ
         reason,
       }).catch(() => {});
     }
+
+    sendPushNotification(
+      coachId,
+      'Coach Application Declined',
+      `${org?.name || 'Your league'} declined your coach application.${reason ? ` Reason: ${reason}` : ''}`,
+      { type: 'coach_denied', screen: 'onboarding', organization_id: orgId, reason: reason || undefined },
+    ).catch((err) => {
+      console.warn('[orgs] coach rejection push failed:', (err as any)?.message || err);
+    });
+
+    await prisma.notification.create({
+      data: {
+        user_id: coachId,
+        actor_id: req.user.id,
+        type: 'TEAM_INVITE',
+        meta: {
+          coach_denied: true,
+          organization_id: orgId,
+          organization_name: org?.name || 'your league',
+          reason: reason || null,
+        },
+      },
+    }).catch((err) => {
+      console.error('[orgs] FAILED to create coach rejected notification:', (err as any)?.message || err);
+    });
 
     return res.json({ message: 'Coach request rejected', coach_id: coachId });
   } catch (err) {

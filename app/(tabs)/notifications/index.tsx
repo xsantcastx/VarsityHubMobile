@@ -119,6 +119,8 @@ export default function NotificationsScreen() {
       ? `${actorName} sent you a message`
       : item.type === 'TEAM_INVITE' && item.meta?.coach_approved
       ? `${item.meta?.organization_name || 'A league'} approved your coach application`
+      : item.type === 'TEAM_INVITE' && item.meta?.coach_denied
+      ? `${item.meta?.organization_name || 'A league'} declined your coach application`
       : item.type === 'TEAM_INVITE' && item.meta?.coach_request
       ? `${item.meta?.coach_name || actorName} wants to join ${item.meta?.organization_name || 'your league'}`
       : item.type === 'TEAM_INVITE'
@@ -153,6 +155,8 @@ export default function NotificationsScreen() {
       } else if (item.type === 'TEAM_INVITE' && item.meta?.coach_request) {
         router.push('/approvals' as any);
       } else if (item.type === 'TEAM_INVITE' && item.meta?.coach_approved) {
+        router.push('/(tabs)' as any);
+      } else if (item.type === 'TEAM_INVITE' && item.meta?.coach_denied) {
         router.push('/(tabs)' as any);
       } else if (item.type === 'TEAM_INVITE') {
         router.push('/team-invites');
@@ -207,6 +211,10 @@ export default function NotificationsScreen() {
             <Text numberOfLines={1} style={[S.subtitle, { color: Colors[colorScheme].mutedText }]}>{item.post.content}</Text>
           ) : item.message?.content ? (
             <Text numberOfLines={1} style={[S.subtitle, { color: Colors[colorScheme].mutedText }]}>{item.message.content}</Text>
+          ) : ((item.type === 'TEAM_INVITE' || item.type === 'JOIN_REQUEST_APPROVED' || item.type === 'AD_APPROVED' || item.type === 'AD_REJECTED') && (item.meta?.note || item.meta?.reason)) ? (
+            <Text numberOfLines={2} style={[S.subtitle, { color: Colors[colorScheme].mutedText }]}>
+              {(item.meta?.note || item.meta?.reason) as string}
+            </Text>
           ) : item.type === 'GAME_REMINDER' && (item.event?.title || item.meta?.event_title) ? (
             <Text numberOfLines={1} style={[S.subtitle, { color: Colors[colorScheme].mutedText }]}>{item.event?.title || item.meta?.event_title}</Text>
           ) : null}

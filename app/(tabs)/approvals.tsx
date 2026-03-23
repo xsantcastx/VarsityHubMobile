@@ -63,6 +63,11 @@ export default function ApprovalsScreen() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [approvedIds, setApprovedIds] = useState<Set<string>>(new Set());
 
+  // Approve modal
+  const [approveTarget, setApproveTarget] = useState<PendingCoach | null>(null);
+  const [approveNote, setApproveNote] = useState('');
+  const [approving, setApproving] = useState(false);
+
   // Decline modal
   const [declineTarget, setDeclineTarget] = useState<PendingCoach | null>(null);
   const [declineReason, setDeclineReason] = useState('');
@@ -117,18 +122,26 @@ export default function ApprovalsScreen() {
 
   // ─── Actions ──────────────────────────────────────────────────────────────
 
-  const handleApprove = async (coach: PendingCoach) => {
-    setActionLoading(coach.user.id);
+  const handleApproveConfirm = async () => {
+    if (!approveTarget) return;
+    setApproving(true);
+    setActionLoading(approveTarget.user.id);
     try {
-      await Organization.approveCoach(coach.organization_id, coach.user.id);
+      await Organization.approveCoach(
+        approveTarget.organization_id,
+        approveTarget.user.id,
+        approveNote.trim() || undefined,
+      );
       // Show green checkmark briefly
-      setApprovedIds((prev) => new Set(prev).add(coach.user.id));
+      setApprovedIds((prev) => new Set(prev).add(approveTarget.user.id));
+      setApproveTarget(null);
+      setApproveNote('');
       setTimeout(() => {
         if (mountedRef.current) {
-          setCoaches((prev) => prev.filter((c) => c.user.id !== coach.user.id));
+          setCoaches((prev) => prev.filter((c) => c.user.id !== approveTarget.user.id));
           setApprovedIds((prev) => {
             const next = new Set(prev);
-            next.delete(coach.user.id);
+            next.delete(approveTarget.user.id);
             return next;
           });
         }
@@ -137,7 +150,10 @@ export default function ApprovalsScreen() {
       const msg = err?.data?.error || err?.message || 'Failed to approve coach';
       Alert.alert('Error', msg);
     } finally {
-      if (mountedRef.current) setActionLoading(null);
+      if (mountedRef.current) {
+        setApproving(false);
+        setActionLoading(null);
+      }
     }
   };
 
@@ -233,7 +249,7 @@ export default function ApprovalsScreen() {
           <View style={styles.actions}>
             <Pressable
               style={[styles.approveBtn, isActioning && { opacity: 0.6 }]}
-              onPress={() => handleApprove(item)}
+              onPress={() => { setApproveTarget(item); setApproveNote(''); }}
               disabled={isActioning || isApproved}
             >
               {isActioning ? (
@@ -351,6 +367,56 @@ export default function ApprovalsScreen() {
           }
         />
       )}
+
+      {/* Approve Bottom Sheet / Modal */}
+      <Modal
+        visible={!!approveTarget}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setApproveTarget(null)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setApproveTarget(null)}>
+          <Pressable style={[styles.modalSheet, { backgroundColor: isDark ? '#1F2937' : '#FFFFFF' }]} onPress={() => {}}>
+            <View style={[styles.modalHandle, { backgroundColor: isDark ? '#4B5563' : '#D1D5DB' }]} />
+            <Text style={[styles.modalTitle, { color: C.text }]}>Approve Coach Request</Text>
+            {approveTarget && (
+              <Text style={[styles.modalSubtitle, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>
+                {approveTarget.user.display_name || approveTarget.user.username}
+              </Text>
+            )}
+            <Text style={[styles.modalLabel, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>
+              Update note to coach (optional)
+            </Text>
+            <TextInput
+              style={[styles.modalInput, {
+                color: C.text,
+                borderColor: isDark ? '#374151' : '#D1D5DB',
+                backgroundColor: isDark ? '#111827' : '#F9FAFB',
+              }]}
+              value={approveNote}
+              onChangeText={setApproveNote}
+              placeholder="e.g. Welcome aboard. Please finish your setup in Onboarding."
+              placeholderTextColor={isDark ? '#6B7280' : '#9CA3AF'}
+              multiline
+              maxLength={300}
+            />
+            <Pressable
+              style={[styles.confirmApproveBtn, approving && { opacity: 0.6 }]}
+              onPress={handleApproveConfirm}
+              disabled={approving}
+            >
+              {approving ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.confirmApproveBtnText}>Confirm Approval</Text>
+              )}
+            </Pressable>
+            <Pressable style={styles.cancelBtn} onPress={() => setApproveTarget(null)}>
+              <Text style={[styles.cancelBtnText, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Cancel</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* Decline Bottom Sheet / Modal */}
       <Modal
@@ -540,6 +606,14 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   confirmDeclineBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  confirmApproveBtn: {
+    backgroundColor: '#DAA520',
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  confirmApproveBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
   cancelBtn: { alignItems: 'center', paddingVertical: 10 },
   cancelBtnText: { fontSize: 14, fontWeight: '600' },
 });
