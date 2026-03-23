@@ -315,16 +315,26 @@ authRouter.post('/refresh', authLimiter, async (req, res) => {
   }
 
   // Rotate: delete old token, issue new pair
+  // Wrapped in try-catch to handle race condition where two concurrent
+  // refresh requests find the same token but only one can delete it.
   const newRawRefresh = generateRefreshToken();
   const newHash = hashRefreshToken(newRawRefresh);
   const newExpiry = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
 
-  await prisma.$transaction([
-    prisma.refreshToken.delete({ where: { id: stored.id } }),
-    prisma.refreshToken.create({
-      data: { token_hash: newHash, user_id: user.id, expires_at: newExpiry },
-    }),
-  ]);
+  try {
+    await prisma.$transaction([
+      prisma.refreshToken.delete({ where: { id: stored.id } }),
+      prisma.refreshToken.create({
+        data: { token_hash: newHash, user_id: user.id, expires_at: newExpiry },
+      }),
+    ]);
+  } catch (txErr: any) {
+    // Token was already deleted by a concurrent request — treat as invalid
+    if (txErr?.code === 'P2025') {
+      return res.status(401).json({ error: 'Token already used' });
+    }
+    throw txErr;
+  }
 
   const access_token = signJwt({ id: user.id });
   return res.json({ access_token, refresh_token: newRawRefresh });

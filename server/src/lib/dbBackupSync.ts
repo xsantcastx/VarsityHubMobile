@@ -54,6 +54,7 @@ const TABLES_IN_ORDER = [
   'AbuseReport',
   'AdminActivityLog',
   'UserWarning',
+  'RefreshToken',
 ];
 
 export async function syncDatabaseBackup(): Promise<{

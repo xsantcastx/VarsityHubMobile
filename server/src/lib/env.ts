@@ -48,6 +48,10 @@ const envSchema = z.object({
   APPLE_IAP_SHARED_SECRET: z.string().optional().transform(toOptional),
   /** Set to '1' to return verification/reset codes in non-production API responses (dev/test only) */
   ENABLE_DEV_CODES: z.string().optional(),
+  /** Set to 'true' to accept Apple simulator tokens (sim- prefix) — must NOT be set in production */
+  ALLOW_APPLE_SIM_TOKENS: z.string().optional(),
+  /** Set to '1' to disable rate limiting — dev/test only */
+  DISABLE_RATE_LIMITING: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);
