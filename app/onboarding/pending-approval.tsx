@@ -19,6 +19,7 @@ export default function PendingApproval() {
   const leagueName = params.leagueName || 'the league';
   const ownerName = params.ownerName || 'the league admin';
   const [approved, setApproved] = useState(false);
+  const [rejected, setRejected] = useState(false);
   const [checking, setChecking] = useState(false);
   const [completionError, setCompletionError] = useState<string | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -29,6 +30,11 @@ export default function PendingApproval() {
       setChecking(true);
       setCompletionError(null);
       const me: any = await User.me();
+      if (me?.approval_status === 'REJECTED') {
+        setRejected(true);
+        if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
+        return;
+      }
       if (me?.approval_status === 'APPROVED') {
         setApproved(true);
         if (intervalRef.current) {
@@ -136,24 +142,32 @@ export default function PendingApproval() {
         </View>
 
         {/* Icon */}
-        <View style={[styles.iconCircle, { backgroundColor: approved ? (isDark ? 'rgba(22,163,74,0.15)' : '#D1FAE5') : (isDark ? 'rgba(218,165,32,0.15)' : '#FEF9C3') }]}>
+        <View style={[styles.iconCircle, {
+          backgroundColor: rejected
+            ? (isDark ? 'rgba(220,38,38,0.15)' : '#FEE2E2')
+            : approved
+              ? (isDark ? 'rgba(22,163,74,0.15)' : '#D1FAE5')
+              : (isDark ? 'rgba(218,165,32,0.15)' : '#FEF9C3')
+        }]}>
           <Image source={{ uri: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765997882/365220-200_mvbdz7.png' }} style={{ width: 56, height: 56 }} contentFit="contain" />
         </View>
 
         {/* Heading */}
         <Text style={[styles.heading, { color: isDark ? '#F9FAFB' : '#111827' }]}>
-          {approved ? 'You\'re Approved!' : 'Application Submitted'}
+          {rejected ? 'Application Not Approved' : approved ? 'You\'re Approved!' : 'Application Submitted'}
         </Text>
 
         {/* Subheading */}
         <Text style={[styles.subheading, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>
-          {approved
-            ? `Welcome to ${leagueName}! Setting up your coach account...`
-            : `Your request to join "${leagueName}" has been sent to ${ownerName}. You'll receive an email and notification when you're approved.`
+          {rejected
+            ? `Your request to join "${leagueName}" was not approved. You can continue as a fan or try joining a different league.`
+            : approved
+              ? `Welcome to ${leagueName}! Setting up your coach account...`
+              : `Your request to join "${leagueName}" has been sent to ${ownerName}. You'll receive an email and notification when you're approved.`
           }
         </Text>
 
-        {!approved && (
+        {(!approved || rejected) && (
           <>
             {/* Buttons */}
             <Pressable

@@ -21,6 +21,7 @@ export default function LeaguePendingApproval() {
   const leagueName = params.leagueName || 'your league';
   const orgId = String(params.orgId || ob.organization_id || '').trim();
   const [approved, setApproved] = useState(false);
+  const [rejected, setRejected] = useState(false);
   const [checking, setChecking] = useState(false);
   const [completionError, setCompletionError] = useState<string | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -35,6 +36,11 @@ export default function LeaguePendingApproval() {
       setChecking(true);
       setCompletionError(null);
       const org: any = await httpGet(`/organizations/${orgId}`);
+      if (org?.status === 'rejected' || org?.admin_approved === false && org?.status === 'rejected') {
+        setRejected(true);
+        if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
+        return;
+      }
       if (org?.admin_approved === true) {
         setApproved(true);
         if (intervalRef.current) {
@@ -148,20 +154,28 @@ export default function LeaguePendingApproval() {
         </View>
 
         {/* Icon */}
-        <View style={[styles.iconCircle, { backgroundColor: approved ? (isDark ? 'rgba(22,163,74,0.15)' : '#D1FAE5') : (isDark ? 'rgba(218,165,32,0.15)' : '#FEF9C3') }]}>
+        <View style={[styles.iconCircle, {
+          backgroundColor: rejected
+            ? (isDark ? 'rgba(220,38,38,0.15)' : '#FEE2E2')
+            : approved
+              ? (isDark ? 'rgba(22,163,74,0.15)' : '#D1FAE5')
+              : (isDark ? 'rgba(218,165,32,0.15)' : '#FEF9C3')
+        }]}>
           <Image source={{ uri: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765997882/365220-200_mvbdz7.png' }} style={{ width: 56, height: 56 }} contentFit="contain" />
         </View>
 
         {/* Heading */}
         <Text style={[styles.heading, { color: isDark ? '#F9FAFB' : '#111827' }]}>
-          {approved ? 'Approved by VarsityHub!' : 'Submitted to VarsityHub for Review'}
+          {rejected ? 'League Not Approved' : approved ? 'Approved by VarsityHub!' : 'Submitted to VarsityHub for Review'}
         </Text>
 
         {/* Subheading */}
         <Text style={[styles.subheading, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>
-          {approved
-            ? `"${leagueName}" is now live on VarsityHub! Let's finish setting up...`
-            : `VarsityHub is reviewing "${leagueName}". This usually takes less than 24 hours. You'll receive an email when your league is approved and ready.`
+          {rejected
+            ? `"${leagueName}" was not approved. You can try creating a new league or continue as a fan. Contact support@varsityhub.app for questions.`
+            : approved
+              ? `"${leagueName}" is now live on VarsityHub! Let's finish setting up...`
+              : `VarsityHub is reviewing "${leagueName}". This usually takes less than 24 hours. You'll receive an email when your league is approved and ready.`
           }
         </Text>
 
