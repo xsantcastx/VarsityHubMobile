@@ -840,7 +840,7 @@ export default function CreatePostScreen() {
                     onTrimReset={() => setTrimmedUri(null)}
                   />
                   <Text style={[styles.cropHint, { color: Colors[colorScheme].mutedText }]}>
-                    Video cropping coming soon.
+                    Trim your video using the handles above.
                   </Text>
                 </>
               )}

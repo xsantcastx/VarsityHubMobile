@@ -538,12 +538,8 @@ function renderFeatureValue(value: string | boolean, scheme: 'light' | 'dark' = 
 // Comparison table data
 const comparisonFeatures = [
   { name: 'Teams', rookie: '2', veteran: 'Unlimited', legend: 'Unlimited' },
-  { name: 'Priority Support (Coming Soon)', rookie: false, veteran: false, legend: true },
   { name: 'Dedicated Admin', rookie: false, veteran: true, legend: true },
   { name: 'Profile Badge', rookie: false, veteran: true, legend: true },
-  { name: 'Advanced Analytics (Coming Soon)', rookie: false, veteran: false, legend: true },
-  { name: 'Custom Branding (Coming Soon)', rookie: false, veteran: false, legend: true },
-  { name: 'Import/Export (Coming Soon)', rookie: false, veteran: false, legend: true },
 ];
 
 const styles = StyleSheet.create({
