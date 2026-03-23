@@ -4,7 +4,9 @@
     "slug": "varsityhub",
     "owner": "varsity-hub",
     "version": "1.0.1",
-    "runtimeVersion": "1.0.1",
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
     "description": "The ultimate sports team management and social platform for athletes, coaches, and fans.",
     "githubUrl": "https://github.com/xsantcastx/VarsityHubMobile",
     "icon": "./assets/images/splash.png",
@@ -108,7 +110,7 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Allow VarsityHub to use your location to show nearby events.",
+          "isAndroidBackgroundLocationEnabled": false,
           "locationWhenInUsePermission": "Allow VarsityHub to use your location to show nearby events on the map."
         }
       ],

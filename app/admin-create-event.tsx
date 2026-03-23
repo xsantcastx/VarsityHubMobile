@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
+    FlatList,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -18,6 +19,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 // @ts-ignore
 import { httpPost } from '@/api/http';
+import { Team } from '@/api/teams';
 import { autocompleteLocations, PlaceSuggestion } from '@/api/geocoding';
 import { safeGoBack } from '@/utils/navigation';
 import { sanitizeText } from '@/utils/formUtils';
@@ -32,6 +34,8 @@ const EVENT_TYPES = [
   { value: 'team_meal', label: 'Team Meal', emoji: '🍽️' },
   { value: 'other', label: 'Other', emoji: '📌' },
 ];
+
+type TeamResult = { id: string; name: string; sport?: string; logo_url?: string | null };
 
 export default function CreateEventScreen() {
   const { isAdmin, loading: adminLoading } = useRequireAdmin();
@@ -51,6 +55,38 @@ export default function CreateEventScreen() {
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
+
+  // Team selection state (for competitive games)
+  const [homeTeam, setHomeTeam] = useState<TeamResult | null>(null);
+  const [awayTeam, setAwayTeam] = useState<TeamResult | null>(null);
+  const [awayTeamName, setAwayTeamName] = useState('');
+  const [homeSearch, setHomeSearch] = useState('');
+  const [awaySearch, setAwaySearch] = useState('');
+  const [homeResults, setHomeResults] = useState<TeamResult[]>([]);
+  const [awayResults, setAwayResults] = useState<TeamResult[]>([]);
+  const [searchingHome, setSearchingHome] = useState(false);
+  const [searchingAway, setSearchingAway] = useState(false);
+  const homeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const awayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const isGameType = eventType === 'game';
+
+  const searchTeams = useCallback((query: string, side: 'home' | 'away') => {
+    const setSearching = side === 'home' ? setSearchingHome : setSearchingAway;
+    const setResults = side === 'home' ? setHomeResults : setAwayResults;
+    const timerRef = side === 'home' ? homeTimerRef : awayTimerRef;
+
+    if (timerRef.current) clearTimeout(timerRef.current);
+    if (query.length < 2) { setResults([]); setSearching(false); return; }
+    setSearching(true);
+    timerRef.current = setTimeout(async () => {
+      try {
+        const res = await Team.list(query, false, { limit: 8 });
+        setResults(res.teams || res.data || []);
+      } catch { setResults([]); }
+      finally { setSearching(false); }
+    }, 300);
+  }, []);
 
   const handleLocationChange = useCallback((text: string) => {
     setLocation(text);
@@ -76,12 +112,20 @@ export default function CreateEventScreen() {
     setErrors(prev => ({ ...prev, location: '' }));
   }, []);
 
-  useEffect(() => { return () => { if (locationTimerRef.current) clearTimeout(locationTimerRef.current); }; }, []);
+  useEffect(() => {
+    return () => {
+      if (locationTimerRef.current) clearTimeout(locationTimerRef.current);
+      if (homeTimerRef.current) clearTimeout(homeTimerRef.current);
+      if (awayTimerRef.current) clearTimeout(awayTimerRef.current);
+    };
+  }, []);
 
   const validateForm = (): boolean => {
     const newErrors: { [key: string]: string } = {};
     if (!title.trim()) newErrors.title = 'Title is required';
     if (!location.trim()) newErrors.location = 'Location is required';
+    if (isGameType && !homeTeam) newErrors.homeTeam = 'Home team is required';
+    if (isGameType && !awayTeam && !awayTeamName.trim()) newErrors.awayTeam = 'Away team or opponent name is required';
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -91,21 +135,47 @@ export default function CreateEventScreen() {
 
     setSubmitting(true);
     try {
-      const eventData: Record<string, any> = {
-        title: sanitizeText(title),
-        description: sanitizeText(description),
-        event_type: eventType,
-        location: selectedPlace?.description || location,
-        venue_address: selectedPlace?.description || location,
-        venue_place_id: selectedPlace?.place_id,
-        date: date.toISOString(),
-      };
+      if (isGameType) {
+        // Create a competitive game via /games endpoint
+        const gameData: Record<string, any> = {
+          title: sanitizeText(title),
+          description: sanitizeText(description),
+          event_type: 'game',
+          location: selectedPlace?.description || location,
+          venue_address: selectedPlace?.description || location,
+          venue_place_id: selectedPlace?.place_id,
+          date: date.toISOString(),
+          home_team_id: homeTeam!.id,
+          home_team: homeTeam!.name,
+          away_team_id: awayTeam?.id || undefined,
+          away_team: awayTeam?.name || awayTeamName.trim(),
+          away_team_name: !awayTeam ? awayTeamName.trim() : undefined,
+          autoGeocode: !selectedPlace,
+        };
 
-      await httpPost('/events', eventData);
+        await httpPost('/games', gameData);
 
-      Alert.alert('Event Created!', 'Your event has been published successfully!', [
-        { text: 'OK', onPress: () => { safeGoBack(router); } },
-      ]);
+        Alert.alert('Game Created!', 'The competitive game has been created and auto-approved.', [
+          { text: 'OK', onPress: () => { safeGoBack(router); } },
+        ]);
+      } else {
+        // Create a general event via /events endpoint
+        const eventData: Record<string, any> = {
+          title: sanitizeText(title),
+          description: sanitizeText(description),
+          event_type: eventType,
+          location: selectedPlace?.description || location,
+          venue_address: selectedPlace?.description || location,
+          venue_place_id: selectedPlace?.place_id,
+          date: date.toISOString(),
+        };
+
+        await httpPost('/events', eventData);
+
+        Alert.alert('Event Created!', 'Your event has been published successfully!', [
+          { text: 'OK', onPress: () => { safeGoBack(router); } },
+        ]);
+      }
     } catch (e: any) {
       Alert.alert('Error', e.message || 'Failed to create event.');
     } finally {
@@ -128,13 +198,119 @@ export default function CreateEventScreen() {
     );
   }
 
+  const renderTeamPicker = (
+    side: 'home' | 'away',
+    selectedTeam: TeamResult | null,
+    searchQuery: string,
+    results: TeamResult[],
+    searching: boolean,
+  ) => {
+    const label = side === 'home' ? 'Home Team' : 'Away Team';
+    const errorKey = side === 'home' ? 'homeTeam' : 'awayTeam';
+    const setSearch = side === 'home' ? setHomeSearch : setAwaySearch;
+    const setSelected = side === 'home' ? setHomeTeam : setAwayTeam;
+    const setResults = side === 'home' ? setHomeResults : setAwayResults;
+
+    if (selectedTeam) {
+      return (
+        <View style={styles.section}>
+          <Text style={[styles.label, { color: Colors[colorScheme].text }]}>{label} *</Text>
+          <View style={[styles.selectedTeam, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].tint }]}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.selectedTeamName, { color: Colors[colorScheme].text }]}>{selectedTeam.name}</Text>
+              {selectedTeam.sport && (
+                <Text style={{ fontSize: 13, color: Colors[colorScheme].mutedText }}>{selectedTeam.sport}</Text>
+              )}
+            </View>
+            <Pressable onPress={() => { setSelected(null); setSearch(''); setResults([]); }}>
+              <MaterialIcons name="close" size={20} color={Colors[colorScheme].mutedText} />
+            </Pressable>
+          </View>
+        </View>
+      );
+    }
+
+    return (
+      <View style={[styles.section, { zIndex: side === 'home' ? 9 : 8 }]}>
+        <Text style={[styles.label, { color: Colors[colorScheme].text }]}>{label} *</Text>
+        <View style={{ position: 'relative' }}>
+          <TextInput
+            style={[
+              styles.input,
+              {
+                backgroundColor: Colors[colorScheme].card,
+                borderColor: errors[errorKey] ? '#EF4444' : Colors[colorScheme].border,
+                color: Colors[colorScheme].text,
+              },
+            ]}
+            value={searchQuery}
+            onChangeText={(text) => { setSearch(text); searchTeams(text, side); }}
+            placeholder={`Search for ${side} team...`}
+            placeholderTextColor={Colors[colorScheme].mutedText}
+            autoCapitalize="words"
+            autoCorrect={false}
+          />
+          {searching && (
+            <ActivityIndicator size="small" color={Colors[colorScheme].tint} style={{ position: 'absolute', right: 12, top: 12 }} />
+          )}
+          {results.length > 0 && (
+            <View style={[styles.suggestionList, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
+              {results.map((team, index) => (
+                <Pressable
+                  key={team.id}
+                  style={[styles.suggestionItem, { borderBottomColor: Colors[colorScheme].border }, index === results.length - 1 && { borderBottomWidth: 0 }]}
+                  onPress={() => {
+                    setSelected(team);
+                    setSearch('');
+                    setResults([]);
+                    setErrors(prev => ({ ...prev, [errorKey]: '' }));
+                  }}
+                >
+                  <MaterialIcons name="groups" size={16} color={Colors[colorScheme].tint} style={{ marginRight: 8 }} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 15, fontWeight: '500', color: Colors[colorScheme].text }}>{team.name}</Text>
+                    {team.sport && (
+                      <Text style={{ fontSize: 13, color: Colors[colorScheme].mutedText, marginTop: 1 }}>{team.sport}</Text>
+                    )}
+                  </View>
+                </Pressable>
+              ))}
+            </View>
+          )}
+        </View>
+        {errors[errorKey] && <Text style={styles.errorText}>{errors[errorKey]}</Text>}
+        {side === 'away' && !awayTeam && (
+          <View style={{ marginTop: 8 }}>
+            <Text style={{ fontSize: 12, color: Colors[colorScheme].mutedText, marginBottom: 4 }}>
+              Or type opponent name manually:
+            </Text>
+            <TextInput
+              style={[
+                styles.input,
+                {
+                  backgroundColor: Colors[colorScheme].card,
+                  borderColor: Colors[colorScheme].border,
+                  color: Colors[colorScheme].text,
+                },
+              ]}
+              value={awayTeamName}
+              onChangeText={(text) => { setAwayTeamName(text); setErrors(prev => ({ ...prev, awayTeam: '' })); }}
+              placeholder="e.g., Lincoln High School"
+              placeholderTextColor={Colors[colorScheme].mutedText}
+            />
+          </View>
+        )}
+      </View>
+    );
+  };
+
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}
       edges={['bottom']}
     >
       <Stack.Screen options={{ title: 'Create Official Event' }} />
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
           <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Create Official Event</Text>
           <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>
@@ -142,7 +318,49 @@ export default function CreateEventScreen() {
           </Text>
         </View>
 
-        {/* Event Details Form */}
+        {/* Event Type */}
+        <View style={styles.section}>
+          <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Event Type *</Text>
+          <View style={styles.typeGrid}>
+            {EVENT_TYPES.map((type) => (
+              <Pressable
+                key={type.value}
+                style={[
+                  styles.typeButton,
+                  {
+                    backgroundColor: Colors[colorScheme].card,
+                    borderColor:
+                      eventType === type.value ? Colors[colorScheme].tint : Colors[colorScheme].border,
+                  },
+                ]}
+                onPress={() => setEventType(type.value)}
+              >
+                <Text style={{ fontSize: 24 }}>{type.emoji}</Text>
+                <Text
+                  style={[
+                    styles.typeLabel,
+                    {
+                      color:
+                        eventType === type.value ? Colors[colorScheme].tint : Colors[colorScheme].mutedText,
+                    },
+                  ]}
+                >
+                  {type.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
+        {/* Team pickers for competitive games */}
+        {isGameType && (
+          <>
+            {renderTeamPicker('home', homeTeam, homeSearch, homeResults, searchingHome)}
+            {renderTeamPicker('away', awayTeam, awaySearch, awayResults, searchingAway)}
+          </>
+        )}
+
+        {/* Title */}
         <View style={styles.section}>
           <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Title *</Text>
           <TextInput
@@ -156,12 +374,13 @@ export default function CreateEventScreen() {
             ]}
             value={title}
             onChangeText={setTitle}
-            placeholder="e.g., Varsity Championship Game"
+            placeholder={isGameType ? 'e.g., Varsity Championship Game' : 'e.g., Team BBQ Night'}
             placeholderTextColor={Colors[colorScheme].mutedText}
           />
           {errors.title && <Text style={styles.errorText}>{errors.title}</Text>}
         </View>
 
+        {/* Description */}
         <View style={styles.section}>
           <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Description</Text>
           <TextInput
@@ -182,6 +401,7 @@ export default function CreateEventScreen() {
           />
         </View>
 
+        {/* Location */}
         <View style={[styles.section, { zIndex: 10 }]}>
           <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Location *</Text>
           <View style={{ position: 'relative' }}>
@@ -231,6 +451,7 @@ export default function CreateEventScreen() {
           {errors.location && <Text style={styles.errorText}>{errors.location}</Text>}
         </View>
 
+        {/* Date & Time */}
         <View style={styles.section}>
           <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Date & Time *</Text>
           <View style={styles.dateContainer}>
@@ -264,39 +485,6 @@ export default function CreateEventScreen() {
             />
           )}
         </View>
-
-        <View style={styles.section}>
-          <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Event Type *</Text>
-          <View style={styles.typeGrid}>
-            {EVENT_TYPES.map((type) => (
-              <Pressable
-                key={type.value}
-                style={[
-                  styles.typeButton,
-                  {
-                    backgroundColor: Colors[colorScheme].card,
-                    borderColor:
-                      eventType === type.value ? Colors[colorScheme].tint : Colors[colorScheme].border,
-                  },
-                ]}
-                onPress={() => setEventType(type.value)}
-              >
-                <Text style={{ fontSize: 24 }}>{type.emoji}</Text>
-                <Text
-                  style={[
-                    styles.typeLabel,
-                    {
-                      color:
-                        eventType === type.value ? Colors[colorScheme].tint : Colors[colorScheme].mutedText,
-                    },
-                  ]}
-                >
-                  {type.label}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        </View>
       </ScrollView>
 
       <View style={[styles.footer, { borderTopColor: Colors[colorScheme].border }]}>
@@ -308,7 +496,9 @@ export default function CreateEventScreen() {
           {submitting ? (
             <ActivityIndicator color="white" />
           ) : (
-            <Text style={styles.submitButtonText}>Create Event</Text>
+            <Text style={styles.submitButtonText}>
+              {isGameType ? 'Create Game' : 'Create Event'}
+            </Text>
           )}
         </Pressable>
       </View>
@@ -423,5 +613,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 12,
     borderBottomWidth: 1,
+  },
+  selectedTeam: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1.5,
+  },
+  selectedTeamName: {
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

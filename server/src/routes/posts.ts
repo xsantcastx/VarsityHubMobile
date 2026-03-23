@@ -1503,10 +1503,10 @@ postsRouter.patch('/:postId/comments/:commentId', requireAuth as any, asyncHandl
       });
     }
     
-    // Update the comment
-    const updatedComment = await prisma.comment.update({ 
+    // Update the comment (sanitize HTML to prevent XSS)
+    const updatedComment = await prisma.comment.update({
       where: { id: commentId },
-      data: { content: parsed.data.content },
+      data: { content: stripHtml(parsed.data.content) },
       include: {
         author: { select: { id: true, username: true, display_name: true, avatar_url: true } }
       }

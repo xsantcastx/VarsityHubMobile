@@ -2,7 +2,7 @@ import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
-import { isEmailAdmin } from '../middleware/requireAdmin.js';
+import { isEmailAdmin, getIsAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { requireOnboarded } from '../middleware/requireOnboarded.js';
@@ -1129,16 +1129,12 @@ gamesRouter.put('/:id/approve', requireAuth as any, requireOnboarded as any, asy
     isCoach = !!membership;
   }
   
-  const requester = await prisma.user.findUnique({
-    where: { id: req.user.id },
-    select: { email: true },
-  });
-  const isAdmin = isEmailAdmin(requester?.email);
+  const isAdmin = await getIsAdmin(req as any);
 
   if (!isCoach && !isAdmin) {
     return res.status(403).json({ error: 'Only coaches and admins can approve events' });
   }
-  
+
   const updatedGame = await (prisma.game.update as any)({
     where: { id },
     data: {

@@ -435,6 +435,14 @@ export const mentionsSearchLimiter = createLimiter({
   max: rateLimitingDisabled ? 100000 : 30,
 });
 
+// Admin dashboard limiter (generous but prevents abuse)
+export const adminLimiter = createLimiter({
+  name: 'admin',
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  message: 'Too many admin requests, please try again later',
+});
+
 // ============================================
 // Export all limiters for easy application
 // ============================================

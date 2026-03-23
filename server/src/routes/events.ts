@@ -423,7 +423,7 @@ const createEventSchema = z.object({
   latitude: z.number().optional(),
   longitude: z.number().optional(),
   description: z.string().trim().max(5000).optional(),
-  event_type: z.enum(['game', 'watch_party', 'fundraiser', 'tryout', 'bbq', 'other']).optional(),
+  event_type: z.enum(['game', 'watch_party', 'fundraiser', 'tryout', 'bbq', 'team_meal', 'other']).optional(),
   linked_league: z.string().trim().optional(),
   max_attendees: z.number().optional(),
   contact_info: z.string().trim().optional(),
@@ -468,9 +468,10 @@ eventsRouter.post('/', requireVerified as any, requireOnboarded as any, eventCre
   
   const userId = req.user!.id;
   const userIsOrgAdmin = await isOrgAdmin(userId);
+  const userIsPlatformAdmin = await getIsAdmin(req as any);
 
-  // Auto-approve only if user is coach/admin of the specific team, not just any team
-  let autoApprove = userIsOrgAdmin;
+  // Auto-approve if user is platform admin, org admin, or coach/admin of the specific team
+  let autoApprove = userIsOrgAdmin || userIsPlatformAdmin;
   if (!autoApprove && data.home_team_id) {
     const teamMembership = await prisma.teamMembership.findFirst({
       where: {
@@ -592,6 +593,18 @@ eventsRouter.put('/:id/approve', requireVerified as any, requireOnboarded as any
   const eventId = String(req.params.id);
   const event = await prisma.event.findUnique({ where: { id: eventId } });
   if (!event) return res.status(404).json({ error: 'Event not found' });
+
+  // Block PENDING coaches from approving events — must be fully APPROVED
+  if (!isAdmin) {
+    const approver = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { preferences: true },
+    });
+    const approverPrefs = (approver?.preferences as any) || {};
+    if (approverPrefs.approval_status === 'PENDING') {
+      return res.status(403).json({ error: 'Your account is pending approval — you cannot approve events yet.' });
+    }
+  }
 
   // Scope approval: must be admin, or coach/admin of the event's team/org
   if (!isAdmin) {
@@ -806,7 +819,7 @@ const updateEventSchema = z.object({
   latitude: z.number().optional(),
   longitude: z.number().optional(),
   description: z.string().optional(),
-  event_type: z.enum(['game', 'watch_party', 'fundraiser', 'tryout', 'bbq', 'other']).optional(),
+  event_type: z.enum(['game', 'watch_party', 'fundraiser', 'tryout', 'bbq', 'team_meal', 'other']).optional(),
   linked_league: z.string().optional(),
   max_attendees: z.number().optional(),
   contact_info: z.string().optional(),

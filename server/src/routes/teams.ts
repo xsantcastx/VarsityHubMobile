@@ -1365,9 +1365,16 @@ teamsRouter.post('/invites/:inviteId/accept', requireAuth as any, async (req: Au
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const inviteId = String(req.params.inviteId);
   const invite = await prisma.teamInvite.findUnique({ where: { id: inviteId } });
-  if (!invite || invite.status !== 'pending') return res.status(404).json({ error: 'Invite not found' });
+  if (!invite || invite.status !== 'pending') return res.status(404).json({ error: 'Invite not found or expired' });
+  // Expire invites older than 30 days
+  const INVITE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+  if (Date.now() - new Date(invite.created_at).getTime() > INVITE_MAX_AGE_MS) {
+    await prisma.teamInvite.update({ where: { id: invite.id }, data: { status: 'declined' } });
+    return res.status(404).json({ error: 'Invite not found or expired' });
+  }
   const user = await prisma.user.findUnique({ where: { id: req.user.id } });
-  if (!user?.email || user.email.toLowerCase() !== invite.email.toLowerCase()) return res.status(403).json({ error: 'Invite not for this user' });
+  // Uniform error message prevents invite enumeration
+  if (!user?.email || user.email.toLowerCase() !== invite.email.toLowerCase()) return res.status(404).json({ error: 'Invite not found or expired' });
   const existingMembership = await prisma.teamMembership.findUnique({
     where: {
       team_id_user_id: {
@@ -1452,9 +1459,9 @@ teamsRouter.post('/invites/:inviteId/decline', requireAuth as any, async (req: A
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const inviteId = String(req.params.inviteId);
   const invite = await prisma.teamInvite.findUnique({ where: { id: inviteId } });
-  if (!invite || invite.status !== 'pending') return res.status(404).json({ error: 'Invite not found' });
+  if (!invite || invite.status !== 'pending') return res.status(404).json({ error: 'Invite not found or expired' });
   const user = await prisma.user.findUnique({ where: { id: req.user.id } });
-  if (!user?.email || user.email.toLowerCase() !== invite.email.toLowerCase()) return res.status(403).json({ error: 'Invite not for this user' });
+  if (!user?.email || user.email.toLowerCase() !== invite.email.toLowerCase()) return res.status(404).json({ error: 'Invite not found or expired' });
   await prisma.teamInvite.update({ where: { id: invite.id }, data: { status: 'declined' } });
   return res.json({ ok: true });
   } catch (err) {

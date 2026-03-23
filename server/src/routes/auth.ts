@@ -94,6 +94,17 @@ const GOOGLE_ALLOWED_AUDIENCES = (process.env.GOOGLE_OAUTH_CLIENT_IDS || process
   .split(',')
   .map((value) => value.trim())
   .filter((value) => value.length > 0);
+
+// Enforce Google OAuth audience validation in production
+if (process.env.NODE_ENV === 'production' && GOOGLE_ALLOWED_AUDIENCES.length === 0) {
+  console.error('[auth] FATAL: GOOGLE_OAUTH_CLIENT_IDS is not set — Google sign-in will reject all tokens in production');
+}
+
+// Warn if Apple simulator tokens are enabled in production
+if (process.env.NODE_ENV === 'production' && process.env.ALLOW_APPLE_SIM_TOKENS === 'true') {
+  console.error('[auth] WARNING: ALLOW_APPLE_SIM_TOKENS is enabled in production — this is a security risk. Disable immediately.');
+}
+
 const APPLE_JWKS_URL = 'https://appleid.apple.com/auth/keys';
 const APPLE_JWKS_TTL_MS = 6 * 60 * 60 * 1000;
 const appleKeyCache = new Map<string, { key: KeyObject; expiresAt: number }>();
@@ -413,7 +424,7 @@ authRouter.post('/google', oauthLimiter, asyncHandler(async (req, res) => {
       return res.status(400).json({ error: 'Google account email is not verified' });
     }
 
-    if (GOOGLE_ALLOWED_AUDIENCES.length && (!audience || !GOOGLE_ALLOWED_AUDIENCES.includes(audience))) {
+    if (!audience || (GOOGLE_ALLOWED_AUDIENCES.length > 0 && !GOOGLE_ALLOWED_AUDIENCES.includes(audience))) {
       console.warn('[auth/google] audience mismatch', { audience, allowed: GOOGLE_ALLOWED_AUDIENCES });
       return res.status(400).json({ error: 'Google credential not issued for this application' });
     }

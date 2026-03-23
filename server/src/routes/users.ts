@@ -25,7 +25,7 @@ usersRouter.get('/', requireAdmin as any, async (req, res) => {
   try {
     const q = String((req.query as any).q || '').trim().toLowerCase();
     const banned = String((req.query as any).banned || '') === '1';
-    const limit = Math.min(parseInt(String((req.query as any).limit || '100'), 10) || 100, 500);
+    const limit = Math.min(parseInt(String((req.query as any).limit || '100'), 10) || 100, 100);
     const where: any = {};
     if (q) where.OR = [
       { email: { contains: q, mode: 'insensitive' } },

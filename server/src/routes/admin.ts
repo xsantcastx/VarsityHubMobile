@@ -12,9 +12,11 @@ import { wipeCloudinary, wipeDatabase } from '../lib/wipeProduction.js';
 import { requireAdmin as requireAdminMiddleware } from '../middleware/requireAdmin.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
+import { adminLimiter } from '../middleware/rateLimiters.js';
 
 const adminRouter = express.Router();
 registerIdValidation(adminRouter);
+adminRouter.use(adminLimiter);
 
 /**
  * POST /admin/wipe-database

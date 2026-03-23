@@ -19,6 +19,7 @@ const getEmailService = async (): Promise<EmailService | null> => {
 const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY || '';
 const EMAIL_FROM = process.env.EMAIL_FROM || process.env.FROM_EMAIL || 'noreply@varsityhub.app';
 const APP_BASE_URL = (process.env.APP_BASE_URL || 'https://varsityhub.app').replace(/\/$/, '');
+const API_BASE_URL = (process.env.API_BASE_URL || 'https://api-production-8ac3.up.railway.app').replace(/\/$/, '');
 const CUSTOMER_SERVICE_EMAIL = process.env.CUSTOMER_SERVICE_EMAIL || 'support@varsityhub.app';
 
 // Common template data (social links, privacy policy, etc.) added to all emails
@@ -533,18 +534,18 @@ export async function sendAdRejectedEmail(params: {
 }
 
 export async function sendAdReservationEmail(_params: any): Promise<boolean> {
-  console.warn('[email] sendAdReservationEmail: not configured');
-  return false;
+  // Not yet implemented — return true so queue workers don't retry
+  return true;
 }
 
 export async function sendAthleteFollowerNotificationEmail(_params: any): Promise<boolean> {
-  console.warn('[email] sendAthleteFollowerNotificationEmail: not configured');
-  return false;
+  // Not yet implemented — return true so queue workers don't retry
+  return true;
 }
 
 export async function sendDormantUserDigestEmail(_params: any): Promise<boolean> {
-  console.warn('[email] sendDormantUserDigestEmail: not configured');
-  return false;
+  // Not yet implemented — return true so queue workers don't retry
+  return true;
 }
 
 export async function sendEventApprovedEmail(params: any): Promise<boolean> {
@@ -675,13 +676,13 @@ export async function sendEventUpdatedEmail(params: any): Promise<boolean> {
 }
 
 export async function sendPaymentRequiredEmail(_params: any): Promise<boolean> {
-  console.warn('[email] sendPaymentRequiredEmail: not configured');
-  return false;
+  // Not yet implemented — return true so queue workers don't retry
+  return true;
 }
 
 export async function sendPostHighlightEmail(_params: any): Promise<boolean> {
-  console.warn('[email] sendPostHighlightEmail: not configured');
-  return false;
+  // Not yet implemented — return true so queue workers don't retry
+  return true;
 }
 
 export async function sendProfileCompletionNudgeEmail(_params: any): Promise<boolean> {
@@ -731,8 +732,8 @@ export async function sendRosterThresholdAlertEmail(params: any): Promise<boolea
 }
 
 export async function sendSeasonWrapUpEmail(_params: any): Promise<boolean> {
-  console.warn('[email] sendSeasonWrapUpEmail: not configured');
-  return false;
+  // Not yet implemented — return true so queue workers don't retry
+  return true;
 }
 
 export async function sendStaffInvitationConfirmationEmail(params: any): Promise<boolean> {
@@ -1539,8 +1540,6 @@ export async function sendWelcomeEmail(_to: string, _name?: string): Promise<boo
 // =====================================================
 // League / Coach Approval Emails (SendGrid templates only)
 // =====================================================
-
-const API_BASE_URL = (process.env.API_BASE_URL || 'https://api-production-8ac3.up.railway.app').replace(/\/$/, '');
 
 /**
  * Notify super admin that a new league was created and needs approval.

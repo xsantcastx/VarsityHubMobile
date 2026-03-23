@@ -13,6 +13,7 @@ import { sendAdApprovedEmail, sendAdPendingReviewEmail, sendAdRejectedEmail } fr
 import { signJwt, verifyJwt } from '../lib/jwt.js';
 import { sendPushNotification } from '../lib/notifications.js';
 import { z } from 'zod';
+import { registerIdValidation } from '../middleware/validateParams.js';
 
 const adCreateSchema = z.object({
   contact_name: z.string().min(1).max(200),
@@ -68,6 +69,7 @@ async function getZipCoordinatesWithFallback(zipCode: string): Promise<{ lat: nu
 }
 
 export const adsRouter = Router();
+registerIdValidation(adsRouter);
 
 // Create an Ad (optionally associated to the authenticated user)
 adsRouter.post('/', requireVerified as any, requireOnboarded as any, adCreationLimiter, async (req: AuthedRequest, res) => {

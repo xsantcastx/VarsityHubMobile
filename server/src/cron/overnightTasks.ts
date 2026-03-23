@@ -226,8 +226,29 @@ export function startAdGoLiveCheck() {
         debugLog(`[ad-lifecycle] Released ${staleHolds.count} stale ad holds`);
       }
 
-      // 4. Clean up old ProcessedStripeEvent records (older than 30 days)
+      // 4. Archive approved ads that were never paid (older than 30 days)
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const unpaidAds = await prisma.ad.findMany({
+        where: {
+          payment_status: 'unpaid',
+          status: 'approved',
+          updated_at: { lt: thirtyDaysAgo },
+        },
+        select: { id: true },
+      });
+      if (unpaidAds.length > 0) {
+        const unpaidAdIds = unpaidAds.map(a => a.id);
+        await prisma.$transaction([
+          prisma.adReservation.deleteMany({ where: { ad_id: { in: unpaidAdIds } } }),
+          prisma.ad.updateMany({
+            where: { id: { in: unpaidAdIds } },
+            data: { status: 'archived' },
+          }),
+        ]);
+        debugLog(`[ad-lifecycle] Archived ${unpaidAds.length} unpaid approved ads (>30 days)`);
+      }
+
+      // 5. Clean up old ProcessedStripeEvent records (older than 30 days)
       const deletedEvents = await prisma.processedStripeEvent.deleteMany({
         where: { created_at: { lt: thirtyDaysAgo } },
       });
