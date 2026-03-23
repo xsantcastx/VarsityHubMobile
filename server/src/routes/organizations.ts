@@ -18,8 +18,10 @@ import { inviteLimiter, organizationsNearbyLimiter } from '../middleware/rateLim
 import { requireOnboarded } from '../middleware/requireOnboarded.js';
 import { getAuthorizedUsersOrgLimit } from '../lib/planLimits.js';
 import { signJwt, verifyJwt } from '../lib/jwt.js';
+import { registerIdValidation } from '../middleware/validateParams.js';
 
 export const organizationsRouter = Router();
+registerIdValidation(organizationsRouter);
 
 // ---------------------------------------------
 // Duplicate Detection & Admin Helpers
@@ -1618,6 +1620,17 @@ organizationsRouter.post('/:id/coaches/:userId/approve', requireAuth as any, req
     });
     if (!membership) return res.status(403).json({ error: 'Only the league owner can approve coaches' });
 
+    // Idempotency: if coach is already approved, return success without writing again
+    const coachUser = await prisma.user.findUnique({ where: { id: coachId }, select: { approval_status: true } });
+    if (coachUser?.approval_status === 'APPROVED') {
+      const existingMembership = await prisma.organizationMembership.findFirst({
+        where: { organization_id: orgId, user_id: coachId, status: 'active' },
+      });
+      if (existingMembership) {
+        return res.json({ message: 'Coach already approved', coach_id: coachId, already_approved: true });
+      }
+    }
+
     // Verify there's a pending join request for this coach
     const joinRequest = await prisma.organizationJoinRequest.findFirst({
       where: { organization_id: orgId, user_id: coachId, status: 'pending' },
@@ -1662,46 +1675,44 @@ organizationsRouter.post('/:id/coaches/:userId/approve', requireAuth as any, req
       );
     }
 
-    await prisma.$transaction(txOps);
-
-    // Email the coach
-    if (coach?.email) {
-      sendCoachApprovedEmail({
-        to: coach.email,
-        coachName: coach.display_name || 'Coach',
-        leagueName: org?.name || 'your league',
-      }).catch(() => {});
-    }
-
-    // Push notification to coach
-    try {
-      await sendPushNotification(
-        coachId,
-        'Application Approved!',
-        `${org?.name || 'Your league'} approved your coach application`,
-        { type: 'coach_approved', screen: 'onboarding', organization_id: orgId },
-      );
-    } catch (err) {
-      console.warn('[orgs] coach approval push failed:', (err as any)?.message || err);
-    }
-
-    // In-app notification for coach
-    try {
-      await prisma.notification.create({
+    // Add notification record to the transaction for atomicity
+    txOps.push(
+      prisma.notification.create({
         data: {
           user_id: coachId,
           actor_id: req.user!.id,
-          type: 'TEAM_INVITE', // Closest available type
+          type: 'TEAM_INVITE',
           meta: {
             coach_approved: true,
             organization_id: orgId,
             organization_name: org?.name || 'your league',
           },
         },
+      })
+    );
+
+    await prisma.$transaction(txOps);
+
+    // Non-blocking: email and push notifications fire after transaction succeeds.
+    // If these fail the approval is still recorded — we log but don't roll back.
+    if (coach?.email) {
+      sendCoachApprovedEmail({
+        to: coach.email,
+        coachName: coach.display_name || 'Coach',
+        leagueName: org?.name || 'your league',
+      }).catch((err) => {
+        console.error('[orgs] coach approval email failed:', (err as any)?.message || err);
       });
-    } catch (err) {
-      console.error('[orgs] FAILED to create coach approval notification:', (err as any)?.message || err);
     }
+
+    sendPushNotification(
+      coachId,
+      'Application Approved!',
+      `${org?.name || 'Your league'} approved your coach application`,
+      { type: 'coach_approved', screen: 'onboarding', organization_id: orgId },
+    ).catch((err) => {
+      console.warn('[orgs] coach approval push failed:', (err as any)?.message || err);
+    });
 
     return res.json({ message: 'Coach approved', coach_id: coachId });
   } catch (err: any) {

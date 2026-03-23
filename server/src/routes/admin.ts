@@ -11,8 +11,10 @@ import {
 import { wipeCloudinary, wipeDatabase } from '../lib/wipeProduction.js';
 import { requireAdmin as requireAdminMiddleware } from '../middleware/requireAdmin.js';
 import { requireVerified } from '../middleware/requireVerified.js';
+import { registerIdValidation } from '../middleware/validateParams.js';
 
 const adminRouter = express.Router();
+registerIdValidation(adminRouter);
 
 /**
  * POST /admin/wipe-database
@@ -397,16 +399,22 @@ adminRouter.get('/users/:id/moderation', requireVerified as any, requireAdminMid
  * POST /admin/users/:id/warn
  * Issue a warning to a user
  */
+const warnSchema = z.object({
+  reason: z.string().min(1, 'Reason is required').max(500),
+  severity: z.enum(['warning', 'strike', 'final_warning']).optional().default('warning'),
+});
+
 adminRouter.post('/users/:id/warn', requireVerified as any, requireAdminMiddleware as any, async (req: AuthedRequest, res) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-    const { reason, severity } = req.body;
-    if (!reason) return res.status(400).json({ error: 'Reason is required' });
+    const parsed = warnSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
+    const { reason, severity } = parsed.data;
 
     const result = await issueWarning({
       userId: req.params.id,
       reason,
-      severity: severity || 'warning',
+      severity,
       issuedBy: req.user.id,
     });
     return res.json({ ok: true, ...result });
@@ -420,12 +428,17 @@ adminRouter.post('/users/:id/warn', requireVerified as any, requireAdminMiddlewa
  * POST /admin/users/:id/suspend
  * Temporarily suspend a user
  */
+const suspendSchema = z.object({
+  reason: z.string().min(1, 'Reason is required').max(500),
+  days: z.number().int().min(1).max(365).optional().default(7),
+});
+
 adminRouter.post('/users/:id/suspend', requireVerified as any, requireAdminMiddleware as any, async (req: AuthedRequest, res) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-    const { days, reason } = req.body;
-    if (!reason) return res.status(400).json({ error: 'Reason is required' });
-    const suspendDays = Math.max(1, Math.min(365, parseInt(days) || 7));
+    const parsed = suspendSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
+    const { days: suspendDays, reason } = parsed.data;
 
     await suspendUser({
       userId: req.params.id,
@@ -444,10 +457,16 @@ adminRouter.post('/users/:id/suspend', requireVerified as any, requireAdminMiddl
  * POST /admin/users/:id/ban
  * Ban a user with reason
  */
+const banSchema = z.object({
+  reason: z.string().max(500).optional(),
+});
+
 adminRouter.post('/users/:id/ban', requireVerified as any, requireAdminMiddleware as any, async (req: AuthedRequest, res) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-    const { reason } = req.body;
+    const parsed = banSchema.safeParse(req.body || {});
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
+    const { reason } = parsed.data;
     const bannedUserId = req.params.id;
 
     await prisma.user.update({

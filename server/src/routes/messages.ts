@@ -7,8 +7,10 @@ import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
 import { messageLimiter } from '../middleware/rateLimiters.js';
+import { registerIdValidation } from '../middleware/validateParams.js';
 
 export const messagesRouter = Router();
+registerIdValidation(messagesRouter);
 
 function ageFromDob(dob: string | null | undefined): number | null {
   if (!dob || typeof dob !== 'string') return null;
@@ -126,7 +128,7 @@ return res.status(500).json({ error: 'Internal server error' });
 });
 
 const sendSchema = z.object({
-content: z.string().min(1),
+content: z.string().min(1).max(5000),
 conversation_id: z.string().min(1).optional(),
 recipient_id: z.string().min(1).optional(),
 recipient_email: z.string().email().optional(),

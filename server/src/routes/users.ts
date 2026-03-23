@@ -9,8 +9,10 @@ import { requireAuth } from '../middleware/requireAuth.js';
 import { mentionsSearchLimiter, userLookupLimiter, usernameAvailableLimiter } from '../middleware/rateLimiters.js';
 import { detectMediaType, getVideoPreviewUrl } from '../lib/mediaUtils.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
+import { registerIdValidation } from '../middleware/validateParams.js';
 
 export const usersRouter = Router();
+registerIdValidation(usersRouter);
 const publicUserSelect = {
   id: true,
   username: true,
@@ -299,7 +301,7 @@ usersRouter.get('/:id/posts', async (req: AuthedRequest, res) => {
     const currentUserId = req.user?.id || null;
     const hidden = await isProfileHiddenFromViewer(id, currentUserId);
     if (hidden) {
-      return res.json({ items: [], nextCursor: null, counts: { posts: 0, likes: 0, comments: 0, reposts: 0, saves: 0 } });
+      return res.status(404).json({ error: 'User not found' });
     }
     const limit = Math.min(parseInt(String(req.query.limit || '10'), 10) || 10, 50);
     const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : null;
@@ -343,7 +345,7 @@ usersRouter.get('/:id/interactions', async (req: AuthedRequest, res) => {
   const currentUserId = req.user?.id || null;
   const hidden = await isProfileHiddenFromViewer(id, currentUserId);
   if (hidden) {
-    return res.json({ items: [], nextCursor: null, counts: { posts: 0, likes: 0, comments: 0, reposts: 0, saves: 0 } });
+    return res.status(404).json({ error: 'User not found' });
   }
   const limit = Math.min(parseInt(String(req.query.limit || '10'), 10) || 10, 50);
   const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : null;
@@ -432,7 +434,7 @@ usersRouter.get('/:id/teams', async (req: AuthedRequest, res) => {
   const id = String(req.params.id);
   const currentUserId = req.user?.id || null;
   const hidden = await isProfileHiddenFromViewer(id, currentUserId);
-  if (hidden) return res.json([]);
+  if (hidden) return res.status(404).json({ error: 'User not found' });
 
   const memberships = await prisma.teamMembership.findMany({
     where: { user_id: id, status: 'active' },

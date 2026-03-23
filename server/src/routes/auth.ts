@@ -7,14 +7,14 @@ import { sendPasswordChangedEmail, sendPasswordResetEmail, sendVerificationEmail
 import { validateContent } from '../lib/contentFilter.js';
 import { ConflictError } from '../lib/errors/ConflictError.js';
 import { ValidationError } from '../lib/errors/ValidationError.js';
-import { signJwt } from '../lib/jwt.js';
+import { signJwt, generateRefreshToken, hashRefreshToken, REFRESH_TOKEN_EXPIRY_DAYS } from '../lib/jwt.js';
 import { prisma } from '../lib/prisma.js';
 import { captureException } from '../lib/sentry.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
-import { authLimiter } from '../middleware/rateLimiters.js';
+import { authLimiter, oauthLimiter, verificationConfirmLimiter } from '../middleware/rateLimiters.js';
 
 export const authRouter = Router();
 // Simple in-memory rate limiting for auth endpoints
@@ -231,7 +231,13 @@ authRouter.post('/register', asyncHandler(async (req, res) => {
     console.error('[verify-code] [register] sendVerificationEmail threw:', e);
     req.log?.warn?.({ err: e }, 'Email send failed; returning code in dev');
   }
-  const payload: any = { access_token, user: sanitizeUser(user) };
+  // Issue refresh token on registration
+  const rawRefreshReg = generateRefreshToken();
+  const regTokenHash = hashRefreshToken(rawRefreshReg);
+  const regExpiry = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
+  await prisma.refreshToken.create({ data: { token_hash: regTokenHash, user_id: user.id, expires_at: regExpiry } });
+
+  const payload: any = { access_token, refresh_token: rawRefreshReg, user: sanitizeUser(user) };
   if (process.env.NODE_ENV !== 'production') payload.dev_verification_code = code;
   debugLog('[register] Completed in', Date.now() - start, 'ms');
   res.status(201).json(payload);
@@ -257,18 +263,96 @@ authRouter.post('/login', async (req, res) => {
   const ok = await bcrypt.compare(password, user.password_hash);
   if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
   const access_token = signJwt({ id: user.id });
+
+  // Issue refresh token
+  const rawRefresh = generateRefreshToken();
+  const tokenHash = hashRefreshToken(rawRefresh);
+  const expiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
+  await prisma.refreshToken.create({
+    data: { token_hash: tokenHash, user_id: user.id, expires_at: expiresAt },
+  });
+
   const sanitized = sanitizeUser(user);
   const needsOnboarding = sanitized?.preferences?.onboarding_completed === false;
-  const body: any = { access_token, user: sanitized, needs_onboarding: needsOnboarding };
+  const body: any = { access_token, refresh_token: rawRefresh, user: sanitized, needs_onboarding: needsOnboarding };
   if (!user.email_verified) body.needs_verification = true;
   return res.json(body);
+});
+
+/**
+ * POST /auth/refresh
+ * Exchange a valid refresh token for a new access token + rotated refresh token.
+ * The old refresh token is invalidated (rotation prevents reuse).
+ */
+const refreshSchema = z.object({ refresh_token: z.string().min(32) });
+
+authRouter.post('/refresh', authLimiter, async (req, res) => {
+  const parsed = refreshSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'refresh_token is required' });
+
+  const { refresh_token } = parsed.data;
+  const tokenHash = hashRefreshToken(refresh_token);
+
+  // Find and validate the refresh token
+  const stored = await prisma.refreshToken.findUnique({ where: { token_hash: tokenHash } });
+  if (!stored) return res.status(401).json({ error: 'Invalid refresh token' });
+  if (stored.expires_at < new Date()) {
+    await prisma.refreshToken.delete({ where: { id: stored.id } }).catch(() => {});
+    return res.status(401).json({ error: 'Refresh token expired' });
+  }
+
+  // Check user still valid
+  const user = await prisma.user.findUnique({ where: { id: stored.user_id } });
+  if (!user || user.banned) {
+    await prisma.refreshToken.delete({ where: { id: stored.id } }).catch(() => {});
+    return res.status(401).json({ error: 'Account not found or banned' });
+  }
+
+  // Rotate: delete old token, issue new pair
+  const newRawRefresh = generateRefreshToken();
+  const newHash = hashRefreshToken(newRawRefresh);
+  const newExpiry = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
+
+  await prisma.$transaction([
+    prisma.refreshToken.delete({ where: { id: stored.id } }),
+    prisma.refreshToken.create({
+      data: { token_hash: newHash, user_id: user.id, expires_at: newExpiry },
+    }),
+  ]);
+
+  const access_token = signJwt({ id: user.id });
+  return res.json({ access_token, refresh_token: newRawRefresh });
+});
+
+/**
+ * POST /auth/revoke-all-tokens
+ * Invalidates every refresh token for the current user.
+ * Use when a security breach is detected.
+ */
+authRouter.post('/revoke-all-tokens', requireAuth as any, async (req: AuthedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+  const { count } = await prisma.refreshToken.deleteMany({ where: { user_id: req.user.id } });
+  return res.json({ ok: true, revoked: count });
+});
+
+/**
+ * POST /auth/logout
+ * Invalidates the provided refresh token.
+ */
+authRouter.post('/logout', async (req, res) => {
+  const { refresh_token } = req.body || {};
+  if (refresh_token && typeof refresh_token === 'string') {
+    const tokenHash = hashRefreshToken(refresh_token);
+    await prisma.refreshToken.deleteMany({ where: { token_hash: tokenHash } }).catch(() => {});
+  }
+  return res.json({ ok: true });
 });
 
 const googleAuthSchema = z.object({
   id_token: z.string().min(10),
 });
 
-authRouter.post('/google', async (req, res) => {
+authRouter.post('/google', oauthLimiter, async (req, res) => {
   const parsed = googleAuthSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
 
@@ -379,14 +463,20 @@ authRouter.post('/google', async (req, res) => {
       });
     }
 
-    // Stage 5: Generate JWT
+    // Stage 5: Generate JWT + refresh token
     stage = 'jwt';
     const sanitized = sanitizeUser(user);
     const access_token = signJwt({ id: sanitized.id });
     const needsOnboarding = sanitized?.preferences?.onboarding_completed === false;
 
+    const rawRefresh = generateRefreshToken();
+    const rtHash = hashRefreshToken(rawRefresh);
+    const rtExpiry = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
+    await prisma.refreshToken.create({ data: { token_hash: rtHash, user_id: sanitized.id, expires_at: rtExpiry } });
+
     return res.json({
       access_token,
+      refresh_token: rawRefresh,
       user: sanitized,
       needs_onboarding: needsOnboarding,
       created,
@@ -407,7 +497,7 @@ const appleAuthSchema = z.object({
   identity_token: z.string().min(1),
 });
 
-authRouter.post('/apple', async (req, res) => {
+authRouter.post('/apple', oauthLimiter, async (req, res) => {
   const APPLE_CLIENT_ID = process.env.APPLE_CLIENT_ID;
   if (!APPLE_CLIENT_ID) {
     return res.status(503).json({ error: 'Apple Sign-In is not configured' });
@@ -421,8 +511,8 @@ authRouter.post('/apple', async (req, res) => {
   try {
     // In development/simulator, accept tokens starting with 'sim-' for testing
     const isDevelopmentToken = identity_token.startsWith('sim-');
-    if (isDevelopmentToken && process.env.NODE_ENV === 'production') {
-      return res.status(400).json({ error: 'Development tokens are not allowed in production' });
+    if (isDevelopmentToken && process.env.ALLOW_APPLE_SIM_TOKENS !== 'true') {
+      return res.status(401).json({ error: 'Simulator tokens are not accepted in this environment' });
     }
     
     let appleId: string;
@@ -553,8 +643,15 @@ authRouter.post('/apple', async (req, res) => {
     const access_token = signJwt({ id: sanitized.id });
     const needsOnboarding = sanitized?.preferences?.onboarding_completed === false;
 
+    // Issue refresh token
+    const appleRawRefresh = generateRefreshToken();
+    const appleRtHash = hashRefreshToken(appleRawRefresh);
+    const appleRtExpiry = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
+    await prisma.refreshToken.create({ data: { token_hash: appleRtHash, user_id: sanitized.id, expires_at: appleRtExpiry } });
+
     return res.json({
       access_token,
+      refresh_token: appleRawRefresh,
       user: sanitized,
       needs_onboarding: needsOnboarding,
       created,
@@ -674,7 +771,7 @@ const passwordChangeSchema = z.object({
   new_password: passwordRequirement,
 });
 
-authRouter.post('/password/change', asyncHandler(async (req: AuthedRequest, res) => {
+authRouter.post('/password/change', authLimiter, asyncHandler(async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const parsed = passwordChangeSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
@@ -947,6 +1044,24 @@ function mergePreferences(base: any, incoming: any) {
   return out;
 }
 
+// Keys that a client must NEVER set via preferences — these are server-controlled.
+// approval_status lives on the User model, not in preferences, but we strip it
+// from incoming prefs as defense-in-depth in case it leaks into the JSON blob.
+const PROTECTED_PREF_KEYS = new Set([
+  'approval_status',
+  'is_admin',
+  'paid_by_owner',
+  'payment_approved',
+]);
+
+function stripProtectedKeys(obj: Record<string, unknown>): Record<string, unknown> {
+  const cleaned = { ...obj };
+  for (const key of PROTECTED_PREF_KEYS) {
+    delete cleaned[key];
+  }
+  return cleaned;
+}
+
 // Partial update for user preferences
 authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
@@ -961,7 +1076,7 @@ authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
     is_parent: z.boolean().optional(),
     zip_code: z.string().min(2).max(20).optional().nullable(),
     onboarding_completed: z.boolean().optional(),
-    
+
     // New onboarding fields
     plan: z.enum(['rookie', 'veteran', 'legend']).optional(),
     // Rookie is not a role
@@ -981,7 +1096,7 @@ authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
     comment_permission: z.enum(['everyone', 'following', 'none']).optional(),
     dm_policy: z.enum(['everyone', 'following', 'no_one']).optional(),
   }).partial();
-  
+
   const parsed = schema.safeParse(req.body || {});
   if (!parsed.success) {
     return res.status(400).json({
@@ -989,7 +1104,10 @@ authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
       issues: parsed.error.issues.map((i) => ({ path: i.path, message: i.message })),
     });
   }
-  const incoming = parsed.data as any;
+
+  // SECURITY: Strip any protected keys the client tries to sneak in
+  const incoming = stripProtectedKeys(parsed.data as any) as any;
+
   // COPPA: Reject if DOB indicates under 13 - do not store
   if (incoming.dob !== undefined && isUnder13(incoming.dob)) {
     return res.status(403).json({
@@ -997,16 +1115,23 @@ authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
       message: 'VarsityHub is not available for users under 13. Please have a parent or guardian contact support@varsityhub.app.',
     });
   }
-  const current = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true, email: true } });
+  const current = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true, email: true, approval_status: true } });
   const currentPrefs = current?.preferences as any || {};
 
-  // SECURITY FIX: Prevent role changes after onboarding is completed
-  // Users can only set/change their role during the initial onboarding process
+  // SECURITY: Prevent role changes after onboarding is completed.
+  // The only legitimate path to change role post-onboarding is POST /auth/upgrade-to-coach.
   if (incoming.role && currentPrefs.onboarding_completed === true && incoming.role !== currentPrefs.role) {
     return res.status(403).json({
-      error: 'Cannot change role after onboarding is complete. Contact support if you need to change your account type.',
+      error: 'Cannot change role after onboarding is complete. Use the upgrade-to-coach endpoint.',
     });
   }
+
+  // SECURITY: If role is being set to 'coach' and user was not previously a coach,
+  // force approval_status to PENDING atomically. This ensures requireOnboarded
+  // blocks all coach tools until an admin or org owner explicitly approves.
+  // We do this in the same update below to avoid race conditions.
+  const forceApprovalPending = incoming.role === 'coach' && currentPrefs.role !== 'coach';
+
   // Check if user is admin (same logic as GET /me endpoint)
   const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
   const is_admin = current?.email ? adminEmails.includes(current.email.toLowerCase()) : false;
@@ -1014,9 +1139,8 @@ authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
     notifications: { game_event_reminders: false, team_updates: false, comments_upvotes: false, follows_notifications: true, messages_notifications: true },
     is_parent: false,
     zip_code: null,
-    // Only set onboarding_completed=true for admin accounts (same as GET /me)
     ...(is_admin ? { onboarding_completed: true } : {}),
-    plan: null, // Plans only for coaches - don't default to 'rookie'
+    plan: null,
     role: 'fan',
     sports_interests: [],
     personalization_goals: [],
@@ -1025,12 +1149,18 @@ authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
     notifications_enabled: true,
     messaging_policy_accepted: false,
   };
-  // CRITICAL: Correct merge order - defaults are base, user prefs override defaults, incoming overrides both
-  // 1. Start with defaults (fill in missing fields)
-  // 2. Apply current user preferences on top (preserve user's actual values)
-  // 3. Apply incoming changes on top (apply this update)
-  const merged = mergePreferences(mergePreferences(defaults, current?.preferences || {}), incoming);
-  const updated = await prisma.user.update({ where: { id: req.user.id }, data: { preferences: merged } });
+
+  const merged = stripProtectedKeys(
+    mergePreferences(mergePreferences(defaults, current?.preferences || {}), incoming)
+  ) as any;
+
+  const updated = await prisma.user.update({
+    where: { id: req.user.id },
+    data: {
+      preferences: merged,
+      ...(forceApprovalPending ? { approval_status: 'PENDING' } : {}),
+    },
+  });
   return res.json({ preferences: updated.preferences });
 });
 
@@ -1190,18 +1320,24 @@ authRouter.post('/me/complete-onboarding', authLimiter, requireAuth as any, requ
     normalizedCurrent.role = 'coach';
   }
   // CRITICAL: Ensure role from preferencesUpdate takes precedence (user's choice during onboarding)
-  const merged = mergePreferences(normalizedCurrent || {}, preferencesUpdate);
+  const merged = stripProtectedKeys(mergePreferences(normalizedCurrent || {}, preferencesUpdate)) as any;
   updateData.preferences = merged;
   
+  // SECURITY: If completing onboarding as coach, ensure approval_status is PENDING
+  // This prevents a fan from completing onboarding with role='coach' and retaining APPROVED status
+  if (finalRole === 'coach' && currentPrefs.role !== 'coach') {
+    updateData.approval_status = 'PENDING';
+  }
+
   // Update user
-  const updated = await prisma.user.update({ 
-    where: { id: req.user.id }, 
-    data: updateData 
+  const updated = await prisma.user.update({
+    where: { id: req.user.id },
+    data: updateData
   });
-  
-  return res.json({ 
-    message: 'Onboarding completed successfully', 
-    user: sanitizeUser(updated) 
+
+  return res.json({
+    message: 'Onboarding completed successfully',
+    user: sanitizeUser(updated)
   });
 });
 
@@ -1246,7 +1382,7 @@ authRouter.post('/verify/send', async (req: AuthedRequest, res) => {
 });
 
 // Verify code (authenticated)
-authRouter.post('/verify/confirm', async (req: AuthedRequest, res) => {
+authRouter.post('/verify/confirm', verificationConfirmLimiter, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const schema = z.object({ code: z.string().min(4).max(8) });
   const parsed = schema.safeParse(req.body);

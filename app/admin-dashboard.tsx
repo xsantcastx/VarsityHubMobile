@@ -34,6 +34,7 @@ export default function AdminDashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [reportSpike, setReportSpike] = useState<{ isSpike: boolean; pendingCount: number; recentCount: number } | null>(null);
 
   const loadStats = useCallback(async (showRefreshing = false) => {
     if (!isAdmin) return;
@@ -47,8 +48,12 @@ export default function AdminDashboardScreen() {
       
       // Use API client instead of direct fetch
       const { httpGet } = await import('@/api/http');
-      const data = await httpGet('/admin/dashboard');
+      const [data, spike] = await Promise.all([
+        httpGet('/admin/dashboard'),
+        httpGet('/admin/report-spike').catch(() => null),
+      ]);
       setStats(data);
+      setReportSpike(spike);
     } catch (e: any) {
       setError(e?.message || 'Failed to load dashboard');
     } finally {
@@ -187,6 +192,25 @@ export default function AdminDashboardScreen() {
             />
           </View>
 
+          {/* Report Spike Alert */}
+          {reportSpike?.isSpike && (
+            <Pressable
+              style={[styles.spikeAlert, { backgroundColor: '#FEE2E2', borderColor: '#FCA5A5' }]}
+              onPress={() => void router.push('/admin-reports')}
+            >
+              <MaterialIcons name="warning" size={24} color="#DC2626" />
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={{ fontWeight: '800', color: '#991B1B', fontSize: 14 }}>
+                  Report Spike Detected
+                </Text>
+                <Text style={{ color: '#B91C1C', fontSize: 12, marginTop: 2 }}>
+                  {reportSpike.pendingCount} pending reports ({reportSpike.recentCount} recent). Tap to review.
+                </Text>
+              </View>
+              <MaterialIcons name="chevron-right" size={20} color="#DC2626" />
+            </Pressable>
+          )}
+
           {/* Stats Grid */}
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
@@ -321,6 +345,32 @@ export default function AdminDashboardScreen() {
                 <MaterialIcons name="event" size={28} color="#06B6D4" />
                 <Text style={[styles.actionText, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
                   Events
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={[styles.actionButton, {
+                  backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white',
+                  borderColor: colorScheme === 'dark' ? '#374151' : '#D1D5DB',
+                }]}
+                onPress={() => void router.push('/admin-transactions' as any)}
+              >
+                <MaterialIcons name="receipt-long" size={28} color="#059669" />
+                <Text style={[styles.actionText, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
+                  Transactions
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={[styles.actionButton, {
+                  backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white',
+                  borderColor: colorScheme === 'dark' ? '#374151' : '#D1D5DB',
+                }]}
+                onPress={() => void router.push('/admin-metrics' as any)}
+              >
+                <MaterialIcons name="trending-up" size={28} color="#7C3AED" />
+                <Text style={[styles.actionText, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
+                  Metrics
                 </Text>
               </Pressable>
             </View>
@@ -474,6 +524,14 @@ const styles = StyleSheet.create({
   },
   activityTime: {
     fontSize: 11,
+  },
+  spikeAlert: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 16,
   },
   errorText: {
     fontSize: 16,

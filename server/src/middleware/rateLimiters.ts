@@ -151,6 +151,28 @@ export const verificationLimiter = createLimiter({
   max: rateLimitingDisabled ? 100000 : 10,
 });
 
+/**
+ * OAuth login attempts (Google, Apple)
+ * 10 per 15 minutes per IP — prevents brute-force token stuffing
+ */
+export const oauthLimiter = createLimiter({
+  name: 'oauth',
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: rateLimitingDisabled ? 100000 : 10,
+  keyGenerator: (req) => `ip:${req.ip}`,
+});
+
+/**
+ * Verification code confirmation (email verify, password reset verify)
+ * 5 per 15 minutes per IP — prevents 6-digit code brute force
+ */
+export const verificationConfirmLimiter = createLimiter({
+  name: 'verification-confirm',
+  windowMs: 15 * 60 * 1000,
+  max: rateLimitingDisabled ? 100000 : 5,
+  keyGenerator: (req) => `ip:${req.ip}`,
+});
+
 // ============================================
 // Content Creation Rate Limiters
 // ============================================

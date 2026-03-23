@@ -510,8 +510,18 @@ export default function SettingsScreen() {
                         <NavRow
                           title="View Messages"
                           subtitle="Content moderation"
-                          isLast
                           onPress={() => void router.navigate('/admin-messages')}
+                        />
+                        <NavRow
+                          title="Transactions"
+                          subtitle="Payment history and analytics"
+                          onPress={() => void router.navigate('/admin-transactions' as any)}
+                        />
+                        <NavRow
+                          title="Platform Metrics"
+                          subtitle="Growth trends and analytics"
+                          isLast
+                          onPress={() => void router.navigate('/admin-metrics' as any)}
                         />
                       </SectionCard>
                     )}

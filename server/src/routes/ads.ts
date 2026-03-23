@@ -112,6 +112,21 @@ export async function handleAdSubmitForApproval(req: AuthedRequest, res: Respons
     if (!Array.isArray(dates) || dates.length === 0) {
       return res.status(400).json({ error: 'dates[] is required' });
     }
+    if (dates.length > 30) {
+      return res.status(400).json({ error: 'Maximum 30 dates per booking' });
+    }
+    // Validate each date is a valid ISO date string (YYYY-MM-DD)
+    const isoDateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    const today = new Date().toISOString().slice(0, 10);
+    for (const d of dates) {
+      const ds = String(d);
+      if (!isoDateRegex.test(ds)) {
+        return res.status(400).json({ error: `Invalid date format: ${ds}. Use YYYY-MM-DD.` });
+      }
+      if (ds < today) {
+        return res.status(400).json({ error: `Date ${ds} is in the past` });
+      }
+    }
     const isoDates = Array.from(new Set(dates.map((d: any) => String(d))));
     const ad = await prisma.ad.findUnique({ where: { id } });
     if (!ad) return res.status(404).json({ error: 'Ad not found' });

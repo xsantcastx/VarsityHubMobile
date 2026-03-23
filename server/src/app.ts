@@ -165,6 +165,8 @@ app.use((req, res, next) => {
 });
 
 app.use(authMiddleware);
+
+// ID param validation is applied per-router (params not available at app level)
 // Serve uploaded files
 const isUploadsApiRequest = (req: Request) =>
   req.path === '/cloudinary-signature' ||

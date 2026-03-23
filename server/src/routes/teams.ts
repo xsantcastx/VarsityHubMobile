@@ -15,7 +15,10 @@ import { teamCreationLimiter, followLimiter, inviteLimiter } from '../middleware
 import { getAuthorizedUsersPerTeam, getMaxTeamsForPlan, planSupportsExtracurricular } from '../lib/planLimits.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 
+import { registerIdValidation } from '../middleware/validateParams.js';
+
 export const teamsRouter = Router();
+registerIdValidation(teamsRouter);
 const debugLog = (...args: Parameters<typeof console.log>) => {
   if (process.env.ENABLE_SERVER_DEBUG_LOGS === 'true' || process.env.NODE_ENV !== 'production') {
     console.log(...args);

@@ -2,8 +2,10 @@ import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
+import { registerIdValidation } from '../middleware/validateParams.js';
 
 export const notificationsRouter = Router();
+registerIdValidation(notificationsRouter);
 
 const summarize = (n: any) => {
   switch (n.type) {

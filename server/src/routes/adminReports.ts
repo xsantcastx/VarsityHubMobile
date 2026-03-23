@@ -4,8 +4,10 @@ import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
+import { registerIdValidation } from '../middleware/validateParams.js';
 
 export const adminReportsRouter = Router();
+registerIdValidation(adminReportsRouter);
 
 // Helper to get admin email
 async function getAdminEmail(userId: string): Promise<string> {

@@ -620,7 +620,7 @@ export default function AdCalendarScreen() {
           backgroundColor: Colors[colorScheme].card,
           borderBottomColor: Colors[colorScheme].border 
         }]}>
-          <Pressable onPress={() => safeGoBack(router)} style={[styles.iconBtn, { backgroundColor: Colors[colorScheme].surface }]}>
+          <Pressable onPress={() => safeGoBack(router)} style={[styles.iconBtn, { backgroundColor: Colors[colorScheme].surface }]} accessibilityRole="button" accessibilityLabel="Go back">
             <Text style={[styles.iconBtnText, { color: Colors[colorScheme].text }]}>{'<'}</Text>
           </Pressable>
           <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>Schedule Your Ad</Text>
@@ -681,6 +681,8 @@ export default function AdCalendarScreen() {
             {alternatives.map((alt, idx) => (
               <Pressable
                 key={idx}
+                accessibilityRole="button"
+                accessibilityLabel={`Switch to zip code ${alt.zip}, ${alt.distance} miles away`}
                 style={{
                   flexDirection: 'row',
                   alignItems: 'center',
@@ -814,7 +816,8 @@ export default function AdCalendarScreen() {
               autoCapitalize="characters"
               value={promo}
               onChangeText={setPromo}
-              style={{ 
+              accessibilityLabel="Promo code"
+              style={{
                 flex: 1, 
                 height: 44, 
                 borderRadius: 10, 
@@ -825,7 +828,7 @@ export default function AdCalendarScreen() {
                 color: Colors[colorScheme].text
               }}
             />
-            <Pressable onPress={applyPromo} style={[styles.payBtn, { backgroundColor: Colors[colorScheme].tint, width: 120, height: 44 }]} disabled={promoBusy}>
+            <Pressable onPress={applyPromo} style={[styles.payBtn, { backgroundColor: Colors[colorScheme].tint, width: 120, height: 44 }]} disabled={promoBusy} accessibilityRole="button" accessibilityLabel="Apply promo code">
               {promoBusy ? <ActivityIndicator color="#fff" /> : <Text style={styles.payBtnText}>Apply</Text>}
             </Pressable>
           </View>
@@ -984,6 +987,8 @@ export default function AdCalendarScreen() {
               <Pressable
                 disabled={payButtonDisabled}
                 onPress={handlePayment}
+                accessibilityRole="button"
+                accessibilityLabel={paymentsTemporarilyDisabled ? 'Checkout unavailable' : `Pay $${effective.toFixed(2)}`}
                 style={[
                   styles.payBtn,
                   { backgroundColor: Colors[colorScheme].tint },
@@ -1013,6 +1018,8 @@ export default function AdCalendarScreen() {
               <Pressable
                 disabled={submitForApprovalDisabled}
                 onPress={handleSubmitForApproval}
+                accessibilityRole="button"
+                accessibilityLabel="Submit for Approval"
                 style={[
                   styles.payBtn,
                   { backgroundColor: Colors[colorScheme].tint },
@@ -1040,7 +1047,7 @@ export default function AdCalendarScreen() {
                 <Text style={[styles.pendingBannerText, { color: colorScheme === 'dark' ? '#6EE7B7' : '#047857' }]}>
                   Select new dates above to run this ad again — no re-approval needed.
                 </Text>
-                <Pressable onPress={() => router.push('/my-ads')} style={{ marginTop: 8 }}>
+                <Pressable onPress={() => router.push('/my-ads')} style={{ marginTop: 8 }} accessibilityRole="link" accessibilityLabel="View My Ads">
                   <Text style={{ color: Colors[colorScheme].tint, fontWeight: '600' }}>View My Ads →</Text>
                 </Pressable>
               </View>

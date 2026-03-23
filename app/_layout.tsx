@@ -174,6 +174,8 @@ export default function RootLayout() {
                     <Stack.Screen name="admin-messages" options={{ headerShown: false }} />
                     <Stack.Screen name="admin-activity-log" options={{ headerShown: false }} />
                     <Stack.Screen name="admin-create-event" options={{ headerShown: false }} />
+                    <Stack.Screen name="admin-transactions" options={{ headerShown: false }} />
+                    <Stack.Screen name="admin-metrics" options={{ headerShown: false }} />
                     {/* Payment & billing */}
                     <Stack.Screen name="billing" options={{ headerShown: false }} />
                     <Stack.Screen name="subscription-paywall" options={{ headerShown: false }} />

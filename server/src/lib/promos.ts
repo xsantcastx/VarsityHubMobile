@@ -55,12 +55,24 @@ export async function redeemPromo(input: PromoPreviewInput & { orderId?: string 
     const preview = await previewPromo({ ...input, code: upper });
     if (!preview.valid) return { ok: false, error: preview.reason } as const;
 
-    // Capacity gate: check before attempting create
-    if (promo.max_redemptions != null && promo.uses >= promo.max_redemptions) {
-      return { ok: false, error: 'usage_exhausted' } as const;
+    // Atomic capacity gate: increment uses only if under max.
+    // The WHERE clause makes this a single atomic operation — no check-then-act race.
+    if (promo.max_redemptions != null) {
+      const updated = await tx.promoCode.updateMany({
+        where: { id: promo.id, uses: { lt: promo.max_redemptions } },
+        data: { uses: { increment: 1 } },
+      });
+      if (updated.count === 0) {
+        return { ok: false, error: 'usage_exhausted' } as const;
+      }
+    } else {
+      await tx.promoCode.update({
+        where: { id: promo.id },
+        data: { uses: { increment: 1 } },
+      });
     }
 
-    // Attempt create first — unique(promo_id, order_id) catches replays
+    // Record redemption — unique(promo_id, order_id) catches replays
     try {
       await tx.promoRedemption.create({
         data: {
@@ -72,22 +84,11 @@ export async function redeemPromo(input: PromoPreviewInput & { orderId?: string 
       });
     } catch (err: any) {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        // Replay — decrement the uses we just incremented
+        await tx.promoCode.update({ where: { id: promo.id }, data: { uses: { decrement: 1 } } });
         return { ok: true, alreadyRedeemed: true, ...preview } as const;
       }
       throw err;
-    }
-
-    // Increment uses AFTER successful create (prevents double-increment on replay)
-    if (promo.max_redemptions != null) {
-      await tx.promoCode.updateMany({
-        where: { id: promo.id, uses: { lt: promo.max_redemptions } },
-        data: { uses: { increment: 1 } },
-      });
-    } else {
-      await tx.promoCode.update({
-        where: { id: promo.id },
-        data: { uses: { increment: 1 } },
-      });
     }
 
     return { ok: true, ...preview } as const;

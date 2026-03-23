@@ -170,6 +170,26 @@ const SCHEDULED_JOBS: ScheduledJob[] = [
     },
   },
   {
+    name: 'db-backup-sync',
+    cron: '0 */6 * * *', // Every 6 hours
+    description: 'Sync primary database to backup Postgres instance',
+    handler: async () => {
+      try {
+        const { syncDatabaseBackup } = await import('../lib/dbBackupSync.js');
+        const result = await syncDatabaseBackup();
+        if (result.success) {
+          console.log(`[Scheduler] DB backup sync: ${result.tablesSync} tables, ${result.totalRows} rows`);
+        } else if (result.error?.includes('not configured')) {
+          // Silent skip — no backup URL set
+        } else {
+          console.error('[Scheduler] DB backup sync failed:', result.error);
+        }
+      } catch (error) {
+        console.error('[Scheduler] DB backup sync error:', error);
+      }
+    },
+  },
+  {
     name: 'daily-founder-metrics',
     cron: '0 8 * * *', // Every day at 8:00 AM
     description: 'Send daily founder metrics summary via email',

@@ -11,8 +11,10 @@ import { geocodeLocation } from '../lib/geocoding.js';
 import { detectMediaType, getVideoPreviewUrl } from '../lib/mediaUtils.js';
 import { getExcludedPrivateAuthorIds, getBlockedUserIds, isAuthorHiddenFromViewer } from '../lib/privacyUtils.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
+import { registerIdValidation } from '../middleware/validateParams.js';
 
 export const postsRouter = Router();
+registerIdValidation(postsRouter);
 
 const POST_UNDO_WINDOW_MS = 5 * 60 * 1000;
 const debugLog = (...args: Parameters<typeof console.log>) => {

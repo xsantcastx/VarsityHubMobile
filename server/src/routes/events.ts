@@ -14,8 +14,10 @@ import { eventCreationLimiter, rsvpLimiter } from '../middleware/rateLimiters.js
 import { haversineDistance, getZipCoordinates } from '../lib/geoUtils.js';
 import { geocodeLocation } from '../lib/geocoding.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
+import { registerIdValidation } from '../middleware/validateParams.js';
 
 export const eventsRouter = Router();
+registerIdValidation(eventsRouter);
 
 // Check if a user holds a coaching/management role on any team (DB truth, not preferences)
 async function isTeamCoach(userId: string): Promise<boolean> {

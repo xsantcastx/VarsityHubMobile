@@ -5,11 +5,13 @@ import { requireAuth } from '../middleware/requireAuth.js';
 import { requireOnboarded } from '../middleware/requireOnboarded.js';
 import { requirePlan } from '../middleware/subscription.js';
 import { getMaxRosterSizePerTeam, resolvePlan } from '../lib/planLimits.js';
+import { registerIdValidation } from '../middleware/validateParams.js';
 
 const VALID_ROLES = ['owner', 'manager', 'coach', 'assistant_coach', 'player', 'parent', 'member', 'equipment', 'health_wellness'] as const;
 type ValidRole = typeof VALID_ROLES[number];
 
 export const teamMembershipsRouter = Router();
+registerIdValidation(teamMembershipsRouter);
 
 async function canManageTeam(req: AuthedRequest, teamId: string): Promise<boolean> {
   if (!req.user) return false;

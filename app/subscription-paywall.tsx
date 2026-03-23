@@ -246,7 +246,7 @@ export default function SubscriptionPaywallScreen() {
         <Stack.Screen options={{
           title: 'Subscription',
           headerLeft: () => (
-            <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingLeft: 8 }}>
+            <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingLeft: 8 }} accessibilityRole="button" accessibilityLabel="Go back">
               <MaterialIcons name="chevron-left" size={24} color="#3B82F6" />
             </Pressable>
           ),
@@ -263,6 +263,8 @@ export default function SubscriptionPaywallScreen() {
           <Pressable
             style={[styles.ctaButton, { backgroundColor: Colors[colorScheme].tint, marginTop: 24, width: '80%' }]}
             onPress={() => safeGoBack(router)}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
           >
             <Text style={styles.ctaButtonText}>Go Back</Text>
           </Pressable>
@@ -276,7 +278,7 @@ export default function SubscriptionPaywallScreen() {
       <Stack.Screen options={{
         title: 'Choose Your Plan',
         headerLeft: () => (
-          <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingLeft: 8 }}>
+          <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingLeft: 8 }} accessibilityRole="button" accessibilityLabel="Go back">
             <MaterialIcons name="chevron-left" size={24} color="#3B82F6" />
           </Pressable>
         ),
@@ -312,6 +314,9 @@ export default function SubscriptionPaywallScreen() {
                 selectedTier === tier && { borderColor: getTierColor(tier), backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.08)' : '#F9FAFB' },
               ]}
               onPress={() => setSelectedTier(tier)}
+              accessibilityRole="button"
+              accessibilityLabel={`Select ${tier} plan`}
+              accessibilityState={{ selected: selectedTier === tier }}
             >
               <CoachTierBadge tier={tier} size="small" showLabel={true} />
               {tier === 'legend' && (
@@ -402,6 +407,7 @@ export default function SubscriptionPaywallScreen() {
                 autoCapitalize="characters"
                 autoCorrect={false}
                 editable={!isProcessing}
+                accessibilityLabel="Promo code"
               />
             </View>
             <Text style={styles.promoHint}>
@@ -420,6 +426,8 @@ export default function SubscriptionPaywallScreen() {
             ]}
             onPress={handleSubscribe}
             disabled={isProcessing}
+            accessibilityRole="button"
+            accessibilityLabel={selectedTier === 'rookie' ? 'Continue with Free Plan' : `Upgrade to ${capitalize(selectedTier)}`}
           >
             {isProcessing ? (
               <ActivityIndicator color="#FFFFFF" />
@@ -456,6 +464,8 @@ export default function SubscriptionPaywallScreen() {
           {(isIOS || Platform.OS === 'android') && selectedTier !== 'rookie' && (
             <Pressable
               style={[styles.restoreButton, { marginTop: 16 }]}
+              accessibilityRole="button"
+              accessibilityLabel="Restore Purchases"
               onPress={async () => {
                 if (isProcessing) return;
                 setLoading(true);

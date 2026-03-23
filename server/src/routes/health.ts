@@ -4,6 +4,7 @@ import { getMissingEmailTemplates, getMissingRecommendedTemplates, isSendGridCon
 import { getAllPlanDefinitions } from '../lib/planLimits.js';
 import { getEmailService } from '../services/email/service.js';
 import { isTwilioConfigured } from '../lib/twilio.js';
+import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 
@@ -21,7 +22,13 @@ healthRouter.get('/', asyncHandler(async (req: AuthedRequest, res) => {
   const secret = process.env.HEALTH_CHECK_SECRET;
   const provided = req.headers['x-health-check-secret'] as string | undefined;
   if (!secret || !provided || provided !== secret) {
-    return res.json({ status: 'ok' });
+    // Basic health: verify DB connectivity with a real query
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      return res.json({ status: 'ok' });
+    } catch {
+      return res.status(503).json({ status: 'error', message: 'Database unreachable' });
+    }
   }
 
   const missingEmailTemplates = getMissingEmailTemplates();
@@ -42,7 +49,7 @@ healthRouter.get('/', asyncHandler(async (req: AuthedRequest, res) => {
   }
 
   const integrations = {
-    database: !!process.env.DATABASE_URL,
+    database: await prisma.$queryRaw`SELECT 1`.then(() => true).catch(() => false),
     jwt: !!process.env.JWT_SECRET,
     cloudinary: isCloudinaryConfigured(),
     twilio: isTwilioConfigured(),

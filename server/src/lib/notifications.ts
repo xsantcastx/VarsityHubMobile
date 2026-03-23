@@ -309,6 +309,20 @@ export async function notifyUpcomingGames(hoursBeforeGame: number): Promise<void
         ? `Your game starts in 12 hours at ${event.location || 'the venue'}`
         : `Your game starts in 1 hour! Get ready!`;
 
+      // Dedup: skip if we already sent a reminder for this event+user+window
+      const recentReminder = await prisma.notification.findFirst({
+        where: {
+          user_id: user.id,
+          type: 'GAME_REMINDER',
+          meta: { path: ['event_id'], equals: event.id },
+          created_at: { gte: new Date(Date.now() - 2 * 60 * 60 * 1000) }, // 2-hour window
+        },
+      });
+      if (recentReminder) {
+        debugLog(`Skipping duplicate game reminder for user ${user.id}, event ${event.id}`);
+        continue;
+      }
+
       // Create in-app notification record so it appears in notification history
       const actorId = (event as any).creator_id ?? user.id;
       let notificationId: string | undefined;

@@ -85,10 +85,31 @@ export default function TeamChatScreen() {
   const router = useRouter();
   const _insets = useSafeAreaInsets();
   const colorScheme = useColorScheme() ?? 'light';
-  
+
+  // Coach role guard
+  const [roleChecked, setRoleChecked] = useState(false);
+  useEffect(() => {
+    let mounted = true;
+    void (async () => {
+      try {
+        const { User } = await import('@/api/entities');
+        const me: any = await User.me();
+        if (!mounted) return;
+        if (me?.preferences?.role !== 'coach') {
+          router.back();
+          return;
+        }
+        setRoleChecked(true);
+      } catch {
+        if (mounted) router.back();
+      }
+    })();
+    return () => { mounted = false; };
+  }, [router]);
+
   // Modal state for replacing Alert.alert
   const [modal, setModal] = useState<null | { title: string; message?: string; options: any[] }>(null);
-  
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [members, setMembers] = useState<TeamMember[]>([]);
@@ -1473,7 +1494,7 @@ export default function TeamChatScreen() {
     </Pressable>
   );
 
-  if (loading) {
+  if (!roleChecked || loading) {
     return (
       <SafeAreaView style={[styles.container, styles.centerContent, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
         <Stack.Screen options={{ title: 'Team Chat', headerShown: true, headerLeft: () => (

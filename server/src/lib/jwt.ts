@@ -17,7 +17,7 @@ export const REFRESH_TOKEN_EXPIRY_DAYS = 7;
 
 export function signJwt(payload: Record<string, unknown>, expiresIn: string = DEFAULT_ACCESS_TOKEN_EXPIRY): string {
   // @ts-expect-error - expiresIn accepts string but SignOptions type is strict
-  const opts: SignOptions = { expiresIn };
+  const opts: SignOptions = { algorithm: 'HS256', expiresIn };
   return jwt.sign(payload, JWT_SECRET, opts);
 }
 

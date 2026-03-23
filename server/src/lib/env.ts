@@ -11,6 +11,7 @@ const envSchema = z.object({
   PORT: z.string().optional(),
   HOST: z.string().default('0.0.0.0'),
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
+  DATABASE_BACKUP_URL: z.string().optional().transform(toOptional),
   JWT_SECRET: z
     .string()
     .min(32, 'JWT_SECRET must be at least 32 characters. Generate with `openssl rand -base64 32`'),

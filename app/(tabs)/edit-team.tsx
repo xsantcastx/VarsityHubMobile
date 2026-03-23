@@ -9,7 +9,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
-import { Organization, Team } from '@/api/entities';
+import { Organization, Team, User } from '@/api/entities';
 import { useAuth } from '@/context/AuthProvider';
 import { uploadFile } from '@/api/upload';
 import { getApiBaseUrl } from '@/api/http';
@@ -19,7 +19,28 @@ export default function EditTeamScreen() {
   const params = useLocalSearchParams<{ id?: string }>();
   const colorScheme = useColorScheme() ?? 'light';
   const insets = useSafeAreaInsets();
-  
+
+  // Coach role guard — only coaches/owners/managers can edit teams
+  const [roleChecked, setRoleChecked] = useState(false);
+  useEffect(() => {
+    let mounted = true;
+    void (async () => {
+      try {
+        const me: any = await User.me();
+        if (!mounted) return;
+        if (me?.preferences?.role !== 'coach') {
+          Alert.alert('Access Denied', 'Only coach accounts can edit teams.');
+          router.back();
+          return;
+        }
+        setRoleChecked(true);
+      } catch {
+        if (mounted) router.back();
+      }
+    })();
+    return () => { mounted = false; };
+  }, [router]);
+
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [sport, setSport] = useState('');
@@ -260,7 +281,7 @@ export default function EditTeamScreen() {
     }
   };
 
-  if (loading) {
+  if (!roleChecked || loading) {
     return (
       <View style={[styles.container, styles.loadingContainer, { backgroundColor: Colors[colorScheme].background }]}>
         <Stack.Screen options={{ title: 'Edit Team', headerShown: false }} />

@@ -42,7 +42,7 @@ export default function PrivacyPolicyScreen() {
           body="VarsityHub is intended for users 13 years and older. We do not knowingly collect information from children under 13. If we discover such collection, we will delete it immediately." />
 
         <PolicySection colorScheme={colorScheme} title="Third-Party Services"
-          body={'Our app integrates with:\n• Google Maps: For event location display (subject to Google Privacy Policy)\n• Google Sign-In / Apple Sign-In: For authentication\n• Stripe: For payment processing (subject to Stripe Privacy Policy)'} />
+          body={'Our app integrates with:\n• Google Maps: For event location display (subject to Google Privacy Policy)\n• Google Sign-In / Apple Sign-In: For authentication\n• Stripe: For payment processing (subject to Stripe Privacy Policy)\n• Sentry: For crash reporting and error tracking, which may collect device information, app state, and diagnostic data at the time of a crash'} />
 
         <PolicySection colorScheme={colorScheme} title="Push Notifications"
           body="You can control push notifications in your device settings. We send notifications for new messages, event reminders, team updates, and subscription status changes." />

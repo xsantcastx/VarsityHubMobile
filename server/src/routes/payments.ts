@@ -20,12 +20,14 @@ import { paymentLimiter } from '../middleware/rateLimiters.js';
 import { calculateAdPriceCents } from '../utils/adPricing.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', { apiVersion: '2024-06-20' });
+if (process.env.NODE_ENV === 'production' && !process.env.STRIPE_SECRET_KEY) {
+  throw new Error('FATAL: STRIPE_SECRET_KEY must be set in production. Server cannot start without payment processing.');
+}
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_placeholder', { apiVersion: '2024-06-20' });
 
 // Startup warnings for critical payment config
 if (process.env.NODE_ENV === 'production') {
   if (!process.env.STRIPE_WEBHOOK_SECRET) console.error('[payments] WARNING: STRIPE_WEBHOOK_SECRET is not set — webhooks will fail silently');
-  if (!process.env.STRIPE_SECRET_KEY) console.error('[payments] WARNING: STRIPE_SECRET_KEY is not set — all payments will fail');
   if (!process.env.APPLE_IAP_SHARED_SECRET) console.warn('[payments] Apple IAP shared secret not set — iOS IAP verification disabled');
 }
 
@@ -685,19 +687,21 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
   const userId = req.user!.id;
   const { ad_id, dates, promo_code, plan, team_count, organization_id: orgIdBody } = req.body || {};
 
-  // ── Get or create Stripe Customer (atomic to prevent duplicates) ──
+  // ── Get or create Stripe Customer (race-safe) ──
+  // Re-check inside a serializable transaction to prevent two requests from creating
+  // duplicate Stripe customers for the same user.
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, stripe_customer_id: true, preferences: true } });
   let customerId = user?.stripe_customer_id;
   if (!customerId) {
-    const customer = await stripe.customers.create({ email: user?.email || undefined, metadata: { user_id: userId } });
-    customerId = customer.id;
-    try {
-      await prisma.user.update({ where: { id: userId, stripe_customer_id: undefined }, data: { stripe_customer_id: customerId } });
-    } catch {
-      // Another request may have set it — re-fetch
-      const refreshed = await prisma.user.findUnique({ where: { id: userId }, select: { stripe_customer_id: true } });
-      if (refreshed?.stripe_customer_id) customerId = refreshed.stripe_customer_id;
-    }
+    // Use transaction to atomically check-and-set
+    customerId = await prisma.$transaction(async (tx) => {
+      const fresh = await tx.user.findUnique({ where: { id: userId }, select: { stripe_customer_id: true } });
+      if (fresh?.stripe_customer_id) return fresh.stripe_customer_id;
+      // No customer yet — create one in Stripe and save atomically
+      const customer = await stripe.customers.create({ email: user?.email || undefined, metadata: { user_id: userId } });
+      await tx.user.update({ where: { id: userId }, data: { stripe_customer_id: customer.id } });
+      return customer.id;
+    }, { isolationLevel: 'Serializable' });
   }
 
   // Create ephemeral key
@@ -1162,18 +1166,23 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
   
   if (event.type === 'customer.subscription.deleted') {
     const subscription = event.data.object as Stripe.Subscription;
-    const customer = await stripe.customers.retrieve(subscription.customer as string).catch(() => null);
+    const customerId = typeof subscription.customer === 'string' ? subscription.customer : null;
+    if (!customerId) {
+      console.error('[webhook] customer.subscription.deleted: subscription.customer is null');
+      return res.status(400).json({ error: 'Missing customer ID' });
+    }
+    const customer = await stripe.customers.retrieve(customerId).catch(() => null);
     const customerEmail = customer && !customer.deleted ? customer.email : null;
     if (customerEmail) {
       await sendBillingNoticeEmail({
         to: customerEmail,
         type: 'subscription_canceled',
-        planName: subscription.items.data[0]?.price?.nickname || 'VarsityHub Subscription',
+        planName: subscription.items?.data?.[0]?.price?.nickname || 'VarsityHub Subscription',
       }).catch(err => console.warn('[billing-email] subscription_canceled failed:', err));
     }
 
     // Downgrade user to rookie plan now that subscription period has ended
-    const canceledUser = await prisma.user.findFirst({ where: { stripe_customer_id: subscription.customer as string } });
+    const canceledUser = await prisma.user.findFirst({ where: { stripe_customer_id: customerId } });
     if (canceledUser) {
       const prefs = (canceledUser.preferences && typeof canceledUser.preferences === 'object') ? (canceledUser.preferences as any) : {};
       const previousPlan = prefs.plan || 'rookie';
@@ -1209,13 +1218,18 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
   
   if (event.type === 'customer.subscription.updated') {
     const subscription = event.data.object as Stripe.Subscription;
-    const customer = await stripe.customers.retrieve(subscription.customer as string).catch(() => null);
+    const subCustomerId = typeof subscription.customer === 'string' ? subscription.customer : null;
+    if (!subCustomerId) {
+      console.error('[webhook] customer.subscription.updated: subscription.customer is null');
+      return res.status(400).json({ error: 'Missing customer ID' });
+    }
+    const customer = await stripe.customers.retrieve(subCustomerId).catch(() => null);
     const customerEmail = customer && !customer.deleted ? customer.email : null;
 
     // Sync subscription state to database (independent of email availability)
-    const subUser = await prisma.user.findFirst({ where: { stripe_customer_id: subscription.customer as string } });
+    const subUser = await prisma.user.findFirst({ where: { stripe_customer_id: subCustomerId } });
     if (subUser) {
-      const priceId = subscription.items.data[0]?.price?.id;
+      const priceId = subscription.items?.data?.[0]?.price?.id;
       // Map Stripe price ID back to plan tier
       let newTier: string = subUser.subscription_tier || 'free';
       if (priceId === process.env.STRIPE_PRICE_VETERAN) newTier = 'veteran';

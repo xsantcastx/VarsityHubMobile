@@ -12,8 +12,10 @@ import { gameCreationLimiter, voteLimiter } from '../middleware/rateLimiters.js'
 import { detectMediaType, getVideoPreviewUrl } from '../lib/mediaUtils.js';
 import { getExcludedPrivateAuthorIds } from '../lib/privacyUtils.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
+import { registerIdValidation } from '../middleware/validateParams.js';
 
 export const gamesRouter = Router();
+registerIdValidation(gamesRouter);
 
 // Helper function to generate Google Maps links
 const generateMapsLink = (location?: string | null, lat?: number | null, lng?: number | null, placeId?: string | null): string | null => {
@@ -224,13 +226,13 @@ gamesRouter.post('/', requireVerified as any, requireOnboarded as any, gameCreat
     // Event type-specific fields
     donation_goal: z.number().min(0).optional(), // For fundraisers
     watch_location: z.string().trim().max(200).optional(), // For watch parties
-    watch_location_lat: z.number().optional(), // Watch party latitude
-    watch_location_lng: z.number().optional(), // Watch party longitude
+    watch_location_lat: z.number().min(-90).max(90).optional(), // Watch party latitude
+    watch_location_lng: z.number().min(-180).max(180).optional(), // Watch party longitude
     watch_location_place_id: z.string().optional(), // Watch party Google Place ID
     destination: z.string().trim().max(200).optional(), // For team trips
     // Coordinate options
-    latitude: z.number().optional(),
-    longitude: z.number().optional(),
+    latitude: z.number().min(-90).max(90).optional(),
+    longitude: z.number().min(-180).max(180).optional(),
     autoGeocode: z.boolean().optional(),
     // Venue information for opponent's location
     venue_place_id: z.string().optional(),
@@ -982,16 +984,16 @@ gamesRouter.put('/:id', requireAuth as any, requireOnboarded as any, asyncHandle
     event_type: z.enum(['game', 'fundraiser', 'watch_party', 'team_trip', 'meeting', 'team_meal', 'other']).optional(),
     donation_goal: z.number().min(0).optional().nullable(),
     watch_location: z.string().trim().max(200).optional().nullable(),
-    watch_location_lat: z.number().optional().nullable(),
-    watch_location_lng: z.number().optional().nullable(),
+    watch_location_lat: z.number().min(-90).max(90).optional().nullable(),
+    watch_location_lng: z.number().min(-180).max(180).optional().nullable(),
     watch_location_place_id: z.string().optional().nullable(),
     destination: z.string().trim().max(200).optional().nullable(),
-    latitude: z.number().optional().nullable(),
-    longitude: z.number().optional().nullable(),
+    latitude: z.number().min(-90).max(90).optional().nullable(),
+    longitude: z.number().min(-180).max(180).optional().nullable(),
     venue_place_id: z.string().optional().nullable(),
     venue_address: z.string().trim().optional().nullable(),
-    venue_lat: z.number().optional().nullable(),
-    venue_lng: z.number().optional().nullable(),
+    venue_lat: z.number().min(-90).max(90).optional().nullable(),
+    venue_lng: z.number().min(-180).max(180).optional().nullable(),
     is_neutral: z.boolean().optional(),
   });
 
