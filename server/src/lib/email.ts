@@ -21,6 +21,9 @@ const EMAIL_FROM = process.env.EMAIL_FROM || process.env.FROM_EMAIL || 'noreply@
 const APP_BASE_URL = (process.env.APP_BASE_URL || 'https://varsityhub.app').replace(/\/$/, '');
 const API_BASE_URL = (process.env.API_BASE_URL || 'https://api-production-8ac3.up.railway.app').replace(/\/$/, '');
 const CUSTOMER_SERVICE_EMAIL = process.env.CUSTOMER_SERVICE_EMAIL || 'support@varsityhub.app';
+// Verification/reset codes must show in subject for fast user entry.
+// Default behavior sends direct HTML/text emails first so subject is guaranteed.
+const PREFER_TEMPLATE_FOR_CODE_EMAILS = process.env.EMAIL_PREFER_TEMPLATES_FOR_CODE_EMAILS === '1';
 
 // Common template data (social links, privacy policy, etc.) added to all emails
 const getCommonTemplateData = () => ({
@@ -779,24 +782,6 @@ export async function sendVerificationEmail(email: string, token: string, userNa
   const displayName = userName || 'VarsityHub User';
   const subject = `${token} is your VarsityHub verification code`;
 
-  const sent = await sendTemplateEmail(
-    TEMPLATE_IDS.VERIFICATION,
-    email,
-    subject,
-    {
-      ...getCommonTemplateData(),
-      subject: subject,
-      token: token,
-      verification_code: token,
-      code: token,
-      user_name: displayName,
-      display_name: displayName,
-      expires_in: '30 minutes',
-    },
-    `Verification email sent to ${email}`
-  );
-  if (sent) return true;
-
   // HTML fallback when SendGrid template is not configured or fails
   const htmlBody = `
 <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
@@ -821,13 +806,35 @@ export async function sendVerificationEmail(email: string, token: string, userNa
   </div>
   <p style="text-align:center;color:#9CA3AF;font-size:13px;margin-top:16px;">&copy; ${new Date().getFullYear()} Lime Productions. All rights reserved.</p>
 </div>`;
+  const textBody = `Your VarsityHub verification code is: ${token}. This code expires in 30 minutes.`;
 
-  return sendEmail({
-    to: email,
-    subject,
-    text: `Your VarsityHub verification code is: ${token}. This code expires in 30 minutes.`,
-    html: htmlBody,
-  });
+  const sendTemplate = () =>
+    sendTemplateEmail(
+      TEMPLATE_IDS.VERIFICATION,
+      email,
+      subject,
+      {
+        ...getCommonTemplateData(),
+        subject: subject,
+        token: token,
+        verification_code: token,
+        code: token,
+        user_name: displayName,
+        display_name: displayName,
+        expires_in: '30 minutes',
+      },
+      `Verification email sent to ${email}`
+    );
+
+  if (!PREFER_TEMPLATE_FOR_CODE_EMAILS) {
+    const direct = await sendEmail({ to: email, subject, text: textBody, html: htmlBody });
+    if (direct) return true;
+    return sendTemplate();
+  }
+
+  const templated = await sendTemplate();
+  if (templated) return true;
+  return sendEmail({ to: email, subject, text: textBody, html: htmlBody });
 }
 
 /**
@@ -836,20 +843,6 @@ export async function sendVerificationEmail(email: string, token: string, userNa
  */
 export async function sendPasswordResetEmail(email: string, code: string): Promise<boolean> {
   const subject = `${code} is your VarsityHub password reset code`;
-  const sent = await sendTemplateEmail(
-    TEMPLATE_IDS.PASSWORD_RESET,
-    email,
-    subject,
-    {
-      ...getCommonTemplateData(),
-      subject: subject,
-      reset_code: code,
-      code: code,
-      expires_in: '30 minutes',
-    },
-    `Password reset email sent to ${email}`
-  );
-  if (sent) return true;
 
   // HTML fallback when SendGrid template is not configured or fails
   const htmlBody = `
@@ -868,13 +861,32 @@ export async function sendPasswordResetEmail(email: string, code: string): Promi
   <p style="text-align:center;color:#6B7280;font-size:14px;">If you didn't request this, you can safely ignore this email.</p>
   <p style="text-align:center;color:#9CA3AF;font-size:13px;margin-top:24px;">&copy; ${new Date().getFullYear()} Lime Productions. All rights reserved.</p>
 </div>`;
+  const textBody = `Your VarsityHub password reset code is: ${code}. This code expires in 30 minutes.`;
 
-  return sendEmail({
-    to: email,
-    subject,
-    text: `Your VarsityHub password reset code is: ${code}. This code expires in 30 minutes.`,
-    html: htmlBody,
-  });
+  const sendTemplate = () =>
+    sendTemplateEmail(
+      TEMPLATE_IDS.PASSWORD_RESET,
+      email,
+      subject,
+      {
+        ...getCommonTemplateData(),
+        subject: subject,
+        reset_code: code,
+        code: code,
+        expires_in: '30 minutes',
+      },
+      `Password reset email sent to ${email}`
+    );
+
+  if (!PREFER_TEMPLATE_FOR_CODE_EMAILS) {
+    const direct = await sendEmail({ to: email, subject, text: textBody, html: htmlBody });
+    if (direct) return true;
+    return sendTemplate();
+  }
+
+  const templated = await sendTemplate();
+  if (templated) return true;
+  return sendEmail({ to: email, subject, text: textBody, html: htmlBody });
 }
 
 /**

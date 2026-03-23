@@ -323,9 +323,12 @@ describe('Coach Approval Workflow', () => {
 
       const userAfter = await prisma.user.findUnique({
         where: { id: coach.id },
-        select: { approval_status: true },
+        select: { approval_status: true, preferences: true },
       });
       expect(userAfter?.approval_status).toBe('PENDING');
+      const prefs = (userAfter?.preferences || {}) as any;
+      expect(prefs?.join_request_pending).toBe(true);
+      expect(prefs?.organization_id).toBe(orgId);
 
       const joinReq = await prisma.organizationJoinRequest.findFirst({
         where: { user_id: coach.id, organization_id: orgId },
@@ -370,10 +373,70 @@ describe('Coach Approval Workflow', () => {
 
       const userAfter = await prisma.user.findUnique({
         where: { id: coach.id },
-        select: { approval_status: true, paid_by_owner: true },
+        select: { approval_status: true, paid_by_owner: true, preferences: true },
       });
       expect(userAfter?.approval_status).toBe('APPROVED');
       expect(userAfter?.paid_by_owner).toBe(true);
+      const prefs = (userAfter?.preferences || {}) as any;
+      expect(prefs?.join_request_pending).toBe(false);
+      expect(prefs?.organization_id).toBe(orgId);
+      expect(String(prefs?.organization_name || '').length).toBeGreaterThan(0);
+      expect(prefs?.proceeding_as_fan).toBe(false);
+
+      await prisma.organizationJoinRequest.deleteMany({
+        where: { user_id: coach.id, organization_id: orgId },
+      });
+      await prisma.organizationMembership.deleteMany({
+        where: { user_id: coach.id, organization_id: orgId },
+      });
+      await prisma.user.delete({ where: { id: coach.id } });
+    });
+  });
+
+  describe('League owner rejection sets coach to REJECTED and clears pending flags', () => {
+    it('league owner rejecting coach clears join_request_pending and paid_by_owner', async () => {
+      const coachHash = await bcrypt.hash(PASSWORD, 10);
+      const coach = await prisma.user.create({
+        data: {
+          email: `to-reject-coach-${ts}@example.com`,
+          password_hash: coachHash,
+          display_name: 'To Reject Coach',
+          email_verified: true,
+          preferences: {
+            role: 'coach',
+            plan: 'rookie',
+            onboarding_completed: true,
+            join_request_pending: true,
+            organization_id: orgId,
+          },
+          approval_status: 'PENDING',
+          paid_by_owner: true,
+        },
+      });
+
+      await prisma.organizationJoinRequest.create({
+        data: {
+          organization_id: orgId,
+          user_id: coach.id,
+          status: 'pending',
+        },
+      });
+
+      const res = await request(app)
+        .post(`/organizations/${orgId}/coaches/${coach.id}/reject`)
+        .set('Authorization', `Bearer ${leagueOwnerToken}`)
+        .send({ reason: 'Not a fit right now' });
+
+      expect(res.status).toBe(200);
+
+      const userAfter = await prisma.user.findUnique({
+        where: { id: coach.id },
+        select: { approval_status: true, paid_by_owner: true, preferences: true },
+      });
+      expect(userAfter?.approval_status).toBe('REJECTED');
+      expect(userAfter?.paid_by_owner).toBe(false);
+      const prefs = (userAfter?.preferences || {}) as any;
+      expect(prefs?.join_request_pending).toBe(false);
 
       await prisma.organizationJoinRequest.deleteMany({
         where: { user_id: coach.id, organization_id: orgId },
