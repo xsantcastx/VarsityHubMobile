@@ -5,7 +5,12 @@
  */
 
 import { describe, expect, it, jest } from '@jest/globals';
-import { calculateDistance, isWithinGeofence, isPostingWindowOpen } from '../lib/geofencing.js';
+import {
+  calculateDistance,
+  isWithinGeofence,
+  isPostingWindowOpen,
+  isStoryPostingWindowOpen,
+} from '../lib/geofencing.js';
 
 describe('Geofencing Utilities', () => {
   describe('calculateDistance', () => {
@@ -145,6 +150,56 @@ describe('Geofencing Utilities', () => {
       
       // Past events: windowOpenTime was in the past, so now >= past = true
       expect(isOpen).toBe(true);
+    });
+  });
+
+  describe('isStoryPostingWindowOpen', () => {
+    it('should return true on the same UTC calendar day as event', () => {
+      const now = new Date();
+      const eventDate = new Date(Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate(),
+        18,
+        0,
+        0
+      ));
+
+      const isOpen = isStoryPostingWindowOpen(eventDate);
+
+      expect(isOpen).toBe(true);
+    });
+
+    it('should return false for previous UTC day event', () => {
+      const now = new Date();
+      const eventDate = new Date(Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate() - 1,
+        18,
+        0,
+        0
+      ));
+
+      const isOpen = isStoryPostingWindowOpen(eventDate);
+
+      expect(isOpen).toBe(false);
+    });
+
+    it('should return false for next UTC day event', () => {
+      const now = new Date();
+      const eventDate = new Date(Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate() + 1,
+        18,
+        0,
+        0
+      ));
+
+      const isOpen = isStoryPostingWindowOpen(eventDate);
+
+      expect(isOpen).toBe(false);
     });
   });
 });

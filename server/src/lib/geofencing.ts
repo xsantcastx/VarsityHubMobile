@@ -2,7 +2,7 @@
  * Geofencing utilities for location-based event posting
  * 
  * BUSINESS RULES:
- * - Story Posts: 24-hour window (12h before to 12h after game), within 1km of venue
+ * - Story Posts: game day only (UTC calendar day of the event), within 1km of venue
  * - Regular Posts: 4-day window (2 days before to 1 day after game), within 3km of venue
  * - Sample events/games (IDs starting with "sample-") bypass all geofencing checks
  * 
@@ -84,16 +84,18 @@ export function isWithinGeofence(
 }
 
 /**
- * Check if posting window is open for stories
- * Stories: 24-hour window around game day (12 hours before to 12 hours after)
+ * Check if story posting window is open.
+ * Stories are restricted to the same UTC calendar day as the event.
  */
 export function isStoryPostingWindowOpen(eventDate: Date): boolean {
   const now = new Date();
   const eventTime = new Date(eventDate);
-  const windowStart = new Date(eventTime.getTime() - 12 * 60 * 60 * 1000); // 12 hours before
-  const windowEnd = new Date(eventTime.getTime() + 12 * 60 * 60 * 1000); // 12 hours after
-  
-  return now >= windowStart && now <= windowEnd;
+
+  return (
+    now.getUTCFullYear() === eventTime.getUTCFullYear() &&
+    now.getUTCMonth() === eventTime.getUTCMonth() &&
+    now.getUTCDate() === eventTime.getUTCDate()
+  );
 }
 
 /**
@@ -122,7 +124,7 @@ export function isPostingWindowOpen(eventDate: Date): boolean {
 
 /**
  * Verify user can post a story to an event based on location and time
- * Stories: 24-hour window (12h before to 12h after game), 1km radius
+ * Stories: event day only (UTC calendar day), 1km radius
  * @returns { allowed: boolean; reason?: string; distance?: number }
  */
 export async function verifyStoryPostingPermission(
@@ -149,15 +151,31 @@ export async function verifyStoryPostingPermission(
     return { allowed: false, code: 'EVENT_NOT_FOUND', reason: 'Event not found' };
   }
 
-  // Check if story posting window is open (24-hour window around game day)
+  // Check if story posting window is open (event day only).
   if (!isStoryPostingWindowOpen(event.date)) {
     const eventTime = new Date(event.date);
-    const windowStart = new Date(eventTime.getTime() - 12 * 60 * 60 * 1000);
-    const windowEnd = new Date(eventTime.getTime() + 12 * 60 * 60 * 1000);
+    const windowStart = new Date(Date.UTC(
+      eventTime.getUTCFullYear(),
+      eventTime.getUTCMonth(),
+      eventTime.getUTCDate(),
+      0,
+      0,
+      0,
+      0
+    ));
+    const windowEnd = new Date(Date.UTC(
+      eventTime.getUTCFullYear(),
+      eventTime.getUTCMonth(),
+      eventTime.getUTCDate(),
+      23,
+      59,
+      59,
+      999
+    ));
     return {
       allowed: false,
       code: 'POSTING_WINDOW_CLOSED',
-      reason: `Story posting opens ${formatWindowDateTime(windowStart)} and closes ${formatWindowDateTime(windowEnd)}.`,
+      reason: `Story posting is only available on game day: ${formatWindowDateTime(windowStart)} - ${formatWindowDateTime(windowEnd)}.`,
     };
   }
 
