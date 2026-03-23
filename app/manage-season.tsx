@@ -1,6 +1,7 @@
 import CustomActionModal, { ActionModalOption } from '@/components/CustomActionModal';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useRequireCoach } from '@/hooks/useRequireCoach';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
@@ -73,6 +74,7 @@ interface PlayoffMatchup {
 }
 
 export default function ManageSeasonScreen() {
+  const { isCoach, loading: coachLoading } = useRequireCoach();
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const params = useLocalSearchParams<{ teamId?: string }>();

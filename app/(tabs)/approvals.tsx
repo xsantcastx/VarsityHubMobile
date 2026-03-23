@@ -1,6 +1,7 @@
 import { Organization } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
+import { useRequireCoach } from '@/hooks/useRequireCoach';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { safeGoBack } from '@/utils/navigation';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -50,6 +51,7 @@ type OwnedOrg = {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function ApprovalsScreen() {
+  const { isCoach, loading: coachLoading } = useRequireCoach();
   const colorScheme = useCustomColorScheme();
   const C = Colors[colorScheme];
   const isDark = colorScheme === 'dark';
@@ -299,6 +301,15 @@ export default function ApprovalsScreen() {
       ))}
     </View>
   );
+
+  // Gate: must be a coach
+  if (coachLoading || !isCoach) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#0B1120' : '#F8FAFC' }]}>
+        <ActivityIndicator style={{ marginTop: 40 }} />
+      </SafeAreaView>
+    );
+  }
 
   // If user has no owned orgs, they shouldn't be here
   if (!loading && orgs.length === 0) {

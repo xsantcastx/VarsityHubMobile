@@ -1,5 +1,6 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useRequireCoach } from '@/hooks/useRequireCoach';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -15,6 +16,7 @@ import { uploadFile } from '@/api/upload';
 import { getApiBaseUrl } from '@/api/http';
 
 export default function EditTeamScreen() {
+  const { isCoach, loading: coachLoading } = useRequireCoach();
   const router = useRouter();
   const params = useLocalSearchParams<{ id?: string }>();
   const colorScheme = useColorScheme() ?? 'light';

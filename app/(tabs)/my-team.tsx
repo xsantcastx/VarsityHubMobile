@@ -1,6 +1,7 @@
 import CustomActionModal from '@/components/CustomActionModal';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useRequireCoach } from '@/hooks/useRequireCoach';
 import { safeGoBack } from '@/utils/navigation';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
@@ -78,6 +79,7 @@ function getRoleBadgeColor(role: string): { bg: string; text: string } {
 }
 
 export default function MyTeamScreen() {
+  const { isCoach, loading: coachLoading } = useRequireCoach();
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
 
@@ -111,21 +113,7 @@ export default function MyTeamScreen() {
   // Team selector
   const [showTeamPicker, setShowTeamPicker] = useState(false);
 
-  // Guard: redirect non-coaches
-  useEffect(() => {
-    void (async () => {
-      try {
-        const me = await User.me() as { preferences?: { role?: string } };
-        if (me?.preferences?.role !== 'coach') {
-          Alert.alert('Restricted', 'Only coach accounts can access My Team.');
-          safeGoBack(router);
-
-        }
-      } catch {
-        // silently ignore
-      }
-    })();
-  }, [router]);
+  // Guard: useRequireCoach hook handles redirect for non-coaches
 
   const loadTeams = useCallback(async () => {
     try {
@@ -397,6 +385,10 @@ export default function MyTeamScreen() {
       </View>
     );
   };
+
+  if (coachLoading || !isCoach) {
+    return <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}><ActivityIndicator style={{ marginTop: 40 }} /></View>;
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>

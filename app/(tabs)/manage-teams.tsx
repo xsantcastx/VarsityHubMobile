@@ -1,4 +1,5 @@
 import { useAuth } from '@/context/AuthProvider';
+import { useRequireCoach } from '@/hooks/useRequireCoach';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -34,6 +35,7 @@ type Team = {
 
 export default function ManageTeamsSimpleScreen() {
   const { user } = useAuth();
+  const { isCoach, loading: coachLoading } = useRequireCoach();
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const [loading, setLoading] = useState(true);
@@ -258,6 +260,14 @@ export default function ManageTeamsSimpleScreen() {
       );
     }
   };
+
+  if (coachLoading || !isCoach) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
+        <ActivityIndicator style={{ marginTop: 40 }} />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>

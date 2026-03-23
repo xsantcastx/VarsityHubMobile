@@ -2,6 +2,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useRequireCoach } from '@/hooks/useRequireCoach';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
@@ -13,6 +14,7 @@ import { Team as TeamApi } from '@/api/entities';
 
 // TODO v1.1: Wire up navigation from admin-dashboard
 export default function ManageUsersScreen() {
+  const { isCoach, loading: coachLoading } = useRequireCoach();
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
   const [q, setQ] = useState('');
@@ -40,9 +42,17 @@ export default function ManageUsersScreen() {
     return rows.filter((u: any) => (u.user?.display_name || '').toLowerCase().includes(s) || (u.user?.email || '').toLowerCase().includes(s) || (u.team?.name || '').toLowerCase().includes(s));
   }, [q, rows]);
 
+  if (coachLoading || !isCoach) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
+        <ActivityIndicator style={{ marginTop: 40 }} />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
-      <Stack.Screen options={{ 
+      <Stack.Screen options={{
         title: 'Manage Users',
         headerLeft: () => (
           <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingLeft: 8 }}>

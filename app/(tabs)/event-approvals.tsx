@@ -1,5 +1,6 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useRequireCoach } from '@/hooks/useRequireCoach';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -72,6 +73,7 @@ const ROLE_LABELS: Record<string, string> = {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function EventApprovalsScreen() {
+  const { isCoach, loading: coachLoading } = useRequireCoach();
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const C = Colors[colorScheme];
@@ -434,6 +436,14 @@ export default function EventApprovalsScreen() {
   const totalPending = events.length + teamInvites.length + orgRequests.length;
 
   // ── Render ────────────────────────────────────────────────────────────────
+
+  if (coachLoading || !isCoach) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: C.background }]} edges={['bottom']}>
+        <ActivityIndicator style={{ marginTop: 40 }} />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: C.background }]} edges={['bottom']}>

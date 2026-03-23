@@ -1,5 +1,6 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useRequireCoach } from '@/hooks/useRequireCoach';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -41,6 +42,7 @@ const formatPlanDisplay = (tier?: string | null) => {
 };
 
 export default function CreateTeamScreen() {
+  const { isCoach, loading: coachLoading } = useRequireCoach();
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const insets = useSafeAreaInsets();

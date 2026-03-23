@@ -1,4 +1,5 @@
 import { useAuth } from '@/context/AuthProvider';
+import { useRequireCoach } from '@/hooks/useRequireCoach';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { format } from 'date-fns';
 import { Image } from 'expo-image';
@@ -35,6 +36,7 @@ const pickBanner = (event: any) => event?.game?.cover_image_url || event?.banner
 
 export default function TeamHubScreen() {
   const { user: _user } = useAuth();
+  const { isCoach, loading: coachLoading } = useRequireCoach();
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const palette = useMemo(() => buildPalette(colorScheme), [colorScheme]);
@@ -134,9 +136,13 @@ export default function TeamHubScreen() {
     }
   };
 
+  if (coachLoading || !isCoach) {
+    return <SafeAreaView style={S.page} edges={['top']}><ActivityIndicator style={{ marginTop: 40 }} /></SafeAreaView>;
+  }
+
   return (
     <SafeAreaView style={S.page} edges={['top']}>
-      <Stack.Screen options={{ 
+      <Stack.Screen options={{
         title: 'Team Hub',
         headerLeft: () => (
           <Pressable onPress={() => safeGoBack(router)} style={{ paddingLeft: 8 }}>

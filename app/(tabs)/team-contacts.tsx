@@ -1,6 +1,7 @@
 import CustomActionModal from '@/components/CustomActionModal';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useRequireCoach } from '@/hooks/useRequireCoach';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as DocumentPicker from 'expo-document-picker';
@@ -81,6 +82,7 @@ interface TeamMember {
 }
 
 export default function TeamChatScreen() {
+  const { isCoach, loading: coachLoading } = useRequireCoach();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const router = useRouter();
   const _insets = useSafeAreaInsets();
