@@ -23,6 +23,15 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
     return next();
   }
 
+  // Allow team creation during onboarding (coach creates team in step 3 before onboarding completes)
+  const isTeamsCreateRoute =
+    req.baseUrl === '/teams' &&
+    req.method === 'POST' &&
+    (req.path === '/' || req.path === '/create');
+  if (req.body?.onboarding === true && isTeamsCreateRoute && prefs?.onboarding_completed !== true) {
+    return next();
+  }
+
   if (prefs?.onboarding_completed !== true) {
     return res.status(403).json({ error: 'Please complete onboarding before creating content.' });
   }

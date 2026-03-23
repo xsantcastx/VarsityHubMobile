@@ -1266,7 +1266,7 @@ authRouter.post('/me/complete-onboarding', authLimiter, requireAuth as any, requ
   const currentUser = await prisma.user.findUnique({ where: { id: req.user.id } });
   if (finalRole === 'coach') {
     const effectiveUsername = data.username || currentUser?.username;
-    const effectivePlan = data.plan || currentPrefs.plan;
+    const effectivePlan = data.plan || currentPrefs.plan || 'rookie';
     const effectiveOrgId = data.organization_id || currentPrefs.organization_id;
     const effectiveTeamId = data.team_id || currentPrefs.team_id;
     if (!effectiveUsername) {
