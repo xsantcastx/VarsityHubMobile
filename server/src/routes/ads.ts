@@ -835,8 +835,8 @@ async function approveAd(id: string, note?: string | null) {
     where: { id },
     data: {
       status: 'approved',
-      // Move payment_status from pending_approval → unpaid so the user can now pay
-      ...(ad.payment_status === 'pending_approval' ? { payment_status: 'unpaid' } : {}),
+      // Always set payment_status to unpaid on approval so the user can pay
+      payment_status: ad.payment_status === 'paid' ? 'paid' : 'unpaid',
       ...(note ? { admin_note: note } : {}),
     },
   });

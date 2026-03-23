@@ -67,13 +67,22 @@ export default function PendingApproval() {
         }
         if (!completed) {
           try {
-            const refreshed: any = await User.me();
-            if (refreshed?.preferences?.onboarding_completed === true) {
-              await markOnboardingCompleteLocally();
-              completed = true;
-            }
+            // Fallback: try setting onboarding_completed directly via preferences
+            await User.updatePreferences({ onboarding_completed: true });
+            await markOnboardingCompleteLocally();
+            await checkAuth();
+            completed = true;
           } catch {
-            // ignore follow-up check failures
+            // Final check: maybe onboarding was already completed server-side
+            try {
+              const refreshed: any = await User.me();
+              if (refreshed?.preferences?.onboarding_completed === true) {
+                await markOnboardingCompleteLocally();
+                completed = true;
+              }
+            } catch {
+              // ignore follow-up check failures
+            }
           }
         }
         if (!completed) {

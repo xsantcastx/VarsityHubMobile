@@ -717,6 +717,9 @@ export default function Step3League() {
                       style={{ flex: 1, minHeight: 56, paddingVertical: 16, fontSize: 16 }}
                       autoCorrect={false}
                       autoComplete="off"
+                      spellCheck={false}
+                      autoCapitalize="none"
+                      inputAccessoryViewID=""
                     />
                     <TouchableOpacity
                       style={styles.searchActionButton}

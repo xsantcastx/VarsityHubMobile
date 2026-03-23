@@ -229,7 +229,7 @@ export default function VerifyScreen() {
             const cleaned = t.replace(/[^0-9]/g, '');
             setCode(cleaned);
             if (cleaned.length === 6) {
-              Keyboard.dismiss();
+              setTimeout(() => Keyboard.dismiss(), 100);
             }
           }}
           keyboardType="number-pad"
