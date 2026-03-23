@@ -84,7 +84,8 @@ describe('Event Creation', () => {
           date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
           location: 'Test Stadium',
           creator_id: coachUserId,
-          status: 'approved', // Auto-approved for coaches
+          status: 'approved',
+          approval_status: 'approved',
         },
       });
 
@@ -102,12 +103,14 @@ describe('Event Creation', () => {
           date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
           location: 'Test Location',
           creator_id: fanUserId,
-          status: 'pending', // Requires approval
+          status: 'draft',
+          approval_status: 'pending',
         },
       });
 
       expect(event).toBeDefined();
-      expect(event.status).toBe('pending');
+      expect(event.status).toBe('draft');
+      expect(event.approval_status).toBe('pending');
       expect(event.creator_id).toBe(fanUserId);
     });
   });

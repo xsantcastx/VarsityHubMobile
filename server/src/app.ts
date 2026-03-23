@@ -135,7 +135,17 @@ const corsOptions: cors.CorsOptions = {
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  // Web clients may send cache validators from fetch wrappers/interceptors.
+  // Allow them so profile/bootstrap requests don't fail preflight.
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Requested-With',
+    'If-None-Match',
+    'If-Modified-Since',
+    'Cache-Control',
+    'Pragma',
+  ],
   exposedHeaders: ['X-Total-Count', 'X-Page-Count'],
 };
 debugLog(`[cors] allowed origins: ${allowedOrigins.join(', ') || '(regex only)'}`);

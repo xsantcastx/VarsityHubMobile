@@ -356,7 +356,8 @@ describe('Veteran Coach plan limits', () => {
     const planDefs = (await import('../lib/planLimits.js')).getAllPlanDefinitions();
     const veteran = (planDefs as any).veteran;
     expect(veteran.price).toBe('$1.00');
-    expect(veteran.period).toContain('per additional team');
+    expect(veteran.period).toContain('per team');
+    expect(veteran.period).toContain('over 2');
   });
 
   it('Veteran can have up to 5 authorized users per team', async () => {
@@ -602,7 +603,8 @@ describe('Plan definitions integrity', () => {
     const { getAllPlanDefinitions } = await import('../lib/planLimits.js');
     const veteran = (getAllPlanDefinitions() as any).veteran;
     expect(veteran.price).toBe('$1.00');
-    expect(veteran.period).toContain('per additional team');
+    expect(veteran.period).toContain('per team');
+    expect(veteran.period).toContain('over 2');
   });
 
   it('Legend pricing: $20.00 per year', async () => {

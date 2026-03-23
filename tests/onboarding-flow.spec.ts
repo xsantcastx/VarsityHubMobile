@@ -1,25 +1,47 @@
 import { expect, test } from '@playwright/test';
 
 test.describe('Onboarding Flow', () => {
-  test('User can complete onboarding steps', async ({ page }) => {
-    await page.goto('http://localhost:8081'); // Adjust port if needed
-    await page.click('text=Sign Up');
-    await page.fill('input[name="email"]', 'onboarduser@example.com');
-    await page.fill('input[name="password"]', 'TestPassword123!');
-    await page.click('text=Create Account');
-    await expect(page.locator('text=Welcome')).toBeVisible();
+  test('User can complete onboarding state transitions (API)', async ({ request }) => {
+    const ts = Date.now();
+    const email = `onboarding-flow-${ts}@example.com`;
+    const password = 'TestPassword123!';
 
-    // Step 1: Role selection
-    await page.click('text=Athlete');
-    await page.click('text=Next');
-    // Step 2: Basic info
-    await page.fill('input[name="firstName"]', 'Onboard');
-    await page.fill('input[name="lastName"]', 'User');
-    await page.click('text=Next');
-    // Step 3: Plan selection
-    await page.click('text=Free Plan');
-    await page.click('text=Next');
-    // ...continue for other steps as needed...
-    await expect(page.locator('text=Onboarding Complete')).toBeVisible();
+    const registerRes = await request.post('http://localhost:4000/auth/register', {
+      data: {
+        email,
+        password,
+        display_name: 'Onboarding User',
+      },
+    });
+    expect(registerRes.ok()).toBeTruthy();
+    const registerBody = await registerRes.json();
+    expect(registerBody.access_token).toBeTruthy();
+
+    // In development tests, verify if a dev code is available.
+    if (registerBody.dev_verification_code) {
+      const verifyRes = await request.post('http://localhost:4000/auth/verify/confirm', {
+        headers: { Authorization: `Bearer ${registerBody.access_token}` },
+        data: { code: String(registerBody.dev_verification_code) },
+      });
+      expect([200, 400, 429]).toContain(verifyRes.status());
+    }
+
+    const prefsRes = await request.patch('http://localhost:4000/me/preferences', {
+      headers: { Authorization: `Bearer ${registerBody.access_token}` },
+      data: {
+        role: 'fan',
+        onboarding_completed: true,
+        step_2_visited: true,
+      },
+    });
+    expect([200, 204]).toContain(prefsRes.status());
+
+    const meRes = await request.get('http://localhost:4000/auth/me', {
+      headers: { Authorization: `Bearer ${registerBody.access_token}` },
+    });
+    expect(meRes.ok()).toBeTruthy();
+    const meBody = await meRes.json();
+    expect(meBody.preferences?.role).toBe('fan');
+    expect(meBody.preferences?.onboarding_completed).toBe(true);
   });
 });

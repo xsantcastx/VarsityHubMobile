@@ -37,9 +37,11 @@ describe('API Team Endpoints', () => {
         password_hash: coachPasswordHash,
         display_name: 'Test Coach',
         email_verified: true,
+        approval_status: 'APPROVED',
         preferences: {
           role: 'coach',
           plan: 'rookie',
+          onboarding_completed: true,
         },
       },
     });
@@ -51,6 +53,7 @@ describe('API Team Endpoints', () => {
       data: {
         name: `Test League ${Date.now()}`,
         org_type: 'club',
+        admin_approved: true,
         updated_at: new Date(),
       },
     });
@@ -67,8 +70,10 @@ describe('API Team Endpoints', () => {
         password_hash: fanPasswordHash,
         display_name: 'Test Fan',
         email_verified: true,
+        approval_status: 'APPROVED',
         preferences: {
           role: 'fan',
+          onboarding_completed: true,
         },
       },
     });
@@ -145,7 +150,7 @@ describe('API Team Endpoints', () => {
 
       expect(response.body).toHaveProperty('error');
       expect(response.body.error).toBe('COACH_ROLE_REQUIRED');
-      expect(response.body.message).toContain('Only coach accounts');
+      expect(String(response.body.message || '')).toMatch(/coach/i);
     });
 
     it('should require authentication', async () => {

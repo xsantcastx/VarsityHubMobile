@@ -6,7 +6,8 @@ import { expect, test } from '@playwright/test';
  * Tests team creation, management, and member operations
  */
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000';
+const API_BASE_URL = process.env.API_BASE_URL || process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000';
+const cachedUsers = new Map<string, any>();
 
 // Helper to make authenticated request
 async function makeAuthRequest(request: any, token: string, method: string, url: string, data?: any) {
@@ -20,6 +21,10 @@ async function makeAuthRequest(request: any, token: string, method: string, url:
 
 // Helper to create a test user and get auth token
 async function createTestUser(request: any, role: 'fan' | 'coach' | 'admin' = 'fan') {
+  const cacheKey = role;
+  const existing = cachedUsers.get(cacheKey);
+  if (existing) return existing;
+
   const email = `test-teams-${Date.now()}@example.com`;
   const password = 'TestPassword123!';
   const displayName = `Test User ${Date.now()}`;
@@ -38,11 +43,21 @@ async function createTestUser(request: any, role: 'fan' | 'coach' | 'admin' = 'f
   const signupData = await signupResponse.json();
   const token = signupData.access_token || signupData.token;
 
-  // Verify email if dev_verification_code is provided (development mode)
-  if (signupData.dev_verification_code) {
+  // Verify email (dev flow). If register response doesn't include a code,
+  // request a fresh code from /auth/verify/request.
+  let devCode = signupData.dev_verification_code ? String(signupData.dev_verification_code) : '';
+  if (!devCode) {
+    const codeRes = await makeAuthRequest(request, token, 'post', `${API_BASE_URL}/auth/verify/request`);
+    if (codeRes.status() === 200) {
+      const codeBody = await codeRes.json().catch(() => ({}));
+      if (codeBody?.dev_verification_code) devCode = String(codeBody.dev_verification_code);
+    }
+  }
+
+  if (devCode) {
     try {
       const verifyResponse = await makeAuthRequest(request, token, 'post', `${API_BASE_URL}/auth/verify/confirm`, {
-        code: String(signupData.dev_verification_code),
+        code: devCode,
       });
       // Wait a bit for the database to update
       if (verifyResponse.status() === 200) {
@@ -57,7 +72,9 @@ async function createTestUser(request: any, role: 'fan' | 'coach' | 'admin' = 'f
     }
   }
 
-  return { email, password, displayName, token, userId: signupData.user?.id || signupData.user_id };
+  const createdUser = { email, password, displayName, token, userId: signupData.user?.id || signupData.user_id };
+  cachedUsers.set(cacheKey, createdUser);
+  return createdUser;
 }
 
 // Helper to create a test team
@@ -84,6 +101,7 @@ async function createTestTeam(request: any, token: string, teamData: any = {}) {
 }
 
 test.describe('Team Management', () => {
+  test.describe.configure({ mode: 'serial' });
   test('Coach can create a team', async ({ request }) => {
     const coach = await createTestUser(request, 'coach');
     

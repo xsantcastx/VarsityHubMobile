@@ -68,8 +68,19 @@ describeDb('Users API Endpoints', () => {
     });
 
     it('should return 404 for non-existent user', async () => {
+      const tempUser = await prisma.user.create({
+        data: {
+          email: `deleted-user-${Date.now()}@example.com`,
+          password_hash: await bcrypt.hash('TempPassword123!', 10),
+          display_name: 'Deleted User',
+          email_verified: true,
+          preferences: { role: 'fan' },
+        },
+      });
+      await prisma.user.delete({ where: { id: tempUser.id } });
+
       const res = await request(app)
-        .get('/users/non-existent-id');
+        .get(`/users/${tempUser.id}`);
 
       expect(res.statusCode).toEqual(404);
     });

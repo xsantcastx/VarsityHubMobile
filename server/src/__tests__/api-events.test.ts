@@ -25,6 +25,7 @@ describe('API Event Endpoints', () => {
   let fanUserId: string;
   let fanToken: string;
   let testOrgId: string;
+  let coachTeamId: string;
 
   beforeAll(async () => {
     ({ prisma } = await import('../lib/prisma.js'));
@@ -37,9 +38,11 @@ describe('API Event Endpoints', () => {
         password_hash: coachPasswordHash,
         display_name: 'Test Coach',
         email_verified: true,
+        approval_status: 'APPROVED',
         preferences: {
           role: 'coach',
           plan: 'rookie',
+          onboarding_completed: true,
         },
       },
     });
@@ -51,12 +54,29 @@ describe('API Event Endpoints', () => {
       data: {
         name: `Test Event League ${Date.now()}`,
         org_type: 'club',
+        admin_approved: true,
         updated_at: new Date(),
       },
     });
     testOrgId = org.id;
     await prisma.organizationMembership.create({
       data: { organization_id: testOrgId, user_id: coachUserId, role: 'owner' },
+    });
+
+    const team = await prisma.team.create({
+      data: {
+        name: `Test Event Team ${Date.now()}`,
+        organization_id: testOrgId,
+      },
+    });
+    coachTeamId = team.id;
+    await prisma.teamMembership.create({
+      data: {
+        team_id: coachTeamId,
+        user_id: coachUserId,
+        role: 'owner',
+        status: 'active',
+      },
     });
 
     // Create fan user
@@ -67,8 +87,10 @@ describe('API Event Endpoints', () => {
         password_hash: fanPasswordHash,
         display_name: 'Test Fan',
         email_verified: true,
+        approval_status: 'APPROVED',
         preferences: {
           role: 'fan',
+          onboarding_completed: true,
         },
       },
     });
@@ -86,6 +108,11 @@ describe('API Event Endpoints', () => {
           },
         },
       });
+
+      if (coachTeamId) {
+        await prisma.teamMembership.deleteMany({ where: { team_id: coachTeamId } });
+        await prisma.team.delete({ where: { id: coachTeamId } }).catch(() => {});
+      }
 
       // Clean up org memberships and org
       if (testOrgId) {
@@ -118,6 +145,7 @@ describe('API Event Endpoints', () => {
           date: futureDate.toISOString(),
           location: 'Test Stadium',
           event_type: 'game',
+          home_team_id: coachTeamId,
         })
         .expect(201);
 

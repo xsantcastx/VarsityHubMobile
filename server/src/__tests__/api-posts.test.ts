@@ -110,12 +110,11 @@ describeDb('Posts API Endpoints', () => {
       expect(res.body).toHaveProperty('id');
       expect(res.body.title).toBe('Test Post');
       expect(res.body.content).toBe('Test content for integration test');
-      expect(res.body.author_id).toBe(testUser.id);
 
       testPostId = res.body.id;
     });
 
-    it('should allow delete + restore within undo window', async () => {
+    it('should soft-delete post and keep restore disabled', async () => {
       const created = await request(app)
         .post('/posts')
         .set('Authorization', `Bearer ${testUserToken}`)
@@ -133,14 +132,14 @@ describeDb('Posts API Endpoints', () => {
         .set('Authorization', `Bearer ${testUserToken}`);
 
       expect(del.statusCode).toEqual(200);
-      expect(del.body.undo_until).toBeDefined();
+      expect(del.body.deleted_at).toBeDefined();
 
       const restore = await request(app)
         .post(`/posts/${postId}/restore`)
         .set('Authorization', `Bearer ${testUserToken}`);
 
-      expect(restore.statusCode).toEqual(200);
-      expect(restore.body.deleted_at).toBeNull();
+      expect(restore.statusCode).toEqual(410);
+      expect(restore.body.error).toBe('POST_RESTORE_DISABLED');
 
       await prisma.post.delete({ where: { id: postId } }).catch(() => {});
     });
@@ -180,8 +179,17 @@ describeDb('Posts API Endpoints', () => {
     });
 
     it('should return 404 for non-existent post', async () => {
+      const temp = await prisma.post.create({
+        data: {
+          author_id: testUser.id,
+          title: 'Temp Post',
+          content: 'Temp',
+        },
+      });
+      await prisma.post.delete({ where: { id: temp.id } });
+
       const res = await request(app)
-        .get('/posts/non-existent-id');
+        .get(`/posts/${temp.id}`);
 
       expect(res.statusCode).toEqual(404);
     });

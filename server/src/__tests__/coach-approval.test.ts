@@ -166,9 +166,10 @@ describe('Coach Approval Workflow', () => {
         .set('Authorization', `Bearer ${approvedCoachToken}`)
         .send({ name: 'Allowed Team', organization_id: approvedOrg!.id });
       expect(res.status).toBe(201);
-      expect(res.body).toHaveProperty('id');
-      if (res.body?.id) {
-        await prisma.team.delete({ where: { id: res.body.id } }).catch(() => {});
+      const createdTeamId = res.body?.id || res.body?.team?.id;
+      expect(createdTeamId).toBeTruthy();
+      if (createdTeamId) {
+        await prisma.team.delete({ where: { id: createdTeamId } }).catch(() => {});
       }
     });
   });
@@ -195,6 +196,7 @@ describe('Coach Approval Workflow', () => {
           name: `Simple Create League ${ts}`,
           sport: 'basketball',
           org_type: 'club',
+          supporting_document_url: 'https://example.com/org-doc.pdf',
         });
 
       expect(res.status).toBe(201);
@@ -235,6 +237,7 @@ describe('Coach Approval Workflow', () => {
           name: `Onboarding Create League ${ts}`,
           sport: 'basketball',
           org_type: 'club',
+          supporting_document_url: 'https://example.com/org-doc.pdf',
         });
 
       expect(res.status).toBe(201);
