@@ -55,7 +55,7 @@ if (!isTest) {
 }
 
 // Trust proxy headers from Railway (required for express-rate-limit and IP detection)
-app.set('trust proxy', true);
+app.set('trust proxy', 1);
 
 // pino-http ESM interop can require using the default property in some setups
 const pinoMiddleware = (typeof (pinoHttp as any) === 'function' ? (pinoHttp as any) : (pinoHttp as any).default) || pinoHttp;
