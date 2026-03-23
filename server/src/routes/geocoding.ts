@@ -136,7 +136,8 @@ geocodingRouter.post('/event/:eventId', requireAdmin as any, async (req: AuthedR
  */
 geocodingRouter.post('/batch/games', requireAdmin as any, async (req: AuthedRequest, res) => {
   try {
-    const { limit = 100 } = req.body;
+    const { limit: rawLimit = 100 } = req.body;
+    const limit = Math.min(Math.max(1, parseInt(rawLimit) || 100), 500);
 
     const count = await geocodeAllGames(limit);
 
@@ -156,7 +157,8 @@ geocodingRouter.post('/batch/games', requireAdmin as any, async (req: AuthedRequ
  */
 geocodingRouter.post('/batch/events', requireAdmin as any, async (req: AuthedRequest, res) => {
   try {
-    const { limit = 100 } = req.body;
+    const { limit: rawEvtLimit = 100 } = req.body;
+    const limit = Math.min(Math.max(1, parseInt(rawEvtLimit) || 100), 500);
 
     const count = await geocodeAllEvents(limit);
 

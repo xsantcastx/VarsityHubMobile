@@ -29,7 +29,8 @@ export function validateIdParam(req: Request, res: Response, next: NextFunction,
  * Registers ID validation on all common param names for a router.
  */
 export function registerIdValidation(router: import('express').Router) {
-  const paramNames = ['id', 'userId', 'teamId', 'orgId', 'inviteId', 'postId', 'gameId', 'eventId', 'adId', 'membershipId', 'sessionId', 'mediaId', 'commentId', 'reportId'];
+  // Note: sessionId excluded — Stripe session IDs (cs_test_...) are not CUID/UUID format
+  const paramNames = ['id', 'userId', 'teamId', 'orgId', 'inviteId', 'postId', 'gameId', 'eventId', 'adId', 'membershipId', 'mediaId', 'commentId', 'reportId'];
   for (const name of paramNames) {
     router.param(name, validateIdParam);
   }

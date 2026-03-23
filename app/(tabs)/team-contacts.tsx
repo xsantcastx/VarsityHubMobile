@@ -1126,11 +1126,17 @@ export default function TeamChatScreen() {
 
   const handleFilePress = useCallback(async (file: { uri: string; name: string; type: string }) => {
     try {
+      // Only allow safe URI schemes
+      const uri = file.uri;
+      if (!/^(https?:|mailto:|file:)/i.test(uri)) {
+        showModal('Invalid File', 'This file cannot be opened for security reasons.');
+        return;
+      }
       // Try to open the file using the device's default app
-      const supported = await Linking.canOpenURL(file.uri);
-      
+      const supported = await Linking.canOpenURL(uri);
+
       if (supported) {
-        await Linking.openURL(file.uri);
+        await Linking.openURL(uri);
       } else {
         // If can't open directly, show options
         showModal('File Download', 'File download is not supported on this platform.');

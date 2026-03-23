@@ -550,7 +550,15 @@ adsRouter.get('/reservations', requireAuth as any, async (req: AuthedRequest, re
     if (from || to) where.date = {};
     if (from) where.date.gte = from;
     if (to) where.date.lte = to;
-    if (adId) where.ad_id = adId;
+    if (adId) {
+      where.ad_id = adId;
+    } else {
+      // No ad_id: scope to the requesting user's own ads only
+      const isAdmin = await getIsAdmin(req as any);
+      if (!isAdmin) {
+        where.ad = { user_id: req.user!.id };
+      }
+    }
 
     debugLog('[ads] GET /reservations query:', { from, to, adId, where });
 

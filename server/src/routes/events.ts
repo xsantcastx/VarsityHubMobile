@@ -108,8 +108,10 @@ eventsRouter.get('/', async (req, res) => {
   const where: any = {};
   if (status) where.status = status;
   else if (!includeCancelled) where.status = { not: 'cancelled' }; // Exclude cancelled by default; ?include_cancelled=true for admin views
-  if (approvalStatus) where.approval_status = approvalStatus;
-  else where.approval_status = 'approved'; // Default: only show approved events
+  // Only admins can filter by approval_status — public users always see approved only
+  const isAdminUser = (req as any).user?.id ? await getIsAdmin(req as any) : false;
+  if (approvalStatus && isAdminUser) where.approval_status = approvalStatus;
+  else where.approval_status = 'approved';
   if (eventType) where.event_type = eventType;
   if (search) {
     where.OR = [
@@ -260,6 +262,16 @@ eventsRouter.get('/:id', authMiddleware as any, asyncHandler(async (req: AuthedR
     include: { game: { select: { id: true, title: true, cover_image_url: true, date: true, location: true, home_team_id: true, away_team_id: true, home_score: true, away_score: true, winner: true } } },
   });
   if (!event) return res.status(404).json({ error: 'Not found' });
+
+  // Non-approved events only visible to creator or admins
+  if (event.approval_status !== 'approved') {
+    const isCreator = req.user && event.creator_id === req.user.id;
+    const isAdmin = req.user ? await getIsAdmin(req as any) : false;
+    if (!isCreator && !isAdmin) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+  }
+
   const count = await prisma.eventRsvp.count({ where: { event_id: id } });
   const payload = serializeEvent(event, { includeGame: true, rsvpCount: count });
   if (req.user && event.status !== 'cancelled') {

@@ -2672,9 +2672,9 @@ paymentsRouter.post('/apple/notifications', expressPkg.json(), async (req, res) 
         const leafCert = crypto.createPublicKey(leafCertPem);
         payload = jwt.verify(signedPayload, leafCert, { algorithms: ['ES256'] });
       } else {
-        // Fallback: decode without verification if no x5c (shouldn't happen with Apple)
-        console.warn('[apple-s2s] No x5c certificate chain in JWS header — decoding without verification');
-        payload = jwt.decode(signedPayload);
+        // Reject notifications without a valid certificate chain — never trust unverified payloads
+        console.error('[apple-s2s] No x5c certificate chain in JWS header — rejecting unverified payload');
+        return res.status(400).json({ error: 'Missing certificate chain' });
       }
     } catch (decodeErr) {
       console.error('[apple-s2s] Failed to verify/decode signedPayload:', decodeErr);

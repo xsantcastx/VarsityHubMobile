@@ -123,7 +123,7 @@ export const auth = {
     // Invalidate refresh token server-side first (best-effort)
     try {
       const refreshToken = await loadRefreshToken();
-      await httpPost('/auth/logout', refreshToken ? { refreshToken } : {});
+      await httpPost('/auth/logout', refreshToken ? { refresh_token: refreshToken } : {});
     } catch {
       // Server may be unreachable — continue with local cleanup
     }
@@ -174,7 +174,7 @@ export const auth = {
       const res = await fetch(`${base}/auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refreshToken: stored }),
+        body: JSON.stringify({ refresh_token: stored }),
         signal: controller.signal,
       });
       clearTimeout(timeoutId);

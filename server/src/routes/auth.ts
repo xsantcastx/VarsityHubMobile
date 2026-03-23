@@ -308,6 +308,12 @@ authRouter.post('/refresh', authLimiter, async (req, res) => {
     return res.status(401).json({ error: 'Account not found or banned' });
   }
 
+  // Reject tokens issued before a password change
+  if (user.password_changed_at && stored.created_at < user.password_changed_at) {
+    await prisma.refreshToken.delete({ where: { id: stored.id } }).catch(() => {});
+    return res.status(401).json({ error: 'Token invalidated by password change' });
+  }
+
   // Rotate: delete old token, issue new pair
   const newRawRefresh = generateRefreshToken();
   const newHash = hashRefreshToken(newRawRefresh);
@@ -753,15 +759,19 @@ authRouter.post('/password/reset', async (req, res) => {
   clearResetFailures(sanitizedEmail);
 
   const password_hash = await bcrypt.hash(password, 10);
-  await prisma.user.update({
-    where: { id: user.id },
-    data: {
-      password_hash,
-      password_reset_code: null,
-      password_reset_expires: null,
-      password_changed_at: new Date(),
-    },
-  });
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password_hash,
+        password_reset_code: null,
+        password_reset_expires: null,
+        password_changed_at: new Date(),
+      },
+    }),
+    // Revoke all refresh tokens — stolen tokens can no longer mint new access tokens
+    prisma.refreshToken.deleteMany({ where: { user_id: user.id } }),
+  ]);
 
   return res.json({ ok: true });
 });
@@ -789,11 +799,14 @@ authRouter.post('/password/change', authLimiter, asyncHandler(async (req: Authed
   // Hash new password
   const password_hash = await bcrypt.hash(new_password, 10);
   
-  // Update password
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { password_hash, password_changed_at: new Date() },
-  });
+  // Update password and revoke all refresh tokens atomically
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: user.id },
+      data: { password_hash, password_changed_at: new Date() },
+    }),
+    prisma.refreshToken.deleteMany({ where: { user_id: user.id } }),
+  ]);
   
   // Send confirmation email
   try {

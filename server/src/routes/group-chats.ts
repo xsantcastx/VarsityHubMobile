@@ -63,7 +63,7 @@ groupChatsRouter.get('/', requireAuth as any, async (req: AuthedRequest, res) =>
     return res.json(chats);
   } catch (error: any) {
     console.error('Error fetching group chats:', error);
-    return res.status(500).json({ error: error.message || 'Failed to fetch group chats' });
+    return res.status(500).json({ error: 'Failed to fetch group chats' });
   }
 });
 
@@ -104,7 +104,7 @@ groupChatsRouter.get('/:chatId/messages', requireAuth as any, async (req: Authed
     return res.json(messages);
   } catch (error: any) {
     console.error('Error fetching group chat messages:', error);
-    return res.status(500).json({ error: error.message || 'Failed to fetch messages' });
+    return res.status(500).json({ error: 'Failed to fetch messages' });
   }
 });
 
@@ -153,7 +153,7 @@ groupChatsRouter.post('/:chatId/messages', requireAuth as any, async (req: Authe
     return res.status(201).json(message);
   } catch (error: any) {
     console.error('Error sending group chat message:', error);
-    return res.status(500).json({ error: error.message || 'Failed to send message' });
+    return res.status(500).json({ error: 'Failed to send message' });
   }
 });
 
@@ -178,7 +178,7 @@ groupChatsRouter.post('/:chatId/read', requireAuth as any, async (req: AuthedReq
     return res.json({ ok: true });
   } catch (error: any) {
     console.error('Error marking messages as read:', error);
-    return res.status(500).json({ error: error.message || 'Failed to mark as read' });
+    return res.status(500).json({ error: 'Failed to mark as read' });
   }
 });
 
@@ -212,6 +212,17 @@ groupChatsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) =
 
       if (!membership) {
         return res.status(403).json({ error: 'No permission to create team chat' });
+      }
+
+      // Verify all members are on this team
+      const teamMembers = await prisma.teamMembership.findMany({
+        where: { team_id: teamId, user_id: { in: memberIds }, status: 'active' },
+        select: { user_id: true },
+      });
+      const teamMemberIds = new Set(teamMembers.map(m => m.user_id));
+      const invalidMembers = memberIds.filter((id: string) => !teamMemberIds.has(id) && id !== req.user!.id);
+      if (invalidMembers.length > 0) {
+        return res.status(400).json({ error: 'Some members are not on this team', invalid: invalidMembers });
       }
     }
 
@@ -249,7 +260,7 @@ groupChatsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) =
     return res.status(201).json(chat);
   } catch (error: any) {
     console.error('Error creating group chat:', error);
-    return res.status(500).json({ error: error.message || 'Failed to create group chat' });
+    return res.status(500).json({ error: 'Failed to create group chat' });
   }
 });
 
