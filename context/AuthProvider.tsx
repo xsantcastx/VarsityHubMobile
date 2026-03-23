@@ -522,12 +522,19 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         return;
       }
 
+      // Clear proceeding_as_fan when coach gets approved (transition from fan mode to coach mode)
+      if (user.approval_status === 'APPROVED' && user.preferences?.role === 'coach' && user.preferences?.proceeding_as_fan === true) {
+        try {
+          await User.updatePreferences({ proceeding_as_fan: false });
+        } catch { /* ignore — next checkAuth will retry */ }
+      }
+
       // Block unapproved coaches (pending/rejected) on coach path.
       // Unless they chose "Continue as Fan" to use the app while waiting.
       const isUnapprovedCoach =
         (user.approval_status === 'PENDING' || user.approval_status === 'REJECTED') &&
         user.preferences?.role === 'coach';
-      const proceedingAsFan = user.preferences?.proceeding_as_fan === true;
+      const proceedingAsFan = user.preferences?.proceeding_as_fan === true && user.approval_status !== 'APPROVED';
       const currentPath = Array.isArray(segmentsRef.current) ? segmentsRef.current.join('/') : '';
       const isOnPendingScreen = currentPath.includes('pending-approval') || currentPath.includes('league-pending-approval');
       if (isUnapprovedCoach && !proceedingAsFan && !isOnPendingScreen && firstSegment !== 'sign-in' && firstSegment !== 'sign-up') {

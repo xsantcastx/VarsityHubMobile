@@ -15,6 +15,9 @@
 
 import { Queue } from 'bullmq';
 
+// In-memory dedup for event reminder emails (resets on deploy, which is fine since reminders are 12h before)
+const eventRemindersSent = new Set<string>();
+
 interface ScheduledJob {
   name: string;
   cron: string;
@@ -150,6 +153,10 @@ const SCHEDULED_JOBS: ScheduledJob[] = [
           const eventDate = new Date(event.date);
           for (const rsvp of event.rsvps) {
             if (!rsvp.user?.email) continue;
+            // Deduplicate: skip if already sent reminder for this event+email combo
+            const dedupeKey = `${event.id}:${rsvp.user.email}`;
+            if (eventRemindersSent.has(dedupeKey)) continue;
+            eventRemindersSent.add(dedupeKey);
             sendEventReminderEmail({
               to: rsvp.user.email,
               recipientName: rsvp.user.display_name || 'Athlete',
@@ -209,6 +216,19 @@ const SCHEDULED_JOBS: ScheduledJob[] = [
         console.log(`[Scheduler] Daily founder metrics sent to ${reportEmail} for ${report.dateRange.end}`);
       } catch (error) {
         console.error('[Scheduler] Failed to send daily founder metrics:', error);
+      }
+    },
+  },
+  {
+    name: 'subscription-expiry-check',
+    cron: '0 9 * * *', // Every day at 9:00 AM
+    description: 'Send renewal reminders for expiring subscriptions',
+    handler: async () => {
+      try {
+        const { checkExpiringSubscriptions } = await import('./subscriptionExpiryChecker.js');
+        await checkExpiringSubscriptions();
+      } catch (error) {
+        console.error('[Scheduler] Failed to check expiring subscriptions:', error);
       }
     },
   },

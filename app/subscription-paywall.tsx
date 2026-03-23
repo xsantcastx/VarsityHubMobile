@@ -168,9 +168,9 @@ export default function SubscriptionPaywallScreen() {
           }
           return;
         }
-        // Poll for plan activation (webhook may take a moment)
+        // Poll for plan activation (webhook may take a moment) — 15 attempts × 2s = 30s max
         let planActivated = false;
-        for (let i = 0; i < 5; i++) {
+        for (let i = 0; i < 15; i++) {
           await new Promise(r => setTimeout(r, 2000));
           try {
             const me: any = await User.me();

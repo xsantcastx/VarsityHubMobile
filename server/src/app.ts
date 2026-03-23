@@ -156,14 +156,14 @@ const noStore = (_req: Request, res: Response, next: NextFunction) => {
 // Special raw body parser for Stripe webhooks
 const rawBodyPaths = ['/payments/webhook'];
 rawBodyPaths.forEach((path) => {
-  app.use(path, express.raw({ type: 'application/json' }));
+  app.use(path, express.raw({ type: 'application/json', limit: '5mb' }));
 });
 
 app.use((req, res, next) => {
   if (rawBodyPaths.some((path) => req.originalUrl.startsWith(path))) {
     return next();
   }
-  return express.json()(req, res, next);
+  return express.json({ limit: '10mb' })(req, res, next);
 });
 
 app.use(authMiddleware);

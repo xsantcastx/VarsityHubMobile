@@ -213,10 +213,11 @@ export function startAdGoLiveCheck() {
       });
       if (staleHoldAds.length > 0) {
         const staleAdIds = staleHoldAds.map(a => a.id);
+        // Idempotent: only update ads still in 'hold' status (prevents double-processing on retry)
         await prisma.$transaction([
           prisma.adReservation.deleteMany({ where: { ad_id: { in: staleAdIds } } }),
           prisma.ad.updateMany({
-            where: { id: { in: staleAdIds } },
+            where: { id: { in: staleAdIds }, payment_status: 'hold' },
             data: { payment_status: 'unpaid' },
           }),
         ]);
