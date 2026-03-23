@@ -362,7 +362,7 @@ export const Organization = {
   declineInvite: (inviteId: string) => httpPost(`/organizations/invites/${encodeURIComponent(inviteId)}/decline`, {}),
   // Organization join requests (coach/admin workflows)
   requestToJoin: (organizationId: string, message?: string, role?: string) =>
-    httpPost(`/organizations/${encodeURIComponent(organizationId)}/join-requests`, { message, role }),
+    httpPost('/organizations/join-requests', { organization_id: organizationId, message, role }),
   getJoinRequests: (organizationId: string, status?: 'pending' | 'approved' | 'rejected') => {
     const params: string[] = [];
     if (status) params.push('status=' + encodeURIComponent(status));
@@ -370,9 +370,9 @@ export const Organization = {
     return httpGet(`/organizations/${encodeURIComponent(organizationId)}/join-requests` + qs);
   },
   approveJoinRequest: (requestId: string) => httpPost(`/organizations/join-requests/${encodeURIComponent(requestId)}/approve`, {}),
-  rejectJoinRequest: (requestId: string, reason?: string) => httpPost(`/organizations/join-requests/${encodeURIComponent(requestId)}/reject`, { reason }),
+  rejectJoinRequest: (requestId: string, reason?: string) => httpPost(`/organizations/join-requests/${encodeURIComponent(requestId)}/deny`, { reason }),
   update: (id: string, data: Record<string, any>) => httpPatch(`/organizations/${encodeURIComponent(id)}`, data),
-  pendingCoaches: (organizationId: string) => httpGet(`/organizations/${encodeURIComponent(organizationId)}/coaches/pending`),
+  pendingCoaches: (organizationId: string) => httpGet(`/organizations/${encodeURIComponent(organizationId)}/pending-coaches`),
   approveCoach: (organizationId: string, userId: string) => httpPost(`/organizations/${encodeURIComponent(organizationId)}/coaches/${encodeURIComponent(userId)}/approve`, {}),
   rejectCoach: (organizationId: string, userId: string, reason?: string) => httpPost(`/organizations/${encodeURIComponent(organizationId)}/coaches/${encodeURIComponent(userId)}/reject`, { reason }),
 };

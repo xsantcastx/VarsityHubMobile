@@ -878,7 +878,7 @@ const createJoinRequestSchema = z.object({
   message: z.string().max(500).optional(),
 });
 
-organizationsRouter.post('/join-requests', requireAuth as any, async (req: AuthedRequest, res) => {
+async function handleCreateJoinRequest(req: AuthedRequest, res: any) {
   try {
     const parsed = createJoinRequestSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
@@ -1030,6 +1030,14 @@ organizationsRouter.post('/join-requests', requireAuth as any, async (req: Authe
     console.error('[organizations] POST /join-requests error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
+}
+
+organizationsRouter.post('/join-requests', requireAuth as any, handleCreateJoinRequest);
+// Backward-compatible alias for older clients that send org id in URL
+organizationsRouter.post('/:id/join-requests', requireAuth as any, async (req: AuthedRequest, res) => {
+  const body = (req.body && typeof req.body === 'object') ? req.body : {};
+  req.body = { ...body, organization_id: String(req.params.id) };
+  return handleCreateJoinRequest(req, res);
 });
 
 // Get join requests for an organization (admin only)
@@ -1230,7 +1238,7 @@ const denyJoinRequestSchema = z.object({
   reason: z.string().max(500).optional(),
 });
 
-organizationsRouter.post('/join-requests/:requestId/deny', requireAuth as any, async (req: AuthedRequest, res) => {
+async function handleDenyJoinRequest(req: AuthedRequest, res: any) {
   try {
   const requestId = String(req.params.requestId);
   const parsed = denyJoinRequestSchema.safeParse(req.body);
@@ -1301,7 +1309,11 @@ organizationsRouter.post('/join-requests/:requestId/deny', requireAuth as any, a
     console.error('[organizations] POST /join-requests/:requestId/deny error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
+
+organizationsRouter.post('/join-requests/:requestId/deny', requireAuth as any, handleDenyJoinRequest);
+// Backward-compatible alias for older clients that still call /reject
+organizationsRouter.post('/join-requests/:requestId/reject', requireAuth as any, handleDenyJoinRequest);
 
 // -----------------------------------------------
 // POST /organizations/:id/transfer-ownership
@@ -1573,7 +1585,7 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
  * Returns all users with PENDING approval_status who have a join request for this org.
  * Requires league owner role.
  */
-organizationsRouter.get('/:id/pending-coaches', requireAuth as any, async (req: AuthedRequest, res) => {
+async function handleGetPendingCoaches(req: AuthedRequest, res: any) {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const orgId = req.params.id;
@@ -1602,7 +1614,11 @@ organizationsRouter.get('/:id/pending-coaches', requireAuth as any, async (req: 
     console.error('[organizations] GET /:id/pending-coaches error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
+
+organizationsRouter.get('/:id/pending-coaches', requireAuth as any, handleGetPendingCoaches);
+// Backward-compatible alias for older clients
+organizationsRouter.get('/:id/coaches/pending', requireAuth as any, handleGetPendingCoaches);
 
 /**
  * POST /organizations/:id/coaches/:userId/approve

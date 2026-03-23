@@ -23,7 +23,7 @@ registerIdValidation(adminRouter);
  */
 const WIPE_TOKEN = process.env.WIPE_TOKEN;
 if (WIPE_TOKEN) {
-  adminRouter.post('/wipe-database', async (req, res) => {
+  adminRouter.post('/wipe-database', requireVerified as any, requireAdminMiddleware as any, async (req: AuthedRequest, res) => {
     const token = req.headers['x-wipe-token'];
     if (token !== WIPE_TOKEN) {
       return res.status(401).json({ error: 'Invalid or missing X-Wipe-Token' });
