@@ -63,38 +63,55 @@ adminRouter.get('/dashboard', requireVerified as any, requireAdminMiddleware as 
       pendingAds,
       totalPosts,
       totalMessages,
-      recentActivity
+      recentActivity,
+      pendingLeagues
     ] = await Promise.all([
       // Total users
       prisma.user.count(),
-      
+
       // Verified users (email verified)
       prisma.user.count({ where: { email_verified: true } }),
-      
+
       // Banned users
       prisma.user.count({ where: { banned: true } }),
-      
+
       // Total teams
       prisma.team.count(),
-      
+
       // Total ads
       prisma.ad.count(),
-      
+
       // Pending ads (status = pending)
       prisma.ad.count({ where: { status: 'pending' } }),
-      
+
       // Total posts
       prisma.post.count({ where: { deleted_at: null } }),
-      
+
       // Total messages
       prisma.message.count(),
-      
+
       // Recent activity (last 5 admin actions)
       prisma.adminActivityLog.findMany({
         orderBy: { timestamp: 'desc' },
         take: 5,
         select: { id: true, admin_email: true, action: true, target_type: true, description: true, timestamp: true },
-      }).catch(() => [] as Array<{ id: string; admin_email: string; action: string; target_type: string; description: string; timestamp: Date }>)
+      }).catch(() => [] as Array<{ id: string; admin_email: string; action: string; target_type: string; description: string; timestamp: Date }>),
+
+      // Pending leagues (not yet approved by admin)
+      prisma.organization.findMany({
+        where: { admin_approved: false, status: { not: 'rejected' } },
+        orderBy: { created_at: 'desc' },
+        select: {
+          id: true,
+          name: true,
+          sport: true,
+          description: true,
+          created_at: true,
+          logo_url: true,
+          leagueOwner: { select: { id: true, display_name: true, email: true } },
+          _count: { select: { teams: true, memberships: true } },
+        },
+      }).catch(() => [])
     ]);
 
     return res.json({
@@ -105,6 +122,7 @@ adminRouter.get('/dashboard', requireVerified as any, requireAdminMiddleware as 
       totalTeams,
       totalAds,
       pendingAds,
+      pendingLeagues: pendingLeagues || [],
       totalPosts,
       totalMessages,
       recentActivity: recentActivity || []

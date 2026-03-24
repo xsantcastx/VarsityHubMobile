@@ -376,6 +376,8 @@ export const Organization = {
   pendingCoaches: (organizationId: string) => httpGet(`/organizations/${encodeURIComponent(organizationId)}/pending-coaches`),
   approveCoach: (organizationId: string, userId: string) => httpPost(`/organizations/${encodeURIComponent(organizationId)}/coaches/${encodeURIComponent(userId)}/approve`, {}),
   rejectCoach: (organizationId: string, userId: string, reason?: string) => httpPost(`/organizations/${encodeURIComponent(organizationId)}/coaches/${encodeURIComponent(userId)}/reject`, { reason }),
+  approveLeague: (organizationId: string) => httpPost(`/organizations/${encodeURIComponent(organizationId)}/approve`, {}),
+  rejectLeague: (organizationId: string, reason?: string) => httpPost(`/organizations/${encodeURIComponent(organizationId)}/reject`, { reason }),
 };
 
 export const Team = {

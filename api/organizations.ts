@@ -52,4 +52,8 @@ export const Organization = {
     httpPost(`/organizations/${encodeURIComponent(organizationId)}/coaches/${encodeURIComponent(userId)}/approve`, {}),
   rejectCoach: (organizationId: string, userId: string, reason?: string) =>
     httpPost(`/organizations/${encodeURIComponent(organizationId)}/coaches/${encodeURIComponent(userId)}/reject`, { reason }),
+  approveLeague: (organizationId: string) =>
+    httpPost(`/organizations/${encodeURIComponent(organizationId)}/approve`, {}),
+  rejectLeague: (organizationId: string, reason?: string) =>
+    httpPost(`/organizations/${encodeURIComponent(organizationId)}/reject`, { reason }),
 };

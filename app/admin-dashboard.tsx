@@ -4,10 +4,23 @@ import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { safeGoBack } from '@/utils/navigation';
 import { getApiBaseUrl } from '../api/http';
+// @ts-ignore
+import { Organization } from '@/api/entities';
+
+interface PendingLeague {
+  id: string;
+  name: string;
+  sport?: string | null;
+  description?: string | null;
+  created_at: string;
+  logo_url?: string | null;
+  leagueOwner?: { id: string; display_name: string; email: string } | null;
+  _count?: { teams: number; memberships: number };
+}
 
 interface DashboardStats {
   totalUsers: number;
@@ -16,6 +29,7 @@ interface DashboardStats {
   totalTeams: number;
   totalAds: number;
   pendingAds: number;
+  pendingLeagues: PendingLeague[];
   totalPosts: number;
   totalMessages: number;
   recentActivity: Array<{
@@ -35,6 +49,61 @@ export default function AdminDashboardScreen() {
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [reportSpike, setReportSpike] = useState<{ isSpike: boolean; pendingCount: number; recentCount: number } | null>(null);
+  const [leagueActionId, setLeagueActionId] = useState<string | null>(null);
+
+  const handleApproveLeague = (league: PendingLeague) => {
+    Alert.alert(
+      'Approve League',
+      `Approve "${league.name}"? The league owner will be notified and given coach access.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Approve',
+          onPress: async () => {
+            setLeagueActionId(league.id);
+            try {
+              await Organization.approveLeague(league.id);
+              Alert.alert('Success', `"${league.name}" has been approved.`);
+              void loadStats(true);
+            } catch (e: any) {
+              Alert.alert('Error', e?.message || 'Failed to approve league');
+            } finally {
+              setLeagueActionId(null);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleRejectLeague = (league: PendingLeague) => {
+    Alert.prompt(
+      'Reject League',
+      `Reject "${league.name}"? Enter a reason (optional):`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reject',
+          style: 'destructive',
+          onPress: async (reason?: string) => {
+            setLeagueActionId(league.id);
+            try {
+              await Organization.rejectLeague(league.id, reason?.trim() || undefined);
+              Alert.alert('Success', `"${league.name}" has been rejected.`);
+              void loadStats(true);
+            } catch (e: any) {
+              Alert.alert('Error', e?.message || 'Failed to reject league');
+            } finally {
+              setLeagueActionId(null);
+            }
+          },
+        },
+      ],
+      'plain-text',
+      '',
+      'default'
+    );
+  };
 
   const loadStats = useCallback(async (showRefreshing = false) => {
     if (!isAdmin) return;
@@ -209,6 +278,74 @@ export default function AdminDashboardScreen() {
               </View>
               <MaterialIcons name="chevron-right" size={20} color="#DC2626" />
             </Pressable>
+          )}
+
+          {/* Pending Leagues */}
+          {stats?.pendingLeagues && stats.pendingLeagues.length > 0 && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={[styles.sectionTitle, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
+                  Pending Leagues ({stats.pendingLeagues.length})
+                </Text>
+              </View>
+              {stats.pendingLeagues.map((league) => {
+                const isActioning = leagueActionId === league.id;
+                return (
+                  <View
+                    key={league.id}
+                    style={[styles.statCard, {
+                      backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white',
+                      borderColor: '#F59E0B',
+                    }]}
+                  >
+                    <View style={[styles.statIcon, { backgroundColor: '#F59E0B20' }]}>
+                      <MaterialIcons name="business" size={24} color="#F59E0B" />
+                    </View>
+                    <View style={styles.statContent}>
+                      <Text style={[styles.statValue, { fontSize: 16, color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
+                        {league.name}
+                      </Text>
+                      {league.sport && (
+                        <Text style={[styles.statTitle, { color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280' }]}>
+                          {league.sport}
+                        </Text>
+                      )}
+                      <Text style={[styles.statSubtitle, { color: colorScheme === 'dark' ? '#6B7280' : '#9CA3AF' }]}>
+                        {league.leagueOwner?.display_name || 'Unknown'} · {league.leagueOwner?.email || ''}
+                      </Text>
+                      <Text style={[styles.statSubtitle, { color: colorScheme === 'dark' ? '#6B7280' : '#9CA3AF' }]}>
+                        {new Date(league.created_at).toLocaleDateString()}
+                        {league._count ? ` · ${league._count.teams} team${league._count.teams !== 1 ? 's' : ''}` : ''}
+                      </Text>
+                      <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+                        <Pressable
+                          style={[styles.leagueBtn, { backgroundColor: '#16A34A', opacity: isActioning ? 0.6 : 1 }]}
+                          onPress={() => handleApproveLeague(league)}
+                          disabled={isActioning}
+                        >
+                          {isActioning ? (
+                            <ActivityIndicator size="small" color="#fff" />
+                          ) : (
+                            <>
+                              <MaterialIcons name="check" size={16} color="#fff" />
+                              <Text style={styles.leagueBtnText}>Approve</Text>
+                            </>
+                          )}
+                        </Pressable>
+                        <Pressable
+                          style={[styles.leagueBtn, { backgroundColor: '#DC2626', opacity: isActioning ? 0.6 : 1 }]}
+                          onPress={() => handleRejectLeague(league)}
+                          disabled={isActioning}
+                        >
+                          <MaterialIcons name="close" size={16} color="#fff" />
+                          <Text style={styles.leagueBtnText}>Reject</Text>
+                        </Pressable>
+                      </View>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
           )}
 
           {/* Stats Grid */}
@@ -549,5 +686,19 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: '700',
     fontSize: 14,
+  },
+  leagueBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+  },
+  leagueBtnText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 13,
   },
 });

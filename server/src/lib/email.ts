@@ -3,6 +3,7 @@ import type { FounderMetricsReport } from './founderMetrics.js';
 import type { EmailResult } from '../services/email/types.js';
 import type { EmailService } from '../services/email/EmailService.js';
 import sgMail from '@sendgrid/mail';
+import * as Sentry from '@sentry/node';
 
 const isTestEnv = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID != null;
 
@@ -118,6 +119,13 @@ const REQUIRED_TEMPLATE_KEYS: TemplateKey[] = [
   'TEAM_INVITE',
   'ORG_INVITE',
   'BILLING_NOTICE',
+  'JOIN_REQUEST_APPROVED',
+  'JOIN_REQUEST_DENIED',
+  'ORG_APPROVAL',
+  'ORG_DENIAL',
+  'AD_APPROVED',
+  'AD_REJECTED',
+  'LEAGUE_PENDING_APPROVAL',
 ];
 
 // Nice-to-have — health check warns but doesn't block on these
@@ -135,10 +143,6 @@ const RECOMMENDED_TEMPLATE_KEYS: TemplateKey[] = [
   'CONTENT_MODERATION',
   'ABUSE_REPORT',
   'JOIN_REQUEST_ADMIN',
-  'JOIN_REQUEST_APPROVED',
-  'JOIN_REQUEST_DENIED',
-  'ORG_APPROVAL',
-  'ORG_DENIAL',
   'STAFF_MEMBER_JOINED',
   'ROSTER_THRESHOLD',
   'EVENT_SUBMISSION_RECEIVED',
@@ -153,11 +157,8 @@ const RECOMMENDED_TEMPLATE_KEYS: TemplateKey[] = [
   'AD_GOES_LIVE',
   'AD_PAYMENT_CONFIRMED',
   'AD_PENDING_REVIEW',
-  'AD_APPROVED',
-  'AD_REJECTED',
   'DAILY_TRANSACTION_REPORT',
   'FOUNDER_METRICS',
-  'LEAGUE_PENDING_APPROVAL',
   'ADMIN_ACTION_CONFIRMATION',
 ];
 
@@ -1026,7 +1027,9 @@ async function sendTemplateEmail(
   logMessage: string
 ): Promise<boolean> {
   if (!templateId) {
-    console.warn(`[email] Template ID not configured for: ${subject}`);
+    const msg = `[email] Template ID not configured for: ${subject}`;
+    console.warn(msg);
+    Sentry.captureMessage(msg, 'warning');
     return false;
   }
 
@@ -1049,10 +1052,12 @@ async function sendTemplateEmail(
       return true;
     } else {
       console.error(`❌ Failed: ${logMessage}`, result.error);
+      Sentry.captureException(result.error ?? new Error(`Email send failed: ${logMessage}`));
       return false;
     }
   } catch (error: any) {
     console.error(`❌ Failed: ${logMessage}`, error);
+    Sentry.captureException(error);
     return false;
   }
 }
