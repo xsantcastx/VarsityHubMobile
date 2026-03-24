@@ -116,7 +116,7 @@ function createLimiter(options: Partial<Options> & { name: string }): ReturnType
 export const authLimiter = createLimiter({
   name: 'auth',
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: rateLimitingDisabled ? 100000 : 20,
+  max: rateLimitingDisabled ? 100000 : 60,
   keyGenerator: (req) => `ip:${req.ip}`, // Always use IP for auth
   message: 'Too many login attempts. Please try again in 15 minutes.',
 });
@@ -171,7 +171,7 @@ export const oauthLimiter = createLimiter({
 export const verificationConfirmLimiter = createLimiter({
   name: 'verification-confirm',
   windowMs: 15 * 60 * 1000,
-  max: rateLimitingDisabled ? 100000 : 5,
+  max: rateLimitingDisabled ? 100000 : 15,
   keyGenerator: (req) => `ip:${req.ip}`,
 });
 

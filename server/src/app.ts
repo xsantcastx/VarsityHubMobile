@@ -204,7 +204,7 @@ app.use(
 const isDev = process.env.NODE_ENV !== 'production';
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: isDev ? 100000 : 50,
+  max: isDev ? 100000 : 100,
   standardHeaders: true,
   legacyHeaders: false,
   skip: () => isDev,
