@@ -166,6 +166,14 @@ app.use((req, res, next) => {
   return express.json({ limit: '10mb' })(req, res, next);
 });
 
+// Handle malformed JSON body (returns 400 instead of 500)
+app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
+  if (err.type === 'entity.parse.failed' || (err instanceof SyntaxError && 'body' in err)) {
+    return res.status(400).json({ error: 'Invalid JSON in request body' });
+  }
+  next(err);
+});
+
 app.use(authMiddleware);
 
 // ID param validation is applied per-router (params not available at app level)
