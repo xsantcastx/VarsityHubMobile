@@ -148,7 +148,6 @@ export default function OnboardingLayout({
 
           {children}
         </ScrollView>
-      </KeyboardAvoidingView>
 
       {onContinue && (
         <View style={[styles.footer, { borderTopColor: colors.border, paddingBottom: insets.bottom > 0 ? insets.bottom : 16 }]}>
@@ -170,6 +169,7 @@ export default function OnboardingLayout({
           </Pressable>
         </View>
       )}
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
