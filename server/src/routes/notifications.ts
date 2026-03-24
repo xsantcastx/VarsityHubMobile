@@ -31,7 +31,7 @@ const summarize = (n: any) => {
 notificationsRouter.get('/', requireAuth as any, async (req: AuthedRequest, res) => {
   try {
     const userId = req.user!.id;
-    const limit = Math.min(parseInt(String(req.query.limit || '20'), 10) || 20, 50);
+    const limit = Math.max(1, Math.min(parseInt(String(req.query.limit || '20'), 10) || 20, 50));
     const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : null;
     const unreadOnly = String((req.query as any).unread || '') === '1';
 

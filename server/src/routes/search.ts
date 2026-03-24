@@ -15,7 +15,7 @@ export const searchRouter = Router();
 searchRouter.get('/', searchLimiter, authMiddleware as any, async (req: AuthedRequest, res) => {
   try {
   const q = String((req.query as any).q || '').trim().toLowerCase();
-  const limit = Math.min(parseInt(String((req.query as any).limit || '10'), 10) || 10, 20);
+  const limit = Math.max(1, Math.min(parseInt(String((req.query as any).limit || '10'), 10) || 10, 20));
   const currentUserId = req.user?.id ?? null;
 
   if (!q || q.length < 1) {

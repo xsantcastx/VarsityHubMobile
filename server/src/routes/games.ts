@@ -867,7 +867,7 @@ gamesRouter.delete('/:id', requireAuth as any, requireOnboarded as any, asyncHan
 gamesRouter.get('/:id/posts', async (req: AuthedRequest, res) => {
   try {
   const id = String(req.params.id);
-  const limit = Math.min(parseInt(String(req.query.limit || '50'), 10) || 50, 100);
+  const limit = Math.max(1, Math.min(parseInt(String(req.query.limit || '50'), 10) || 50, 100));
   // Privacy: exclude posts from private-profile authors the viewer doesn't follow
   const excludedIds = await getExcludedPrivateAuthorIds(req.user?.id ?? null);
   const posts = await prisma.post.findMany({

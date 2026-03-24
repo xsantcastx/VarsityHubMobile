@@ -145,7 +145,7 @@ adminRouter.get('/activity-log', requireVerified as any, requireAdminMiddleware 
     const { type, q, page = '1', limit = '50' } = req.query;
     
     const pageNum = parseInt(String(page), 10);
-    const limitNum = Math.min(parseInt(String(limit), 10), 100); // Max 100 per page
+    const limitNum = Math.max(1, Math.min(parseInt(String(limit), 10), 100)); // Max 100 per page
     const skip = (pageNum - 1) * limitNum;
 
     // Build where clause

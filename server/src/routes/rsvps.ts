@@ -9,7 +9,7 @@ export const rsvpsRouter = Router();
 // GET /rsvps?user_id=...&limit=...
 // Requires auth. Non-admins can only query their own RSVPs.
 rsvpsRouter.get('/', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
-  const limit = Math.min(parseInt(String((req.query as any).limit || '50'), 10) || 50, 200);
+  const limit = Math.max(1, Math.min(parseInt(String((req.query as any).limit || '50'), 10) || 50, 200));
 
   // Determine if caller is admin
   const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);

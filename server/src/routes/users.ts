@@ -25,7 +25,7 @@ usersRouter.get('/', requireAdmin as any, async (req, res) => {
   try {
     const q = String((req.query as any).q || '').trim().toLowerCase();
     const banned = String((req.query as any).banned || '') === '1';
-    const limit = Math.min(parseInt(String((req.query as any).limit || '100'), 10) || 100, 100);
+    const limit = Math.max(1, Math.min(parseInt(String((req.query as any).limit || '100'), 10) || 100, 100));
     const where: any = {};
     if (q) where.OR = [
       { email: { contains: q, mode: 'insensitive' } },
@@ -344,7 +344,7 @@ usersRouter.get('/:id/posts', async (req: AuthedRequest, res) => {
     if (hidden) {
       return res.status(404).json({ error: 'User not found' });
     }
-    const limit = Math.min(parseInt(String(req.query.limit || '10'), 10) || 10, 50);
+    const limit = Math.max(1, Math.min(parseInt(String(req.query.limit || '10'), 10) || 10, 50));
     const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : null;
     const sort = typeof req.query.sort === 'string' ? req.query.sort : 'newest';
 
@@ -388,7 +388,7 @@ usersRouter.get('/:id/interactions', async (req: AuthedRequest, res) => {
   if (hidden) {
     return res.status(404).json({ error: 'User not found' });
   }
-  const limit = Math.min(parseInt(String(req.query.limit || '10'), 10) || 10, 50);
+  const limit = Math.max(1, Math.min(parseInt(String(req.query.limit || '10'), 10) || 10, 50));
   const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : null;
   const sort = typeof req.query.sort === 'string' ? req.query.sort : 'newest';
   const type = typeof req.query.type === 'string' ? req.query.type : 'all';
@@ -877,7 +877,7 @@ usersRouter.get('/:id/followers', requireAuth as any, asyncHandler(async (req: A
   const currentUserId = req.user?.id;
   const hidden = await isProfileHiddenFromViewer(id, currentUserId || null);
   if (hidden) return res.json({ items: [], nextCursor: null });
-  const limit = Math.min(parseInt(String(req.query.limit || '20'), 10) || 20, 50);
+  const limit = Math.max(1, Math.min(parseInt(String(req.query.limit || '20'), 10) || 20, 50));
   const cursor = (req.query.cursor as string | undefined) || undefined;
 
   const follows = await prisma.follows.findMany({
@@ -914,7 +914,7 @@ usersRouter.get('/:id/following', requireAuth as any, asyncHandler(async (req: A
   const currentUserId = req.user?.id;
   const hidden = await isProfileHiddenFromViewer(id, currentUserId || null);
   if (hidden) return res.json({ items: [], nextCursor: null });
-  const limit = Math.min(parseInt(String(req.query.limit || '20'), 10) || 20, 50);
+  const limit = Math.max(1, Math.min(parseInt(String(req.query.limit || '20'), 10) || 20, 50));
   const cursor = (req.query.cursor as string | undefined) || undefined;
 
   const follows = await prisma.follows.findMany({
@@ -949,7 +949,7 @@ usersRouter.get('/:id/following', requireAuth as any, asyncHandler(async (req: A
 usersRouter.get('/search/mentions', requireAuth as any, mentionsSearchLimiter as any, asyncHandler(async (req: AuthedRequest, res) => {
   const currentUserId = req.user!.id;
   const query = String((req.query as any).q || '').trim().toLowerCase();
-  const limit = Math.min(parseInt(String((req.query as any).limit || '10'), 10) || 10, 20);
+  const limit = Math.max(1, Math.min(parseInt(String((req.query as any).limit || '10'), 10) || 10, 20));
 
   if (!query) {
     return res.json({ users: [] });

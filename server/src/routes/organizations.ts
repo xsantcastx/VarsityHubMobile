@@ -65,7 +65,7 @@ organizationsRouter.get('/', async (req, res) => {
     const currentUserId = authedReq.user?.id ?? null;
     const isAdminUser = await isCurrentUserPlatformAdmin(authedReq);
     const q = String((req.query as any).q || '').trim();
-    const limit = Math.min(parseInt(String((req.query as any).limit || '20'), 10) || 20, 50);
+    const limit = Math.max(1, Math.min(parseInt(String((req.query as any).limit || '20'), 10) || 20, 50));
 
     const where: any = q ? { name: { startsWith: q, mode: 'insensitive' } } : {};
     if (!isAdminUser) {
@@ -748,7 +748,7 @@ organizationsRouter.get('/search/nearby', organizationsNearbyLimiter, async (req
     const query = String((req.query as any).query || '').trim();
     const sport = String((req.query as any).sport || '').trim();
     const orgType = String((req.query as any).org_type || '').trim();
-    const limit = Math.min(parseInt(String((req.query as any).limit || '20'), 10) || 20, 50);
+    const limit = Math.max(1, Math.min(parseInt(String((req.query as any).limit || '20'), 10) || 20, 50));
 
     debugLog('🔍 Organization search request:', { query, sport, orgType, limit });
 

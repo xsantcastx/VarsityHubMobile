@@ -24,7 +24,7 @@ adminReportsRouter.get('/', requireAdmin as any, asyncHandler(async (req: Authed
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   
   const status = String(req.query.status || 'all').trim();
-  const limit = Math.min(parseInt(String(req.query.limit || '100')), 500);
+  const limit = Math.max(1, Math.min(parseInt(String(req.query.limit || '100')), 500));
   const offset = parseInt(String(req.query.offset || '0'));
   
   const where = status !== 'all' ? { status } : {};

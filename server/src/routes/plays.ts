@@ -55,7 +55,7 @@ playsRouter.get('/top', requireAuth as any, asyncHandler(async (req: AuthedReque
   }
 
   const rangeParam = typeof req.query.range === 'string' ? req.query.range : null;
-  const limit = Math.min(parseInt(String(req.query.limit ?? '10'), 10) || 10, 50);
+  const limit = Math.max(1, Math.min(parseInt(String(req.query.limit ?? '10'), 10) || 10, 50));
   const cursorRaw = typeof req.query.cursor === 'string' ? req.query.cursor : null;
 
   const rangeMs = parseRangeToMs(rangeParam);

@@ -59,7 +59,7 @@ messagesRouter.get('/', requireAuth as any, async (req: AuthedRequest, res) => {
 try {
 if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 const orderBy = parseSort((req.query as any).sort);
-const limit = Math.min(parseInt(String((req.query as any).limit ?? '50'), 10) || 50, 50);
+const limit = Math.max(1, Math.min(parseInt(String((req.query as any).limit ?? '50'), 10) || 50, 50));
 const conversation_id = (req.query as any).conversation_id ? String((req.query as any).conversation_id) : undefined;
 const withParam = (req.query as any).with ? String((req.query as any).with) : undefined;
 const all = String((req.query as any).all || '') === '1';

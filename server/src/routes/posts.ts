@@ -79,7 +79,7 @@ const trendingScore = (upvotes: number, createdAt: Date): number => {
 postsRouter.get('/', async (req: AuthedRequest, res) => {
   try {
   const sort = typeof req.query.sort === 'string' ? req.query.sort.trim() : '';
-  const limit = Math.min(parseInt(String(req.query.limit ?? '10'), 10) || 10, 50);
+  const limit = Math.max(1, Math.min(parseInt(String(req.query.limit ?? '10'), 10) || 10, 50));
   const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : null;
   const followedOnly = String(req.query.followed_only || '').toLowerCase() === 'true';
   const followedTeams = String(req.query.followed_teams || '').toLowerCase() === 'true';
@@ -998,7 +998,7 @@ postsRouter.get('/:id/comments', asyncHandler(async (req: AuthedRequest, res) =>
     const hidden = await isAuthorHiddenFromViewer(post.author_id, req.user?.id ?? null);
     if (hidden) return res.status(404).json({ error: 'Post not found' });
   }
-  const limit = Math.min(parseInt(String(req.query.limit ?? '20'), 10) || 20, 50);
+  const limit = Math.max(1, Math.min(parseInt(String(req.query.limit ?? '20'), 10) || 20, 50));
   const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : null;
   // Filter out comments from blocked users
   const blockedIds = await getBlockedUserIds(req.user?.id ?? null);

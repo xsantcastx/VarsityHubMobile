@@ -15,7 +15,7 @@ const withMediaPreview = (post: any) => ({
 // GET /highlights?zip=90210&country=US&lat=..&lng=..&limit=20
 highlightsRouter.get('/', async (req: AuthedRequest, res) => {
   try {
-  const limit = Math.min(parseInt(String((req.query as any).limit || '50'), 10) || 50, 100);
+  const limit = Math.max(1, Math.min(parseInt(String((req.query as any).limit || '50'), 10) || 50, 100));
   const country = String((req.query as any).country || 'US').toUpperCase();
   const lat = (req.query as any).lat != null ? Number((req.query as any).lat) : undefined;
   const lng = (req.query as any).lng != null ? Number((req.query as any).lng) : undefined;
