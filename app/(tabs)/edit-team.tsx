@@ -32,12 +32,12 @@ export default function EditTeamScreen() {
         if (!mounted) return;
         if (me?.preferences?.role !== 'coach') {
           Alert.alert('Access Denied', 'Only coach accounts can edit teams.');
-          router.back();
+          safeGoBack(router);
           return;
         }
         setRoleChecked(true);
       } catch {
-        if (mounted) router.back();
+        if (mounted) safeGoBack(router);
       }
     })();
     return () => { mounted = false; };
@@ -85,7 +85,7 @@ export default function EditTeamScreen() {
         const myMembership = arr.find((m: any) => m.user_id === currentUser?.id || m.user?.id === currentUser?.id);
         if (!myMembership || !['owner', 'manager', 'coach'].includes(String(myMembership.role || '').toLowerCase())) {
           Alert.alert('Access Denied', 'You must be a team owner, manager, or coach to edit this team.');
-          router.back();
+          safeGoBack(router);
           return;
         }
         setIsOwner(myMembership?.role === 'owner');

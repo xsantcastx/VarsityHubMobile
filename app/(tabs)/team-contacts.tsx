@@ -98,12 +98,12 @@ export default function TeamChatScreen() {
         const me: any = await User.me();
         if (!mounted) return;
         if (me?.preferences?.role !== 'coach') {
-          router.back();
+          safeGoBack(router);
           return;
         }
         setRoleChecked(true);
       } catch {
-        if (mounted) router.back();
+        if (mounted) safeGoBack(router);
       }
     })();
     return () => { mounted = false; };
