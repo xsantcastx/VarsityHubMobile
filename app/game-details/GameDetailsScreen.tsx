@@ -415,17 +415,9 @@ const openMaps = (location: string) => {
   Linking.openURL(url).catch(() => {});
 };
 
-// Special-case marquee matchup artwork for Warriors vs Cavaliers - local SVG data URI
-const FINALS_HEADER_SVG = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1568' height='882'%3E%3Cdefs%3E%3ClinearGradient id='grad' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%231e40af;stop-opacity:1' /%3E%3Cstop offset='50%25' style='stop-color:%23dc2626;stop-opacity:1' /%3E%3Cstop offset='100%25' style='stop-color:%23fbbf24;stop-opacity:1' /%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='1568' height='882' fill='url(%23grad)'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='80' font-weight='bold' fill='white' font-family='Arial'%3EWarriors vs Cavaliers%3C/text%3E%3Ctext x='50%25' y='60%25' dominant-baseline='middle' text-anchor='middle' font-size='60' fill='white' font-family='Arial'%3ENBA Finals%3C/text%3E%3C/svg%3E`;
-const finalsBannerForTeams = (home?: string | null, away?: string | null, title?: string | null) => {
-  const h = (home || '').trim().toLowerCase();
-  const a = (away || '').trim().toLowerCase();
-  const t = (title || '').trim().toLowerCase();
-
-  const hasWarriors = h.includes('warriors') || a.includes('warriors') || /warriors/.test(t);
-  const hasCavs = h.includes('cav') || a.includes('cav') || /cavaliers?/.test(t) || /cavs/.test(t);
-
-  return hasWarriors && hasCavs ? FINALS_HEADER_SVG : null;
+// No special-case banner — kept generic for any matchup
+const finalsBannerForTeams = (_home?: string | null, _away?: string | null, _title?: string | null) => {
+  return null;
 };
 
 const pickBannerFromArrays = (vm: Partial<GameVM>, media: MediaItem[]) => {

@@ -21,15 +21,15 @@ const games = [
     cover_image_url: 'https://images.unsplash.com/photo-1487466365202-1afdb86c764e?q=80&w=2940&auto=format&fit=crop',
   },
   {
-    title: 'Falcons vs Jets',
+    title: 'Falcons vs Hurricanes',
     date: new Date('2025-12-06T17:00:00Z'),
     location: 'South Park, Miami, FL 33101',
     cover_image_url: 'https://images.unsplash.com/photo-1546519638-68e109498ffc?q=80&w=2940&auto=format&fit=crop',
   },
   {
-    title: 'Giants vs Cowboys',
+    title: 'Ridgewood Maroons vs Bergen Catholic Crusaders',
     date: new Date('2025-12-12T19:00:00Z'),
-    location: 'MetLife Stadium, East Rutherford, NJ 07073',
+    location: 'Ridgewood High School, Ridgewood, NJ 07450',
     cover_image_url: 'https://images.unsplash.com/photo-1521412644187-c49fa049e8be?q=80&w=2835&auto=format&fit=crop',
   },
 ];
