@@ -485,12 +485,19 @@ export default function AdCalendarScreen() {
       } catch { /* server config fetch failed — fall through to error */ }
     }
     if (!stripeKey || !stripeKey.startsWith('pk_')) {
+      // Last resort: use the key from app.json directly
+      stripeKey = 'pk_live_51RtgdGGJt8CsPE1E5nDpNo8bfow30VYpeqZwJfp6y1SP49NbwaruTcMWOi04SxujUTjACB3fwJwFSTgItU4IlA4S00HFBL7D3p';
+    }
+    if (!stripeKey || !stripeKey.startsWith('pk_')) {
       Alert.alert(
         'Payments Not Ready',
         'Payment configuration is missing. Please update the app or try again later.'
       );
       return;
     }
+
+    // Disable unsaved changes guard during payment flow
+    setDirty(false);
 
     setSubmitting(true);
     try {
@@ -607,6 +614,8 @@ export default function AdCalendarScreen() {
       Alert.alert(title, msg);
     } finally {
       setSubmitting(false);
+      // Re-enable unsaved changes guard if dates still selected
+      setDirty(selected.size > 0);
     }
   };
 
