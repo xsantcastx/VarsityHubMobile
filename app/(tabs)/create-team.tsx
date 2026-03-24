@@ -270,6 +270,14 @@ export default function CreateTeamScreen() {
       return;
     }
 
+    if (!selectedOrgId && !organizationName.trim()) {
+      Alert.alert(
+        'League Required',
+        'Please select an existing league or enter a new league name before creating a team.',
+      );
+      return;
+    }
+
     if (!teamColor) {
       setColorError('Please select a team color');
       return;

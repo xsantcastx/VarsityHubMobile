@@ -340,25 +340,11 @@ export default function FeedScreen() {
         const addDays = (d: number) => new Date(now.getTime() + d * 86400000).toISOString();
         normalizedGames = [
           {
-            id: 'sample-warriors-cavaliers',
-            title: 'Golden State Warriors vs. Cleveland Cavaliers',
-            date: addDays(2),
-            location: 'Chase Center, San Francisco, CA 94158',
-            cover_image_url: 'https://images.unsplash.com/photo-1517649763962-0c623066013b?q=80&w=1280&auto=format&fit=crop',
-          },
-          {
             id: 'sample-duke-unc',
             title: 'Duke Blue Devils vs. North Carolina Tar Heels',
             date: addDays(5),
             location: 'Cameron Indoor Stadium, Durham, NC 27708',
             cover_image_url: 'https://images.unsplash.com/photo-1518655048521-f130df041f66?q=80&w=1280&auto=format&fit=crop',
-          },
-          {
-            id: 'sample-patriots-jets',
-            title: 'New England Patriots vs. New York Jets',
-            date: addDays(7),
-            location: 'Gillette Stadium, Foxborough, MA 02035',
-            cover_image_url: 'https://images.unsplash.com/photo-1504457049873-30ffae0d3d31?q=80&w=1280&auto=format&fit=crop',
           },
         ];
       }
