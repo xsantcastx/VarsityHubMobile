@@ -27,6 +27,7 @@ export default function TabLayout() {
       tabBarActiveTintColor: palette.tint,
       tabBarInactiveTintColor: colorScheme === 'dark' ? '#D1D5DB' : palette.tabIconDefault,
       headerShown: false,
+      tabBarHideOnKeyboard: true,
       tabBarShowLabel: true,
       tabBarLabelStyle: {
         fontSize: 12,

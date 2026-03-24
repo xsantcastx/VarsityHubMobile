@@ -28,8 +28,9 @@ export default function OnboardingIndex() {
       return;
     }
 
-    // Use reducer-based deterministic step calculation
-    const calculatedStepIndex = nextIncompleteStep(state, state?.role);
+    // Always start at step 1 (role selection) — never skip steps
+    // Users were getting pages skipped because server data made steps look "complete"
+    const calculatedStepIndex = state?.role ? 1 : 0; // If role set, go to step 2; otherwise step 1
     const targetRoute = STEP_ROUTES[calculatedStepIndex] || STEP_ROUTES[0];
 
     if (__DEV__) {

@@ -246,19 +246,13 @@ export default function Step1Role() {
         }
       }
       
-      // Always go to step 2 (basic info) after role selection
-      const updatedState = (role === 'coach' && !wasCoachBefore) || (role === 'fan' && wasCoachBefore)
-        ? { role }
-        : { ...ob, role };
-      const nextStepIndex = nextIncompleteStep(updatedState, role);
-      const nextRoute = STEP_ROUTES[nextStepIndex] || STEP_ROUTES[0];
-
+      // Always go to step 2 (basic info) after role selection — never skip
       dispatch({
         type: 'SAVE_SUCCESS',
         data: { role }
       });
-      setProgress(nextStepIndex);
-      router.replace(nextRoute as any);
+      setProgress(1);
+      router.replace('/onboarding/step-2-basic' as any);
     } catch (error) {
       if (__DEV__) {
         if (__DEV__) console.error('[STEP-1] Error during continue:', error);
