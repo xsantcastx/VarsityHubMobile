@@ -301,57 +301,65 @@ authRouter.post('/login', asyncHandler(async (req, res) => {
 const refreshSchema = z.object({ refresh_token: z.string().min(32) });
 
 authRouter.post('/refresh', authLimiter, asyncHandler(async (req, res) => {
-  const parsed = refreshSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: 'refresh_token is required' });
-
-  const { refresh_token } = parsed.data;
-  const tokenHash = hashRefreshToken(refresh_token);
-
-  // Find and validate the refresh token
-  const stored = await prisma.refreshToken.findUnique({ where: { token_hash: tokenHash } });
-  if (!stored) return res.status(401).json({ error: 'Invalid refresh token' });
-  if (stored.expires_at < new Date()) {
-    await prisma.refreshToken.delete({ where: { id: stored.id } }).catch(() => {});
-    return res.status(401).json({ error: 'Refresh token expired' });
+  if (!req.body?.refresh_token || typeof req.body.refresh_token !== 'string' || !req.body.refresh_token.trim()) {
+    return res.status(401).json({ error: 'Invalid refresh token' });
   }
-
-  // Check user still valid
-  const user = await prisma.user.findUnique({ where: { id: stored.user_id } });
-  if (!user || user.banned) {
-    await prisma.refreshToken.delete({ where: { id: stored.id } }).catch(() => {});
-    return res.status(401).json({ error: 'Account not found or banned' });
-  }
-
-  // Reject tokens issued before a password change
-  if (user.password_changed_at && stored.created_at < user.password_changed_at) {
-    await prisma.refreshToken.delete({ where: { id: stored.id } }).catch(() => {});
-    return res.status(401).json({ error: 'Token invalidated by password change' });
-  }
-
-  // Rotate: delete old token, issue new pair
-  // Wrapped in try-catch to handle race condition where two concurrent
-  // refresh requests find the same token but only one can delete it.
-  const newRawRefresh = generateRefreshToken();
-  const newHash = hashRefreshToken(newRawRefresh);
-  const newExpiry = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
 
   try {
-    await prisma.$transaction([
-      prisma.refreshToken.delete({ where: { id: stored.id } }),
-      prisma.refreshToken.create({
-        data: { token_hash: newHash, user_id: user.id, expires_at: newExpiry },
-      }),
-    ]);
-  } catch (txErr: any) {
-    // Token was already deleted by a concurrent request — treat as invalid
-    if (txErr?.code === 'P2025') {
-      return res.status(401).json({ error: 'Token already used' });
-    }
-    throw txErr;
-  }
+    const parsed = refreshSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(401).json({ error: 'Invalid refresh token' });
 
-  const access_token = signJwt({ id: user.id });
-  return res.json({ access_token, refresh_token: newRawRefresh });
+    const { refresh_token } = parsed.data;
+    const tokenHash = hashRefreshToken(refresh_token);
+
+    // Find and validate the refresh token
+    const stored = await prisma.refreshToken.findUnique({ where: { token_hash: tokenHash } });
+    if (!stored) return res.status(401).json({ error: 'Invalid refresh token' });
+    if (stored.expires_at < new Date()) {
+      await prisma.refreshToken.delete({ where: { id: stored.id } }).catch(() => {});
+      return res.status(401).json({ error: 'Refresh token expired' });
+    }
+
+    // Check user still valid
+    const user = await prisma.user.findUnique({ where: { id: stored.user_id } });
+    if (!user || user.banned) {
+      await prisma.refreshToken.delete({ where: { id: stored.id } }).catch(() => {});
+      return res.status(401).json({ error: 'Account not found or banned' });
+    }
+
+    // Reject tokens issued before a password change
+    if (user.password_changed_at && stored.created_at < user.password_changed_at) {
+      await prisma.refreshToken.delete({ where: { id: stored.id } }).catch(() => {});
+      return res.status(401).json({ error: 'Token invalidated by password change' });
+    }
+
+    // Rotate: delete old token, issue new pair
+    // Wrapped in try-catch to handle race condition where two concurrent
+    // refresh requests find the same token but only one can delete it.
+    const newRawRefresh = generateRefreshToken();
+    const newHash = hashRefreshToken(newRawRefresh);
+    const newExpiry = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
+
+    try {
+      await prisma.$transaction([
+        prisma.refreshToken.delete({ where: { id: stored.id } }),
+        prisma.refreshToken.create({
+          data: { token_hash: newHash, user_id: user.id, expires_at: newExpiry },
+        }),
+      ]);
+    } catch (txErr: any) {
+      // Token was already deleted by a concurrent request — treat as invalid
+      if (txErr?.code === 'P2025') {
+        return res.status(401).json({ error: 'Token already used' });
+      }
+      throw txErr;
+    }
+
+    const access_token = signJwt({ id: user.id });
+    return res.json({ access_token, refresh_token: newRawRefresh });
+  } catch (err) {
+    return res.status(401).json({ error: 'Invalid refresh token' });
+  }
 }));
 
 /**

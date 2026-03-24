@@ -590,7 +590,7 @@ adsRouter.get('/reservations', requireAuth as any, async (req: AuthedRequest, re
  */
 adsRouter.get('/availability', async (req, res) => {
   try {
-    const zipCode = req.query.zip ? String(req.query.zip) : undefined;
+    const zipCode = req.query.zip ? String(req.query.zip) : req.query.zip_code ? String(req.query.zip_code) : undefined;
     const from = req.query.from ? String(req.query.from) : undefined;
     const to = req.query.to ? String(req.query.to) : undefined;
     const excludeAdId = req.query.exclude_ad_id ? String(req.query.exclude_ad_id) : undefined;

@@ -1365,6 +1365,10 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
     const orgId = req.params.id;
     const token = req.query.token as string | undefined;
 
+    // Validate org exists early (before auth) to avoid Prisma errors on invalid UUIDs
+    const orgExists = await prisma.organization.findUnique({ where: { id: orgId }, select: { id: true } }).catch(() => null);
+    if (!orgExists) return res.status(404).json({ error: 'Organization not found' });
+
     // Auth: either signed token OR authenticated admin
     let adminUserId: string | null = null;
 
@@ -1496,6 +1500,10 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
     const orgId = req.params.id;
     const token = req.query.token as string | undefined;
     const reason = req.body?.reason as string | undefined;
+
+    // Validate org exists early (before auth) to avoid Prisma errors on invalid UUIDs
+    const orgExists = await prisma.organization.findUnique({ where: { id: orgId }, select: { id: true } }).catch(() => null);
+    if (!orgExists) return res.status(404).json({ error: 'Organization not found' });
 
     // Auth: either signed token OR authenticated admin
     if (token) {
