@@ -839,7 +839,7 @@ async function approveAd(id: string, note?: string | null) {
   // Notify the ad owner — email, push, and in-app notification
   if (ad.contact_email) {
     try {
-      const sent = await sendAdApprovedEmail({ to: ad.contact_email, businessName: ad.business_name || undefined });
+      const sent = await sendAdApprovedEmail({ to: ad.contact_email, businessName: ad.business_name || undefined, note: note || undefined });
       if (!sent) console.warn('[ads] approve email template failed for', ad.contact_email);
     } catch (err) {
       console.error('[ads] approve email error:', (err as any)?.message || err);

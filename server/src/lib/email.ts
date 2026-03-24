@@ -475,6 +475,7 @@ export async function sendAdPendingReviewEmail(params: {
 export async function sendAdApprovedEmail(params: {
   to: string;
   businessName?: string;
+  note?: string;
 }): Promise<boolean> {
   const subject = 'Your Ad Has Been Approved — VarsityHub';
   const sent = await sendTemplateEmail(
@@ -484,6 +485,7 @@ export async function sendAdApprovedEmail(params: {
     {
       ...getCommonTemplateData(),
       business_name: params.businessName || 'your business',
+      admin_note: params.note || '',
       app_url: APP_BASE_URL,
     },
     `Ad approved email sent to ${params.to}`
@@ -500,6 +502,7 @@ export async function sendAdApprovedEmail(params: {
   <p style="text-align:center;color:#374151;font-size:16px;">
     Your ad for <strong>${params.businessName || 'your business'}</strong> has been approved on VarsityHub.
   </p>
+  ${params.note ? `<p style="color:#374151;"><strong>Note from admin:</strong> ${params.note}</p>` : ''}
   <p style="text-align:center;color:#374151;">Open the app to complete payment and go live.</p>
   <div style="text-align:center;margin-top:24px;">
     <a href="${APP_BASE_URL}" style="display:inline-block;background:#1B3A6B;color:#fff;padding:12px 32px;border-radius:8px;text-decoration:none;font-weight:600;">Open VarsityHub</a>
