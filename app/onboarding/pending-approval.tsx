@@ -171,7 +171,7 @@ export default function PendingApproval() {
             ? `Your request to join "${leagueName}" was not approved. You can continue as a fan or try joining a different league.`
             : approved
               ? `Welcome to ${leagueName}! Your coach account is ready.`
-              : `Your request to join "${leagueName}" has been sent to ${ownerName}. You'll receive an email and notification when you're approved.`
+              : `Your request to join "${leagueName}" has been sent to ${ownerName}. You'll receive a notification when approved — typically within a few hours. You can use the app as a fan while you wait.`
           }
         </Text>
 

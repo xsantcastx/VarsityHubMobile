@@ -1,6 +1,7 @@
 import { Image } from 'expo-image';
 import { Stack, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import type { TextInput } from 'react-native';
 import {
     ActivityIndicator,
     KeyboardAvoidingView,
@@ -38,6 +39,7 @@ export default function SignInScreen() {
   const colorScheme = useColorScheme();
   const palette = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
 
+  const passwordRef = useRef<TextInput>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -352,6 +354,8 @@ export default function SignInScreen() {
                 autoCorrect={false}
                 autoComplete="email"
                 keyboardType="email-address"
+                returnKeyType="next"
+                onSubmitEditing={() => passwordRef.current?.focus()}
                 placeholderTextColor={palette.mutedText}
                 accessibilityLabel="Email"
                 accessibilityHint="Enter your email address"
@@ -370,12 +374,15 @@ export default function SignInScreen() {
             <View style={styles.fieldSpacing}>
               <Text style={[styles.label, { color: palette.mutedText }]}>Password</Text>
               <Input
+                ref={passwordRef}
                 placeholder="Enter your password"
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry
                 autoCapitalize="none"
                 autoCorrect={false}
+                returnKeyType="go"
+                onSubmitEditing={onSubmit}
                 placeholderTextColor={palette.mutedText}
                 accessibilityLabel="Password"
                 accessibilityHint="Enter your password"

@@ -8,7 +8,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useFocusEffect } from '@react-navigation/native';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TouchableOpacity, View, useColorScheme } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TouchableOpacity, View, useColorScheme } from 'react-native';
 import OnboardingLayout from './components/OnboardingLayout';
 
 type UserRole = 'fan' | 'coach';
@@ -263,14 +263,17 @@ export default function Step1Role() {
     }
   };
 
-  const handleBack = async () => {
-    // Log out and return to sign-in
-    try {
-      await signOut();
-    } catch (error) {
-      if (__DEV__) console.error('Failed to logout:', error);
-      router.replace('/sign-in');
-    }
+  const handleBack = () => {
+    Alert.alert(
+      'Sign Out?',
+      'Going back will sign you out. You can sign in again anytime.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Sign Out', style: 'destructive', onPress: async () => {
+          try { await signOut(); } catch { router.replace('/sign-in'); }
+        }},
+      ]
+    );
   };
 
   return (
