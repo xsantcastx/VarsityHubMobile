@@ -27,6 +27,23 @@ import * as ImagePicker from 'expo-image-picker';
 let VideoThumbnails: any = null;
 try { VideoThumbnails = require('expo-video-thumbnails'); } catch { /* native module not available */ }
 
+// Retry thumbnail generation at multiple timestamps
+const generateVideoThumbnail = async (videoUri: string, setVideoThumbnailUri: (uri: string) => void) => {
+  const times = [0, 1000, 3000];
+  for (const time of times) {
+    try {
+      const thumb = await VideoThumbnails?.getThumbnailAsync?.(videoUri, { time, quality: 0.7 });
+      if (thumb?.uri) {
+        setVideoThumbnailUri(thumb.uri);
+        return;
+      }
+    } catch (e) {
+      if (__DEV__) console.warn(`[CreatePost] Thumbnail failed at time=${time}:`, e);
+    }
+  }
+  if (__DEV__) console.warn('[CreatePost] All thumbnail attempts failed');
+};
+
 // Media validation constants
 const ALLOWED_IMAGE_TYPES = [
   'image/jpeg', 
@@ -93,6 +110,7 @@ export default function CreatePostScreen() {
   const [locationError, setLocationError] = useState<string | null>(null);
   const [precisionBannerDismissed, setPrecisionBannerDismissed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [postSuccess, setPostSuccess] = useState(false);
   const [trimmedUri, setTrimmedUri] = useState<string | null>(null);
   const [videoThumbnailUri, setVideoThumbnailUri] = useState<string | null>(null);
@@ -417,9 +435,7 @@ export default function CreatePostScreen() {
         setPicked({ uri, type: media, mime: mimeType });
         // Generate thumbnail for video preview immediately
         if (media === 'video') {
-          VideoThumbnails?.getThumbnailAsync?.(uri, { time: 0, quality: 0.7 })
-            ?.then((thumb: any) => setVideoThumbnailUri(thumb.uri))
-            ?.catch((e: any) => { if (__DEV__) console.warn('[CreatePost] Video thumbnail failed:', e); });
+          generateVideoThumbnail(uri, setVideoThumbnailUri);
         }
       }
     } catch (error: any) {
@@ -514,9 +530,7 @@ export default function CreatePostScreen() {
         }
         setPicked({ uri, type: media, mime: mimeType });
         if (media === 'video') {
-          VideoThumbnails?.getThumbnailAsync?.(uri, { time: 0, quality: 0.7 })
-            ?.then((thumb: any) => setVideoThumbnailUri(thumb.uri))
-            ?.catch((e: any) => { if (__DEV__) console.warn('[CreatePost] Video thumbnail failed:', e); });
+          generateVideoThumbnail(uri, setVideoThumbnailUri);
         }
       }
     } catch (error: any) {
@@ -584,6 +598,7 @@ export default function CreatePostScreen() {
     if (__DEV__) console.warn('[CreatePost] confirmPost called');
     if (__DEV__) console.warn('[CreatePost] State - selectedGameId:', selectedGameId, '| suggestedGame:', suggestedGame?.id);
     setSubmitting(true);
+    setUploadProgress(0);
     setError(null);
 
     try {
@@ -597,7 +612,7 @@ export default function CreatePostScreen() {
         const mime = picked.mime || (picked.type === 'image' ? 'image/jpeg' : 'video/mp4');
         const uploadUri = (picked.type === 'video' && trimmedUri) ? trimmedUri : picked.uri;
         // Upload main file and thumbnail in parallel for speed
-        const mainUpload = uploadFile(base, uploadUri, name, mime);
+        const mainUpload = uploadFile(base, uploadUri, name, mime, { onProgress: (pct) => setUploadProgress(pct) });
         const thumbUpload = (picked.type === 'video' && videoThumbnailUri)
           ? uploadFile(base, videoThumbnailUri, 'thumbnail.jpg', 'image/jpeg').catch((e) => {
               if (__DEV__) console.warn('[CreatePost] Thumbnail upload failed:', e);
@@ -743,6 +758,7 @@ export default function CreatePostScreen() {
       }
     } finally {
       setSubmitting(false);
+      setUploadProgress(0);
       if (!postSuccess) setPreviewVisible(false);
     }
   };
@@ -1245,6 +1261,18 @@ export default function CreatePostScreen() {
                   By uploading, you confirm you personally filmed or own this content. Broadcast footage, TV clips, and copyrighted highlights are strictly prohibited.
                 </Text>
               </Pressable>
+            )}
+
+            {/* Upload Progress */}
+            {submitting && picked && (
+              <View style={{ paddingHorizontal: 16, paddingVertical: 8 }}>
+                <View style={{ height: 4, backgroundColor: '#E5E7EB', borderRadius: 2, overflow: 'hidden' }}>
+                  <View style={{ height: 4, backgroundColor: '#16A34A', borderRadius: 2, width: `${uploadProgress}%` }} />
+                </View>
+                <Text style={{ textAlign: 'center', color: '#6B7280', fontSize: 13, marginTop: 4 }}>
+                  {uploadProgress < 100 ? `Uploading... ${Math.round(uploadProgress)}%` : 'Processing...'}
+                </Text>
+              </View>
             )}
 
             {/* Action Buttons */}
