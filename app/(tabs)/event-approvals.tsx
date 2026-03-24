@@ -212,15 +212,15 @@ export default function EventApprovalsScreen() {
   };
 
   const handleRejectEvent = (eventId: number) => {
-    Alert.alert('Reject Event', 'Are you sure you want to reject this event?', [
+    Alert.prompt('Reject Event', 'Provide a reason for rejection (optional):', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Reject',
         style: 'destructive',
-        onPress: async () => {
+        onPress: async (reason?: string) => {
           setProcessingEventId(eventId);
           try {
-            await httpPut(`/events/${eventId}/reject`, {});
+            await httpPut(`/events/${eventId}/reject`, { reason: reason?.trim() || undefined });
             Alert.alert('Rejected', 'The event has been rejected.');
             setEvents(prev => prev.filter(e => e.id !== eventId));
           } catch (e: any) {
@@ -230,7 +230,7 @@ export default function EventApprovalsScreen() {
           }
         },
       },
-    ]);
+    ], 'plain-text');
   };
 
   // ── Team invite actions ───────────────────────────────────────────────────
@@ -267,6 +267,45 @@ export default function EventApprovalsScreen() {
         },
       },
     ]);
+  };
+
+  // ── Org join request actions ─────────────────────────────────────────────
+
+  const [processingOrgRequestId, setProcessingOrgRequestId] = useState<string | null>(null);
+
+  const handleApproveOrgRequest = async (requestId: string) => {
+    setProcessingOrgRequestId(requestId);
+    try {
+      await httpPost(`/organizations/join-requests/${requestId}/approve`, {});
+      Alert.alert('Approved', 'The request has been approved.');
+      setOrgRequests(prev => prev.filter(r => r.id !== requestId));
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Failed to approve request.');
+    } finally {
+      setProcessingOrgRequestId(null);
+    }
+  };
+
+  const handleDenyOrgRequest = (requestId: string) => {
+    Alert.prompt('Deny Request', 'Provide a reason (optional):', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Deny',
+        style: 'destructive',
+        onPress: async (reason?: string) => {
+          setProcessingOrgRequestId(requestId);
+          try {
+            await httpPost(`/organizations/join-requests/${requestId}/deny`, { reason: reason?.trim() || undefined });
+            Alert.alert('Denied', 'The request has been denied.');
+            setOrgRequests(prev => prev.filter(r => r.id !== requestId));
+          } catch (e: any) {
+            Alert.alert('Error', e?.message || 'Failed to deny request.');
+          } finally {
+            setProcessingOrgRequestId(null);
+          }
+        },
+      },
+    ], 'plain-text');
   };
 
   // ── Render helpers ────────────────────────────────────────────────────────
@@ -418,27 +457,49 @@ export default function EventApprovalsScreen() {
     );
   };
 
-  const renderOrgRequestCard = (item: OrgJoinRequest) => (
-    <View key={item.id} style={[styles.card, { backgroundColor: C.card, borderColor: C.border }]}>
-      <View style={styles.cardRow}>
-        <View style={[styles.statusChip, { backgroundColor: '#F59E0B22' }]}>
-          <Text style={[styles.typeChip, { color: '#F59E0B' }]}>Pending Review</Text>
+  const renderOrgRequestCard = (item: OrgJoinRequest) => {
+    const isProcessing = processingOrgRequestId === item.id;
+    return (
+      <View key={item.id} style={[styles.card, { backgroundColor: C.card, borderColor: C.border }]}>
+        <View style={styles.cardRow}>
+          <View style={[styles.statusChip, { backgroundColor: '#F59E0B22' }]}>
+            <Text style={[styles.typeChip, { color: '#F59E0B' }]}>Pending Review</Text>
+          </View>
+          <Text style={[styles.metaText, { color: C.mutedText }]}>
+            {new Date(item.created_at).toLocaleDateString()}
+          </Text>
         </View>
-        <Text style={[styles.metaText, { color: C.mutedText }]}>
-          {new Date(item.created_at).toLocaleDateString()}
-        </Text>
-      </View>
 
-      <Text style={[styles.cardTitle, { color: C.text }]}>{item.organization.name}</Text>
+        <Text style={[styles.cardTitle, { color: C.text }]}>{item.organization.name}</Text>
 
-      <View style={styles.metaRow}>
-        <Ionicons name="time-outline" size={14} color={C.mutedText} />
-        <Text style={[styles.metaText, { color: C.mutedText }]}>
-          Awaiting organization admin approval
-        </Text>
+        {item.message ? (
+          <View style={styles.metaRow}>
+            <Ionicons name="chatbubble-outline" size={14} color={C.mutedText} />
+            <Text style={[styles.metaText, { color: C.mutedText }]}>{item.message}</Text>
+          </View>
+        ) : null}
+
+        <View style={styles.actionRow}>
+          <Pressable
+            style={[styles.approveBtn, isProcessing && { opacity: 0.5 }]}
+            onPress={() => handleApproveOrgRequest(item.id)}
+            disabled={isProcessing}
+          >
+            <Ionicons name="checkmark-circle-outline" size={18} color="#16A34A" />
+            <Text style={[styles.btnText, { color: '#16A34A' }]}>Approve</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.rejectBtn, isProcessing && { opacity: 0.5 }]}
+            onPress={() => handleDenyOrgRequest(item.id)}
+            disabled={isProcessing}
+          >
+            <Ionicons name="close-circle-outline" size={18} color="#DC2626" />
+            <Text style={[styles.btnText, { color: '#DC2626' }]}>Deny</Text>
+          </Pressable>
+        </View>
       </View>
-    </View>
-  );
+    );
+  };
 
   const isLoading = eventsLoading || invitesLoading || orgRequestsLoading;
   const totalPending = events.length + teamInvites.length + orgRequests.length;
