@@ -25,7 +25,8 @@ const CUSTOMER_SERVICE_EMAIL = process.env.CUSTOMER_SERVICE_EMAIL || 'support@va
 
 // Common template data (social links, privacy policy, etc.) added to all emails
 const getCommonTemplateData = () => ({
-  logo_url: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765997882/365220-200_mvbdz7.png',
+  logo_url: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765655742/6C37232F-74BC-4486-95A1-7EE208A63D06_ai2j8k.png',
+  footer_logo_url: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765997882/365220-200_mvbdz7.png',
   hero_image_url: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765655742/6C37232F-74BC-4486-95A1-7EE208A63D06_ai2j8k.png',
   privacy_policy_url: 'https://varsityhub.app/privacy',
   community_guidelines_url: 'https://varsityhub.app/privacy',
