@@ -90,9 +90,7 @@ export default function PendingApproval() {
           setCompletionError('Approval is complete, but final account setup failed. Tap retry below.');
           return;
         }
-        setTimeout(() => {
-          router.replace('/(tabs)' as any);
-        }, 2000);
+        // Don't auto-redirect — let user tap Continue when ready
       }
     } catch {
       // ignore polling errors
@@ -172,7 +170,7 @@ export default function PendingApproval() {
           {rejected
             ? `Your request to join "${leagueName}" was not approved. You can continue as a fan or try joining a different league.`
             : approved
-              ? `Welcome to ${leagueName}! Setting up your coach account...`
+              ? `Welcome to ${leagueName}! Your coach account is ready.`
               : `Your request to join "${leagueName}" has been sent to ${ownerName}. You'll receive an email and notification when you're approved.`
           }
         </Text>
@@ -207,7 +205,12 @@ export default function PendingApproval() {
 
         {approved && (
           <>
-            <ActivityIndicator size="large" color="#16A34A" style={{ marginTop: 24 }} />
+            <Pressable
+              style={[styles.primaryButton, { backgroundColor: '#16A34A', marginTop: 24 }]}
+              onPress={() => router.replace('/(tabs)' as any)}
+            >
+              <Text style={styles.primaryButtonText}>Continue to VarsityHub</Text>
+            </Pressable>
             {completionError ? (
               <>
                 <Text style={[styles.supportText, { color: '#EF4444', marginTop: 16, marginBottom: 8 }]}>

@@ -94,15 +94,7 @@ export default function Step3League() {
             ...(teamOrgName ? { organization_name: teamOrgName } : {}),
           }));
 
-          // DON'T auto-skip - let user see step 4 even if team exists
-          // They can still review/update organization info
-          // Only skip in E2E tests
-          if (e2e) {
-            setOB((prev) => ({ ...prev, step_3_visited: true }));
-            // E2E: skip to feed
-            router.replace('/(tabs)' as any);
-            return;
-          }
+          // Never auto-skip — let user see and confirm their organization info
         } else {
           // Check for existing organizations that the user can manage
           const orgs = await Organization.mine();
@@ -117,11 +109,7 @@ export default function Step3League() {
               organization_name: firstOrg.name
             }));
 
-            if (e2e) {
-              setOB((prev) => ({ ...prev, step_3_visited: true }));
-              router.replace('/(tabs)' as any);
-              return;
-            }
+            // Never auto-skip — let user confirm org selection
           }
         }
       } catch {

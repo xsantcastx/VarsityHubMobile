@@ -91,9 +91,7 @@ export default function LeaguePendingApproval() {
           setCompletionError('VarsityHub has approved your organization, but account setup failed. Tap retry below.');
           return;
         }
-        setTimeout(() => {
-          router.replace('/(tabs)' as any);
-        }, 2000);
+        // Don't auto-redirect — let user tap Continue when ready
       }
     } catch {
       // ignore polling errors
@@ -242,7 +240,12 @@ export default function LeaguePendingApproval() {
 
         {approved && (
           <>
-            <ActivityIndicator size="large" color="#16A34A" style={{ marginTop: 24 }} />
+            <Pressable
+              style={[styles.primaryButton, { backgroundColor: '#16A34A', marginTop: 24 }]}
+              onPress={() => router.replace('/(tabs)' as any)}
+            >
+              <Text style={styles.primaryButtonText}>Continue to VarsityHub</Text>
+            </Pressable>
             {completionError ? (
               <>
                 <Text style={[styles.supportText, { color: '#EF4444', marginTop: 16, marginBottom: 8 }]}>
