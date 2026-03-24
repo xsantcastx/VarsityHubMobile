@@ -341,6 +341,17 @@ adsRouter.get('/for-feed', async (req, res) => {
       },
     });
 
+    // KNOWN SCALABILITY LIMITATION (post-launch optimization):
+    // Distance filtering is done in JS after fetching from the DB.
+    // At scale (>1000 active ads), this should move to the database level by:
+    //   1. Adding target_lat/target_lng columns to the Ad model (populated on ad create/update)
+    //   2. Filtering with a bounding box WHERE clause:
+    //      target_lat BETWEEN (userLat - 0.08) AND (userLat + 0.08)
+    //      target_lng BETWEEN (userLng - 0.1) AND (userLng + 0.1)
+    //      (0.08 deg lat / 0.1 deg lng ≈ 9km at US latitudes)
+    //   3. Removing the post-fetch haversine filter below
+    // The `take: 50` above caps the initial fetch as a safety measure.
+
     // Filter by distance — only show ads whose target zip is within their radius
     // Pre-resolve ad ZIP coordinates (with Google fallback for ZIPs not in static table)
     const adZipCoords = new Map<string, { lat: number; lon: number }>();

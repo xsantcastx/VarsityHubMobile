@@ -199,6 +199,8 @@ export default function FeedScreen() {
 
   const [highlightPreview, setHighlightPreview] = useState<any | null>(null);
   const [sponsoredAds, setSponsoredAds] = useState<any[]>([]);
+  const [hasDeviceLocation, setHasDeviceLocation] = useState(false);
+  const [locationPromptDismissed, setLocationPromptDismissed] = useState(false);
   const [followedPosts, setFollowedPosts] = useState<any[]>([]);
   const [followedFeedMeta, setFollowedFeedMeta] = useState<{ following_count: number } | undefined>(undefined);
   const [followedTeamsPosts, setFollowedTeamsPosts] = useState<any[]>([]);
@@ -282,6 +284,7 @@ export default function FeedScreen() {
           if (__DEV__) console.warn('Feed: location for ads failed', e);
         }
       }
+      setHasDeviceLocation(!!(userZip || deviceLat));
 
       // Load games with better error handling
       let gamesData: any = null;
@@ -684,6 +687,55 @@ export default function FeedScreen() {
     );
   }, [emailVerified, me, router, colorScheme]);
 
+  const renderLocationPrompt = useCallback(() => {
+    if (!me || locationPromptDismissed || hasDeviceLocation || sponsoredAds.length > 0) return null;
+    return (
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          padding: 12,
+          borderRadius: 10,
+          backgroundColor: colorScheme === 'dark' ? '#1E293B' : '#EFF6FF',
+          borderWidth: 1,
+          borderColor: colorScheme === 'dark' ? '#334155' : '#BFDBFE',
+          marginBottom: 12,
+        }}
+      >
+        <MaterialIcons name="location-off" size={20} color={colorScheme === 'dark' ? '#93C5FD' : '#3B82F6'} style={{ marginRight: 8 }} />
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: colorScheme === 'dark' ? '#E2E8F0' : '#1E3A5F', fontSize: 13, lineHeight: 18 }}>
+            Enable location or add your zip code in Settings to see local content and ads.
+          </Text>
+          <Pressable
+            onPress={() => void router.push('/settings/zip-code')}
+            style={{
+              alignSelf: 'flex-start',
+              marginTop: 8,
+              paddingVertical: 6,
+              paddingHorizontal: 14,
+              borderRadius: 6,
+              backgroundColor: colorScheme === 'dark' ? '#3B82F6' : '#2563EB',
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Go to Settings to add your zip code"
+          >
+            <Text style={{ color: '#FFFFFF', fontWeight: '600', fontSize: 13 }}>Go to Settings</Text>
+          </Pressable>
+        </View>
+        <Pressable
+          onPress={() => setLocationPromptDismissed(true)}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Dismiss location prompt"
+          style={{ padding: 4 }}
+        >
+          <MaterialIcons name="close" size={18} color={colorScheme === 'dark' ? '#94A3B8' : '#64748B'} />
+        </Pressable>
+      </View>
+    );
+  }, [me, locationPromptDismissed, hasDeviceLocation, sponsoredAds.length, colorScheme, router]);
+
   return (
     <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
       {/* Navbar title intentionally swapped to show Feed in the stack and VarsityHub in the UI header */}
@@ -837,6 +889,7 @@ export default function FeedScreen() {
         showsVerticalScrollIndicator={false}
       >
         {renderEmailReminder()}
+        {renderLocationPrompt()}
 
         {/* Upcoming Events with Ads — Dark hero game cards at top */}
         {upcomingWithAds.length > 0 && (
