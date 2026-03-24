@@ -49,6 +49,7 @@ interface AuthUser {
     payment_approved?: boolean;
     join_request_pending?: boolean;
     proceeding_as_fan?: boolean;
+    coach_agreement_accepted_at?: string;
   };
 }
 
@@ -206,13 +207,13 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     }
   }, []);
 
-  // Fetch subscription status (lightweight, no Stripe calls)
+  // Fetch subscription status
   const fetchSubscription = useCallback(async () => {
     try {
-      const data = await httpGet('/me/subscription');
+      const data = await httpGet('/payments/subscription/summary');
       if (data && typeof data === 'object') {
-        setSubscriptionTier(data.tier || 'rookie');
-        setHasActiveSubscription(!!data.hasActiveSubscription);
+        setSubscriptionTier(data.plan || data.tier || 'rookie');
+        setHasActiveSubscription(data.plan !== 'rookie' && data.status === 'active');
       }
     } catch {
       // Non-critical — keep defaults
