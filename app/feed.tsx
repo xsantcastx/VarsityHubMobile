@@ -1366,14 +1366,27 @@ export default function FeedScreen() {
                     windowSize={10}
                     removeClippedSubviews={true}
                     renderItem={({ item }) => {
+                      const actorName = item.actor?.username ? `@${item.actor.username}` : item.actor?.display_name || 'Someone';
                       const title = item.type === 'FOLLOW'
-                        ? `${item.actor?.username ? `@${item.actor.username}` : item.actor?.display_name || 'Someone'} followed you`
+                        ? `${actorName} followed you`
                         : item.type === 'UPVOTE'
-                        ? `${item.actor?.username ? `@${item.actor.username}` : item.actor?.display_name || 'Someone'} upvoted your post`
+                        ? `${actorName} upvoted your post`
                         : item.type === 'COMMENT'
-                        ? `${item.actor?.username ? `@${item.actor.username}` : item.actor?.display_name || 'Someone'} commented on your post`
+                        ? `${actorName} commented on your post`
+                        : item.type === 'COMMENT_REPLY'
+                        ? `${actorName} replied to your comment`
+                        : item.type === 'TEAM_INVITE' && item.meta?.coach_approved
+                        ? `Your coach application to ${item.meta?.organization_name || 'the organization'} was approved!`
                         : item.type === 'TEAM_INVITE'
-                        ? `${item.actor?.username ? `@${item.actor.username}` : item.actor?.display_name || 'Someone'} invited you to join ${item.meta?.team_name || 'a team'}`
+                        ? `${actorName} invited you to join ${item.meta?.team_name || 'a team'}`
+                        : item.type === 'AD_APPROVED'
+                        ? `Your ad for "${item.meta?.business_name || 'your business'}" has been approved! Tap to complete payment.`
+                        : item.type === 'AD_REJECTED'
+                        ? `Your ad for "${item.meta?.business_name || 'your business'}" needs changes.`
+                        : item.type === 'ORG_APPROVED'
+                        ? `Your organization "${item.meta?.organization_name || ''}" has been approved!`
+                        : item.type === 'JOIN_REQUEST_APPROVED'
+                        ? `Your request to join "${item.meta?.organization_name || ''}" was approved!`
                         : 'Notification';
                       
                       return (
@@ -1399,11 +1412,19 @@ export default function FeedScreen() {
                             }
                             
                             setNotificationsMenuOpen(false);
-                            // Always navigate to the actor's profile if available
-                            if (item.actor?.id) {
-                              router.push(`/user-profile?id=${encodeURIComponent(item.actor.id)}`);
+                            // Route based on notification type
+                            if (item.type === 'AD_APPROVED' || item.type === 'AD_REJECTED') {
+                              router.push(`/ad-calendar?adId=${encodeURIComponent(item.meta?.ad_id || '')}`);
+                            } else if (item.type === 'ORG_APPROVED' && item.meta?.organization_id) {
+                              router.push(`/organization?id=${encodeURIComponent(item.meta.organization_id)}`);
+                            } else if (item.type === 'JOIN_REQUEST_APPROVED' && item.meta?.organization_id) {
+                              router.push(`/organization?id=${encodeURIComponent(item.meta.organization_id)}`);
+                            } else if (item.type === 'TEAM_INVITE' && item.meta?.coach_approved) {
+                              router.push('/(tabs)');
                             } else if (item.type === 'TEAM_INVITE') {
                               router.push('/team-invites');
+                            } else if (item.actor?.id) {
+                              router.push(`/user-profile?id=${encodeURIComponent(item.actor.id)}`);
                             }
                           }}
                         >
