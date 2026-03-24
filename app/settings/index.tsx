@@ -565,7 +565,7 @@ export default function SettingsScreen() {
                         ]);
                       }} />
                       <NavRow title="Delete Account" destructive isLast={role === 'coach'} onPress={confirmDeleteAccount} />
-                      {role !== 'coach' && <NavRow title="Upgrade to Coach Account" isLast onPress={() => {
+                      {role !== 'coach' && role !== null && <NavRow title="Upgrade to Coach Account" isLast onPress={() => {
                         Alert.alert('Upgrade to Coach Account', 'Your account will be upgraded to a coach account. You\'ll complete the coach setup steps next.', [
                           { text: 'Cancel', style: 'cancel' },
                           { text: 'Continue', onPress: async () => {
@@ -581,7 +581,14 @@ export default function SettingsScreen() {
                               await markOnboardingIncompleteLocally();
                               router.push('/onboarding/step-3-league');
                             } catch (e: any) {
-                              Alert.alert('Error', e?.data?.error || e?.message || 'Failed to upgrade. Please try again.');
+                              const msg = e?.data?.error || e?.message || '';
+                              // If already a coach, update local state and redirect to onboarding
+                              if (msg.toLowerCase().includes('already a coach')) {
+                                setRole('coach');
+                                router.push('/onboarding/step-3-league');
+                                return;
+                              }
+                              Alert.alert('Error', msg || 'Failed to upgrade. Please try again.');
                             }
                           } }
                         ]);

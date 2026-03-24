@@ -179,7 +179,13 @@ export default function CreateEventScreen() {
         ]);
       }
     } catch (e: any) {
-      Alert.alert('Error', e.message || 'Failed to create event.');
+      let errorMsg = e?.data?.error || e?.message || 'Failed to create event.';
+      // Surface Zod validation details if available
+      const issues = e?.data?.issues;
+      if (issues && Array.isArray(issues)) {
+        errorMsg = issues.map((i: any) => `${i.path?.join?.('.') || i.path}: ${i.message}`).join('\n');
+      }
+      Alert.alert('Error', errorMsg);
     } finally {
       setSubmitting(false);
     }
