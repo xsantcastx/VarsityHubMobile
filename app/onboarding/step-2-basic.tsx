@@ -264,7 +264,10 @@ export default function Step2Basic() {
       Alert.alert(
         'Age Requirement',
         'VarsityHub is not available for users under 13. Please have a parent or guardian contact support@varsityhub.app.',
-        [{ text: 'OK' }]
+        [
+          { text: 'Go Back', onPress: () => safeGoBack(router) },
+          { text: 'OK' },
+        ]
       );
       return;
     }

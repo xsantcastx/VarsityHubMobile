@@ -8,7 +8,7 @@ import { Stack, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
 import { usePaymentSheet } from '@stripe/stripe-react-native';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Keyboard, Linking, Modal, Platform, Pressable, ScrollView as RNScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView as RNScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Organization, Subscriptions, Team, User } from '@/api/entities';
@@ -64,6 +64,8 @@ export default function CreateTeamScreen() {
   const [orgModalSearch, setOrgModalSearch] = useState('');
   const [logoUri, setLogoUri] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [nameError, setNameError] = useState('');
+  const [colorError, setColorError] = useState('');
   const [limitsLoading, setLimitsLoading] = useState(true);
   const [teamLimits, setTeamLimits] = useState<TeamLimitSummary | null>(null);
   const [limitsError, setLimitsError] = useState<string | null>(null);
@@ -263,13 +265,13 @@ export default function CreateTeamScreen() {
   }, []);
 
   const onSubmit = async () => {
-    if (!name.trim()) { 
-      Alert.alert('Team name required', 'Please enter a team name to continue.');
-      return; 
+    if (!name.trim()) {
+      setNameError('Please enter a team name');
+      return;
     }
-    
+
     if (!teamColor) {
-      Alert.alert('Team color required', 'Please select a team color to continue.');
+      setColorError('Please select a team color');
       return;
     }
     
@@ -605,13 +607,15 @@ export default function CreateTeamScreen() {
               <MaterialIcons name="emoji-events" size={20} color={Colors[colorScheme].mutedText} />
               <TextInput
                 value={name}
-                onChangeText={setName}
+                onChangeText={(text) => { setName(text); setNameError(''); }}
                 placeholder="e.g. Springfield Eagles"
                 placeholderTextColor={Colors[colorScheme].mutedText}
                 style={[styles.textInput, { color: Colors[colorScheme].text }]}
                 accessibilityLabel="Team name"
+                returnKeyType="done"
               />
             </View>
+            {nameError ? <Text style={{ color: '#EF4444', fontSize: 13, marginTop: 4 }}>{nameError}</Text> : null}
           </View>
 
           {/* Team Logo */}
@@ -891,7 +895,7 @@ export default function CreateTeamScreen() {
                       borderColor: teamColor === color.value ? Colors[colorScheme].text : 'transparent',
                     }
                   ]}
-                  onPress={() => { Keyboard.dismiss(); setTeamColor(color.value); }}
+                  onPress={() => { Keyboard.dismiss(); setTeamColor(color.value); setColorError(''); }}
                   accessibilityRole="button"
                   accessibilityLabel={`${color.name} color`}
                   accessibilityState={{ selected: teamColor === color.value }}
@@ -907,6 +911,7 @@ export default function CreateTeamScreen() {
                 Selected: {teamColors.find(c => c.value === teamColor)?.name}
               </Text>
             )}
+            {colorError ? <Text style={{ color: '#EF4444', fontSize: 13, marginTop: 4 }}>{colorError}</Text> : null}
           </View>
 
           {/* Organization/School Name */}
@@ -1006,12 +1011,12 @@ export default function CreateTeamScreen() {
             style={[
               styles.createButton,
               {
-                backgroundColor: submitting || limitReached ? Colors[colorScheme].mutedText : Colors[colorScheme].tint,
-                opacity: submitting || limitReached ? 0.5 : 1
+                backgroundColor: submitting || limitReached || !name.trim() ? Colors[colorScheme].mutedText : Colors[colorScheme].tint,
+                opacity: submitting || limitReached || !name.trim() ? 0.5 : 1
               }
             ]}
             onPress={onSubmit}
-            disabled={submitting || limitReached}
+            disabled={submitting || limitReached || !name.trim()}
             accessibilityRole="button"
             accessibilityLabel={submitting ? "Creating team" : "Create team"}
           >
@@ -1034,6 +1039,7 @@ export default function CreateTeamScreen() {
         animationType="slide"
         onRequestClose={() => setShowOrgPicker(false)}
       >
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <View style={styles.orgPickerOverlay}>
           <View style={[styles.orgPickerContainer, { backgroundColor: Colors[colorScheme].background }]}>
             <View style={[styles.orgPickerHeader, { borderBottomColor: Colors[colorScheme].border }]}>
@@ -1121,6 +1127,7 @@ export default function CreateTeamScreen() {
             </RNScrollView>
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );

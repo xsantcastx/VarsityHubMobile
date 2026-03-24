@@ -579,6 +579,11 @@ export default function Step3League() {
                 </Pressable>
               </View>
             </View>
+            <Text style={{ fontSize: 13, color: isDark ? '#94A3B8' : '#64748B', textAlign: 'center', marginBottom: 12 }}>
+              {showSearch
+                ? "My league already exists on VarsityHub \u2014 I want to request to join it"
+                : "I'm starting a new league \u2014 I'll be the owner and admin"}
+            </Text>
 
             <Text style={styles.label}>Organization Name</Text>
             <Input

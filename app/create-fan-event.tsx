@@ -43,6 +43,7 @@ export default function CreateFanEventScreen() {
   // Detect user role to differentiate Pitch Event (fan) vs Create Event (coach)
   const [userRole, setUserRole] = useState<string>('fan');
   const [pendingEventCount, setPendingEventCount] = useState<number | null>(null);
+  const locationInputRef = useRef<TextInput>(null);
   const eventLimitReached = userRole !== 'coach' && pendingEventCount !== null && pendingEventCount >= 3;
 
   useEffect(() => {
@@ -489,6 +490,8 @@ export default function CreateFanEventScreen() {
               placeholderTextColor={Colors[colorScheme].mutedText}
               value={title}
               onChangeText={setTitle}
+              returnKeyType="next"
+              onSubmitEditing={() => locationInputRef.current?.focus()}
             />
             {errors.title && <Text style={styles.errorText}>{errors.title}</Text>}
           </View>
@@ -731,6 +734,7 @@ export default function CreateFanEventScreen() {
           <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Location *</Text>
           <View style={styles.locationFieldWrapper}>
             <TextInput
+              ref={locationInputRef}
               style={[
                 styles.input,
                 {
@@ -745,6 +749,7 @@ export default function CreateFanEventScreen() {
               onChangeText={handleLocationChange}
               autoCapitalize="words"
               autoCorrect={false}
+              returnKeyType="done"
             />
             {locationQuerying && (
               <ActivityIndicator size="small" color={Colors[colorScheme].tint} style={styles.locationSpinner} />

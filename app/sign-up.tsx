@@ -1,5 +1,5 @@
 import { Stack, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { ActivityIndicator, Linking, Platform, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
@@ -36,6 +36,7 @@ export default function SignUpScreen() {
   const [retryCount, setRetryCount] = useState(0);
   const [showSignInPrompt, setShowSignInPrompt] = useState(false);
   const [passwordStrength, setPasswordStrength] = useState({ score: 0, feedback: 'Very weak' });
+  const passwordRef = useRef<any>(null);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [confirmedAge, setConfirmedAge] = useState(false);
 
@@ -347,8 +348,8 @@ export default function SignUpScreen() {
           </Pressable>
 
           {/* Email Form */}
-          <Input placeholder="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" style={{ marginBottom: 10 }} accessibilityLabel="Email" accessibilityHint="Enter your email address" />
-          <Input placeholder="Password" value={password} onChangeText={handlePasswordChange} secureTextEntry accessibilityLabel="Password" accessibilityHint="Enter at least 8 characters with one letter and one number" />
+          <Input placeholder="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" style={{ marginBottom: 10 }} accessibilityLabel="Email" accessibilityHint="Enter your email address" returnKeyType="next" onSubmitEditing={() => passwordRef.current?.focus()} />
+          <Input ref={passwordRef} placeholder="Password" value={password} onChangeText={handlePasswordChange} secureTextEntry accessibilityLabel="Password" accessibilityHint="Enter at least 8 characters with one letter and one number" returnKeyType="go" onSubmitEditing={onSubmit} />
           <Text style={{ fontSize: 11, color: Colors[colorScheme].mutedText, marginTop: 4 }}>
             Password must be at least 8 characters
           </Text>
