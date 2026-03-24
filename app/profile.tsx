@@ -831,14 +831,18 @@ export default function ProfileScreen() {
           
           {/* Following/Followers - Separate with Bold Numbers, tight spacing */}
           <View style={styles.statsRow}>
-            <Text style={[styles.statNumber, { color: theme.text }]}>
-              {me?._count?.following ?? 0}
-            </Text>
-            <Text style={[styles.statLabel, { color: colorScheme === 'dark' ? theme.mutedText : '#4B5563' }]}> Following </Text>
-            <Text style={[styles.statNumber, { color: theme.text }]}>
-              {me?._count?.followers ?? 0}
-            </Text>
-            <Text style={[styles.statLabel, { color: colorScheme === 'dark' ? theme.mutedText : '#4B5563' }]}> Followers</Text>
+            <Pressable style={styles.statTappable} onPress={() => { const uid = viewingUserId || me?.id; if (uid) router.push(`/following?id=${uid}&username=${encodeURIComponent(me?.username || '')}`); }}>
+              <Text style={[styles.statNumber, { color: theme.text }]}>
+                {me?._count?.following ?? 0}
+              </Text>
+              <Text style={[styles.statLabel, { color: colorScheme === 'dark' ? theme.mutedText : '#4B5563' }]}> Following </Text>
+            </Pressable>
+            <Pressable style={styles.statTappable} onPress={() => { const uid = viewingUserId || me?.id; if (uid) router.push(`/followers?id=${uid}&username=${encodeURIComponent(me?.username || '')}`); }}>
+              <Text style={[styles.statNumber, { color: theme.text }]}>
+                {me?._count?.followers ?? 0}
+              </Text>
+              <Text style={[styles.statLabel, { color: colorScheme === 'dark' ? theme.mutedText : '#4B5563' }]}> Followers</Text>
+            </Pressable>
           </View>
 
           {/* Teams - Athlete profile section */}
@@ -1542,6 +1546,10 @@ const styles = StyleSheet.create({
     alignItems: 'baseline',
     marginTop: 2,
     gap: 0, // No gap between number and label
+  },
+  statTappable: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
   },
   statNumber: {
     fontSize: 15,

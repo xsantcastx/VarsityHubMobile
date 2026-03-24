@@ -486,26 +486,32 @@ export default function MyAdsScreen() {
 function badgeStyleForStatus(status?: string, colorScheme: 'light' | 'dark' = 'light') {
   const s = String(status || 'draft');
   if (s === 'active') return { backgroundColor: colorScheme === 'dark' ? '#065F46' : '#DCFCE7', borderColor: colorScheme === 'dark' ? '#10B981' : '#86EFAC' };
+  if (s === 'approved') return { backgroundColor: colorScheme === 'dark' ? '#064E3B' : '#D1FAE5', borderColor: colorScheme === 'dark' ? '#34D399' : '#6EE7B7' };
   if (s === 'pending') return { backgroundColor: colorScheme === 'dark' ? '#92400E' : '#FEF9C3', borderColor: colorScheme === 'dark' ? '#FBBF24' : '#FDE68A' };
+  if (s === 'rejected') return { backgroundColor: colorScheme === 'dark' ? '#7F1D1D' : '#FEE2E2', borderColor: colorScheme === 'dark' ? '#EF4444' : '#FCA5A5' };
   if (s === 'archived') return { backgroundColor: colorScheme === 'dark' ? '#374151' : '#F3F4F6', borderColor: colorScheme === 'dark' ? '#6B7280' : '#D1D5DB' };
   return { backgroundColor: colorScheme === 'dark' ? '#1E3A8A' : '#E0E7FF', borderColor: colorScheme === 'dark' ? '#3B82F6' : '#C7D2FE' }; // draft
 }
 function badgeTextStyleForStatus(status?: string) {
   const s = String(status || 'draft');
   if (s === 'active') return { color: '#10B981' };
+  if (s === 'approved') return { color: '#059669' };
   if (s === 'pending') return { color: '#F59E0B' };
+  if (s === 'rejected') return { color: '#EF4444' };
   if (s === 'archived') return { color: '#6B7280' };
   return { color: '#3B82F6' };
 }
 function badgeStyleForPayment(p?: string, colorScheme: 'light' | 'dark' = 'light') {
   const s = String(p || 'unpaid');
   if (s === 'paid') return { backgroundColor: colorScheme === 'dark' ? '#1E3A8A' : '#DBEAFE', borderColor: colorScheme === 'dark' ? '#3B82F6' : '#BFDBFE' };
+  if (s === 'hold') return { backgroundColor: colorScheme === 'dark' ? '#92400E' : '#FEF3C7', borderColor: colorScheme === 'dark' ? '#F59E0B' : '#FCD34D' };
   if (s === 'refunded') return { backgroundColor: colorScheme === 'dark' ? '#7F1D1D' : '#FFE4E6', borderColor: colorScheme === 'dark' ? '#EF4444' : '#FECDD3' };
   return { backgroundColor: colorScheme === 'dark' ? '#7F1D1D' : '#FEE2E2', borderColor: colorScheme === 'dark' ? '#EF4444' : '#FCA5A5' }; // unpaid
 }
 function badgeTextStyleForPayment(p?: string) { 
   const s = String(p || 'unpaid');
   if (s === 'paid') return { color: '#3B82F6' };
+  if (s === 'hold') return { color: '#F59E0B' };
   if (s === 'refunded') return { color: '#EF4444' };
   return { color: '#EF4444' };
 }

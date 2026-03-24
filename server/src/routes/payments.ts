@@ -390,11 +390,6 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paym
   if (!ad_id || !Array.isArray(dates) || dates.length === 0) return res.status(400).json({ error: 'ad_id and dates[] are required' });
   const isoDates: string[] = Array.from(new Set(dates.map((d: any) => String(d))));
 
-  // Ensure at least one selected date is today or in the future
-  const todayStr = new Date().toISOString().slice(0, 10);
-  if (!isoDates.some((d) => d >= todayStr)) {
-    return res.status(400).json({ error: 'All selected dates are in the past. Please choose at least one future date.' });
-  }
   // Enforce booking horizon — no dates beyond 56 days from today
   const MAX_BOOKING_HORIZON_DAYS = 56;
   const horizonCutoff = new Date();
@@ -854,11 +849,6 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
   if (!ad_id || !Array.isArray(dates) || dates.length === 0) return res.status(400).json({ error: 'ad_id and dates[] are required (or plan for subscription)' });
   const isoDates: string[] = Array.from(new Set(dates.map((d: any) => String(d))));
 
-  // Ensure at least one selected date is today or in the future
-  const todayStr = new Date().toISOString().slice(0, 10);
-  if (!isoDates.some((d) => d >= todayStr)) {
-    return res.status(400).json({ error: 'All selected dates are in the past. Please choose at least one future date.' });
-  }
   // Enforce booking horizon — no dates beyond 56 days from today
   const MAX_BOOKING_HORIZON_DAYS = 56;
   const horizonCutoff = new Date();
@@ -2520,12 +2510,7 @@ paymentsRouter.post('/apple/verify-ad-receipt', expressPkg.json(), requireAuth a
       return res.status(400).json({ error: 'Missing ad_id, dates[], or receipts[]' });
     }
 
-    // Ensure at least one selected date is today or in the future
-    const todayStr = new Date().toISOString().slice(0, 10);
     const isoDateStrings: string[] = dates.map((d: any) => String(d));
-    if (!isoDateStrings.some((d) => d >= todayStr)) {
-      return res.status(400).json({ error: 'All selected dates are in the past. Please choose at least one future date.' });
-    }
     // Enforce booking horizon — no dates beyond 56 days from today
     const MAX_BOOKING_HORIZON_DAYS = 56;
     const horizonCutoff = new Date();

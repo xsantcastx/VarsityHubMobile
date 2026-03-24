@@ -125,9 +125,7 @@ export async function handleAdSubmitForApproval(req: AuthedRequest, res: Respons
       if (!isoDateRegex.test(ds)) {
         return res.status(400).json({ error: `Invalid date format: ${ds}. Use YYYY-MM-DD.` });
       }
-      if (ds < today) {
-        return res.status(400).json({ error: `Date ${ds} is in the past` });
-      }
+      // Past dates are allowed for booking
     }
     const isoDates = Array.from(new Set(dates.map((d: any) => String(d))));
     const ad = await prisma.ad.findUnique({ where: { id } });
@@ -148,10 +146,7 @@ export async function handleAdSubmitForApproval(req: AuthedRequest, res: Respons
         dates: pastHorizon,
       });
     }
-    const pastDates = isoDates.filter(d => new Date(d + 'T00:00:00.000Z') < new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00.000Z'));
-    if (pastDates.length > 0) {
-      return res.status(400).json({ error: 'Cannot book dates in the past', dates: pastDates });
-    }
+    // Past dates are allowed — no rejection needed
 
     const MAX_AD_SLOTS = 2;
     if (ad.target_zip_code) {

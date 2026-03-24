@@ -320,14 +320,7 @@ export default function AdCalendarScreen() {
 
   const onDayPress = (day: DateData) => {
     const iso = day.dateString; // yyyy-MM-dd
-    const today = todayISO();
     const maxDate = maxDateISO();
-    
-    // Prevent selection before today
-    if (iso < today) {
-      Alert.alert('Invalid Date', 'Please select a date today or in the future.');
-      return;
-    }
     
     // Prevent selection beyond 8 weeks
     if (iso > maxDate) {
@@ -763,7 +756,6 @@ export default function AdCalendarScreen() {
             markedDates={marked}
             markingType="custom"
             enableSwipeMonths
-            minDate={todayISO()}
             maxDate={maxDateISO()}
             theme={{
               backgroundColor: colorScheme === 'light' ? '#FFFFFF' : Colors[colorScheme].card,
