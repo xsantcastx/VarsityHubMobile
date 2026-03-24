@@ -112,13 +112,17 @@ const TEMPLATE_IDS = {
 
 type TemplateKey = keyof typeof TEMPLATE_IDS;
 
-// Critical for launch — health check requires these
+// Critical for launch — server exits if missing in production
 const REQUIRED_TEMPLATE_KEYS: TemplateKey[] = [
   'VERIFICATION',
   'PASSWORD_RESET',
   'TEAM_INVITE',
   'ORG_INVITE',
   'BILLING_NOTICE',
+];
+
+// Important but have HTML fallbacks — warn but don't block
+const RECOMMENDED_TEMPLATE_KEYS: TemplateKey[] = [
   'JOIN_REQUEST_APPROVED',
   'JOIN_REQUEST_DENIED',
   'ORG_APPROVAL',
@@ -126,10 +130,6 @@ const REQUIRED_TEMPLATE_KEYS: TemplateKey[] = [
   'AD_APPROVED',
   'AD_REJECTED',
   'LEAGUE_PENDING_APPROVAL',
-];
-
-// Nice-to-have — health check warns but doesn't block on these
-const RECOMMENDED_TEMPLATE_KEYS: TemplateKey[] = [
   'PASSWORD_CHANGED',
   'ACCOUNT_RECOVERY',
   'LOGIN_NEW_DEVICE',
