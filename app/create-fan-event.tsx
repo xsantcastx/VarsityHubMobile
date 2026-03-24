@@ -68,7 +68,10 @@ export default function CreateFanEventScreen() {
           setPendingEventCount(pending);
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        // If count check fails, assume limit reached to prevent exceeding it
+        setPendingEventCount(3);
+      });
   }, []);
   const isCoach = userRole === 'coach';
 

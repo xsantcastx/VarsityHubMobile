@@ -20,6 +20,7 @@ import * as Notifications from 'expo-notifications';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import { uploadFile } from '@/api/upload';
+import { getConfig } from '@/config/env';
 
 // Username validation: lowercase letters, numbers, dots, underscores only (matches backend)
 // Spaces are normalized to underscores BEFORE validation
@@ -322,7 +323,7 @@ export default function Step2Basic() {
         let avatarUrl: string | undefined;
         if (avatarUri) {
           try {
-            const uploaded = await uploadFile(avatarUri, 'image');
+            const uploaded = await uploadFile(getConfig().apiUrl, avatarUri, 'avatar.jpg', 'image/jpeg');
             avatarUrl = uploaded?.url || uploaded?.secure_url;
           } catch (uploadErr) {
             if (__DEV__) console.warn('[step-2] Avatar upload failed (continuing):', uploadErr);
@@ -361,7 +362,12 @@ export default function Step2Basic() {
     } catch (e: any) {
       if (__DEV__) console.error('[step-2-basic] Failed to save:', e);
       dispatch({ type: 'SAVE_FAIL', error: e });
-      const errorMessage = e?.message || e?.data?.error || 'Please try again.';
+      let errorMessage = e?.message || e?.data?.error || 'Please try again.';
+      // Surface Zod validation details if available
+      if (e?.data?.issues && Array.isArray(e.data.issues)) {
+        const details = e.data.issues.map((i: any) => `${i.path?.join('.')}: ${i.message}`).join('\n');
+        errorMessage = details || errorMessage;
+      }
       Alert.alert('Failed to save', errorMessage, [
         { text: 'OK', style: 'default' }
       ]);

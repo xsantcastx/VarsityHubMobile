@@ -476,8 +476,14 @@ export default function AdCalendarScreen() {
       return;
     }
 
-    // Stripe must be configured (backend, reconciliation, etc.)
-    const stripeKey = getConfig().stripePublishableKey;
+    // Stripe must be configured — try build-time config first, then fetch from server
+    let stripeKey = getConfig().stripePublishableKey;
+    if (!stripeKey || !stripeKey.startsWith('pk_')) {
+      try {
+        const serverCfg = await Payments.getConfig();
+        stripeKey = serverCfg?.stripe_publishable_key || '';
+      } catch { /* server config fetch failed — fall through to error */ }
+    }
     if (!stripeKey || !stripeKey.startsWith('pk_')) {
       Alert.alert(
         'Payments Not Ready',

@@ -433,21 +433,30 @@ export default function SettingsScreen() {
                                   text: 'Everyone',
                                   onPress: () => {
                                     setPrefs((p) => ({ ...p, comment_permission: 'everyone' }));
-                                    void User.updatePreferences({ comment_permission: 'everyone' });
+                                    User.updatePreferences({ comment_permission: 'everyone' }).catch(() => {
+                                      setPrefs((p) => ({ ...p, comment_permission: prefs.comment_permission }));
+                                      Alert.alert('Error', 'Failed to save preference. Please try again.');
+                                    });
                                   },
                                 },
                                 {
                                   text: 'People I Follow',
                                   onPress: () => {
                                     setPrefs((p) => ({ ...p, comment_permission: 'following' }));
-                                    void User.updatePreferences({ comment_permission: 'following' });
+                                    User.updatePreferences({ comment_permission: 'following' }).catch(() => {
+                                      setPrefs((p) => ({ ...p, comment_permission: prefs.comment_permission }));
+                                      Alert.alert('Error', 'Failed to save preference. Please try again.');
+                                    });
                                   },
                                 },
                                 {
                                   text: 'Nobody',
                                   onPress: () => {
                                     setPrefs((p) => ({ ...p, comment_permission: 'none' }));
-                                    void User.updatePreferences({ comment_permission: 'none' });
+                                    User.updatePreferences({ comment_permission: 'none' }).catch(() => {
+                                      setPrefs((p) => ({ ...p, comment_permission: prefs.comment_permission }));
+                                      Alert.alert('Error', 'Failed to save preference. Please try again.');
+                                    });
                                   },
                                 },
                                 { text: 'Cancel', style: 'cancel' },

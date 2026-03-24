@@ -17,6 +17,8 @@ const envSchema = z.object({
     .min(32, 'JWT_SECRET must be at least 32 characters. Generate with `openssl rand -base64 32`'),
   ALLOWED_ORIGINS: z.string().optional(),
   STRIPE_SECRET_KEY: z.string().optional().transform(toOptional),
+  STRIPE_PUBLISHABLE_KEY: z.string().optional().transform(toOptional),
+  EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY: z.string().optional().transform(toOptional),
   STRIPE_WEBHOOK_SECRET: z.string().optional().transform(toOptional),
   STRIPE_PRICE_VETERAN: z.string().optional().transform(toOptional),
   STRIPE_PRICE_LEGEND: z.string().optional().transform(toOptional),
@@ -43,9 +45,33 @@ const envSchema = z.object({
   TWILIO_FROM_PHONE: z.string().optional().transform(toOptional),
   REDIS_URL: z.string().optional().transform(toOptional),
   SENTRY_DSN: z.string().optional().transform(toOptional),
+  SENTRY_ENVIRONMENT: z.string().optional().transform(toOptional),
+  SENDGRID_API_KEY: z.string().optional().transform(toOptional),
   UPLOADS_PUBLIC: z.string().optional(),
   /** iOS in-app purchase receipt verification (App Store Connect → App → App-Specific Shared Secret) */
   APPLE_IAP_SHARED_SECRET: z.string().optional().transform(toOptional),
+  /** iOS bundle identifier for Apple Sign-In and payment verification */
+  APPLE_BUNDLE_ID: z.string().optional().transform(toOptional),
+  /** Apple Sign-In Services ID (client ID) */
+  APPLE_CLIENT_ID: z.string().optional().transform(toOptional),
+  /** Google Play package names for Android payment verification (comma-separated) */
+  GOOGLE_PLAY_PACKAGE_NAMES: z.string().optional().transform(toOptional),
+  /** Google Play service account email for server-side receipt verification */
+  GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL: z.string().optional().transform(toOptional),
+  /** Google Play service account private key (PEM format) */
+  GOOGLE_PLAY_SERVICE_ACCOUNT_PRIVATE_KEY: z.string().optional().transform(toOptional),
+  /** Strict Google Play receipt verification (set to '1' to reject unverified) */
+  GOOGLE_PLAY_STRICT_VERIFY: z.string().optional(),
+  /** Email provider: sendgrid, smtp, or test */
+  EMAIL_PROVIDER: z.string().optional().transform(toOptional),
+  /** Sender email (alternative to FROM_EMAIL) */
+  EMAIL_FROM: z.string().optional().transform(toOptional),
+  /** API base URL for email links */
+  API_BASE_URL: z.string().optional().transform(toOptional),
+  /** Health check endpoint secret */
+  HEALTH_CHECK_SECRET: z.string().optional().transform(toOptional),
+  /** Debug logging toggle */
+  ENABLE_SERVER_DEBUG_LOGS: z.string().optional(),
   /** Set to '1' to return verification/reset codes in non-production API responses (dev/test only) */
   ENABLE_DEV_CODES: z.string().optional(),
   /** Set to 'true' to accept Apple simulator tokens (sim- prefix) — must NOT be set in production */
@@ -68,3 +94,19 @@ export type Env = typeof env;
 
 export const isProd = env.NODE_ENV === 'production';
 export const isDev = env.NODE_ENV === 'development';
+
+// Production startup warnings for critical optional vars
+if (isProd) {
+  const warnings: string[] = [];
+  if (!env.STRIPE_SECRET_KEY) warnings.push('STRIPE_SECRET_KEY (payments will fail)');
+  if (!env.STRIPE_WEBHOOK_SECRET) warnings.push('STRIPE_WEBHOOK_SECRET (webhooks unverified)');
+  if (!env.STRIPE_PRICE_VETERAN) warnings.push('STRIPE_PRICE_VETERAN (subscription pricing)');
+  if (!env.STRIPE_PRICE_LEGEND) warnings.push('STRIPE_PRICE_LEGEND (subscription pricing)');
+  if (!env.CLOUDINARY_CLOUD_NAME) warnings.push('CLOUDINARY_CLOUD_NAME (uploads will fail)');
+  if (!env.SENDGRID_API_KEY) warnings.push('SENDGRID_API_KEY (emails will fail)');
+  if (!env.APPLE_BUNDLE_ID) warnings.push('APPLE_BUNDLE_ID (Apple Sign-In/IAP)');
+  if (!env.APPLE_CLIENT_ID) warnings.push('APPLE_CLIENT_ID (Apple Sign-In)');
+  if (warnings.length > 0) {
+    console.warn(`⚠️  Missing production environment variables:\n${warnings.map(w => `  - ${w}`).join('\n')}`);
+  }
+}

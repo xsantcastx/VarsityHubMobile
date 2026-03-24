@@ -103,8 +103,8 @@ export default function PendingApproval() {
   useEffect(() => {
     // Initial check
     void checkApproval();
-    // Poll every 30 seconds
-    intervalRef.current = setInterval(() => void checkApproval(), 30000);
+    // Poll every 10 seconds for faster approval feedback
+    intervalRef.current = setInterval(() => void checkApproval(), 10000);
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };

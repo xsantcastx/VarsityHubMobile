@@ -7,12 +7,10 @@ import { Colors } from '@/constants/Colors';
 import { User } from '@/api/entities';
 
 const AGREEMENT_POINTS = [
-  'You will not upload or encourage others to upload broadcast footage or copyrighted content.',
-  'You understand that content featuring your athletes may implicate their NIL (Name, Image, Likeness) rights.',
-  'You are responsible for ensuring your team\'s use of VarsityHub complies with your institution\'s athletic department policies.',
-  'You will not upload content that violates your school\'s or conference\'s media policies.',
+  'No broadcast footage or copyrighted content (ESPN, CBS, Fox, NBC, conference networks, etc.).',
+  'Content featuring athletes may involve their NIL (Name, Image, Likeness) rights.',
+  'You are responsible for compliance with your institution\'s athletic and media policies.',
   'You will follow all VarsityHub Terms of Service and Community Guidelines.',
-  'Official broadcast content — including footage produced by or licensed to ESPN, CBS, Fox, NBC, conference networks, or any team or school media department — is strictly prohibited.',
 ];
 
 export default function CoachAgreementScreen() {

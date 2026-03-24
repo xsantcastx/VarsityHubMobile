@@ -73,6 +73,7 @@ export default function ReportAbuseScreen() {
       if (!result.canceled && result.assets.length > 0) {
         setUploadingImage(true);
         const newImages: string[] = [];
+        let failedCount = 0;
 
         for (const asset of result.assets) {
           try {
@@ -80,14 +81,20 @@ export default function ReportAbuseScreen() {
             const response = await uploadFile(null, asset.uri, filename);
             if (response?.url) {
               newImages.push(response.url);
+            } else {
+              failedCount++;
             }
           } catch (uploadErr) {
+            failedCount++;
             if (__DEV__) console.error('Failed to upload image:', uploadErr);
           }
         }
 
         if (newImages.length > 0) {
           setEvidenceImages((prev) => [...prev, ...newImages].slice(0, 5));
+          if (failedCount > 0) {
+            Alert.alert('Partial upload', `${failedCount} image${failedCount > 1 ? 's' : ''} failed to upload. ${newImages.length} uploaded successfully.`);
+          }
         } else {
           Alert.alert('Upload failed', 'Could not upload the selected images. Please try again.');
         }

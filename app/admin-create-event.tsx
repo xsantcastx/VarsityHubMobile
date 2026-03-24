@@ -4,6 +4,8 @@ import {
     ActivityIndicator,
     Alert,
     FlatList,
+    KeyboardAvoidingView,
+    Platform,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -310,6 +312,7 @@ export default function CreateEventScreen() {
       edges={['bottom']}
     >
       <Stack.Screen options={{ title: 'Create Official Event' }} />
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
           <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Create Official Event</Text>
@@ -486,6 +489,7 @@ export default function CreateEventScreen() {
           )}
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
 
       <View style={[styles.footer, { borderTopColor: Colors[colorScheme].border }]}>
         <Pressable

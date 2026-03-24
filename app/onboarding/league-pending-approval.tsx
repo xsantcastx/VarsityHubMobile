@@ -104,7 +104,7 @@ export default function LeaguePendingApproval() {
   useEffect(() => {
     if (!orgId) return;
     void checkApproval();
-    intervalRef.current = setInterval(() => void checkApproval(), 30000);
+    intervalRef.current = setInterval(() => void checkApproval(), 10000);
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
@@ -153,15 +153,19 @@ export default function LeaguePendingApproval() {
           <Text style={[styles.logoText, { color: isDark ? '#F9FAFB' : '#111827' }]}>VarsityHub</Text>
         </View>
 
-        {/* Icon */}
+        {/* Status checkmark */}
         <View style={[styles.iconCircle, {
           backgroundColor: rejected
             ? (isDark ? 'rgba(220,38,38,0.15)' : '#FEE2E2')
             : approved
-              ? (isDark ? 'rgba(22,163,74,0.15)' : '#D1FAE5')
-              : (isDark ? 'rgba(218,165,32,0.15)' : '#FEF9C3')
+              ? (isDark ? 'rgba(218,165,32,0.15)' : '#FFF7ED')
+              : (isDark ? 'rgba(156,163,175,0.15)' : '#F3F4F6')
         }]}>
-          <Image source={require('../../assets/images/logo.png')} style={{ width: 56, height: 56 }} contentFit="contain" />
+          <MaterialIcons
+            name={rejected ? 'close' : 'verified'}
+            size={56}
+            color={rejected ? '#DC2626' : approved ? '#D4A017' : '#9CA3AF'}
+          />
         </View>
 
         {/* Heading */}

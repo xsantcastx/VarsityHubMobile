@@ -67,6 +67,7 @@ export default function OrganizationScreen() {
   const [error, setError] = useState<string | null>(null);
   const [isOrgAdmin, setIsOrgAdmin] = useState(false);
   const [pendingCoachCount, setPendingCoachCount] = useState(0);
+  const [pendingCoachError, setPendingCoachError] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
   const [followBusy, setFollowBusy] = useState(false);
   const [isRequestingJoin, setIsRequestingJoin] = useState(false);
@@ -118,8 +119,13 @@ export default function OrganizationScreen() {
           // Fetch pending coach count for league owners
           if (membership) {
             Organization.pendingCoaches(params.id!).then((pending: any) => {
-              if (mounted.current && Array.isArray(pending)) setPendingCoachCount(pending.length);
-            }).catch(() => {});
+              if (mounted.current) {
+                setPendingCoachError(false);
+                setPendingCoachCount(Array.isArray(pending) ? pending.length : 0);
+              }
+            }).catch(() => {
+              if (mounted.current) setPendingCoachError(true);
+            });
           }
         } else {
           if (mounted.current) setIsOrgAdmin(false);
@@ -479,6 +485,18 @@ export default function OrganizationScreen() {
         </View>
 
         {/* Pending Coaches Quick Action */}
+        {isOrgAdmin && pendingCoachError && organization?.id && (
+          <Pressable
+            style={[styles.card, styles.sectionCard, { backgroundColor: theme.card, borderColor: theme.border, flexDirection: 'row', alignItems: 'center', gap: 12 }]}
+            onPress={() => router.push('/approvals')}
+          >
+            <MaterialIcons name="error-outline" size={24} color="#DC2626" />
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 14, color: '#DC2626', fontWeight: '600' }}>Could not load pending coaches</Text>
+              <Text style={{ fontSize: 12, color: theme.mutedText, marginTop: 2 }}>Tap to open approvals</Text>
+            </View>
+          </Pressable>
+        )}
         {isOrgAdmin && pendingCoachCount > 0 && organization?.id && (
           <Pressable
             style={[styles.card, styles.sectionCard, { backgroundColor: '#FEF9C3', borderColor: '#DAA520', flexDirection: 'row', alignItems: 'center', gap: 12 }]}

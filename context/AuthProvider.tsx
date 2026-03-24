@@ -524,7 +524,11 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
 
       // Clear proceeding_as_fan when coach gets approved (transition from fan mode to coach mode)
       if (user.approval_status === 'APPROVED' && user.preferences?.role === 'coach' && user.preferences?.proceeding_as_fan === true) {
-        User.updatePreferences({ proceeding_as_fan: false }).catch(() => { /* ignore — next checkAuth will retry */ });
+        User.updatePreferences({ proceeding_as_fan: false }).catch((err) => {
+          // Non-fatal: next checkAuth cycle will retry this transition.
+          // Log for Sentry visibility so we know if this is recurring.
+          if (__DEV__) console.warn('[AuthProvider] Failed to clear proceeding_as_fan:', err?.message);
+        });
       }
 
       // Block unapproved coaches (pending/rejected) on coach path.

@@ -239,74 +239,8 @@ organizationsRouter.delete('/:id/follow', requireAuth as any, async (req: Authed
   }
 });
 
-// Get single organization
-organizationsRouter.get('/:id', async (req, res) => {
-  try {
-    const id = String(req.params.id);
-    const authedReq = req as AuthedRequest;
-    const currentUserId = authedReq.user?.id ?? null;
-    const organization = await prisma.organization.findUnique({
-      where: { id },
-      include: {
-        _count: { select: { followers: true, memberships: true } },
-        teams: {
-          orderBy: { name: 'asc' },
-          select: {
-            id: true,
-            name: true,
-            description: true,
-            sport: true,
-            season_start: true,
-            season_end: true,
-            status: true,
-            logo_url: true,
-            avatar_url: true,
-            created_at: true,
-            _count: {
-              select: {
-                memberships: true,
-              }
-            }
-          }
-        }
-        // memberships excluded from public endpoint — use GET /:id/members (requires auth)
-      }
-    });
-
-    if (!organization) return res.status(404).json({ error: 'Organization not found' });
-
-    if (!organization.admin_approved) {
-      const isAdminUser = await isCurrentUserPlatformAdmin(authedReq);
-      if (!isAdminUser) {
-        if (!currentUserId) return res.status(404).json({ error: 'Organization not found' });
-        const [membership, pendingJoin] = await Promise.all([
-          prisma.organizationMembership.findUnique({
-            where: { organization_id_user_id: { organization_id: id, user_id: currentUserId } },
-            select: { status: true },
-          }),
-          prisma.organizationJoinRequest.findUnique({
-            where: { organization_id_user_id: { organization_id: id, user_id: currentUserId } },
-            select: { status: true },
-          }),
-        ]);
-        const hasAccess = membership?.status === 'active' || pendingJoin?.status === 'pending';
-        if (!hasAccess) return res.status(404).json({ error: 'Organization not found' });
-      }
-    }
-
-    const payload = { ...organization } as any;
-    payload.followers_count = (organization as any)._count?.followers ?? 0;
-    payload.members_count = (organization as any)._count?.memberships ?? 0;
-    payload.is_following = currentUserId
-      ? !!(await prisma.organizationFollow.findFirst({ where: { user_id: currentUserId, organization_id: id } }))
-      : null;
-    delete payload._count;
-    return res.json(payload);
-  } catch (err) {
-    console.error('[organizations] GET /:id error:', err);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
-});
+// NOTE: GET /:id moved to bottom of file to avoid shadowing literal routes
+// like /invites/me, /search/nearby, /join-requests/me
 
 // Get organization members (requires auth + membership or admin)
 organizationsRouter.get('/:id/members', requireAuth as any, async (req: AuthedRequest, res) => {
@@ -1328,6 +1262,25 @@ organizationsRouter.post('/join-requests/:requestId/deny', requireAuth as any, r
     }
   });
   
+  // Create in-app notification for the denied user
+  try {
+    await prisma.notification.create({
+      data: {
+        user_id: joinRequest.user.id,
+        actor_id: req.user!.id,
+        type: 'JOIN_REQUEST_APPROVED', // reuse type — frontend checks meta for denial
+        meta: {
+          organization_id: joinRequest.organization_id,
+          organization_name: joinRequest.organization.name,
+          denied: true,
+          reason: reason || undefined,
+        },
+      },
+    });
+  } catch (notifErr) {
+    console.warn('[organizations] Failed to create denial notification:', notifErr);
+  }
+
   // Send denial email to user
   try {
     await sendJoinRequestDenied({
@@ -1339,7 +1292,7 @@ organizationsRouter.post('/join-requests/:requestId/deny', requireAuth as any, r
   } catch (err) {
     console.error('Failed to send join request denied email:', err);
   }
-  
+
   return res.json({ message: 'Join request denied' });
   } catch (err) {
     console.error('[organizations] POST /join-requests/:requestId/deny error:', err);
@@ -1859,6 +1812,77 @@ organizationsRouter.post('/:id/coaches/:userId/reject', requireAuth as any, requ
     return res.json({ message: 'Coach request rejected', coach_id: coachId });
   } catch (err) {
     console.error('[organizations] POST /:id/coaches/:userId/reject error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get single organization
+// IMPORTANT: This catch-all /:id route MUST be last so it doesn't shadow
+// literal routes like /invites/me, /search/nearby, /join-requests/me
+organizationsRouter.get('/:id', async (req, res) => {
+  try {
+    const id = String(req.params.id);
+    const authedReq = req as AuthedRequest;
+    const currentUserId = authedReq.user?.id ?? null;
+    const organization = await prisma.organization.findUnique({
+      where: { id },
+      include: {
+        _count: { select: { followers: true, memberships: true } },
+        teams: {
+          orderBy: { name: 'asc' },
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            sport: true,
+            season_start: true,
+            season_end: true,
+            status: true,
+            logo_url: true,
+            avatar_url: true,
+            created_at: true,
+            _count: {
+              select: {
+                memberships: true,
+              }
+            }
+          }
+        }
+        // memberships excluded from public endpoint — use GET /:id/members (requires auth)
+      }
+    });
+
+    if (!organization) return res.status(404).json({ error: 'Organization not found' });
+
+    if (!organization.admin_approved) {
+      const isAdminUser = await isCurrentUserPlatformAdmin(authedReq);
+      if (!isAdminUser) {
+        if (!currentUserId) return res.status(404).json({ error: 'Organization not found' });
+        const [membership, pendingJoin] = await Promise.all([
+          prisma.organizationMembership.findUnique({
+            where: { organization_id_user_id: { organization_id: id, user_id: currentUserId } },
+            select: { status: true },
+          }),
+          prisma.organizationJoinRequest.findUnique({
+            where: { organization_id_user_id: { organization_id: id, user_id: currentUserId } },
+            select: { status: true },
+          }),
+        ]);
+        const hasAccess = membership?.status === 'active' || pendingJoin?.status === 'pending';
+        if (!hasAccess) return res.status(404).json({ error: 'Organization not found' });
+      }
+    }
+
+    const payload = { ...organization } as any;
+    payload.followers_count = (organization as any)._count?.followers ?? 0;
+    payload.members_count = (organization as any)._count?.memberships ?? 0;
+    payload.is_following = currentUserId
+      ? !!(await prisma.organizationFollow.findFirst({ where: { user_id: currentUserId, organization_id: id } }))
+      : null;
+    delete payload._count;
+    return res.json(payload);
+  } catch (err) {
+    console.error('[organizations] GET /:id error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });

@@ -549,7 +549,7 @@ export async function sendDormantUserDigestEmail(_params: any): Promise<boolean>
 }
 
 export async function sendEventApprovedEmail(params: any): Promise<boolean> {
-  return sendTemplateEmail(
+  const sent = await sendTemplateEmail(
     TEMPLATE_IDS.EVENT_APPROVED,
     params.to,
     'Your event was approved',
@@ -568,6 +568,23 @@ export async function sendEventApprovedEmail(params: any): Promise<boolean> {
     },
     `Event approved email sent to ${params.to}`
   );
+  if (sent) return true;
+
+  // HTML fallback when template is not configured
+  const name = params.recipientName || params.coachName || 'there';
+  const eventTitle = params.eventTitle || params.eventName || 'your event';
+  const dateTime = [params.eventDate, params.eventTime].filter(Boolean).join(' at ') || '';
+  const locationLine = params.eventLocation ? `<p><strong>Location:</strong> ${params.eventLocation}</p>` : '';
+  const html = `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;">
+    <h2 style="color:#16a34a;">Event Approved!</h2>
+    <p>Hi ${name},</p>
+    <p>Your event <strong>"${eventTitle}"</strong> has been approved and is now live on VarsityHub.</p>
+    ${dateTime ? `<p><strong>When:</strong> ${dateTime}</p>` : ''}
+    ${locationLine}
+    <p>Open the VarsityHub app to manage your event.</p>
+    <p style="color:#6b7280;font-size:12px;">&copy; ${new Date().getFullYear()} VarsityHub</p>
+  </div>`;
+  return sendEmail({ to: params.to, subject: 'Your event was approved', html, text: `Your event "${eventTitle}" was approved and is now live.` });
 }
 
 export async function sendEventCanceledEmail(params: any): Promise<boolean> {
@@ -594,7 +611,7 @@ export async function sendEventCanceledEmail(params: any): Promise<boolean> {
 }
 
 export async function sendEventDeniedEmail(params: any): Promise<boolean> {
-  return sendTemplateEmail(
+  const sent = await sendTemplateEmail(
     TEMPLATE_IDS.EVENT_DENIED,
     params.to,
     'Event not approved',
@@ -609,6 +626,22 @@ export async function sendEventDeniedEmail(params: any): Promise<boolean> {
     },
     `Event denied email sent to ${params.to}`
   );
+  if (sent) return true;
+
+  // HTML fallback when template is not configured
+  const name = params.recipientName || params.coachName || 'there';
+  const eventTitle = params.eventTitle || params.eventName || 'your event';
+  const reason = params.denialReason || params.reason;
+  const reasonBlock = reason ? `<p style="background:#fef2f2;padding:12px;border-radius:8px;"><strong>Reason:</strong> ${reason}</p>` : '';
+  const html = `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;">
+    <h2 style="color:#dc2626;">Event Not Approved</h2>
+    <p>Hi ${name},</p>
+    <p>Your event <strong>"${eventTitle}"</strong> was not approved at this time.</p>
+    ${reasonBlock}
+    <p>You can submit a new event or contact <a href="mailto:${CUSTOMER_SERVICE_EMAIL}">${CUSTOMER_SERVICE_EMAIL}</a> with questions.</p>
+    <p style="color:#6b7280;font-size:12px;">&copy; ${new Date().getFullYear()} VarsityHub</p>
+  </div>`;
+  return sendEmail({ to: params.to, subject: 'Event not approved', html, text: `Your event "${eventTitle}" was not approved. ${reason || ''}` });
 }
 
 export async function sendEventReminderEmail(params: any): Promise<boolean> {
@@ -635,7 +668,7 @@ export async function sendEventReminderEmail(params: any): Promise<boolean> {
 }
 
 export async function sendEventSubmissionReceivedEmail(params: any): Promise<boolean> {
-  return sendTemplateEmail(
+  const sent = await sendTemplateEmail(
     TEMPLATE_IDS.EVENT_SUBMISSION_RECEIVED,
     params.to,
     'We received your event submission',
@@ -653,6 +686,21 @@ export async function sendEventSubmissionReceivedEmail(params: any): Promise<boo
     },
     `Event submission received email sent to ${params.to}`
   );
+  if (sent) return true;
+
+  // HTML fallback when template is not configured
+  const name = params.coachName || 'Coach';
+  const eventTitle = params.eventTitle || params.eventName || 'your event';
+  const hours = params.reviewTimelineHours || 24;
+  const html = `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;">
+    <h2 style="color:#1a1a2e;">Event Submitted</h2>
+    <p>Hi ${name},</p>
+    <p>We've received your event submission for <strong>"${eventTitle}"</strong> and our team will review it within ${hours} hours.</p>
+    <p style="background:#fef9c3;padding:12px;border-radius:8px;color:#92400e;font-weight:600;">PENDING REVIEW</p>
+    <p>You can check your submission status anytime in the VarsityHub app.</p>
+    <p style="color:#6b7280;font-size:12px;">&copy; ${new Date().getFullYear()} VarsityHub</p>
+  </div>`;
+  return sendEmail({ to: params.to, subject: 'We received your event submission', html, text: `We received your event "${eventTitle}". Review takes up to ${hours} hours.` });
 }
 
 export async function sendEventUpdatedEmail(params: any): Promise<boolean> {
@@ -813,11 +861,11 @@ export async function sendVerificationEmail(email: string, token: string, userNa
   <p style="text-align:center;color:#6B7280;font-size:14px;">This code expires in 30 minutes.</p>
   <p style="text-align:center;color:#6B7280;font-size:14px;">If you didn't request this, you can safely ignore this email.</p>
   <div style="text-align:center;margin-top:32px;padding-top:16px;border-top:1px solid #E5E7EB;">
-    <a href="${getCommonTemplateData().instagram_url}" style="margin:0 6px;"><img src="https://cdn-icons-png.flaticon.com/512/174/174855.png" alt="Instagram" style="width:24px;height:24px;" /></a>
-    <a href="${getCommonTemplateData().tiktok_url}" style="margin:0 6px;"><img src="https://cdn-icons-png.flaticon.com/512/3046/3046121.png" alt="TikTok" style="width:24px;height:24px;" /></a>
-    <a href="${getCommonTemplateData().youtube_url}" style="margin:0 6px;"><img src="https://cdn-icons-png.flaticon.com/512/174/174883.png" alt="YouTube" style="width:24px;height:24px;" /></a>
-    <a href="${getCommonTemplateData().facebook_url}" style="margin:0 6px;"><img src="https://cdn-icons-png.flaticon.com/512/174/174848.png" alt="Facebook" style="width:24px;height:24px;" /></a>
-    <a href="${getCommonTemplateData().x_url}" style="margin:0 6px;"><img src="https://cdn-icons-png.flaticon.com/512/5969/5969020.png" alt="X" style="width:24px;height:24px;" /></a>
+    <a href="${getCommonTemplateData().instagram_url}" style="margin:0 8px;color:#1a1a2e;text-decoration:none;font-size:13px;font-weight:600;">Instagram</a>
+    <a href="${getCommonTemplateData().tiktok_url}" style="margin:0 8px;color:#1a1a2e;text-decoration:none;font-size:13px;font-weight:600;">TikTok</a>
+    <a href="${getCommonTemplateData().youtube_url}" style="margin:0 8px;color:#1a1a2e;text-decoration:none;font-size:13px;font-weight:600;">YouTube</a>
+    <a href="${getCommonTemplateData().facebook_url}" style="margin:0 8px;color:#1a1a2e;text-decoration:none;font-size:13px;font-weight:600;">Facebook</a>
+    <a href="${getCommonTemplateData().x_url}" style="margin:0 8px;color:#1a1a2e;text-decoration:none;font-size:13px;font-weight:600;">X</a>
   </div>
   <p style="text-align:center;color:#9CA3AF;font-size:13px;margin-top:16px;">&copy; ${new Date().getFullYear()} Lime Productions. All rights reserved.</p>
 </div>`;
@@ -1051,7 +1099,7 @@ export async function sendJoinRequestToAdmin(params: {
   requestId: string;
   orgLogoUrl?: string;
 }): Promise<boolean> {
-  return sendTemplateEmail(
+  const sent = await sendTemplateEmail(
     TEMPLATE_IDS.JOIN_REQUEST_ADMIN,
     params.adminEmail,
     `New join request for ${params.organizationName}`,
@@ -1067,6 +1115,19 @@ export async function sendJoinRequestToAdmin(params: {
     },
     `Join request notification sent to ${params.adminEmail}`
   );
+  if (sent) return true;
+
+  // HTML fallback when template is not configured
+  const subject = `New join request for ${params.organizationName}`;
+  const html = `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;">
+    <h2 style="color:#1a1a2e;">New Join Request</h2>
+    <p>Hi ${params.adminName},</p>
+    <p><strong>${params.requesterName}</strong> has requested to join <strong>${params.organizationName}</strong>.</p>
+    ${params.message ? `<p style="background:#f3f4f6;padding:12px;border-radius:8px;"><em>"${params.message}"</em></p>` : ''}
+    <p>Open the VarsityHub app to review this request.</p>
+    <p style="color:#6b7280;font-size:12px;">&copy; ${new Date().getFullYear()} VarsityHub</p>
+  </div>`;
+  return sendEmail({ to: params.adminEmail, subject, html, text: `${params.requesterName} wants to join ${params.organizationName}. Open VarsityHub to review.` });
 }
 
 /**
@@ -1079,7 +1140,7 @@ export async function sendJoinRequestApproved(params: {
   adminName: string;
   orgLogoUrl?: string;
 }): Promise<boolean> {
-  return sendTemplateEmail(
+  const sent = await sendTemplateEmail(
     TEMPLATE_IDS.JOIN_REQUEST_APPROVED,
     params.userEmail,
     `Your request to join ${params.organizationName} was approved`,
@@ -1093,6 +1154,18 @@ export async function sendJoinRequestApproved(params: {
     },
     `Join request approved notification sent to ${params.userEmail}`
   );
+  if (sent) return true;
+
+  // HTML fallback when template is not configured
+  const subject = `Your request to join ${params.organizationName} was approved`;
+  const html = `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;">
+    <h2 style="color:#16a34a;">Request Approved!</h2>
+    <p>Hi ${params.userName},</p>
+    <p>Your request to join <strong>${params.organizationName}</strong> has been approved by ${params.adminName}.</p>
+    <p>Open the VarsityHub app to get started with your team.</p>
+    <p style="color:#6b7280;font-size:12px;">&copy; ${new Date().getFullYear()} VarsityHub</p>
+  </div>`;
+  return sendEmail({ to: params.userEmail, subject, html, text: `Your request to join ${params.organizationName} was approved. Open VarsityHub to get started.` });
 }
 
 /**
@@ -1105,7 +1178,7 @@ export async function sendJoinRequestDenied(params: {
   reason?: string;
   orgLogoUrl?: string;
 }): Promise<boolean> {
-  return sendTemplateEmail(
+  const sent = await sendTemplateEmail(
     TEMPLATE_IDS.JOIN_REQUEST_DENIED,
     params.userEmail,
     `Your request to join ${params.organizationName} was not approved`,
@@ -1118,6 +1191,20 @@ export async function sendJoinRequestDenied(params: {
     },
     `Join request denied notification sent to ${params.userEmail}`
   );
+  if (sent) return true;
+
+  // HTML fallback when template is not configured
+  const subject = `Your request to join ${params.organizationName} was not approved`;
+  const reasonText = params.reason ? `<p style="background:#fef2f2;padding:12px;border-radius:8px;"><strong>Reason:</strong> ${params.reason}</p>` : '';
+  const html = `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;">
+    <h2 style="color:#dc2626;">Request Not Approved</h2>
+    <p>Hi ${params.userName},</p>
+    <p>Your request to join <strong>${params.organizationName}</strong> was not approved at this time.</p>
+    ${reasonText}
+    <p>If you have questions, contact <a href="mailto:${CUSTOMER_SERVICE_EMAIL}">${CUSTOMER_SERVICE_EMAIL}</a>.</p>
+    <p style="color:#6b7280;font-size:12px;">&copy; ${new Date().getFullYear()} VarsityHub</p>
+  </div>`;
+  return sendEmail({ to: params.userEmail, subject, html, text: `Your request to join ${params.organizationName} was not approved. ${params.reason || ''}` });
 }
 
 /**
@@ -1750,11 +1837,11 @@ export async function sendCoachApprovedEmail(params: {
     <a href="${APP_BASE_URL}" style="display:inline-block;background:#1B3A6B;color:#fff;padding:12px 32px;border-radius:8px;text-decoration:none;font-weight:600;">Open VarsityHub</a>
   </div>
   <div style="text-align:center;margin-top:32px;padding-top:16px;border-top:1px solid #E5E7EB;">
-    <a href="${getCommonTemplateData().instagram_url}" style="margin:0 6px;"><img src="https://cdn-icons-png.flaticon.com/512/174/174855.png" alt="Instagram" style="width:24px;height:24px;" /></a>
-    <a href="${getCommonTemplateData().tiktok_url}" style="margin:0 6px;"><img src="https://cdn-icons-png.flaticon.com/512/3046/3046121.png" alt="TikTok" style="width:24px;height:24px;" /></a>
-    <a href="${getCommonTemplateData().youtube_url}" style="margin:0 6px;"><img src="https://cdn-icons-png.flaticon.com/512/174/174883.png" alt="YouTube" style="width:24px;height:24px;" /></a>
-    <a href="${getCommonTemplateData().facebook_url}" style="margin:0 6px;"><img src="https://cdn-icons-png.flaticon.com/512/174/174848.png" alt="Facebook" style="width:24px;height:24px;" /></a>
-    <a href="${getCommonTemplateData().x_url}" style="margin:0 6px;"><img src="https://cdn-icons-png.flaticon.com/512/5969/5969020.png" alt="X" style="width:24px;height:24px;" /></a>
+    <a href="${getCommonTemplateData().instagram_url}" style="margin:0 8px;color:#1a1a2e;text-decoration:none;font-size:13px;font-weight:600;">Instagram</a>
+    <a href="${getCommonTemplateData().tiktok_url}" style="margin:0 8px;color:#1a1a2e;text-decoration:none;font-size:13px;font-weight:600;">TikTok</a>
+    <a href="${getCommonTemplateData().youtube_url}" style="margin:0 8px;color:#1a1a2e;text-decoration:none;font-size:13px;font-weight:600;">YouTube</a>
+    <a href="${getCommonTemplateData().facebook_url}" style="margin:0 8px;color:#1a1a2e;text-decoration:none;font-size:13px;font-weight:600;">Facebook</a>
+    <a href="${getCommonTemplateData().x_url}" style="margin:0 8px;color:#1a1a2e;text-decoration:none;font-size:13px;font-weight:600;">X</a>
   </div>
   <p style="text-align:center;color:#9CA3AF;font-size:13px;margin-top:16px;">&copy; ${new Date().getFullYear()} Lime Productions. All rights reserved.</p>
 </div>`;

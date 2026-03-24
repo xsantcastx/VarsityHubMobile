@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { validateContent } from '../lib/contentFilter.js';
-import { sendEventApprovedEmail, sendEventCanceledEmail, sendEventRsvpConfirmedEmail, sendEventSubmissionReceivedEmail, sendEventUpdatedEmail } from '../lib/email.js';
+import { sendEventApprovedEmail, sendEventCanceledEmail, sendEventDeniedEmail, sendEventRsvpConfirmedEmail, sendEventSubmissionReceivedEmail, sendEventUpdatedEmail } from '../lib/email.js';
 import { cancelGameReminders, scheduleGameReminders, sendPushNotification } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
@@ -837,10 +837,10 @@ eventsRouter.put('/:id/reject', requireVerified as any, requireOnboarded as any,
       approved_at: null,
     },
     include: {
-      creator: { select: { id: true, display_name: true } }
+      creator: { select: { id: true, display_name: true, email: true } }
     }
   });
-  
+
   // Send notification to event creator
   if (updated.creator_id) {
     const reasonText = reason ? ` Reason: ${reason}` : '';
@@ -856,6 +856,16 @@ eventsRouter.put('/:id/reject', requireVerified as any, requireOnboarded as any,
         event_id_param: eventId,
       }
     ).catch(err => console.warn('[events] Failed to send rejection notification:', err));
+
+    // Send denial email to event creator
+    if ((updated.creator as any)?.email) {
+      sendEventDeniedEmail({
+        to: (updated.creator as any).email,
+        recipientName: (updated.creator as any).display_name || 'User',
+        eventTitle: updated.title,
+        reason: reason || undefined,
+      }).catch(err => console.warn('[events] Failed to send denial email:', err));
+    }
   }
   
   return res.json({
