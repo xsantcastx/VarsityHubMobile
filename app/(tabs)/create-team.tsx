@@ -8,7 +8,7 @@ import { Stack, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
 import { usePaymentSheet } from '@stripe/stripe-react-native';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Linking, Modal, Platform, Pressable, ScrollView as RNScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Keyboard, Linking, Modal, Platform, Pressable, ScrollView as RNScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Organization, Subscriptions, Team, User } from '@/api/entities';
@@ -891,7 +891,7 @@ export default function CreateTeamScreen() {
                       borderColor: teamColor === color.value ? Colors[colorScheme].text : 'transparent',
                     }
                   ]}
-                  onPress={() => setTeamColor(color.value)}
+                  onPress={() => { Keyboard.dismiss(); setTeamColor(color.value); }}
                   accessibilityRole="button"
                   accessibilityLabel={`${color.name} color`}
                   accessibilityState={{ selected: teamColor === color.value }}
@@ -914,6 +914,7 @@ export default function CreateTeamScreen() {
             <Text style={[styles.fieldLabel, { color: Colors[colorScheme].text }]}>School / Organization</Text>
             <Pressable
               onPress={() => {
+                Keyboard.dismiss();
                 setOrgModalSearch('');
                 setOrgSearchResults([]);
                 setShowOrgPicker(true);

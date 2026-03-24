@@ -721,6 +721,9 @@ export async function sendEventSubmissionReceivedEmail(params: any): Promise<boo
   const eventTitle = params.eventTitle || params.eventName || 'your event';
   const hours = params.reviewTimelineHours || 24;
   const html = `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;">
+    <div style="text-align:center;margin-bottom:24px;">
+      <img src="${getCommonTemplateData().logo_url}" alt="VarsityHub" style="height:48px;" />
+    </div>
     <h2 style="color:#1a1a2e;">Event Submitted</h2>
     <p>Hi ${name},</p>
     <p>We've received your event submission for <strong>"${eventTitle}"</strong> and our team will review it within ${hours} hours.</p>

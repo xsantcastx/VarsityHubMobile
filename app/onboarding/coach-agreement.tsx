@@ -7,10 +7,10 @@ import { Colors } from '@/constants/Colors';
 import { User } from '@/api/entities';
 
 const AGREEMENT_POINTS = [
-  'No broadcast footage or copyrighted content.',
-  'Athlete content may involve NIL (Name, Image, Likeness) rights.',
-  'You are responsible for your institution\'s athletic and media policies.',
-  'You will follow VarsityHub Terms of Service and Community Guidelines.',
+  'No broadcast footage or copyrighted content. All uploads must be original.',
+  'Athlete content may involve NIL rights. Follow your school\'s media policies.',
+  'You are responsible for your team\'s compliance with school and conference policies.',
+  'You agree to VarsityHub\'s Terms of Service and Community Guidelines.',
 ];
 
 export default function CoachAgreementScreen() {

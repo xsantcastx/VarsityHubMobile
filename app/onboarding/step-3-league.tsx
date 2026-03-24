@@ -607,7 +607,7 @@ export default function Step3League() {
                 styles.selectField,
                 { borderColor: isDark ? '#374151' : '#E2E8F0', backgroundColor: isDark ? '#1F2937' : '#F9FAFB' }
               ]}
-              onPress={() => setShowTypePicker(true)}
+              onPress={() => { Keyboard.dismiss(); setShowTypePicker(true); }}
               accessibilityRole="button"
               accessibilityLabel="Select organization type"
             >
@@ -744,7 +744,7 @@ export default function Step3League() {
                           styles.selectField,
                           { borderColor: isDark ? '#374151' : '#E2E8F0', backgroundColor: isDark ? '#1F2937' : '#F9FAFB', marginBottom: 8 }
                         ]}
-                        onPress={() => setShowOrgDropdown((v) => !v)}
+                        onPress={() => { Keyboard.dismiss(); setShowOrgDropdown((v) => !v); }}
                         accessibilityRole="button"
                         accessibilityLabel="Select organization to join"
                       >
