@@ -514,11 +514,18 @@ gamesRouter.post('/', requireVerified as any, requireOnboarded as any, gameCreat
       game.venue_place_id
     );
     
+    // Warn if location string is present but no coordinates were resolved
+    const warnings: string[] = [];
+    if (game.location && game.latitude == null && game.longitude == null) {
+      warnings.push('No coordinates resolved for location — geofencing will be disabled for this event');
+    }
+
     const response = {
       ...game,
       event_id: event.id,
       banner_url: game.banner_url,
       venue_maps_link: venueMapsLink,
+      ...(warnings.length > 0 ? { warnings } : {}),
       // Include team info with linking capability
       home_team: game.homeTeam ? {
         id: game.homeTeam.id,
@@ -534,7 +541,7 @@ gamesRouter.post('/', requireVerified as any, requireOnboarded as any, gameCreat
         profile_link: null // No link available
       } : null)
     };
-    
+
     res.status(201).json(response);
   } catch (error) {
     console.error('Error creating game:', error);

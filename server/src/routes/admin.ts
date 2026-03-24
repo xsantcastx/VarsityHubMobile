@@ -43,7 +43,7 @@ if (WIPE_TOKEN) {
       });
     } catch (err) {
       console.error('[admin] wipe-database error:', err);
-      return res.status(500).json({ error: 'Wipe failed', details: String(err) });
+      return res.status(500).json({ error: 'Wipe failed' });
     }
   });
 }
@@ -64,7 +64,8 @@ adminRouter.get('/dashboard', requireVerified as any, requireAdminMiddleware as 
       totalPosts,
       totalMessages,
       recentActivity,
-      pendingLeagues
+      pendingLeagues,
+      eventsWithoutCoordinates
     ] = await Promise.all([
       // Total users
       prisma.user.count(),
@@ -111,7 +112,16 @@ adminRouter.get('/dashboard', requireVerified as any, requireAdminMiddleware as 
           leagueOwner: { select: { id: true, display_name: true, email: true } },
           _count: { select: { teams: true, memberships: true } },
         },
-      }).catch(() => [])
+      }).catch(() => []),
+
+      // Events/games with a location string but no lat/lng coordinates
+      prisma.game.count({
+        where: {
+          location: { not: null },
+          latitude: null,
+          longitude: null,
+        },
+      }).catch(() => 0)
     ]);
 
     return res.json({
@@ -125,7 +135,8 @@ adminRouter.get('/dashboard', requireVerified as any, requireAdminMiddleware as 
       pendingLeagues: pendingLeagues || [],
       totalPosts,
       totalMessages,
-      recentActivity: recentActivity || []
+      recentActivity: recentActivity || [],
+      eventsWithoutCoordinates: eventsWithoutCoordinates || 0
     });
   } catch (error) {
     console.error('[admin] Error fetching dashboard data:', error);
