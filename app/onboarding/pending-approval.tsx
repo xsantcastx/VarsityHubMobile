@@ -13,7 +13,7 @@ export default function PendingApproval() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
-  const { signOut, markOnboardingCompleteLocally, checkAuth } = useAuth();
+  const { signOut, markOnboardingCompleteLocally, checkAuth, registerPushToken } = useAuth();
   const { state: ob } = useOnboarding();
   const params = useLocalSearchParams<{ leagueName?: string; ownerName?: string }>();
   const leagueName = params.leagueName || 'the league';
@@ -61,6 +61,7 @@ export default function PendingApproval() {
           });
           await markOnboardingCompleteLocally();
           await checkAuth();
+          registerPushToken().catch(() => {});
           completed = true;
         } catch (err) {
           if (__DEV__) console.warn('[pending-approval] Failed to complete onboarding:', err);

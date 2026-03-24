@@ -518,10 +518,11 @@ export async function sendAdRejectedEmail(params: {
   businessName?: string;
   reason?: string;
 }): Promise<boolean> {
-  return sendTemplateEmail(
+  const subject = 'Your Ad Needs Changes — VarsityHub';
+  const sent = await sendTemplateEmail(
     TEMPLATE_IDS.AD_REJECTED,
     params.to,
-    'Your Ad Needs Changes — VarsityHub',
+    subject,
     {
       ...getCommonTemplateData(),
       business_name: params.businessName || 'your business',
@@ -531,6 +532,33 @@ export async function sendAdRejectedEmail(params: {
     },
     `Ad rejected email sent to ${params.to}`
   );
+  if (sent) return true;
+
+  // HTML fallback when template is not configured
+  const reasonText = params.reason ? `<p style="color:#374151;"><strong>Reason:</strong> ${params.reason}</p>` : '';
+  const htmlBody = `
+<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+  <div style="text-align:center;margin-bottom:24px;">
+    <img src="${getCommonTemplateData().logo_url}" alt="VarsityHub" style="height:48px;" />
+  </div>
+  <h2 style="color:#DC2626;text-align:center;">Ad Needs Changes</h2>
+  <p style="text-align:center;color:#374151;font-size:16px;">
+    Your ad${params.businessName ? ` for <strong>${params.businessName}</strong>` : ''} was not approved.
+  </p>
+  ${reasonText}
+  <p style="text-align:center;color:#374151;">Please review our ad guidelines and resubmit. Contact <a href="mailto:${CUSTOMER_SERVICE_EMAIL}">${CUSTOMER_SERVICE_EMAIL}</a> if you have questions.</p>
+  <div style="text-align:center;margin-top:24px;">
+    <a href="${APP_BASE_URL}" style="display:inline-block;background:#1B3A6B;color:#fff;padding:12px 32px;border-radius:8px;text-decoration:none;font-weight:600;">Open VarsityHub</a>
+  </div>
+  <p style="text-align:center;color:#9CA3AF;font-size:13px;margin-top:24px;">&copy; ${new Date().getFullYear()} Lime Productions. All rights reserved.</p>
+</div>`;
+
+  return sendEmail({
+    to: params.to,
+    subject,
+    text: `Your ad${params.businessName ? ` for ${params.businessName}` : ''} was not approved. ${params.reason || 'Please review our ad guidelines and resubmit.'}`,
+    html: htmlBody,
+  });
 }
 
 export async function sendAdReservationEmail(_params: any): Promise<boolean> {
@@ -1781,10 +1809,11 @@ export async function sendLeagueRejectedEmail(params: {
   leagueName: string;
   reason?: string;
 }): Promise<boolean> {
-  return sendTemplateEmail(
+  const subject = `League "${params.leagueName}" — not approved`;
+  const sent = await sendTemplateEmail(
     TEMPLATE_IDS.ORG_DENIAL,
     params.to,
-    `League "${params.leagueName}" — not approved`,
+    subject,
     {
       ...getCommonTemplateData(),
       org_name: params.leagueName,
@@ -1794,6 +1823,30 @@ export async function sendLeagueRejectedEmail(params: {
     },
     `League rejected email sent to ${params.to}`
   );
+  if (sent) return true;
+
+  // HTML fallback when template is not configured
+  const reasonText = params.reason ? `<p style="color:#374151;"><strong>Reason:</strong> ${params.reason}</p>` : '';
+  const htmlBody = `
+<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+  <div style="text-align:center;margin-bottom:24px;">
+    <img src="${getCommonTemplateData().logo_url}" alt="VarsityHub" style="height:48px;" />
+  </div>
+  <h2 style="color:#DC2626;text-align:center;">League Not Approved</h2>
+  <p style="text-align:center;color:#374151;font-size:16px;">
+    Hi ${params.ownerName}, your league <strong>${params.leagueName}</strong> was not approved on VarsityHub.
+  </p>
+  ${reasonText}
+  <p style="text-align:center;color:#374151;">If you believe this was a mistake, contact <a href="mailto:${CUSTOMER_SERVICE_EMAIL}">${CUSTOMER_SERVICE_EMAIL}</a>.</p>
+  <p style="text-align:center;color:#9CA3AF;font-size:13px;margin-top:24px;">&copy; ${new Date().getFullYear()} Lime Productions. All rights reserved.</p>
+</div>`;
+
+  return sendEmail({
+    to: params.to,
+    subject,
+    text: `Hi ${params.ownerName}, your league ${params.leagueName} was not approved on VarsityHub. ${params.reason || ''}`,
+    html: htmlBody,
+  });
 }
 
 /**

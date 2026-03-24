@@ -139,6 +139,12 @@ export default function NotificationsScreen() {
       ? `Your organization${item.meta?.organization_name ? ` "${item.meta.organization_name}"` : ''} has been approved!`
       : item.type === 'JOIN_REQUEST_APPROVED'
       ? `Your request to join${item.meta?.organization_name ? ` "${item.meta.organization_name}"` : ''} was approved!`
+      : item.type === 'EVENT_APPROVED'
+      ? `Your event${item.meta?.event_title ? ` "${item.meta.event_title}"` : ''} has been approved!`
+      : item.type === 'EVENT_REJECTED'
+      ? `Your event${item.meta?.event_title ? ` "${item.meta.event_title}"` : ''} was not approved.${item.meta?.reason ? ` ${item.meta.reason}` : ''}`
+      : item.type === 'COACH_REJECTED'
+      ? `Your application to join ${item.meta?.organization_name || 'the league'} was not approved.${item.meta?.reason ? ` ${item.meta.reason}` : ''}`
       : 'Notification';
     const onPress = () => {
       if ((item.type === 'FOLLOW' || item.type === 'FOLLOW_REQUEST') && item.actor?.id) {
@@ -165,6 +171,10 @@ export default function NotificationsScreen() {
       } else if (item.type === 'ORG_APPROVED') {
         router.push('/(tabs)' as any);
       } else if (item.type === 'JOIN_REQUEST_APPROVED') {
+        router.push('/(tabs)' as any);
+      } else if ((item.type === 'EVENT_APPROVED' || item.type === 'EVENT_REJECTED') && item.meta?.event_id) {
+        router.push(`/event-detail?id=${encodeURIComponent(item.meta.event_id)}` as any);
+      } else if (item.type === 'COACH_REJECTED') {
         router.push('/(tabs)' as any);
       }
       // Mark read optimistically

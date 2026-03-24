@@ -1810,6 +1810,30 @@ organizationsRouter.post('/:id/coaches/:userId/reject', requireAuth as any, requ
       }).catch(() => {});
     }
 
+    // Push notification to rejected coach (non-blocking)
+    sendPushNotification(
+      coachId,
+      'Application Update',
+      `Your application to join ${org?.name || 'the league'} was not approved.${reason ? ` Reason: ${reason}` : ''}`,
+      { type: 'coach_rejected', screen: 'profile', organization_id: orgId },
+    ).catch((err) => {
+      console.warn('[orgs] coach rejection push failed:', (err as any)?.message || err);
+    });
+
+    // Create in-app notification for coach rejection
+    try {
+      await prisma.notification.create({
+        data: {
+          user_id: coachId,
+          actor_id: req.user!.id,
+          type: 'COACH_REJECTED',
+          meta: { organization_id: orgId, organization_name: org?.name || 'the league', reason: reason || null },
+        },
+      });
+    } catch (err) {
+      console.error('[orgs] FAILED to create coach rejected in-app notification:', (err as any)?.message || err);
+    }
+
     return res.json({ message: 'Coach request rejected', coach_id: coachId });
   } catch (err) {
     console.error('[organizations] POST /:id/coaches/:userId/reject error:', err);

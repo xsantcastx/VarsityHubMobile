@@ -901,7 +901,6 @@ authRouter.get('/me', asyncHandler(async (req: AuthedRequest, res) => {
   const defaults = {
     notifications: { game_event_reminders: false, team_updates: false, comments_upvotes: false, follows_notifications: true, messages_notifications: true },
     is_parent: false,
-    zip_code: null,
     // Admin accounts go through normal onboarding like everyone else
   };
   // CRITICAL: Admin defaults must override DB values (second arg overrides first in mergePreferences)
@@ -1162,7 +1161,6 @@ authRouter.patch('/me/preferences', asyncHandler(async (req: AuthedRequest, res)
   const defaults = {
     notifications: { game_event_reminders: false, team_updates: false, comments_upvotes: false, follows_notifications: true, messages_notifications: true },
     is_parent: false,
-    zip_code: null,
     plan: null,
     role: 'fan',
     sports_interests: [],

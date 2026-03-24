@@ -44,7 +44,7 @@ export default function SignInScreen() {
   const [error, setError] = useState<string | null>(null);
   const { signInWithGoogle, loading: googleLoading, ready: googleReady } = useGoogleAuth();
   const { signInWithApple, loading: appleLoading } = useAppleAuth();
-  const { checkAuth } = useAuth();
+  const { checkAuth, registerPushToken } = useAuth();
 
   const onSubmit = async () => {
     if (loading) return;
@@ -86,6 +86,10 @@ export default function SignInScreen() {
       // Otherwise, refresh auth state - AuthProvider will handle routing
       try {
         await checkAuth();
+        // Register push token after successful login (non-blocking)
+        registerPushToken().catch((err: any) => {
+          captureException(err, { tags: { context: 'push-token-register-email-login' } });
+        });
       } catch (authError) {
         // Token is saved, let AuthProvider handle routing
         // Don't show error - token is valid, routing will happen
@@ -150,6 +154,10 @@ export default function SignInScreen() {
       // Call checkAuth to set user state; AuthProvider will handle routing
       try {
         await checkAuth();
+        // Register push token after successful login (non-blocking)
+        registerPushToken().catch((err: any) => {
+          captureException(err, { tags: { context: 'push-token-register-google-login' } });
+        });
       } catch (authError: any) {
         if (__DEV__) console.warn('[sign-in] checkAuth after Google login failed:', authError?.message);
         setError('Sign-in succeeded but we could not load your profile. Please try again.');
@@ -203,6 +211,10 @@ export default function SignInScreen() {
       // Call checkAuth to set user state; AuthProvider will handle routing
       try {
         await checkAuth();
+        // Register push token after successful login (non-blocking)
+        registerPushToken().catch((err: any) => {
+          captureException(err, { tags: { context: 'push-token-register-apple-login' } });
+        });
       } catch (authError: any) {
         if (__DEV__) console.warn('[sign-in] checkAuth after Apple login failed:', authError?.message);
         setError('Sign-in succeeded but we could not load your profile. Please try again.');

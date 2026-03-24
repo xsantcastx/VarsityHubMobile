@@ -83,6 +83,11 @@ export default function EditTeamScreen() {
         const arr = Array.isArray(membersList) ? membersList : (membersList?.members || []);
         setMembers(arr);
         const myMembership = arr.find((m: any) => m.user_id === currentUser?.id || m.user?.id === currentUser?.id);
+        if (!myMembership || !['owner', 'manager', 'coach'].includes(String(myMembership.role || '').toLowerCase())) {
+          Alert.alert('Access Denied', 'You must be a team owner, manager, or coach to edit this team.');
+          router.back();
+          return;
+        }
         setIsOwner(myMembership?.role === 'owner');
       } catch (err) {
         if (__DEV__) console.error('[EditTeam] Failed to load members:', err);

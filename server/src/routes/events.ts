@@ -734,6 +734,15 @@ eventsRouter.put('/:id/approve', requireVerified as any, requireOnboarded as any
       }
     ).catch(err => console.warn('[events] Failed to send approval notification:', err));
 
+    // Create in-app notification for event approval
+    try {
+      await prisma.notification.create({
+        data: { user_id: updated.creator_id, type: 'EVENT_APPROVED', meta: { event_id: eventId, event_title: updated.title } },
+      });
+    } catch (err) {
+      console.error('[events] FAILED to create event approved in-app notification:', (err as any)?.message || err);
+    }
+
     // Send approval email via dynamic template
     try {
       const creator = await prisma.user.findUnique({ where: { id: updated.creator_id }, select: { email: true, display_name: true } });
@@ -856,6 +865,15 @@ eventsRouter.put('/:id/reject', requireVerified as any, requireOnboarded as any,
         event_id_param: eventId,
       }
     ).catch(err => console.warn('[events] Failed to send rejection notification:', err));
+
+    // Create in-app notification for event rejection
+    try {
+      await prisma.notification.create({
+        data: { user_id: updated.creator_id, type: 'EVENT_REJECTED', meta: { event_id: eventId, event_title: updated.title, reason: reason || null } },
+      });
+    } catch (err) {
+      console.error('[events] FAILED to create event rejected in-app notification:', (err as any)?.message || err);
+    }
 
     // Send denial email to event creator
     if ((updated.creator as any)?.email) {

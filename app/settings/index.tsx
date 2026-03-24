@@ -598,7 +598,7 @@ export default function SettingsScreen() {
                     {/* Copyright Footer */}
                     <View style={{ paddingHorizontal: 16, paddingVertical: 24, alignItems: 'center' }}>
                       <Text style={{ fontSize: 12, color: Colors[colorScheme ?? 'light'].mutedText, textAlign: 'center' }}>
-                        © 2026 LIME PRODUCTIONS. All rights reserved.
+                        © 2025 LIME PRODUCTIONS. All rights reserved.
                       </Text>
                     </View>
                     </ScrollView>

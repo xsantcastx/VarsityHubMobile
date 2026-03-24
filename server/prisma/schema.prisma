@@ -697,6 +697,9 @@ enum NotificationType {
   AD_REJECTED
   ORG_APPROVED
   JOIN_REQUEST_APPROVED
+  EVENT_APPROVED
+  EVENT_REJECTED
+  COACH_REJECTED
 }
 
 model Notification {

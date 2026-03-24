@@ -86,7 +86,7 @@ function SportBallRow() {
 export default function Step2Basic() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
-  const { markOnboardingCompleteLocally } = useAuth();
+  const { markOnboardingCompleteLocally, registerPushToken } = useAuth();
   const { state: ob, setState: setOB, setProgress, dispatch, canNavigate } = useOnboarding();
   const [username, setUsername] = useState('');
   const [affiliation, setAffiliation] = useState<Affiliation>('none');
@@ -365,18 +365,23 @@ export default function Step2Basic() {
         // Request push + location permissions (non-blocking)
         await requestPermissions();
 
+        // Register push token after onboarding completes (non-blocking)
+        registerPushToken().catch(() => {});
+
         dispatch({ type: 'SAVE_SUCCESS', data: updatedDataWithRole });
         router.replace('/(tabs)' as any);
       }
     } catch (e: any) {
-      if (__DEV__) console.error('[step-2-basic] Failed to save:', e);
+      if (__DEV__) console.error('[step-2-basic] Failed to save:', e, 'data:', e?.data);
       dispatch({ type: 'SAVE_FAIL', error: e });
-      let errorMessage = e?.message || e?.data?.error || 'Please try again.';
-      // Surface Zod validation details if available (server may use 'issues' or 'details')
-      const zodIssues = e?.data?.issues || (e?.data?.details?.issues ? e.data.details.issues : null);
+      // Surface the actual server error: check e.data (our http client), e.response?.data (axios-style)
+      const serverData = e?.data || e?.response?.data;
+      let errorMessage = serverData?.error || e?.message || 'Please try again.';
+      // Surface Zod validation details if available
+      const zodIssues = serverData?.issues || serverData?.details?.issues || null;
       if (zodIssues && Array.isArray(zodIssues)) {
         const details = zodIssues.map((i: any) => `${i.path?.join?.('.') || i.path}: ${i.message}`).join('\n');
-        errorMessage = details || errorMessage;
+        if (details) errorMessage = details;
       }
       Alert.alert('Failed to save', errorMessage, [
         { text: 'OK', style: 'default' }

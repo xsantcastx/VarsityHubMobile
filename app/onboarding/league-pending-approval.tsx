@@ -13,7 +13,7 @@ import { captureException } from '@/utils/sentry';
 
 export default function LeaguePendingApproval() {
   const router = useRouter();
-  const { signOut, markOnboardingCompleteLocally, checkAuth } = useAuth();
+  const { signOut, markOnboardingCompleteLocally, checkAuth, registerPushToken } = useAuth();
   const { state: ob } = useOnboarding();
   const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
@@ -68,6 +68,7 @@ export default function LeaguePendingApproval() {
           });
           await markOnboardingCompleteLocally();
           await checkAuth();
+          registerPushToken().catch(() => {});
           completed = true;
         } catch (err) {
           if (__DEV__) console.warn('[league-pending-approval] Failed to complete onboarding:', err);
