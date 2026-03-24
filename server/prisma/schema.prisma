@@ -399,6 +399,7 @@ model Event {
   @@index([game_id])
   @@index([latitude, longitude])
   @@index([creator_id])
+  @@index([creator_id, created_at])
   @@index([approval_status])
   @@index([event_type])
   @@index([status])
@@ -855,6 +856,7 @@ model OrganizationMembership {
 
   @@unique([organization_id, user_id])
   @@index([organization_id, created_at])
+  @@index([user_id])
 }
 
 model OrganizationInvite {

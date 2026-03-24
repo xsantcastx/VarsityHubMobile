@@ -10,7 +10,7 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { optimizeImageUrl } from '@/utils/imageUrl';
@@ -24,7 +24,7 @@ type PostCardProps = {
   onUpdated?: (updatedPost: any) => void; // callback when post is updated
 };
 
-export default function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated }: PostCardProps) {
+function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated }: PostCardProps) {
   // Determine badge type and position
   // Example: post.rankingType: 'trending' | 'recent' | 'top', post.rank: number
   const rankingType = post.rankingType || null; // e.g., 'trending', 'recent', 'top'
@@ -245,7 +245,7 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
           >
             <View style={styles.authorAvatarWrap}>
               {author?.avatar_url ? (
-                <Image source={{ uri: String(author.avatar_url) }} style={styles.authorAvatar} contentFit="cover" />
+                <Image source={{ uri: optimizeImageUrl(String(author.avatar_url), 80) }} style={styles.authorAvatar} contentFit="cover" />
               ) : (
                 <View style={[styles.authorAvatar, styles.avatarFallback]}>
                   <Text style={styles.avatarFallbackText}>
@@ -558,3 +558,5 @@ const styles = StyleSheet.create({
   // Report modal styles
   reportTitle: { fontSize: 16, fontWeight: '700', paddingHorizontal: 16, paddingVertical: 12 },
 });
+
+export default React.memo(PostCard);

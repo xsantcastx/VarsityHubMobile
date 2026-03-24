@@ -7,7 +7,7 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import PollCard from './PollCard';
 import { showErrorToast } from './ErrorToast';
@@ -19,7 +19,7 @@ type MasonryPostCardProps = {
   onUpdated?: (updatedPost: any) => void;
 };
 
-export default function MasonryPostCard({ post, onPress, onDeleted: _onDeleted, onUpdated: _onUpdated }: MasonryPostCardProps) {
+function MasonryPostCard({ post, onPress, onDeleted: _onDeleted, onUpdated: _onUpdated }: MasonryPostCardProps) {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const [bookmarked, setBookmarked] = useState<boolean>(!!post.has_bookmarked);
@@ -314,3 +314,5 @@ const styles = StyleSheet.create({
     padding: 4,
   },
 });
+
+export default React.memo(MasonryPostCard);
