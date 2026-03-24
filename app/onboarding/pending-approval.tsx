@@ -207,9 +207,9 @@ export default function PendingApproval() {
           <>
             <Pressable
               style={[styles.primaryButton, { backgroundColor: '#16A34A', marginTop: 24 }]}
-              onPress={() => router.replace('/(tabs)' as any)}
+              onPress={() => router.replace('/(tabs)/create-team' as any)}
             >
-              <Text style={styles.primaryButtonText}>Continue to VarsityHub</Text>
+              <Text style={styles.primaryButtonText}>Create Your First Team</Text>
             </Pressable>
             {completionError ? (
               <>

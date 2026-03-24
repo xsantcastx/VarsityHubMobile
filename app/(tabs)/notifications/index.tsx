@@ -159,7 +159,7 @@ export default function NotificationsScreen() {
       } else if (item.type === 'TEAM_INVITE' && item.meta?.coach_request) {
         router.push('/approvals' as any);
       } else if (item.type === 'TEAM_INVITE' && item.meta?.coach_approved) {
-        router.push('/(tabs)' as any);
+        router.push('/(tabs)/create-team' as any);
       } else if (item.type === 'TEAM_INVITE') {
         router.push('/team-invites');
       } else if (item.type === 'GAME_REMINDER' && (item.event?.id || item.meta?.event_id)) {
@@ -169,9 +169,9 @@ export default function NotificationsScreen() {
       } else if (item.type === 'AD_REJECTED' && item.meta?.ad_id) {
         router.push(`/ad-calendar?adId=${encodeURIComponent(item.meta.ad_id)}` as any);
       } else if (item.type === 'ORG_APPROVED') {
-        router.push('/(tabs)' as any);
+        router.push('/(tabs)/create-team' as any);
       } else if (item.type === 'JOIN_REQUEST_APPROVED') {
-        router.push('/(tabs)' as any);
+        router.push('/(tabs)/create-team' as any);
       } else if ((item.type === 'EVENT_APPROVED' || item.type === 'EVENT_REJECTED') && item.meta?.event_id) {
         router.push(`/event-detail?id=${encodeURIComponent(item.meta.event_id)}` as any);
       } else if (item.type === 'COACH_REJECTED') {
@@ -197,8 +197,10 @@ export default function NotificationsScreen() {
           <View style={[S.avatar, S.avatarFallback, { backgroundColor: theme.border }]}>
             <MaterialIcons name="person" size={20} color={theme.mutedText} />
           </View>
-          {/* Overlay actual image on top — if it fails to load, fallback remains visible */}
-          {item.actor?.avatar_url ? (
+          {/* System notifications (no sender) show VarsityHub logo */}
+          {!item.actor && ['ORG_APPROVED', 'AD_APPROVED', 'AD_REJECTED', 'EVENT_APPROVED', 'EVENT_REJECTED', 'COACH_REJECTED', 'JOIN_REQUEST_APPROVED'].includes(item.type) ? (
+            <Image source={{ uri: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765997882/365220-200_mvbdz7.png' }} style={[S.avatar, S.avatarOverlay]} contentFit="cover" accessibilityLabel="VarsityHub" />
+          ) : item.actor?.avatar_url ? (
             <Image source={{ uri: item.actor.avatar_url }} style={[S.avatar, S.avatarOverlay]} contentFit="cover" accessibilityLabel={`${actorName} avatar`} />
           ) : null}
         </View>
