@@ -23,6 +23,7 @@ export default function AdminAdsScreen() {
   const [bulkMode, setBulkMode] = useState(false);
   const [selectedAds, setSelectedAds] = useState<Set<string>>(new Set());
   const [updating, setUpdating] = useState(false);
+  const [reviewingAdId, setReviewingAdId] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<'all' | AdStatus>('all');
 
   const load = useCallback(async () => {
@@ -268,7 +269,8 @@ export default function AdminAdsScreen() {
               {item.status === 'pending' && (
                 <>
                   <Pressable
-                    style={[styles.btn, { backgroundColor: '#22c55e', flex: 1 }]}
+                    style={[styles.btn, { backgroundColor: '#22c55e', flex: 1, opacity: reviewingAdId === item.id ? 0.6 : 1 }]}
+                    disabled={reviewingAdId === item.id}
                     onPress={() => {
                       Alert.prompt(
                         'Approve Ad',
@@ -278,12 +280,15 @@ export default function AdminAdsScreen() {
                           {
                             text: 'Approve',
                             onPress: async (note?: string) => {
+                              setReviewingAdId(item.id);
                               try {
                                 await AdsApi.review(item.id, 'approve', note?.trim() || undefined);
                                 Alert.alert('Success', 'Ad approved');
                                 await load();
                               } catch (e: any) {
                                 Alert.alert('Error', e?.message || 'Failed to approve');
+                              } finally {
+                                setReviewingAdId(null);
                               }
                             },
                           },
@@ -294,11 +299,12 @@ export default function AdminAdsScreen() {
                       );
                     }}
                   >
-                    <Ionicons name="checkmark-circle" size={16} color="#fff" />
-                    <Text style={styles.btnText}>Approve</Text>
+                    {reviewingAdId === item.id ? <ActivityIndicator size={16} color="#fff" /> : <Ionicons name="checkmark-circle" size={16} color="#fff" />}
+                    <Text style={styles.btnText}>{reviewingAdId === item.id ? 'Saving...' : 'Approve'}</Text>
                   </Pressable>
                   <Pressable
-                    style={[styles.btn, { backgroundColor: '#dc2626', flex: 1 }]}
+                    style={[styles.btn, { backgroundColor: '#dc2626', flex: 1, opacity: reviewingAdId === item.id ? 0.6 : 1 }]}
+                    disabled={reviewingAdId === item.id}
                     onPress={() => {
                       Alert.prompt(
                         'Reject Ad',
@@ -309,12 +315,15 @@ export default function AdminAdsScreen() {
                             text: 'Reject',
                             style: 'destructive',
                             onPress: async (note?: string) => {
+                              setReviewingAdId(item.id);
                               try {
                                 await AdsApi.review(item.id, 'reject', note?.trim() || undefined);
                                 Alert.alert('Success', 'Ad rejected');
                                 await load();
                               } catch (e: any) {
                                 Alert.alert('Error', e?.message || 'Failed to reject');
+                              } finally {
+                                setReviewingAdId(null);
                               }
                             },
                           },
