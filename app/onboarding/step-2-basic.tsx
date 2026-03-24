@@ -298,7 +298,6 @@ export default function Step2Basic() {
       // Save username (not display_name) - this is the single identifier
       try {
         await User.patchMe({ username: finalUsername });
-        await User.updatePreferences({ affiliation, dob, zip_code: zip || undefined });
       } catch (patchErr: any) {
         // Detect username conflict specifically
         const msg = patchErr?.message || patchErr?.data?.error || '';
@@ -307,6 +306,16 @@ export default function Step2Basic() {
           throw new Error('That username was just taken. Please choose a different one.');
         }
         throw patchErr;
+      }
+
+      // Save preferences separately so we get a clear error if this specific call fails
+      try {
+        const prefsPayload: Record<string, any> = { affiliation, dob };
+        if (zip) prefsPayload.zip_code = zip;
+        await User.updatePreferences(prefsPayload);
+      } catch (prefsErr: any) {
+        if (__DEV__) console.error('[step-2-basic] Preferences save failed:', JSON.stringify(prefsErr?.data || prefsErr?.message));
+        throw prefsErr;
       }
 
       const currentRole = ob.role;
@@ -363,9 +372,10 @@ export default function Step2Basic() {
       if (__DEV__) console.error('[step-2-basic] Failed to save:', e);
       dispatch({ type: 'SAVE_FAIL', error: e });
       let errorMessage = e?.message || e?.data?.error || 'Please try again.';
-      // Surface Zod validation details if available
-      if (e?.data?.issues && Array.isArray(e.data.issues)) {
-        const details = e.data.issues.map((i: any) => `${i.path?.join('.')}: ${i.message}`).join('\n');
+      // Surface Zod validation details if available (server may use 'issues' or 'details')
+      const zodIssues = e?.data?.issues || (e?.data?.details?.issues ? e.data.details.issues : null);
+      if (zodIssues && Array.isArray(zodIssues)) {
+        const details = zodIssues.map((i: any) => `${i.path?.join?.('.') || i.path}: ${i.message}`).join('\n');
         errorMessage = details || errorMessage;
       }
       Alert.alert('Failed to save', errorMessage, [

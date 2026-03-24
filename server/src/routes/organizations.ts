@@ -195,8 +195,9 @@ organizationsRouter.patch('/:id', requireAuth as any, requireOnboarded as any, a
         ...(data.org_type !== undefined && { org_type: data.org_type }),
         ...(data.location !== undefined && { location: data.location }),
         ...(data.zip_code !== undefined && { zip_code: data.zip_code }),
+        ...(data.contact_info !== undefined && { contact_info: data.contact_info }),
       },
-      select: { id: true, name: true, description: true, logo_url: true, profile_picture_url: true, background_url: true, sport: true, org_type: true, location: true, zip_code: true },
+      select: { id: true, name: true, description: true, logo_url: true, profile_picture_url: true, background_url: true, sport: true, org_type: true, location: true, zip_code: true, contact_info: true },
     });
     return res.json(updated);
   } catch (err: any) {

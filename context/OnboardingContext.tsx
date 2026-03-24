@@ -13,7 +13,7 @@ const ONBOARDING_STATE_KEY = 'onboarding_state';
 const ONBOARDING_PROGRESS_KEY = 'onboarding_progress';
 const ONBOARDING_REDUCER_STATE_KEY = 'onboarding_reducer_state';
 
-export type Affiliation = 'none' | 'university' | 'high_school' | 'club' | 'youth' | 'professional';
+export type Affiliation = 'none' | 'school' | 'independent' | 'university' | 'high_school' | 'club' | 'youth' | 'professional';
 export type Plan = 'rookie' | 'veteran' | 'legend';
 // Rookie is a plan, not a role
 export type UserRole = 'fan' | 'coach';

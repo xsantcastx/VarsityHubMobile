@@ -113,7 +113,7 @@ export default function OrganizationScreen() {
           const membership = orgData.memberships.find((m) => {
             const memberUserId = m.user?.id || m.user_id;
             if (memberUserId !== currentUser.id) return false;
-            return ['owner', 'manager', 'administrator', 'admin'].includes(String(m.role || '').toLowerCase());
+            return ['owner', 'manager'].includes(String(m.role || '').toLowerCase());
           });
           if (mounted.current) setIsOrgAdmin(!!membership);
           // Fetch pending coach count for league owners

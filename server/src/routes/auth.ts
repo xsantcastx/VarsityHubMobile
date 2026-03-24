@@ -1240,7 +1240,7 @@ authRouter.post('/me/complete-onboarding', authLimiter, requireAuth as any, requ
   const parsed = completeOnboardingSchema.safeParse(req.body);
   if (!parsed.success) {
     console.error('[Onboarding] Validation failed:', parsed.error);
-    return res.status(400).json({ error: 'Invalid payload', details: parsed.error });
+    return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues.map((i) => ({ path: i.path, message: i.message })) });
   }
   
   const data = parsed.data;

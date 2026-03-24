@@ -13,6 +13,7 @@ import { Organization } from '@/api/entities';
 import { uploadFile } from '@/api/upload';
 import { getApiBaseUrl } from '@/api/http';
 import { sanitizeText } from '@/utils/formUtils';
+import { User } from '@/api/user';
 
 const ORG_TYPES = [
   { label: 'School', value: 'school' },
@@ -51,6 +52,25 @@ export default function EditOrganizationScreen() {
     try {
       setLoading(true);
       const org: any = await Organization.get(params.id);
+
+      // Verify current user is an owner or manager before allowing edits
+      const currentUser: any = await User.me();
+      if (currentUser && org.memberships && Array.isArray(org.memberships)) {
+        const membership = org.memberships.find((m: any) => {
+          const memberUserId = m.user?.id || m.user_id;
+          return memberUserId === currentUser.id && ['owner', 'manager'].includes(String(m.role || '').toLowerCase());
+        });
+        if (!membership) {
+          Alert.alert('Error', 'Only organization admins can edit this organization.');
+          safeGoBack(router);
+          return;
+        }
+      } else {
+        Alert.alert('Error', 'Could not verify edit permissions.');
+        safeGoBack(router);
+        return;
+      }
+
       setName(org.name || '');
       // Strip auto-generated descriptions — treat them as blank
       const desc = org.description || '';

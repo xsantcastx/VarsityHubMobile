@@ -203,7 +203,7 @@ export default function LeagueScreen() {
         const role = String(membership?.role || '').toLowerCase();
         return (
           memberUserId === user.id &&
-          ['owner', 'manager', 'administrator', 'admin'].includes(role)
+          ['owner', 'manager'].includes(role)
         );
       });
     },
