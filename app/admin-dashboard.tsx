@@ -52,17 +52,17 @@ export default function AdminDashboardScreen() {
   const [leagueActionId, setLeagueActionId] = useState<string | null>(null);
 
   const handleApproveLeague = (league: PendingLeague) => {
-    Alert.alert(
+    Alert.prompt(
       'Approve League',
-      `Approve "${league.name}"? The league owner will be notified and given coach access.`,
+      `Approve "${league.name}"? Add an optional note for the league owner:`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Approve',
-          onPress: async () => {
+          onPress: async (note?: string) => {
             setLeagueActionId(league.id);
             try {
-              await Organization.approveLeague(league.id);
+              await Organization.approveLeague(league.id, note?.trim() || undefined);
               Alert.alert('Success', `"${league.name}" has been approved.`);
               void loadStats(true);
             } catch (e: any) {

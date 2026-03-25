@@ -121,10 +121,18 @@ export default function ApprovalsScreen() {
 
   // ─── Actions ──────────────────────────────────────────────────────────────
 
-  const handleApprove = async (coach: PendingCoach) => {
-    setActionLoading(coach.user.id);
-    try {
-      await Organization.approveCoach(coach.organization_id, coach.user.id);
+  const handleApprove = (coach: PendingCoach) => {
+    Alert.prompt(
+      'Approve Coach',
+      'Add an optional note for the coach:',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Approve',
+          onPress: async (note?: string) => {
+            setActionLoading(coach.user.id);
+            try {
+              await Organization.approveCoach(coach.organization_id, coach.user.id, note?.trim() || undefined);
       // Show green checkmark briefly
       setApprovedIds((prev) => new Set(prev).add(coach.user.id));
       setTimeout(() => {
@@ -137,12 +145,19 @@ export default function ApprovalsScreen() {
           });
         }
       }, 1200);
-    } catch (err: any) {
-      const msg = err?.data?.error || err?.message || 'Failed to approve coach';
-      Alert.alert('Error', msg);
-    } finally {
-      if (mountedRef.current) setActionLoading(null);
-    }
+            } catch (err: any) {
+              const msg = err?.data?.error || err?.message || 'Failed to approve coach';
+              Alert.alert('Error', msg);
+            } finally {
+              if (mountedRef.current) setActionLoading(null);
+            }
+          },
+        },
+      ],
+      'plain-text',
+      '',
+      'default'
+    );
   };
 
   const handleDeclineConfirm = async () => {
