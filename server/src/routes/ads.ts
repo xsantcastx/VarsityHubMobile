@@ -1056,11 +1056,14 @@ adsRouter.post('/:id([a-z0-9]{15,50})/reject', requireAuthUnlessToken as any, ha
 adsRouter.post('/:id([a-z0-9]{15,50})/review', requireAdmin as any, async (req: AuthedRequest, res) => {
   try {
     const id = String(req.params.id);
-    const action = req.body?.action;
-    if (action !== 'approve' && action !== 'reject') {
-      return res.status(400).json({ error: 'action must be "approve" or "reject"' });
-    }
-    const note = typeof req.body?.note === 'string' ? req.body.note.trim() : null;
+    const reviewSchema = z.object({
+      action: z.enum(['approve', 'reject']),
+      note: z.string().max(2000).optional(),
+    });
+    const parsed = reviewSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
+    const { action, note: rawNote } = parsed.data;
+    const note = rawNote?.trim() || null;
 
     if (action === 'approve') {
       const result = await approveAd(id, note);

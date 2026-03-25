@@ -112,6 +112,8 @@ export default function PostDetailScreen() {
   const [editCommentText, setEditCommentText] = useState('');
   const [updatingComment, setUpdatingComment] = useState(false);
   const [replyingToComment, setReplyingToComment] = useState<{ id: string; authorName: string } | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [editContent, setEditContent] = useState('');
   const [following, setFollowing] = useState(false);
   const [saved, setSaved] = useState(false);
   const [fullscreenMedia, setFullscreenMedia] = useState(false);
@@ -599,6 +601,23 @@ export default function PostDetailScreen() {
     );
   };
 
+  const handleEditPost = async () => {
+    if (!currentPostId || !editContent.trim()) return;
+    try {
+      const updated = await PostApi.update(currentPostId, { content: sanitizeText(editContent) });
+      setPost((p: any) => ({ ...p, content: editContent.trim() }));
+      setPostsById((prev) => ({
+        ...prev,
+        [currentPostId]: { ...(prev[currentPostId] || post), content: editContent.trim() },
+      }));
+      if (updated) postCache.set(currentPostId, { ...post, content: editContent.trim() });
+      setEditing(false);
+      Alert.alert('Success', 'Post updated successfully');
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to update post');
+    }
+  };
+
   const handleEditComment = async () => {
     if (!currentPostId || !editCommentId || !editCommentText.trim()) return;
     setUpdatingComment(true);
@@ -785,9 +804,33 @@ export default function PostDetailScreen() {
           )}
           
           {/* Content */}
-          {postData.content && (
+          {editing && postData.id === currentPostId ? (
+            <View>
+              <TextInput
+                style={[styles.postText, { color: Colors[colorScheme].text, borderWidth: 1, borderColor: Colors[colorScheme].border, borderRadius: 8, padding: 10, minHeight: 80, textAlignVertical: 'top' }]}
+                value={editContent}
+                onChangeText={setEditContent}
+                multiline
+                autoFocus
+              />
+              <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 10 }}>
+                <Pressable
+                  onPress={() => setEditing(false)}
+                  style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 6, backgroundColor: Colors[colorScheme].surface }}
+                >
+                  <Text style={{ color: Colors[colorScheme].text, fontWeight: '600' }}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                  onPress={handleEditPost}
+                  style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 6, backgroundColor: Colors[colorScheme].tint }}
+                >
+                  <Text style={{ color: '#fff', fontWeight: '600' }}>Save</Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : postData.content ? (
             <Text style={[styles.postText, { color: Colors[colorScheme].text }]}>{postData.content}</Text>
-          )}
+          ) : null}
 
           {/* Game/Event Info */}
           {postData.game && (
@@ -1074,6 +1117,12 @@ export default function PostDetailScreen() {
           )}
         </View>
         <View style={styles.headerActions}>
+          {/* Show edit button for post author only */}
+          {currentUser && post.author_id === currentUser.id && (
+            <Pressable style={styles.headerActionButton} onPress={() => { setEditing(true); setEditContent(post.content || ''); }}>
+              <Ionicons name="create-outline" size={22} color={Colors[colorScheme].text} />
+            </Pressable>
+          )}
           {/* Show delete button for post author or admin */}
           {currentUser && (post.author_id === currentUser.id || currentUser.is_admin || currentUser.role === 'admin' || currentUser.role === 'super_admin') && (
             <Pressable style={styles.headerActionButton} onPress={handleDeletePost}>

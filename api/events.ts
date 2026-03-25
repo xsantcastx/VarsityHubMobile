@@ -39,6 +39,7 @@ export const Event = {
     return httpGet('/events' + (q.length ? '?' + q.join('&') : ''));
   },
   get: (id: string) => httpGet('/events/' + encodeURIComponent(id)),
+  update: (id: string, data: any) => httpPatch('/events/' + encodeURIComponent(id), data),
   cancel: (id: string) => httpPatch('/events/' + encodeURIComponent(id) + '/cancel'),
   rsvpStatus: (id: string) => httpGet(`/events/${encodeURIComponent(id)}/rsvp`),
   rsvp: (id: string, going?: boolean) => httpPost(`/events/${encodeURIComponent(id)}/rsvp`, typeof going === 'boolean' ? { going } : {}),

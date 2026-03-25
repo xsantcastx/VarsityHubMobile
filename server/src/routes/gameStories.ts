@@ -290,5 +290,36 @@ export const makeCreateStoryHandler = ({ prisma }: StoryDeps) => async (req: Aut
     }
   }
 
+  // Notify game creator about the new story (if different from poster)
+  try {
+    const game = await prisma.game.findUnique({
+      where: { id },
+      select: { id: true, title: true, created_by_id: true },
+    });
+    if (game?.created_by_id && game.created_by_id !== req.user.id) {
+      const poster = await prisma.user.findUnique({ where: { id: req.user.id }, select: { display_name: true } });
+      const posterName = poster?.display_name || 'Someone';
+
+      await prisma.notification.create({
+        data: {
+          user_id: game.created_by_id,
+          actor_id: req.user.id,
+          type: 'GAME_STORY_ADDED',
+          meta: { game_id: id, game_title: game.title, poster_name: posterName },
+        },
+      });
+
+      const { sendPushNotification } = await import('../lib/notifications.js');
+      await sendPushNotification(
+        game.created_by_id,
+        `New story on ${game.title}`,
+        `${posterName} added a story to your game`,
+        { type: 'game_story_added', game_id: id, screen: 'game-detail' }
+      );
+    }
+  } catch (notifErr) {
+    console.error('[stories] Failed to send game story notification:', notifErr);
+  }
+
   return res.status(201).json(story);
 };

@@ -369,7 +369,7 @@ authRouter.post('/refresh', authLimiter, asyncHandler(async (req, res) => {
  */
 authRouter.post('/revoke-all-tokens', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  const { count } = await prisma.refreshToken.deleteMany({ where: { user_id: req.user.id } });
+  const { count } = await prisma.refreshToken.deleteMany({ where: { user_id: req.user!.id } });
   return res.json({ ok: true, revoked: count });
 }));
 
@@ -819,14 +819,13 @@ const passwordChangeSchema = z.object({
   new_password: passwordRequirement,
 });
 
-authRouter.post('/password/change', authLimiter, asyncHandler(async (req: AuthedRequest, res) => {
-  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+authRouter.post('/password/change', authLimiter, requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   const parsed = passwordChangeSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
   const { current_password, new_password } = parsed.data;
   
   // Get user with password hash
-  const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+  const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
   if (!user) return res.status(404).json({ error: 'User not found' });
   
   // Verify current password
@@ -863,13 +862,12 @@ const upgradeToCoachSchema = z.object({
   plan: z.enum(['rookie', 'veteran', 'legend']),
 });
 
-authRouter.post('/upgrade-to-coach', asyncHandler(async (req: AuthedRequest, res) => {
-  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+authRouter.post('/upgrade-to-coach', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   const parsed = upgradeToCoachSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
   const { plan } = parsed.data;
 
-  const user = await prisma.user.findUnique({ where: { id: req.user.id }, select: { id: true, preferences: true } });
+  const user = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { id: true, preferences: true } });
   if (!user) return res.status(404).json({ error: 'User not found' });
 
   const currentPrefs = (user.preferences as any) || {};
@@ -911,7 +909,7 @@ authRouter.post('/upgrade-to-coach', asyncHandler(async (req: AuthedRequest, res
 authRouter.get('/me', asyncHandler(async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const user = await prisma.user.findUnique({
-    where: { id: req.user.id },
+    where: { id: req.user!.id },
     include: {
       _count: {
         select: {
@@ -963,8 +961,7 @@ const updateMeSchema = z.object({
   bio: z.string().max(300).transform((val) => val === '' ? null : val).optional().nullable(),
 });
 
-authRouter.put('/me', asyncHandler(async (req: AuthedRequest, res) => {
-  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+authRouter.put('/me', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   const body = (req.body || {}) as Record<string, unknown>;
   if (Object.prototype.hasOwnProperty.call(body, 'preferences')) {
     return res.status(400).json({
@@ -990,7 +987,7 @@ authRouter.put('/me', asyncHandler(async (req: AuthedRequest, res) => {
           { username: { equals: data.username, mode: 'insensitive' } },
           { display_name: { equals: data.username, mode: 'insensitive' } }
         ],
-        NOT: { id: req.user.id }
+        NOT: { id: req.user!.id }
       },
       select: { id: true }
     });
@@ -1009,13 +1006,12 @@ authRouter.put('/me', asyncHandler(async (req: AuthedRequest, res) => {
     }
   }
   const { preferences, ...rest } = patch;
-  const user = await prisma.user.update({ where: { id: req.user.id }, data: { ...rest, ...(preferences ? { preferences } : {}) } });
+  const user = await prisma.user.update({ where: { id: req.user!.id }, data: { ...rest, ...(preferences ? { preferences } : {}) } });
   return res.json(sanitizeUser(user));
 }));
 
 // PATCH /me (alias) to support partial profile updates (preferences use /me/preferences)
-authRouter.patch('/me', asyncHandler(async (req: AuthedRequest, res) => {
-  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+authRouter.patch('/me', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   const body = (req.body || {}) as Record<string, unknown>;
   if (Object.prototype.hasOwnProperty.call(body, 'preferences')) {
     return res.status(400).json({
@@ -1041,7 +1037,7 @@ authRouter.patch('/me', asyncHandler(async (req: AuthedRequest, res) => {
           { username: { equals: data.username, mode: 'insensitive' } },
           { display_name: { equals: data.username, mode: 'insensitive' } }
         ],
-        NOT: { id: req.user.id }
+        NOT: { id: req.user!.id }
       },
       select: { id: true }
     });
@@ -1060,7 +1056,7 @@ authRouter.patch('/me', asyncHandler(async (req: AuthedRequest, res) => {
     }
   }
   const { preferences, ...rest } = patch;
-  const user = await prisma.user.update({ where: { id: req.user.id }, data: { ...rest, ...(preferences ? { preferences } : {}) } });
+  const user = await prisma.user.update({ where: { id: req.user!.id }, data: { ...rest, ...(preferences ? { preferences } : {}) } });
   return res.json(sanitizeUser(user));
 }));
 
@@ -1111,8 +1107,7 @@ function stripProtectedKeys(obj: Record<string, unknown>): Record<string, unknow
 }
 
 // Partial update for user preferences
-authRouter.patch('/me/preferences', asyncHandler(async (req: AuthedRequest, res) => {
-  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+authRouter.patch('/me/preferences', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   const schema = z.object({
     notifications: z.object({
       game_event_reminders: z.boolean().optional(),
@@ -1165,7 +1160,7 @@ authRouter.patch('/me/preferences', asyncHandler(async (req: AuthedRequest, res)
       message: 'VarsityHub is not available for users under 13. Please have a parent or guardian contact support@varsityhub.app.',
     });
   }
-  const current = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true, email: true, approval_status: true } });
+  const current = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { preferences: true, email: true, approval_status: true } });
   const currentPrefs = current?.preferences as any || {};
 
   // SECURITY: Prevent role changes after onboarding is completed.
@@ -1203,7 +1198,7 @@ authRouter.patch('/me/preferences', asyncHandler(async (req: AuthedRequest, res)
   ) as any;
 
   const updated = await prisma.user.update({
-    where: { id: req.user.id },
+    where: { id: req.user!.id },
     data: {
       preferences: merged,
       ...(forceApprovalPending ? { approval_status: 'PENDING' } : {}),
@@ -1279,7 +1274,7 @@ authRouter.post('/me/complete-onboarding', authLimiter, requireAuth as any, requ
   }
   
   // Get current preferences FIRST to preserve role if not in payload
-  const current = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true } });
+  const current = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { preferences: true } });
   const currentPrefs = current?.preferences as any || {};
   
   // CRITICAL: Role MUST be preserved from onboarding step-1 or provided in payload
@@ -1288,7 +1283,7 @@ authRouter.post('/me/complete-onboarding', authLimiter, requireAuth as any, requ
   
   // CRITICAL: For coaches, validate required steps are completed
   // Fall back to existing DB values for retry scenarios where payload may be incomplete
-  const currentUser = await prisma.user.findUnique({ where: { id: req.user.id } });
+  const currentUser = await prisma.user.findUnique({ where: { id: req.user!.id } });
   if (finalRole === 'coach') {
     const effectiveUsername = data.username || currentUser?.username;
     const effectivePlan = data.plan || currentPrefs.plan || 'rookie';
@@ -1379,7 +1374,7 @@ authRouter.post('/me/complete-onboarding', authLimiter, requireAuth as any, requ
 
   // Update user
   const updated = await prisma.user.update({
-    where: { id: req.user.id },
+    where: { id: req.user!.id },
     data: updateData
   });
 
@@ -1390,9 +1385,8 @@ authRouter.post('/me/complete-onboarding', authLimiter, requireAuth as any, requ
 }));
 
 // Request a new email verification code (authenticated)
-authRouter.post('/verify/request', asyncHandler(async (req: AuthedRequest, res) => {
-  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+authRouter.post('/verify/request', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
+  const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
   if (!user) return res.status(404).json({ error: 'Not found' });
   if (user.email_verified) return res.json({ ok: true, already_verified: true });
   const now = Date.now();
@@ -1425,18 +1419,17 @@ authRouter.post('/verify/request', asyncHandler(async (req: AuthedRequest, res) 
 }));
 
 // Alias: /auth/verify/send
-authRouter.post('/verify/send', asyncHandler(async (req: AuthedRequest, res) => {
+authRouter.post('/verify/send', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   (authRouter as any).handle({ ...req, url: '/verify/request' }, res);
 }));
 
 // Verify code (authenticated)
-authRouter.post('/verify/confirm', verificationConfirmLimiter, asyncHandler(async (req: AuthedRequest, res) => {
-  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+authRouter.post('/verify/confirm', verificationConfirmLimiter, requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   const schema = z.object({ code: z.string().min(4).max(8) });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
   const { code } = parsed.data;
-  const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+  const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
   if (!user) return res.status(404).json({ error: 'Not found' });
   if (user.email_verified) return res.json({ ok: true, already_verified: true });
   if (!user.email_verification_code || !user.email_verification_expires) return res.status(400).json({ error: 'No verification in progress' });

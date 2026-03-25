@@ -1550,11 +1550,13 @@ postsRouter.patch('/:postId/comments/:commentId', requireAuth as any, asyncHandl
 
 // New route handler for creating a collage post
 postsRouter.post('/collage', requireVerified as any, requireOnboarded as any, asyncHandler(async (req: AuthedRequest, res) => {
-  const { title, postIds } = req.body;
-
-  if (!Array.isArray(postIds) || postIds.length === 0) {
-    return res.status(400).json({ error: 'postIds must be a non-empty array' });
-  }
+  const collageSchema = z.object({
+    title: z.string().max(200).optional(),
+    postIds: z.array(z.string().min(1)).min(1),
+  });
+  const parsed = collageSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
+  const { title, postIds } = parsed.data;
 
   const collageTitle = typeof title === 'string' ? title.trim() : 'My Collage';
   const filterResult = validateContent({ title: collageTitle });

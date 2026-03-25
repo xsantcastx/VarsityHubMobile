@@ -177,7 +177,7 @@ export default function LeaguePendingApproval() {
           {rejected
             ? `"${leagueName}" was not approved. You can try creating a new league or continue as a fan. Contact support@varsityhub.app for questions.`
             : approved
-              ? `"${leagueName}" is now live on VarsityHub! Let's finish setting up...`
+              ? `"${leagueName}" is now live on VarsityHub! View your organization page and create your first team.`
               : `VarsityHub is reviewing "${leagueName}". This usually takes less than 24 hours. You'll receive an email when your league is approved and ready.`
           }
         </Text>
@@ -241,10 +241,16 @@ export default function LeaguePendingApproval() {
         {approved && (
           <>
             <Pressable
-              style={[styles.primaryButton, { backgroundColor: '#16A34A', marginTop: 24 }]}
+              style={[styles.primaryButton, { backgroundColor: '#1B3A6B', marginTop: 24 }]}
+              onPress={() => router.replace({ pathname: '/(tabs)/organization', params: { id: orgId } } as any)}
+            >
+              <Text style={styles.primaryButtonText}>View Your Organization</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.secondaryButton, { borderColor: '#16A34A', marginBottom: 0 }]}
               onPress={() => router.replace('/(tabs)/create-team' as any)}
             >
-              <Text style={styles.primaryButtonText}>Create Your First Team</Text>
+              <Text style={[styles.secondaryButtonText, { color: '#16A34A', fontWeight: '700' }]}>Create Your First Team</Text>
             </Pressable>
             {completionError ? (
               <>

@@ -1,5 +1,7 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
+import { sendPushNotification } from '../lib/notifications.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireOnboarded } from '../middleware/requireOnboarded.js';
@@ -28,11 +30,18 @@ async function canManageTeam(req: AuthedRequest, teamId: string): Promise<boolea
 
 // POST /team-memberships { team_id, user_id, role }
 // CRITICAL: Only team owners/managers/coaches can add members to their teams
+const createMembershipSchema = z.object({
+  team_id: z.string().min(1),
+  user_id: z.string().min(1),
+  role: z.string().optional(),
+});
+
 teamMembershipsRouter.post('/', requireAuth as any, requireOnboarded as any, requirePlan('rookie') as any, async (req: AuthedRequest, res) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-    const { team_id, user_id, role } = (req.body || {}) as any;
-    if (!team_id || !user_id) return res.status(400).json({ error: 'team_id and user_id required' });
+    const parsed = createMembershipSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten().fieldErrors });
+    const { team_id, user_id, role } = parsed.data;
 
     // Verify requester is team owner/manager/coach
     const requesterMembership = await prisma.teamMembership.findFirst({
@@ -108,12 +117,19 @@ teamMembershipsRouter.post('/', requireAuth as any, requireOnboarded as any, req
 });
 
 // PATCH /team-memberships/:id { role? }
+const updateMembershipSchema = z.object({
+  role: z.string().optional(),
+  custom_position: z.string().nullable().optional(),
+});
+
 teamMembershipsRouter.patch('/:id', requireAuth as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const id = String(req.params.id || '');
-    const { role, custom_position } = (req.body || {}) as any;
     if (!id) return res.status(400).json({ error: 'membership id required' });
+    const parsed = updateMembershipSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten().fieldErrors });
+    const { role, custom_position } = parsed.data;
 
     const membership = await prisma.teamMembership.findUnique({ where: { id } });
     if (!membership) return res.status(404).json({ error: 'Membership not found' });
@@ -142,6 +158,33 @@ teamMembershipsRouter.patch('/:id', requireAuth as any, requireOnboarded as any,
       where: { id },
       data,
     });
+
+    // Notify the affected member about role change
+    if (data.role && membership.user_id !== req.user!.id) {
+      try {
+        const team = await prisma.team.findUnique({ where: { id: membership.team_id }, select: { id: true, name: true } });
+        const teamName = team?.name || 'your team';
+
+        await prisma.notification.create({
+          data: {
+            user_id: membership.user_id,
+            actor_id: req.user!.id,
+            type: 'TEAM_ROLE_CHANGED',
+            meta: { team_id: membership.team_id, team_name: teamName, new_role: data.role },
+          },
+        });
+
+        await sendPushNotification(
+          membership.user_id,
+          `Role updated on ${teamName}`,
+          `Your role has been changed to ${data.role}`,
+          { type: 'team_role_changed', team_id: membership.team_id, screen: 'team-page' }
+        );
+      } catch (notifErr) {
+        console.error('[team-memberships] Failed to send role change notification:', notifErr);
+      }
+    }
+
     return res.json(updated);
   } catch (err) {
     console.error('[team-memberships] PATCH /:id error:', err);
@@ -169,6 +212,33 @@ teamMembershipsRouter.delete('/:id', requireAuth as any, requireOnboarded as any
     }
 
     await prisma.teamMembership.delete({ where: { id } });
+
+    // Notify the removed member (only if removed by someone else, not self-leave)
+    if (!isSelf) {
+      try {
+        const team = await prisma.team.findUnique({ where: { id: membership.team_id }, select: { id: true, name: true } });
+        const teamName = team?.name || 'a team';
+
+        await prisma.notification.create({
+          data: {
+            user_id: membership.user_id,
+            actor_id: req.user!.id,
+            type: 'TEAM_MEMBER_REMOVED',
+            meta: { team_id: membership.team_id, team_name: teamName },
+          },
+        });
+
+        await sendPushNotification(
+          membership.user_id,
+          `Removed from ${teamName}`,
+          `You have been removed from ${teamName}`,
+          { type: 'team_member_removed', team_id: membership.team_id, screen: 'teams' }
+        );
+      } catch (notifErr) {
+        console.error('[team-memberships] Failed to send removal notification:', notifErr);
+      }
+    }
+
     return res.json({ ok: true });
   } catch (err) {
     console.error('[team-memberships] DELETE /:id error:', err);

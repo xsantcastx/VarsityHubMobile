@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { prisma } from '../lib/prisma.js';
@@ -109,17 +110,18 @@ groupChatsRouter.get('/:chatId/messages', requireAuth as any, async (req: Authed
 });
 
 // Send a message to a group chat
+const sendMessageSchema = z.object({
+  content: z.string().min(1, 'Message content required').max(5000, 'Message too long (max 5000 characters)'),
+});
+
 groupChatsRouter.post('/:chatId/messages', requireAuth as any, async (req: AuthedRequest, res) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
     const { chatId } = req.params;
-    const { content } = req.body;
-
-    // SECURITY: Type validation for content (must be string)
-    if (typeof content !== 'string' || !content.trim()) {
-      return res.status(400).json({ error: 'Message content required' });
-    }
+    const parsed = sendMessageSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten().fieldErrors });
+    const { content } = parsed.data;
 
     // Verify user is a member of this chat
     const membership = await prisma.groupChatMember.findFirst({
@@ -183,25 +185,19 @@ groupChatsRouter.post('/:chatId/read', requireAuth as any, async (req: AuthedReq
 });
 
 // Create a group chat (usually for a team)
+const createChatSchema = z.object({
+  name: z.string().min(1, 'Chat name required').max(100),
+  memberIds: z.array(z.string().min(1)).min(1, 'At least one member required'),
+  teamId: z.string().min(1, 'teamId is required to create a group chat'),
+});
+
 groupChatsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
-    const { name, teamId, memberIds } = req.body;
-
-    // SECURITY: Type validation for name (must be string)
-    if (typeof name !== 'string' || !name.trim()) {
-      return res.status(400).json({ error: 'Chat name required' });
-    }
-
-    if (!memberIds || !Array.isArray(memberIds) || memberIds.length === 0) {
-      return res.status(400).json({ error: 'At least one member required' });
-    }
-
-    // Security hardening: only team-bound group chats are allowed.
-    if (!teamId || typeof teamId !== 'string') {
-      return res.status(400).json({ error: 'teamId is required to create a group chat' });
-    }
+    const parsed = createChatSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten().fieldErrors });
+    const { name, teamId, memberIds } = parsed.data;
 
     // Verify requester has permission (coach/manager/owner/assistant_coach)
     const membership = await prisma.teamMembership.findFirst({

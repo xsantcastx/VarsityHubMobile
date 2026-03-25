@@ -22,6 +22,7 @@ export default function PendingApproval() {
   const [rejected, setRejected] = useState(false);
   const [checking, setChecking] = useState(false);
   const [completionError, setCompletionError] = useState<string | null>(null);
+  const [orgId, setOrgId] = useState<string | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Poll /me every 30 seconds to check approval_status
@@ -37,6 +38,8 @@ export default function PendingApproval() {
       }
       if (me?.approval_status === 'APPROVED') {
         setApproved(true);
+        const resolvedOrgId = me?.preferences?.organization_id || ob.organization_id || null;
+        if (resolvedOrgId) setOrgId(resolvedOrgId);
         if (intervalRef.current) {
           clearInterval(intervalRef.current);
           intervalRef.current = null;
@@ -170,7 +173,7 @@ export default function PendingApproval() {
           {rejected
             ? `Your request to join "${leagueName}" was not approved. You can continue as a fan or try joining a different league.`
             : approved
-              ? `Welcome to ${leagueName}! Your coach account is ready.`
+              ? `Welcome to ${leagueName}! Your coach account is ready. View your organization page and create your first team.`
               : `Your request to join "${leagueName}" has been sent to ${ownerName}. You'll receive a notification when approved — typically within a few hours. You can use the app as a fan while you wait.`
           }
         </Text>
@@ -206,10 +209,16 @@ export default function PendingApproval() {
         {approved && (
           <>
             <Pressable
-              style={[styles.primaryButton, { backgroundColor: '#16A34A', marginTop: 24 }]}
+              style={[styles.primaryButton, { backgroundColor: '#1B3A6B', marginTop: 24 }]}
+              onPress={() => router.replace(orgId ? { pathname: '/(tabs)/organization', params: { id: orgId } } as any : '/(tabs)' as any)}
+            >
+              <Text style={styles.primaryButtonText}>View Your Organization</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.secondaryButton, { borderColor: '#16A34A', marginBottom: 0 }]}
               onPress={() => router.replace('/(tabs)/create-team' as any)}
             >
-              <Text style={styles.primaryButtonText}>Create Your First Team</Text>
+              <Text style={[styles.secondaryButtonText, { color: '#16A34A', fontWeight: '700' }]}>Create Your First Team</Text>
             </Pressable>
             {completionError ? (
               <>

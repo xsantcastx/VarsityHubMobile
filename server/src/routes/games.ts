@@ -960,6 +960,57 @@ gamesRouter.delete('/:id', requireAuth as any, requireOnboarded as any, asyncHan
       });
     }
 
+    // Notify RSVPed users before deleting
+    try {
+      const gameForNotif = await prisma.game.findUnique({
+        where: { id },
+        select: { id: true, title: true, date: true },
+      });
+      const gameTitle = gameForNotif?.title || 'A game';
+
+      // Find events linked to this game and their RSVPs
+      const linkedEvents = await prisma.event.findMany({
+        where: { game_id: id },
+        select: { id: true, rsvps: { select: { user_id: true } } },
+      });
+      const rsvpUserIds = new Set<string>();
+      for (const evt of linkedEvents) {
+        for (const rsvp of evt.rsvps) {
+          if (rsvp.user_id !== req.user!.id) rsvpUserIds.add(rsvp.user_id);
+        }
+      }
+
+      // Also notify team members of home/away teams
+      if (deleteTeamIds.length > 0) {
+        const teamMembers = await prisma.teamMembership.findMany({
+          where: { team_id: { in: deleteTeamIds }, status: 'active', user_id: { not: req.user!.id } },
+          select: { user_id: true },
+        });
+        for (const m of teamMembers) rsvpUserIds.add(m.user_id);
+      }
+
+      const { sendPushNotification } = await import('../lib/notifications.js');
+      for (const uid of rsvpUserIds) {
+        await prisma.notification.create({
+          data: {
+            user_id: uid,
+            actor_id: req.user!.id,
+            type: 'GAME_CANCELLED',
+            meta: { game_id: id, game_title: gameTitle },
+          },
+        });
+
+        await sendPushNotification(
+          uid,
+          `Game cancelled`,
+          `${gameTitle} has been cancelled`,
+          { type: 'game_cancelled', game_id: id, screen: 'games' }
+        );
+      }
+    } catch (notifErr) {
+      console.error('[games] Failed to send game cancelled notifications:', notifErr);
+    }
+
     // Delete the game (cascade deletes will handle related records)
     await prisma.game.delete({ where: { id } });
 

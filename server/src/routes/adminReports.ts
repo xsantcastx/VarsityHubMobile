@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { logAdminActivity } from '../lib/adminActivityLogger.js';
 import { sendReportResolutionEmail } from '../lib/email.js';
 import { prisma } from '../lib/prisma.js';
@@ -73,11 +74,13 @@ adminReportsRouter.patch('/:id', requireAdmin as any, asyncHandler(async (req: A
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   
   const { id } = req.params;
-  const { status, resolution_note } = req.body || {};
-  
-  if (!status || !['pending', 'reviewed', 'resolved', 'dismissed'].includes(status)) {
-    return res.status(400).json({ error: 'Invalid status' });
-  }
+  const patchSchema = z.object({
+    status: z.enum(['pending', 'reviewed', 'resolved', 'dismissed']),
+    resolution_note: z.string().max(2000).optional(),
+  });
+  const parsed = patchSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
+  const { status, resolution_note } = parsed.data;
   
   const report = await prisma.abuseReport.update({
     where: { id },
@@ -129,15 +132,14 @@ adminReportsRouter.patch('/:id', requireAdmin as any, asyncHandler(async (req: A
 adminReportsRouter.post('/bulk-update', requireAdmin as any, asyncHandler(async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   
-  const { report_ids, status, resolution_note } = req.body || {};
-  
-  if (!Array.isArray(report_ids) || report_ids.length === 0) {
-    return res.status(400).json({ error: 'Invalid report_ids array' });
-  }
-  
-  if (!status || !['pending', 'reviewed', 'resolved', 'dismissed'].includes(status)) {
-    return res.status(400).json({ error: 'Invalid status' });
-  }
+  const bulkUpdateSchema = z.object({
+    report_ids: z.array(z.string().min(1)).min(1),
+    status: z.enum(['pending', 'reviewed', 'resolved', 'dismissed']),
+    resolution_note: z.string().max(2000).optional(),
+  });
+  const parsed = bulkUpdateSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
+  const { report_ids, status, resolution_note } = parsed.data;
   
   const result = await prisma.abuseReport.updateMany({
     where: { id: { in: report_ids } },
@@ -200,11 +202,12 @@ adminReportsRouter.delete('/:id', requireAdmin as any, asyncHandler(async (req: 
 adminReportsRouter.post('/bulk-delete', requireAdmin as any, asyncHandler(async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   
-  const { report_ids } = req.body || {};
-  
-  if (!Array.isArray(report_ids) || report_ids.length === 0) {
-    return res.status(400).json({ error: 'Invalid report_ids array' });
-  }
+  const bulkDeleteSchema = z.object({
+    report_ids: z.array(z.string().min(1)).min(1),
+  });
+  const parsed = bulkDeleteSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
+  const { report_ids } = parsed.data;
   
   const result = await prisma.abuseReport.deleteMany({
     where: { id: { in: report_ids } },

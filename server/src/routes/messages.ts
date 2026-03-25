@@ -329,8 +329,14 @@ return res.status(500).json({ error: 'Internal server error' });
 
 messagesRouter.post('/mark-read', requireAuth as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  
-  const { conversation_id, with: withParam } = req.body || {};
+
+  const markReadSchema = z.object({
+    conversation_id: z.string().min(1).optional(),
+    with: z.string().min(1).optional(),
+  });
+  const parsed = markReadSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
+  const { conversation_id, with: withParam } = parsed.data;
   const meId = req.user.id;
   
   try {

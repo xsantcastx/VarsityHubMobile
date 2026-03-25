@@ -806,11 +806,13 @@ organizationsRouter.get('/search/nearby', organizationsNearbyLimiter, async (req
 // Check for duplicate organizations using normalized name comparison
 organizationsRouter.post('/check-duplicate', requireAuth as any, async (req, res) => {
   try {
-    const { name, zip_code } = req.body;
-
-    if (!name) {
-      return res.status(400).json({ error: 'name is required' });
-    }
+    const checkDuplicateSchema = z.object({
+      name: z.string().min(1).max(200),
+      zip_code: z.string().max(20).optional(),
+    });
+    const parsed = checkDuplicateSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
+    const { name, zip_code } = parsed.data;
 
     const normalizedInput = normalizeOrganizationName(name);
     if (!normalizedInput) {
@@ -1307,8 +1309,10 @@ organizationsRouter.post('/:id/transfer-ownership', requireAuth as any, requireO
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const orgId = req.params.id;
-    const { new_owner_id } = req.body || {};
-    if (!new_owner_id) return res.status(400).json({ error: 'new_owner_id is required' });
+    const transferSchema = z.object({ new_owner_id: z.string().min(1) });
+    const parsed = transferSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
+    const { new_owner_id } = parsed.data;
 
     // Verify requester is current owner
     const currentOwnership = await prisma.organizationMembership.findFirst({

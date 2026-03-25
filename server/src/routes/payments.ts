@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import expressPkg, { Router } from 'express';
+import { z } from 'zod';
 import jwt from 'jsonwebtoken';
 import Stripe from 'stripe';
 import { Prisma } from '@prisma/client';
@@ -376,7 +377,17 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
 // Create a Stripe Checkout Session for ad reservations
 paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paymentLimiter, asyncHandler(async (req: AuthedRequest, res) => {
   if (!process.env.STRIPE_SECRET_KEY) return res.status(500).json({ error: 'Stripe not configured' });
-  const { ad_id, dates, promo_code, plan, team_count, organization_id } = req.body || {};
+  const checkoutSchema = z.object({
+    ad_id: z.string().optional(),
+    dates: z.array(z.string()).optional(),
+    promo_code: z.string().optional(),
+    plan: z.string().optional(),
+    team_count: z.number().optional(),
+    organization_id: z.string().optional(),
+  });
+  const parsed = checkoutSchema.safeParse(req.body || {});
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten().fieldErrors });
+  const { ad_id, dates, promo_code, plan, team_count, organization_id } = parsed.data;
   if (typeof plan === 'string' && plan.trim()) {
     try {
       const { url, sessionId } = await createMembershipCheckoutSession(req, plan, promo_code, team_count, organization_id);
@@ -680,7 +691,17 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
   if (!process.env.STRIPE_SECRET_KEY) return res.status(500).json({ error: 'Stripe not configured' });
   const publishableKey = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || process.env.STRIPE_PUBLISHABLE_KEY || '';
   const userId = req.user!.id;
-  const { ad_id, dates, promo_code, plan, team_count, organization_id: orgIdBody } = req.body || {};
+  const paymentSheetSchema = z.object({
+    ad_id: z.string().optional(),
+    dates: z.array(z.string()).optional(),
+    promo_code: z.string().optional(),
+    plan: z.string().optional(),
+    team_count: z.number().optional(),
+    organization_id: z.string().optional(),
+  });
+  const parsed = paymentSheetSchema.safeParse(req.body || {});
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten().fieldErrors });
+  const { ad_id, dates, promo_code, plan, team_count, organization_id: orgIdBody } = parsed.data;
 
   // ── Get or create Stripe Customer (race-safe) ──
   // Re-check inside a serializable transaction to prevent two requests from creating
@@ -1482,10 +1503,12 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
 
 // Cancel an abandoned PaymentIntent and mark transaction as FAILED
 paymentsRouter.post('/cancel-intent', expressPkg.json(), requireVerified as any, paymentLimiter, asyncHandler(async (req: AuthedRequest, res) => {
-  const { payment_intent_id } = req.body || {};
-  if (!payment_intent_id || typeof payment_intent_id !== 'string') {
-    return res.status(400).json({ error: 'Missing payment_intent_id' });
-  }
+  const cancelIntentSchema = z.object({
+    payment_intent_id: z.string().min(1),
+  });
+  const parsed = cancelIntentSchema.safeParse(req.body || {});
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten().fieldErrors });
+  const { payment_intent_id } = parsed.data;
   try {
     const pi = await stripe.paymentIntents.retrieve(payment_intent_id);
     // Only cancel if the PI belongs to this user and is still cancelable
@@ -1539,7 +1562,13 @@ paymentsRouter.post('/cancel-intent', expressPkg.json(), requireVerified as any,
 // Create a subscription Checkout Session for recurring membership plans
 paymentsRouter.post('/subscribe', expressPkg.json(), requireVerified as any, paymentLimiter, asyncHandler(async (req: AuthedRequest, res) => {
   try {
-    const { plan, promo_code } = req.body || {};
+    const subscribeSchema = z.object({
+      plan: z.string().min(1),
+      promo_code: z.string().optional(),
+    });
+    const parsed = subscribeSchema.safeParse(req.body || {});
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten().fieldErrors });
+    const { plan, promo_code } = parsed.data;
     const { url, sessionId } = await createMembershipCheckoutSession(req, plan, promo_code);
     return res.json({ url, session_id: sessionId });
   } catch (err: any) {
@@ -1601,12 +1630,14 @@ paymentsRouter.post('/subscription/cancel', expressPkg.json(), requireVerified a
 paymentsRouter.post('/update-subscription-quantity', expressPkg.json(), requireVerified as any, paymentLimiter, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     if (!process.env.STRIPE_SECRET_KEY) return res.status(500).json({ error: 'Stripe not configured' });
-    
+
     const userId = req.user!.id;
-    const { team_count } = req.body; // total teams desired
-    if (typeof team_count !== 'number' || team_count < 3) {
-      return res.status(400).json({ error: 'Invalid total team count. Minimum 3 total teams required for Veteran plan.' });
-    }
+    const updateQuantitySchema = z.object({
+      team_count: z.number().int().min(3, 'Minimum 3 total teams required for Veteran plan.'),
+    });
+    const parsed = updateQuantitySchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten().fieldErrors });
+    const { team_count } = parsed.data;
     const billable = Math.max(0, team_count - 2); // Only teams beyond first two are billed
     if (billable === 0) {
       return res.status(400).json({ error: 'No billable teams (only 2). Remain on Rookie plan instead.' });
@@ -1922,8 +1953,12 @@ paymentsRouter.post('/admin/reset-unpaid-subscriptions', requireVerified as any,
 // Authenticated helper to finalize a Checkout Session by id when webhooks are unavailable
 paymentsRouter.post('/finalize-session', expressPkg.json(), requireVerified as any, paymentLimiter, asyncHandler(async (req: AuthedRequest, res) => {
   try {
-    const { session_id } = req.body || {};
-    if (!session_id || typeof session_id !== 'string') return res.status(400).json({ error: 'session_id required' });
+    const finalizeSchema = z.object({
+      session_id: z.string().min(1),
+    });
+    const parsed = finalizeSchema.safeParse(req.body || {});
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten().fieldErrors });
+    const { session_id } = parsed.data;
     if (!process.env.STRIPE_SECRET_KEY) return res.status(500).json({ error: 'Stripe not configured' });
     try {
       const session = await stripe.checkout.sessions.retrieve(session_id);
@@ -2376,10 +2411,13 @@ paymentsRouter.post('/apple/verify-receipt', expressPkg.json(), requireAuth as a
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'AUTH_REQUIRED' });
 
-    const { receipt, productId } = req.body;
-    if (!receipt || !productId) {
-      return res.status(400).json({ error: 'Missing receipt or productId' });
-    }
+    const appleReceiptSchema = z.object({
+      receipt: z.string().min(1),
+      productId: z.string().min(1),
+    });
+    const parsed = appleReceiptSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten().fieldErrors });
+    const { receipt, productId } = parsed.data;
 
     const plan = APPLE_PRODUCT_TO_PLAN[productId];
     if (!plan) {
@@ -2505,10 +2543,18 @@ paymentsRouter.post('/apple/verify-ad-receipt', expressPkg.json(), requireAuth a
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'AUTH_REQUIRED' });
 
-    const { ad_id, dates, receipts } = req.body;
-    if (!ad_id || !Array.isArray(dates) || dates.length === 0 || !Array.isArray(receipts) || receipts.length === 0) {
-      return res.status(400).json({ error: 'Missing ad_id, dates[], or receipts[]' });
-    }
+    const appleAdReceiptSchema = z.object({
+      ad_id: z.string().min(1),
+      dates: z.array(z.string()).min(1),
+      receipts: z.array(z.object({
+        receipt: z.string().min(1),
+        productId: z.string().min(1),
+        quantity: z.number().optional(),
+      })).min(1),
+    });
+    const parsed = appleAdReceiptSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten().fieldErrors });
+    const { ad_id, dates, receipts } = parsed.data;
 
     const isoDateStrings: string[] = dates.map((d: any) => String(d));
     // Enforce booking horizon — no dates beyond 56 days from today
@@ -2533,7 +2579,7 @@ paymentsRouter.post('/apple/verify-ad-receipt', expressPkg.json(), requireAuth a
 
     for (const r of receipts) {
       const { receipt, productId, quantity } = r;
-      if (!receipt || !productId || !APPLE_AD_PRODUCTS.includes(productId)) {
+      if (!receipt || !productId || !(APPLE_AD_PRODUCTS as readonly string[]).includes(productId)) {
         return res.status(400).json({ error: `Invalid receipt: unknown product ${productId}` });
       }
       const unitCents = AD_PRODUCT_CENTS[productId];
@@ -2986,14 +3032,14 @@ paymentsRouter.post('/google/verify-purchase', expressPkg.json(), requireAuth as
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'AUTH_REQUIRED' });
 
-    const { purchase_token, product_id, package_name } = req.body || {};
-
-    if (!purchase_token || !product_id) {
-      return res.status(400).json({ error: 'Missing purchase_token or product_id' });
-    }
-    if (String(purchase_token).trim().length < 16) {
-      return res.status(400).json({ error: 'Invalid purchase_token' });
-    }
+    const googlePurchaseSchema = z.object({
+      purchase_token: z.string().min(16, 'Invalid purchase_token'),
+      product_id: z.string().min(1),
+      package_name: z.string().optional(),
+    });
+    const parsed = googlePurchaseSchema.safeParse(req.body || {});
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten().fieldErrors });
+    const { purchase_token, product_id, package_name } = parsed.data;
 
     const plan = GOOGLE_PRODUCT_TO_PLAN[product_id];
     if (!plan) {
