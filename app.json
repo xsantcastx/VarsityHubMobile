@@ -28,10 +28,10 @@
       "usesAppleSignIn": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSCameraUsageDescription": "VarsityHub needs camera access to capture photos and videos for your sports content.",
-        "NSMicrophoneUsageDescription": "VarsityHub needs microphone access to record videos with sound.",
-        "NSPhotoLibraryUsageDescription": "VarsityHub needs photo library access to select images for your posts and profile.",
-        "NSLocationWhenInUseUsageDescription": "VarsityHub needs your location to show nearby events on the map.",
+        "NSCameraUsageDescription": "VarsityHub uses your camera to take photos and videos for team posts, profile pictures, and game highlights.",
+        "NSMicrophoneUsageDescription": "VarsityHub uses your microphone to capture audio when recording game-day videos and highlight clips.",
+        "NSPhotoLibraryUsageDescription": "VarsityHub uses your photo library so you can select existing photos and videos to share in team posts or set as your profile picture.",
+        "NSLocationWhenInUseUsageDescription": "VarsityHub uses your location to display nearby games, tournaments, and team events on the map.",
         "NSPrivacyPolicyURL": "https://varsityhub.app/privacy-policy",
         "CFBundleURLTypes": [
           {
@@ -92,23 +92,23 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow VarsityHub to access your photos to attach images to posts.",
-          "cameraPermission": "Allow VarsityHub to use the camera for capturing photos and videos.",
-          "microphonePermission": "Allow VarsityHub to access the microphone for recording videos."
+          "photosPermission": "VarsityHub uses your photo library to let you attach game photos, team logos, and other images to your posts.",
+          "cameraPermission": "VarsityHub uses your camera to capture photos and videos for team posts and profile pictures.",
+          "microphonePermission": "VarsityHub uses your microphone to record audio when capturing video highlights through the camera."
         }
       ],
       [
         "expo-location",
         {
           "isAndroidBackgroundLocationEnabled": false,
-          "locationWhenInUsePermission": "Allow VarsityHub to use your location to show nearby events on the map."
+          "locationWhenInUsePermission": "VarsityHub uses your location to display nearby games, tournaments, and team events on the map."
         }
       ],
       [
         "expo-media-library",
         {
-          "photosPermission": "Allow VarsityHub to access your photos.",
-          "savePhotosPermission": "Allow VarsityHub to save photos.",
+          "photosPermission": "VarsityHub uses your photo library to let you browse and select images and videos for team posts and profiles.",
+          "savePhotosPermission": "VarsityHub uses save access to download shared team photos and game-day images to your device.",
           "isAccessMediaLocationEnabled": true
         }
       ],
