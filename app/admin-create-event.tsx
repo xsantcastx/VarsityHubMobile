@@ -126,8 +126,7 @@ export default function CreateEventScreen() {
     const newErrors: { [key: string]: string } = {};
     if (!title.trim()) newErrors.title = 'Title is required';
     if (!location.trim()) newErrors.location = 'Location is required';
-    if (isGameType && !homeTeam) newErrors.homeTeam = 'Home team is required';
-    if (isGameType && !awayTeam && !awayTeamName.trim()) newErrors.awayTeam = 'Away team or opponent name is required';
+    // Teams are optional — admin can create standalone platform events without teams
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -137,47 +136,38 @@ export default function CreateEventScreen() {
 
     setSubmitting(true);
     try {
-      if (isGameType) {
-        // Create a competitive game via /games endpoint
-        const gameData: Record<string, any> = {
-          title: sanitizeText(title),
-          description: sanitizeText(description),
-          event_type: 'game',
-          location: selectedPlace?.description || location,
-          venue_address: selectedPlace?.description || location,
-          venue_place_id: selectedPlace?.place_id,
-          date: date.toISOString(),
-          home_team_id: homeTeam!.id,
-          home_team: homeTeam!.name,
-          away_team_id: awayTeam?.id || undefined,
-          away_team: awayTeam?.name || awayTeamName.trim(),
-          away_team_name: !awayTeam ? awayTeamName.trim() : undefined,
-          autoGeocode: !selectedPlace,
-        };
+      // All admin events go through /games so they get a full event page
+      // with stories, polls, RSVP, and appear as cards in the feed
+      const gameData: Record<string, any> = {
+        title: sanitizeText(title),
+        description: sanitizeText(description),
+        event_type: eventType,
+        location: selectedPlace?.description || location,
+        venue_address: selectedPlace?.description || location,
+        venue_place_id: selectedPlace?.place_id,
+        date: date.toISOString(),
+        autoGeocode: !selectedPlace,
+      };
 
-        await httpPost('/games', gameData);
-
-        Alert.alert('Game Created!', 'The competitive game has been created and auto-approved.', [
-          { text: 'OK', onPress: () => { safeGoBack(router); } },
-        ]);
-      } else {
-        // Create a general event via /events endpoint
-        const eventData: Record<string, any> = {
-          title: sanitizeText(title),
-          description: sanitizeText(description),
-          event_type: eventType,
-          location: selectedPlace?.description || location,
-          venue_address: selectedPlace?.description || location,
-          venue_place_id: selectedPlace?.place_id,
-          date: date.toISOString(),
-        };
-
-        await httpPost('/events', eventData);
-
-        Alert.alert('Event Created!', 'Your event has been published successfully!', [
-          { text: 'OK', onPress: () => { safeGoBack(router); } },
-        ]);
+      // Add team info only if provided
+      if (homeTeam) {
+        gameData.home_team_id = homeTeam.id;
+        gameData.home_team = homeTeam.name;
       }
+      if (awayTeam) {
+        gameData.away_team_id = awayTeam.id;
+        gameData.away_team = awayTeam.name;
+      }
+      if (!awayTeam && awayTeamName.trim()) {
+        gameData.away_team_name = awayTeamName.trim();
+        gameData.away_team = awayTeamName.trim();
+      }
+
+      await httpPost('/games', gameData);
+
+      Alert.alert('Event Created!', 'Your event has been published and is visible to all users.', [
+        { text: 'OK', onPress: () => { safeGoBack(router); } },
+      ]);
     } catch (e: any) {
       let errorMsg = e?.data?.error || e?.message || 'Failed to create event.';
       // Surface Zod validation details if available
