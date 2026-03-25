@@ -4,7 +4,7 @@ import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { safeGoBack } from '@/utils/navigation';
 import { getApiBaseUrl } from '../api/http';
@@ -51,58 +51,39 @@ export default function AdminDashboardScreen() {
   const [reportSpike, setReportSpike] = useState<{ isSpike: boolean; pendingCount: number; recentCount: number } | null>(null);
   const [leagueActionId, setLeagueActionId] = useState<string | null>(null);
 
+  // Cross-platform modal for league approve/reject (Alert.prompt is iOS-only)
+  const [leagueModal, setLeagueModal] = useState<{ league: PendingLeague; action: 'approve' | 'reject' } | null>(null);
+  const [leagueNote, setLeagueNote] = useState('');
+
   const handleApproveLeague = (league: PendingLeague) => {
-    Alert.prompt(
-      'Approve League',
-      `Approve "${league.name}"? Add an optional note for the league owner:`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Approve',
-          onPress: async (note?: string) => {
-            setLeagueActionId(league.id);
-            try {
-              await Organization.approveLeague(league.id, note?.trim() || undefined);
-              Alert.alert('Success', `"${league.name}" has been approved.`);
-              void loadStats(true);
-            } catch (e: any) {
-              Alert.alert('Error', e?.message || 'Failed to approve league');
-            } finally {
-              setLeagueActionId(null);
-            }
-          },
-        },
-      ]
-    );
+    setLeagueNote('');
+    setLeagueModal({ league, action: 'approve' });
   };
 
   const handleRejectLeague = (league: PendingLeague) => {
-    Alert.prompt(
-      'Reject League',
-      `Reject "${league.name}"? Enter a reason (optional):`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Reject',
-          style: 'destructive',
-          onPress: async (reason?: string) => {
-            setLeagueActionId(league.id);
-            try {
-              await Organization.rejectLeague(league.id, reason?.trim() || undefined);
-              Alert.alert('Success', `"${league.name}" has been rejected.`);
-              void loadStats(true);
-            } catch (e: any) {
-              Alert.alert('Error', e?.message || 'Failed to reject league');
-            } finally {
-              setLeagueActionId(null);
-            }
-          },
-        },
-      ],
-      'plain-text',
-      '',
-      'default'
-    );
+    setLeagueNote('');
+    setLeagueModal({ league, action: 'reject' });
+  };
+
+  const confirmLeagueAction = async () => {
+    if (!leagueModal) return;
+    const { league, action } = leagueModal;
+    setLeagueModal(null);
+    setLeagueActionId(league.id);
+    try {
+      if (action === 'approve') {
+        await Organization.approveLeague(league.id, leagueNote.trim() || undefined);
+        Alert.alert('Success', `"${league.name}" has been approved.`);
+      } else {
+        await Organization.rejectLeague(league.id, leagueNote.trim() || undefined);
+        Alert.alert('Success', `"${league.name}" has been rejected.`);
+      }
+      void loadStats(true);
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || `Failed to ${action} league`);
+    } finally {
+      setLeagueActionId(null);
+    }
   };
 
   const loadStats = useCallback(async (showRefreshing = false) => {
@@ -534,6 +515,40 @@ export default function AdminDashboardScreen() {
           )}
         </ScrollView>
       )}
+      {/* League Approve/Reject Modal */}
+      <Modal visible={!!leagueModal} transparent animationType="slide">
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)', padding: 24 }}>
+          <View style={{ backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white', borderRadius: 16, padding: 20, width: '100%', maxWidth: 400 }}>
+            <Text style={{ fontSize: 18, fontWeight: '800', color: colorScheme === 'dark' ? '#ECEDEE' : '#111827', marginBottom: 8 }}>
+              {leagueModal?.action === 'approve' ? 'Approve League' : 'Reject League'}
+            </Text>
+            <Text style={{ color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280', marginBottom: 12 }}>
+              {leagueModal?.action === 'approve'
+                ? `Approve "${leagueModal?.league.name}"? Add an optional note:`
+                : `Reject "${leagueModal?.league.name}"? Enter a reason (optional):`}
+            </Text>
+            <TextInput
+              style={{ borderWidth: 1, borderColor: colorScheme === 'dark' ? '#374151' : '#D1D5DB', borderRadius: 8, padding: 10, color: colorScheme === 'dark' ? '#ECEDEE' : '#111827', backgroundColor: colorScheme === 'dark' ? '#111827' : '#F9FAFB', minHeight: 60, textAlignVertical: 'top' }}
+              value={leagueNote}
+              onChangeText={setLeagueNote}
+              placeholder={leagueModal?.action === 'approve' ? 'Note (optional)...' : 'Reason (optional)...'}
+              placeholderTextColor={colorScheme === 'dark' ? '#6B7280' : '#9CA3AF'}
+              multiline
+            />
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
+              <Pressable style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: colorScheme === 'dark' ? '#374151' : '#D1D5DB', alignItems: 'center' }} onPress={() => setLeagueModal(null)}>
+                <Text style={{ color: colorScheme === 'dark' ? '#ECEDEE' : '#111827', fontWeight: '700' }}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: leagueModal?.action === 'approve' ? '#22c55e' : '#dc2626', alignItems: 'center' }}
+                onPress={confirmLeagueAction}
+              >
+                <Text style={{ color: 'white', fontWeight: '700' }}>{leagueModal?.action === 'approve' ? 'Approve' : 'Reject'}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }

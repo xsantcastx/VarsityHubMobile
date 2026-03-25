@@ -1331,7 +1331,8 @@ postsRouter.delete('/:id', requireAuth as any, requireOnboarded as any, asyncHan
 
     const isAuthor = post.author_id === userId;
     const isTeamCoach = await isCoachOfPostTeam(userId, post);
-    if (!isAuthor && !isTeamCoach) {
+    const isAdminUser = await getIsAdmin(req as any);
+    if (!isAuthor && !isTeamCoach && !isAdminUser) {
       return res.status(403).json({ error: 'You can only delete your own posts or posts on your team page' });
     }
     

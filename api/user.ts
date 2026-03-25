@@ -32,8 +32,8 @@ export const User = {
       throw error;
     }
   },
-  ban: (id: string) => { if (!id || id === 'undefined' || id === 'null') throw new Error('[User.ban] Invalid user ID'); return httpPost('/users/' + encodeURIComponent(id) + '/ban', {}); },
-  unban: (id: string) => { if (!id || id === 'undefined' || id === 'null') throw new Error('[User.unban] Invalid user ID'); return httpPost('/users/' + encodeURIComponent(id) + '/unban', {}); },
+  ban: (id: string, reason?: string) => { if (!id || id === 'undefined' || id === 'null') throw new Error('[User.ban] Invalid user ID'); return httpPost('/admin/users/' + encodeURIComponent(id) + '/ban', { reason: reason || undefined }); },
+  unban: (id: string) => { if (!id || id === 'undefined' || id === 'null') throw new Error('[User.unban] Invalid user ID'); return httpPost('/admin/users/' + encodeURIComponent(id) + '/unban', {}); },
   getFull: (id: string) => { if (!id || id === 'undefined' || id === 'null') throw new Error('[User.getFull] Invalid user ID'); return httpGet('/users/' + encodeURIComponent(id) + '/full'); },
   followers: (id: string, cursor?: string) => { if (!id || id === 'undefined' || id === 'null') throw new Error('[User.followers] Invalid user ID'); return httpGet(`/users/${encodeURIComponent(id)}/followers` + (cursor ? `?cursor=${encodeURIComponent(cursor)}` : '')); },
   following: (id: string, cursor?: string) => { if (!id || id === 'undefined' || id === 'null') throw new Error('[User.following] Invalid user ID'); return httpGet(`/users/${encodeURIComponent(id)}/following` + (cursor ? `?cursor=${encodeURIComponent(cursor)}` : '')); },

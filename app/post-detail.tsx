@@ -1074,8 +1074,8 @@ export default function PostDetailScreen() {
           )}
         </View>
         <View style={styles.headerActions}>
-          {/* Show delete button only if current user is the post author */}
-          {currentUser && post.author_id === currentUser.id && (
+          {/* Show delete button for post author or admin */}
+          {currentUser && (post.author_id === currentUser.id || currentUser.is_admin || currentUser.role === 'admin' || currentUser.role === 'super_admin') && (
             <Pressable style={styles.headerActionButton} onPress={handleDeletePost}>
               <Ionicons name="trash-outline" size={22} color="#DC2626" />
             </Pressable>
