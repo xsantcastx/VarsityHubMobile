@@ -878,6 +878,19 @@ authRouter.post('/upgrade-to-coach', asyncHandler(async (req: AuthedRequest, res
     return res.status(400).json({ error: 'Account is already a coach account.' });
   }
 
+  // Server-side 18+ age gate — coaches must be adults
+  const dob = currentPrefs.dob || currentPrefs.date_of_birth;
+  if (dob) {
+    const birthDate = new Date(dob);
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) age--;
+    if (age < 18) {
+      return res.status(403).json({ error: 'You must be at least 18 years old to become a coach.', code: 'AGE_REQUIREMENT' });
+    }
+  }
+
   // Update role to coach and set plan, reset onboarding so they complete coach steps
   // CRITICAL: Set approval_status to PENDING so the coach must go through the
   // approval flow (create/join org → admin approval) before accessing coach tools.

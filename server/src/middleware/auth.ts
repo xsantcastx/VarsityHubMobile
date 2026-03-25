@@ -20,13 +20,22 @@ export async function authMiddleware(req: AuthedRequest, _res: Response, next: N
   if (payload?.id) {
     const user = await prisma.user.findUnique({
       where: { id: payload.id },
-      select: { password_changed_at: true, banned: true, banned_until: true },
+      select: { password_changed_at: true, banned: true, banned_until: true, ban_reason: true },
     });
 
-    // Reject deleted, banned, or suspended users
-    if (!user || user.banned || (user.banned_until && new Date(user.banned_until) > new Date())) {
+    // Reject deleted users silently
+    if (!user) {
       clearUserContext();
       return next();
+    }
+    // Banned or suspended users get explicit 403 with reason
+    if (user.banned) {
+      clearUserContext();
+      return _res.status(403).json({ error: 'Your account has been banned.', code: 'ACCOUNT_BANNED', ban_reason: (user as any).ban_reason || undefined });
+    }
+    if (user.banned_until && new Date(user.banned_until) > new Date()) {
+      clearUserContext();
+      return _res.status(403).json({ error: 'Your account is temporarily suspended.', code: 'ACCOUNT_SUSPENDED', banned_until: user.banned_until });
     }
 
     // Reject tokens issued before the last password change

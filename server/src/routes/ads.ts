@@ -4,6 +4,7 @@ import { geocodeLocation } from '../lib/geocoding.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { getIsAdmin, requireAdmin } from '../middleware/requireAdmin.js';
+import { authMiddleware } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireOnboarded } from '../middleware/requireOnboarded.js';
 import { requireVerified } from '../middleware/requireVerified.js';
@@ -149,43 +150,49 @@ export async function handleAdSubmitForApproval(req: AuthedRequest, res: Respons
     // Past dates are allowed — no rejection needed
 
     const MAX_AD_SLOTS = 2;
-    if (ad.target_zip_code) {
-      const reservedAdsInZip = await prisma.ad.findMany({
-        where: {
-          target_zip_code: ad.target_zip_code,
-          payment_status: { in: ['paid', 'hold', 'pending_approval'] },
-          NOT: { id },
-        },
-        select: { id: true },
-        take: 100,
-      });
-      if (reservedAdsInZip.length > 0) {
-        const dateObjects = isoDates.map((s) => new Date(s + 'T00:00:00.000Z'));
-        const bookedSlots = await prisma.adReservation.groupBy({
-          by: ['date'],
-          where: { ad_id: { in: reservedAdsInZip.map((a) => a.id) }, date: { in: dateObjects } },
-          _count: { date: true },
+    const dateObjects = isoDates.map((s) => new Date(s + 'T00:00:00.000Z'));
+
+    // Slot check + reservation creation inside Serializable transaction to prevent race condition
+    const slotResult = await prisma.$transaction(async (tx) => {
+      if (ad.target_zip_code) {
+        const reservedAdsInZip = await tx.ad.findMany({
+          where: {
+            target_zip_code: ad.target_zip_code,
+            payment_status: { in: ['paid', 'hold', 'pending_approval'] },
+            NOT: { id },
+          },
+          select: { id: true },
+          take: 100,
         });
-        const fullDates = bookedSlots.filter((s) => s._count.date >= MAX_AD_SLOTS);
-        if (fullDates.length > 0) {
-          return res.status(409).json({
-            error: 'One or more selected dates are fully booked',
-            dates: fullDates.map((s) => s.date.toISOString().slice(0, 10)),
+        if (reservedAdsInZip.length > 0) {
+          const bookedSlots = await tx.adReservation.groupBy({
+            by: ['date'],
+            where: { ad_id: { in: reservedAdsInZip.map((a: any) => a.id) }, date: { in: dateObjects } },
+            _count: { date: true },
           });
+          const fullDates = bookedSlots.filter((s: any) => s._count.date >= MAX_AD_SLOTS);
+          if (fullDates.length > 0) {
+            return { error: true, dates: fullDates.map((s: any) => s.date.toISOString().slice(0, 10)) };
+          }
         }
       }
-    }
-
-    await prisma.$transaction([
-      prisma.ad.update({
+      await tx.ad.update({
         where: { id },
         data: { status: 'pending', payment_status: 'pending_approval' },
-      }),
-      prisma.adReservation.createMany({
-        data: isoDates.map((s) => ({ ad_id: id, date: new Date(s + 'T00:00:00.000Z') })),
+      });
+      await tx.adReservation.createMany({
+        data: dateObjects.map((d) => ({ ad_id: id, date: d })),
         skipDuplicates: true,
-      }),
-    ]);
+      });
+      return { error: false };
+    }, { isolationLevel: 'Serializable' as any });
+
+    if (slotResult.error) {
+      return res.status(409).json({
+        error: 'One or more selected dates are fully booked',
+        dates: (slotResult as any).dates,
+      });
+    }
 
     // Generate signed tokens for one-click approve/reject from email (7-day expiry)
     const approveToken = signJwt({ adId: id, action: 'approve_ad' }, '7d');
@@ -1002,7 +1009,7 @@ async function handleAdApprove(req: AuthedRequest, res: Response) {
   }
 }
 
-adsRouter.get('/:id([a-z0-9]{15,50})/approve', handleAdApprove as any);
+adsRouter.get('/:id([a-z0-9]{15,50})/approve', authMiddleware as any, handleAdApprove as any);
 adsRouter.post('/:id([a-z0-9]{15,50})/approve', requireAuthUnlessToken as any, handleAdApprove as any);
 
 // Admin: Reject a pending ad (same confirmation-form pattern as approve)
@@ -1042,7 +1049,7 @@ async function handleAdReject(req: AuthedRequest, res: Response) {
   }
 }
 
-adsRouter.get('/:id([a-z0-9]{15,50})/reject', handleAdReject as any);
+adsRouter.get('/:id([a-z0-9]{15,50})/reject', authMiddleware as any, handleAdReject as any);
 adsRouter.post('/:id([a-z0-9]{15,50})/reject', requireAuthUnlessToken as any, handleAdReject as any);
 
 // Admin: Review an ad (approve or reject) — used by admin-ads screen

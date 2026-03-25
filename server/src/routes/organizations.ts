@@ -10,6 +10,7 @@ import {
 import { sendOrganizationApprovalEmail, sendPushNotification } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
+import { authMiddleware } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireAdmin, isEmailAdmin } from '../middleware/requireAdmin.js';
 import { debugLog } from '../lib/debugLog.js';
@@ -1355,8 +1356,8 @@ organizationsRouter.post('/:id/transfer-ownership', requireAuth as any, requireO
  * 2. Email-based token (JWT in query param, no login required)
  */
 // GET handler so email links work as simple browser clicks
-organizationsRouter.get('/:id/approve', (req, res, next) => { (approveLeagueHandler as any)(req, res).catch(next); });
-organizationsRouter.post('/:id/approve', (req, res, next) => { (approveLeagueHandler as any)(req, res).catch(next); });
+organizationsRouter.get('/:id/approve', authMiddleware as any, (req, res, next) => { (approveLeagueHandler as any)(req, res).catch(next); });
+organizationsRouter.post('/:id/approve', authMiddleware as any, (req, res, next) => { (approveLeagueHandler as any)(req, res).catch(next); });
 
 async function approveLeagueHandler(req: AuthedRequest, res: any) {
   try {
@@ -1490,8 +1491,8 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
 }
 
 // GET handler so email reject links work as simple browser clicks
-organizationsRouter.get('/:id/reject', (req, res, next) => { (rejectLeagueHandler as any)(req, res).catch(next); });
-organizationsRouter.post('/:id/reject', (req, res, next) => { (rejectLeagueHandler as any)(req, res).catch(next); });
+organizationsRouter.get('/:id/reject', authMiddleware as any, (req, res, next) => { (rejectLeagueHandler as any)(req, res).catch(next); });
+organizationsRouter.post('/:id/reject', authMiddleware as any, (req, res, next) => { (rejectLeagueHandler as any)(req, res).catch(next); });
 
 async function rejectLeagueHandler(req: AuthedRequest, res: any) {
   try {

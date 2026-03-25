@@ -572,6 +572,24 @@ usersRouter.delete('/me', requireAuth as any, async (req: AuthedRequest, res) =>
       }
     }
 
+    // Block deletion if user is the sole owner of any organization
+    const ownedOrgs = await prisma.organizationMembership.findMany({
+      where: { user_id: id, role: 'owner', status: 'active' },
+      select: { organization_id: true },
+    });
+    for (const { organization_id } of ownedOrgs) {
+      const otherOwners = await prisma.organizationMembership.count({
+        where: { organization_id, role: { in: ['owner', 'manager'] }, status: 'active', NOT: { user_id: id } },
+      });
+      if (otherOwners === 0) {
+        return res.status(400).json({
+          error: 'You are the sole owner of an organization. Transfer ownership before deleting your account.',
+          code: 'SOLE_ORG_OWNER',
+          organization_id,
+        });
+      }
+    }
+
     const userEmail = user.email; // Capture before deletion
     await prisma.$transaction(async (tx) => {
       // Delete user's interactions
@@ -586,6 +604,9 @@ usersRouter.delete('/me', requireAuth as any, async (req: AuthedRequest, res) =>
           ]
         }
       });
+
+      // Delete messages where user is recipient (prevent ghost messages)
+      await tx.message.deleteMany({ where: { recipient_id: id } });
 
       // Delete refresh tokens
       await tx.refreshToken.deleteMany({ where: { user_id: id } });
