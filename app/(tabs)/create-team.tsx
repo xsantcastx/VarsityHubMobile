@@ -7,6 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
 import { usePaymentSheet } from '@stripe/stripe-react-native';
+import { useVHubIAP } from '@/hooks/useIAP';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView as RNScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -70,6 +71,7 @@ export default function CreateTeamScreen() {
   const [teamLimits, setTeamLimits] = useState<TeamLimitSummary | null>(null);
   const [limitsError, setLimitsError] = useState<string | null>(null);
   const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
+  const { purchase: iapPurchase, purchasing: iapPurchasing } = useVHubIAP();
   const limitReached = !!teamLimits && teamLimits.can_create_more === false;
   const planBadgeText = formatPlanBadge(teamLimits?.subscription_tier);
   const planDisplayName = formatPlanDisplay(teamLimits?.subscription_tier);
@@ -341,7 +343,19 @@ export default function CreateTeamScreen() {
                 text: 'Upgrade & Continue',
                 onPress: async () => {
                   try {
-                    // Use in-app PaymentSheet instead of leaving the app
+                    // Use Apple IAP / Google Play on mobile (required by App Store guidelines)
+                    if (Platform.OS === 'ios' || Platform.OS === 'android') {
+                      const success = await iapPurchase('veteran');
+                      if (success) {
+                        const me: any = await User.me();
+                        await proceedWithTeamCreation(me);
+                        return;
+                      } else {
+                        setSubmitting(false);
+                        return;
+                      }
+                    }
+                    // Fallback: Stripe PaymentSheet for web/other platforms
                     const res: any = await httpPost('/payments/create-payment-sheet', { plan: 'veteran', team_count: newTeamCount });
                     if (res?.paymentIntent) {
                       const { error: initError } = await initPaymentSheet({
@@ -349,9 +363,8 @@ export default function CreateTeamScreen() {
                         customerEphemeralKeySecret: res.ephemeralKey,
                         customerId: res.customer,
                         merchantDisplayName: 'Varsity Hub',
-                        applePay: Platform.OS === 'ios' ? { merchantCountryCode: 'US' } : undefined,
-                        googlePay: Platform.OS === 'android' ? { merchantCountryCode: 'US', testEnv: __DEV__ } : undefined,
-                        paymentMethodOrder: ['apple_pay', 'google_pay', 'card'],
+                        googlePay: (Platform.OS as string) === 'android' ? { merchantCountryCode: 'US', testEnv: __DEV__ } : undefined,
+                        paymentMethodOrder: ['google_pay', 'card'],
                       });
                       if (initError) {
                         Alert.alert('Error', initError.message);
@@ -364,7 +377,6 @@ export default function CreateTeamScreen() {
                         setSubmitting(false);
                         return;
                       }
-                      // Payment succeeded — check if plan updated
                       try {
                         const me: any = await User.me();
                         const updatedPlan = me?.preferences?.plan ?? 'rookie';
@@ -372,13 +384,8 @@ export default function CreateTeamScreen() {
                           await proceedWithTeamCreation(me);
                           return;
                         }
-                      } catch {
-                        // ignore retry errors
-                      }
-                      Alert.alert(
-                        'Payment Processing',
-                        'Your payment was submitted. Please try creating your team again in a moment.'
-                      );
+                      } catch { /* ignore */ }
+                      Alert.alert('Payment Processing', 'Your payment was submitted. Please try creating your team again in a moment.');
                       setSubmitting(false);
                     } else {
                       Alert.alert('Error', 'Unable to start checkout. Please try again.');

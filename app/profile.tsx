@@ -749,7 +749,34 @@ export default function ProfileScreen() {
               )}
             </Pressable>
           ) : null}
-          
+          {/* Block & Report menu for other users */}
+          {viewingUserId && viewingUserId !== currentUserId ? (
+            <Pressable
+              onPress={() => {
+                Alert.alert(
+                  'Options',
+                  undefined,
+                  [
+                    { text: 'Report User', onPress: () => router.push(`/report-abuse?target_type=user&target_id=${encodeURIComponent(viewingUserId)}` as any) },
+                    { text: 'Block User', style: 'destructive', onPress: async () => {
+                      try {
+                        await User.block(viewingUserId);
+                        Alert.alert('Blocked', 'This user has been blocked.');
+                      } catch (e: any) {
+                        Alert.alert('Error', e?.message || 'Failed to block user');
+                      }
+                    }},
+                    { text: 'Cancel', style: 'cancel' },
+                  ]
+                );
+              }}
+              hitSlop={12}
+              style={[styles.controlButton, { backgroundColor: 'rgba(0,0,0,0.5)', marginLeft: 6 }]}
+            >
+              <Ionicons name="ellipsis-horizontal" size={18} color="#FFFFFF" />
+            </Pressable>
+          ) : null}
+
           {/* Settings Button - Only when viewing own profile */}
           {!viewingUserId || viewingUserId === currentUserId ? (
             <Pressable onPress={() => router.push('/settings')} hitSlop={12} style={[styles.controlButton, { backgroundColor: colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)' }]}>
