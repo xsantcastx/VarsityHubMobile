@@ -568,6 +568,87 @@ gamesRouter.post('/', requireVerified as any, requireOnboarded as any, gameCreat
   }
 }));
 
+// Seed sample games as real DB records so stories/polls work (idempotent)
+gamesRouter.post('/seed-samples', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
+  const SAMPLE_GAMES = [
+    {
+      title: 'Westhill Vikings vs. Stamford Knights',
+      location: 'Westhill High School, Stamford, CT',
+      cover_image_url: 'https://images.unsplash.com/photo-1546519638-68e109498ffc?q=80&w=1280&auto=format&fit=crop',
+      days_ahead: 2,
+    },
+    {
+      title: 'Riverside Eagles vs. Greenwich Cardinals',
+      location: 'Greenwich High School, Greenwich, CT',
+      cover_image_url: 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?q=80&w=1280&auto=format&fit=crop',
+      days_ahead: 4,
+    },
+    {
+      title: 'Trinity Crusaders vs. Fairfield Prep Jesuits',
+      location: 'Trinity Catholic, Stamford, CT',
+      cover_image_url: 'https://images.unsplash.com/photo-1517649763962-0c623066013b?q=80&w=1280&auto=format&fit=crop',
+      days_ahead: 6,
+    },
+  ];
+
+  const now = new Date();
+  const created: any[] = [];
+
+  for (const sample of SAMPLE_GAMES) {
+    // Check if already seeded (by exact title match)
+    const existing = await prisma.game.findFirst({
+      where: { title: sample.title, approval_status: 'approved' },
+      select: { id: true },
+    });
+    if (existing) {
+      created.push(existing);
+      continue;
+    }
+    const gameDate = new Date(now.getTime() + sample.days_ahead * 86400000);
+    const game = await (prisma.game.create as any)({
+      data: {
+        title: sample.title,
+        date: gameDate,
+        location: sample.location,
+        cover_image_url: sample.cover_image_url,
+        banner_url: sample.cover_image_url,
+        approval_status: 'approved',
+        approved_at: now,
+        created_by_id: req.user!.id,
+        approved_by_id: req.user!.id,
+        event_type: 'game',
+      },
+    });
+    // Create associated event for RSVP
+    await prisma.event.create({
+      data: {
+        title: sample.title,
+        date: gameDate,
+        location: sample.location,
+        game_id: game.id,
+        status: 'approved',
+        approval_status: 'approved',
+        creator_id: req.user!.id,
+        creator_role: 'organizer',
+        event_type: 'game',
+      } as any,
+    });
+    // Create feed post
+    await prisma.post.create({
+      data: {
+        content: `📅 New Game: ${sample.title}\n📍 ${sample.location}`,
+        author_id: req.user!.id,
+        media_url: sample.cover_image_url,
+        game_id: game.id,
+        type: 'admin_broadcast',
+      } as any,
+    });
+    created.push(game);
+  }
+
+  return res.json({ ok: true, games: created });
+}));
+
 // Batch vote summaries - avoids N+1 when loading feed with many games (must be before /:id)
 gamesRouter.get('/votes-summary', async (req: AuthedRequest, res) => {
   try {

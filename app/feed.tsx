@@ -336,20 +336,18 @@ export default function FeedScreen() {
         normalizedGames = [];
       }
       
-      // Only inject sample events if we successfully loaded but got empty results
-      // (not if the request failed)
+      // If no games exist, seed sample games as real DB records (stories/polls work)
       if ((!normalizedGames || normalizedGames.length === 0) && gamesData !== null) {
-        const now = new Date();
-        const addDays = (d: number) => new Date(now.getTime() + d * 86400000).toISOString();
-        normalizedGames = [
-          {
-            id: 'sample-duke-unc',
-            title: 'Duke Blue Devils vs. North Carolina Tar Heels',
-            date: addDays(5),
-            location: 'Cameron Indoor Stadium, Durham, NC 27708',
-            cover_image_url: 'https://images.unsplash.com/photo-1518655048521-f130df041f66?q=80&w=1280&auto=format&fit=crop',
-          },
-        ];
+        try {
+          const { httpPost } = await import('@/api/http');
+          await httpPost('/games/seed-samples', {});
+          // Re-fetch games now that seeds exist
+          const seeded = await Game.list('-date', { limit: 30 }).catch(() => ({ games: [] }));
+          const seededList = seeded?.games || (Array.isArray(seeded) ? seeded : []);
+          if (seededList.length > 0) normalizedGames = seededList;
+        } catch (seedErr: any) {
+          if (__DEV__) console.warn('[feed] seed-samples failed:', seedErr?.message);
+        }
       }
       setGames(normalizedGames);
       setGamesCursor(cursor);
