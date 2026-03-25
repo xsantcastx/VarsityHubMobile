@@ -442,7 +442,7 @@ export async function sendAdPendingReviewEmail(params: {
   <div style="text-align:center;">
     <a href="${dashboardUrl}" style="display:inline-block;color:#1B3A6B;padding:8px 16px;text-decoration:underline;font-size:13px;">or Review in Dashboard</a>
   </div>
-  <p style="text-align:center;color:#9CA3AF;font-size:13px;margin-top:24px;">&copy; ${new Date().getFullYear()} Lime Productions. All rights reserved.</p>
+  <p style="text-align:center;color:#9CA3AF;font-size:13px;margin-top:24px;">&copy; 2025 LIME PRODUCTIONS. All rights reserved.</p>
 </div>`;
 
   const fallbackSent = await sendEmail({ to: adminTo, subject, text: plainBody, html: htmlBody });
@@ -507,7 +507,7 @@ export async function sendAdApprovedEmail(params: {
   <div style="text-align:center;margin-top:24px;">
     <a href="${APP_BASE_URL}" style="display:inline-block;background:#1B3A6B;color:#fff;padding:12px 32px;border-radius:8px;text-decoration:none;font-weight:600;">Open VarsityHub</a>
   </div>
-  <p style="text-align:center;color:#9CA3AF;font-size:13px;margin-top:24px;">&copy; ${new Date().getFullYear()} Lime Productions. All rights reserved.</p>
+  <p style="text-align:center;color:#9CA3AF;font-size:13px;margin-top:24px;">&copy; 2025 LIME PRODUCTIONS. All rights reserved.</p>
 </div>`;
 
   return sendEmail({
@@ -555,7 +555,7 @@ export async function sendAdRejectedEmail(params: {
   <div style="text-align:center;margin-top:24px;">
     <a href="${APP_BASE_URL}" style="display:inline-block;background:#1B3A6B;color:#fff;padding:12px 32px;border-radius:8px;text-decoration:none;font-weight:600;">Open VarsityHub</a>
   </div>
-  <p style="text-align:center;color:#9CA3AF;font-size:13px;margin-top:24px;">&copy; ${new Date().getFullYear()} Lime Productions. All rights reserved.</p>
+  <p style="text-align:center;color:#9CA3AF;font-size:13px;margin-top:24px;">&copy; 2025 LIME PRODUCTIONS. All rights reserved.</p>
 </div>`;
 
   return sendEmail({
@@ -903,7 +903,7 @@ export async function sendVerificationEmail(email: string, token: string, userNa
     <a href="${getCommonTemplateData().facebook_url}" style="margin:0 8px;color:#1a1a2e;text-decoration:none;font-size:13px;font-weight:600;">Facebook</a>
     <a href="${getCommonTemplateData().x_url}" style="margin:0 8px;color:#1a1a2e;text-decoration:none;font-size:13px;font-weight:600;">X</a>
   </div>
-  <p style="text-align:center;color:#9CA3AF;font-size:13px;margin-top:16px;">&copy; ${new Date().getFullYear()} Lime Productions. All rights reserved.</p>
+  <p style="text-align:center;color:#9CA3AF;font-size:13px;margin-top:16px;">&copy; 2025 LIME PRODUCTIONS. All rights reserved.</p>
 </div>`;
 
   return sendEmail({
@@ -950,7 +950,7 @@ export async function sendPasswordResetEmail(email: string, code: string): Promi
   </div>
   <p style="text-align:center;color:#6B7280;font-size:14px;">This code expires in 30 minutes.</p>
   <p style="text-align:center;color:#6B7280;font-size:14px;">If you didn't request this, you can safely ignore this email.</p>
-  <p style="text-align:center;color:#9CA3AF;font-size:13px;margin-top:24px;">&copy; ${new Date().getFullYear()} Lime Productions. All rights reserved.</p>
+  <p style="text-align:center;color:#9CA3AF;font-size:13px;margin-top:24px;">&copy; 2025 LIME PRODUCTIONS. All rights reserved.</p>
 </div>`;
 
   return sendEmail({
@@ -1748,7 +1748,7 @@ export async function sendLeagueApprovalRequestEmail(params: {
     <a href="${rejectUrl}" style="display:inline-block;background:#DC2626;color:#fff;padding:12px 32px;border-radius:8px;text-decoration:none;font-weight:600;">Reject League</a>
   </div>
   <p style="text-align:center;color:#6B7280;font-size:12px;margin-top:16px;">These links expire in 7 days. No login required.</p>
-  <p style="text-align:center;color:#9CA3AF;font-size:13px;margin-top:24px;">&copy; ${new Date().getFullYear()} Lime Productions. All rights reserved.</p>
+  <p style="text-align:center;color:#9CA3AF;font-size:13px;margin-top:24px;">&copy; 2025 LIME PRODUCTIONS. All rights reserved.</p>
 </div>`;
 
     return sendEmail({
@@ -1800,7 +1800,7 @@ export async function sendLeagueApprovedEmail(params: {
   <div style="text-align:center;margin-top:24px;">
     <a href="${APP_BASE_URL}" style="display:inline-block;background:#1B3A6B;color:#fff;padding:12px 32px;border-radius:8px;text-decoration:none;font-weight:600;">Open VarsityHub</a>
   </div>
-  <p style="text-align:center;color:#9CA3AF;font-size:13px;margin-top:24px;">&copy; ${new Date().getFullYear()} Lime Productions. All rights reserved.</p>
+  <p style="text-align:center;color:#9CA3AF;font-size:13px;margin-top:24px;">&copy; 2025 LIME PRODUCTIONS. All rights reserved.</p>
 </div>`;
 
   return sendEmail({
@@ -1850,7 +1850,7 @@ export async function sendLeagueRejectedEmail(params: {
   </p>
   ${reasonText}
   <p style="text-align:center;color:#374151;">If you believe this was a mistake, contact <a href="mailto:${CUSTOMER_SERVICE_EMAIL}">${CUSTOMER_SERVICE_EMAIL}</a>.</p>
-  <p style="text-align:center;color:#9CA3AF;font-size:13px;margin-top:24px;">&copy; ${new Date().getFullYear()} Lime Productions. All rights reserved.</p>
+  <p style="text-align:center;color:#9CA3AF;font-size:13px;margin-top:24px;">&copy; 2025 LIME PRODUCTIONS. All rights reserved.</p>
 </div>`;
 
   return sendEmail({
@@ -1908,7 +1908,7 @@ export async function sendCoachApprovedEmail(params: {
     <a href="${getCommonTemplateData().facebook_url}" style="margin:0 8px;color:#1a1a2e;text-decoration:none;font-size:13px;font-weight:600;">Facebook</a>
     <a href="${getCommonTemplateData().x_url}" style="margin:0 8px;color:#1a1a2e;text-decoration:none;font-size:13px;font-weight:600;">X</a>
   </div>
-  <p style="text-align:center;color:#9CA3AF;font-size:13px;margin-top:16px;">&copy; ${new Date().getFullYear()} Lime Productions. All rights reserved.</p>
+  <p style="text-align:center;color:#9CA3AF;font-size:13px;margin-top:16px;">&copy; 2025 LIME PRODUCTIONS. All rights reserved.</p>
 </div>`;
 
   return sendEmail({
@@ -1961,7 +1961,7 @@ export async function sendCoachRejectedEmail(params: {
   <div style="text-align:center;margin-top:24px;">
     <a href="mailto:${CUSTOMER_SERVICE_EMAIL}" style="display:inline-block;background:#1B3A6B;color:#fff;padding:12px 32px;border-radius:8px;text-decoration:none;font-weight:600;">Contact Support</a>
   </div>
-  <p style="text-align:center;color:#9CA3AF;font-size:13px;margin-top:24px;">&copy; ${new Date().getFullYear()} Lime Productions. All rights reserved.</p>
+  <p style="text-align:center;color:#9CA3AF;font-size:13px;margin-top:24px;">&copy; 2025 LIME PRODUCTIONS. All rights reserved.</p>
 </div>`;
 
   return sendEmail({
@@ -2060,7 +2060,7 @@ export async function sendNewCoachRequestEmail(params: {
     <a href="${denyUrl}" style="display:inline-block;background:#DC2626;color:#fff;padding:12px 32px;border-radius:8px;text-decoration:none;font-weight:600;">Deny Coach</a>
   </div>
   <p style="text-align:center;color:#6B7280;font-size:12px;margin-top:16px;">You can also manage requests in the VarsityHub app under Approvals.</p>
-  <p style="text-align:center;color:#9CA3AF;font-size:13px;margin-top:24px;">&copy; ${new Date().getFullYear()} Lime Productions. All rights reserved.</p>
+  <p style="text-align:center;color:#9CA3AF;font-size:13px;margin-top:24px;">&copy; 2025 LIME PRODUCTIONS. All rights reserved.</p>
 </div>`;
 
   return sendEmail({
