@@ -7,11 +7,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -103,11 +105,23 @@ export default function EventApprovalsScreen() {
 
   const loadEvents = async () => {
     try {
-      const data = await httpGet('/events/pending');
-      const pending = Array.isArray(data)
-        ? data.filter((e: any) => e?.approval_status === 'pending')
+      // Load both pending events AND pending games (fan pitches go to /games)
+      const [eventsData, gamesData] = await Promise.all([
+        httpGet('/events/pending').catch(() => []),
+        httpGet('/games?show_pending=true&limit=50').catch(() => ({ games: [] })),
+      ]);
+      const pendingEvents = Array.isArray(eventsData)
+        ? eventsData.filter((e: any) => e?.approval_status === 'pending')
         : [];
-      setEvents(pending);
+      const pendingGames = (gamesData?.games || [])
+        .filter((g: any) => g?.approval_status === 'pending')
+        .map((g: any) => ({
+          ...g,
+          _isGame: true, // Flag to use game approve endpoint
+          event_type: g.event_type || 'game',
+          creator: g.created_by ? { id: g.created_by_id, display_name: g.created_by_name } : undefined,
+        }));
+      setEvents([...pendingEvents, ...pendingGames]);
       loadEventsFailedRef.current = false;
     } catch (e: any) {
       if (__DEV__) console.warn('[Approvals] Events load failed:', e?.message);
@@ -201,7 +215,12 @@ export default function EventApprovalsScreen() {
   const handleApproveEvent = async (eventId: number) => {
     setProcessingEventId(eventId);
     try {
-      await httpPut(`/events/${eventId}/approve`, {});
+      const evt = events.find(e => e.id === eventId) as any;
+      if (evt?._isGame) {
+        await httpPut(`/games/${eventId}/approve`, {});
+      } else {
+        await httpPut(`/events/${eventId}/approve`, {});
+      }
       Alert.alert('Approved', 'The event has been published.');
       setEvents(prev => prev.filter(e => e.id !== eventId));
     } catch (e: any) {
@@ -211,26 +230,33 @@ export default function EventApprovalsScreen() {
     }
   };
 
+  const [rejectModal, setRejectModal] = useState<{ eventId: number } | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+
   const handleRejectEvent = (eventId: number) => {
-    Alert.prompt('Reject Event', 'Provide a reason for rejection (optional):', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Reject',
-        style: 'destructive',
-        onPress: async (reason?: string) => {
-          setProcessingEventId(eventId);
-          try {
-            await httpPut(`/events/${eventId}/reject`, { reason: reason?.trim() || undefined });
-            Alert.alert('Rejected', 'The event has been rejected.');
-            setEvents(prev => prev.filter(e => e.id !== eventId));
-          } catch (e: any) {
-            Alert.alert('Error', e?.message || 'Failed to reject event.');
-          } finally {
-            setProcessingEventId(null);
-          }
-        },
-      },
-    ], 'plain-text');
+    setRejectReason('');
+    setRejectModal({ eventId });
+  };
+
+  const confirmRejectEvent = async () => {
+    if (!rejectModal) return;
+    const { eventId } = rejectModal;
+    setRejectModal(null);
+    setProcessingEventId(eventId);
+    try {
+      const evt = events.find(e => e.id === eventId) as any;
+      if (evt?._isGame) {
+        await httpPut(`/games/${eventId}/reject`, { reason: rejectReason.trim() || undefined });
+      } else {
+        await httpPut(`/events/${eventId}/reject`, { reason: rejectReason.trim() || undefined });
+      }
+      Alert.alert('Rejected', 'The event has been rejected.');
+      setEvents(prev => prev.filter(e => e.id !== eventId));
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Failed to reject event.');
+    } finally {
+      setProcessingEventId(null);
+    }
   };
 
   // ── Team invite actions ───────────────────────────────────────────────────
@@ -581,6 +607,31 @@ export default function EventApprovalsScreen() {
           }
         </ScrollView>
       )}
+      {/* Reject Event Modal */}
+      <Modal visible={!!rejectModal} transparent animationType="slide">
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)', padding: 24 }}>
+          <View style={{ backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white', borderRadius: 16, padding: 20, width: '100%', maxWidth: 400 }}>
+            <Text style={{ fontSize: 18, fontWeight: '800', color: C.text, marginBottom: 8 }}>Reject Event</Text>
+            <Text style={{ color: C.mutedText, marginBottom: 12 }}>Provide a reason for rejection (optional):</Text>
+            <TextInput
+              style={{ borderWidth: 1, borderColor: C.border, borderRadius: 8, padding: 10, color: C.text, backgroundColor: colorScheme === 'dark' ? '#111827' : '#F9FAFB', minHeight: 60, textAlignVertical: 'top' }}
+              value={rejectReason}
+              onChangeText={setRejectReason}
+              placeholder="Reason (optional)..."
+              placeholderTextColor={C.mutedText}
+              multiline
+            />
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
+              <Pressable style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: C.border, alignItems: 'center' }} onPress={() => setRejectModal(null)}>
+                <Text style={{ color: C.text, fontWeight: '700' }}>Cancel</Text>
+              </Pressable>
+              <Pressable style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: '#dc2626', alignItems: 'center' }} onPress={confirmRejectEvent}>
+                <Text style={{ color: 'white', fontWeight: '700' }}>Reject</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
