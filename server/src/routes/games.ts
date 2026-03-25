@@ -506,6 +506,25 @@ gamesRouter.post('/', requireVerified as any, requireOnboarded as any, gameCreat
       } as any,
     });
     
+    // Create a feed post so the game appears in the social feed
+    if (gameData.approval_status === 'approved') {
+      try {
+        await prisma.post.create({
+          data: {
+            content: `📅 New Game: ${game.title}${game.location ? `\n📍 ${game.location}` : ''}${game.date ? `\n🕐 ${new Date(game.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : ''}`,
+            author_id: req.user!.id,
+            media_url: game.banner_url || game.cover_image_url || null,
+            game_id: game.id,
+            team_id: game.home_team_id || null,
+            type: 'game',
+          } as any,
+        });
+      } catch (postErr) {
+        console.warn('[games] Failed to create feed post for game:', (postErr as any)?.message || postErr);
+        // Don't fail the game creation if feed post fails
+      }
+    }
+
     // Generate Google Maps link for venue
     const venueMapsLink = generateMapsLink(
       game.venue_address || game.location,

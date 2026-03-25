@@ -841,8 +841,9 @@ async function approveAd(id: string, note?: string | null) {
     where: { id },
     data: {
       status: 'approved',
-      // Always set payment_status to unpaid on approval so the user can pay
-      payment_status: ad.payment_status === 'paid' ? 'paid' : 'unpaid',
+      // Keep payment_status as pending_approval so reservations stay visible to
+      // the availability checker until user actually pays
+      payment_status: ad.payment_status === 'paid' ? 'paid' : 'pending_approval',
       ...(note ? { admin_note: note } : {}),
     },
   });

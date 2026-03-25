@@ -101,31 +101,29 @@ export default function AdminUserDetailScreen() {
     } finally { setActionLoading(false); }
   };
 
+  const [banModalVisible, setBanModalVisible] = useState(false);
+  const [banReason, setBanReason] = useState('');
+
   const onBan = () => {
     if (!id) return;
-    Alert.prompt(
-      'Ban User',
-      'Enter reason for banning this user:',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Ban',
-          style: 'destructive',
-          onPress: async (reason?: string) => {
-            try {
-              await User.ban(String(id));
-              Alert.alert('User Banned');
-              void load();
-              void loadModeration();
-            } catch (e: any) {
-              Alert.alert('Error', e?.message || 'Failed to ban user');
-            }
-          },
-        },
-      ],
-      'plain-text',
-      '',
-    );
+    setBanReason('');
+    setBanModalVisible(true);
+  };
+
+  const confirmBan = async () => {
+    try {
+      setActionLoading(true);
+      await User.ban(String(id), banReason.trim() || undefined);
+      Alert.alert('User Banned');
+      setBanModalVisible(false);
+      setBanReason('');
+      void load();
+      void loadModeration();
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Failed to ban user');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const onUnban = async () => {
@@ -411,6 +409,48 @@ export default function AdminUserDetailScreen() {
               >
                 {actionLoading ? <ActivityIndicator color="white" size="small" /> : (
                   <Text style={{ color: 'white', fontWeight: '700' }}>Suspend {suspendDays} Day(s)</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Ban Modal */}
+      <Modal visible={banModalVisible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white' }]}>
+            <Text style={[styles.modalTitle, { color: palette.text }]}>Ban User</Text>
+            <Text style={[styles.meta, { color: palette.mutedText, marginBottom: 12 }]}>
+              Permanently ban: {detail?.user?.display_name || detail?.user?.email}
+            </Text>
+
+            <Text style={[styles.label, { color: palette.text }]}>Reason (optional)</Text>
+            <TextInput
+              style={[styles.textInput, {
+                color: palette.text,
+                borderColor: palette.border,
+                backgroundColor: colorScheme === 'dark' ? '#111827' : '#F9FAFB',
+              }]}
+              value={banReason}
+              onChangeText={setBanReason}
+              placeholder="Reason for ban..."
+              placeholderTextColor={palette.mutedText}
+              multiline
+              numberOfLines={3}
+            />
+
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
+              <Pressable style={[styles.modalBtn, { backgroundColor: palette.border }]} onPress={() => setBanModalVisible(false)}>
+                <Text style={{ color: palette.text, fontWeight: '700' }}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.modalBtn, { backgroundColor: '#EF4444', flex: 1 }]}
+                onPress={confirmBan}
+                disabled={actionLoading}
+              >
+                {actionLoading ? <ActivityIndicator color="white" size="small" /> : (
+                  <Text style={{ color: 'white', fontWeight: '700' }}>Ban Permanently</Text>
                 )}
               </Pressable>
             </View>

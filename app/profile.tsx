@@ -784,26 +784,27 @@ export default function ProfileScreen() {
             </View>
           </Pressable>
 
-          {/* User Info - Next to Avatar ON BANNER */}
-          <View style={styles.userInfo}>
-            <View style={styles.nameRow}>
-              <Text style={[styles.userName, { color: '#FFFFFF' }]}>{displayUsername}</Text>
-              {roleLabel && (
-                <View style={[styles.roleBadge, 
-                  roleRaw === 'coach' && styles.coachBadge,
-                  roleRaw === 'player' && styles.playerBadge,
-                  roleRaw === 'fan' && styles.fanBadge
-                ]}>
-                  <Text style={styles.roleText}>{roleRaw === 'coach' ? 'COACH' : roleRaw.toUpperCase()}</Text>
-                </View>
-              )}
-            </View>
-          </View>
         </View>
       </View>
 
       {/* Content Below Banner */}
       <View style={styles.profileDetailsContainer}>
+        {/* User Info - Below Banner, next to avatar overhang */}
+        <View style={styles.userInfoBelowBanner}>
+          <View style={styles.nameRow}>
+            <Text style={[styles.userName, { color: theme.text }]}>{displayUsername}</Text>
+            {roleLabel && (
+              <View style={[styles.roleBadge,
+                roleRaw === 'coach' && styles.coachBadge,
+                roleRaw === 'player' && styles.playerBadge,
+                roleRaw === 'fan' && styles.fanBadge
+              ]}>
+                <Text style={styles.roleText}>{roleRaw === 'coach' ? 'COACH' : roleRaw.toUpperCase()}</Text>
+              </View>
+            )}
+          </View>
+        </View>
+
         {/* Edit Profile Button Row - Only shown when viewing own profile */}
         {!viewingUserId || viewingUserId === currentUserId ? (
           <View style={styles.usernameRow}>
@@ -1442,10 +1443,6 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#ffffff', // Default, will be overridden dynamically
-    textShadowColor: 'rgba(0, 0, 0, 0.6)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
     flexShrink: 1, // Allow text to shrink if needed
     maxWidth: '100%', // Prevent overflow
   },
@@ -1486,9 +1483,13 @@ const styles = StyleSheet.create({
   // Profile Details Below Banner - Tight spacing to match reference
   profileDetailsContainer: {
     backgroundColor: 'transparent',
-    paddingTop: 8, // Reduced space for overlapping avatar - close the gap
+    paddingTop: 48, // Account for avatar overhang (40px negative margin + 8px breathing room)
     marginBottom: 0, // No gap before tabs
     paddingBottom: 0, // No padding at bottom
+  },
+  userInfoBelowBanner: {
+    paddingHorizontal: 16,
+    marginBottom: 8,
   },
   editButton: {
     paddingHorizontal: 20,

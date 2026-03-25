@@ -28,7 +28,7 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
     req.baseUrl === '/teams' &&
     req.method === 'POST' &&
     (req.path === '/' || req.path === '/create');
-  if (req.body?.onboarding === true && isTeamsCreateRoute && prefs?.onboarding_completed !== true) {
+  if (req.body?.onboarding === true && isTeamsCreateRoute && prefs?.onboarding_completed !== true && prefs?.role === 'coach') {
     return next();
   }
 

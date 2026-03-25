@@ -156,7 +156,7 @@ function RoleOnboardingScreenInner() {
       setOB((prev) => ({
         ...prev,
         role: 'coach',
-        plan: 'rookie',
+        plan: tier,
         pending_plan: isPaidPlan ? tier : undefined,
         payment_pending: isPaidPlan,
       }));

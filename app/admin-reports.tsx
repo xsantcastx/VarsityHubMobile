@@ -58,21 +58,19 @@ export default function AdminReportsScreen() {
   const [filterStatus, setFilterStatus] = useState<string>('all');
 
   const loadReports = useCallback(async (showRefreshing = false) => {
+    if (!isAdmin) return; // Don't load until admin status confirmed
     if (showRefreshing) setRefreshing(true);
     else setLoading(true);
     setError(null);
-    
+
     try {
-      const _token = await (await import('@/api/auth')).loadToken();
-      const _apiUrl = getApiBaseUrl();
-      
       // Use API client instead of direct fetch
       const { httpGet } = await import('@/api/http');
       const [reportsData, statsData] = await Promise.all([
         httpGet(`/admin/reports?status=${filterStatus}`),
         httpGet('/admin/reports/stats'),
       ]);
-      
+
       setReports(reportsData.reports || []);
       setStats(statsData);
     } catch (e: any) {
@@ -81,7 +79,7 @@ export default function AdminReportsScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [filterStatus]);
+  }, [filterStatus, isAdmin]);
 
   useEffect(() => {
     void loadReports();

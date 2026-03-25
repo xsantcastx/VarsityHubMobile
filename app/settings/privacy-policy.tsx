@@ -11,50 +11,29 @@ export default function PrivacyPolicyScreen() {
       <Stack.Screen options={{ title: 'Privacy Policy' }} />
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={[styles.updatedAt, { color: Colors[colorScheme].mutedText }]}>
-          Last updated: January 19, 2025
+          Last updated: March 25, 2026
         </Text>
 
-        <PolicySection colorScheme={colorScheme} title="Introduction"
-          body={'VarsityHub ("we", "our", or "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our mobile application.'} />
+        <PolicySection colorScheme={colorScheme} title="What We Collect"
+          body={'We collect: email, username, profile info, posts, photos, videos, messages, team/game data, event RSVPs, device info, usage data, and approximate location (when enabled). Payments are processed by Stripe — we never store card numbers.'} />
 
-        <PolicySection colorScheme={colorScheme} title="Personal Information We Collect"
-          body={'• Account Information: Email address, username, phone number (optional)\n• Profile Information: Avatar, bio, sports interests, team affiliations\n• Authentication: Google OAuth or Apple Sign-In credentials\n• User-Generated Content: Posts, comments, messages, photos, and videos\n• Team and game information you create\n• Event RSVPs and attendance data'} />
+        <PolicySection colorScheme={colorScheme} title="How We Use It"
+          body={'To run VarsityHub: deliver the service, process payments, send notifications, show nearby events, personalize your experience, and prevent abuse.'} />
 
-        <PolicySection colorScheme={colorScheme} title="Automatically Collected Information"
-          body={'• Device Information: Device type, operating system, unique device identifiers\n• Usage Data: App features used, interactions, time spent in app\n• Location Data: Approximate location (when you enable location services) for event mapping'} />
+        <PolicySection colorScheme={colorScheme} title="Who We Share With"
+          body={'We do not sell your data. We share only with: service providers (Stripe, Cloudinary, Railway, Google, Sentry), when you post publicly, or when required by law. We do not share data with sports leagues or universities.'} />
 
-        <PolicySection colorScheme={colorScheme} title="Payment Information"
-          body="Payment processing is handled by Stripe. We do not store credit card numbers. We retain transaction records for subscription management." />
+        <PolicySection colorScheme={colorScheme} title="Your Rights"
+          body={'You can access, correct, delete, or export your data. Delete your account in Settings — we anonymize your data immediately. Contact support@varsityhub.app to exercise any right.'} />
 
-        <PolicySection colorScheme={colorScheme} title="How We Use Your Information"
-          body={'We use the collected information to:\n• Provide, maintain, and improve the VarsityHub service\n• Process your subscription payments\n• Send you notifications about events, messages, and app updates\n• Display nearby events on the map (if location enabled)\n• Personalize your experience\n• Respond to your comments and questions\n• Detect and prevent fraud or abuse'} />
+        <PolicySection colorScheme={colorScheme} title="Children"
+          body={'You must be 13+ to use VarsityHub. Users 13-17 need parental consent. We delete data from under-13 users immediately upon discovery.'} />
 
-        <PolicySection colorScheme={colorScheme} title="Information Sharing"
-          body={'We do not sell your personal information. We share information only:\n• With Your Consent: When you choose to share content publicly or with specific teams\n• Service Providers: Stripe (payment processing), Cloudinary (image/video hosting), Railway (server hosting), Google (OAuth authentication and Maps)\n• Legal Requirements: When required by law or to protect rights and safety\n\nVarsityHub does not share user data with sports leagues, athletic conferences, universities, or broadcast organizations except when required by valid legal process such as a court order or subpoena.'} />
+        <PolicySection colorScheme={colorScheme} title="Security & Storage"
+          body={'Data encrypted in transit (HTTPS), stored on Railway (PostgreSQL). We use industry-standard security. VarsityHub is US-based; by using the app you consent to US data transfer.'} />
 
-        <PolicySection colorScheme={colorScheme} title="Data Storage and Security"
-          body={'• Your data is encrypted in transit using HTTPS\n• We use industry-standard security measures to protect your information\n• Data is stored on secure servers provided by Railway (PostgreSQL database)'} />
-
-        <PolicySection colorScheme={colorScheme} title="Your Rights and Choices"
-          body={'You have the right to:\n• Access: Request a copy of your personal data\n• Correction: Update incorrect information in your profile settings\n• Deletion: Delete your account and associated data from Settings\n• Opt-Out: Disable location services or push notifications in your device settings\n• Data Portability: Request your data in a portable format\n\nTo exercise these rights, contact us at: support@varsityhub.app'} />
-
-        <PolicySection colorScheme={colorScheme} title="Children's Privacy"
-          body="VarsityHub is intended for users 13 years and older. We do not knowingly collect information from children under 13. If we discover such collection, we will delete it immediately." />
-
-        <PolicySection colorScheme={colorScheme} title="Third-Party Services"
-          body={'Our app integrates with:\n• Google Maps: For event location display (subject to Google Privacy Policy)\n• Google Sign-In / Apple Sign-In: For authentication\n• Stripe: For payment processing (subject to Stripe Privacy Policy)\n• Sentry: For crash reporting and error tracking, which may collect device information, app state, and diagnostic data at the time of a crash'} />
-
-        <PolicySection colorScheme={colorScheme} title="Push Notifications"
-          body="You can control push notifications in your device settings. We send notifications for new messages, event reminders, team updates, and subscription status changes." />
-
-        <PolicySection colorScheme={colorScheme} title="International Users"
-          body="VarsityHub is operated in the United States. By using the app, you consent to the transfer of your information to the United States." />
-
-        <PolicySection colorScheme={colorScheme} title="Changes to This Policy"
-          body="We may update this Privacy Policy periodically. We will notify you of significant changes via in-app notification or email to your registered address." />
-
-        <PolicySection colorScheme={colorScheme} title="Contact Us"
-          body="If you have questions about this Privacy Policy, email us at support@varsityhub.app." />
+        <PolicySection colorScheme={colorScheme} title="Changes & Contact"
+          body={'We may update this policy and will notify you of material changes. Questions? Email support@varsityhub.app.'} />
 
         <Text style={[styles.footer, { color: Colors[colorScheme].mutedText }]}>
           © 2026 VarsityHub. All rights reserved.

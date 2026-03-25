@@ -131,13 +131,24 @@ export default function SettingsScreen() {
   // Debounced PATCH updater for preferences
   // Only sends the specific fields being changed to avoid overwriting other preferences (e.g. role)
   type PrefsPatch = Omit<Partial<Preferences>, 'notifications'> & { notifications?: Partial<Preferences['notifications']> };
+  // Single debounce timer to batch all preference changes together
+  const pendingPatch = useRef<PrefsPatch>({});
   const patchPrefs = (patch: PrefsPatch) => {
-    const key = JSON.stringify(patch);
-    if (timers.current[key]) clearTimeout(timers.current[key]);
-    
+    // Clear any existing timer — we'll send one merged patch
+    if (timers.current['__prefs__']) clearTimeout(timers.current['__prefs__']);
+
+    // Accumulate patches
+    pendingPatch.current = {
+      ...pendingPatch.current,
+      ...patch,
+      notifications: {
+        ...(pendingPatch.current.notifications || {}),
+        ...(patch.notifications || {}),
+      },
+    };
+
     // Use functional update to get the latest state
     setPrefs(cur => {
-                  // Deep merge notifications, shallow merge the rest
                   const newPrefs = {
                     ...cur,
                     ...patch,
@@ -147,17 +158,18 @@ export default function SettingsScreen() {
                     },
                   };
 
-                  // Debounce the API call - only send the changed fields, not the full prefs object
-                  const patchToSend = patch.notifications
-                    ? { notifications: { ...cur.notifications, ...patch.notifications } }
-                    : { ...patch };
-                  timers.current[key] = setTimeout(async () => {
+                  // Debounce: send the accumulated patch after 300ms of inactivity
+                  const merged = pendingPatch.current;
+                  timers.current['__prefs__'] = setTimeout(async () => {
+                    const patchToSend = merged.notifications
+                      ? { ...merged, notifications: { ...newPrefs.notifications } }
+                      : { ...merged };
+                    // Clear accumulated patch
+                    pendingPatch.current = {};
                     try {
                       await User.updatePreferences(patchToSend);
                     } catch (e: any) {
-                      // Error handled via Alert below
                       if (__DEV__) console.error('[settings] Failed to update preferences:', e);
-                      // Revert on failure if needed, though not implemented here
                       Alert.alert('Update failed', 'Could not save your preference. Please try again.');
                     }
                   }, 300);

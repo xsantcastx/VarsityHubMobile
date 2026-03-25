@@ -169,9 +169,11 @@ export default function NotificationsScreen() {
       } else if (item.type === 'AD_REJECTED' && item.meta?.ad_id) {
         router.push(`/ad-calendar?adId=${encodeURIComponent(item.meta.ad_id)}` as any);
       } else if (item.type === 'ORG_APPROVED') {
-        router.push('/(tabs)/create-team' as any);
+        const oid = item.meta?.organization_id;
+        router.push(oid ? { pathname: '/(tabs)/organization', params: { id: oid } } as any : '/(tabs)' as any);
       } else if (item.type === 'JOIN_REQUEST_APPROVED') {
-        router.push('/(tabs)/create-team' as any);
+        const oid = item.meta?.organization_id;
+        router.push(oid ? { pathname: '/(tabs)/organization', params: { id: oid } } as any : '/(tabs)' as any);
       } else if ((item.type === 'EVENT_APPROVED' || item.type === 'EVENT_REJECTED') && item.meta?.event_id) {
         router.push(`/event-detail?id=${encodeURIComponent(item.meta.event_id)}` as any);
       } else if (item.type === 'COACH_REJECTED') {
@@ -198,7 +200,7 @@ export default function NotificationsScreen() {
             <MaterialIcons name="person" size={20} color={theme.mutedText} />
           </View>
           {/* System notifications (no sender) show VarsityHub logo */}
-          {!item.actor && ['ORG_APPROVED', 'AD_APPROVED', 'AD_REJECTED', 'EVENT_APPROVED', 'EVENT_REJECTED', 'COACH_REJECTED', 'JOIN_REQUEST_APPROVED'].includes(item.type) ? (
+          {(!item.actor || ['GAME_REMINDER', 'ORG_APPROVED', 'AD_APPROVED', 'AD_REJECTED', 'EVENT_APPROVED', 'EVENT_REJECTED', 'COACH_REJECTED', 'JOIN_REQUEST_APPROVED'].includes(item.type)) && ['GAME_REMINDER', 'ORG_APPROVED', 'AD_APPROVED', 'AD_REJECTED', 'EVENT_APPROVED', 'EVENT_REJECTED', 'COACH_REJECTED', 'JOIN_REQUEST_APPROVED'].includes(item.type) ? (
             <Image source={{ uri: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765655742/6C37232F-74BC-4486-95A1-7EE208A63D06_ai2j8k.png' }} style={[S.avatar, S.avatarOverlay]} contentFit="cover" accessibilityLabel="VarsityHub" />
           ) : item.actor?.avatar_url ? (
             <Image source={{ uri: item.actor.avatar_url }} style={[S.avatar, S.avatarOverlay]} contentFit="cover" accessibilityLabel={`${actorName} avatar`} />

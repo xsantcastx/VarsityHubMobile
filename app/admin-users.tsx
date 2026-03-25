@@ -4,7 +4,7 @@ import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { User } from '@/api/entities';
@@ -43,8 +43,8 @@ export default function AdminUsersScreen() {
         await User.ban(id);
       }
       await load();
-    } catch {
-      // ignored
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || `Failed to ${banned ? 'unban' : 'ban'} user`);
     }
   };
 

@@ -542,4 +542,35 @@ adminRouter.post('/users/:id/ban', requireVerified as any, requireAdminMiddlewar
   }
 });
 
+/**
+ * POST /admin/users/:id/unban
+ * Unban a user with audit trail
+ */
+adminRouter.post('/users/:id/unban', requireVerified as any, requireAdminMiddleware as any, async (req: AuthedRequest, res) => {
+  try {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    const unbannedUserId = req.params.id;
+
+    await prisma.user.update({
+      where: { id: unbannedUserId },
+      data: {
+        banned: false,
+        ban_reason: null,
+      },
+    });
+
+    // Audit log
+    console.warn('[ADMIN_AUDIT] user_unbanned', {
+      admin_id: req.user.id,
+      unbanned_user_id: unbannedUserId,
+      at: new Date().toISOString(),
+    });
+
+    return res.json({ ok: true, banned: false });
+  } catch (error) {
+    console.error('[admin] Error unbanning user:', error);
+    return res.status(500).json({ error: 'Failed to unban user' });
+  }
+});
+
 export default adminRouter;
