@@ -1293,16 +1293,23 @@ const GameDetailsScreen = () => {
       if (!mediaUrl) {
         throw new Error('Upload failed');
       }
-      if (isSampleId(vm.gameId)) {
-        // Local-only story for sample games; do not call backend
-        setVm((prev) => {
-          if (!prev) return prev;
-          const newItem: MediaItem = { id: String(Date.now()), url: mediaUrl, kind: (mimeType?.startsWith('video') ? 'video' : 'photo') as any };
-          return { ...prev, media: [newItem, ...(prev.media || [])] } as GameVM;
-        });
-      } else {
-        if (!vm.gameId) throw new Error('No game ID');
-        const gameId = vm.gameId; // type guard
+      {
+        let gameId = vm.gameId;
+        // If sample game, seed real DB records first so story persists
+        if (isSampleId(gameId)) {
+          try {
+            const { httpPost } = await import('../../api/http');
+            const seedResult = await httpPost('/games/seed-samples', {});
+            const seededGame = seedResult?.games?.find((g: any) => vm.title && g.title?.includes(vm.title.split(' vs')[0]?.trim()));
+            if (seededGame?.id) {
+              gameId = seededGame.id;
+              setVm((prev) => prev ? { ...prev, gameId } as any : prev);
+            }
+          } catch (seedErr: any) {
+            if (__DEV__) console.warn('[story] seed-samples failed, trying direct post:', seedErr?.message);
+          }
+        }
+        if (!gameId || isSampleId(gameId)) throw new Error('Could not create real game record for story');
         const storyPayload: any = { media_url: mediaUrl };
         if (location?.latitude && location?.longitude) {
           storyPayload.location = { lat: location.latitude, lng: location.longitude, source: 'device' };
@@ -1356,20 +1363,29 @@ const GameDetailsScreen = () => {
       const mediaUrl = uploaded?.path || uploaded?.url;
       if (!mediaUrl) throw new Error('Upload failed');
 
-      if (isSampleId(vm.gameId)) {
-        setVm((prev) => {
-          if (!prev) return prev;
-          const newItem: MediaItem = { id: String(Date.now()), url: mediaUrl, kind: storyPreview.type as any };
-          return { ...prev, media: [newItem, ...(prev.media || [])] } as GameVM;
-        });
-      } else {
+      {
+        let gameId = vm.gameId;
+        if (isSampleId(gameId)) {
+          try {
+            const { httpPost } = await import('../../api/http');
+            const seedResult = await httpPost('/games/seed-samples', {});
+            const seededGame = seedResult?.games?.find((g: any) => vm.title && g.title?.includes(vm.title.split(' vs')[0]?.trim()));
+            if (seededGame?.id) {
+              gameId = seededGame.id;
+              setVm((prev) => prev ? { ...prev, gameId } as any : prev);
+            }
+          } catch (seedErr: any) {
+            if (__DEV__) console.warn('[story] video seed failed:', seedErr?.message);
+          }
+        }
+        if (!gameId || isSampleId(gameId)) throw new Error('Could not create real game record for story');
         const storyPayload: any = { media_url: mediaUrl };
         if (location?.latitude && location?.longitude) {
           storyPayload.location = { lat: location.latitude, lng: location.longitude, source: 'device' };
         }
-        await Game.addStory(vm.gameId, storyPayload);
+        await Game.addStory(gameId, storyPayload);
         try {
-          await loadGameById(vm.gameId);
+          await loadGameById(gameId);
           Alert.alert('Added', 'Story added to this game.');
         } catch {
           Alert.alert('Added', 'Story added to this game. Refresh to see it.');
