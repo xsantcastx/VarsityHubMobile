@@ -630,7 +630,7 @@ eventsRouter.post('/', requireVerified as any, requireOnboarded as any, eventCre
           media_url: data.banner_url || null,
           event_id: event.id,
           team_id: data.home_team_id || null,
-          type: 'event',
+          type: isAdminUser ? 'admin_broadcast' : 'event',
         } as any,
       });
     } catch (postErr) {

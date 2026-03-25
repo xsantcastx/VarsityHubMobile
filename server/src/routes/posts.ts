@@ -109,7 +109,11 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
     if (followingIds.length === 0) {
       return res.json({ items: [], nextCursor: null, followed_feed_meta: followedFeedMeta });
     }
-    where.author_id = { in: followingIds };
+    // Show posts from followed users OR admin broadcast posts (visible to everyone)
+    where.OR = [
+      { author_id: { in: followingIds } },
+      { type: 'admin_broadcast' },
+    ];
   }
 
   // Followed teams feed: posts from teams the user follows (team_id or game's teams)
@@ -140,6 +144,7 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
     where.OR = [
       { team_id: { in: followedTeamIds } },
       ...(gameIds.length > 0 ? [{ game_id: { in: gameIds } }] : []),
+      { type: 'admin_broadcast' },
     ];
   }
 

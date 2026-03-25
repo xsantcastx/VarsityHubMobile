@@ -516,7 +516,7 @@ gamesRouter.post('/', requireVerified as any, requireOnboarded as any, gameCreat
             media_url: game.banner_url || game.cover_image_url || null,
             game_id: game.id,
             team_id: game.home_team_id || null,
-            type: 'game',
+            type: isAdmin ? 'admin_broadcast' : 'game',
           } as any,
         });
       } catch (postErr) {
