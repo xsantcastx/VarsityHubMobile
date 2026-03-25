@@ -293,17 +293,15 @@ include: { sender: { select: baseUserSelect }, recipient: { select: baseUserSele
 // Only notify if recipient is different from sender (prevent self-notifications)
 if (toId !== meId) {
   try {
-    // Create in-app notification record
-    // Note: message_id column doesn't exist in database yet, storing message info in meta instead
-    await (prisma as any).notification.create({
+    // Create in-app notification record with proper message_id foreign key
+    await prisma.notification.create({
       data: {
         user_id: toId!,
         actor_id: meId,
         type: 'MESSAGE',
-        // message_id removed - column doesn't exist in database yet
+        message_id: created.id,
         meta: {
           conversation_id: convId!,
-          message_id: created.id, // Store in meta for now
           preview: content.substring(0, 100),
         },
       },

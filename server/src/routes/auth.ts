@@ -805,6 +805,12 @@ authRouter.post('/password/reset', asyncHandler(async (req, res) => {
     prisma.refreshToken.deleteMany({ where: { user_id: user.id } }),
   ]);
 
+  // Security alert: notify account owner that their password was changed
+  const userName = user.display_name || user.username || 'User';
+  sendPasswordChangedEmail(user.email, userName).catch((err) =>
+    console.warn('[auth] Failed to send password-changed security email:', err)
+  );
+
   return res.json({ ok: true });
 }));
 

@@ -543,7 +543,7 @@ usersRouter.delete('/me', requireAuth as any, async (req: AuthedRequest, res) =>
   }
   const { password, delete_confirmation } = parsed.data;
   try {
-    const user = await prisma.user.findUnique({ where: { id }, select: { password_hash: true, google_id: true, apple_id: true } });
+    const user = await prisma.user.findUnique({ where: { id }, select: { email: true, password_hash: true, google_id: true, apple_id: true } });
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     if (user.password_hash) {
@@ -572,6 +572,7 @@ usersRouter.delete('/me', requireAuth as any, async (req: AuthedRequest, res) =>
       }
     }
 
+    const userEmail = user.email; // Capture before deletion
     await prisma.$transaction(async (tx) => {
       // Delete user's interactions
       await tx.postUpvote.deleteMany({ where: { user_id: id } });
@@ -602,6 +603,18 @@ usersRouter.delete('/me', requireAuth as any, async (req: AuthedRequest, res) =>
       // Delete the user record entirely so they can re-register
       await tx.user.delete({ where: { id } });
     });
+
+    // Send deletion confirmation email (best-effort, user record already deleted)
+    if (userEmail) {
+      try {
+        const { sendEmail } = await import('../lib/email.js');
+        await (sendEmail as any)({
+          to: userEmail,
+          subject: 'VarsityHub Account Deleted',
+          text: 'Your VarsityHub account has been permanently deleted. All your data has been removed. If you did not request this, contact support@varsityhub.app immediately.',
+        });
+      } catch { /* best-effort */ }
+    }
 
     return res.json({ deleted: true, message: 'Account deleted successfully' });
   } catch (e: any) {

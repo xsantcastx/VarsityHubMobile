@@ -514,7 +514,9 @@ export default function SettingsScreen() {
                     {/* Legal */}
                     <SectionCard title="Legal">
                       <NavRow title="Privacy Policy" onPress={() => void router.push('/settings/privacy-policy')} />
-                      <NavRow title="Terms of Service" isLast onPress={() => void router.push('/settings/terms-of-service')} />
+                      <NavRow title="Terms of Service" onPress={() => void router.push('/settings/terms-of-service')} />
+                      <NavRow title="DMCA Policy" onPress={() => void router.push('/settings/dmca')} />
+                      <NavRow title="Contact Us" isLast onPress={() => void router.push('/settings/contact')} />
                     </SectionCard>
 
                     {/* Admin Panel - Only visible to admins */}
@@ -558,8 +560,18 @@ export default function SettingsScreen() {
                         <NavRow
                           title="Platform Metrics"
                           subtitle="Growth trends and analytics"
-                          isLast
                           onPress={() => void router.navigate('/admin-metrics' as any)}
+                        />
+                        <NavRow
+                          title="Reports"
+                          subtitle="Review abuse reports"
+                          onPress={() => void router.navigate('/admin-reports' as any)}
+                        />
+                        <NavRow
+                          title="Create Event"
+                          subtitle="Create platform-wide events"
+                          isLast
+                          onPress={() => void router.navigate('/admin-create-event' as any)}
                         />
                       </SectionCard>
                     )}
