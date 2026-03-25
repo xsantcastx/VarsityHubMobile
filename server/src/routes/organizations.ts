@@ -956,17 +956,8 @@ organizationsRouter.post('/join-requests', requireAuth as any, async (req: Authe
     if (organization.memberships.length > 0) {
       const owner = organization.memberships[0];
       try {
-        // Legacy template-based notification
-        await sendJoinRequestToAdmin({
-          adminEmail: owner.user.email,
-          adminName: owner.user.display_name || 'Admin',
-          requesterName: joinRequest.user.display_name || 'A user',
-          organizationName: organization.name,
-          message: message,
-          requestId: joinRequest.id,
-        });
-
         // Coach request notification to league owner (SendGrid template)
+        // Note: removed duplicate legacy sendJoinRequestToAdmin() that was sending a second email
         await sendNewCoachRequestEmail({
           to: owner.user.email,
           ownerName: owner.user.display_name || 'League Owner',
@@ -1253,15 +1244,22 @@ organizationsRouter.post('/join-requests/:requestId/deny', requireAuth as any, r
     return res.status(400).json({ error: 'This request has already been reviewed' });
   }
   
-  await prisma.organizationJoinRequest.update({
-    where: { id: requestId },
-    data: {
-      status: 'denied',
-      reviewed_at: new Date(),
-      reviewed_by: req.user!.id,
-      message: reason || joinRequest.message // Store denial reason in message field
-    }
-  });
+  await prisma.$transaction([
+    prisma.organizationJoinRequest.update({
+      where: { id: requestId },
+      data: {
+        status: 'denied',
+        reviewed_at: new Date(),
+        reviewed_by: req.user!.id,
+        message: reason || joinRequest.message // Store denial reason in message field
+      }
+    }),
+    // Set user approval_status to REJECTED so they don't stay PENDING forever
+    prisma.user.update({
+      where: { id: joinRequest.user.id },
+      data: { approval_status: 'REJECTED' },
+    }),
+  ]);
   
   // Create in-app notification for the denied user
   try {
@@ -1561,7 +1559,25 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
       }
     });
 
-    // Email league owner
+    // Notify league owner: email + push + in-app
+    if (org.leagueOwner?.id) {
+      // Push notification
+      sendPushNotification(
+        org.leagueOwner.id,
+        'League Not Approved',
+        `Your league "${org.name}" was not approved.${reason ? ` Reason: ${reason}` : ''}`,
+        { type: 'ORG_REJECTED', organization_id: orgId }
+      ).catch(() => {});
+
+      // In-app notification
+      prisma.notification.create({
+        data: {
+          user_id: org.leagueOwner.id,
+          type: 'COACH_REJECTED',
+          meta: { organization_id: orgId, organization_name: org.name, reason: reason || undefined },
+        },
+      }).catch(() => {});
+    }
     if (org.leagueOwner?.email) {
       sendLeagueRejectedEmail({
         to: org.leagueOwner.email,

@@ -217,7 +217,7 @@ export default function EventApprovalsScreen() {
     try {
       const evt = events.find(e => e.id === eventId) as any;
       if (evt?._isGame) {
-        await httpPut(`/games/${eventId}/approve`, {});
+        await httpPut(`/games/${eventId}/approve`, { approval_status: 'approved' });
       } else {
         await httpPut(`/events/${eventId}/approve`, {});
       }
@@ -246,7 +246,8 @@ export default function EventApprovalsScreen() {
     try {
       const evt = events.find(e => e.id === eventId) as any;
       if (evt?._isGame) {
-        await httpPut(`/games/${eventId}/reject`, { reason: rejectReason.trim() || undefined });
+        // Games use the same approve endpoint with approval_status: 'rejected'
+        await httpPut(`/games/${eventId}/approve`, { approval_status: 'rejected', reason: rejectReason.trim() || undefined });
       } else {
         await httpPut(`/events/${eventId}/reject`, { reason: rejectReason.trim() || undefined });
       }

@@ -1338,6 +1338,29 @@ postsRouter.delete('/:id', requireAuth as any, requireOnboarded as any, asyncHan
     
     const deletedAt = new Date();
     await prisma.post.update({ where: { id: postId }, data: { deleted_at: deletedAt } });
+
+    // Notify post author when admin takes down their post (not when they delete their own)
+    if (isAdminUser && !isAuthor && post.author_id) {
+      try {
+        const { sendPushNotification } = await import('../lib/notifications.js');
+        await sendPushNotification(
+          post.author_id,
+          'Post Removed',
+          'Your post was removed by a moderator for violating community guidelines.',
+          { type: 'POST_REMOVED', post_id: postId }
+        );
+        await prisma.notification.create({
+          data: {
+            user_id: post.author_id,
+            type: 'POST_REMOVED' as any,
+            meta: { post_id: postId, reason: 'Removed by moderator' },
+          },
+        });
+      } catch (notifErr) {
+        console.warn('[posts] Failed to notify author of takedown:', notifErr);
+      }
+    }
+
     res.json({
       message: 'Post deleted successfully',
       deleted_at: deletedAt.toISOString(),

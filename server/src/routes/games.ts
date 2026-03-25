@@ -1366,6 +1366,55 @@ gamesRouter.put('/:id/approve', requireAuth as any, requireOnboarded as any, asy
     },
   });
 
+  // Notify the game creator of the approval/rejection decision
+  if (updatedGame.created_by_id && updatedGame.created_by_id !== req.user!.id) {
+    try {
+      const { sendPushNotification } = await import('../lib/notifications.js');
+      if (parsed.data.approval_status === 'approved') {
+        await sendPushNotification(
+          updatedGame.created_by_id,
+          'Event Approved!',
+          `Your event "${updatedGame.title}" has been approved and is now live.`,
+          { type: 'EVENT_APPROVED', game_id: id }
+        );
+        await prisma.notification.create({
+          data: {
+            user_id: updatedGame.created_by_id,
+            type: 'EVENT_APPROVED',
+            meta: { game_id: id, event_title: updatedGame.title },
+          },
+        });
+        // Create feed post for newly approved game
+        await prisma.post.create({
+          data: {
+            content: `📅 New Game: ${updatedGame.title}${updatedGame.location ? `\n📍 ${updatedGame.location}` : ''}`,
+            author_id: updatedGame.created_by_id,
+            media_url: updatedGame.banner_url || updatedGame.cover_image_url || null,
+            game_id: id,
+            team_id: updatedGame.home_team_id || null,
+            type: 'game',
+          } as any,
+        }).catch(() => {});
+      } else {
+        await sendPushNotification(
+          updatedGame.created_by_id,
+          'Event Not Approved',
+          `Your event "${updatedGame.title}" was not approved.${(req.body as any)?.reason ? ` Reason: ${(req.body as any).reason}` : ''}`,
+          { type: 'EVENT_REJECTED', game_id: id }
+        );
+        await prisma.notification.create({
+          data: {
+            user_id: updatedGame.created_by_id,
+            type: 'EVENT_REJECTED',
+            meta: { game_id: id, event_title: updatedGame.title, reason: (req.body as any)?.reason },
+          },
+        });
+      }
+    } catch (notifErr) {
+      console.warn('[games] Failed to notify creator of approval decision:', notifErr);
+    }
+  }
+
   return res.json(updatedGame);
   } catch (err) {
     console.error('[games] approve error:', err);
