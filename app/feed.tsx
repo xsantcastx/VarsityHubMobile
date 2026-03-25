@@ -336,8 +336,21 @@ export default function FeedScreen() {
         normalizedGames = [];
       }
       
-      // No sample games — admin creates real games via admin panel
-      // Real games have working stories, polls, and full backend support
+      // Only inject sample events if we successfully loaded but got empty results
+      // (not if the request failed)
+      if ((!normalizedGames || normalizedGames.length === 0) && gamesData !== null) {
+        const now = new Date();
+        const addDays = (d: number) => new Date(now.getTime() + d * 86400000).toISOString();
+        normalizedGames = [
+          {
+            id: 'sample-duke-unc',
+            title: 'Duke Blue Devils vs. North Carolina Tar Heels',
+            date: addDays(5),
+            location: 'Cameron Indoor Stadium, Durham, NC 27708',
+            cover_image_url: 'https://images.unsplash.com/photo-1518655048521-f130df041f66?q=80&w=1280&auto=format&fit=crop',
+          },
+        ];
+      }
       setGames(normalizedGames);
       setGamesCursor(cursor);
       setHasMoreGames(!!cursor);
