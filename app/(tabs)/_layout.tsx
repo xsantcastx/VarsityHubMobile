@@ -1,5 +1,6 @@
 import { Tabs } from 'expo-router';
-import React, { useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { AppState } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HapticTab } from '@/components/HapticTab';
@@ -8,10 +9,34 @@ import { IconSymbol } from '@/components/ui/IconSymbol';
 import TabBarBackground from '@/components/ui/TabBarBackground';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+// @ts-ignore
+import { Notification } from '@/api/entities';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const insets = useSafeAreaInsets();
+  const [unreadCount, setUnreadCount] = useState<number>(0);
+
+  const fetchUnread = useCallback(() => {
+    Notification.unreadCount()
+      .then((res: any) => {
+        const count = typeof res === 'number' ? res : (res?.count ?? res?.unread ?? 0);
+        setUnreadCount(count);
+      })
+      .catch(() => {});
+  }, []);
+
+  // Fetch on mount and when app comes to foreground
+  useEffect(() => {
+    fetchUnread();
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') fetchUnread();
+    });
+    // Poll every 30s while app is active
+    const interval = setInterval(fetchUnread, 30000);
+    return () => { sub.remove(); clearInterval(interval); };
+  }, [fetchUnread]);
+
   const hiddenTab = useMemo(
     () =>
       ({
@@ -138,6 +163,8 @@ export default function TabLayout() {
           tabBarButton: HapticTab,
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="person.crop.circle" color={color} />,
           tabBarAccessibilityLabel: 'Profile',
+          tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
+          tabBarBadgeStyle: { backgroundColor: '#EF4444', fontSize: 10, minWidth: 18, height: 18, lineHeight: 14 },
         }}
       />
     </Tabs>

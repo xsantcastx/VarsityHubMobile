@@ -17,6 +17,7 @@ export default function CreateScreen() {
   const verified = !!me?.email_verified;
   // Coach-only options: only show when approved (backend requireOnboarded enforces this; UI should match)
   const isApprovedCoach = me?.preferences?.role === 'coach' && (me as any)?.approval_status === 'APPROVED';
+  const isAdmin = !!(me as any)?.is_admin;
   useEffect(() => {
     let mounted = true;
     void (async () => {
@@ -101,6 +102,11 @@ export default function CreateScreen() {
             {isApprovedCoach ? 'Create Event' : 'Pitch Event'}
           </Text>
         </Pressable>
+        {isAdmin && (
+          <Pressable style={[styles.item, { borderColor: '#F59E0B', backgroundColor: colorScheme === 'dark' ? '#78350F20' : '#FEF9C3' }]} onPress={() => go('/admin-create-event')} accessibilityRole="button" accessibilityLabel="Broadcast Event" accessibilityHint="Double tap to create a broadcast event visible to all users">
+            <Text style={[styles.itemText, { color: colorScheme === 'dark' ? '#FDE68A' : '#92400E' }]}>Broadcast Event (Admin)</Text>
+          </Pressable>
+        )}
         <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/submit-ad')} accessibilityRole="button" accessibilityLabel="Submit Ad" accessibilityHint="Double tap to submit an advertisement">
           <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>Submit Ad</Text>
         </Pressable>

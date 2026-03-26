@@ -885,6 +885,14 @@ export default function FeedScreen() {
           />
         }
         showsVerticalScrollIndicator={false}
+        onScroll={({ nativeEvent }) => {
+          const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+          const distanceFromBottom = contentSize.height - layoutMeasurement.height - contentOffset.y;
+          if (distanceFromBottom < 400) {
+            void _loadMore();
+          }
+        }}
+        scrollEventThrottle={400}
       >
         {renderEmailReminder()}
         {renderLocationPrompt()}

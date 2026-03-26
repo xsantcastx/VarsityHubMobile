@@ -6,6 +6,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -97,6 +98,24 @@ export default function CommunityDiscoverScreen() {
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [createEventModalOpen, setCreateEventModalOpen] = useState(false);
   const [isCreatingGame, setIsCreatingGame] = useState(false);
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
+
+  // Load recent searches from AsyncStorage on mount
+  useEffect(() => {
+    AsyncStorage.getItem('vh_recent_searches').then((val) => {
+      if (val) try { setRecentSearches(JSON.parse(val)); } catch {}
+    }).catch(() => {});
+  }, []);
+
+  const saveRecentSearch = useCallback((term: string) => {
+    const trimmed = term.trim();
+    if (!trimmed || trimmed.length < 2) return;
+    setRecentSearches((prev) => {
+      const updated = [trimmed, ...prev.filter((s) => s.toLowerCase() !== trimmed.toLowerCase())].slice(0, 5);
+      AsyncStorage.setItem('vh_recent_searches', JSON.stringify(updated)).catch(() => {});
+      return updated;
+    });
+  }, []);
   // Vertical viewer state
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
@@ -313,6 +332,7 @@ export default function CommunityDiscoverScreen() {
           teams: res?.teams ?? [],
           organizations: res?.organizations ?? [],
         });
+        saveRecentSearch(trimmed);
       } catch {
         setUnifiedSearchResults({ users: [], teams: [], organizations: [] });
       } finally {
@@ -664,6 +684,28 @@ export default function CommunityDiscoverScreen() {
           ))}
         </View>
       ) : null}
+
+      {/* Recent searches - shown when query is empty */}
+      {!query.trim() && recentSearches.length > 0 && !unifiedSearchResults && (
+        <View style={[styles.unifiedSearchResults, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 12, paddingTop: 8 }}>
+            <Text style={[styles.searchSectionTitle, { color: Colors[colorScheme].mutedText }]}>Recent Searches</Text>
+            <Pressable onPress={() => { setRecentSearches([]); AsyncStorage.removeItem('vh_recent_searches').catch(() => {}); }}>
+              <Text style={{ color: Colors[colorScheme].tint, fontSize: 13, fontWeight: '600' }}>Clear</Text>
+            </Pressable>
+          </View>
+          {recentSearches.map((term, idx) => (
+            <Pressable
+              key={`${term}-${idx}`}
+              style={[styles.searchResultRow, { borderBottomColor: Colors[colorScheme].border }]}
+              onPress={() => setQuery(term)}
+            >
+              <MaterialIcons name="history" size={18} color={Colors[colorScheme].mutedText} />
+              <Text style={[styles.searchResultName, { color: Colors[colorScheme].text, marginLeft: 8 }]}>{term}</Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
 
       {/* Unified search results - People, Teams, Organizations */}
       {unifiedSearchLoading ? (
