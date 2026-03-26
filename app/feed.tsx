@@ -863,10 +863,10 @@ export default function FeedScreen() {
         </View>
       )}
       {!loading && upcomingEvents.length === 0 && pastEvents.length === 0 && !error && (
-        <View style={{ alignItems: 'center', paddingVertical: 32, paddingHorizontal: 24 }}>
-          <MaterialIcons name="sports" size={56} color={Colors[colorScheme].mutedText} />
-          <Text style={{ color: Colors[colorScheme].text, fontSize: 17, fontWeight: '600', marginTop: 12, marginBottom: 6 }}>No games found</Text>
-          <Text style={[styles.muted, { color: Colors[colorScheme].mutedText, textAlign: 'center', lineHeight: 20 }]}>Check back later for upcoming games in your area.</Text>
+        <View style={{ alignItems: 'center', paddingVertical: 40, paddingHorizontal: 24 }}>
+          <MaterialIcons name="dynamic-feed" size={56} color={Colors[colorScheme].mutedText} />
+          <Text style={{ color: Colors[colorScheme].text, fontSize: 18, fontWeight: '700', marginTop: 14, marginBottom: 6 }}>No posts yet</Text>
+          <Text style={[styles.muted, { color: Colors[colorScheme].mutedText, textAlign: 'center', lineHeight: 20 }]}>Follow teams and coaches to see their content here.</Text>
         </View>
       )}
 

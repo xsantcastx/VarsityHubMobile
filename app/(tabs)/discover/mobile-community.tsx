@@ -815,7 +815,11 @@ export default function CommunityDiscoverScreen() {
             </View>
           ) : null}
           {unifiedSearchResults.users.length === 0 && unifiedSearchResults.teams.length === 0 && unifiedSearchResults.organizations.length === 0 ? (
-            <Text style={[styles.searchEmpty, { color: Colors[colorScheme].mutedText }]}>No results found</Text>
+            <View style={{ alignItems: 'center', paddingVertical: 24 }}>
+              <MaterialIcons name="search-off" size={40} color={Colors[colorScheme].mutedText} />
+              <Text style={{ color: Colors[colorScheme].text, fontSize: 16, fontWeight: '600', marginTop: 10 }}>No results found</Text>
+              <Text style={{ color: Colors[colorScheme].mutedText, fontSize: 14, marginTop: 4, textAlign: 'center' }}>No matches for &ldquo;{query.trim()}&rdquo;. Try a different search.</Text>
+            </View>
           ) : null}
         </View>
       ) : null}
@@ -1187,7 +1191,13 @@ export default function CommunityDiscoverScreen() {
       {loading ? (
         <View style={styles.center}><ActivityIndicator /></View>
       ) : error ? (
-        <Text style={styles.error}>{error}</Text>
+        <View style={{ alignItems: 'center', paddingVertical: 24 }}>
+          <MaterialIcons name="wifi-off" size={40} color={Colors[colorScheme].mutedText} />
+          <Text style={{ color: Colors[colorScheme].destructive || '#EF4444', fontSize: 15, fontWeight: '600', marginTop: 8 }}>{error}</Text>
+          <Pressable onPress={() => void load()} style={{ marginTop: 12, paddingHorizontal: 20, paddingVertical: 8, borderRadius: 8, backgroundColor: Colors[colorScheme].tint }}>
+            <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>Retry</Text>
+          </Pressable>
+        </View>
       ) : null}
     </View>
   );

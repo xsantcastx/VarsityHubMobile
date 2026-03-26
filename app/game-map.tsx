@@ -19,6 +19,7 @@ export default function GameMapScreen() {
   
   const [loading, setLoading] = useState(true);
   const [events, setEvents] = useState<EventMapData[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   const loadGames = useCallback(async () => {
     setLoading(true);
@@ -124,9 +125,9 @@ export default function GameMapScreen() {
       } else {
         if (__DEV__) console.warn(`[game-map] Loaded ${gameMarkers.length} games and ${eventMarkers.length} events with locations (${allMarkers.length} total pins)`);
       }
-    } catch (error) {
-      if (__DEV__) console.error('Error loading games:', error);
-      // Don't show alert - just load empty map
+    } catch (err) {
+      if (__DEV__) console.error('Error loading games:', err);
+      setError('Unable to load nearby games. Please check your connection.');
     } finally {
       setLoading(false);
     }
@@ -170,6 +171,17 @@ export default function GameMapScreen() {
           <View style={styles.loadingOverlay}>
             <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
             <Text style={[styles.loadingText, { color: Colors[colorScheme].text }]}>Loading nearby games...</Text>
+          </View>
+        </View>
+      ) : error ? (
+        <View style={styles.container}>
+          <EventMap events={[]} onEventPress={handleEventPress} showUserLocation={true} />
+          <View style={styles.loadingOverlay}>
+            <MaterialIcons name="cloud-off" size={40} color={Colors[colorScheme].mutedText} />
+            <Text style={[styles.loadingText, { color: Colors[colorScheme].text, textAlign: 'center', marginTop: 8 }]}>{error}</Text>
+            <Pressable onPress={() => { setError(null); void loadGames(); }} style={{ marginTop: 12, paddingHorizontal: 20, paddingVertical: 8, borderRadius: 8, backgroundColor: Colors[colorScheme].tint }}>
+              <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>Retry</Text>
+            </Pressable>
           </View>
         </View>
       ) : (

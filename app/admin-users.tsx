@@ -103,6 +103,13 @@ export default function AdminUsersScreen() {
           )}
           ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
           contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
+          ListEmptyComponent={
+            <View style={{ alignItems: 'center', paddingVertical: 40 }}>
+              <MaterialIcons name="person-search" size={48} color={Colors[colorScheme].mutedText} />
+              <Text style={{ color: Colors[colorScheme].text, fontSize: 16, fontWeight: '600', marginTop: 12 }}>No users match this filter</Text>
+              <Text style={{ color: Colors[colorScheme].mutedText, fontSize: 14, marginTop: 4 }}>Try adjusting your search or filter criteria.</Text>
+            </View>
+          }
         />
       )}
     </SafeAreaView>
