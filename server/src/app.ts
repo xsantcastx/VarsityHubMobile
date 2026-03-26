@@ -316,7 +316,7 @@ app.get('/terms', (_req, res) => {
 <h2>3. Your Account</h2><p>Provide accurate info. Keep credentials secure. You are responsible for all activity on your account.</p>
 <h2>4. Rules</h2><p>Do not: post illegal or abusive content; impersonate others; upload content you don't own; spam; interfere with the app; bully or threaten users; upload broadcast/official sports footage.</p>
 <h2>5. Content</h2><p>You own your content. By posting, you grant us a license to display it. All fan content must be personally filmed. Official broadcast content is prohibited. VarsityHub has no affiliation with any league or broadcaster.</p>
-<h2>6. Subscriptions</h2><p>Rookie: Free (2 teams). Veteran: $1.50/mo per team. Legend: $20/yr unlimited. Auto-renew unless cancelled. Payments via Apple IAP (iOS), Google Play (Android), or Stripe. Cancel anytime in Settings.</p>
+<h2>6. Subscriptions</h2><p>Rookie: Free (2 teams). Veteran: $1/mo per additional team. Legend: $20/yr unlimited. Auto-renew unless cancelled. Payments via Apple IAP (iOS), Google Play (Android), or Stripe. Cancel anytime in Settings.</p>
 <h2>7. DMCA</h2><p>Registered DMCA Designated Service Provider (No. DMCA-1070362). Takedown notices: <a href="mailto:support@varsityhub.app">support@varsityhub.app</a>. Response within 24 hours.</p>
 <h2>8. Disclaimers</h2><p>App provided "AS IS." Not liable for indirect damages. Total liability capped at 12 months of payments. You indemnify us against claims from your use.</p>
 <h2>9. Disputes</h2><p>Connecticut law. Binding arbitration (small claims excepted). Class action waiver.</p>

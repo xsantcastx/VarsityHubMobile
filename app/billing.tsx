@@ -158,7 +158,7 @@ export default function BillingScreen() {
           <Text style={styles.bannerTitle}>Veteran Plan</Text>
           <Text style={styles.bannerDescription}>{getPlanDescription('veteran')}</Text>
           <Text style={styles.bannerLine}>Billable teams beyond 2 free: <Text style={styles.bold}>{summary.quantity ?? '—'}</Text></Text>
-          <Text style={styles.bannerLine}>Monthly: <Text style={styles.bold}>${summary.monthly_cost?.toFixed?.(2) ?? ((summary.quantity || 0) * 1.5).toFixed(2)}</Text></Text>
+          <Text style={styles.bannerLine}>Monthly: <Text style={styles.bold}>${summary.monthly_cost?.toFixed?.(2) ?? ((summary.quantity || 0) * 1.0).toFixed(2)}</Text></Text>
           {!!summary.current_period_end && (
             <Text style={styles.bannerHint}>Renews: {new Date(summary.current_period_end).toLocaleDateString()}</Text>
           )}
