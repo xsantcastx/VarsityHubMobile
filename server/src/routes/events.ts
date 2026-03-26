@@ -620,23 +620,8 @@ eventsRouter.post('/', requireVerified as any, requireOnboarded as any, eventCre
     console.warn('[events] Failed to send submission email:', emailErr);
   }
 
-  // Create a feed post so the event appears in the social feed
-  if (autoApprove) {
-    try {
-      await prisma.post.create({
-        data: {
-          content: `📅 New Event: ${event.title}${data.location ? `\n📍 ${data.location}` : ''}${data.date ? `\n🕐 ${new Date(data.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : ''}`,
-          author_id: userId,
-          media_url: data.banner_url || null,
-          event_id: event.id,
-          team_id: data.home_team_id || null,
-          type: isAdminUser ? 'admin_broadcast' : 'event',
-        } as any,
-      });
-    } catch (postErr) {
-      console.warn('[events] Failed to create feed post for event:', (postErr as any)?.message || postErr);
-    }
-  }
+  // Admin events route through /games and appear as game cards in the feed carousel.
+  // No separate text post needed — game cards have full detail pages with stories/polls/RSVP.
 
   // Get pending count for response (helpful for non-coaches to know their limit status)
   const pendingCount = !autoApprove

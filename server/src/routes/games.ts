@@ -506,24 +506,9 @@ gamesRouter.post('/', requireVerified as any, requireOnboarded as any, gameCreat
       } as any,
     });
     
-    // Create a feed post so the game appears in the social feed
-    if (gameData.approval_status === 'approved') {
-      try {
-        await prisma.post.create({
-          data: {
-            content: `📅 New Game: ${game.title}${game.location ? `\n📍 ${game.location}` : ''}${game.date ? `\n🕐 ${new Date(game.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : ''}`,
-            author_id: req.user!.id,
-            media_url: game.banner_url || game.cover_image_url || null,
-            game_id: game.id,
-            team_id: game.home_team_id || null,
-            type: isAdmin ? 'admin_broadcast' : 'game',
-          } as any,
-        });
-      } catch (postErr) {
-        console.warn('[games] Failed to create feed post for game:', (postErr as any)?.message || postErr);
-        // Don't fail the game creation if feed post fails
-      }
-    }
+    // Games appear in the feed via the games carousel (GET /games) — no separate
+    // text post needed. The game card links directly to the game detail page with
+    // stories, polls, RSVP, and all features.
 
     // Generate Google Maps link for venue
     const venueMapsLink = generateMapsLink(
@@ -633,16 +618,7 @@ gamesRouter.post('/seed-samples', requireAuth as any, asyncHandler(async (req: A
         event_type: 'game',
       } as any,
     });
-    // Create feed post
-    await prisma.post.create({
-      data: {
-        content: `📅 New Game: ${sample.title}\n📍 ${sample.location}`,
-        author_id: req.user!.id,
-        media_url: sample.cover_image_url,
-        game_id: game.id,
-        type: 'admin_broadcast',
-      } as any,
-    });
+    // Games appear as cards in the feed carousel — no text post needed
     created.push(game);
   }
 
@@ -1435,17 +1411,7 @@ gamesRouter.put('/:id/approve', requireAuth as any, requireOnboarded as any, asy
             meta: { game_id: id, event_title: updatedGame.title },
           },
         });
-        // Create feed post for newly approved game
-        await prisma.post.create({
-          data: {
-            content: `📅 New Game: ${updatedGame.title}${updatedGame.location ? `\n📍 ${updatedGame.location}` : ''}`,
-            author_id: updatedGame.created_by_id,
-            media_url: updatedGame.banner_url || updatedGame.cover_image_url || null,
-            game_id: id,
-            team_id: updatedGame.home_team_id || null,
-            type: 'game',
-          } as any,
-        }).catch(() => {});
+        // Approved games appear in the feed carousel automatically via GET /games
       } else {
         await sendPushNotification(
           updatedGame.created_by_id,
