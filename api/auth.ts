@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 import { clearAuthToken, getApiBaseUrl, getAuthToken, httpGet, httpPost, httpPostLongTimeout, setAuthToken } from './http';
@@ -5,6 +6,28 @@ import { clearAuthToken, getApiBaseUrl, getAuthToken, httpGet, httpPost, httpPos
 // Storage keys for authentication tokens (not secrets, just key names)
 const TOKEN_KEY = 'auth_token_key';
 const REFRESH_TOKEN_KEY = 'refresh_token_key';
+const FRESH_INSTALL_KEY = '@varsityhub_installed';
+
+/**
+ * Clear stale Keychain tokens on fresh install.
+ * iOS Keychain persists across app delete/reinstall, but AsyncStorage does not.
+ * If the AsyncStorage flag is missing, this is a fresh install and we clear old tokens.
+ */
+export async function clearStaleTokensOnFreshInstall(): Promise<void> {
+  if (Platform.OS === 'web') return;
+  try {
+    const installed = await AsyncStorage.getItem(FRESH_INSTALL_KEY);
+    if (!installed) {
+      // Fresh install — clear any leftover Keychain tokens from previous install
+      await SecureStore.deleteItemAsync(TOKEN_KEY).catch(() => {});
+      await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY).catch(() => {});
+      clearAuthToken();
+      await AsyncStorage.setItem(FRESH_INSTALL_KEY, 'true');
+    }
+  } catch {
+    // Silently fail — worst case user stays logged in
+  }
+}
 
 function getWebSessionStorage(): Storage | null {
   if (typeof window === 'undefined') return null;

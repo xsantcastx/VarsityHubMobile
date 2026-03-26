@@ -376,6 +376,10 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     let mounted = true;
 
     (async () => {
+      // 0. Clear stale Keychain tokens from previous install (iOS Keychain persists across uninstall)
+      const { clearStaleTokensOnFreshInstall } = await import('@/api/auth');
+      await clearStaleTokensOnFreshInstall();
+
       // 1. Check health first
       if (__DEV__) console.log('[AuthProvider] Checking backend health...');
       const healthy = await checkHealth();
