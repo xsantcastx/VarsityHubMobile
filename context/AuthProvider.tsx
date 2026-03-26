@@ -578,12 +578,16 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         return;
       }
 
-      // Approved coach with incomplete onboarding (approved while app was closed) — complete onboarding
+      // Approved coach with incomplete onboarding (approved while app was closed)
+      // Send to the correct onboarding step — NOT back to pending-approval (causes loop)
       if (needsOnboarding && user.approval_status === 'APPROVED' && user.preferences?.role === 'coach' && firstSegment !== 'onboarding') {
-        if (__DEV__) console.log('[AuthProvider] Approved coach needs to complete onboarding');
-        if (lastRedirectRef.current !== '/onboarding/pending-approval') {
-          lastRedirectRef.current = '/onboarding/pending-approval';
-          router.replace('/onboarding/pending-approval');
+        if (__DEV__) console.log('[AuthProvider] Approved coach needs to complete post-approval setup');
+        // Check if they have an org yet — if not, send to league step; if yes, send to create-team
+        const hasOrg = !!user.preferences?.organization_id;
+        const target = hasOrg ? '/(tabs)/create-team' : '/onboarding/step-3-league';
+        if (lastRedirectRef.current !== target) {
+          lastRedirectRef.current = target;
+          router.replace(target as any);
         }
         return;
       }

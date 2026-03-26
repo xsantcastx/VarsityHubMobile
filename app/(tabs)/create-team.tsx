@@ -144,6 +144,25 @@ export default function CreateTeamScreen() {
     return () => { if (orgSearchTimer.current) clearTimeout(orgSearchTimer.current); };
   }, []);
 
+  // Pre-populate org from coach's profile if they have one
+  useEffect(() => {
+    if (selectedOrgId) return; // Already selected
+    (async () => {
+      try {
+        const me: any = await User.me();
+        const orgId = me?.preferences?.organization_id;
+        if (orgId) {
+          const { Organization } = await import('@/api/entities');
+          const org = await Organization.get(orgId);
+          if (org?.id && org?.name) {
+            setSelectedOrgId(org.id);
+            setOrganizationName(org.name);
+          }
+        }
+      } catch { /* ignore — user may not have an org yet */ }
+    })();
+  }, []);
+
   // Auto-suggest year based on season selection
   const getSuggestedYear = (seasonName: string) => {
     const now = new Date();

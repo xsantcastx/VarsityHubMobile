@@ -1138,7 +1138,7 @@ organizationsRouter.post('/join-requests/:requestId/approve', requireAuth as any
       data: {
         organization_id: joinRequest.organization_id,
         user_id: joinRequest.user_id,
-        role: 'member',
+        role: 'coach',
         status: 'active'
       }
     }),
@@ -1714,7 +1714,7 @@ organizationsRouter.post('/:id/coaches/:userId/approve', requireAuth as any, req
         data: { status: 'approved', reviewed_at: new Date(), reviewed_by: req.user.id },
       }),
       prisma.organizationMembership.create({
-        data: { organization_id: orgId, user_id: coachId, role: 'member', status: 'active' },
+        data: { organization_id: orgId, user_id: coachId, role: 'coach', status: 'active' },
       }),
       prisma.user.update({
         where: { id: coachId },
