@@ -478,8 +478,7 @@ export default function AdCalendarScreen() {
       } catch { /* server config fetch failed — fall through to error */ }
     }
     if (!stripeKey || !stripeKey.startsWith('pk_')) {
-      // Last resort: use the key from app.json directly
-      stripeKey = 'pk_live_51RtgdGGJt8CsPE1E5nDpNo8bfow30VYpeqZwJfp6y1SP49NbwaruTcMWOi04SxujUTjACB3fwJwFSTgItU4IlA4S00HFBL7D3p';
+      // No hardcoded fallback — key must come from environment or server config
     }
     if (!stripeKey || !stripeKey.startsWith('pk_')) {
       Alert.alert(

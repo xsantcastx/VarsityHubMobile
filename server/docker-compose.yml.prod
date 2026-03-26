@@ -81,7 +81,7 @@ services:
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
-      FROM_EMAIL: ${FROM_EMAIL:-noreply@varsityhub.com}
+      FROM_EMAIL: ${FROM_EMAIL:-noreply@varsityhub.app}
       
       # Database configuration
       PRISMA_MIGRATE_RETRIES: ${PRISMA_MIGRATE_RETRIES:-25}

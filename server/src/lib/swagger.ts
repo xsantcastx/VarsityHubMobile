@@ -10,7 +10,7 @@ const options = {
       description: 'Sports social platform API for teams, games, posts, messaging, and event management',
       contact: {
         name: 'VarsityHub Support',
-        email: 'support@varsityhub.com',
+        email: 'support@varsityhub.app',
       },
       license: {
         name: 'MIT',

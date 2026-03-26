@@ -15,7 +15,7 @@
  * - varsityhubmobile://team/789
  * - varsityhubmobile://profile/abc
  * - https://varsityhub.app/posts/123
- * - https://varsityhub.com/share?type=post&id=123
+ * - https://varsityhub.app/share?type=post&id=123
  *
  * @module utils/deepLinks
  */
@@ -26,7 +26,7 @@ import { getConfig } from '@/config/env';
 
 // App scheme and web domain (must match app.json scheme and shared URLs)
 const APP_SCHEME = getConfig().appScheme || 'varsityhubmobile';
-const WEB_DOMAINS = ['varsityhub.com', 'www.varsityhub.com', 'varsityhub.app', 'www.varsityhub.app'];
+const WEB_DOMAINS = ['varsityhub.app', 'www.varsityhub.app', 'varsityhub.com', 'www.varsityhub.com'];
 
 // Routes that don't require authentication — safe to navigate immediately
 const PUBLIC_DEEP_LINK_ROUTES = new Set([
@@ -108,7 +108,7 @@ export function parseDeepLink(url: string): ParsedDeepLink | null {
       return parseSchemeLink(parsed);
     }
     
-    // Handle universal links (https://varsityhub.com/share?...)
+    // Handle universal links (https://varsityhub.app/share?...)
     if (parsed.scheme === 'https' || parsed.scheme === 'http') {
       if (parsed.hostname && WEB_DOMAINS.includes(parsed.hostname)) {
         return parseUniversalLink(parsed);
@@ -168,7 +168,7 @@ function parseSchemeLink(parsed: Linking.ParsedURL): ParsedDeepLink | null {
 }
 
 /**
- * Parse universal link (https://varsityhub.com/share?type=post&id=123)
+ * Parse universal link (https://varsityhub.app/share?type=post&id=123)
  */
 function parseUniversalLink(parsed: Linking.ParsedURL): ParsedDeepLink | null {
   const queryParams = parsed.queryParams || {};
