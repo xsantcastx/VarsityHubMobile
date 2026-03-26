@@ -288,7 +288,15 @@ authRouter.post('/login', asyncHandler(async (req, res) => {
 
   const sanitized = sanitizeUser(user);
   const needsOnboarding = sanitized?.preferences?.onboarding_completed === false;
-  const body: any = { access_token, refresh_token: rawRefresh, user: sanitized, needs_onboarding: needsOnboarding };
+  // Include is_admin flag so AuthProvider knows admin status immediately on login
+  const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+  const isLoginAdmin = user.email ? adminEmails.includes(user.email.toLowerCase()) : false;
+  const body: any = {
+    access_token,
+    refresh_token: rawRefresh,
+    user: { ...sanitized, is_admin: isLoginAdmin, ...(isLoginAdmin ? { role: 'admin' } : {}) },
+    needs_onboarding: needsOnboarding,
+  };
   if (!user.email_verified) body.needs_verification = true;
   return res.json(body);
 }));
@@ -512,10 +520,13 @@ authRouter.post('/google', oauthLimiter, asyncHandler(async (req, res) => {
     const rtExpiry = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
     await prisma.refreshToken.create({ data: { token_hash: rtHash, user_id: sanitized.id, expires_at: rtExpiry } });
 
+    // Include is_admin so AuthProvider knows admin status immediately
+    const oauthAdminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+    const isOAuthAdmin = sanitized.email ? oauthAdminEmails.includes(sanitized.email.toLowerCase()) : false;
     return res.json({
       access_token,
       refresh_token: rawRefresh,
-      user: sanitized,
+      user: { ...sanitized, is_admin: isOAuthAdmin, ...(isOAuthAdmin ? { role: 'admin' } : {}) },
       needs_onboarding: needsOnboarding,
       created,
     });
