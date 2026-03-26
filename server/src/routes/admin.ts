@@ -573,4 +573,54 @@ adminRouter.post('/users/:id/unban', requireVerified as any, requireAdminMiddlew
   }
 });
 
+/**
+ * POST /admin/wipe-production
+ * Wipes all data except the demo account. Admin-only, requires confirmation header.
+ */
+adminRouter.post('/wipe-production', requireVerified as any, requireAdminMiddleware as any, async (req: AuthedRequest, res) => {
+  try {
+    if (req.headers['x-confirm-wipe'] !== 'YES_WIPE_EVERYTHING') {
+      return res.status(400).json({ error: 'Missing confirmation header: x-confirm-wipe: YES_WIPE_EVERYTHING' });
+    }
+
+    const demo = await prisma.user.findFirst({ where: { email: 'demo@varsityhub.app' } });
+    const demoId = demo?.id;
+
+    // Delete in dependency order
+    await prisma.story.deleteMany({});
+    await prisma.gameVote.deleteMany({});
+    await prisma.eventRsvp.deleteMany({});
+    await prisma.adReservation.deleteMany({});
+    await prisma.ad.deleteMany({});
+    await prisma.pollVote.deleteMany({});
+    await prisma.pollOption.deleteMany({});
+    await prisma.poll.deleteMany({});
+    await prisma.postUpvote.deleteMany({});
+    await prisma.postBookmark.deleteMany({});
+    await prisma.comment.deleteMany({});
+    await prisma.notification.deleteMany({});
+    await prisma.message.deleteMany({});
+    await prisma.follows.deleteMany({});
+    await prisma.teamFollow.deleteMany({});
+    await prisma.organizationFollow.deleteMany({});
+    await prisma.post.deleteMany({});
+    await prisma.event.deleteMany({});
+    await prisma.game.deleteMany({});
+    await prisma.teamMembership.deleteMany({});
+    await prisma.teamInvite.deleteMany({});
+    await prisma.team.deleteMany({});
+    await prisma.organizationMembership.deleteMany({});
+    await prisma.organizationJoinRequest.deleteMany({});
+    await prisma.organization.deleteMany({});
+    await prisma.refreshToken.deleteMany(demoId ? { where: { NOT: { user_id: demoId } } } : {});
+    await prisma.user.deleteMany(demoId ? { where: { NOT: { id: demoId } } } : {});
+
+    const remaining = await prisma.user.count();
+    return res.json({ ok: true, message: `Wiped. Users remaining: ${remaining}`, demo_kept: !!demoId });
+  } catch (error) {
+    console.error('[admin] Wipe error:', error);
+    return res.status(500).json({ error: 'Wipe failed', details: (error as any)?.message });
+  }
+});
+
 export default adminRouter;
