@@ -51,10 +51,10 @@ export default function TermsOfServiceScreen() {
           body={'We may update these Terms. Material changes notified via app or email. Continued use = acceptance.'} />
 
         <TermSection colorScheme={colorScheme} title="Contact"
-          body={'Email: support@varsityhub.app'} />
+          body={'Customer service: customerservice@varsityhub.app\nReport content or users: support@varsityhub.app'} />
 
         <Text style={[styles.footer, { color: Colors[colorScheme].mutedText }]}>
-          © 2026 VarsityHub. All rights reserved.
+          © 2025 Lime Productions. All rights reserved.
         </Text>
       </ScrollView>
     </SafeAreaView>

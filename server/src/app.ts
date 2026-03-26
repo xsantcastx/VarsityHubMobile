@@ -300,11 +300,11 @@ app.get('/privacy-policy', (_req, res) => {
 <h2>What We Collect</h2><p>Email, username, profile info, posts, photos, videos, messages, team/game data, event RSVPs, device info, usage data, and approximate location (when enabled). Payments are processed by Stripe and Apple — we never store card numbers.</p>
 <h2>How We Use It</h2><p>To run VarsityHub: deliver the service, process payments, send notifications, show nearby events, personalize your experience, and prevent abuse.</p>
 <h2>Who We Share With</h2><p>We do not sell your data. We share only with: service providers (Stripe, Cloudinary, Railway, Google, Sentry), when you post publicly, or when required by law. We do not share data with sports leagues or universities.</p>
-<h2>Your Rights</h2><p>You can access, correct, delete, or export your data. Delete your account in Settings — we anonymize immediately. Contact <a href="mailto:support@varsityhub.app">support@varsityhub.app</a> to exercise any right.</p>
+<h2>Your Rights</h2><p>You can access, correct, delete, or export your data. Delete your account in Settings — we anonymize immediately. Contact <a href="mailto:customerservice@varsityhub.app">customerservice@varsityhub.app</a> for account requests or <a href="mailto:support@varsityhub.app">support@varsityhub.app</a> to report content.</p>
 <h2>Children</h2><p>You must be 13+ to use VarsityHub. Users 13-17 need parental consent. We delete data from under-13 users immediately.</p>
 <h2>Security</h2><p>Data encrypted in transit (HTTPS), stored on Railway (PostgreSQL). US-based; by using the app you consent to US data transfer.</p>
-<h2>Contact</h2><p>Email: <a href="mailto:support@varsityhub.app">support@varsityhub.app</a></p>
-<p>&copy; 2026 VarsityHub. All rights reserved.</p></body></html>`);
+<h2>Contact</h2><p>Customer service: <a href="mailto:customerservice@varsityhub.app">customerservice@varsityhub.app</a><br>Report content: <a href="mailto:support@varsityhub.app">support@varsityhub.app</a></p>
+<p>&copy; 2025 Lime Productions. All rights reserved.</p></body></html>`);
 });
 
 app.get('/terms', (_req, res) => {
@@ -320,8 +320,8 @@ app.get('/terms', (_req, res) => {
 <h2>7. DMCA</h2><p>Registered DMCA Designated Service Provider (No. DMCA-1070362). Takedown notices: <a href="mailto:support@varsityhub.app">support@varsityhub.app</a>. Response within 24 hours.</p>
 <h2>8. Disclaimers</h2><p>App provided "AS IS." Not liable for indirect damages. Total liability capped at 12 months of payments. You indemnify us against claims from your use.</p>
 <h2>9. Disputes</h2><p>Connecticut law. Binding arbitration (small claims excepted). Class action waiver.</p>
-<h2>Contact</h2><p>Email: <a href="mailto:support@varsityhub.app">support@varsityhub.app</a></p>
-<p>&copy; 2026 VarsityHub. All rights reserved.</p></body></html>`);
+<h2>Contact</h2><p>Customer service: <a href="mailto:customerservice@varsityhub.app">customerservice@varsityhub.app</a><br>Report content: <a href="mailto:support@varsityhub.app">support@varsityhub.app</a></p>
+<p>&copy; 2025 Lime Productions. All rights reserved.</p></body></html>`);
 });
 
 app.get('/support', (_req, res) => {
@@ -329,7 +329,9 @@ app.get('/support', (_req, res) => {
   res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>VarsityHub — Support</title><style>${legalPageStyle}</style></head><body>
 <h1>VarsityHub Support</h1>
 <p>Need help? We're here for you.</p>
-<h2>Contact Us</h2><p>Email: <a href="mailto:support@varsityhub.app">support@varsityhub.app</a></p>
+<h2>Contact Us</h2>
+<p><strong>Customer Service</strong> (account, billing, subscriptions):<br><a href="mailto:customerservice@varsityhub.app">customerservice@varsityhub.app</a></p>
+<p><strong>Report Content/Users</strong> (abuse, DMCA, content moderation):<br><a href="mailto:support@varsityhub.app">support@varsityhub.app</a></p>
 <h2>Common Topics</h2>
 <ul><li><strong>Account issues:</strong> Password reset, email verification, account deletion</li>
 <li><strong>Team management:</strong> Creating teams, inviting members, managing rosters</li>
@@ -337,7 +339,7 @@ app.get('/support', (_req, res) => {
 <li><strong>Content:</strong> Reporting abuse, DMCA takedowns, content guidelines</li>
 <li><strong>Technical:</strong> App crashes, bugs, feature requests</li></ul>
 <p>We typically respond within 24 hours.</p>
-<p>&copy; 2026 VarsityHub. All rights reserved.</p></body></html>`);
+<p>&copy; 2025 Lime Productions. All rights reserved.</p></body></html>`);
 });
 
 // Add centralized error handler (must be before Sentry)

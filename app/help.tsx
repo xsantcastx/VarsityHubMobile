@@ -12,7 +12,7 @@ export default function HelpScreen() {
   const theme = Colors[colorScheme];
 
   const helpItems = [
-    { icon: 'email' as const, label: 'Contact Support', subtitle: 'support@varsityhub.app', onPress: () => void Linking.openURL('mailto:support@varsityhub.app') },
+    { icon: 'email' as const, label: 'Customer Service', subtitle: 'customerservice@varsityhub.app', onPress: () => void Linking.openURL('mailto:customerservice@varsityhub.app') },
     { icon: 'bug-report' as const, label: 'Report a Bug', subtitle: 'Let us know what went wrong', onPress: () => router.push('/report-abuse') },
     { icon: 'description' as const, label: 'Terms of Service', subtitle: 'Review our terms', onPress: () => router.push('/settings/terms-of-service') },
     { icon: 'privacy-tip' as const, label: 'Privacy Policy', subtitle: 'How we handle your data', onPress: () => router.push('/settings/privacy-policy') },

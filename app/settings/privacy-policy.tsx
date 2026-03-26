@@ -24,7 +24,7 @@ export default function PrivacyPolicyScreen() {
           body={'We do not sell your data. We share only with: service providers (Stripe, Cloudinary, Railway, Google, Sentry), when you post publicly, or when required by law. We do not share data with sports leagues or universities.'} />
 
         <PolicySection colorScheme={colorScheme} title="Your Rights"
-          body={'You can access, correct, delete, or export your data. Delete your account in Settings — we anonymize your data immediately. Contact support@varsityhub.app to exercise any right.'} />
+          body={'You can access, correct, delete, or export your data. Delete your account in Settings — we anonymize your data immediately. Contact customerservice@varsityhub.app for account requests or support@varsityhub.app to report content.'} />
 
         <PolicySection colorScheme={colorScheme} title="Children"
           body={'You must be 13+ to use VarsityHub. Users 13-17 need parental consent. We delete data from under-13 users immediately upon discovery.'} />
@@ -33,10 +33,10 @@ export default function PrivacyPolicyScreen() {
           body={'Data encrypted in transit (HTTPS), stored on Railway (PostgreSQL). We use industry-standard security. VarsityHub is US-based; by using the app you consent to US data transfer.'} />
 
         <PolicySection colorScheme={colorScheme} title="Changes & Contact"
-          body={'We may update this policy and will notify you of material changes. Questions? Email support@varsityhub.app.'} />
+          body={'We may update this policy and will notify you of material changes. Questions? Email customerservice@varsityhub.app.'} />
 
         <Text style={[styles.footer, { color: Colors[colorScheme].mutedText }]}>
-          © 2026 VarsityHub. All rights reserved.
+          © 2025 Lime Productions. All rights reserved.
         </Text>
       </ScrollView>
     </SafeAreaView>
