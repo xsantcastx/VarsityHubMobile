@@ -87,8 +87,7 @@ export default function EditUsernameScreen() {
           headerShown: true,
         }}
       />
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}>
-      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
+      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive">
         <Text style={[styles.label, { color: Colors[colorScheme ?? 'light'].mutedText }]}>Username</Text>
         <Text style={[styles.hint, { color: Colors[colorScheme ?? 'light'].mutedText }]}>
           This is your @ handle (e.g., @rwerwqer). Lowercase letters, numbers, dots, and underscores only.
@@ -109,7 +108,6 @@ export default function EditUsernameScreen() {
           {saving ? 'Saving…' : 'Save'}
         </Button>
       </ScrollView>
-      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

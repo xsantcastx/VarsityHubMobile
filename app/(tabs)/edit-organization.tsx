@@ -223,8 +223,7 @@ export default function EditOrganizationScreen() {
         </Pressable>
       </View>
 
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive">
         {/* Background Image */}
         {renderImageUpload(
           'Background Image',
@@ -326,7 +325,6 @@ export default function EditOrganizationScreen() {
           maxLength={10}
         />
       </ScrollView>
-      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
