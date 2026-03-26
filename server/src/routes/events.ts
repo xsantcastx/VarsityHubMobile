@@ -464,6 +464,7 @@ const createEventSchema = z.object({
   banner_url: z.string().optional(),
   game_id: z.string().optional(),
   home_team_id: z.string().optional(),
+  team_id: z.string().optional(), // Alias for home_team_id — frontend may send either
 });
 
 eventsRouter.post('/', requireVerified as any, requireOnboarded as any, eventCreationLimiter, asyncHandler(async (req: AuthedRequest, res) => {
@@ -477,6 +478,10 @@ eventsRouter.post('/', requireVerified as any, requireOnboarded as any, eventCre
   }
   
   const data = parsed.data;
+  // Normalize: accept either team_id or home_team_id from frontend
+  if (data.team_id && !data.home_team_id) {
+    data.home_team_id = data.team_id;
+  }
 
   // Content filter: profanity, spam, bullying
   const filterResult = validateContent({

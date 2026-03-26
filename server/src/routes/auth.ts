@@ -27,6 +27,7 @@ const RESET_LOCKOUT_MS = 15 * 60 * 1000; // 15 minutes
 
 // Redis-backed auth rate limiting using INCR + EXPIRE pattern
 async function checkAuthRateLimit(identifier: string): Promise<boolean> {
+  if (process.env.DISABLE_RATE_LIMITING === 'true') return true;
   const key = `auth:${identifier}`;
   const count = await rlIncr(key, AUTH_WINDOW_MS);
   return count <= MAX_AUTH_ATTEMPTS;
@@ -1446,7 +1447,7 @@ function sanitizeUser(u: any) {
 }
 
 // Test email endpoint (development only)
-authRouter.post('/test-email', asyncHandler(async (req, res) => {
+authRouter.post('/test-email', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   if (process.env.NODE_ENV === 'production') {
     return res.status(403).json({ error: 'Test endpoint not available in production' });
   }

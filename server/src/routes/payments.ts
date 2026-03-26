@@ -24,7 +24,10 @@ import { asyncHandler } from '../middleware/asyncHandler.js';
 if (process.env.NODE_ENV === 'production' && !process.env.STRIPE_SECRET_KEY) {
   throw new Error('FATAL: STRIPE_SECRET_KEY must be set in production. Server cannot start without payment processing.');
 }
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_placeholder', { apiVersion: '2024-06-20' });
+if (!process.env.STRIPE_SECRET_KEY) {
+  console.error('[payments] STRIPE_SECRET_KEY is not set — payment features will fail');
+}
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_not_configured', { apiVersion: '2024-06-20' });
 
 // Startup warnings for critical payment config
 if (process.env.NODE_ENV === 'production') {
@@ -48,6 +51,9 @@ paymentsRouter.get('/config', (_req, res) => {
     stripePublishableKey &&
     process.env.STRIPE_SECRET_KEY
   );
+  if (!stripeConfigured) {
+    return res.status(503).json({ error: 'Payment system not configured', payments_enabled: false });
+  }
   res.json({
     stripe_publishable_key: stripePublishableKey,
     available_plans: availablePlans,

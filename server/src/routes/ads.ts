@@ -3,7 +3,7 @@ import { getZipCoordinates, haversineDistance } from '../lib/geoUtils.js';
 import { geocodeLocation } from '../lib/geocoding.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
-import { getIsAdmin, requireAdmin } from '../middleware/requireAdmin.js';
+import { getIsAdmin, isEmailAdmin, requireAdmin } from '../middleware/requireAdmin.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireOnboarded } from '../middleware/requireOnboarded.js';
@@ -72,9 +72,19 @@ async function getZipCoordinatesWithFallback(zipCode: string): Promise<{ lat: nu
 export const adsRouter = Router();
 registerIdValidation(adsRouter);
 
-// Create an Ad (optionally associated to the authenticated user)
+// Create an Ad — requires Veteran/Legend plan or admin
 adsRouter.post('/', requireVerified as any, requireOnboarded as any, adCreationLimiter, async (req: AuthedRequest, res) => {
   try {
+    // Role gate: only Veteran/Legend subscribers or admins can create ads
+    if (req.user?.id) {
+      const adUser = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true, email: true } });
+      const plan = String((adUser?.preferences as any)?.plan || '').toLowerCase();
+      const isAdAdmin = isEmailAdmin(adUser?.email);
+      if (!isAdAdmin && plan !== 'veteran' && plan !== 'legend') {
+        return res.status(403).json({ error: 'Ad creation requires a Veteran or Legend subscription.', code: 'PLAN_REQUIRED' });
+      }
+    }
+
     const { payment_status: _ps, status: _st, ...safeBody } = req.body || {};
     const parsed = adCreateSchema.safeParse(safeBody);
     if (!parsed.success) {

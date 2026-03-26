@@ -759,9 +759,13 @@ export async function sendEventUpdatedEmail(params: any): Promise<boolean> {
   );
 }
 
-export async function sendPaymentRequiredEmail(_params: any): Promise<boolean> {
-  // Not yet implemented — return true so queue workers don't retry
-  return true;
+export async function sendPaymentRequiredEmail(params: { to: string; userName?: string; planName?: string; amount?: string }): Promise<boolean> {
+  return sendEmail({
+    to: params.to,
+    subject: 'VarsityHub — Payment Required',
+    text: `Hi ${params.userName || 'there'},\n\nYour ${params.planName || 'subscription'} payment of ${params.amount || 'the required amount'} could not be processed. Please update your payment method in Settings to continue using premium features.\n\nQuestions? Email customerservice@varsityhub.app\n\n— The VarsityHub Team`,
+    html: `<h2>Payment Required</h2><p>Hi ${params.userName || 'there'},</p><p>Your ${params.planName || 'subscription'} payment of ${params.amount || 'the required amount'} could not be processed.</p><p>Please update your payment method in Settings to continue using premium features.</p><p>Questions? Email <a href="mailto:customerservice@varsityhub.app">customerservice@varsityhub.app</a></p>`,
+  });
 }
 
 export async function sendPostHighlightEmail(_params: any): Promise<boolean> {
@@ -1659,9 +1663,13 @@ export async function sendFounderMetricsEmail(params: {
   );
 }
 
-export async function sendWelcomeEmail(_to: string, _name?: string): Promise<boolean> {
-  console.warn('[email] sendWelcomeEmail: not configured');
-  return false;
+export async function sendWelcomeEmail(to: string, name?: string): Promise<boolean> {
+  return sendEmail({
+    to,
+    subject: 'Welcome to VarsityHub!',
+    text: `Hi ${name || 'there'},\n\nWelcome to VarsityHub! You're all set to discover teams, follow games, and share your sports moments.\n\nGet started by finding teams near you or creating your first post.\n\nQuestions? Email customerservice@varsityhub.app\n\n— The VarsityHub Team`,
+    html: `<h2>Welcome to VarsityHub!</h2><p>Hi ${name || 'there'},</p><p>You're all set to discover teams, follow games, and share your sports moments.</p><p>Get started by finding teams near you or creating your first post.</p><p>Questions? Email <a href="mailto:customerservice@varsityhub.app">customerservice@varsityhub.app</a></p><p>— The VarsityHub Team</p>`,
+  });
 }
 
 // =====================================================
