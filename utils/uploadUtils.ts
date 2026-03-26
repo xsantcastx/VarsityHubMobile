@@ -5,6 +5,7 @@
 import { Platform } from 'react-native';
 import auth from '../api/auth';
 import { getApiBaseUrl } from '../api/http';
+import { compressImageForUpload } from './ensureUploadableUri';
 
 export interface UploadResponse {
   url: string;
@@ -40,12 +41,25 @@ export async function uploadFile(
       throw new Error('Unauthorized — please sign in to upload files.');
     }
 
+    // Compress images before upload (max 1920px, 80% quality). Videos pass through unchanged.
+    let uploadUri = file.uri;
+    let uploadType = file.type || 'application/octet-stream';
+    if (uploadType.startsWith('image/')) {
+      try {
+        const compressed = await compressImageForUpload(uploadUri, uploadType);
+        uploadUri = compressed.uri;
+        if (compressed.mimeType) uploadType = compressed.mimeType;
+      } catch (e) {
+        if (__DEV__) console.warn('[uploadUtils] Image compression failed, uploading original:', e);
+      }
+    }
+
     const formData = new FormData();
 
     // Create the file object for FormData
     const fileObj = {
-      uri: file.uri,
-      type: file.type || 'application/octet-stream',
+      uri: uploadUri,
+      type: uploadType,
       name: file.name,
     } as any;
 

@@ -15,81 +15,61 @@ import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { authLimiter, oauthLimiter, verificationConfirmLimiter } from '../middleware/rateLimiters.js';
+import { rlIncr, rlGet, rlSet, rlDel } from '../lib/redisRateLimit.js';
 
 export const authRouter = Router();
-// Simple in-memory rate limiting for auth endpoints
-const authRate: Map<string, { attempts: number; resetAt: number }> = new Map();
+
+// Rate limit thresholds (unchanged)
 const MAX_AUTH_ATTEMPTS = 5;
 const AUTH_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
-
-// Dedicated failed-attempt tracking for password reset code verification
-const resetFailures: Map<string, { attempts: number; lockedUntil: number }> = new Map();
 const MAX_RESET_FAILURES = 5;
 const RESET_LOCKOUT_MS = 15 * 60 * 1000; // 15 minutes
 
-function checkResetAttempt(email: string): { allowed: boolean; retryAfterMs?: number } {
-  const now = Date.now();
-  const record = resetFailures.get(email);
+// Redis-backed auth rate limiting using INCR + EXPIRE pattern
+async function checkAuthRateLimit(identifier: string): Promise<boolean> {
+  const key = `auth:${identifier}`;
+  const count = await rlIncr(key, AUTH_WINDOW_MS);
+  return count <= MAX_AUTH_ATTEMPTS;
+}
 
-  if (!record) return { allowed: true };
+// Redis-backed password reset failure tracking
+async function checkResetAttempt(email: string): Promise<{ allowed: boolean; retryAfterMs?: number }> {
+  const key = `resetfail:${email}`;
+  const raw = await rlGet(key);
+  if (!raw) return { allowed: true };
 
-  // Lock expired — clear and allow
-  if (record.lockedUntil && now >= record.lockedUntil) {
-    resetFailures.delete(email);
-    return { allowed: true };
-  }
+  const record = JSON.parse(raw) as { attempts: number; lockedUntil: number };
 
   // Currently locked out
-  if (record.attempts >= MAX_RESET_FAILURES) {
-    return { allowed: false, retryAfterMs: record.lockedUntil - now };
+  if (record.attempts >= MAX_RESET_FAILURES && record.lockedUntil > Date.now()) {
+    return { allowed: false, retryAfterMs: record.lockedUntil - Date.now() };
   }
 
   return { allowed: true };
 }
 
-function recordResetFailure(email: string): void {
-  const now = Date.now();
-  const record = resetFailures.get(email);
-
-  if (!record) {
-    resetFailures.set(email, { attempts: 1, lockedUntil: 0 });
-    return;
-  }
+async function recordResetFailure(email: string): Promise<void> {
+  const key = `resetfail:${email}`;
+  const raw = await rlGet(key);
+  let record = raw ? (JSON.parse(raw) as { attempts: number; lockedUntil: number }) : { attempts: 0, lockedUntil: 0 };
 
   record.attempts++;
   if (record.attempts >= MAX_RESET_FAILURES) {
-    record.lockedUntil = now + RESET_LOCKOUT_MS;
+    record.lockedUntil = Date.now() + RESET_LOCKOUT_MS;
   }
+  // TTL = lockout window so keys auto-expire after lockout period
+  await rlSet(key, JSON.stringify(record), RESET_LOCKOUT_MS);
 }
 
-function clearResetFailures(email: string): void {
-  resetFailures.delete(email);
+async function clearResetFailures(email: string): Promise<void> {
+  await rlDel(`resetfail:${email}`);
 }
+
 const debugLog = (...args: Parameters<typeof console.log>) => {
   if (process.env.ENABLE_SERVER_DEBUG_LOGS === 'true' || process.env.NODE_ENV !== 'production') {
     console.log(...args);
   }
 };
-
-function checkAuthRateLimit(identifier: string): boolean {
-  const now = Date.now();
-  const record = authRate.get(identifier);
-  
-  if (!record || now > record.resetAt) {
-    authRate.set(identifier, { attempts: 1, resetAt: now + AUTH_WINDOW_MS });
-    return true;
-  }
-  
-  if (record.attempts >= MAX_AUTH_ATTEMPTS) {
-    return false;
-  }
-  
-  record.attempts++;
-  return true;
-}
-
-// simple in-memory rate limiting for verification send: 1/30s, 5/hour per user
-const verifyRate: Map<string, { last: number; count: number; hourStart: number }> = new Map();
 const shouldExposeDevCodes =
   process.env.ENABLE_DEV_CODES === '1' &&
   (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test');
@@ -177,7 +157,7 @@ authRouter.post('/register', asyncHandler(async (req, res) => {
   const sanitizedEmail = email.trim().toLowerCase();
 
   // SECURITY: Rate limiting to prevent mass account creation / enumeration
-  if (!checkAuthRateLimit(`register:${sanitizedEmail}`)) {
+  if (!(await checkAuthRateLimit(`register:${sanitizedEmail}`))) {
     return res.status(429).json({ error: 'Too many registration attempts. Please try again later.' });
   }
 
@@ -266,7 +246,7 @@ authRouter.post('/login', asyncHandler(async (req, res) => {
   const sanitizedEmail = email.trim().toLowerCase();
   
   // Rate limiting
-  if (!checkAuthRateLimit(sanitizedEmail)) {
+  if (!(await checkAuthRateLimit(sanitizedEmail))) {
     return res.status(429).json({ error: 'Too many login attempts. Please try again later.' });
   }
   
@@ -719,7 +699,7 @@ authRouter.post('/password/forgot', asyncHandler(async (req, res) => {
   const email = parsed.data.email.trim().toLowerCase();
 
   // SECURITY: Rate limiting to prevent password reset abuse / enumeration
-  if (!checkAuthRateLimit(`forgot:${email}`)) {
+  if (!(await checkAuthRateLimit(`forgot:${email}`))) {
     // Return generic success to prevent timing-based enumeration
     return res.json({ ok: true });
   }
@@ -774,32 +754,32 @@ authRouter.post('/password/reset', asyncHandler(async (req, res) => {
   const sanitizedEmail = email.trim().toLowerCase();
 
   // SECURITY: Check dedicated failure-based lockout before anything else
-  const attemptCheck = checkResetAttempt(sanitizedEmail);
+  const attemptCheck = await checkResetAttempt(sanitizedEmail);
   if (!attemptCheck.allowed) {
     return res.status(429).json({ error: 'Too many attempts. Try again in 15 minutes.' });
   }
 
   // Also keep the general rate limit as a secondary guard
-  if (!checkAuthRateLimit(`reset:${sanitizedEmail}`)) {
+  if (!(await checkAuthRateLimit(`reset:${sanitizedEmail}`))) {
     return res.status(429).json({ error: 'Too many reset attempts. Please request a new code.' });
   }
 
   const user = await prisma.user.findFirst({ where: { email: { equals: sanitizedEmail, mode: 'insensitive' } } });
   if (!user || !user.password_reset_code || !user.password_reset_expires) {
-    recordResetFailure(sanitizedEmail);
+    await recordResetFailure(sanitizedEmail);
     return res.status(400).json({ error: 'Invalid or expired reset code' });
   }
   if (new Date() > user.password_reset_expires) {
-    recordResetFailure(sanitizedEmail);
+    await recordResetFailure(sanitizedEmail);
     return res.status(400).json({ error: 'Invalid or expired reset code' });
   }
   if (String(code).trim() !== String(user.password_reset_code)) {
-    recordResetFailure(sanitizedEmail);
+    await recordResetFailure(sanitizedEmail);
     return res.status(400).json({ error: 'Invalid or expired reset code' });
   }
 
   // Success — clear failure tracking and reset the code
-  clearResetFailures(sanitizedEmail);
+  await clearResetFailures(sanitizedEmail);
 
   const password_hash = await bcrypt.hash(password, 10);
   await prisma.$transaction([
@@ -1400,12 +1380,15 @@ authRouter.post('/verify/request', requireAuth as any, asyncHandler(async (req: 
   const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
   if (!user) return res.status(404).json({ error: 'Not found' });
   if (user.email_verified) return res.json({ ok: true, already_verified: true });
-  const now = Date.now();
-  const key = user.id;
-  const rec = verifyRate.get(key) || { last: 0, count: 0, hourStart: now };
-  if (now - rec.hourStart > 3600_000) { rec.hourStart = now; rec.count = 0; }
-  if (now - rec.last < 30_000) return res.status(429).json({ error: 'Please wait before requesting another code' });
-  if (rec.count >= 5) return res.status(429).json({ error: 'Too many requests' });
+  // Redis-backed verification rate limiting: 1 per 30s, 5 per hour
+  const verifyLastKey = `verify:last:${user.id}`;
+  const verifyHourKey = `verify:hour:${user.id}`;
+  const lastSent = await rlGet(verifyLastKey);
+  if (lastSent && Date.now() - parseInt(lastSent, 10) < 30_000) {
+    return res.status(429).json({ error: 'Please wait before requesting another code' });
+  }
+  const hourCount = await rlIncr(verifyHourKey, 3600_000); // 1 hour TTL
+  if (hourCount > 5) return res.status(429).json({ error: 'Too many requests' });
   const code = String(crypto.randomInt(100000, 999999));
   if (process.env.NODE_ENV === 'development') console.log(`[verify-code] [verify/request] Code generated: ${code} for user ${user.id} (${user.email})`);
   const exp = new Date(Date.now() + 30 * 60 * 1000);
@@ -1425,7 +1408,7 @@ authRouter.post('/verify/request', requireAuth as any, asyncHandler(async (req: 
   }
   const payload: any = { ok: true };
   if (shouldExposeDevCodes) payload.dev_verification_code = code;
-  rec.last = now; rec.count += 1; verifyRate.set(key, rec);
+  await rlSet(verifyLastKey, String(Date.now()), 30_000);
   return res.json(payload);
 }));
 

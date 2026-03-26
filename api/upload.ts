@@ -1,3 +1,4 @@
+import { compressImageForUpload } from '@/utils/ensureUploadableUri';
 import auth from './auth';
 import { getApiBaseUrl } from './http';
 
@@ -143,15 +144,27 @@ export async function uploadFile(
   options?: UploadOptions,
 ): Promise<any> {
   const finalBase = computeBase(baseUrl);
-  const finalMimeType = detectMime(mimeType, filename, uri);
+  let finalMimeType = detectMime(mimeType, filename, uri);
   const finalFilename = filename || 'upload';
+  let finalUri = uri;
+
+  // Compress images before upload (max 1920px, 80% quality). Videos pass through unchanged.
+  if (finalMimeType.startsWith('image/')) {
+    try {
+      const compressed = await compressImageForUpload(finalUri, finalMimeType);
+      finalUri = compressed.uri;
+      if (compressed.mimeType) finalMimeType = compressed.mimeType;
+    } catch (e) {
+      if (__DEV__) console.warn('[upload] Image compression failed, uploading original:', e);
+    }
+  }
 
   // Try direct-to-Cloudinary first (faster — skips server proxy)
   try {
     const sig = await getCloudinarySignature(finalBase);
     if (sig) {
       if (__DEV__) console.log('[upload] Using direct Cloudinary upload');
-      return await uploadDirectToCloudinary(uri, finalFilename, finalMimeType, sig, options);
+      return await uploadDirectToCloudinary(finalUri, finalFilename, finalMimeType, sig, options);
     }
   } catch (directErr: any) {
     if (__DEV__) {
@@ -163,7 +176,7 @@ export async function uploadFile(
 
   // Fallback: proxy through server (works when Cloudinary signature endpoint unavailable)
   if (__DEV__) console.log('[upload] Using server-proxy upload');
-  return uploadViaServer(finalBase, uri, finalFilename, finalMimeType, options);
+  return uploadViaServer(finalBase, finalUri, finalFilename, finalMimeType, options);
 }
 
 // -----------------------------------------------
@@ -177,15 +190,27 @@ export async function uploadFileWithProgress(
   options?: UploadOptions,
 ): Promise<any> {
   const finalBase = computeBase(baseUrl);
-  const finalMimeType = detectMime(mimeType, filename, uri);
+  let finalMimeType = detectMime(mimeType, filename, uri);
   const finalFilename = filename || 'upload';
+  let finalUri = uri;
+
+  // Compress images before upload (max 1920px, 80% quality). Videos pass through unchanged.
+  if (finalMimeType.startsWith('image/')) {
+    try {
+      const compressed = await compressImageForUpload(finalUri, finalMimeType);
+      finalUri = compressed.uri;
+      if (compressed.mimeType) finalMimeType = compressed.mimeType;
+    } catch (e) {
+      if (__DEV__) console.warn('[upload] Image compression failed, uploading original:', e);
+    }
+  }
 
   // Try direct-to-Cloudinary (has XHR progress built in)
   try {
     const sig = await getCloudinarySignature(finalBase);
     if (sig) {
       if (__DEV__) console.log('[upload] Using direct Cloudinary upload (with progress)');
-      return await uploadDirectToCloudinary(uri, finalFilename, finalMimeType, sig, options);
+      return await uploadDirectToCloudinary(finalUri, finalFilename, finalMimeType, sig, options);
     }
   } catch (directErr: any) {
     if (__DEV__) {
@@ -207,7 +232,7 @@ export async function uploadFileWithProgress(
   const onProgress = options?.onProgress;
 
   const form = new FormData();
-  form.append('file', { uri, name: finalFilename, type: finalMimeType } as any);
+  form.append('file', { uri: finalUri, name: finalFilename, type: finalMimeType } as any);
 
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
