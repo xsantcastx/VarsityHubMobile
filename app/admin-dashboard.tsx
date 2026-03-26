@@ -22,6 +22,16 @@ interface PendingLeague {
   _count?: { teams: number; memberships: number };
 }
 
+interface PendingCoach {
+  id: string;
+  display_name?: string | null;
+  email: string;
+  username?: string | null;
+  avatar_url?: string | null;
+  created_at: string;
+  preferences?: any;
+}
+
 interface DashboardStats {
   totalUsers: number;
   verifiedUsers: number;
@@ -30,6 +40,7 @@ interface DashboardStats {
   totalAds: number;
   pendingAds: number;
   pendingLeagues: PendingLeague[];
+  pendingCoaches: PendingCoach[];
   totalPosts: number;
   totalMessages: number;
   recentActivity: Array<{
@@ -54,6 +65,38 @@ export default function AdminDashboardScreen() {
   // Cross-platform modal for league approve/reject (Alert.prompt is iOS-only)
   const [leagueModal, setLeagueModal] = useState<{ league: PendingLeague; action: 'approve' | 'reject' } | null>(null);
   const [leagueNote, setLeagueNote] = useState('');
+
+  // Coach approval modal state
+  const [coachModal, setCoachModal] = useState<{ coach: PendingCoach; action: 'approve' | 'reject' } | null>(null);
+  const [coachNote, setCoachNote] = useState('');
+  const [coachActionId, setCoachActionId] = useState<string | null>(null);
+
+  const handleApproveCoach = (coach: PendingCoach) => {
+    setCoachNote('');
+    setCoachModal({ coach, action: 'approve' });
+  };
+
+  const handleRejectCoach = (coach: PendingCoach) => {
+    setCoachNote('');
+    setCoachModal({ coach, action: 'reject' });
+  };
+
+  const confirmCoachAction = async () => {
+    if (!coachModal) return;
+    const { coach, action } = coachModal;
+    setCoachModal(null);
+    setCoachActionId(coach.id);
+    try {
+      const { httpPost } = await import('@/api/http');
+      await httpPost(`/admin/coaches/${coach.id}/${action}`, { note: coachNote.trim() || undefined });
+      Alert.alert('Success', `Coach "${coach.display_name || coach.username || coach.email}" has been ${action === 'approve' ? 'approved' : 'rejected'}.`);
+      void loadStats(true);
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || `Failed to ${action} coach`);
+    } finally {
+      setCoachActionId(null);
+    }
+  };
 
   const handleApproveLeague = (league: PendingLeague) => {
     setLeagueNote('');
@@ -329,6 +372,68 @@ export default function AdminDashboardScreen() {
             </View>
           )}
 
+          {/* Pending Coaches */}
+          {stats?.pendingCoaches && stats.pendingCoaches.length > 0 && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={[styles.sectionTitle, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
+                  Pending Coaches ({stats.pendingCoaches.length})
+                </Text>
+              </View>
+              {stats.pendingCoaches.map((coach) => {
+                const isActioning = coachActionId === coach.id;
+                return (
+                  <View
+                    key={coach.id}
+                    style={[styles.statCard, {
+                      backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white',
+                      borderColor: '#3B82F6',
+                    }]}
+                  >
+                    <View style={[styles.statIcon, { backgroundColor: '#3B82F620' }]}>
+                      <MaterialIcons name="person" size={24} color="#3B82F6" />
+                    </View>
+                    <View style={styles.statContent}>
+                      <Text style={[styles.statValue, { fontSize: 16, color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
+                        {coach.display_name || coach.username || 'Unknown Coach'}
+                      </Text>
+                      <Text style={[styles.statTitle, { color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280' }]}>
+                        {coach.email}
+                      </Text>
+                      <Text style={[styles.statSubtitle, { color: colorScheme === 'dark' ? '#6B7280' : '#9CA3AF' }]}>
+                        Applied {new Date(coach.created_at).toLocaleDateString()}
+                      </Text>
+                      <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+                        <Pressable
+                          style={[styles.leagueBtn, { backgroundColor: '#16A34A', opacity: isActioning ? 0.6 : 1 }]}
+                          onPress={() => handleApproveCoach(coach)}
+                          disabled={isActioning}
+                        >
+                          {isActioning ? (
+                            <ActivityIndicator size="small" color="#fff" />
+                          ) : (
+                            <>
+                              <MaterialIcons name="check" size={16} color="#fff" />
+                              <Text style={styles.leagueBtnText}>Approve</Text>
+                            </>
+                          )}
+                        </Pressable>
+                        <Pressable
+                          style={[styles.leagueBtn, { backgroundColor: '#DC2626', opacity: isActioning ? 0.6 : 1 }]}
+                          onPress={() => handleRejectCoach(coach)}
+                          disabled={isActioning}
+                        >
+                          <MaterialIcons name="close" size={16} color="#fff" />
+                          <Text style={styles.leagueBtnText}>Reject</Text>
+                        </Pressable>
+                      </View>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+
           {/* Stats Grid */}
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
@@ -544,6 +649,40 @@ export default function AdminDashboardScreen() {
                 onPress={confirmLeagueAction}
               >
                 <Text style={{ color: 'white', fontWeight: '700' }}>{leagueModal?.action === 'approve' ? 'Approve' : 'Reject'}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+      {/* Coach Approve/Reject Modal */}
+      <Modal visible={!!coachModal} transparent animationType="slide">
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)', padding: 24 }}>
+          <View style={{ backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white', borderRadius: 16, padding: 20, width: '100%', maxWidth: 400 }}>
+            <Text style={{ fontSize: 18, fontWeight: '800', color: colorScheme === 'dark' ? '#ECEDEE' : '#111827', marginBottom: 8 }}>
+              {coachModal?.action === 'approve' ? 'Approve Coach' : 'Reject Coach'}
+            </Text>
+            <Text style={{ color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280', marginBottom: 12 }}>
+              {coachModal?.action === 'approve'
+                ? `Approve "${coachModal?.coach.display_name || coachModal?.coach.username || coachModal?.coach.email}"? Add an optional note:`
+                : `Reject "${coachModal?.coach.display_name || coachModal?.coach.username || coachModal?.coach.email}"? Enter a reason (optional):`}
+            </Text>
+            <TextInput
+              style={{ borderWidth: 1, borderColor: colorScheme === 'dark' ? '#374151' : '#D1D5DB', borderRadius: 8, padding: 10, color: colorScheme === 'dark' ? '#ECEDEE' : '#111827', backgroundColor: colorScheme === 'dark' ? '#111827' : '#F9FAFB', minHeight: 60, textAlignVertical: 'top' }}
+              value={coachNote}
+              onChangeText={setCoachNote}
+              placeholder={coachModal?.action === 'approve' ? 'Note (optional)...' : 'Reason (optional)...'}
+              placeholderTextColor={colorScheme === 'dark' ? '#6B7280' : '#9CA3AF'}
+              multiline
+            />
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
+              <Pressable style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: colorScheme === 'dark' ? '#374151' : '#D1D5DB', alignItems: 'center' }} onPress={() => setCoachModal(null)}>
+                <Text style={{ color: colorScheme === 'dark' ? '#ECEDEE' : '#111827', fontWeight: '700' }}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: coachModal?.action === 'approve' ? '#22c55e' : '#dc2626', alignItems: 'center' }}
+                onPress={confirmCoachAction}
+              >
+                <Text style={{ color: 'white', fontWeight: '700' }}>{coachModal?.action === 'approve' ? 'Approve' : 'Reject'}</Text>
               </Pressable>
             </View>
           </View>

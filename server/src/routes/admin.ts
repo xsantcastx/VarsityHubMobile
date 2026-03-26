@@ -1,7 +1,7 @@
 import express from 'express';
 import { z } from 'zod';
 import { checkReportSpike, getUserModerationHistory, issueWarning, suspendUser } from '../lib/moderation.js';
-import { sendAccountPermanentBanEmail } from '../lib/email.js';
+import { sendAccountPermanentBanEmail, sendCoachApprovedEmail, sendCoachRejectedEmail } from '../lib/email.js';
 import { prisma } from '../lib/prisma.js';
 import { getFounderMetricsReport } from '../lib/founderMetrics.js';
 import {
@@ -65,7 +65,8 @@ adminRouter.get('/dashboard', requireVerified as any, requireAdminMiddleware as 
       totalMessages,
       recentActivity,
       pendingLeagues,
-      eventsWithoutCoordinates
+      eventsWithoutCoordinates,
+      pendingCoaches
     ] = await Promise.all([
       // Total users
       prisma.user.count(),
@@ -121,7 +122,25 @@ adminRouter.get('/dashboard', requireVerified as any, requireAdminMiddleware as 
           latitude: null,
           longitude: null,
         },
-      }).catch(() => 0)
+      }).catch(() => 0),
+
+      // Pending coaches (users with approval_status = 'PENDING' and coach preferences)
+      prisma.user.findMany({
+        where: {
+          approval_status: 'PENDING',
+          preferences: { path: ['role'], equals: 'coach' },
+        },
+        orderBy: { created_at: 'desc' },
+        select: {
+          id: true,
+          display_name: true,
+          email: true,
+          username: true,
+          avatar_url: true,
+          created_at: true,
+          preferences: true,
+        },
+      }).catch(() => [])
     ]);
 
     return res.json({
@@ -133,6 +152,7 @@ adminRouter.get('/dashboard', requireVerified as any, requireAdminMiddleware as 
       totalAds,
       pendingAds,
       pendingLeagues: pendingLeagues || [],
+      pendingCoaches: pendingCoaches || [],
       totalPosts,
       totalMessages,
       recentActivity: recentActivity || [],
@@ -141,6 +161,117 @@ adminRouter.get('/dashboard', requireVerified as any, requireAdminMiddleware as 
   } catch (error) {
     console.error('[admin] Error fetching dashboard data:', error);
     return res.status(500).json({ error: 'Failed to fetch dashboard data' });
+  }
+});
+
+/**
+ * POST /admin/coaches/:id/approve
+ * Approve a pending coach application
+ */
+adminRouter.post('/coaches/:id/approve', requireVerified as any, requireAdminMiddleware as any, async (req: AuthedRequest, res) => {
+  try {
+    const { id } = req.params;
+    const { note } = req.body || {};
+
+    const user = await prisma.user.findUnique({ where: { id }, select: { id: true, email: true, display_name: true, username: true, approval_status: true, preferences: true } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (user.approval_status !== 'PENDING') return res.status(400).json({ error: 'User is not pending approval' });
+
+    await prisma.user.update({
+      where: { id },
+      data: { approval_status: 'APPROVED' },
+    });
+
+    // Log admin action
+    await prisma.adminActivityLog.create({
+      data: {
+        admin_id: req.user?.id || 'unknown',
+        admin_email: req.user?.id || 'unknown',
+        action: 'APPROVE_COACH',
+        target_type: 'user',
+        target_id: id,
+        description: `Approved coach: ${user.display_name || user.username || user.email}${note ? ` — ${note}` : ''}`,
+      },
+    }).catch(() => {});
+
+    // Send approval email
+    if (user.email) {
+      sendCoachApprovedEmail({
+        to: user.email,
+        coachName: user.display_name || user.username || 'Coach',
+        leagueName: 'VarsityHub',
+      }).catch((err) => console.error('[admin] Failed to send coach approved email:', err));
+    }
+
+    // Create in-app notification
+    await prisma.notification.create({
+      data: {
+        user_id: id,
+        type: 'JOIN_REQUEST_APPROVED',
+        meta: { approved_by: 'admin', note: note || undefined },
+      },
+    }).catch(() => {});
+
+    return res.json({ ok: true, message: `Coach ${user.display_name || user.username} approved` });
+  } catch (error) {
+    console.error('[admin] Error approving coach:', error);
+    return res.status(500).json({ error: 'Failed to approve coach' });
+  }
+});
+
+/**
+ * POST /admin/coaches/:id/reject
+ * Reject a pending coach application
+ */
+adminRouter.post('/coaches/:id/reject', requireVerified as any, requireAdminMiddleware as any, async (req: AuthedRequest, res) => {
+  try {
+    const { id } = req.params;
+    const { note } = req.body || {};
+
+    const user = await prisma.user.findUnique({ where: { id }, select: { id: true, email: true, display_name: true, username: true, approval_status: true } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (user.approval_status !== 'PENDING') return res.status(400).json({ error: 'User is not pending approval' });
+
+    await prisma.user.update({
+      where: { id },
+      data: { approval_status: 'REJECTED' },
+    });
+
+    // Log admin action
+    await prisma.adminActivityLog.create({
+      data: {
+        admin_id: req.user?.id || 'unknown',
+        admin_email: req.user?.id || 'unknown',
+        action: 'REJECT_COACH',
+        target_type: 'user',
+        target_id: id,
+        description: `Rejected coach: ${user.display_name || user.username || user.email}${note ? ` — ${note}` : ''}`,
+      },
+    }).catch(() => {});
+
+    // Send rejection email
+    if (user.email) {
+      sendCoachRejectedEmail({
+        to: user.email,
+        coachName: user.display_name || user.username || 'Coach',
+        leagueName: 'VarsityHub',
+        reason: note || undefined,
+      }).catch((err) => console.error('[admin] Failed to send coach rejected email:', err));
+    }
+
+    // Create in-app notification
+    await prisma.notification.create({
+      data: {
+        user_id: id,
+        type: 'COACH_REJECTED',
+        meta: { rejected_by: 'admin', reason: note || undefined },
+      },
+    }).catch(() => {});
+
+    return res.json({ ok: true, message: `Coach ${user.display_name || user.username} rejected` });
+  } catch (error) {
+    console.error('[admin] Error rejecting coach:', error);
+    return res.status(500).json({ error: 'Failed to reject coach' });
   }
 });
 

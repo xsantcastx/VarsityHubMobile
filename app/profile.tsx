@@ -815,7 +815,7 @@ export default function ProfileScreen() {
       </View>
 
       {/* Content Below Banner */}
-      <View style={styles.profileDetailsContainer}>
+      <View style={[styles.profileDetailsContainer, { backgroundColor: theme.background }]}>
         {/* User Info - Below Banner, next to avatar overhang */}
         <View style={styles.userInfoBelowBanner}>
           <View style={styles.nameRow}>
@@ -1509,10 +1509,10 @@ const styles = StyleSheet.create({
   },
   // Profile Details Below Banner - Tight spacing to match reference
   profileDetailsContainer: {
-    backgroundColor: 'transparent',
     paddingTop: 48, // Account for avatar overhang (40px negative margin + 8px breathing room)
     marginBottom: 0, // No gap before tabs
     paddingBottom: 0, // No padding at bottom
+    // backgroundColor set dynamically via theme.background in component
   },
   userInfoBelowBanner: {
     paddingHorizontal: 16,

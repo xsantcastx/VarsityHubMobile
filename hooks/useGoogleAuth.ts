@@ -62,7 +62,11 @@ const PROJECT_FULL_NAME = appConfig.expoProjectFullName || derivedProjectFullNam
 export function useGoogleAuth() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const isExpoGo = Constants.executionEnvironment === 'storeClient';
+  // Detect Expo Go via appOwnership, NOT executionEnvironment.
+  // executionEnvironment === 'storeClient' matches BOTH production AND dev client builds,
+  // which would incorrectly force proxy mode (auth.expo.io — deprecated since SDK 50).
+  // appOwnership === 'expo' only matches Expo Go.
+  const isExpoGo = Constants.appOwnership === 'expo';
   const proxyRequested = FORCE_PROXY_FLAG || isExpoGo;
   const shouldUseProxy = proxyRequested && !!PROJECT_FULL_NAME;
 
