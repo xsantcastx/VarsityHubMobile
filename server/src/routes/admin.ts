@@ -584,36 +584,47 @@ adminRouter.post('/wipe-production', requireVerified as any, requireAdminMiddlew
     }
 
     const demo = await prisma.user.findFirst({ where: { email: 'demo@varsityhub.app' } });
-    const demoId = demo?.id;
+    const admin = await prisma.user.findFirst({ where: { email: 'emancero@varsityhub.app' } });
+    const keepIds = [demo?.id, admin?.id].filter(Boolean) as string[];
 
-    // Delete in dependency order
-    await prisma.story.deleteMany({});
-    await prisma.gameVote.deleteMany({});
-    await prisma.eventRsvp.deleteMany({});
-    await prisma.adReservation.deleteMany({});
-    await prisma.ad.deleteMany({});
-    await prisma.pollVote.deleteMany({});
-    await prisma.pollOption.deleteMany({});
-    await prisma.poll.deleteMany({});
-    await prisma.postUpvote.deleteMany({});
-    await prisma.postBookmark.deleteMany({});
-    await prisma.comment.deleteMany({});
-    await prisma.notification.deleteMany({});
-    await prisma.message.deleteMany({});
-    await prisma.follows.deleteMany({});
-    await prisma.teamFollow.deleteMany({});
-    await prisma.organizationFollow.deleteMany({});
-    await prisma.post.deleteMany({});
-    await prisma.event.deleteMany({});
-    await prisma.game.deleteMany({});
-    await prisma.teamMembership.deleteMany({});
-    await prisma.teamInvite.deleteMany({});
-    await prisma.team.deleteMany({});
-    await prisma.organizationMembership.deleteMany({});
-    await prisma.organizationJoinRequest.deleteMany({});
-    await prisma.organization.deleteMany({});
-    await prisma.refreshToken.deleteMany(demoId ? { where: { NOT: { user_id: demoId } } } : {});
-    await prisma.user.deleteMany(demoId ? { where: { NOT: { id: demoId } } } : {});
+    // Use raw SQL to bypass FK constraints
+    await prisma.$executeRawUnsafe(`DELETE FROM "Story"`);
+    await prisma.$executeRawUnsafe(`DELETE FROM "GameVote"`);
+    await prisma.$executeRawUnsafe(`DELETE FROM "EventRsvp"`);
+    await prisma.$executeRawUnsafe(`DELETE FROM "AdReservation"`);
+    await prisma.$executeRawUnsafe(`DELETE FROM "Ad"`);
+    await prisma.$executeRawUnsafe(`DELETE FROM "PollVote"`);
+    await prisma.$executeRawUnsafe(`DELETE FROM "PollOption"`);
+    await prisma.$executeRawUnsafe(`DELETE FROM "Poll"`);
+    await prisma.$executeRawUnsafe(`DELETE FROM "PostUpvote"`);
+    await prisma.$executeRawUnsafe(`DELETE FROM "PostBookmark"`);
+    await prisma.$executeRawUnsafe(`DELETE FROM "CategoryAssignment"`);
+    await prisma.$executeRawUnsafe(`DELETE FROM "Comment"`);
+    await prisma.$executeRawUnsafe(`DELETE FROM "Notification"`);
+    await prisma.$executeRawUnsafe(`DELETE FROM "Message"`);
+    await prisma.$executeRawUnsafe(`DELETE FROM "Follows"`);
+    await prisma.$executeRawUnsafe(`DELETE FROM "TeamFollow"`);
+    await prisma.$executeRawUnsafe(`DELETE FROM "OrganizationFollow"`);
+    await prisma.$executeRawUnsafe(`DELETE FROM "CategoryFollow"`);
+    await prisma.$executeRawUnsafe(`DELETE FROM "BlockedUser"`);
+    await prisma.$executeRawUnsafe(`DELETE FROM "GroupChatMessage"`);
+    await prisma.$executeRawUnsafe(`DELETE FROM "GroupChatMember"`);
+    await prisma.$executeRawUnsafe(`DELETE FROM "GroupChat"`);
+    await prisma.$executeRawUnsafe(`DELETE FROM "Post"`);
+    await prisma.$executeRawUnsafe(`DELETE FROM "Event"`);
+    await prisma.$executeRawUnsafe(`DELETE FROM "Game"`);
+    await prisma.$executeRawUnsafe(`DELETE FROM "TeamMembership"`);
+    await prisma.$executeRawUnsafe(`DELETE FROM "TeamInvite"`);
+    await prisma.$executeRawUnsafe(`DELETE FROM "Team"`);
+    await prisma.$executeRawUnsafe(`DELETE FROM "OrganizationMembership"`);
+    await prisma.$executeRawUnsafe(`DELETE FROM "OrganizationJoinRequest"`);
+    await prisma.$executeRawUnsafe(`DELETE FROM "Organization"`);
+    await prisma.$executeRawUnsafe(`DELETE FROM "UserWarning"`);
+    await prisma.$executeRawUnsafe(`DELETE FROM "AbuseReport"`);
+    await prisma.$executeRawUnsafe(`DELETE FROM "AdminActivityLog"`);
+    await prisma.$executeRawUnsafe(`DELETE FROM "RefreshToken" WHERE "user_id" NOT IN (${keepIds.map(id => `'${id}'`).join(',')})`);
+    await prisma.$executeRawUnsafe(`DELETE FROM "User" WHERE "id" NOT IN (${keepIds.map(id => `'${id}'`).join(',')})`);
+
 
     const remaining = await prisma.user.count();
     return res.json({ ok: true, message: `Wiped. Users remaining: ${remaining}`, demo_kept: !!demoId });
