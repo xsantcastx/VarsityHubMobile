@@ -1015,7 +1015,7 @@ export default function AdCalendarScreen() {
                 </Text>
               )}
               <Text style={{ color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280', fontSize: 12, textAlign: 'center', marginTop: 6 }}>
-                All transactions are final.
+                All sales are final. No refunds.
               </Text>
             </>
           )}

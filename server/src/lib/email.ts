@@ -566,14 +566,34 @@ export async function sendAdRejectedEmail(params: {
   });
 }
 
-export async function sendAdReservationEmail(_params: any): Promise<boolean> {
-  // Not yet implemented — return true so queue workers don't retry
-  return true;
+export async function sendAdReservationEmail(params: {
+  to: string;
+  businessName?: string;
+  dates?: string;
+  amount?: string;
+}): Promise<boolean> {
+  const name = params.businessName || 'your business';
+  return sendEmail({
+    to: params.to,
+    subject: 'VarsityHub — Ad Reservation Confirmed',
+    text: `Hi,\n\nYour ad reservation for ${name} has been confirmed.\n\nDates: ${params.dates || 'See your dashboard'}\nAmount: ${params.amount || 'See your receipt'}\n\nAll sales are final. No refunds.\n\nQuestions? Email ${CUSTOMER_SERVICE_EMAIL}\n\n— The VarsityHub Team`,
+    html: `<h2>Ad Reservation Confirmed</h2><p>Your ad reservation for <strong>${name}</strong> has been confirmed.</p><p><strong>Dates:</strong> ${params.dates || 'See your dashboard'}<br/><strong>Amount:</strong> ${params.amount || 'See your receipt'}</p><p style="color:#666;font-size:12px;">All sales are final. No refunds.</p><p>Questions? Email <a href="mailto:${CUSTOMER_SERVICE_EMAIL}">${CUSTOMER_SERVICE_EMAIL}</a></p>`,
+  });
 }
 
-export async function sendAthleteFollowerNotificationEmail(_params: any): Promise<boolean> {
-  // Not yet implemented — return true so queue workers don't retry
-  return true;
+export async function sendAthleteFollowerNotificationEmail(params: {
+  to: string;
+  athleteName?: string;
+  followerName?: string;
+}): Promise<boolean> {
+  const athlete = params.athleteName || 'You';
+  const follower = params.followerName || 'Someone';
+  return sendEmail({
+    to: params.to,
+    subject: `VarsityHub — ${follower} is now following you`,
+    text: `Hi ${athlete},\n\n${follower} started following you on VarsityHub. Check out their profile in the app!\n\n— The VarsityHub Team`,
+    html: `<h2>New Follower</h2><p>Hi ${athlete},</p><p><strong>${follower}</strong> started following you on VarsityHub.</p><p>Check out their profile in the app!</p>`,
+  });
 }
 
 export async function sendDormantUserDigestEmail(_params: any): Promise<boolean> {
@@ -768,14 +788,35 @@ export async function sendPaymentRequiredEmail(params: { to: string; userName?: 
   });
 }
 
-export async function sendPostHighlightEmail(_params: any): Promise<boolean> {
-  // Not yet implemented — return true so queue workers don't retry
-  return true;
+export async function sendPostHighlightEmail(params: {
+  to: string;
+  userName?: string;
+  postTitle?: string;
+  highlightReason?: string;
+}): Promise<boolean> {
+  const name = params.userName || 'there';
+  const post = params.postTitle || 'your post';
+  return sendEmail({
+    to: params.to,
+    subject: 'VarsityHub — Your post is getting attention!',
+    text: `Hi ${name},\n\nYour post "${post}" is getting attention on VarsityHub! ${params.highlightReason || 'Check it out in the app.'}\n\n— The VarsityHub Team`,
+    html: `<h2>Post Highlight</h2><p>Hi ${name},</p><p>Your post "<strong>${post}</strong>" is getting attention on VarsityHub!</p><p>${params.highlightReason || 'Check it out in the app.'}</p>`,
+  });
 }
 
-export async function sendProfileCompletionNudgeEmail(_params: any): Promise<boolean> {
-  console.warn('[email] sendProfileCompletionNudgeEmail: not configured');
-  return false;
+export async function sendProfileCompletionNudgeEmail(params: {
+  to: string;
+  userName?: string;
+  completionPercent?: number;
+}): Promise<boolean> {
+  const name = params.userName || 'there';
+  const pct = params.completionPercent != null ? `${params.completionPercent}%` : 'partially';
+  return sendEmail({
+    to: params.to,
+    subject: 'VarsityHub — Complete your profile',
+    text: `Hi ${name},\n\nYour VarsityHub profile is ${pct} complete. A complete profile helps coaches, teammates, and recruiters find you.\n\nOpen the app to finish setting up your profile.\n\n— The VarsityHub Team`,
+    html: `<h2>Complete Your Profile</h2><p>Hi ${name},</p><p>Your VarsityHub profile is <strong>${pct}</strong> complete. A complete profile helps coaches, teammates, and recruiters find you.</p><p>Open the app to finish setting up your profile.</p>`,
+  });
 }
 
 export async function sendReportResolutionEmail(params: any): Promise<boolean> {
@@ -819,9 +860,21 @@ export async function sendRosterThresholdAlertEmail(params: any): Promise<boolea
   );
 }
 
-export async function sendSeasonWrapUpEmail(_params: any): Promise<boolean> {
-  // Not yet implemented — return true so queue workers don't retry
-  return true;
+export async function sendSeasonWrapUpEmail(params: {
+  to: string;
+  userName?: string;
+  teamName?: string;
+  seasonName?: string;
+}): Promise<boolean> {
+  const name = params.userName || 'there';
+  const team = params.teamName || 'your team';
+  const season = params.seasonName || 'the season';
+  return sendEmail({
+    to: params.to,
+    subject: `VarsityHub — ${season} wrap-up for ${team}`,
+    text: `Hi ${name},\n\nThe ${season} season for ${team} has wrapped up. Thanks for a great season!\n\nCheck the app for season highlights and stats.\n\n— The VarsityHub Team`,
+    html: `<h2>Season Wrap-Up</h2><p>Hi ${name},</p><p>The <strong>${season}</strong> season for <strong>${team}</strong> has wrapped up. Thanks for a great season!</p><p>Check the app for season highlights and stats.</p>`,
+  });
 }
 
 export async function sendStaffInvitationConfirmationEmail(params: any): Promise<boolean> {

@@ -242,14 +242,6 @@ if (dmPolicy === 'following') {
   }
 }
 
-// Block check: cannot message blocked/blocking users
-const blockCheck = await prisma.blockedUser.findFirst({
-  where: { OR: [{ blocker_id: meId, blocked_id: toId! }, { blocker_id: toId!, blocked_id: meId }] },
-});
-if (blockCheck) {
-  return res.status(403).json({ error: 'Cannot send message to this user.' });
-}
-
 const senderAge = ageFromDob((me?.preferences as any)?.dob);
 const recipientAge = ageFromDob(recipientPrefs?.dob);
 
