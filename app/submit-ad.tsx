@@ -191,12 +191,7 @@ export default function SubmitAdScreen() {
           ),
         }} 
       />
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
-      >
-        <ScrollView 
+        <ScrollView
           scrollEnabled={scrollEnabled}
           contentContainerStyle={[
             styles.scrollContent,
@@ -204,6 +199,7 @@ export default function SubmitAdScreen() {
           ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
         >
           <View style={styles.header}>
             <Text style={[styles.title, { color: theme.text }]}>Submit a Local Ad</Text>
@@ -312,7 +308,6 @@ export default function SubmitAdScreen() {
             )}
           </Pressable>
         </ScrollView>
-      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

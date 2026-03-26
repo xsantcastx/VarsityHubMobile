@@ -152,15 +152,11 @@ export default function EditAdScreen() {
           <Text style={[styles.loadingText, { color: theme.mutedText }]}>Loading ad details...</Text>
         </View>
       ) : (
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
-        >
-          <ScrollView 
+          <ScrollView
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive"
           >
             <View style={styles.header}>
               <Text style={[styles.title, { color: theme.text }]}>Edit Advertisement</Text>
@@ -314,7 +310,6 @@ export default function EditAdScreen() {
               </Pressable>
             )}
           </ScrollView>
-        </KeyboardAvoidingView>
       )}
     </SafeAreaView>
   );

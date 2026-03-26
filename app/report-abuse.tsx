@@ -157,15 +157,12 @@ export default function ReportAbuseScreen() {
               <MaterialIcons name="chevron-left" size={28} color="#007AFF" />
             </Pressable>
           ) }} />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.flex}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
-      >
         <ScrollView
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
+          keyboardDismissMode="interactive"
+          style={styles.flex}
         >
           <View style={styles.header}>
             <Text style={[styles.title, { color: palette.text }]}>Report Abuse</Text>
@@ -273,7 +270,6 @@ export default function ReportAbuseScreen() {
             </Button>
           </View>
         </ScrollView>
-      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

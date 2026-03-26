@@ -118,11 +118,12 @@ export default function EditEventScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['bottom']}>
       <Stack.Screen options={{ title: 'Edit Event', headerShown: false }} />
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}>
         <ScrollView
           style={{ flex: 1 }}
           contentContainerStyle={{ paddingBottom: 32 }}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
         >
           {/* Header */}
           <View style={[styles.header, { paddingTop: 12 + insets.top }]}>
@@ -211,7 +212,6 @@ export default function EditEventScreen() {
             </Pressable>
           </View>
         </ScrollView>
-      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

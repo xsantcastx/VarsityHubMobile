@@ -184,12 +184,7 @@ export default function SubmitAdScreen() {
           ),
         }} 
       />
-      <KeyboardAvoidingView 
-        style={{ flex: 1 }} 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-      >
-        <ScrollView 
+        <ScrollView
           contentContainerStyle={[
             styles.scrollContent,
             { paddingTop: topPadding, paddingBottom: bottomPadding },
@@ -302,7 +297,6 @@ export default function SubmitAdScreen() {
             )}
           </Pressable>
         </ScrollView>
-      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
