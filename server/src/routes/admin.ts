@@ -758,7 +758,7 @@ adminRouter.post('/wipe-production', requireVerified as any, requireAdminMiddlew
 
 
     const remaining = await prisma.user.count();
-    return res.json({ ok: true, message: `Wiped. Users remaining: ${remaining}`, demo_kept: !!demoId });
+    return res.json({ ok: true, message: `Wiped. Users remaining: ${remaining}`, demo_kept: !!demo });
   } catch (error) {
     console.error('[admin] Wipe error:', error);
     return res.status(500).json({ error: 'Wipe failed', details: (error as any)?.message });

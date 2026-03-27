@@ -1,6 +1,7 @@
 import bcrypt from 'bcrypt';
 import crypto, { createPublicKey, type KeyObject } from 'crypto';
 import { Router } from 'express';
+import { OAuth2Client } from 'google-auth-library';
 import jwt, { type JwtPayload } from 'jsonwebtoken';
 import { z } from 'zod';
 import { sendPasswordChangedEmail, sendPasswordResetEmail, sendVerificationEmail } from '../lib/email.js';
@@ -78,6 +79,9 @@ const GOOGLE_ALLOWED_AUDIENCES = (process.env.GOOGLE_OAUTH_CLIENT_IDS || process
   .split(',')
   .map((value) => value.trim())
   .filter((value) => value.length > 0);
+
+// Create a single OAuth2Client for token verification (uses Google's public keys, cached automatically)
+const googleOAuthClient = new OAuth2Client();
 
 // Enforce Google OAuth audience validation in production
 if (process.env.NODE_ENV === 'production' && GOOGLE_ALLOWED_AUDIENCES.length === 0) {
@@ -385,35 +389,39 @@ authRouter.post('/google', oauthLimiter, asyncHandler(async (req, res) => {
 
   const { id_token } = parsed.data;
 
-  let stage = 'tokeninfo';
+  let stage = 'verify-token';
   try {
-    // Stage 1: Verify token with Google
-    const googleResponse = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(id_token)}`);
-    if (!googleResponse.ok) {
-      const detail = await googleResponse.text().catch(() => '');
-      console.error('[auth/google] tokeninfo rejected', { status: googleResponse.status, detail: detail.slice(0, 500) });
-      captureException(new Error(`Google tokeninfo ${googleResponse.status}`), { stage: 'tokeninfo', status: googleResponse.status, detail: detail.slice(0, 200) });
+    // Stage 1: Verify token with google-auth-library (signature + expiry, cached public keys)
+    let payload: any;
+    try {
+      const ticket = await googleOAuthClient.verifyIdToken({
+        idToken: id_token,
+        // When audiences are configured, enforce them; otherwise accept any (dev mode)
+        ...(GOOGLE_ALLOWED_AUDIENCES.length > 0 ? { audience: GOOGLE_ALLOWED_AUDIENCES } : {}),
+      });
+      payload = ticket.getPayload();
+    } catch (verifyErr: any) {
+      const msg = verifyErr?.message || String(verifyErr);
+      console.error('[auth/google] verifyIdToken failed', { message: msg });
+      captureException(verifyErr instanceof Error ? verifyErr : new Error(msg), { stage: 'verify-token' });
+      // Distinguish audience mismatch from other failures
+      if (msg.includes('audience') || msg.includes('Token used too late') || msg.includes('Invalid token')) {
+        return res.status(401).json({ error: 'Google authentication failed', detail: msg });
+      }
       return res.status(401).json({ error: 'Google authentication failed' });
     }
 
-    // Stage 2: Parse payload
-    stage = 'parse-payload';
-    let payload: any;
-    try {
-      payload = await googleResponse.json();
-    } catch (jsonErr: any) {
-      console.error('[auth/google] failed to parse tokeninfo JSON', { message: jsonErr?.message });
-      captureException(jsonErr instanceof Error ? jsonErr : new Error(String(jsonErr)), { stage: 'parse-payload' });
-      return res.status(500).json({ error: 'Failed to authenticate with Google' });
+    if (!payload) {
+      console.error('[auth/google] verifyIdToken returned no payload');
+      return res.status(401).json({ error: 'Google authentication failed' });
     }
 
-    const googleId = typeof payload?.sub === 'string' ? payload.sub : null;
-    const audience = typeof payload?.aud === 'string' ? payload.aud : null;
-    const email = typeof payload?.email === 'string' ? String(payload.email).toLowerCase() : null;
-    const emailVerified = payload?.email_verified === 'true' || payload?.email_verified === true;
-
-    // Stage 3: Validate fields
+    // Stage 2: Extract and validate fields
     stage = 'validate';
+    const googleId = typeof payload.sub === 'string' ? payload.sub : null;
+    const email = typeof payload.email === 'string' ? String(payload.email).toLowerCase() : null;
+    const emailVerified = payload.email_verified === true;
+
     if (!googleId || !email) {
       console.warn('[auth/google] missing sub or email', { hasGoogleId: !!googleId, hasEmail: !!email });
       return res.status(400).json({ error: 'Invalid Google credential' });
@@ -424,15 +432,10 @@ authRouter.post('/google', oauthLimiter, asyncHandler(async (req, res) => {
       return res.status(400).json({ error: 'Google account email is not verified' });
     }
 
-    if (!audience || (GOOGLE_ALLOWED_AUDIENCES.length > 0 && !GOOGLE_ALLOWED_AUDIENCES.includes(audience))) {
-      console.warn('[auth/google] audience mismatch', { audience, allowed: GOOGLE_ALLOWED_AUDIENCES });
-      return res.status(400).json({ error: 'Google credential not issued for this application' });
-    }
-
-    const displayNameSource = typeof payload?.name === 'string' && payload.name.trim().length
+    const displayNameSource = typeof payload.name === 'string' && payload.name.trim().length
       ? payload.name.trim()
       : email.split('@')[0];
-    const avatarUrl = typeof payload?.picture === 'string' ? payload.picture : null;
+    const avatarUrl = typeof payload.picture === 'string' ? payload.picture : null;
 
     // Stage 4: User lookup/creation
     stage = 'user-lookup';

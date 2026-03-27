@@ -208,13 +208,18 @@ export function useGoogleAuth() {
       if (response.authentication?.idToken) {
         idToken = response.authentication.idToken;
       }
-      // Path 2: iOS native — Google returns an auth code, exchange it for an id_token
+      // Path 2: Native — Google returns an auth code, exchange it for an id_token
       else if (response.params?.code) {
+        // CRITICAL: Use the REAL platform client ID from config, not from `clients`
+        // which may have been swapped to the web client ID for proxy flows.
+        const exchangeClientId = Platform.OS === 'ios'
+          ? (appConfig.google.iosClientId || clients.iosClientId || '')
+          : (appConfig.google.androidClientId || clients.androidClientId || '');
         const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: new URLSearchParams({
-            client_id: clients.iosClientId || '',
+            client_id: exchangeClientId,
             redirect_uri: request.redirectUri,
             code: response.params.code,
             code_verifier: request.codeVerifier || '',

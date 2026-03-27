@@ -180,7 +180,8 @@ export const auth = {
     return res;
   },
   async loginWithGoogle(idToken: string) {
-    const res = await httpPost('/auth/google', { id_token: idToken });
+    // Google auth involves server-side token verification with Google — allow longer timeout
+    const res = await httpPostLongTimeout('/auth/google', { id_token: idToken });
     if (res?.access_token) await saveToken(res.access_token);
     if (res?.refresh_token) await saveRefreshToken(res.refresh_token);
     return res;
