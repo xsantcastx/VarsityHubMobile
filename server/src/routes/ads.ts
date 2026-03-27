@@ -1,3 +1,4 @@
+import escapeHtml from 'escape-html';
 import { Router, type Response, type NextFunction } from 'express';
 import { getZipCoordinates, haversineDistance } from '../lib/geoUtils.js';
 import { geocodeLocation } from '../lib/geocoding.js';
@@ -948,10 +949,12 @@ function verifyModerationToken(token: string, adId: string, expectedAction: stri
 
 /** Simple HTML result page for browser-based token actions */
 function confirmationPage(title: string, message: string, success: boolean) {
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title></head>
+  const safeTitle = escapeHtml(title);
+  const safeMessage = escapeHtml(message);
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${safeTitle}</title></head>
 <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:500px;margin:60px auto;padding:20px;text-align:center;">
-<h2 style="color:${success ? '#16A34A' : '#DC2626'};">${title}</h2>
-<p style="color:#374151;">${message}</p>
+<h2 style="color:${success ? '#16A34A' : '#DC2626'};">${safeTitle}</h2>
+<p style="color:#374151;">${safeMessage}</p>
 <p style="margin-top:24px;"><a href="${process.env.APP_BASE_URL || 'https://varsityhub.app'}" style="color:#1B3A6B;">Return to VarsityHub</a></p>
 </body></html>`;
 }
@@ -966,7 +969,7 @@ function requireAuthUnlessToken(req: AuthedRequest, res: Response, next: NextFun
 function confirmationForm(action: string, adId: string, token: string, businessName: string) {
   const color = action === 'approve' ? '#16A34A' : '#DC2626';
   const verb = action === 'approve' ? 'Approve' : 'Reject';
-  const safeName = businessName.replace(/[<>"&]/g, '');
+  const safeName = escapeHtml(businessName);
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${verb} Ad</title></head>
 <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:500px;margin:60px auto;padding:20px;text-align:center;">
 <h2>${verb} this ad?</h2>

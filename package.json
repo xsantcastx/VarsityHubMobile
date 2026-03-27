@@ -154,6 +154,9 @@
     "react-native-safe-area-context": "5.6.2",
     "undici": "^6.24.0",
     "fast-xml-parser": "5.5.7",
-    "@tootallnate/once": "3.0.1"
+    "@tootallnate/once": "3.0.1",
+    "node-forge": "^1.4.0",
+    "brace-expansion": "^5.0.5",
+    "picomatch": "^4.0.4"
   }
 }
