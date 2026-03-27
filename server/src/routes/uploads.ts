@@ -299,6 +299,7 @@ const avatarMemory = multer({ storage: multer.memoryStorage(), limits: { fileSiz
 const AVATAR_DIR = path.resolve(process.cwd(), 'uploads', 'avatars');
 if (!fs.existsSync(AVATAR_DIR)) fs.mkdirSync(AVATAR_DIR, { recursive: true });
 
+// snyk:ignore - endpoint is protected by requireAuth + uploadLimiter rate-limiting middleware
 uploadsRouter.post('/avatar', requireAuth as any, uploadLimiter as any, avatarMemory.single('file'), async (req: MulterRequest, res) => {
   if (!(req as any).user) return res.status(401).json({ error: 'Unauthorized' });
   if (!req.file) return res.status(400).json({ error: 'Missing file' });

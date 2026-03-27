@@ -539,11 +539,11 @@ organizationsRouter.post('/create', requireAuth as any, async (req: AuthedReques
             inviteToken: tokenByEmail[inv.email],
           }).then((sent) => {
             if (!sent) {
-              console.warn(`[organizations] Invite email reported unsent for ${inv.email}.`);
+              console.warn('[organizations] Invite email reported unsent for', inv.email);
             }
             return sent;
           }).catch((err) => {
-            console.warn(`[organizations] Failed sending invite email to ${inv.email}:`, err);
+            console.warn('[organizations] Failed sending invite email to', inv.email, err);
             return false;
           })
         ));
@@ -645,11 +645,11 @@ organizationsRouter.post('/:id/invite', requireAuth as any, requireOnboarded as 
       inviteToken: invite.id,
     }).then((sent) => {
       if (!sent) {
-        console.warn(`[organizations] Direct invite email reported unsent for ${email}.`);
+        console.warn('[organizations] Direct invite email reported unsent for', email);
       }
       return sent;
     }).catch((err) => {
-      console.warn(`[organizations] Failed sending direct invite email to ${email}:`, err);
+      console.warn('[organizations] Failed sending direct invite email to', email, err);
       return false;
     });
   }
@@ -1385,6 +1385,7 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
         const orgInfo = await prisma.organization.findUnique({ where: { id: orgId }, select: { name: true, admin_approved: true } });
         if (orgInfo?.admin_approved) return res.send(`<html><body style="font-family:Arial;text-align:center;padding:60px"><h1>Already Approved</h1><p>This league was already approved.</p></body></html>`);
         const safeName = escapeHtml(orgInfo?.name || 'Unknown');
+        // snyk:ignore - safeName escaped via escapeHtml(), token encoded via encodeURIComponent()
         return res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Approve League</title></head>
 <body style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:500px;margin:60px auto;padding:20px;text-align:center;">
 <h2>Approve this league?</h2><p><strong>${safeName}</strong></p>
@@ -1484,7 +1485,7 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
     // If accessed via browser link, show a simple HTML confirmation (escape org.name to prevent XSS)
     if (token) {
       const safeName = escapeHtml(String(org.name || ''));
-      return res.send(`<html><body style="font-family:Arial;text-align:center;padding:60px"><h1 style="color:#16A34A">League Approved</h1><p>"${safeName}" is now live on VarsityHub.</p></body></html>`);
+      return res.send(`<html><body style="font-family:Arial;text-align:center;padding:60px"><h1 style="color:#16A34A">League Approved</h1><p>"${safeName}" is now live on VarsityHub.</p></body></html>`); // snyk:ignore - safeName escaped via escapeHtml()
     }
 
     return res.json({ message: 'League approved', organization_id: orgId });
@@ -1518,6 +1519,7 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
       if (req.method === 'GET') {
         const orgInfo = await prisma.organization.findUnique({ where: { id: orgId }, select: { name: true } });
         const safeName = escapeHtml(orgInfo?.name || 'Unknown');
+        // snyk:ignore - safeName escaped via escapeHtml(), token encoded via encodeURIComponent()
         return res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Reject League</title></head>
 <body style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:500px;margin:60px auto;padding:20px;text-align:center;">
 <h2>Reject this league?</h2><p><strong>${safeName}</strong></p>
@@ -1604,7 +1606,7 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
 
     if (token) {
       const safeName = escapeHtml(String(org.name || ''));
-      return res.send(`<html><body style="font-family:Arial;text-align:center;padding:60px"><h1 style="color:#DC2626">League Rejected</h1><p>"${safeName}" has been declined.</p></body></html>`);
+      return res.send(`<html><body style="font-family:Arial;text-align:center;padding:60px"><h1 style="color:#DC2626">League Rejected</h1><p>"${safeName}" has been declined.</p></body></html>`); // snyk:ignore - safeName escaped via escapeHtml()
     }
 
     return res.json({ message: 'League rejected', organization_id: orgId });

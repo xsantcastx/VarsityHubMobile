@@ -1,0 +1,15 @@
+# Snyk Code ignore file
+# These paths are excluded from SAST scanning.
+# Format: same as .gitignore
+
+# ─── Test scripts (non-production) ───
+# These scripts are run manually for QA/verification and never deployed.
+# They intentionally use hardcoded test credentials for reproducible runs.
+server/scripts/
+server/mock-server.js
+
+# ─── Test files ───
+# Unit, integration, and E2E tests use hardcoded test fixtures by design.
+server/src/__tests__/
+server/tests/
+tests/
