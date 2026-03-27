@@ -947,10 +947,8 @@ function verifyModerationToken(token: string, adId: string, expectedAction: stri
   return !!payload && payload.adId === adId && payload.action === expectedAction;
 }
 
-/** Simple HTML result page for browser-based token actions */
-function confirmationPage(title: string, message: string, success: boolean) {
-  const safeTitle = escapeHtml(title);
-  const safeMessage = escapeHtml(message);
+/** Simple HTML result page — title and message must be pre-escaped via escapeHtml() before calling */
+function confirmationPage(safeTitle: string, safeMessage: string, success: boolean) {
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${safeTitle}</title></head>
 <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:500px;margin:60px auto;padding:20px;text-align:center;">
 <h2 style="color:${success ? '#16A34A' : '#DC2626'};">${safeTitle}</h2>
@@ -965,11 +963,10 @@ function requireAuthUnlessToken(req: AuthedRequest, res: Response, next: NextFun
   return requireAuth(req, res, next);
 }
 
-/** HTML confirmation form — GET shows this, user clicks button to POST */
-function confirmationForm(action: string, adId: string, token: string, businessName: string) {
+/** HTML confirmation form — safeName must be pre-escaped via escapeHtml() before calling */
+function confirmationForm(action: string, adId: string, token: string, safeName: string) {
   const color = action === 'approve' ? '#16A34A' : '#DC2626';
   const verb = action === 'approve' ? 'Approve' : 'Reject';
-  const safeName = escapeHtml(businessName);
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${verb} Ad</title></head>
 <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:500px;margin:60px auto;padding:20px;text-align:center;">
 <h2>${verb} this ad?</h2>
@@ -999,7 +996,7 @@ async function handleAdApprove(req: AuthedRequest, res: Response) {
       // GET: show confirmation form, don't perform the action
       if (req.method === 'GET') {
         const ad = await prisma.ad.findUnique({ where: { id }, select: { business_name: true } });
-        return res.send(confirmationForm('approve', id, token, ad?.business_name || 'Unknown')); // noqa: snyk:ignore - all values escaped via escapeHtml() inside confirmationForm()
+        return res.send(confirmationForm('approve', id, token, escapeHtml(ad?.business_name || 'Unknown')));
       }
     } else {
       const isAdmin = await getIsAdmin(req);
@@ -1009,7 +1006,7 @@ async function handleAdApprove(req: AuthedRequest, res: Response) {
     const result = await approveAd(id, typeof req.body?.note === 'string' ? req.body.note.trim() : null);
     if (result.error) {
       return req.method === 'POST' && token
-        ? res.status(result.status!).send(confirmationPage('Error', result.error, false)) // snyk:ignore - escaped via escapeHtml() inside confirmationPage()
+        ? res.status(result.status!).send(confirmationPage('Error', escapeHtml(result.error), false))
         : res.status(result.status!).json({ error: result.error });
     }
 
@@ -1039,7 +1036,7 @@ async function handleAdReject(req: AuthedRequest, res: Response) {
       }
       if (req.method === 'GET') {
         const ad = await prisma.ad.findUnique({ where: { id }, select: { business_name: true } });
-        return res.send(confirmationForm('reject', id, token, ad?.business_name || 'Unknown'));
+        return res.send(confirmationForm('reject', id, token, escapeHtml(ad?.business_name || 'Unknown')));
       }
     } else {
       const isAdmin = await getIsAdmin(req);
@@ -1049,7 +1046,7 @@ async function handleAdReject(req: AuthedRequest, res: Response) {
     const result = await rejectAd(id, req.body?.reason || (req.query?.reason as string) || null);
     if (result.error) {
       return req.method === 'POST' && token
-        ? res.status(result.status!).send(confirmationPage('Error', result.error, false)) // snyk:ignore - escaped via escapeHtml() inside confirmationPage()
+        ? res.status(result.status!).send(confirmationPage('Error', escapeHtml(result.error), false))
         : res.status(result.status!).json({ error: result.error });
     }
 

@@ -1384,11 +1384,9 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
       if (req.method === 'GET') {
         const orgInfo = await prisma.organization.findUnique({ where: { id: orgId }, select: { name: true, admin_approved: true } });
         if (orgInfo?.admin_approved) return res.send(`<html><body style="font-family:Arial;text-align:center;padding:60px"><h1>Already Approved</h1><p>This league was already approved.</p></body></html>`);
-        const safeName = escapeHtml(orgInfo?.name || 'Unknown');
-        // snyk:ignore - safeName escaped via escapeHtml(), token encoded via encodeURIComponent()
         return res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Approve League</title></head>
 <body style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:500px;margin:60px auto;padding:20px;text-align:center;">
-<h2>Approve this league?</h2><p><strong>${safeName}</strong></p>
+<h2>Approve this league?</h2><p><strong>${escapeHtml(orgInfo?.name || 'Unknown')}</strong></p>
 <form method="POST" action="?token=${encodeURIComponent(token)}">
 <button type="submit" style="background:#16A34A;color:#fff;border:none;padding:12px 32px;border-radius:8px;font-size:16px;cursor:pointer;">Approve League</button>
 </form></body></html>`);
@@ -1484,8 +1482,7 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
 
     // If accessed via browser link, show a simple HTML confirmation (escape org.name to prevent XSS)
     if (token) {
-      const safeName = escapeHtml(String(org.name || ''));
-      return res.send(`<html><body style="font-family:Arial;text-align:center;padding:60px"><h1 style="color:#16A34A">League Approved</h1><p>"${safeName}" is now live on VarsityHub.</p></body></html>`); // snyk:ignore - safeName escaped via escapeHtml()
+      return res.send(`<html><body style="font-family:Arial;text-align:center;padding:60px"><h1 style="color:#16A34A">League Approved</h1><p>"${escapeHtml(String(org.name || ''))}" is now live on VarsityHub.</p></body></html>`);
     }
 
     return res.json({ message: 'League approved', organization_id: orgId });
@@ -1518,11 +1515,9 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
       // GET: show confirmation form — don't perform write on GET
       if (req.method === 'GET') {
         const orgInfo = await prisma.organization.findUnique({ where: { id: orgId }, select: { name: true } });
-        const safeName = escapeHtml(orgInfo?.name || 'Unknown');
-        // snyk:ignore - safeName escaped via escapeHtml(), token encoded via encodeURIComponent()
         return res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Reject League</title></head>
 <body style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:500px;margin:60px auto;padding:20px;text-align:center;">
-<h2>Reject this league?</h2><p><strong>${safeName}</strong></p>
+<h2>Reject this league?</h2><p><strong>${escapeHtml(orgInfo?.name || 'Unknown')}</strong></p>
 <form method="POST" action="?token=${encodeURIComponent(token)}">
 <button type="submit" style="background:#DC2626;color:#fff;border:none;padding:12px 32px;border-radius:8px;font-size:16px;cursor:pointer;">Reject League</button>
 </form></body></html>`);
@@ -1605,8 +1600,7 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
     }).catch(() => {});
 
     if (token) {
-      const safeName = escapeHtml(String(org.name || ''));
-      return res.send(`<html><body style="font-family:Arial;text-align:center;padding:60px"><h1 style="color:#DC2626">League Rejected</h1><p>"${safeName}" has been declined.</p></body></html>`); // snyk:ignore - safeName escaped via escapeHtml()
+      return res.send(`<html><body style="font-family:Arial;text-align:center;padding:60px"><h1 style="color:#DC2626">League Rejected</h1><p>"${escapeHtml(String(org.name || ''))}" has been declined.</p></body></html>`);
     }
 
     return res.json({ message: 'League rejected', organization_id: orgId });

@@ -4,6 +4,15 @@
 
 version: v1.29.0
 
+# Exclude non-production paths from Snyk Code SAST scanning
+exclude:
+  code:
+    - server/scripts
+    - server/mock-server.js
+    - server/src/__tests__
+    - server/tests
+    - tests
+
 ignore:
   # ─── Transitive dependency vulnerabilities (no direct fix available) ───
 
