@@ -155,7 +155,7 @@ emailQueue.process('teams.roster_threshold_alert', async (job) => {
     coachName: jobData.coach_name,
     teamName: jobData.team_name,
     rosterCount: jobData.roster_count,
-    thresholdCost: jobData.threshold_cost,
+    maxRosterCount: jobData.threshold_cost,
     manageBillingUrl: jobData.manage_billing_url,
   });
 

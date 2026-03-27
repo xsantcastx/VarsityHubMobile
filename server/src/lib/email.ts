@@ -36,6 +36,8 @@ const getCommonTemplateData = () => ({
   facebook_url: 'https://www.facebook.com/share/17t7MJa9vx/?mibextid=wwXIfr',
   x_url: 'https://x.com/varsityhub00',
   website_url: 'https://varsityhub.app',
+  communityGuidelinesUrl: 'https://varsityhub.app/privacy',
+  privacyPolicyUrl: 'https://varsityhub.app/privacy',
   customer_service_email: CUSTOMER_SERVICE_EMAIL,
 });
 
@@ -271,13 +273,14 @@ export async function sendSubscriptionExpiringEmail(params: any): Promise<boolea
     `Your ${params?.planName || 'subscription'} expires soon`,
     {
       ...getCommonTemplateData(),
-      user_name: params.userName || 'VarsityHub user',
-      plan_name: params.planName || 'subscription',
-      expires_date: params.expiresDate || '',
-      days_remaining: params.daysRemaining || 0,
-      renewal_price: params.renewalPrice || '',
-      renew_link: params.renewLink || `${APP_BASE_URL}/settings/manage-subscription`,
-      manage_subscription_link: params.manageSubscriptionLink || `${APP_BASE_URL}/settings/manage-subscription`,
+      userName: params.userName || 'VarsityHub user',
+      planName: params.planName || 'subscription',
+      expiresDate: params.expiresDate || '',
+      renewalDate: params.expiresDate || '',
+      daysRemaining: params.daysRemaining || 0,
+      renewalPrice: params.renewalPrice || '',
+      renewLink: params.renewLink || `${APP_BASE_URL}/settings/manage-subscription`,
+      manageSubscriptionLink: params.manageSubscriptionLink || `${APP_BASE_URL}/settings/manage-subscription`,
     },
     `Subscription expiring email sent to ${params.to}`
   );
@@ -829,15 +832,15 @@ export async function sendReportResolutionEmail(params: any): Promise<boolean> {
     isResolved ? 'Report resolved' : 'Report dismissed',
     {
       ...getCommonTemplateData(),
-      user_name: params.userName || 'User',
-      report_id: params.reportId || '',
-      report_type: params.reportType || '',
-      resolution_status: params.resolutionStatus || 'resolved',
-      resolution_reason: params.resolutionReason || '',
-      appeal_url: params.appealUrl || `${APP_BASE_URL}/report-appeal?id=${params.reportId || ''}`,
-      submit_date: params.submitDate || '',
-      resolution_date: params.resolutionDate || new Date().toLocaleDateString(),
-      report_detail_link: params.reportDetailLink || `${APP_BASE_URL}/reports/${params.reportId || ''}`,
+      userName: params.userName || 'User',
+      reportId: params.reportId || '',
+      reportType: params.reportType || '',
+      resolutionReason: params.resolutionReason || '',
+      dismissalReason: params.resolutionReason || '',
+      appealUrl: params.appealUrl || `${APP_BASE_URL}/report-appeal?id=${params.reportId || ''}`,
+      submitDate: params.submitDate || '',
+      reportDate: params.submitDate || '',
+      resolutionDate: params.resolutionDate || new Date().toLocaleDateString(),
     },
     `Report ${params.resolutionStatus || 'resolved'} email sent to ${params.to}`
   );
@@ -850,11 +853,11 @@ export async function sendRosterThresholdAlertEmail(params: any): Promise<boolea
     'Roster Threshold Alert',
     {
       ...getCommonTemplateData(),
-      coach_name: params.coachName || 'Coach',
-      team_name: params.teamName || '',
-      roster_count: params.rosterCount || 0,
-      threshold_cost: params.thresholdCost || 0,
-      manage_billing_url: params.manageBillingUrl || `${APP_BASE_URL}/settings/manage-subscription`,
+      coachName: params.coachName || 'Coach',
+      teamName: params.teamName || '',
+      currentRosterCount: params.rosterCount || 0,
+      maxRosterCount: params.maxRosterCount || params.thresholdCost || 0,
+      upgradeLink: params.manageBillingUrl || `${APP_BASE_URL}/settings/manage-subscription`,
     },
     `Roster threshold alert sent to ${params.to}`
   );
@@ -877,18 +880,22 @@ export async function sendSeasonWrapUpEmail(params: {
   });
 }
 
-export async function sendStaffInvitationConfirmationEmail(params: any): Promise<boolean> {
+export async function sendStaffInvitationConfirmationEmail(params: any & { memberRole?: string; organizationName?: string }): Promise<boolean> {
   return sendTemplateEmail(
     TEMPLATE_IDS.STAFF_MEMBER_JOINED,
     params.to,
     'Staff Member Joined',
     {
       ...getCommonTemplateData(),
-      coach_name: params.coachName || 'Coach',
-      invitee_name: params.inviteeName || '',
-      invitee_email: params.inviteeEmail || '',
-      team_name: params.teamName || '',
-      manage_staff_url: params.manageStaffUrl || `${APP_BASE_URL}/team-hub`,
+      recipientName: params.coachName || 'Coach',
+      newMemberName: params.inviteeName || '',
+      staffName: params.inviteeName || '',
+      memberRole: params.memberRole || 'Staff',
+      teamName: params.teamName || '',
+      organizationName: params.organizationName || '',
+      joinedDate: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+      manageStaffLink: params.manageStaffUrl || `${APP_BASE_URL}/team-hub`,
+      viewTeamLink: params.manageStaffUrl || `${APP_BASE_URL}/team-hub`,
     },
     `Staff member joined confirmation sent to ${params.to}`
   );
@@ -901,12 +908,12 @@ export async function sendStaffInvitationEmail(params: any): Promise<boolean> {
     'You have been invited to a team',
     {
       ...getCommonTemplateData(),
-      recipient_name: params.inviteeName || '',
-      team_name: params.teamName || '',
-      org_name: params.organizationName || '',
-      role: params.role || 'staff',
-      inviter_name: params.inviterName || 'Coach',
-      invite_url: params.inviteLink || `${APP_BASE_URL}/invites`,
+      recipientName: params.inviteeName || '',
+      teamName: params.teamName || '',
+      inviterName: params.inviterName || 'Coach',
+      role: params.role || 'Staff',
+      acceptLink: params.inviteLink || `${APP_BASE_URL}/invites`,
+      declineLink: `${APP_BASE_URL}/invites`,
     },
     `Staff invitation sent to ${params.to}`
   );
@@ -1063,12 +1070,12 @@ export async function sendTeamInviteEmail(params: {
     subject,
     {
       ...getCommonTemplateData(),
-      recipient_name: params.recipientName || '',
-      team_name: params.teamName,
-      org_name: params.organizationName || '',
+      recipientName: params.recipientName || '',
+      teamName: params.teamName,
+      inviterName: inviterName,
       role: prettyRole,
-      inviter_name: inviterName,
-      invite_url: params.inviteToken ? `${APP_BASE_URL}/invites?token=${params.inviteToken}` : `${APP_BASE_URL}/invites`,
+      acceptLink: params.inviteToken ? `${APP_BASE_URL}/invites?token=${params.inviteToken}` : `${APP_BASE_URL}/invites`,
+      declineLink: `${APP_BASE_URL}/invites`,
       team_hero_url: params.teamHeroUrl || `${APP_BASE_URL}/default-team-hero.jpg`,
       team_logo_url: params.teamLogoUrl || '',
       primary_color: params.primaryColor || '#2563EB',
@@ -1130,13 +1137,14 @@ async function sendTemplateEmail(
 export async function sendOrganizationInviteEmail(params: {
   to: string;
   organizationName: string;
+  recipientName?: string;
   role?: string;
   inviterName?: string;
   orgLogoUrl?: string;
   primaryColor?: string;
   inviteToken?: string;
 }): Promise<boolean> {
-  const prettyRole = params.role?.replace(/_/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase()) || 'member';
+  const prettyRole = params.role?.replace(/_/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase()) || 'Member';
 
   return sendTemplateEmail(
     TEMPLATE_IDS.ORG_INVITE,
@@ -1144,10 +1152,14 @@ export async function sendOrganizationInviteEmail(params: {
     `You've been invited to join ${params.organizationName}`,
     {
       ...getCommonTemplateData(),
-      org_name: params.organizationName,
+      recipientName: params.recipientName || '',
+      organizationName: params.organizationName,
+      teamName: '',
       role: prettyRole,
-      inviter_name: params.inviterName || 'VarsityHub Admin',
-      invite_url: params.inviteToken ? `${APP_BASE_URL}/invites?token=${params.inviteToken}` : `${APP_BASE_URL}/invites`,
+      inviterName: params.inviterName || 'VarsityHub Admin',
+      acceptLink: params.inviteToken ? `${APP_BASE_URL}/invites?token=${params.inviteToken}` : `${APP_BASE_URL}/invites`,
+      declineLink: `${APP_BASE_URL}/invites`,
+      expiresIn: '7 days',
       org_logo_url: params.orgLogoUrl || '',
       primary_color: params.primaryColor || '#2563EB',
     },
@@ -1422,9 +1434,10 @@ export async function sendAccountWarningEmail(params: {
   to: string;
   userName: string;
   warningReason: string;
-  offenseCount?: number;
-  nextSteps?: string;
-  supportUrl?: string;
+  violationType?: string;
+  reportId?: string;
+  reportType?: string;
+  appealUrl?: string;
 }): Promise<boolean> {
   return sendTemplateEmail(
     TEMPLATE_IDS.ACCOUNT_WARNING,
@@ -1432,11 +1445,14 @@ export async function sendAccountWarningEmail(params: {
     'Account Warning',
     {
       ...getCommonTemplateData(),
-      user_name: params.userName,
-      warning_reason: params.warningReason,
-      offense_count: params.offenseCount || 1,
-      next_steps: params.nextSteps || 'Please review our community guidelines to avoid further action.',
-      support_url: params.supportUrl || `mailto:${CUSTOMER_SERVICE_EMAIL}`,
+      userName: params.userName,
+      warningReason: params.warningReason,
+      violationType: params.violationType || params.warningReason,
+      warningDate: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+      reportId: params.reportId || '',
+      reportType: params.reportType || '',
+      appealUrl: params.appealUrl || `${APP_BASE_URL}/support`,
+      supportEmail: CUSTOMER_SERVICE_EMAIL,
     },
     `Account warning email sent to ${params.to}`
   );
@@ -1447,8 +1463,8 @@ export async function sendContentRemovedEmail(params: {
   to: string;
   userName: string;
   contentType: string;
-  contentTitle?: string;
   removalReason: string;
+  reportId?: string;
   appealUrl?: string;
 }): Promise<boolean> {
   return sendTemplateEmail(
@@ -1457,11 +1473,12 @@ export async function sendContentRemovedEmail(params: {
     'Content Removed',
     {
       ...getCommonTemplateData(),
-      user_name: params.userName,
-      content_type: params.contentType,
-      content_title: params.contentTitle || '',
-      removal_reason: params.removalReason,
-      appeal_url: params.appealUrl || `${APP_BASE_URL}/support`,
+      userName: params.userName,
+      contentType: params.contentType,
+      removalReason: params.removalReason,
+      removalDate: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+      reportId: params.reportId || '',
+      appealUrl: params.appealUrl || `${APP_BASE_URL}/support`,
     },
     `Content removed email sent to ${params.to}`
   );
@@ -1473,6 +1490,8 @@ export async function sendAccountSuspension7DaysEmail(params: {
   userName: string;
   suspensionReason: string;
   suspensionEndDate: string;
+  reportId?: string;
+  reportType?: string;
   appealUrl?: string;
 }): Promise<boolean> {
   return sendTemplateEmail(
@@ -1481,10 +1500,14 @@ export async function sendAccountSuspension7DaysEmail(params: {
     'Account Suspended',
     {
       ...getCommonTemplateData(),
-      user_name: params.userName,
-      suspension_reason: params.suspensionReason,
-      suspension_end_date: params.suspensionEndDate,
-      appeal_url: params.appealUrl || `${APP_BASE_URL}/support`,
+      userName: params.userName,
+      suspensionReason: params.suspensionReason,
+      reportId: params.reportId || '',
+      reportType: params.reportType || '',
+      suspensionDate: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+      suspensionDuration: '7 days',
+      reinstatementDate: params.suspensionEndDate,
+      appealUrl: params.appealUrl || `${APP_BASE_URL}/support`,
     },
     `Account suspension (7 days) email sent to ${params.to}`
   );
@@ -1496,6 +1519,8 @@ export async function sendAccountSuspension45DaysEmail(params: {
   userName: string;
   suspensionReason: string;
   suspensionEndDate: string;
+  reportId?: string;
+  reportType?: string;
   appealUrl?: string;
 }): Promise<boolean> {
   return sendTemplateEmail(
@@ -1504,10 +1529,14 @@ export async function sendAccountSuspension45DaysEmail(params: {
     'Account Suspended',
     {
       ...getCommonTemplateData(),
-      user_name: params.userName,
-      suspension_reason: params.suspensionReason,
-      suspension_end_date: params.suspensionEndDate,
-      appeal_url: params.appealUrl || `${APP_BASE_URL}/support`,
+      userName: params.userName,
+      suspensionReason: params.suspensionReason,
+      reportId: params.reportId || '',
+      reportType: params.reportType || '',
+      suspensionDate: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+      suspensionDuration: '45 days',
+      reinstatementDate: params.suspensionEndDate,
+      appealUrl: params.appealUrl || `${APP_BASE_URL}/support`,
     },
     `Account suspension (45 days) email sent to ${params.to}`
   );
@@ -1518,6 +1547,8 @@ export async function sendAccountPermanentBanEmail(params: {
   to: string;
   userName: string;
   banReason: string;
+  reportId?: string;
+  violationType?: string;
   appealUrl?: string;
 }): Promise<boolean> {
   return sendTemplateEmail(
@@ -1526,9 +1557,13 @@ export async function sendAccountPermanentBanEmail(params: {
     'Account Permanently Banned',
     {
       ...getCommonTemplateData(),
-      user_name: params.userName,
-      ban_reason: params.banReason,
-      appeal_url: params.appealUrl || `${APP_BASE_URL}/support`,
+      userName: params.userName,
+      banReason: params.banReason,
+      banDate: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+      violationType: params.violationType || params.banReason,
+      reportId: params.reportId || '',
+      appealUrl: params.appealUrl || `${APP_BASE_URL}/support`,
+      supportEmail: CUSTOMER_SERVICE_EMAIL,
     },
     `Account permanent ban email sent to ${params.to}`
   );
@@ -1540,6 +1575,7 @@ export async function sendLoginFromNewDeviceEmail(params: {
   userName: string;
   deviceType: string;
   deviceLocation?: string;
+  ipAddress?: string;
   loginTime: string;
   secureAccountUrl?: string;
 }): Promise<boolean> {
@@ -1549,11 +1585,15 @@ export async function sendLoginFromNewDeviceEmail(params: {
     'Login from New Device',
     {
       ...getCommonTemplateData(),
-      user_name: params.userName,
-      device_type: params.deviceType,
-      device_location: params.deviceLocation || 'Unknown location',
-      login_time: params.loginTime,
-      secure_account_url: params.secureAccountUrl || `${APP_BASE_URL}/settings/reset-password`,
+      userName: params.userName,
+      deviceType: params.deviceType,
+      deviceLocation: params.deviceLocation || 'Unknown location',
+      ipAddress: params.ipAddress || params.deviceLocation || 'Unknown',
+      loginDate: params.loginTime,
+      loginTime: params.loginTime,
+      changePasswordLink: `${APP_BASE_URL}/settings/reset-password`,
+      secureAccountLink: params.secureAccountUrl || `${APP_BASE_URL}/settings/reset-password`,
+      contactSupportLink: `mailto:${CUSTOMER_SERVICE_EMAIL}`,
     },
     `Login from new device email sent to ${params.to}`
   );
@@ -1577,14 +1617,14 @@ export async function sendEventRsvpConfirmedEmail(params: {
     'RSVP Confirmed',
     {
       ...getCommonTemplateData(),
-      user_name: params.userName,
-      event_name: params.eventName,
-      event_date: params.eventDate,
-      event_time: params.eventTime || '',
-      event_location: params.eventLocation || '',
-      event_detail_link: params.eventLink || `${APP_BASE_URL}/event-detail`,
-      calendar_link: params.calendarLink || `${APP_BASE_URL}/event-detail`,
-      cancel_rsvp_link: params.cancelRsvpLink || `${APP_BASE_URL}/event-detail`,
+      userName: params.userName,
+      eventName: params.eventName,
+      eventDate: params.eventDate,
+      eventTime: params.eventTime || '',
+      eventLocation: params.eventLocation || '',
+      eventDetailLink: params.eventLink || `${APP_BASE_URL}/event-detail`,
+      calendarLink: params.calendarLink || `${APP_BASE_URL}/event-detail`,
+      cancelRsvpLink: params.cancelRsvpLink || `${APP_BASE_URL}/event-detail`,
     },
     `Event RSVP confirmed email sent to ${params.to}`
   );
@@ -1594,11 +1634,12 @@ export async function sendEventRsvpConfirmedEmail(params: {
 export async function sendPaymentFailedEmail(params: {
   to: string;
   userName: string;
+  planName?: string;
   amount: string;
   paymentDate: string;
+  paymentMethodLast4?: string;
   retryUrl?: string;
   updatePaymentMethodUrl?: string;
-  supportUrl?: string;
 }): Promise<boolean> {
   return sendTemplateEmail(
     TEMPLATE_IDS.PAYMENT_FAILED,
@@ -1606,12 +1647,14 @@ export async function sendPaymentFailedEmail(params: {
     'Payment Failed',
     {
       ...getCommonTemplateData(),
-      user_name: params.userName,
-      amount: params.amount,
-      payment_date: params.paymentDate,
-      retry_url: params.retryUrl || `${APP_BASE_URL}/settings/manage-subscription`,
-      update_payment_method_url: params.updatePaymentMethodUrl || `${APP_BASE_URL}/settings/manage-subscription`,
-      support_url: params.supportUrl || `mailto:${CUSTOMER_SERVICE_EMAIL}`,
+      userName: params.userName,
+      planName: params.planName || 'VarsityHub subscription',
+      failedAmount: params.amount,
+      failedDate: params.paymentDate,
+      paymentMethodLast4: params.paymentMethodLast4 || '',
+      retryDate: '',
+      updatePaymentLink: params.updatePaymentMethodUrl || `${APP_BASE_URL}/settings/manage-subscription`,
+      contactSupportLink: `mailto:${CUSTOMER_SERVICE_EMAIL}`,
     },
     `Payment failed email sent to ${params.to}`
   );
@@ -2130,4 +2173,144 @@ export async function sendNewCoachRequestEmail(params: {
     text: `Hi ${params.ownerName}, ${params.coachName} (${params.coachEmail}) wants to join ${params.leagueName}. Approve: ${approveUrl} | Deny: ${denyUrl}`,
     html: htmlBody,
   });
+}
+
+export async function sendAthleteInvitationEmail(params: {
+  to: string;
+  athleteName: string;
+  coachName: string;
+  teamName: string;
+  acceptLink: string;
+  declineLink?: string;
+}): Promise<boolean> {
+  return sendTemplateEmail(
+    TEMPLATE_IDS.ATHLETE_INVITATION,
+    params.to,
+    `You've been invited to join ${params.teamName}`,
+    {
+      ...getCommonTemplateData(),
+      athleteName: params.athleteName,
+      coachName: params.coachName,
+      teamName: params.teamName,
+      acceptLink: params.acceptLink,
+      declineLink: params.declineLink || `${APP_BASE_URL}/invites`,
+    },
+    `Athlete invitation sent to ${params.to}`
+  );
+}
+
+export async function sendRoleAssignmentEmail(params: {
+  to: string;
+  userName: string;
+  roleName: string;
+  newRole: string;
+  teamName: string;
+  organizationName?: string;
+  assignedBy: string;
+  assignedDate?: string;
+  dashboardLink?: string;
+}): Promise<boolean> {
+  return sendTemplateEmail(
+    TEMPLATE_IDS.ROLE_ASSIGNMENT,
+    params.to,
+    `Your role has been updated — ${params.teamName}`,
+    {
+      ...getCommonTemplateData(),
+      userName: params.userName,
+      roleName: params.roleName,
+      newRole: params.newRole,
+      teamName: params.teamName,
+      organizationName: params.organizationName || '',
+      assignedBy: params.assignedBy,
+      assignedDate: params.assignedDate || new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+      dashboardLink: params.dashboardLink || `${APP_BASE_URL}/team-hub`,
+    },
+    `Role assignment email sent to ${params.to}`
+  );
+}
+
+export async function sendInvitationDeclinedEmail(params: {
+  to: string;
+  senderName: string;
+  declinedByName: string;
+  role?: string;
+  teamName: string;
+  declinedDate?: string;
+  reasonProvided?: string;
+  resendInvitationUrl?: string;
+  viewTeamUrl?: string;
+}): Promise<boolean> {
+  return sendTemplateEmail(
+    TEMPLATE_IDS.INVITATION_DECLINED,
+    params.to,
+    `${params.declinedByName} declined your invitation`,
+    {
+      ...getCommonTemplateData(),
+      senderName: params.senderName,
+      declinedByName: params.declinedByName,
+      role: params.role || 'member',
+      teamName: params.teamName,
+      declinedDate: params.declinedDate || new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+      reasonProvided: params.reasonProvided || '',
+      resendInvitationUrl: params.resendInvitationUrl || `${APP_BASE_URL}/team-hub`,
+      viewTeamUrl: params.viewTeamUrl || `${APP_BASE_URL}/team-hub`,
+    },
+    `Invitation declined email sent to ${params.to}`
+  );
+}
+
+export async function sendTeamRosterUpdateEmail(params: {
+  to: string;
+  coachName: string;
+  teamName: string;
+  updateType: string;
+  playerName: string;
+  updatedByName: string;
+  updateDate?: string;
+  currentRosterCount?: number;
+  changesSummary?: string;
+  viewRosterUrl?: string;
+}): Promise<boolean> {
+  return sendTemplateEmail(
+    TEMPLATE_IDS.TEAM_ROSTER_UPDATE,
+    params.to,
+    `Roster update — ${params.teamName}`,
+    {
+      ...getCommonTemplateData(),
+      coachName: params.coachName,
+      teamName: params.teamName,
+      updateType: params.updateType,
+      playerName: params.playerName,
+      updatedByName: params.updatedByName,
+      updateDate: params.updateDate || new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+      currentRosterCount: params.currentRosterCount || 0,
+      changesSummary: params.changesSummary || '',
+      viewRosterUrl: params.viewRosterUrl || `${APP_BASE_URL}/team-hub`,
+    },
+    `Team roster update email sent to ${params.to}`
+  );
+}
+
+export async function sendUserConfirmationEmail(params: {
+  to: string;
+  userName: string;
+  newRole: string;
+  teamName: string;
+  organizationName?: string;
+  dashboardLink?: string;
+}): Promise<boolean> {
+  return sendTemplateEmail(
+    TEMPLATE_IDS.USER_CONFIRMATION,
+    params.to,
+    `Your role has been confirmed — ${params.teamName}`,
+    {
+      ...getCommonTemplateData(),
+      userName: params.userName,
+      newRole: params.newRole,
+      teamName: params.teamName,
+      organizationName: params.organizationName || '',
+      dashboardLink: params.dashboardLink || `${APP_BASE_URL}/team-hub`,
+    },
+    `User confirmation email sent to ${params.to}`
+  );
 }

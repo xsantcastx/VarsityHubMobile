@@ -106,6 +106,8 @@ if (isProd) {
   if (!env.SENDGRID_API_KEY) warnings.push('SENDGRID_API_KEY (emails will fail)');
   if (!env.APPLE_BUNDLE_ID) warnings.push('APPLE_BUNDLE_ID (Apple Sign-In/IAP)');
   if (!env.APPLE_CLIENT_ID) warnings.push('APPLE_CLIENT_ID (Apple Sign-In)');
+  if (!env.REDIS_URL) warnings.push('REDIS_URL (email queue will not function — queued emails silently dropped)');
+  if (!env.GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL || !env.GOOGLE_PLAY_SERVICE_ACCOUNT_PRIVATE_KEY) warnings.push('GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL/KEY (Android IAP verification will return 503)');
   if (warnings.length > 0) {
     console.warn(`⚠️  Missing production environment variables:\n${warnings.map(w => `  - ${w}`).join('\n')}`);
   }
