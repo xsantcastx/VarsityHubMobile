@@ -1121,6 +1121,11 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
   try {
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as Stripe.Checkout.Session;
+    if (!session?.id) {
+      console.error('[webhook] Malformed checkout.session.completed — missing session.id', { eventId: event.id });
+      await releaseWebhookDedup();
+      return res.status(400).json({ error: 'Invalid session object' });
+    }
     try {
       await finalizeFromSession(session);
     } catch (e) {

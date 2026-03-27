@@ -33,6 +33,10 @@ const shutdown = async (signal: string) => {
   try {
     await shutdownQueues();
     debugLog('[shutdown] Queues closed');
+    // Disconnect Prisma to release DB connection pool slots
+    const { prisma } = await import('./lib/prisma.js');
+    await prisma.$disconnect();
+    debugLog('[shutdown] Database disconnected');
     process.exit(0);
   } catch (error) {
     console.error('[shutdown] Error during shutdown:', error);

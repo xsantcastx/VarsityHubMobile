@@ -18,6 +18,15 @@ import { Queue } from 'bullmq';
 // In-memory dedup for event reminder emails (resets on deploy, which is fine since reminders are 12h before)
 const eventRemindersSent = new Set<string>();
 
+// Clear dedup cache daily to prevent unbounded memory growth
+setInterval(() => {
+  const size = eventRemindersSent.size;
+  if (size > 0) {
+    eventRemindersSent.clear();
+    console.log(`[Scheduler] Cleared ${size} event reminder dedup entries`);
+  }
+}, 24 * 60 * 60 * 1000);
+
 interface ScheduledJob {
   name: string;
   cron: string;

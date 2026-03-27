@@ -18,10 +18,18 @@ export async function authMiddleware(req: AuthedRequest, _res: Response, next: N
   const token = header.slice('Bearer '.length).trim();
   const payload = verifyJwt<{ id: string; iat?: number }>(token);
   if (payload?.id) {
-    const user = await prisma.user.findUnique({
-      where: { id: payload.id },
-      select: { password_changed_at: true, banned: true, banned_until: true, ban_reason: true },
-    });
+    let user;
+    try {
+      user = await prisma.user.findUnique({
+        where: { id: payload.id },
+        select: { password_changed_at: true, banned: true, banned_until: true, ban_reason: true },
+      });
+    } catch (dbErr) {
+      // DB error — let request continue unauthenticated rather than crash every request
+      console.error('[auth] Database error during auth check:', (dbErr as any)?.message || dbErr);
+      clearUserContext();
+      return next();
+    }
 
     // Reject deleted users silently
     if (!user) {

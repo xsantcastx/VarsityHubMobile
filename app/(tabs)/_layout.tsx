@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AppState } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { HapticTab } from '@/components/HapticTab';
 import CenterTabButton from '@/components/ui/CenterTabButton';
 import { IconSymbol } from '@/components/ui/IconSymbol';
@@ -73,6 +74,7 @@ export default function TabLayout() {
   }, [colorScheme, insets.bottom]);
 
   return (
+    <ErrorBoundary>
     <Tabs screenOptions={screenOptions}>
       <Tabs.Screen
         name="feed/index"
@@ -168,8 +170,6 @@ export default function TabLayout() {
         }}
       />
     </Tabs>
+    </ErrorBoundary>
   );
 }
-
-
-

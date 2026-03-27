@@ -345,18 +345,25 @@ export async function notifyUpcomingGames(hoursBeforeGame: number): Promise<void
         console.error('[notifications] Failed to create game reminder in-app notification:', e);
       }
 
-      const ticketIds = await sendPushNotification(
-        user.id,
-        title,
-        body,
-        {
-          type: 'game_reminder',
-          hours_before: hoursBeforeGame,
-          event_id: event.id,
-          screen: 'event-detail',
-          event_id_param: event.id,
-        }
-      );
+      let ticketIds: string[] = [];
+      try {
+        ticketIds = await sendPushNotification(
+          user.id,
+          title,
+          body,
+          {
+            type: 'game_reminder',
+            hours_before: hoursBeforeGame,
+            event_id: event.id,
+            screen: 'event-detail',
+            event_id_param: event.id,
+          }
+        );
+      } catch (pushErr) {
+        console.error(`[notifications] Failed to send push for user ${user.id}, event ${event.id}:`, pushErr);
+        // Continue to next user — don't let one failure kill the entire batch
+        continue;
+      }
 
       // Store ticket ID in notification meta for receipt tracking
       if (notificationId && ticketIds.length > 0) {
