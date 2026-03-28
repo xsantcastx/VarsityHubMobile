@@ -84,14 +84,24 @@ void (async () => {
     });
     if (unresolved.length === 0) return;
     console.log(`[ads] backfill: resolving coords for ${unresolved.length} ads`);
-    for (const ad of unresolved) {
-      const coords = await getZipCoordinatesWithFallback(ad.target_zip_code!);
-      if (coords) {
-        await prisma.ad.update({
-          where: { id: ad.id },
-          data: { target_lat: coords.lat, target_lng: coords.lon },
-        });
-      }
+    // Deduplicate by zip code — fetch coords once per unique zip, then batch update
+    const uniqueZips = [...new Set(unresolved.map((a) => a.target_zip_code!))];
+    const coordsByZip = new Map<string, { lat: number; lon: number }>();
+    for (const zip of uniqueZips) {
+      const coords = await getZipCoordinatesWithFallback(zip);
+      if (coords) coordsByZip.set(zip, coords);
+    }
+    // Group ads by zip and batch-update in chunks of 100
+    const BATCH = 100;
+    const updates = unresolved.filter((a) => coordsByZip.has(a.target_zip_code!));
+    for (let i = 0; i < updates.length; i += BATCH) {
+      const chunk = updates.slice(i, i + BATCH);
+      await prisma.$transaction(
+        chunk.map((ad) => {
+          const c = coordsByZip.get(ad.target_zip_code!)!;
+          return prisma.ad.update({ where: { id: ad.id }, data: { target_lat: c.lat, target_lng: c.lon } });
+        })
+      );
     }
     console.log('[ads] backfill: done');
   } catch (err) {

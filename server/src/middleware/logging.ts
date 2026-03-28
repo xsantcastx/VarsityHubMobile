@@ -17,12 +17,17 @@ export function requestLogging(req: RequestWithLogging, res: Response, next: Nex
 
   debugLog(`[${req.requestId}] → ${req.method} ${req.path}`);
 
-  // Log response when finished
+  // Log response when finished — warn on slow requests in all environments
   res.on('finish', () => {
     const duration = req.startTime ? Date.now() - req.startTime : 0;
     debugLog(
       `[${req.requestId}] ← ${req.method} ${req.path} ${res.statusCode} (${duration}ms)`
     );
+    if (duration > 2000) {
+      console.error(`[slow-request] ERROR ${req.method} ${req.path} took ${duration}ms (threshold: 2000ms)`);
+    } else if (duration > 500) {
+      console.warn(`[slow-request] WARN ${req.method} ${req.path} took ${duration}ms (threshold: 500ms)`);
+    }
   });
 
   next();

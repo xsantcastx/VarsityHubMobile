@@ -18,6 +18,7 @@ import QuickAddGameModal, { QuickGameData } from '@/components/QuickAddGameModal
 import { Calendar } from 'react-native-calendars';
 import SwipeBackContainer from '@/components/SwipeBackContainer';
 import GameVerticalFeedScreen, { type FeedPost } from '../../game-details/GameVerticalFeedScreen';
+import { optimizeImageUrl } from '@/utils/imageUrl';
 
 
 type GameItem = { id: string; title?: string; date?: string; location?: string; latitude?: number | null; longitude?: number | null; cover_image_url?: string; banner_url?: string | null };
@@ -725,7 +726,7 @@ export default function CommunityDiscoverScreen() {
                 >
                   <View style={styles.searchResultLeft}>
                     {u.avatar_url ? (
-                      <Image source={{ uri: u.avatar_url }} style={styles.searchResultAvatar} contentFit="cover" />
+                      <Image source={{ uri: optimizeImageUrl(u.avatar_url, 120) }} style={styles.searchResultAvatar} contentFit="cover" />
                     ) : (
                       <LinearGradient colors={['#1e293b', '#0f172a']} style={styles.searchResultAvatar} />
                     )}
@@ -761,7 +762,7 @@ export default function CommunityDiscoverScreen() {
                 >
                   <View style={styles.searchResultLeft}>
                     {t.logo_url || t.avatar_url ? (
-                      <Image source={{ uri: t.logo_url || t.avatar_url }} style={styles.searchResultAvatar} contentFit="cover" />
+                      <Image source={{ uri: optimizeImageUrl(t.logo_url || t.avatar_url, 120) }} style={styles.searchResultAvatar} contentFit="cover" />
                     ) : (
                       <LinearGradient colors={['#1e293b', '#0f172a']} style={styles.searchResultAvatar} />
                     )}
@@ -1092,7 +1093,7 @@ export default function CommunityDiscoverScreen() {
                   >
                     <View style={styles.postAvatarWrap}>
                       {author?.avatar_url ? (
-                        <Image source={{ uri: String(author.avatar_url) }} style={styles.postAvatar} contentFit="cover" />
+                        <Image source={{ uri: optimizeImageUrl(String(author.avatar_url), 80) }} style={styles.postAvatar} contentFit="cover" />
                       ) : (
                         <LinearGradient colors={["#1e293b", "#0f172a"]} style={styles.postAvatar} />
                       )}
@@ -1172,7 +1173,7 @@ export default function CommunityDiscoverScreen() {
               <Pressable key={String(u.id)} style={styles.personTile} onPress={() => void router.push(`/user-profile?id=${u.id}`)} accessibilityRole="button" accessibilityLabel={`View profile of ${u.display_name || u.username || 'User'}`}>
                 <View style={styles.personAvatar}>
                   {u.avatar_url ? (
-                    <Image source={{ uri: String(u.avatar_url) }} style={styles.personAvatar} contentFit="cover" />
+                    <Image source={{ uri: optimizeImageUrl(String(u.avatar_url), 100) }} style={styles.personAvatar} contentFit="cover" />
                   ) : (
                     <LinearGradient colors={["#1e293b", "#0f172a"]} style={styles.personAvatar} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
                   )}

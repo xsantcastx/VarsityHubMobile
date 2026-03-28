@@ -6,7 +6,7 @@ import helmet from 'helmet';
 import path from 'node:path';
 import pinoHttp from 'pino-http';
 import swaggerUi from 'swagger-ui-express';
-import { startAdGoLiveCheck, startOvernightMonitoring, startQueueCleanup } from './cron/overnightTasks.js';
+import { startAdGoLiveCheck, startMessageCleanup, startOvernightMonitoring, startQueueCleanup } from './cron/overnightTasks.js';
 import { debugLog } from './lib/debugLog.js';
 import { verifyMediaSignature } from './lib/mediaAccess.js';
 import { addSentryErrorHandler, initSentry } from './lib/sentry.js';
@@ -357,7 +357,8 @@ if (!isTest) {
   startAdGoLiveCheck();
   startOvernightMonitoring();
   startQueueCleanup();
-  debugLog('[cron] Overnight tasks scheduled (ad go-live, monitoring, queue cleanup)');
+  startMessageCleanup();
+  debugLog('[cron] Overnight tasks scheduled (ad go-live, monitoring, queue cleanup, message cleanup)');
 }
 
 export { app };

@@ -25,8 +25,8 @@ export function startOvernightMonitoring() {
         delayed: counts.delayed,
       });
 
-      // Alert if too many failures
-      if (counts.failed > 10) {
+      // Alert if too many failures (lowered threshold: >5 to catch problems early)
+      if (counts.failed > 5) {
         console.error(`⚠️ [overnight] HIGH FAILURE RATE: ${counts.failed} failed jobs`);
         
         // Log first 5 failed jobs for debugging
@@ -264,4 +264,28 @@ export function startAdGoLiveCheck() {
   });
 
   debugLog('✅ Ad lifecycle check started (runs daily at midnight)');
+}
+
+/**
+ * Message cleanup — runs daily at 3:30 AM
+ * Deletes messages older than 1 year to prevent unbounded table growth.
+ * Direct messages between users are soft-deleted here; group chat messages follow the same rule.
+ */
+export function startMessageCleanup() {
+  cron.schedule('30 3 * * *', async () => {
+    debugLog('[message-cleanup] Starting old message cleanup...');
+    try {
+      const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
+      const deleted = await prisma.message.deleteMany({
+        where: { created_at: { lt: oneYearAgo } },
+      });
+      if (deleted.count > 0) {
+        console.log(`[message-cleanup] Deleted ${deleted.count} messages older than 1 year`);
+      }
+      debugLog('[message-cleanup] Done ✅');
+    } catch (error) {
+      console.error('[message-cleanup] Failed:', error);
+    }
+  });
+  debugLog('✅ Message cleanup started (runs daily at 3:30 AM)');
 }

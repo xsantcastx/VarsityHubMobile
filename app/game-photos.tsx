@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 // @ts-ignore
 import { Post as PostApi } from '@/api/entities';
+import { optimizeImageUrl } from '@/utils/imageUrl';
 import { safeGoBack } from '@/utils/navigation';
 
 export default function GamePhotosScreen() {
@@ -73,7 +74,7 @@ export default function GamePhotosScreen() {
               accessibilityRole="button"
               accessibilityLabel="View photo"
             >
-              <Image source={{ uri: String(item.media_url || '') }} style={[styles.cell, { backgroundColor: Colors[colorScheme].surface }]} contentFit="cover" />
+              <Image source={{ uri: optimizeImageUrl(String(item.media_url || ''), 400) || '' }} style={[styles.cell, { backgroundColor: Colors[colorScheme].surface }]} contentFit="cover" />
             </Pressable>
           )}
           onEndReached={_loadMore}
