@@ -24,6 +24,31 @@
         "buildType": "apk"
       }
     },
+    "staging": {
+      "node": "20.19.4",
+      "distribution": "internal",
+      "channel": "staging",
+      "env": {
+        "NODE_ENV": "production",
+        "SENTRY_ORG": "lime-productions",
+        "SENTRY_PROJECT": "varsity-hub-mobile",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true",
+        "EXPO_PUBLIC_SENTRY_DSN": "https://dba14af58de85862ac7f1cb132e19ff5@o4510445730070528.ingest.us.sentry.io/4510445740687360",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "514463516787-dm665i3u3a6un7eties8q73eik17vcs3.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "514463516787-bhvkja2devf8mrk204pcti7nld90d2g9.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "514463516787-rqdc3es1n5ofr3v7dn1l1gpj6r8kauqu.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID": "514463516787-rqdc3es1n5ofr3v7dn1l1gpj6r8kauqu.apps.googleusercontent.com"
+      },
+      "ios": {
+        "resourceClass": "m-medium",
+        "credentialsSource": "remote"
+      },
+      "android": {
+        "resourceClass": "medium",
+        "buildType": "apk",
+        "credentialsSource": "remote"
+      }
+    },
     "preview": {
       "node": "20.19.4",
       "distribution": "internal",
@@ -33,7 +58,11 @@
         "SENTRY_ORG": "lime-productions",
         "SENTRY_PROJECT": "varsity-hub-mobile",
         "SENTRY_DISABLE_AUTO_UPLOAD": "true",
-        "EXPO_PUBLIC_SENTRY_DSN": "https://dba14af58de85862ac7f1cb132e19ff5@o4510445730070528.ingest.us.sentry.io/4510445740687360"
+        "EXPO_PUBLIC_SENTRY_DSN": "https://dba14af58de85862ac7f1cb132e19ff5@o4510445730070528.ingest.us.sentry.io/4510445740687360",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "514463516787-dm665i3u3a6un7eties8q73eik17vcs3.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "514463516787-bhvkja2devf8mrk204pcti7nld90d2g9.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "514463516787-rqdc3es1n5ofr3v7dn1l1gpj6r8kauqu.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID": "514463516787-rqdc3es1n5ofr3v7dn1l1gpj6r8kauqu.apps.googleusercontent.com"
       },
       "ios": {
         "resourceClass": "m-medium",
@@ -55,7 +84,11 @@
         "SENTRY_ORG": "lime-productions",
         "SENTRY_PROJECT": "varsity-hub-mobile",
         "SENTRY_DISABLE_AUTO_UPLOAD": "true",
-        "EXPO_PUBLIC_SENTRY_DSN": "https://dba14af58de85862ac7f1cb132e19ff5@o4510445730070528.ingest.us.sentry.io/4510445740687360"
+        "EXPO_PUBLIC_SENTRY_DSN": "https://dba14af58de85862ac7f1cb132e19ff5@o4510445730070528.ingest.us.sentry.io/4510445740687360",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "514463516787-dm665i3u3a6un7eties8q73eik17vcs3.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "514463516787-bhvkja2devf8mrk204pcti7nld90d2g9.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "514463516787-rqdc3es1n5ofr3v7dn1l1gpj6r8kauqu.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID": "514463516787-rqdc3es1n5ofr3v7dn1l1gpj6r8kauqu.apps.googleusercontent.com"
       },
       "ios": {
         "resourceClass": "m-medium",

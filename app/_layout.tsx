@@ -1,3 +1,5 @@
+// Must be the very first import so Reactotron patches globals before anything else
+if (__DEV__) { require('../ReactotronConfig'); }
 import { DarkTheme, DefaultTheme, ThemeProvider as NavigationThemeProvider } from '@react-navigation/native';
 import Constants from 'expo-constants';
 import { useFonts } from 'expo-font';

@@ -16,8 +16,12 @@ module.exports = ({ config }) => {
   const EAS_PROJECT_ID =
     process.env.EAS_PROJECT_ID || '64489ed7-a8c0-41de-91ec-5846ea79a27f';
 
+  // Client IDs are NOT secrets — they're embedded in the app bundle.
+  // Hardcoded fallbacks ensure the URL scheme is always registered even
+  // when EAS build env vars are not explicitly set.
   const GOOGLE_IOS_CLIENT_ID =
-    process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || '';
+    process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ||
+    '514463516787-dm665i3u3a6un7eties8q73eik17vcs3.apps.googleusercontent.com';
 
   return {
     ...config,
@@ -204,12 +208,15 @@ module.exports = ({ config }) => {
       EXPO_PUBLIC_ADMIN_EMAILS:
         process.env.EXPO_PUBLIC_ADMIN_EMAILS || 'emancero@varsityhub.app',
       EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID:
-        process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || '',
+        process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID ||
+        '514463516787-bhvkja2devf8mrk204pcti7nld90d2g9.apps.googleusercontent.com',
       EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID: GOOGLE_IOS_CLIENT_ID,
       EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID:
-        process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '',
+        process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ||
+        '514463516787-rqdc3es1n5ofr3v7dn1l1gpj6r8kauqu.apps.googleusercontent.com',
       EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID:
-        process.env.EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID || '',
+        process.env.EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID ||
+        '514463516787-rqdc3es1n5ofr3v7dn1l1gpj6r8kauqu.apps.googleusercontent.com',
       EXPO_PUBLIC_GOOGLE_FORCE_PROXY: '0',
       EXPO_PUBLIC_EXPO_PROJECT_FULL_NAME: '@varsity-hub/varsityhub',
     },
