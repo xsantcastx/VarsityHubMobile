@@ -818,7 +818,7 @@ export default function CommunityDiscoverScreen() {
             <View style={{ alignItems: 'center', paddingVertical: 24 }}>
               <MaterialIcons name="search-off" size={40} color={Colors[colorScheme].mutedText} />
               <Text style={{ color: Colors[colorScheme].text, fontSize: 16, fontWeight: '600', marginTop: 10 }}>No results found</Text>
-              <Text style={{ color: Colors[colorScheme].mutedText, fontSize: 14, marginTop: 4, textAlign: 'center' }}>No matches for &ldquo;{query.trim()}&rdquo;. Try a different search.</Text>
+              <Text style={{ color: Colors[colorScheme].mutedText, fontSize: 14, marginTop: 4, textAlign: 'center' }}>No matches for "{query.trim()}". Try a different search.</Text>
             </View>
           ) : null}
         </View>

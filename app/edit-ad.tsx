@@ -101,7 +101,10 @@ export default function EditAdScreen() {
 
   const pickBanner = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) return;
+    if (!perm.granted) {
+      Alert.alert('Permission Required', 'Please allow photo library access in Settings to upload a banner image.');
+      return;
+    }
     const r = await ImagePicker.launchImageLibraryAsync({ ...pickerMediaTypesProp(), allowsEditing: true, aspect: [4,3], selectionLimit: 1, quality: 0.9 } as any);
     if ((r as any).canceled || !(r as any).assets || !(r as any).assets[0]) return;
     const a = (r as any).assets[0];

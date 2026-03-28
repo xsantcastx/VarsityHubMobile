@@ -197,15 +197,6 @@ export default function VerifyScreen() {
         }}
       />
 
-      {/* Back Button */}
-      <Pressable
-        onPress={() => { safeGoBack(router); }}
-        style={styles.backButton}
-        hitSlop={8}
-      >
-        <MaterialIcons name="arrow-back" size={24} color={Colors[colorScheme].text} />
-      </Pressable>
-
       {/* Header Icon */}
       <View style={styles.iconContainer}>
         <MaterialIcons name="mail-outline" size={64} color={colorScheme === 'dark' ? '#60A5FA' : '#2563EB'} />

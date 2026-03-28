@@ -27,7 +27,7 @@ export default function SignUpScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signInWithGoogle, loading: googleLoading, ready: googleReady } = useGoogleAuth();
+  const { signInWithGoogle, loading: googleLoading, ready: googleReady, isConfigured: googleConfigured } = useGoogleAuth();
   const { signInWithApple, loading: appleLoading, ready: appleReady } = useAppleAuth();
   const { trackTap } = useAnalytics();
   const { checkAuth } = useAuth();
@@ -109,6 +109,9 @@ export default function SignUpScreen() {
     
     try {
       const res: any = await attemptRegistration();
+      // Load user into context so the routing guard (email_verified check) is active.
+      // This ensures unverified users can't navigate past the verify screen.
+      await checkAuth().catch(() => {});
       // After successful signup, redirect to email verification screen
       // Pass dev code only in __DEV__ for easier testing (never in production)
       if (__DEV__ && res?.dev_verification_code) {
@@ -130,8 +133,8 @@ export default function SignUpScreen() {
         errorMessage = 'Your account may have been created but there was an issue signing you in. Please try signing in directly.';
         promptSignIn = true;
       } else if (e?.message?.includes('Email already registered') || e?.status === 409 || e?.data?.errorCode === 'EMAIL_ALREADY_REGISTERED') {
-        router.replace('/sign-in');
-        return;
+        errorMessage = 'An account with this email already exists. Please sign in instead.';
+        promptSignIn = true;
       } else if (e?.message?.includes('Request timeout')) {
         errorMessage = 'Registration is taking longer than expected. Our servers might be busy. Please try again in a few minutes.';
       } else if (e?.message?.includes('Network request failed')) {
@@ -313,7 +316,18 @@ export default function SignUpScreen() {
                 <Text style={[styles.googleButtonText, { color: Colors[colorScheme].text }]}>Continue with Google</Text>
               )}
             </Pressable>
+          ) : googleConfigured ? (
+            // Client IDs are configured but the auth request hasn't initialized yet — show loading
+            <View
+              style={[styles.googleButton, styles.disabledGoogleButton, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
+              accessibilityRole="text"
+              accessibilityLabel="Google sign up loading"
+            >
+              <Ionicons name="logo-google" size={20} color={Colors[colorScheme].mutedText} style={styles.googleIcon} />
+              <ActivityIndicator size="small" color={Colors[colorScheme].mutedText} style={{ marginLeft: 8 }} />
+            </View>
           ) : (
+            // Client IDs are genuinely missing — show unavailable
             <View
               style={[styles.googleButton, styles.disabledGoogleButton, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
               accessibilityRole="text"

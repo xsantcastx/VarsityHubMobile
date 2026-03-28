@@ -150,7 +150,7 @@ export default function OrganizationJoinRequestsScreen() {
       } catch (err: any) {
         if (__DEV__) console.error('[OrganizationJoinRequests] Error rejecting request:', err);
         captureException(err, { tags: { screen: 'organization-join-requests', action: 'reject' } });
-        Alert.alert('Error', err?.message || 'Failed to reject reject');
+        Alert.alert('Error', err?.message || 'Failed to reject request');
       } finally {
         setProcessingId(null);
         setRejectModal({ visible: false, request: null, reason: '' });

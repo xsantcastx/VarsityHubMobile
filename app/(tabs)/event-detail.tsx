@@ -32,6 +32,7 @@ export default function EventDetailScreen() {
   const [attendeesCount, setAttendeesCount] = useState<number>(0);
   const [rsvpSheetVisible, setRsvpSheetVisible] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [rsvping, setRsvping] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) { setLoading(false); return; }
@@ -105,7 +106,7 @@ export default function EventDetailScreen() {
   });
 
   const toggleRsvp = async () => {
-    if (!event) return;
+    if (!event || rsvping) return;
     if (eventHasPassed) {
       Alert.alert('RSVP closed', 'You cannot RSVP to events that have already occurred.');
       return;
@@ -117,6 +118,7 @@ export default function EventDetailScreen() {
       ]);
       return;
     }
+    setRsvping(true);
     try {
       const res = await Event.rsvp(String(event.id), !rsvped);
       const isGoing = !!(res?.going ?? res?.attending);
@@ -136,6 +138,8 @@ export default function EventDetailScreen() {
       } else {
         Alert.alert('Error', 'Unable to update RSVP. Please try again.');
       }
+    } finally {
+      setRsvping(false);
     }
   };
 
@@ -320,11 +324,11 @@ export default function EventDetailScreen() {
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
               {(event as EventItem).status !== 'cancelled' && (
                 <Pressable
-                  style={[styles.primaryBtn, eventHasPassed ? styles.primaryBtnDisabled : null]}
-                  disabled={eventHasPassed}
+                  style={[styles.primaryBtn, (eventHasPassed || rsvping) ? styles.primaryBtnDisabled : null]}
+                  disabled={eventHasPassed || rsvping}
                   onPress={me ? toggleRsvp : handleRsvpPress}
                 >
-                  <Text style={styles.primaryBtnText}>{eventHasPassed ? 'Event Ended' : (rsvped ? 'Cancel RSVP' : 'RSVP')}</Text>
+                  <Text style={styles.primaryBtnText}>{eventHasPassed ? 'Event Ended' : rsvping ? '...' : (rsvped ? 'Cancel RSVP' : 'RSVP')}</Text>
                 </Pressable>
               )}
               <Pressable style={[styles.outlineBtn, { borderColor: Colors[colorScheme ?? 'light'].border }]} onPress={shareEvent}>

@@ -44,7 +44,7 @@ export default function SignInScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { signInWithGoogle, loading: googleLoading, ready: googleReady } = useGoogleAuth();
+  const { signInWithGoogle, loading: googleLoading, ready: googleReady, isConfigured: googleConfigured } = useGoogleAuth();
   const { signInWithApple, loading: appleLoading } = useAppleAuth();
   const { checkAuth, registerPushToken } = useAuth();
 
@@ -322,7 +322,18 @@ export default function SignInScreen() {
                   <Text style={[styles.googleButtonText, { color: palette.text }]}>Continue with Google</Text>
                 )}
               </Pressable>
+            ) : googleConfigured ? (
+              // Client IDs are configured but the auth request hasn't initialized yet — show loading
+              <View
+                style={[styles.googleButton, styles.disabledGoogleButton, { backgroundColor: palette.card, borderColor: palette.border, borderWidth: 2 }]}
+                accessibilityRole="text"
+                accessibilityLabel="Google sign in loading"
+              >
+                <Ionicons name="logo-google" size={20} color={palette.mutedText} style={styles.googleIcon} />
+                <ActivityIndicator size="small" color={palette.mutedText} style={{ marginLeft: 8 }} />
+              </View>
             ) : (
+              // Client IDs are genuinely missing — show unavailable
               <View
                 style={[styles.googleButton, styles.disabledGoogleButton, { backgroundColor: palette.surface, borderColor: palette.border, borderWidth: 2 }]}
                 accessibilityRole="text"

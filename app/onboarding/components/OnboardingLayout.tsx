@@ -150,7 +150,7 @@ export default function OnboardingLayout({
         </ScrollView>
 
       {onContinue && (
-        <View style={[styles.footer, { borderTopColor: colors.border, paddingBottom: insets.bottom > 0 ? insets.bottom : 16 }]}>
+        <View style={[styles.footer, { borderTopColor: colors.border, backgroundColor: colors.background, paddingBottom: insets.bottom > 0 ? insets.bottom : 16 }]}>
           <Pressable
             onPress={onContinue}
             disabled={continueDisabled || loading}

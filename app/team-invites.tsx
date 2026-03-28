@@ -19,11 +19,14 @@ export default function TeamInvitesScreen() {
   const router = useRouter();
   const [modal, setModal] = useState<null | { title: string; message?: string; options: any[] }>(null);
   const { invites, loading, error: invitesError, refresh } = useTeamInvites<Invite>();
+  const [processingId, setProcessingId] = useState<string | null>(null);
 
   const accept = async (id: string, teamId?: string) => {
-    try { 
-      await TeamApi.acceptInvite(id); 
-      await refresh(); 
+    if (processingId) return;
+    setProcessingId(id);
+    try {
+      await TeamApi.acceptInvite(id);
+      await refresh();
       // Show success and option to view team
       if (teamId) {
         setModal({
@@ -43,9 +46,13 @@ export default function TeamInvitesScreen() {
           { label: 'OK', onPress: () => {}, color: '#2563eb' }
         ]
       });
+    } finally {
+      setProcessingId(null);
     }
   };
   const decline = async (id: string) => {
+    if (processingId) return;
+    setProcessingId(id);
     try {
       await TeamApi.declineInvite(id);
       await refresh();
@@ -57,6 +64,8 @@ export default function TeamInvitesScreen() {
           { label: 'OK', onPress: () => {}, color: '#2563eb' }
         ]
       });
+    } finally {
+      setProcessingId(null);
     }
   };
 
@@ -82,8 +91,8 @@ export default function TeamInvitesScreen() {
                 <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>Role: {item.role || 'member'}</Text>
               </View>
               <View style={{ flexDirection: 'row', gap: 8 }}>
-                <Button size="sm" onPress={() => accept(item.id, item.team?.id)}><Text>Accept</Text></Button>
-                <Button size="sm" variant="outline" onPress={() => decline(item.id)}><Text>Decline</Text></Button>
+                <Button size="sm" onPress={() => accept(item.id, item.team?.id)} disabled={!!processingId}><Text>Accept</Text></Button>
+                <Button size="sm" variant="outline" onPress={() => decline(item.id)} disabled={!!processingId}><Text>Decline</Text></Button>
               </View>
             </View>
           )}

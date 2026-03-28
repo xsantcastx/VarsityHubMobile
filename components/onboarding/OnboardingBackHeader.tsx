@@ -30,7 +30,7 @@ export function OnboardingBackHeader({ title, subtitle, onBack, rightSlot }: Pro
   return (
     <SafeAreaView
       edges={['top', 'left', 'right']}
-      style={[styles.safeArea, { paddingTop: Math.max(insets.top, 16), borderBottomColor: borderColor }]}
+      style={[styles.safeArea, { paddingTop: Math.max(insets.top, 16), borderBottomColor: borderColor, backgroundColor: Colors[colorScheme].background }]}
     >
       <View style={styles.headerRow}>
         <Pressable accessibilityRole="button" onPress={handleBack} style={styles.backButton}>
@@ -48,7 +48,6 @@ export function OnboardingBackHeader({ title, subtitle, onBack, rightSlot }: Pro
 
 const styles = StyleSheet.create({
   safeArea: {
-    backgroundColor: '#FFFFFF',
     paddingHorizontal: 16,
     paddingBottom: 12,
     borderBottomWidth: 1,

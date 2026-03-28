@@ -343,7 +343,7 @@ export default function Step3League() {
   };
 
   const onContinue = async () => {
-    if (!canContinue) return;
+    if (!canContinue || saving) return;
 
     setSaving(true);
     try {

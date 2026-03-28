@@ -109,6 +109,7 @@ export default function MyTeamScreen() {
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<Role>('player');
   const [inviting, setInviting] = useState(false);
+  const [memberActionLoading, setMemberActionLoading] = useState(false);
 
   // Team selector
   const [showTeamPicker, setShowTeamPicker] = useState(false);
@@ -204,7 +205,8 @@ export default function MyTeamScreen() {
 
   const handleUpdateRole = useCallback(
     async (role: Role) => {
-      if (!selectedMember) return;
+      if (!selectedMember || memberActionLoading) return;
+      setMemberActionLoading(true);
       try {
         await TeamApi.updateMember(selectedMember.id, { role });
         if (selectedTeamId) await loadMembers(selectedTeamId);
@@ -212,13 +214,16 @@ export default function MyTeamScreen() {
         setSelectedMember(null);
       } catch (e: any) {
         Alert.alert('Error', e?.message || 'Failed to update role.');
+      } finally {
+        setMemberActionLoading(false);
       }
     },
-    [selectedMember, selectedTeamId, loadMembers],
+    [selectedMember, selectedTeamId, loadMembers, memberActionLoading],
   );
 
   const handleUpdatePosition = useCallback(async () => {
-    if (!selectedMember) return;
+    if (!selectedMember || memberActionLoading) return;
+    setMemberActionLoading(true);
     try {
       await TeamApi.updateMember(selectedMember.id, { custom_position: positionInput.trim() });
       if (selectedTeamId) await loadMembers(selectedTeamId);
@@ -227,11 +232,14 @@ export default function MyTeamScreen() {
       setPositionInput('');
     } catch (e: any) {
       Alert.alert('Error', e?.message || 'Failed to update position.');
+    } finally {
+      setMemberActionLoading(false);
     }
-  }, [selectedMember, selectedTeamId, positionInput, loadMembers]);
+  }, [selectedMember, selectedTeamId, positionInput, loadMembers, memberActionLoading]);
 
   const handleRemoveMember = useCallback(async () => {
-    if (!selectedMember) return;
+    if (!selectedMember || memberActionLoading) return;
+    setMemberActionLoading(true);
     try {
       await TeamApi.removeMember(selectedMember.id, 'Removed by team manager');
       if (selectedTeamId) await loadMembers(selectedTeamId);
@@ -239,8 +247,10 @@ export default function MyTeamScreen() {
       setSelectedMember(null);
     } catch (e: any) {
       Alert.alert('Error', e?.message || 'Failed to remove member.');
+    } finally {
+      setMemberActionLoading(false);
     }
-  }, [selectedMember, selectedTeamId, loadMembers]);
+  }, [selectedMember, selectedTeamId, loadMembers, memberActionLoading]);
 
   const handleInvite = useCallback(async () => {
     if (!selectedTeamId || !inviteEmail.trim()) return;
@@ -470,7 +480,9 @@ export default function MyTeamScreen() {
             <Text style={[styles.modalMessage, { color: Colors[colorScheme].mutedText }]}>
               {selectedMember?.user.display_name}
             </Text>
-            {ROLE_OPTIONS.map((role) => {
+            {memberActionLoading ? (
+              <ActivityIndicator style={{ marginVertical: 16 }} />
+            ) : ROLE_OPTIONS.map((role) => {
               const badge = getRoleBadgeColor(role);
               const isActive = selectedMember?.role === role;
               return (
@@ -535,9 +547,10 @@ export default function MyTeamScreen() {
               </Pressable>
               <Pressable
                 onPress={handleUpdatePosition}
-                style={[styles.modalActionBtn, { backgroundColor: Colors[colorScheme].tint }]}
+                disabled={memberActionLoading}
+                style={[styles.modalActionBtn, { backgroundColor: Colors[colorScheme].tint, opacity: memberActionLoading ? 0.6 : 1 }]}
               >
-                <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>Save</Text>
+                {memberActionLoading ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>Save</Text>}
               </Pressable>
             </View>
           </View>

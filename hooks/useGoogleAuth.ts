@@ -256,6 +256,7 @@ export function useGoogleAuth() {
 
   return {
     ready: isConfigured && !!request,
+    isConfigured,
     loading,
     error,
     signInWithGoogle,

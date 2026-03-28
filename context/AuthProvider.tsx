@@ -618,8 +618,10 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         return;
       }
 
-      // If onboarding is complete and user is still on onboarding route, send to main app
-      if (!needsOnboarding && firstSegment === 'onboarding') {
+      // If onboarding is complete and user is still on onboarding route, send to main app.
+      // Exception: pending-approval and league-pending-approval are completion screens —
+      // the user must tap the button themselves. Don't yank them away automatically.
+      if (!needsOnboarding && firstSegment === 'onboarding' && !isOnPendingScreen) {
         if (__DEV__) console.log('[AuthProvider] User completed onboarding, redirecting to main app');
         const landingRoute = '/(tabs)';
         if (lastRedirectRef.current !== landingRoute) {
