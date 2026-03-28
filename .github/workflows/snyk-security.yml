@@ -160,17 +160,31 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Check Snyk token
+        id: snyk-check
+        run: |
+          if [ -z "$SNYK_TOKEN" ]; then
+            echo "SNYK_TOKEN not configured — skipping container scan"
+            echo "has-token=false" >> $GITHUB_OUTPUT
+          else
+            echo "has-token=true" >> $GITHUB_OUTPUT
+          fi
+
       - name: Set up Snyk
+        if: steps.snyk-check.outputs.has-token == 'true'
         uses: snyk/actions/setup@master
 
       - name: Build Docker image
+        if: steps.snyk-check.outputs.has-token == 'true'
         run: docker build -t varsityhub-server:latest -f server/Dockerfile server/
 
       - name: Run Snyk container scan
+        if: steps.snyk-check.outputs.has-token == 'true'
         run: snyk container test varsityhub-server:latest --severity-threshold=high --file=server/Dockerfile
         continue-on-error: true
 
       - name: Monitor container
+        if: steps.snyk-check.outputs.has-token == 'true'
         run: snyk container monitor varsityhub-server:latest --project-name=varsityhub-server-container --file=server/Dockerfile
         continue-on-error: true
 

@@ -1,20 +1,15 @@
-name: Environment & Configuration Audit (DISABLED)
+name: Environment & Configuration Audit
 
 on:
   workflow_dispatch:
-  # Temporarily disabled to stop email spam
-  # schedule:
-  #   - cron: '0 9 * * 1'
-  # push:
-  #   paths:
-  #     - .env.example
-  #     - server/.env.example
-  #     - scripts/check-env-alignment.js
+  schedule:
+    - cron: '0 11 * * 1' # Weekly Monday 11 AM UTC
 
 jobs:
   audit-github-secrets:
     name: Verify GitHub Secrets
     runs-on: ubuntu-latest
+    continue-on-error: true  # Prevents GitHub email spam on scheduled failures
     
     steps:
       - uses: actions/checkout@v4

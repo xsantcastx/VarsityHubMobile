@@ -1,17 +1,15 @@
-name: Railway Health Check (DISABLED)
+name: Railway Health Check
 
 on:
   workflow_dispatch:
-  # Temporarily disabled to stop email spam
-  # schedule:
-  #   - cron: '0 * * * *'
-  # push:
-  #   branches: [main]
+  schedule:
+    - cron: '0 9 * * 1' # Weekly Monday 9 AM UTC
 
 jobs:
   health-check:
     name: Verify Railway API Health
     runs-on: ubuntu-latest
+    continue-on-error: true  # Prevents GitHub email spam on scheduled failures
     
     steps:
       - uses: actions/checkout@v4

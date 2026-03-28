@@ -5,19 +5,17 @@
 # This workflow runs the production readiness checks on every push and PR
 # to ensure pre-launch requirements are always met.
 
-name: Production Readiness Check (DISABLED)
+name: Production Readiness Check
 
 on:
   workflow_dispatch:
-  # Temporarily disabled to stop email spam
-  # push:
-  #   branches: [ main, develop ]
-  # pull_request:
-  #   branches: [ main, develop ]
+  schedule:
+    - cron: '0 10 * * 1' # Weekly Monday 10 AM UTC
 
 jobs:
   verify:
     runs-on: ubuntu-latest
+    continue-on-error: true  # Prevents GitHub email spam on scheduled failures
     
     steps:
     - name: Checkout code

@@ -24,6 +24,8 @@ jobs:
 
       - name: Check recent builds
         id: builds
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
           eas build:list --limit 5 --json > builds.json 2>&1 || true
           cat builds.json

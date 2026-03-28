@@ -91,6 +91,31 @@ jobs:
           echo "⚠️  WARNING: Forcing merge despite Railway health check failure"
           echo "This may cause production issues. Review the logs above carefully."
 
+      - name: Wait for Railway to deploy new code
+        if: github.event_name == 'push' && steps.health.outputs.status == 'ok'
+        run: |
+          echo "⏳ Waiting 90s for Railway to deploy..."
+          sleep 90
+
+      - name: Post-deploy health check
+        if: github.event_name == 'push' && steps.health.outputs.status == 'ok'
+        id: post-deploy
+        run: |
+          for i in 1 2 3; do
+            response=$(curl -sf https://api-production-8ac3.up.railway.app/health || echo '{"error":"unreachable"}')
+            status=$(echo "$response" | jq -r '.status' 2>/dev/null || echo "unknown")
+            if [ "$status" = "ok" ]; then
+              echo "✅ Post-deploy health check passed (attempt $i)"
+              echo "status=ok" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+            echo "⏳ Attempt $i failed — retrying in 30s..."
+            sleep 30
+          done
+          echo "❌ Post-deploy health check failed after 3 attempts"
+          echo "status=failed" >> $GITHUB_OUTPUT
+          exit 1
+
       - name: Comment on PR
         if: github.event_name == 'pull_request' && always()
         uses: actions/github-script@v7
