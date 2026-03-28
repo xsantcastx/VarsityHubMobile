@@ -28,8 +28,8 @@ module.exports = ({ config }) => {
     name: 'VarsityHub',
     slug: 'varsityhub',
     owner: 'varsity-hub',
-    version: '1.0.1',
-    runtimeVersion: '1.0.1',
+    version: '1.0.2',
+    runtimeVersion: '1.0.2',
     description:
       'The ultimate sports team management and social platform for athletes, coaches, and fans.',
     githubUrl: 'https://github.com/xsantcastx/VarsityHubMobile',
