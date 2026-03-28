@@ -50,6 +50,7 @@ interface AuthUser {
     join_request_pending?: boolean;
     proceeding_as_fan?: boolean;
     coach_agreement_accepted_at?: string;
+    organization_id?: string;
   };
 }
 

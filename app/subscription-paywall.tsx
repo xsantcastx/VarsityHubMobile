@@ -151,7 +151,7 @@ export default function SubscriptionPaywallScreen() {
           customerEphemeralKeySecret: data.ephemeralKey,
           customerId: data.customer,
           merchantDisplayName: 'Varsity Hub',
-          googlePay: Platform.OS === 'android' ? { merchantCountryCode: 'US', testEnv: __DEV__ } : undefined,
+          googlePay: (Platform.OS as string) === 'android' ? { merchantCountryCode: 'US', testEnv: __DEV__ } : undefined,
           paymentMethodOrder: ['google_pay', 'card'],
         });
         if (initError) {

@@ -147,6 +147,7 @@ describe('useGoogleAuth — proxy detection', () => {
   it('respects EXPO_PUBLIC_GOOGLE_FORCE_PROXY = "0" — proxy stays off in production', () => {
     // "0" must parse as false; if it parsed as truthy the proxy would be forced on
     mockConstantsData.executionEnvironment = 'standalone';
+    mockConstantsData.appOwnership = null;
 
     renderHook(() => useGoogleAuth());
 

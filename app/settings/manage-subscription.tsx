@@ -139,7 +139,7 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
           customerEphemeralKeySecret: res.ephemeralKey,
           customerId: res.customer,
           merchantDisplayName: 'Varsity Hub',
-          googlePay: Platform.OS === 'android' ? { merchantCountryCode: 'US', testEnv: __DEV__ } : undefined,
+          googlePay: (Platform.OS as string) === 'android' ? { merchantCountryCode: 'US', testEnv: __DEV__ } : undefined,
           paymentMethodOrder: ['google_pay', 'card'],
         });
         if (initError) {

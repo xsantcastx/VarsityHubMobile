@@ -30,30 +30,15 @@ COPY ./server/start.sh ./start.sh
 COPY ./shared ./shared
 
 # Remove expo extends and ensure compilation outputs files
-RUN python3 << 'PYTHON_SCRIPT'
-import json
-
-with open('tsconfig.json', 'r') as f:
-    config = json.load(f)
-
-# Remove extends property (expo config not needed in server)
-if 'extends' in config:
-    del config['extends']
-
-# Ensure compilation settings are correct
-if 'compilerOptions' not in config:
-    config['compilerOptions'] = {}
-
-# Make sure we're emitting files
-config['compilerOptions']['noEmit'] = False
-
-# Write back
-with open('tsconfig.json', 'w') as f:
-    json.dump(config, f, indent=2)
-
-print("✅ Updated tsconfig.json:")
-print(json.dumps(config, indent=2))
-PYTHON_SCRIPT
+RUN node -e " \
+  const fs = require('fs'); \
+  const config = JSON.parse(fs.readFileSync('tsconfig.json', 'utf8')); \
+  delete config.extends; \
+  if (!config.compilerOptions) config.compilerOptions = {}; \
+  config.compilerOptions.noEmit = false; \
+  fs.writeFileSync('tsconfig.json', JSON.stringify(config, null, 2)); \
+  console.log('Updated tsconfig.json:', JSON.stringify(config, null, 2)); \
+"
 
 # Build TypeScript using npm run build (matches package.json script)
 RUN echo "🔨 Building TypeScript..." && \
