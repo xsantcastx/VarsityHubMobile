@@ -200,6 +200,7 @@ adminRouter.post('/coaches/:id/approve', requireVerified as any, requireAdminMid
         to: user.email,
         coachName: user.display_name || user.username || 'Coach',
         leagueName: 'VarsityHub',
+        note: note || undefined,
       }).catch((err) => console.error('[admin] Failed to send coach approved email:', err));
     }
 

@@ -1399,6 +1399,8 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
       adminUserId = req.user.id;
     }
 
+    const adminNote: string | undefined = req.body?.note || undefined;
+
     const org = await prisma.organization.findUnique({
       where: { id: orgId },
       include: { leagueOwner: { select: { id: true, display_name: true, email: true } } },
@@ -1438,6 +1440,7 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
           to: org.leagueOwner.email,
           ownerName: org.leagueOwner.display_name || 'League Owner',
           leagueName: org.name,
+          note: adminNote,
         });
         if (!emailSent) console.error('[orgs] League approved email FAILED to send to', org.leagueOwner.email);
       } catch (err) {

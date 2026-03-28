@@ -1873,6 +1873,7 @@ export async function sendLeagueApprovedEmail(params: {
   to: string;
   ownerName: string;
   leagueName: string;
+  note?: string;
 }): Promise<boolean> {
   const subject = `Your league "${params.leagueName}" is live!`;
   const sent = await sendTemplateEmail(
@@ -1883,6 +1884,7 @@ export async function sendLeagueApprovedEmail(params: {
       ...getCommonTemplateData(),
       org_name: params.leagueName,
       owner_name: params.ownerName,
+      admin_note: params.note || '',
       dashboard_url: `${APP_BASE_URL}/team-hub`,
       org_logo_url: '',
     },
@@ -1890,7 +1892,8 @@ export async function sendLeagueApprovedEmail(params: {
   );
   if (sent) return true;
 
-  // HTML fallback when template is not configured
+  // HTML fallback
+  const noteHtml = params.note ? `<p style="text-align:center;color:#374151;font-style:italic;border-left:3px solid #16A34A;padding-left:12px;margin:16px 0;">"${params.note}"</p>` : '';
   const htmlBody = `
 <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
   <div style="text-align:center;margin-bottom:24px;">
@@ -1900,6 +1903,7 @@ export async function sendLeagueApprovedEmail(params: {
   <p style="text-align:center;color:#374151;font-size:16px;">
     Hi ${params.ownerName}, your league <strong>${params.leagueName}</strong> has been approved on VarsityHub!
   </p>
+  ${noteHtml}
   <p style="text-align:center;color:#374151;">Open the app to set up your teams and start managing your league.</p>
   <div style="text-align:center;margin-top:24px;">
     <a href="${APP_BASE_URL}" style="display:inline-block;background:#1B3A6B;color:#fff;padding:12px 32px;border-radius:8px;text-decoration:none;font-weight:600;">Open VarsityHub</a>
@@ -1910,7 +1914,7 @@ export async function sendLeagueApprovedEmail(params: {
   return sendEmail({
     to: params.to,
     subject,
-    text: `Hi ${params.ownerName}, your league ${params.leagueName} has been approved on VarsityHub! Open the app to get started.`,
+    text: `Hi ${params.ownerName}, your league ${params.leagueName} has been approved on VarsityHub!${params.note ? ` Note from admin: ${params.note}` : ''} Open the app to get started.`,
     html: htmlBody,
   });
 }
@@ -1973,6 +1977,7 @@ export async function sendCoachApprovedEmail(params: {
   to: string;
   coachName: string;
   leagueName: string;
+  note?: string;
 }): Promise<boolean> {
   const subject = `You're approved — welcome to ${params.leagueName}!`;
   const sent = await sendTemplateEmail(
@@ -1983,7 +1988,8 @@ export async function sendCoachApprovedEmail(params: {
       ...getCommonTemplateData(),
       user_name: params.coachName,
       org_name: params.leagueName,
-      admin_name: 'League Owner',
+      admin_name: 'VarsityHub',
+      admin_note: params.note || '',
       dashboard_url: `${APP_BASE_URL}/team-hub`,
       org_logo_url: '',
     },
@@ -1991,7 +1997,8 @@ export async function sendCoachApprovedEmail(params: {
   );
   if (sent) return true;
 
-  // HTML fallback when template is not configured (matches ad approval email format)
+  // HTML fallback
+  const noteHtml = params.note ? `<p style="text-align:center;color:#374151;font-style:italic;border-left:3px solid #16A34A;padding-left:12px;margin:16px 0;">"${params.note}"</p>` : '';
   const htmlBody = `
 <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
   <div style="text-align:center;margin-bottom:24px;">
@@ -2001,6 +2008,7 @@ export async function sendCoachApprovedEmail(params: {
   <p style="text-align:center;color:#374151;font-size:16px;">
     Hi ${params.coachName}, your coach application to <strong>${params.leagueName}</strong> has been approved on VarsityHub!
   </p>
+  ${noteHtml}
   <p style="text-align:center;color:#374151;">Open the app to start managing your team.</p>
   <div style="text-align:center;margin-top:24px;">
     <a href="${APP_BASE_URL}" style="display:inline-block;background:#1B3A6B;color:#fff;padding:12px 32px;border-radius:8px;text-decoration:none;font-weight:600;">Open VarsityHub</a>
@@ -2018,7 +2026,7 @@ export async function sendCoachApprovedEmail(params: {
   return sendEmail({
     to: params.to,
     subject,
-    text: `Hi ${params.coachName}, your coach application to ${params.leagueName} has been approved on VarsityHub! Open the app to get started.`,
+    text: `Hi ${params.coachName}, your coach application to ${params.leagueName} has been approved on VarsityHub!${params.note ? ` Note from admin: ${params.note}` : ''} Open the app to get started.`,
     html: htmlBody,
   });
 }
