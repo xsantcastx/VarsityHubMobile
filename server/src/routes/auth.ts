@@ -632,7 +632,10 @@ authRouter.post('/apple', oauthLimiter, asyncHandler(async (req, res) => {
         const userEmail = email || `apple_${appleId.substring(0, 16)}@appleid.local`;
 
         try {
-          const displayName = email ? email.split('@')[0] : 'Apple User';
+          // Apple private relay emails (e.g. xyz@privaterelay.appleid.com) are random tokens,
+          // not real names. Always fall back to 'Apple User' for those.
+          const isPrivateRelay = email?.endsWith('@privaterelay.appleid.com') || email?.endsWith('@appleid.local');
+          const displayName = (email && !isPrivateRelay) ? email.split('@')[0] : 'Apple User';
           user = await prisma.user.create({
             data: {
               email: userEmail,

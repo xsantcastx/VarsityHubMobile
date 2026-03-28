@@ -1148,12 +1148,27 @@ organizationsRouter.post('/join-requests/:requestId/approve', requireAuth as any
     }),
   ]);
   
+  // Persist org info into coach's preferences (non-blocking, non-fatal)
+  prisma.user.findUnique({ where: { id: joinRequest.user_id }, select: { preferences: true } })
+    .then((coachRecord) => {
+      const current = (coachRecord?.preferences as any) || {};
+      const merged = {
+        ...current,
+        organization_id: joinRequest.organization_id,
+        organization_name: joinRequest.organization.name,
+      };
+      return prisma.user.update({ where: { id: joinRequest.user_id }, data: { preferences: merged } });
+    })
+    .catch((err) => {
+      console.warn('[orgs] failed to persist org_id into coach preferences on join-request approval:', (err as any)?.message || err);
+    });
+
   // Send approval email to user
   const adminUser = await prisma.user.findUnique({
     where: { id: req.user!.id },
     select: { display_name: true }
   });
-  
+
   try {
     await sendJoinRequestApproved({
       userEmail: joinRequest.user.email,
@@ -1747,6 +1762,22 @@ organizationsRouter.post('/:id/coaches/:userId/approve', requireAuth as any, req
     );
 
     await prisma.$transaction(txOps);
+
+    // Persist org info into coach's preferences so complete-onboarding succeeds
+    // even if the coach never explicitly saved it (e.g. join-request path pre-fix).
+    prisma.user.findUnique({ where: { id: coachId }, select: { preferences: true } })
+      .then((coachRecord) => {
+        const current = (coachRecord?.preferences as any) || {};
+        const merged = {
+          ...current,
+          organization_id: orgId,
+          organization_name: org?.name || current.organization_name,
+        };
+        return prisma.user.update({ where: { id: coachId }, data: { preferences: merged } });
+      })
+      .catch((err) => {
+        console.warn('[orgs] failed to persist org_id into coach preferences:', (err as any)?.message || err);
+      });
 
     // Non-blocking: email and push notifications fire after transaction succeeds.
     // If these fail the approval is still recorded — we log but don't roll back.
