@@ -83,27 +83,41 @@ export default function OrganizationScreen() {
     if (!mounted.current || !user) return;
     setError(null);
     try {
-      const orgId = params.id?.trim();
+      let orgId = params.id?.trim();
 
-      if (!orgId || orgId === 'undefined' || orgId === 'null') {
-        if (mounted.current) { setError('not_found'); setLoading(false); }
-        return;
-      }
-
-      if (!/^[a-zA-Z0-9_-]{1,128}$/.test(orgId)) {
-        if (mounted.current) { setError('not_found'); setLoading(false); }
-        return;
+      // Fallback: if no orgId in params, look up the user's org from the server
+      if (!orgId || orgId === 'undefined' || orgId === 'null' || !/^[a-zA-Z0-9_-]{1,128}$/.test(orgId)) {
+        try {
+          const myOrgs = await Organization.mine();
+          const firstOrg = Array.isArray(myOrgs) ? myOrgs[0] : null;
+          if (firstOrg?.id) {
+            orgId = firstOrg.id;
+          } else {
+            if (mounted.current) { setError('not_found'); setLoading(false); }
+            return;
+          }
+        } catch {
+          if (mounted.current) { setError('not_found'); setLoading(false); }
+          return;
+        }
       }
 
       let orgData: OrganizationData | null = null;
       try {
-        orgData = await Organization.get(orgId);
+        orgData = await Organization.get(orgId as string);
         if (!mounted.current) return;
         setOrganization(orgData);
         setIsFollowing(!!(orgData as any).is_following);
       } catch (err: any) {
         if (!mounted.current) return;
         if (__DEV__) console.error('[organization] Failed to load organization data:', err);
+        const errMsg = err?.message || 'Failed to load organization';
+        // Surface the error rather than showing a blank page
+        if (mounted.current) {
+          setError(errMsg.toLowerCase().includes('not found') ? 'not_found' : errMsg);
+          setLoading(false);
+        }
+        return;
       }
 
       try {

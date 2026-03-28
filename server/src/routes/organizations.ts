@@ -1188,13 +1188,14 @@ organizationsRouter.post('/join-requests/:requestId/approve', requireAuth as any
       `Your request to join ${joinRequest.organization.name} was approved!`,
       { type: 'join_request_approved', organization_id: joinRequest.organization_id }
     );
+    console.log(`[notif] push sent JOIN_REQUEST_APPROVED to user=${joinRequest.user_id}`);
   } catch (err) {
-    console.error('Failed to send join request approved push notification:', err);
+    console.error('[notif] Failed to send push for JOIN_REQUEST_APPROVED:', (err as any)?.message || err);
   }
 
   // In-app notification so it shows in the Updates page
   try {
-    await prisma.notification.create({
+    const notif = await prisma.notification.create({
       data: {
         user_id: joinRequest.user_id,
         actor_id: req.user?.id || null,
@@ -1202,8 +1203,9 @@ organizationsRouter.post('/join-requests/:requestId/approve', requireAuth as any
         meta: { organization_id: joinRequest.organization_id, organization_name: joinRequest.organization.name },
       },
     });
+    console.log(`[notif] JOIN_REQUEST_APPROVED created id=${notif.id} for user=${joinRequest.user_id}`);
   } catch (err) {
-    console.error('Failed to create join request approved notification:', err);
+    console.error('[notif] Failed to create JOIN_REQUEST_APPROVED notification:', (err as any)?.message || err);
   }
 
   return res.json({ message: 'Join request approved' });
@@ -1796,8 +1798,10 @@ organizationsRouter.post('/:id/coaches/:userId/approve', requireAuth as any, req
       'Application Approved!',
       `${org?.name || 'Your league'} approved your coach application`,
       { type: 'coach_approved', screen: 'onboarding', organization_id: orgId },
-    ).catch((err) => {
-      console.warn('[orgs] coach approval push failed:', (err as any)?.message || err);
+    ).then(() => {
+      console.log(`[notif] push sent TEAM_INVITE(coach_approved) to user=${coachId}`);
+    }).catch((err) => {
+      console.error('[notif] coach approval push failed:', (err as any)?.message || err);
     });
 
     return res.json({ message: 'Coach approved', coach_id: coachId });
@@ -1908,6 +1912,7 @@ organizationsRouter.get('/:id', async (req, res) => {
     const id = String(req.params.id);
     const authedReq = req as AuthedRequest;
     const currentUserId = authedReq.user?.id ?? null;
+    console.log(`[org-get] id=${id} user=${currentUserId || 'anon'}`);
     const organization = await prisma.organization.findUnique({
       where: { id },
       include: {
@@ -1936,12 +1941,18 @@ organizationsRouter.get('/:id', async (req, res) => {
       }
     });
 
-    if (!organization) return res.status(404).json({ error: 'Organization not found' });
+    if (!organization) {
+      console.log(`[org-get] not found: id=${id}`);
+      return res.status(404).json({ error: 'Organization not found' });
+    }
 
     if (!organization.admin_approved) {
       const isAdminUser = await isCurrentUserPlatformAdmin(authedReq);
       if (!isAdminUser) {
-        if (!currentUserId) return res.status(404).json({ error: 'Organization not found' });
+        if (!currentUserId) {
+          console.log(`[org-get] unapproved+anon: id=${id}`);
+          return res.status(404).json({ error: 'Organization not found' });
+        }
         const [membership, pendingJoin] = await Promise.all([
           prisma.organizationMembership.findUnique({
             where: { organization_id_user_id: { organization_id: id, user_id: currentUserId } },
@@ -1953,7 +1964,10 @@ organizationsRouter.get('/:id', async (req, res) => {
           }),
         ]);
         const hasAccess = membership?.status === 'active' || pendingJoin?.status === 'pending';
-        if (!hasAccess) return res.status(404).json({ error: 'Organization not found' });
+        if (!hasAccess) {
+          console.log(`[org-get] unapproved+no-access: id=${id} user=${currentUserId}`);
+          return res.status(404).json({ error: 'Organization not found' });
+        }
       }
     }
 
