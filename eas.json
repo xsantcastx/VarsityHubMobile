@@ -81,6 +81,7 @@
       "channel": "production",
       "env": {
         "NODE_ENV": "production",
+        "EAS_SKIP_AUTO_FINGERPRINT": "1",
         "SENTRY_ORG": "lime-productions",
         "SENTRY_PROJECT": "varsity-hub-mobile",
         "SENTRY_DISABLE_AUTO_UPLOAD": "true",
