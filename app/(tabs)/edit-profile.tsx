@@ -453,12 +453,12 @@ export default function EditProfileScreen() {
       }
       if (primarySport.trim()) preferences.primary_sport = primarySport.trim().toLowerCase();
 
-      // Add preferences to update data if we have any
-      if (Object.keys(preferences).length > 0) {
-        directFields.preferences = preferences;
-      }
-      
       await User.updateMe(directFields);
+
+      // Preferences must go to a separate endpoint — /me rejects the preferences field
+      if (Object.keys(preferences).length > 0) {
+        await User.updatePreferences(preferences);
+      }
       
       // Reload user data to reflect changes immediately
       await loadUserData();

@@ -54,6 +54,7 @@ const mapHighlightItem = (input: any): HighlightItem | null => {
     author_id: String(authorId),
     author: input.author ? {
       id: String(input.author.id || authorId),
+      username: input.author.username || undefined,
       display_name: String(input.author.display_name || 'Anonymous'),
       avatar_url: input.author.avatar_url || undefined,
     } : undefined,
@@ -261,7 +262,7 @@ const HighlightCard = ({
                 </View>
               )}
               <Text style={[styles.authorName, { color: Colors[colorScheme].text }]} numberOfLines={1}>
-                {item.author?.display_name || 'Anonymous'}
+                {item.author?.username ? `@${item.author.username}` : (item.author?.display_name || 'Anonymous')}
               </Text>
               <Ionicons name="chevron-forward" size={14} color={Colors[colorScheme].tabIconDefault} />
             </View>

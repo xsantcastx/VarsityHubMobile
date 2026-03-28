@@ -13,6 +13,7 @@ export interface HighlightItem {
   author_id: string;
   author?: {
     id: string;
+    username?: string;
     display_name: string;
     avatar_url?: string;
   };

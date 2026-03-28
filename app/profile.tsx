@@ -816,8 +816,8 @@ export default function ProfileScreen() {
 
       {/* Content Below Banner */}
       <View style={[styles.profileDetailsContainer, { backgroundColor: theme.background }]}>
-        {/* User Info - Below Banner, next to avatar overhang */}
-        <View style={styles.userInfoBelowBanner}>
+        {/* User Info + Edit Button — same row, evenly balanced */}
+        <View style={[styles.userInfoBelowBanner, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
           <View style={styles.nameRow}>
             <Text style={[styles.userName, { color: theme.text }]}>{displayUsername}</Text>
             {roleLabel && (
@@ -830,16 +830,12 @@ export default function ProfileScreen() {
               </View>
             )}
           </View>
-        </View>
-
-        {/* Edit Profile Button Row - Only shown when viewing own profile */}
-        {!viewingUserId || viewingUserId === currentUserId ? (
-          <View style={styles.usernameRow}>
+          {(!viewingUserId || viewingUserId === currentUserId) && (
             <Pressable style={[styles.editButtonBelowBanner, { backgroundColor: theme.surface || theme.background, borderColor: theme.border }]} onPress={() => void router.push('/edit-profile')}>
               <Text style={[styles.editButtonBelowBannerText, { color: theme.text }]}>Edit profile</Text>
             </Pressable>
-          </View>
-        ) : null}
+          )}
+        </View>
 
         {/* User Details - Left aligned with avatar */}
         <View style={styles.userDetails}>

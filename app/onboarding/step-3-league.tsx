@@ -315,7 +315,7 @@ export default function Step3League() {
         message: joinMessage.trim() || undefined
       });
       
-      // Save pending status
+      // Save pending status to local context
       setOB((prev) => ({
         ...prev,
         organization_id: selectedOrg.id,
@@ -323,6 +323,14 @@ export default function Step3League() {
         join_request_pending: true,
         step_3_visited: true,
       }));
+
+      // Persist organization_id to backend preferences so it survives app restarts
+      // and is available in complete-onboarding after approval
+      try {
+        await User.updatePreferences({ organization_id: selectedOrg.id, organization_name: selectedOrg.name });
+      } catch {
+        // Non-fatal: local context still has org_id; complete-onboarding will use it
+      }
 
       // Navigate to pending approval screen (coach waits for league owner approval)
       router.replace({
