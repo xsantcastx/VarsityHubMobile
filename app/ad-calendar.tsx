@@ -929,24 +929,33 @@ export default function AdCalendarScreen() {
           )}
 
           {sortedDates.length > 0 && (() => {
-            const lastEnd = new Date(sortedDates[sortedDates.length - 1] + 'T23:59:59');
-            const totalHrs = Math.max(0, Math.round((lastEnd.getTime() - Date.now()) / 3600000));
-            const firstSelectedIsToday = sortedDates[0] <= todayISO();
+            // Each booked day = 24 hours of ad exposure (full day, regardless of when it goes live)
+            const totalHrs = sortedDates.length * 24;
+            const hasPastDates = sortedDates.some(d => d < todayISO());
+            const hasCurrentOrPastDates = sortedDates[0] <= todayISO();
             return (
               <>
                 <View style={[styles.rowBetween, { marginTop: 4 }]}>
-                  <Text style={[styles.bold, { color: Colors[colorScheme].text }]}>Total Hours Booked:</Text>
+                  <Text style={[styles.bold, { color: Colors[colorScheme].text }]}>Total Hours Purchasing:</Text>
                   <View style={styles.hoursHighlight}>
                     <Text style={styles.hoursHighlightText}>
                       {totalHrs} hrs ({sortedDates.length} day{sortedDates.length !== 1 ? 's' : ''})
                     </Text>
                   </View>
                 </View>
-                {firstSelectedIsToday && (
+                {hasPastDates && (
                   <View style={styles.fullPriceNotice}>
                     <MaterialIcons name="info-outline" size={16} color="#92400E" />
                     <Text style={styles.fullPriceNoticeText}>
-                      Note: Full price is charged regardless of when your ad goes live during a booked day.
+                      Some selected dates are in the past. You are purchasing {totalHrs} hours total ({sortedDates.length} day{sortedDates.length !== 1 ? 's' : ''} × 24 hrs). Full price applies to all booked days.
+                    </Text>
+                  </View>
+                )}
+                {!hasPastDates && hasCurrentOrPastDates && (
+                  <View style={styles.fullPriceNotice}>
+                    <MaterialIcons name="info-outline" size={16} color="#92400E" />
+                    <Text style={styles.fullPriceNoticeText}>
+                      Full price is charged regardless of when your ad goes live during a booked day.
                     </Text>
                   </View>
                 )}
@@ -990,6 +999,12 @@ export default function AdCalendarScreen() {
           )}
           {canPay && (
             <>
+              <View style={{ backgroundColor: colorScheme === 'dark' ? '#1C1400' : '#FFFBEB', borderWidth: 1, borderColor: colorScheme === 'dark' ? '#92400E' : '#FCD34D', borderRadius: 8, padding: 12, marginBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <MaterialIcons name="warning-amber" size={18} color="#92400E" />
+                <Text style={{ color: colorScheme === 'dark' ? '#FDE68A' : '#92400E', fontSize: 13, fontWeight: '600', flex: 1 }}>
+                  All Sales Final — No Refunds. By paying you confirm your purchase.
+                </Text>
+              </View>
               <Pressable
                 disabled={payButtonDisabled}
                 onPress={handlePayment}
@@ -1014,9 +1029,6 @@ export default function AdCalendarScreen() {
                   Payments are temporarily disabled while Stripe is configured. Please try again later.
                 </Text>
               )}
-              <Text style={{ color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280', fontSize: 12, textAlign: 'center', marginTop: 6 }}>
-                All sales are final. No refunds.
-              </Text>
             </>
           )}
           {isDraft && (

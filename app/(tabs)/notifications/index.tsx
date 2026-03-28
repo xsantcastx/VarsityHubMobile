@@ -169,8 +169,8 @@ export default function NotificationsScreen() {
       } else if (item.type === 'AD_REJECTED' && item.meta?.ad_id) {
         router.push(`/ad-calendar?adId=${encodeURIComponent(item.meta.ad_id)}` as any);
       } else if (item.type === 'ORG_APPROVED') {
-        const oid = item.meta?.organization_id;
-        router.push(oid ? { pathname: '/(tabs)/organization', params: { id: oid } } as any : '/(tabs)' as any);
+        // Org approved — take coach to create their first team
+        router.push('/(tabs)/create-team' as any);
       } else if (item.type === 'JOIN_REQUEST_APPROVED') {
         const oid = item.meta?.organization_id;
         router.push(oid ? { pathname: '/(tabs)/organization', params: { id: oid } } as any : '/(tabs)' as any);
