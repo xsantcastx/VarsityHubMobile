@@ -135,13 +135,26 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
             }
             return retryText;
           }
-          // Retry also failed — fall through to throw
+          // Retry also failed — parse actual retry response and throw its error
+          const retryText = await retryRes.text().catch(() => '');
+          const retryCt = (retryRes.headers && retryRes.headers.get && retryRes.headers.get('content-type')) || '';
+          let retryData: any = null;
+          if (retryCt.includes('application/json')) {
+            try { retryData = retryText ? JSON.parse(retryText) : null; } catch { retryData = null; }
+          } else {
+            retryData = retryText || null;
+          }
+          const retryMsg = retryCt.includes('application/json')
+            ? (retryData && (retryData.error || retryData.message))
+            : (retryRes.status === 401 ? 'Session expired' : null);
+          const retryErr: any = new Error(retryMsg || `HTTP ${retryRes.status}`);
+          retryErr.status = retryRes.status;
+          retryErr.data = retryData;
+          // Only clear auth token if the retry itself returned 401 (session truly expired)
           if (retryRes.status === 401) {
             clearAuthToken();
-            const retryErr: any = new Error('Session expired');
-            retryErr.status = 401;
-            throw retryErr;
           }
+          throw retryErr;
         }
 
         // Refresh failed or no refresh token — clear and throw

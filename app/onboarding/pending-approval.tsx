@@ -47,6 +47,7 @@ export default function PendingApproval() {
         // Complete onboarding on server, then go to main app.
         // If completion fails, stay here and show a retry state instead of redirect loops.
         let completed = false;
+        let completeOnboardingErr: any = null;
         try {
           // Use server data (me) as primary source, fall back to local state (ob)
           const mePrefs = me?.preferences || {};
@@ -62,12 +63,18 @@ export default function PendingApproval() {
             team_id: mePrefs.team_id || (ob as any).team_id,
             team_name: mePrefs.team_name || (ob as any).team_name,
           });
+          // Server has recorded completion — this is the source of truth.
+          // markOnboardingCompleteLocally + checkAuth are local state syncs; their
+          // failure does NOT mean onboarding is incomplete on the server.
+          completed = true;
           await markOnboardingCompleteLocally();
           await checkAuth();
           registerPushToken().catch(() => {});
-          completed = true;
-        } catch (err) {
+        } catch (err: any) {
           if (__DEV__) console.warn('[pending-approval] Failed to complete onboarding:', err);
+          if (!completed) {
+            completeOnboardingErr = err;
+          }
         }
         if (!completed) {
           try {
@@ -90,7 +97,11 @@ export default function PendingApproval() {
           }
         }
         if (!completed) {
-          setCompletionError('Approval is complete, but final account setup failed. Tap retry below.');
+          const errMsg = completeOnboardingErr?.message;
+          const userFacingMsg = errMsg && errMsg.length < 200 && !/^HTTP \d/.test(errMsg)
+            ? errMsg
+            : 'Approval is complete, but final account setup failed. Tap retry below.';
+          setCompletionError(userFacingMsg);
           return;
         }
         // Don't auto-redirect — let user tap Continue when ready
