@@ -581,6 +581,8 @@ model Ad {
   banner_fit_mode String?  @default("fill") // cover | contain | fill (CSS object-fit)
   target_url      String?  // URL to open when ad is clicked
   target_zip_code String?
+  target_lat      Float?   // Latitude of target_zip_code (populated on create/update)
+  target_lng      Float?   // Longitude of target_zip_code (populated on create/update)
   radius          Int      @default(45) // non-null with default
   description     String?
   status          AdStatus        @default(draft)
@@ -596,6 +598,7 @@ model Ad {
   @@index([status])
   @@index([target_zip_code, payment_status])
   @@index([status, payment_status])
+  @@index([target_lat, target_lng])
 }
 
 model Category {

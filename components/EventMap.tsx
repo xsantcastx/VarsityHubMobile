@@ -61,8 +61,17 @@ export default function EventMap({
           const location = await Location.getCurrentPositionAsync({});
           setUserLocation(location);
 
-          // Keep USA-wide view, don't auto-zoom to user location
-          // User can tap the location button if they want to zoom to their position
+          // Auto-center on user location if no specific region was requested
+          if (!initialRegion) {
+            setTimeout(() => {
+              mapRef.current?.animateToRegion({
+                latitude: location.coords.latitude,
+                longitude: location.coords.longitude,
+                latitudeDelta: 0.15,
+                longitudeDelta: 0.15,
+              }, 800);
+            }, 400);
+          }
         }
       } catch (error) {
         if (__DEV__) console.error('Error getting location:', error);

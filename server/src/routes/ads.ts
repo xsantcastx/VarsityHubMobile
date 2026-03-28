@@ -73,6 +73,32 @@ async function getZipCoordinatesWithFallback(zipCode: string): Promise<{ lat: nu
 export const adsRouter = Router();
 registerIdValidation(adsRouter);
 
+// One-time backfill: populate target_lat/target_lng for existing ads that predate the column.
+// Runs once at startup, fire-and-forget — safe to repeat (skips ads already populated).
+void (async () => {
+  try {
+    const unresolved = await prisma.ad.findMany({
+      where: { target_zip_code: { not: null }, target_lat: null },
+      select: { id: true, target_zip_code: true },
+      take: 500,
+    });
+    if (unresolved.length === 0) return;
+    console.log(`[ads] backfill: resolving coords for ${unresolved.length} ads`);
+    for (const ad of unresolved) {
+      const coords = await getZipCoordinatesWithFallback(ad.target_zip_code!);
+      if (coords) {
+        await prisma.ad.update({
+          where: { id: ad.id },
+          data: { target_lat: coords.lat, target_lng: coords.lon },
+        });
+      }
+    }
+    console.log('[ads] backfill: done');
+  } catch (err) {
+    console.warn('[ads] backfill failed (non-fatal):', (err as any)?.message || err);
+  }
+})();
+
 // Create an Ad — requires Veteran/Legend plan or admin
 adsRouter.post('/', requireVerified as any, requireOnboarded as any, adCreationLimiter, async (req: AuthedRequest, res) => {
   try {
@@ -92,6 +118,7 @@ adsRouter.post('/', requireVerified as any, requireOnboarded as any, adCreationL
       return res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten().fieldErrors });
     }
     const { contact_name, contact_email, business_name, banner_url, banner_fit_mode, target_url, target_zip_code, description } = parsed.data;
+    const zipCoords = await getZipCoordinatesWithFallback(target_zip_code);
     const ad = await prisma.ad.create({
       data: {
         user_id: req.user?.id,
@@ -102,6 +129,8 @@ adsRouter.post('/', requireVerified as any, requireOnboarded as any, adCreationL
         banner_fit_mode: banner_fit_mode ?? null,
         target_url: target_url ?? null,
         target_zip_code,
+        target_lat: zipCoords?.lat ?? null,
+        target_lng: zipCoords?.lon ?? null,
         radius: 9, // Fixed 9km radius for all ads
         description: description ?? null,
         status: 'draft',
@@ -332,16 +361,28 @@ adsRouter.get('/for-feed', async (req, res) => {
 
     debugLog('[ads] for-feed user coordinates:', userCoords);
 
-    const whereAd: any = {
-      payment_status: 'paid',
-      status: 'active',
-      target_zip_code: { not: null }, // Only show ads with a target zip code
-    };
-
     // If no user location, return empty — no untargeted/national ads
     if (!userCoords) {
       return res.json({ date: dateISO, ads: [] });
     }
+
+    // DB-level bounding box: ~9 miles in each direction (0.13° lat ≈ 9mi, 0.15° lng ≈ 9mi at US latitudes)
+    // This dramatically reduces rows fetched before the precise Haversine JS filter below.
+    // Ads created before this column was added (target_lat IS NULL) fall back to JS-only filtering.
+    const BBOX_LAT = 0.13;
+    const BBOX_LNG = 0.15;
+    const whereAd: any = {
+      payment_status: 'paid',
+      status: 'active',
+      target_zip_code: { not: null },
+      OR: [
+        {
+          target_lat: { gte: userCoords.lat - BBOX_LAT, lte: userCoords.lat + BBOX_LAT },
+          target_lng: { gte: userCoords.lon - BBOX_LNG, lte: userCoords.lon + BBOX_LNG },
+        },
+        { target_lat: null }, // legacy ads without pre-computed coords
+      ],
+    };
 
     debugLog('[ads] for-feed where clause for ads:', whereAd);
 
@@ -353,25 +394,14 @@ adsRouter.get('/for-feed', async (req, res) => {
         },
       },
       orderBy: { created_at: 'desc' },
-      take: 50, // Safety cap; distance filter applied below
+      take: 20,
       include: {
         reservations: true,
       },
     });
 
-    // KNOWN SCALABILITY LIMITATION (post-launch optimization):
-    // Distance filtering is done in JS after fetching from the DB.
-    // At scale (>1000 active ads), this should move to the database level by:
-    //   1. Adding target_lat/target_lng columns to the Ad model (populated on ad create/update)
-    //   2. Filtering with a bounding box WHERE clause:
-    //      target_lat BETWEEN (userLat - 0.08) AND (userLat + 0.08)
-    //      target_lng BETWEEN (userLng - 0.1) AND (userLng + 0.1)
-    //      (0.08 deg lat / 0.1 deg lng ≈ 9km at US latitudes)
-    //   3. Removing the post-fetch haversine filter below
-    // The `take: 50` above caps the initial fetch as a safety measure.
-
-    // Filter by distance — only show ads whose target zip is within their radius
-    // Pre-resolve ad ZIP coordinates (with Google fallback for ZIPs not in static table)
+    // Precise Haversine filter on the smaller bounding-box result set.
+    // Also handles legacy ads (target_lat IS NULL) by resolving their ZIP on the fly.
     const adZipCoords = new Map<string, { lat: number; lon: number }>();
     const uniqueAdZips = [...new Set(ads.map(a => a.target_zip_code).filter(Boolean))] as string[];
     await Promise.all(uniqueAdZips.map(async (zip) => {
@@ -381,10 +411,13 @@ adsRouter.get('/for-feed', async (req, res) => {
 
     const filtered = ads.filter(ad => {
       if (!ad.target_zip_code) return false;
-      const adCoords = adZipCoords.get(ad.target_zip_code);
+      // Prefer stored coords; fall back to ZIP lookup for legacy ads
+      const adCoords = ad.target_lat != null && ad.target_lng != null
+        ? { lat: ad.target_lat, lon: ad.target_lng }
+        : adZipCoords.get(ad.target_zip_code);
       if (!adCoords) return false;
       const dist = haversineDistance(userCoords!.lat, userCoords!.lon, adCoords.lat, adCoords.lon);
-      return dist <= 5.59; // Fixed 9km radius (5.59 miles)
+      return dist <= 5.59; // 9km radius (5.59 miles)
     });
 
     const result = filtered.slice(0, limit);
@@ -458,6 +491,13 @@ adsRouter.put('/:id([a-z0-9]{15,50})', requireAuth as any, async (req: AuthedReq
     const data: Record<string, any> = {};
     for (const [k, v] of Object.entries(parsed.data)) {
       if (k in safeBody) data[k] = v;
+    }
+
+    // Populate lat/lng when zip code changes
+    if ('target_zip_code' in data && data.target_zip_code) {
+      const zipCoords = await getZipCoordinatesWithFallback(data.target_zip_code);
+      data.target_lat = zipCoords?.lat ?? null;
+      data.target_lng = zipCoords?.lon ?? null;
     }
 
     // If banner_url or target_url changed, require re-approval — but only if ad hasn't been paid for yet

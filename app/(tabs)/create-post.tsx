@@ -26,6 +26,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 let VideoThumbnails: any = null;
 try { VideoThumbnails = require('expo-video-thumbnails'); } catch { /* native module not available */ }
+import { compressVideoSafe } from '@/utils/compressVideo';
 
 // Retry thumbnail generation at multiple timestamps
 const generateVideoThumbnail = async (videoUri: string, setVideoThumbnailUri: (uri: string) => void) => {
@@ -431,6 +432,9 @@ export default function CreatePostScreen() {
               if (__DEV__) console.warn('[CreatePost] Image manipulation failed, using original:', error?.message || error);
             }
           }
+        } else {
+          // Compress video before upload (falls back silently if native module unavailable)
+          uri = await compressVideoSafe(uri);
         }
         setPicked({ uri, type: media, mime: mimeType });
         // Generate thumbnail for video preview immediately
@@ -478,6 +482,7 @@ export default function CreatePostScreen() {
         quality: 0.85,
         exif: false,
         videoMaxDuration: 30,
+        videoExportPreset: ImagePicker.VideoExportPreset.MediumQuality,
         legacy: false,
       } as any);
       if (!r.canceled && r.assets && r.assets[0]) {
@@ -527,6 +532,9 @@ export default function CreatePostScreen() {
               if (__DEV__) console.warn('[CreatePost] Image manipulation failed, using original:', error?.message || error);
             }
           }
+        } else {
+          // Compress video before upload (falls back silently if native module unavailable)
+          uri = await compressVideoSafe(uri);
         }
         setPicked({ uri, type: media, mime: mimeType });
         if (media === 'video') {
