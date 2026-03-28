@@ -21,14 +21,16 @@ describe('Payment Utilities', () => {
       const result = calculateAdPriceCents(['2025-01-06', '2025-01-11']); // Mon + Sat
       expect(result.weekdayBlocks).toBe(1);
       expect(result.weekendBlocks).toBe(1);
-      expect(result.totalCents).toBe(1300);
+      // Current pricing is 499 + 799 cents.
+      expect(result.totalCents).toBe(1298);
     });
 
     it('counts weekday blocks across multiple weeks', () => {
       const result = calculateAdPriceCents(['2025-01-06', '2025-01-13']); // Two Mondays
       expect(result.weekdayBlocks).toBe(2);
       expect(result.weekendBlocks).toBe(0);
-      expect(result.totalCents).toBe(1000);
+      // Current weekday slot pricing is 499 cents per week.
+      expect(result.totalCents).toBe(998);
     });
   });
 
