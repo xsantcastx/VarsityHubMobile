@@ -213,80 +213,78 @@ export default function CommunityDiscoverScreen() {
 
   const loadPersonalization = useCallback(async (user: any) => {
     setPersonalizationNotice(null);
-    try {
-      let items: any[] = [];
+
+    // Fetch posts and people in parallel — people used to wait for posts to finish
+    const fetchPosts = async (): Promise<any[]> => {
       try {
-        const trending = await Post.trendingPage(undefined, 20);
-        items = Array.isArray(trending.items) ? trending.items : [];
+        let items: any[] = [];
+        try {
+          const trending = await Post.trendingPage(undefined, 20);
+          items = Array.isArray(trending.items) ? trending.items : [];
+        } catch {
+          const postsPage = await Post.listPage(undefined, 20, '-created_date');
+          items = Array.isArray(postsPage.items) ? postsPage.items : [];
+        }
+        if (items.length === 0) {
+          try {
+            const fallback = await Post.list('-created_at', 20);
+            items = Array.isArray(fallback) ? fallback : [];
+          } catch { /* empty */ }
+        }
+        return items;
       } catch {
-        const postsPage = await Post.listPage(undefined, 20, '-created_date');
-        items = Array.isArray(postsPage.items) ? postsPage.items : [];
-      }
-      if (items.length === 0) {
         try {
           const fallback = await Post.list('-created_at', 20);
-          items = Array.isArray(fallback) ? fallback : [];
+          return Array.isArray(fallback) ? fallback : [];
         } catch {
-          items = [];
+          return [];
         }
       }
-      const followingOnly = items.filter((p: any) => p && (p.is_following_author || p.is_following));
-      const nonFollowing = items.filter((p: any) => !(p && (p.is_following_author || p.is_following)));
-      setFollowingPosts(followingOnly.slice(0, 12));
-      setDiscoverPosts((nonFollowing.length ? nonFollowing : items).slice(0, 12));
+    };
 
-      // Nearby people: prefer school/league if present, else zip
+    const fetchPeople = async (): Promise<any[]> => {
       try {
         const school = user?.preferences?.school || user?.school || null;
         const league = user?.preferences?.league || user?.league || null;
         const zipQ = user?.preferences?.zip_code ? String(user.preferences.zip_code).trim() : '';
-        
         if (school || league) {
           const q = String(school || league);
           try {
             const members = await Team.allMembers(q);
             const arr = Array.isArray(members) ? members : (Array.isArray((members as any)?.items) ? (members as any).items : []);
-            setNearbyPeople(arr.slice(0, 20));
-          } catch (teamError) {
-            if (__DEV__) console.warn('Discover load: team members failed', teamError);
-            // Fallback to zip code if team members fails
+            return arr.slice(0, 20);
+          } catch {
             if (zipQ) {
-              try {
-                const users = await User.listAll(zipQ, 30);
-                const arr = Array.isArray(users) ? users : (Array.isArray((users as any)?.items) ? (users as any).items : []);
-                setNearbyPeople(arr.slice(0, 20));
-              } catch {
-                setNearbyPeople([]);
-              }
-            } else {
-              setNearbyPeople([]);
+              const users = await User.listAll(zipQ, 30);
+              const arr = Array.isArray(users) ? users : (Array.isArray((users as any)?.items) ? (users as any).items : []);
+              return arr.slice(0, 20);
             }
           }
         } else if (zipQ) {
-          // Note: User.listAll is admin-only, so this will return empty array for regular users
-          // This is handled gracefully in api/entities.ts
           const users = await User.listAll(zipQ, 30);
           const arr = Array.isArray(users) ? users : (Array.isArray((users as any)?.items) ? (users as any).items : []);
-          setNearbyPeople(arr.slice(0, 20));
-        } else {
-          setNearbyPeople([]);
+          return arr.slice(0, 20);
         }
       } catch (peopleError) {
         if (__DEV__) console.warn('Discover load: nearby people failed', peopleError);
-        setNearbyPeople([]);
       }
+      return [];
+    };
+
+    try {
+      const [items, people] = await Promise.all([fetchPosts(), fetchPeople()]);
+
+      const followingOnly = items.filter((p: any) => p && (p.is_following_author || p.is_following));
+      const nonFollowing = items.filter((p: any) => !(p && (p.is_following_author || p.is_following)));
+      setFollowingPosts(followingOnly.slice(0, 12));
+      setDiscoverPosts((nonFollowing.length ? nonFollowing : items).slice(0, 12));
+      setNearbyPeople(people);
     } catch (personalizationError) {
       if (__DEV__) console.warn('Discover load: personalization failed', personalizationError);
       setPersonalizationNotice('Personalized suggestions are temporarily unavailable. Pull to refresh to try again.');
-      try {
-        const fallback = await Post.list('-created_at', 20);
-        const items = Array.isArray(fallback) ? fallback : [];
-        setFollowingPosts([]);
-        setDiscoverPosts(items.slice(0, 12));
-      } catch {
-        setFollowingPosts([]);
-        setDiscoverPosts([]);
-      }
+      setFollowingPosts([]);
+      setDiscoverPosts([]);
+      setNearbyPeople([]);
     }
   }, []);
 
