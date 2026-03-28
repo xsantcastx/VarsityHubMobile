@@ -335,8 +335,8 @@ export default function SignUpScreen() {
             >
               <Ionicons name="logo-google" size={20} color={Colors[colorScheme].mutedText} style={styles.googleIcon} />
               <View style={{ flex: 1 }}>
-                <Text style={[styles.googleButtonText, { color: Colors[colorScheme].text }]}>Google sign up unavailable</Text>
-                <Text style={[styles.googleButtonSubtext, { color: Colors[colorScheme].mutedText }]}>Add Google OAuth client IDs to enable this option.</Text>
+                <Text style={[styles.googleButtonText, { color: Colors[colorScheme].text }]}>Google sign-up temporarily unavailable</Text>
+                <Text style={[styles.googleButtonSubtext, { color: Colors[colorScheme].mutedText }]}>Please use email or Apple sign-up to continue.</Text>
               </View>
             </View>
           )}

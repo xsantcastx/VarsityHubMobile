@@ -255,7 +255,7 @@ export default function SignInScreen() {
     <SafeAreaView style={[styles.root, { backgroundColor: palette.background, borderLeftWidth: 0, borderRightWidth: 0 }]} edges={['top', 'bottom']}>
       <Stack.Screen options={{ title: 'Sign In', headerShown: false }} />
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={[styles.flex, { borderWidth: 0 }]}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
       >
@@ -341,9 +341,9 @@ export default function SignInScreen() {
               >
                 <Ionicons name="logo-google" size={20} color={palette.mutedText} style={styles.googleIcon} />
                 <View style={{ flex: 1 }}>
-                <Text style={[styles.googleButtonText, { color: palette.mutedText }]}>Google sign in unavailable</Text>
+                <Text style={[styles.googleButtonText, { color: palette.mutedText }]}>Google sign-in temporarily unavailable</Text>
                   <Text style={[styles.googleButtonSubtext, { color: palette.mutedText }]}>
-                    Configure Google OAuth client IDs to enable one-tap login.
+                    Please use email or Apple sign-in to continue.
                   </Text>
                 </View>
               </View>
