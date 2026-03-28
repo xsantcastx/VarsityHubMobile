@@ -1,5 +1,5 @@
 # VarsityHub Mobile — Codebase Map
-**Last updated:** 2026-03-18
+**Last updated:** 2026-03-28
 **Purpose:** Session briefing document for AI assistants. Read this before making any changes.
 **Related docs:** `docs/FRONT_BACKEND_WIRING_AUDIT.md`, `docs/SYSTEM_ARCHITECTURE_AUDIT.md`
 
@@ -23,8 +23,8 @@ VarsityHubMobile/
 │   │   ├── notifications/index.tsx # Full inline Notifications screen
 │   │   ├── messages/index.tsx  # Re-exports app/messages.tsx
 │   │   ├── post-detail.tsx     # Post detail / comment thread
-│   │   ├── user-profile.tsx    # Re-exports app/profile.tsx (alias)
-│   │   ├── team-profile.tsx    # Re-exports app/profile.tsx (alias)
+│   │   ├── user-profile.tsx    # Historical hidden-tab alias (may be absent; root app/user-profile.tsx is canonical)
+│   │   ├── team-profile.tsx    # Re-exports app/profile.tsx via app/(tabs)/team-profile.tsx
 │   │   ├── message-thread.tsx  # DM thread screen
 │   │   ├── game-detail.tsx     # Re-exports app/game-details/GameDetailsScreen
 │   │   ├── team-hub.tsx        # Event hub / event discovery for coaches
@@ -46,7 +46,7 @@ VarsityHubMobile/
 │   ├── verify.tsx              # Email verification landing
 │   ├── admin-users.tsx         # Admin: user management
 │   ├── admin-ads.tsx           # Admin: ad management
-│   ├── onboarding/             # 3-step onboarding (see onboardingReducer.ts)
+│   ├── onboarding/             # Current guided flow (role/basic/league + coach agreement + pending approval states)
 │   │   ├── _layout.tsx
 │   │   ├── index.tsx            # Redirects to next incomplete step
 │   │   ├── step-1-role.tsx      # Select Fan or Coach
@@ -54,7 +54,7 @@ VarsityHubMobile/
 │   │   ├── step-3-league.tsx    # Join or create league (coach only)
 │   │   ├── league-pending-approval.tsx # Coach created league — waiting approval
 │   │   ├── pending-approval.tsx # Coach requested to join — waiting approval
-│   │   ├── parental-consent.tsx # COPPA consent for under-18 users
+│   │   ├── coach-agreement.tsx  # Coach agreement/acknowledgement screen in onboarding flow
 │   │   └── components/OnboardingLayout.tsx # Shared layout (back, step indicator, continue)
 │   ├── settings/               # Settings area
 │   │   └── index.tsx           # Settings screen (notifications, privacy, account)
@@ -930,7 +930,7 @@ SecureStore/localStorage key-value store for app settings. Key prefix: `vh_setti
 Single source of truth for subscription plans used by both frontend and server.
 - **rookie**: Free, max 2 teams, 1 staff/team, 50 athletes/team
 - **veteran**: $1.00/mo per additional team (3+), 5 staff/team, 100 athletes/team. Stripe priceId: `price_1SVco4GJt8CsPE1EBNNlHYPB`
-- **legend**: $20/yr flat, unlimited teams/staff/roster, extracurricular support. Stripe priceId: `prod_RNLdYADy7i6dB5`
+- **legend**: $20/yr flat, unlimited teams/staff/roster, extracurricular support. Stripe priceId: `price_1SKO8lGJt8CsPE1E7RmXJblX`
 
 ---
 
@@ -958,7 +958,7 @@ Single source of truth for subscription plans used by both frontend and server.
 | `expo-image-picker` | ~17.0.10 | Photo/video picker |
 | `expo-image-manipulator` | ~14.0.7 | Image resize/compress before upload |
 | `expo-image` | ~3.0.8 | Optimized image display (lazy load, cache) |
-| `expo-video` | ~3.0.14 | Video playback |
+| `expo-video` | ~3.0.16 | Video playback |
 | `expo-media-library` | ~18.2.0 | Save to device media library |
 | `expo-camera` | (via image-picker plugin) | Camera access |
 
@@ -973,7 +973,7 @@ Single source of truth for subscription plans used by both frontend and server.
 |---------|---------|-----|
 | `@stripe/stripe-react-native` | 0.50.3 | In-app PaymentSheet for subscriptions + ads |
 | `expo-web-browser` | ~15.0.9 | Opens Stripe Checkout in browser |
-| (Server) `stripe` | ~17.x | Stripe SDK for payment processing |
+| (Server) `stripe` | ^16.6.0 | Stripe SDK for payment processing |
 
 ### Analytics & Monitoring
 | Package | Version | Use |
