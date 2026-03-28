@@ -37,9 +37,11 @@ describe('API Event Endpoints', () => {
         password_hash: coachPasswordHash,
         display_name: 'Test Coach',
         email_verified: true,
+        approval_status: 'APPROVED',
         preferences: {
           role: 'coach',
           plan: 'rookie',
+          onboarding_completed: true,
         },
       },
     });
@@ -67,8 +69,10 @@ describe('API Event Endpoints', () => {
         password_hash: fanPasswordHash,
         display_name: 'Test Fan',
         email_verified: true,
+        approval_status: 'APPROVED',
         preferences: {
           role: 'fan',
+          onboarding_completed: true,
         },
       },
     });
@@ -110,6 +114,16 @@ describe('API Event Endpoints', () => {
     it('should auto-approve events created by coaches', async () => {
       const futureDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days from now
 
+      const team = await prisma.team.create({
+        data: {
+          name: `Event Team ${Date.now()}`,
+          organization_id: testOrgId,
+        },
+      });
+      await prisma.teamMembership.create({
+        data: { team_id: team.id, user_id: coachUserId, role: 'owner', status: 'active' },
+      });
+
       const response = await request(app)
         .post('/events')
         .set('Authorization', `Bearer ${coachToken}`)
@@ -118,13 +132,20 @@ describe('API Event Endpoints', () => {
           date: futureDate.toISOString(),
           location: 'Test Stadium',
           event_type: 'game',
+          team_id: team.id,
         })
         .expect(201);
 
       expect(response.body).toHaveProperty('id');
+      // Team-linked coach event should auto-approve.
       expect(response.body.status).toBe('approved');
       expect(response.body.approval_status).toBe('approved');
       expect(response.body.creator_id).toBe(coachUserId);
+
+      await prisma.teamMembership
+        .deleteMany({ where: { team_id: team.id } })
+        .catch(() => {});
+      await prisma.team.delete({ where: { id: team.id } }).catch(() => {});
     });
 
     it('should require approval for events created by fans', async () => {
