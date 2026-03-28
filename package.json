@@ -159,7 +159,9 @@
     "brace-expansion": "^5.0.5",
     "picomatch": "^4.0.4",
     "@humanwhocodes/config-array": {
-      "brace-expansion": "1.1.11"
-    }
+      "brace-expansion": "^2.0.0"
+    },
+    "handlebars": "4.7.9",
+    "yaml": "^2.8.3"
   }
 }
