@@ -35,8 +35,8 @@ if (process.env.NODE_ENV === 'production') {
   if (!process.env.APPLE_IAP_SHARED_SECRET) console.warn('[payments] Apple IAP shared secret not set — iOS IAP verification disabled');
 }
 
-// Admin notification email — falls back to first ADMIN_EMAILS entry
-const ADMIN_NOTIFY_EMAIL = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim()).filter(Boolean)[0] || 'emancero@varsityhub.app';
+// Admin notification email — first entry from ADMIN_EMAILS env var
+const ADMIN_NOTIFY_EMAIL = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim()).filter(Boolean)[0] || '';
 
 export const paymentsRouter = Router();
 

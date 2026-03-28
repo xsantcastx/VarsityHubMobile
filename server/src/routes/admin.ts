@@ -716,7 +716,8 @@ adminRouter.post('/wipe-production', requireVerified as any, requireAdminMiddlew
     }
 
     const demo = await prisma.user.findFirst({ where: { email: 'demo@varsityhub.app' } });
-    const admin = await prisma.user.findFirst({ where: { email: 'emancero@varsityhub.app' } });
+    const adminEmail = (process.env.ADMIN_EMAILS || '').split(',').map((s) => s.trim()).filter(Boolean)[0] || '';
+    const admin = adminEmail ? await prisma.user.findFirst({ where: { email: adminEmail } }) : null;
     const keepIds = [demo?.id, admin?.id].filter(Boolean) as string[];
 
     // Use raw SQL to bypass FK constraints

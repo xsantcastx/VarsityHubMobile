@@ -99,7 +99,10 @@ export const isDev = env.NODE_ENV === 'development';
 if (isProd) {
   const warnings: string[] = [];
   if (!env.STRIPE_SECRET_KEY) warnings.push('STRIPE_SECRET_KEY (payments will fail)');
-  if (!env.STRIPE_WEBHOOK_SECRET) warnings.push('STRIPE_WEBHOOK_SECRET (webhooks unverified)');
+  // Webhook secret is critical — without it every Stripe event returns 503 and ads/subscriptions never activate
+  if (!env.STRIPE_WEBHOOK_SECRET) {
+    throw new Error('FATAL: STRIPE_WEBHOOK_SECRET is not set. All Stripe webhooks will return 503 and payments will never complete. Set this in Railway env vars immediately.');
+  }
   if (!env.STRIPE_PRICE_VETERAN) warnings.push('STRIPE_PRICE_VETERAN (subscription pricing)');
   if (!env.STRIPE_PRICE_LEGEND) warnings.push('STRIPE_PRICE_LEGEND (subscription pricing)');
   if (!env.CLOUDINARY_CLOUD_NAME) warnings.push('CLOUDINARY_CLOUD_NAME (uploads will fail)');
