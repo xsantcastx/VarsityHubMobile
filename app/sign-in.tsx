@@ -358,6 +358,7 @@ export default function SignInScreen() {
             <View style={styles.fieldSpacing}>
               <Text style={[styles.label, { color: palette.mutedText }]}>Email</Text>
               <Input
+                testID="sign-in-email"
                 placeholder="name@school.edu"
                 value={email}
                 onChangeText={setEmail}
@@ -386,6 +387,7 @@ export default function SignInScreen() {
               <Text style={[styles.label, { color: palette.mutedText }]}>Password</Text>
               <Input
                 ref={passwordRef}
+                testID="sign-in-password"
                 placeholder="Enter your password"
                 value={password}
                 onChangeText={setPassword}

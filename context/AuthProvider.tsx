@@ -544,8 +544,9 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         user.preferences?.role === 'coach';
       const proceedingAsFan = user.preferences?.proceeding_as_fan === true && user.approval_status !== 'APPROVED';
       const currentPath = Array.isArray(segmentsRef.current) ? segmentsRef.current.join('/') : '';
-      const isOnPendingScreen = currentPath.includes('pending-approval') || currentPath.includes('league-pending-approval');
-      if (isUnapprovedCoach && !proceedingAsFan && !isOnPendingScreen && firstSegment !== 'sign-in' && firstSegment !== 'sign-up') {
+      // isPendingCoach is derived from user state, not route string — avoids fragile path matching
+      const isPendingCoach = isUnapprovedCoach && !proceedingAsFan;
+      if (isPendingCoach && lastRedirectRef.current !== '/onboarding/pending-approval' && firstSegment !== 'sign-in' && firstSegment !== 'sign-up') {
         if (__DEV__) console.log('[AuthProvider] Unapproved coach blocked — must wait for approval decision');
         if (lastRedirectRef.current !== '/onboarding/pending-approval') {
           lastRedirectRef.current = '/onboarding/pending-approval';
@@ -621,7 +622,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       // If onboarding is complete and user is still on onboarding route, send to main app.
       // Exception: pending-approval and league-pending-approval are completion screens —
       // the user must tap the button themselves. Don't yank them away automatically.
-      if (!needsOnboarding && firstSegment === 'onboarding' && !isOnPendingScreen) {
+      if (!needsOnboarding && firstSegment === 'onboarding' && !isPendingCoach) {
         if (__DEV__) console.log('[AuthProvider] User completed onboarding, redirecting to main app');
         const landingRoute = '/(tabs)';
         if (lastRedirectRef.current !== landingRoute) {

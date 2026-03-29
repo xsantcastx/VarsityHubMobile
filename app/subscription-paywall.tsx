@@ -105,13 +105,28 @@ export default function SubscriptionPaywallScreen() {
       try {
         const success = await iapPurchase(selectedTier as 'veteran' | 'legend');
         if (success) {
-          // Refresh auth state so the user's plan is updated in the UI immediately
+          // Poll for plan activation before showing success (webhook may lag IAP confirmation)
+          let planActivated = false;
+          for (let i = 0; i < 15; i++) {
+            await new Promise(r => setTimeout(r, 2000));
+            try {
+              const me: any = await User.me();
+              if ((me?.preferences?.plan === 'veteran' || me?.preferences?.plan === 'legend') && !me?.preferences?.payment_pending) {
+                planActivated = true;
+                break;
+              }
+            } catch { /* ignore — keep polling */ }
+          }
           checkAuth().catch(() => {});
-          Alert.alert('Success', 'Your subscription is now active!', [
-            { text: 'OK', onPress: () => {
-              safeGoBack(router);
-            }},
-          ]);
+          if (planActivated) {
+            Alert.alert('Success', 'Your subscription is now active!', [
+              { text: 'OK', onPress: () => { safeGoBack(router); } },
+            ]);
+          } else {
+            Alert.alert('Payment Received', 'Your subscription is being processed. You\'ll receive a confirmation email shortly.', [
+              { text: 'OK', onPress: () => { safeGoBack(router); } },
+            ]);
+          }
         }
       } catch (err: any) {
         setModal({

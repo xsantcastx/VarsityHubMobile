@@ -236,13 +236,17 @@ export async function sendEmail({ to, subject, text, html }: BasicEmail): Promis
   const safeHtml = html ?? text ?? '';
 
   const service = await getEmailService();
-  
+
   if (!service || !service.isConfigured()) {
-    console.warn('[email] Email service not configured - logging email', { to, subject: safeSubject });
-    if (process.env.NODE_ENV !== 'production') {
-      console.log(formatLines([`To: ${to}`, `Subject: ${safeSubject}`, safeText]));
+    if (process.env.NODE_ENV === 'production') {
+      const err = new Error(`[email] Email service not configured in production — email to "${to}" (${safeSubject}) silently dropped`);
+      console.error(err.message);
+      Sentry.captureException(err, { extra: { to, subject: safeSubject } });
+      throw err;
     }
-    return true; // Return true to not break existing flows
+    console.error('[email] Email service not configured - logging email', { to, subject: safeSubject });
+    console.log(formatLines([`To: ${to}`, `Subject: ${safeSubject}`, safeText]));
+    return true; // Return true to not break existing flows in dev
   }
 
   try {
@@ -1103,7 +1107,13 @@ async function sendTemplateEmail(
 
   const service = await getEmailService();
   if (!service || !service.isConfigured()) {
-    console.warn('[email] Email service not configured');
+    if (process.env.NODE_ENV === 'production') {
+      const err = new Error(`[email] Email service not configured in production — template email dropped: ${logMessage}`);
+      console.error(err.message);
+      Sentry.captureException(err, { extra: { to, subject, logMessage } });
+    } else {
+      console.warn('[email] Email service not configured');
+    }
     return false;
   }
 

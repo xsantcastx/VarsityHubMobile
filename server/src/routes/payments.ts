@@ -655,8 +655,9 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paym
       }),
     ]);
   } catch (holdErr) {
-    // Non-fatal: if hold fails, fall back to existing refund-on-conflict behavior
-    console.warn('[payments] Failed to create slot hold, continuing:', (holdErr as any)?.message);
+    console.error('[payments] Failed to create slot hold — aborting checkout:', (holdErr as any)?.message);
+    captureException(holdErr as Error, { context: 'ad_slot_hold_failed', adId: String(ad_id), userId: req.user!.id });
+    return res.status(500).json({ error: 'Failed to reserve ad slot. Please try again.' });
   }
 
   // Log transaction

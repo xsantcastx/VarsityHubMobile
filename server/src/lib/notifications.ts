@@ -24,6 +24,7 @@ export {
 import { Expo, ExpoPushMessage } from 'expo-server-sdk';
 import { prisma } from './prisma.js';
 import { debugLog } from './debugLog.js';
+import { captureException, captureMessage } from './sentry.js';
 
 const expo = new Expo();
 
@@ -361,6 +362,7 @@ export async function notifyUpcomingGames(hoursBeforeGame: number): Promise<void
         );
       } catch (pushErr) {
         console.error(`[notifications] Failed to send push for user ${user.id}, event ${event.id}:`, pushErr);
+        captureException(pushErr instanceof Error ? pushErr : new Error(String(pushErr)), { extra: { userId: user.id, eventId: event.id, hoursBeforeGame } });
         // Continue to next user — don't let one failure kill the entire batch
         continue;
       }
@@ -403,7 +405,8 @@ export async function scheduleGameReminders(eventId: string, userId: string): Pr
 
   const { notificationQueue } = await import('../jobs/queues.js');
   if (!notificationQueue) {
-    debugLog(`[scheduleGameReminders] No notification queue available, skipping for event ${eventId}`);
+    captureMessage(`Game reminders dropped: notification queue unavailable (event ${eventId}, user ${userId})`, 'error');
+    console.error(`[scheduleGameReminders] No notification queue available — game reminders dropped for event ${eventId}, user ${userId}`);
     return;
   }
 

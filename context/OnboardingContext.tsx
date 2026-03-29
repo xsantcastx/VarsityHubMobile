@@ -89,46 +89,40 @@ export function OBProvider({ children }: PropsWithChildren) {
     createInitialState()
   );
 
-  // Load state from AsyncStorage on mount
+  // Load state from AsyncStorage on mount.
+  // ONBOARDING_REDUCER_STATE_KEY is the canonical local source — it is persisted on every
+  // state change and includes draftData, step index, and completed steps. The older
+  // ONBOARDING_STATE_KEY / ONBOARDING_PROGRESS_KEY keys are only read as a migration
+  // fallback when the canonical key is missing (first install or legacy devices).
+  // Server preferences (hydrateFromServer) always win over anything loaded here.
   useEffect(() => {
     const loadState = async () => {
       try {
-        const savedState = await AsyncStorage.getItem(ONBOARDING_STATE_KEY);
-        const savedProgress = await AsyncStorage.getItem(ONBOARDING_PROGRESS_KEY);
         const savedReducerState = await AsyncStorage.getItem(ONBOARDING_REDUCER_STATE_KEY);
-        
-        if (savedState) {
-          const parsedState = JSON.parse(savedState);
-          setState(parsedState);
-          
-          // Initialize reducer from saved state
-          if (!initRef.current && parsedState) {
+
+        if (savedReducerState) {
+          // Canonical source — use it exclusively
+          const parsed = JSON.parse(savedReducerState);
+          if (parsed?.draftData) {
+            setState(parsed.draftData);
+            dispatch({ type: 'INIT_FROM_PROFILE', profile: parsed.draftData });
+          }
+          if (typeof parsed?.currentStepIndex === 'number') {
+            setProgress(parsed.currentStepIndex);
+          }
+          initRef.current = true;
+        } else {
+          // Legacy fallback — only reached on first install or migration
+          const savedState = await AsyncStorage.getItem(ONBOARDING_STATE_KEY);
+          const savedProgress = await AsyncStorage.getItem(ONBOARDING_PROGRESS_KEY);
+          if (savedState) {
+            const parsedState = JSON.parse(savedState);
+            setState(parsedState);
             dispatch({ type: 'INIT_FROM_PROFILE', profile: parsedState });
             initRef.current = true;
           }
-        }
-        
-        if (savedProgress) {
-          const parsedProgress = parseInt(savedProgress, 10);
-          setProgress(parsedProgress);
-          
-          // Sync reducer state with saved progress
-          if (!initRef.current) {
-            dispatch({ type: 'SET_STEP', stepIndex: parsedProgress, reason: 'LOAD_FROM_STORAGE' });
-          }
-        }
-        
-        if (savedReducerState) {
-          try {
-            const parsed = JSON.parse(savedReducerState);
-            // Restore reducer state if available
-            if (parsed && !initRef.current) {
-              // Merge with current state
-              dispatch({ type: 'INIT_FROM_PROFILE', profile: parsed.draftData || {} });
-              initRef.current = true;
-            }
-          } catch {
-            // Ignore parse errors
+          if (savedProgress) {
+            setProgress(parseInt(savedProgress, 10));
           }
         }
       } catch (e) {

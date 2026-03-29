@@ -37,6 +37,7 @@ export default function SignUpScreen() {
   const [showSignInPrompt, setShowSignInPrompt] = useState(false);
   const [passwordStrength, setPasswordStrength] = useState({ score: 0, feedback: 'Very weak' });
   const passwordRef = useRef<any>(null);
+  const submitting = useRef(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [confirmedAge, setConfirmedAge] = useState(false);
 
@@ -94,6 +95,7 @@ export default function SignUpScreen() {
   };
 
   const onSubmit = async () => {
+    if (submitting.current) return;
     if (loading) return;
     if (!email || !password) { setError('Please enter email and password'); return; }
     
@@ -105,8 +107,9 @@ export default function SignUpScreen() {
     if (!passwordValidation.valid) { setError(passwordValidation.error || 'Invalid password'); return; }
     
     trackTap('auth_email_submit', { screen: 'sign_up' });
+    submitting.current = true;
     setLoading(true); setError(null); setRetryCount(0); setShowSignInPrompt(false);
-    
+
     try {
       const res: any = await attemptRegistration();
       // Load user into context so the routing guard (email_verified check) is active.
@@ -133,8 +136,10 @@ export default function SignUpScreen() {
         errorMessage = 'Your account may have been created but there was an issue signing you in. Please try signing in directly.';
         promptSignIn = true;
       } else if (e?.message?.includes('Email already registered') || e?.status === 409 || e?.data?.errorCode === 'EMAIL_ALREADY_REGISTERED') {
-        errorMessage = 'An account with this email already exists. Please sign in instead.';
+        errorMessage = 'An account with this email already exists. Would you like to sign in instead?';
         promptSignIn = true;
+        setEmail('');
+        setPassword('');
       } else if (e?.message?.includes('Request timeout')) {
         errorMessage = 'Registration is taking longer than expected. Our servers might be busy. Please try again in a few minutes.';
       } else if (e?.message?.includes('Network request failed')) {
@@ -149,7 +154,7 @@ export default function SignUpScreen() {
       
       setError(errorMessage);
       setShowSignInPrompt(promptSignIn);
-    } finally { setLoading(false); }
+    } finally { setLoading(false); submitting.current = false; }
   };
 
   const handleGoogleSignUp = async () => {

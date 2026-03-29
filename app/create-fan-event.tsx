@@ -42,6 +42,7 @@ export default function CreateFanEventScreen() {
 
   // Detect user role to differentiate Pitch Event (fan) vs Create Event (coach)
   const [userRole, setUserRole] = useState<string>('fan');
+  const [roleError, setRoleError] = useState(false);
   const [pendingEventCount, setPendingEventCount] = useState<number | null>(null);
   const locationInputRef = useRef<TextInput>(null);
   const eventLimitReached = userRole !== 'coach' && pendingEventCount !== null && pendingEventCount >= 3;
@@ -60,6 +61,7 @@ export default function CreateFanEventScreen() {
       })
       .catch(() => {
         setEventType('watch_party');
+        setRoleError(true);
       });
     // Pre-check pending event count so we can warn before form fill
     httpGet('/events/my-events')
@@ -79,16 +81,19 @@ export default function CreateFanEventScreen() {
   // Load followed teams
   const [rawTeams, setRawTeams] = useState<any[]>([]);
   const [_teamsLoading, setTeamsLoading] = useState(true);
+  const [teamsError, setTeamsError] = useState(false);
 
   useEffect(() => {
     const loadFollowedTeams = async () => {
       try {
         setTeamsLoading(true);
+        setTeamsError(false);
         const teams = await httpGet('/follows/teams?user_id=me');
         setRawTeams(Array.isArray(teams) ? teams : []);
       } catch (error: any) {
         if (__DEV__) console.warn('[CreateFanEvent] Failed to load followed teams:', error);
         setRawTeams([]);
+        setTeamsError(true);
       } finally {
         setTeamsLoading(false);
       }
@@ -105,6 +110,7 @@ export default function CreateFanEventScreen() {
   const [locationTouched, setLocationTouched] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<PlaceSuggestion | null>(null);
   const locationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const locationAbortRef = useRef<AbortController | null>(null);
   const [date, setDate] = useState(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
@@ -142,6 +148,10 @@ export default function CreateFanEventScreen() {
       clearTimeout(locationTimerRef.current);
       locationTimerRef.current = null;
     }
+    // Cancel any in-flight request so stale results are ignored
+    if (locationAbortRef.current) {
+      locationAbortRef.current.abort();
+    }
 
     if (text.length < 3) {
       setLocationSuggestions([]);
@@ -151,14 +161,18 @@ export default function CreateFanEventScreen() {
 
     setLocationQuerying(true);
     locationTimerRef.current = setTimeout(async () => {
+      const controller = new AbortController();
+      locationAbortRef.current = controller;
       try {
         const suggestions = await autocompleteLocations(text, 6);
+        if (controller.signal.aborted) return;
         setLocationSuggestions(suggestions);
       } catch (error) {
+        if (controller.signal.aborted) return;
         if (__DEV__) console.warn('Location autocomplete failed:', error);
         setLocationSuggestions([]);
       } finally {
-        setLocationQuerying(false);
+        if (!controller.signal.aborted) setLocationQuerying(false);
       }
     }, 300);
   }, []);
@@ -419,6 +433,16 @@ export default function CreateFanEventScreen() {
           </Text>
         </View>
 
+        {/* Role load error */}
+        {roleError && (
+          <View style={[styles.infoBox, { backgroundColor: '#FEF2F2', borderColor: '#FCA5A5', marginBottom: 16 }]}>
+            <MaterialIcons name="warning" size={20} color="#DC2626" />
+            <Text style={{ flex: 1, fontSize: 13, lineHeight: 18, color: '#991B1B' }}>
+              Couldn't verify your account type. Showing fan options. Pull down to refresh.
+            </Text>
+          </View>
+        )}
+
         {/* Event Limit Warning */}
         {eventLimitReached && (
           <View style={[styles.infoBox, { backgroundColor: '#FEF3C7', borderColor: '#F59E0B', marginBottom: 16 }]}>
@@ -520,7 +544,15 @@ export default function CreateFanEventScreen() {
               <MaterialIcons name="expand-more" size={20} color={Colors[colorScheme].mutedText} />
             </Pressable>
             {errors.pitchTeam && <Text style={styles.errorText}>{errors.pitchTeam}</Text>}
-            {!_teamsLoading && teams.length === 0 && (
+            {!_teamsLoading && teamsError && (
+              <View style={[styles.infoBox, { backgroundColor: '#FEF2F2', borderColor: '#FECACA', marginTop: 8, marginBottom: 0 }]}>
+                <MaterialIcons name="error-outline" size={20} color="#DC2626" />
+                <Text style={{ flex: 1, fontSize: 13, lineHeight: 18, color: '#991B1B' }}>
+                  Couldn't load your teams. Pull to refresh.
+                </Text>
+              </View>
+            )}
+            {!_teamsLoading && !teamsError && teams.length === 0 && (
               <View style={[styles.infoBox, { backgroundColor: '#FEF3C7', borderColor: '#F59E0B', marginTop: 8, marginBottom: 0 }]}>
                 <MaterialIcons name="group-add" size={20} color="#B45309" />
                 <Text style={{ flex: 1, fontSize: 13, lineHeight: 18, color: '#92400E' }}>

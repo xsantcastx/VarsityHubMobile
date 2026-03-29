@@ -10,7 +10,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
 import { useFocusEffect } from '@react-navigation/native';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
@@ -39,6 +39,7 @@ export default function EditAdScreen() {
   const [payment, setPayment] = useState<'unpaid'|'paid'|'refunded'|'pending_approval'|'hold'>('unpaid');
   const [uploading, setUploading] = useState(false);
   const [bookedDates, setBookedDates] = useState<string[]>([]);
+  const isSubmitting = useRef(false);
 
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail.trim());
   const zipValid = !zip.trim() || /^\d{5}$/.test(zip.trim());
@@ -121,7 +122,8 @@ export default function EditAdScreen() {
   };
 
   const save = async () => {
-    if (!id || !canSave || saving) return;
+    if (!id || !canSave || saving || isSubmitting.current) return;
+    isSubmitting.current = true;
     setSaving(true);
     try {
       await AdsApi.update(String(id), {
@@ -139,6 +141,7 @@ export default function EditAdScreen() {
       Alert.alert('Save failed', e?.message || 'Could not update the ad. Please try again.');
     } finally {
       setSaving(false);
+      isSubmitting.current = false;
     }
   };
 

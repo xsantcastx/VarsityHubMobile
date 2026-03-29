@@ -14,18 +14,61 @@
  */
 
 import { Queue } from 'bullmq';
+import { captureException, captureMessage } from '../lib/sentry.js';
 
-// In-memory dedup for event reminder emails (resets on deploy, which is fine since reminders are 12h before)
-const eventRemindersSent = new Set<string>();
+// In-memory dedup for event reminder emails — used as fallback when Redis is unavailable
+const eventRemindersSentFallback = new Set<string>();
 
-// Clear dedup cache daily to prevent unbounded memory growth
+// Clear fallback dedup cache daily to prevent unbounded memory growth
 setInterval(() => {
-  const size = eventRemindersSent.size;
+  const size = eventRemindersSentFallback.size;
   if (size > 0) {
-    eventRemindersSent.clear();
-    console.log(`[Scheduler] Cleared ${size} event reminder dedup entries`);
+    eventRemindersSentFallback.clear();
+    console.log(`[Scheduler] Cleared ${size} event reminder dedup entries (fallback set)`);
   }
 }, 24 * 60 * 60 * 1000);
+
+let _redisForDedup: any = null;
+async function getRedisForDedup(): Promise<any | null> {
+  if (_redisForDedup) return _redisForDedup;
+  const redisUrl = process.env.REDIS_URL;
+  if (!redisUrl) return null;
+  try {
+    const { default: Redis } = await import('ioredis');
+    const RedisCtor = Redis as unknown as new (url: string, options?: any) => any;
+    _redisForDedup = new RedisCtor(redisUrl, { maxRetriesPerRequest: 1, lazyConnect: true });
+    await _redisForDedup.connect();
+    return _redisForDedup;
+  } catch {
+    return null;
+  }
+}
+
+async function isEventReminderSent(key: string): Promise<boolean> {
+  try {
+    const redis = await getRedisForDedup();
+    if (redis) {
+      const exists = await redis.exists(`event_reminder:${key}`);
+      return exists === 1;
+    }
+  } catch {
+    console.warn('[Scheduler] Redis dedup check failed — falling back to in-memory set');
+  }
+  return eventRemindersSentFallback.has(key);
+}
+
+async function markEventReminderSent(key: string): Promise<void> {
+  try {
+    const redis = await getRedisForDedup();
+    if (redis) {
+      await redis.set(`event_reminder:${key}`, '1', 'EX', 86400);
+      return;
+    }
+  } catch {
+    console.warn('[Scheduler] Redis dedup write failed — falling back to in-memory set');
+  }
+  eventRemindersSentFallback.add(key);
+}
 
 interface ScheduledJob {
   name: string;
@@ -88,8 +131,10 @@ const SCHEDULED_JOBS: ScheduledJob[] = [
       } catch (err: any) {
         if (err?.code === 'P2022' || err?.message?.includes('expires_at')) {
           console.warn('[Scheduler] Story expires_at column may not exist yet, skipping cleanup');
+          captureMessage('Story cleanup skipped: expires_at column missing — stories are accumulating', 'warning');
         } else {
           console.error('[Scheduler] Failed to cleanup expired stories:', err);
+          captureException(err instanceof Error ? err : new Error(String(err)), { extra: { context: 'story_cleanup' } });
         }
       }
     },
@@ -164,8 +209,8 @@ const SCHEDULED_JOBS: ScheduledJob[] = [
             if (!rsvp.user?.email) continue;
             // Deduplicate: skip if already sent reminder for this event+email combo
             const dedupeKey = `${event.id}:${rsvp.user.email}`;
-            if (eventRemindersSent.has(dedupeKey)) continue;
-            eventRemindersSent.add(dedupeKey);
+            if (await isEventReminderSent(dedupeKey)) continue;
+            await markEventReminderSent(dedupeKey);
             sendEventReminderEmail({
               to: rsvp.user.email,
               recipientName: rsvp.user.display_name || 'Athlete',

@@ -94,6 +94,7 @@ export default function Step2Basic() {
   const [zip, setZip] = useState('');
   const [checking, setChecking] = useState(false);
   const [available, setAvailable] = useState<boolean | null>(null);
+  const [availabilityError, setAvailabilityError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [emailVerified, setEmailVerified] = useState<boolean | null>(null);
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
@@ -158,6 +159,7 @@ export default function Step2Basic() {
     // Don't check if username is empty or invalid format
     if (!username || !usernameRe.test(username)) {
       setAvailable(null);
+      setAvailabilityError(false);
       setChecking(false);
       return;
     }
@@ -165,12 +167,14 @@ export default function Step2Basic() {
     // Debounce username checks
     const timeoutId = setTimeout(async () => {
       setChecking(true);
+      setAvailabilityError(false);
       try {
         const r: any = await User.usernameAvailable(username);
         setAvailable(!!r?.available);
       } catch (error) {
         if (__DEV__) console.warn('[step-2-basic] Username availability check failed:', error);
         setAvailable(null);
+        setAvailabilityError(true);
       } finally {
         setChecking(false);
       }
@@ -421,12 +425,21 @@ export default function Step2Basic() {
       <Text style={styles.label}>Username</Text>
       <Input value={username} onChangeText={setUsername} autoCapitalize="none" placeholder="username" style={{ marginBottom: 4, letterSpacing: 0 }} onEndEditing={async () => {
         if (!usernameRe.test(username)) { setAvailable(null); return; }
-        try { const r: any = await User.usernameAvailable(username); setAvailable(!!r?.available); } catch (error) { if (__DEV__) console.warn('[onboarding] Username availability check failed:', error); setAvailable(null); }
+        setAvailabilityError(false);
+        try { const r: any = await User.usernameAvailable(username); setAvailable(!!r?.available); } catch (error) { if (__DEV__) console.warn('[onboarding] Username availability check failed:', error); setAvailable(null); setAvailabilityError(true); }
       }} />
       {usernameError ? (
         <Text style={styles.error}>Use 3-20 lowercase letters, numbers, underscores, or periods.</Text>
       ) : checking ? (
         <Text style={styles.muted}>Checking availability…</Text>
+      ) : availabilityError ? (
+        <Pressable onPress={async () => {
+          setAvailabilityError(false);
+          setChecking(true);
+          try { const r: any = await User.usernameAvailable(username); setAvailable(!!r?.available); } catch { setAvailable(null); setAvailabilityError(true); } finally { setChecking(false); }
+        }} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <Text style={styles.error}>Couldn't check availability — tap to retry</Text>
+        </Pressable>
       ) : available === false ? (
         <Text style={styles.error}>That username is taken</Text>
       ) : available === true && username.length > 0 ? (

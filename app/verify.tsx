@@ -55,50 +55,9 @@ export default function VerifyScreen() {
       setCode('');
       setIsVerified(true);
 
-      // After successful verification, refresh auth state and navigate
+      // After successful verification, let AuthProvider be the single source of truth for routing.
       try {
         await checkAuth();
-
-        let destination: any = '/(tabs)/feed';
-        try {
-          const refreshed: any = await User.me();
-          const resolvedRole = refreshed?.preferences?.role || refreshed?.role || (user as any)?.preferences?.role;
-          const isFan = !resolvedRole || resolvedRole === 'fan';
-          const onboardingCompleted = refreshed?.preferences?.onboarding_completed;
-
-          if (onboardingCompleted) {
-            // User already completed onboarding, go to feed
-            destination = '/(tabs)/feed';
-          } else if (!isFan) {
-            // Coach/org user who hasn't completed onboarding
-            // Check if they've already selected a role and have progress
-            const hasRole = !!resolvedRole && resolvedRole !== 'fan';
-            const hasUsername = !!refreshed?.username;
-
-            if (hasRole && hasUsername) {
-              // They have role and username, resume from step 3 (league)
-              destination = '/onboarding/step-3-league';
-            } else if (hasRole) {
-              // They have role but not username, resume from step 2
-              destination = '/onboarding/step-2-basic';
-            } else {
-              // Start fresh
-              destination = '/onboarding/step-1-role';
-            }
-          } else {
-            // Fan user - send to onboarding
-            destination = '/onboarding/step-1-role';
-          }
-        } catch (profileError) {
-          captureException(
-            typeof profileError === 'string' ? new Error(profileError) : (profileError as Error),
-            { tags: { context: 'verify-email-profile' } }
-          );
-        }
-
-        redirectTimerRef.current = setTimeout(() => {
-          router.replace(destination);
-        }, 1200);
       } catch (userError) {
         captureException(
           typeof userError === 'string' ? new Error(userError) : (userError as Error),
@@ -184,8 +143,7 @@ export default function VerifyScreen() {
   };
 
   const onContinue = async () => {
-    // Navigate to onboarding after email verification
-    router.replace('/onboarding/step-1-role');
+    await checkAuth();
   };
 
   return (

@@ -416,7 +416,7 @@ export default function AdCalendarScreen() {
       await Advertisement.submitForApproval(String(adId), dates);
       setAdStatus('pending');
       setReserved(new Set(dates));
-      setSelected(new Set(dates));
+      setSelected(new Set());
       Alert.alert(
         'Submitted for Approval',
         'Your ad has been submitted for review. You\'ll be notified when approved — no charge until then.'
@@ -476,9 +476,6 @@ export default function AdCalendarScreen() {
         const serverCfg = await Payments.getConfig();
         stripeKey = serverCfg?.stripe_publishable_key || '';
       } catch { /* server config fetch failed — fall through to error */ }
-    }
-    if (!stripeKey || !stripeKey.startsWith('pk_')) {
-      // No hardcoded fallback — key must come from environment or server config
     }
     if (!stripeKey || !stripeKey.startsWith('pk_')) {
       Alert.alert(
@@ -971,7 +968,7 @@ export default function AdCalendarScreen() {
           </View>
           {taxCents > 0 && (
             <View style={styles.rowBetween}>
-              <Text style={[styles.bold, { fontSize: 16, color: Colors[colorScheme].text }]}>Sales Tax (est.):</Text>
+              <Text style={[styles.bold, { fontSize: 16, color: Colors[colorScheme].text }]}>Est. Tax (6.5%)*:</Text>
               <Text style={{ fontSize: 16, fontWeight: '700', color: Colors[colorScheme].text }}>${(taxCents / 100).toFixed(2)}</Text>
             </View>
           )}
@@ -985,6 +982,9 @@ export default function AdCalendarScreen() {
             <Text style={[styles.bold, { fontSize: 18, color: Colors[colorScheme].text }]}>Total:</Text>
             <Text style={{ fontSize: 22, fontWeight: '800', color: Colors[colorScheme].text }}>${effective.toFixed(2)}</Text>
           </View>
+          {taxCents > 0 && (
+            <Text style={{ fontSize: 11, color: Colors[colorScheme].mutedText, marginTop: 2 }}>* Final tax calculated at checkout.</Text>
+          )}
 
           {isPending && (
             <View style={[styles.pendingBanner, { backgroundColor: colorScheme === 'dark' ? '#422006' : '#FEF3C7', borderColor: colorScheme === 'dark' ? '#92400E' : '#FCD34D' }]}>

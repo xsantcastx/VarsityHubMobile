@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import { debugLog } from '../lib/debugLog.js';
 import { prisma } from '../lib/prisma.js';
 import { emailQueue } from '../lib/queue.js';
+import { captureException } from '../lib/sentry.js';
 
 /**
  * Overnight monitoring task
@@ -63,6 +64,7 @@ export function startOvernightMonitoring() {
       debugLog('[overnight] Health check complete ✅');
     } catch (error) {
       console.error('[overnight] Health check failed:', error);
+      captureException(error instanceof Error ? error : new Error(String(error)), { extra: { context: 'overnight_health_check' } });
     }
   });
 
@@ -106,6 +108,7 @@ export function startQueueCleanup() {
       debugLog(`[cleanup] Removed ${removedCount} completed jobs, ${failedRemovedCount} failed jobs ✅`);
     } catch (error) {
       console.error('[cleanup] Cleanup failed:', error);
+      captureException(error instanceof Error ? error : new Error(String(error)), { extra: { context: 'queue_cleanup' } });
     }
   });
 
@@ -260,6 +263,7 @@ export function startAdGoLiveCheck() {
       debugLog('[ad-lifecycle] Daily check complete ✅');
     } catch (error) {
       console.error('[ad-lifecycle] Check failed:', error);
+      captureException(error instanceof Error ? error : new Error(String(error)), { extra: { context: 'ad_lifecycle_check' } });
     }
   });
 
@@ -285,6 +289,7 @@ export function startMessageCleanup() {
       debugLog('[message-cleanup] Done ✅');
     } catch (error) {
       console.error('[message-cleanup] Failed:', error);
+      captureException(error instanceof Error ? error : new Error(String(error)), { extra: { context: 'message_cleanup' } });
     }
   });
   debugLog('✅ Message cleanup started (runs daily at 3:30 AM)');

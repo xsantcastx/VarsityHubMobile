@@ -10,6 +10,7 @@
 
 import { PrismaClient } from '@prisma/client';
 import { debugLog } from './debugLog.js';
+import { captureException } from './sentry.js';
 
 // Tables in dependency order (parents before children)
 const TABLES_IN_ORDER = [
@@ -74,6 +75,7 @@ export async function syncDatabaseBackup(): Promise<{
 
   let tablesSync = 0;
   let totalRows = 0;
+  const failedTables: string[] = [];
 
   try {
     // Test connectivity
@@ -140,7 +142,14 @@ export async function syncDatabaseBackup(): Promise<{
         debugLog(`[db-backup] ${table}: ${rows.length} rows synced`);
       } catch (err: any) {
         console.error(`[db-backup] Failed to sync table "${table}":`, err.message?.slice(0, 200));
+        failedTables.push(table);
       }
+    }
+
+    if (failedTables.length > 0) {
+      const backupErr = new Error(`DB backup sync partially failed — ${failedTables.length} table(s) not synced: ${failedTables.join(', ')}`);
+      console.error('[db-backup]', backupErr.message);
+      captureException(backupErr, { extra: { failedTables, tablesSync, totalRows } });
     }
 
     // Re-enable FK constraints

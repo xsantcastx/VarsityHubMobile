@@ -1,10 +1,12 @@
 import { app } from './app.js';
-import { captureException } from './lib/sentry.js';
+import { captureException, captureMessage } from './lib/sentry.js';
 import { debugLog } from './lib/debugLog.js';
 import { initEmailService } from './lib/email.js';
 import { initializeQueues, shutdownQueues } from './jobs/queues.js';
 import { setupScheduler, startSchedulerWorker } from './jobs/scheduler.js';
 import { env } from './lib/env.js';
+import cron from 'node-cron';
+import { checkExpiringSubscriptions } from './jobs/subscriptionExpiryChecker.js';
 
 // Initialize SendGrid email service
 await initEmailService();
@@ -58,6 +60,58 @@ process.on('uncaughtException', (error) => {
 process.on('unhandledRejection', (reason, promise) => {
   console.error('[unhandledRejection]', reason);
   captureException(reason as Error, { context: 'unhandled_rejection', promise: String(promise) });
+});
+
+// Subscription expiry check — runs daily at 9 AM
+cron.schedule('0 9 * * *', () => {
+  checkExpiringSubscriptions().catch((err) => {
+    console.error('[cron] Subscription expiry check failed:', err);
+    captureException(err instanceof Error ? err : new Error(String(err)), { context: 'subscription_expiry_cron' });
+  });
+});
+
+async function runStartupChecks(): Promise<void> {
+  const criticalVars: Array<{ key: string; label: string }> = [
+    { key: 'REDIS_URL', label: 'REDIS_URL' },
+    { key: 'SENDGRID_API_KEY', label: 'SENDGRID_API_KEY' },
+    { key: 'STRIPE_WEBHOOK_SECRET', label: 'STRIPE_WEBHOOK_SECRET' },
+    { key: 'DATABASE_URL', label: 'DATABASE_URL' },
+  ];
+  for (const { key, label } of criticalVars) {
+    if (!process.env[key]) {
+      console.error(`[startup] STARTUP: ${label} not configured`);
+      captureMessage(`STARTUP: ${label} not configured`, 'error');
+    }
+  }
+  if (!process.env.SENTRY_DSN) {
+    console.error('[startup] STARTUP: SENTRY_DSN not configured — error tracking disabled');
+  }
+
+  // Ping the database
+  try {
+    const { prisma } = await import('./lib/prisma.js');
+    await prisma.$queryRaw`SELECT 1`;
+    debugLog('[startup] Database ping OK');
+  } catch (dbErr) {
+    console.error('[startup] STARTUP: Database ping failed:', dbErr);
+    captureException(dbErr instanceof Error ? dbErr : new Error(String(dbErr)), { context: 'startup_db_ping_failed' });
+  }
+
+  // Ping Redis if configured
+  if (process.env.REDIS_URL) {
+    try {
+      const { redis } = await import('./lib/queue.js');
+      await redis.ping();
+      debugLog('[startup] Redis ping OK');
+    } catch (redisErr) {
+      console.error('[startup] STARTUP: Redis ping failed:', redisErr);
+      captureException(redisErr instanceof Error ? redisErr : new Error(String(redisErr)), { context: 'startup_redis_ping_failed' });
+    }
+  }
+}
+
+runStartupChecks().catch((err) => {
+  console.error('[startup] runStartupChecks threw unexpectedly:', err);
 });
 
 // Export app for testing or external usage

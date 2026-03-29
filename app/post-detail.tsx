@@ -230,7 +230,7 @@ export default function PostDetailScreen() {
     
     // Try to get cached post first
     const cachedPost = postCache.get(targetId);
-    if (cachedPost && Object.keys(cachedPost).length > 0) {
+    if (cachedPost?.id && cachedPost?.author?.username) {
       setPost(cachedPost);
       if (targetId) {
         setPostsById((prev) => ({ ...prev, [targetId]: cachedPost }));
@@ -321,6 +321,7 @@ export default function PostDetailScreen() {
     const shouldShowLoading = isInitialLoad.current;
     isInitialLoad.current = false;
     void load(undefined, shouldShowLoading);
+    setReplyingToComment(null);
   }, [load, params.id, params.postIds, currentPostIndex]);
 
   // Handle post change when swiping
@@ -338,7 +339,7 @@ export default function PostDetailScreen() {
     if (!currentPostId || voting) return;
     setVoting(true);
     // Optimistic update for immediate visual feedback
-    const prevPost = post;
+    const prevPost = post ? JSON.parse(JSON.stringify(post)) : post;
     setPost((p: any) => {
       if (!p) return p;
       const optimisticNext = !p.has_upvoted;
@@ -382,13 +383,13 @@ export default function PostDetailScreen() {
       const next = [created, ...comments];
       setComments(next);
       setCommentsById((prev) => ({ ...prev, [currentPostId]: next }));
-      setComment('');
       setReplyingToComment(null);
     } catch (error) {
       const err = error as any;
       if (__DEV__) console.error('Error adding comment:', err?.message || error);
-      Alert.alert('Error', err?.message || 'Failed to post comment. Please try again.');
+      Alert.alert('Comment Failed', err?.message || 'Failed to post comment. Please try again.');
     } finally {
+      setComment('');
       setCommenting(false);
     }
   };

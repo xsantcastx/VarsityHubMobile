@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { User } from '@/api/entities';
 // @ts-ignore
-import { httpPost } from '@/api/http';
+import { httpGet, httpPost } from '@/api/http';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { safeGoBack } from '@/utils/navigation';
@@ -31,12 +31,14 @@ export default function PaymentSuccessScreen() {
   const [amountCents, setAmountCents] = useState(0);
   const [verificationAttempt, setVerificationAttempt] = useState(0);
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const adIdRef = useRef<string | null>(null);
   const checkOpacity = useRef(new Animated.Value(0)).current;
   const contentOpacity = useRef(new Animated.Value(0)).current;
 
   const isAdPayment = params.type === 'ad';
   const isSubscription = params.type === 'subscription';
-  const maxAttempts = 10;
+  const maxAttempts = 10;      // subscription: 10 × 3s = 30s
+  const adMaxAttempts = 15;    // ad: 15 × 2s = 30s
 
   const clearRetry = () => {
     if (retryTimeoutRef.current) {
@@ -75,24 +77,49 @@ export default function PaymentSuccessScreen() {
         }
 
         if (isAdPayment) {
-          let finalized = true;
-          try {
-            const result = await httpPost('/payments/finalize-session', { session_id: sessionId });
-            if (result?.ad) {
-              setAdDetails(result.ad);
-              setAmountCents(result.amount_cents || 0);
+          // First attempt: call finalize-session to register payment and capture ad_id
+          if (verificationAttempt === 0) {
+            try {
+              const result = await httpPost('/payments/finalize-session', { session_id: sessionId });
+              if (result?.ad) {
+                setAdDetails(result.ad);
+                setAmountCents(result.amount_cents || 0);
+                adIdRef.current = result.ad.id ? String(result.ad.id) : null;
+                if (result.ad.status === 'active') {
+                  showSuccessState();
+                  return;
+                }
+              }
+            } catch (err: any) {
+              if (__DEV__) console.warn('[payment-success] finalize failed:', err?.message);
             }
-          } catch (err: any) {
-            if (__DEV__) console.warn('[payment-success] finalize failed:', err?.message);
-            finalized = false;
           }
-          if (!finalized) {
-            setError('Payment is processing. Please check My Ads in a moment.');
+
+          // Poll GET /ads/{id} every 2s until status === 'active'
+          const adId = adIdRef.current;
+          if (adId) {
+            try {
+              const adData: any = await httpGet(`/ads/${adId}`);
+              if (adData?.status === 'active') {
+                setAdDetails(adData);
+                showSuccessState();
+                return;
+              }
+            } catch (e) {
+              if (__DEV__) console.warn('[payment-success] ad status poll:', e);
+            }
+          }
+
+          if (verificationAttempt < adMaxAttempts - 1) {
+            clearRetry();
+            retryTimeoutRef.current = setTimeout(() => {
+              verifiedRef.current = false;
+              setVerificationAttempt((a) => a + 1);
+            }, 2000);
+          } else {
+            setError("Your ad is being processed — you'll receive an email confirmation shortly.");
             setLoading(false);
-            return;
           }
-          // Show confirmation when finalize succeeds or already completed.
-          showSuccessState();
         } else {
           // Subscription flow — poll for plan upgrade (Rule A: plan set = payment done)
           try {
@@ -111,6 +138,7 @@ export default function PaymentSuccessScreen() {
               }
               clearRetry();
               retryTimeoutRef.current = setTimeout(() => {
+                verifiedRef.current = false;
                 setVerificationAttempt((a) => a + 1);
               }, 3000);
             } else {
@@ -123,7 +151,7 @@ export default function PaymentSuccessScreen() {
                   return;
                 }
               } catch (e) { if (__DEV__) console.warn('[PaymentSuccess] poll error:', e); }
-              setError('Payment verification timed out. Your payment may still be processing.');
+              setError('This is taking longer than usual — you\'ll receive a confirmation email shortly.');
               setLoading(false);
             }
           } catch {
@@ -132,7 +160,10 @@ export default function PaymentSuccessScreen() {
               setLoading(false);
             } else {
               clearRetry();
-              retryTimeoutRef.current = setTimeout(() => setVerificationAttempt((a) => a + 1), 2000);
+              retryTimeoutRef.current = setTimeout(() => {
+                verifiedRef.current = false;
+                setVerificationAttempt((a) => a + 1);
+              }, 2000);
             }
           }
         }
@@ -163,7 +194,7 @@ export default function PaymentSuccessScreen() {
         {loading ? (
           <View style={styles.center}>
             <ActivityIndicator size="large" color={theme.tint} />
-            <Text style={[styles.loadingText, { color: theme.mutedText }]}>Confirming your payment{verificationAttempt > 3 ? '\nThis may take a moment...' : '...'}</Text>
+            <Text style={[styles.loadingText, { color: theme.mutedText }]}>{isAdPayment && verificationAttempt > 0 ? 'Activating your ad' : isSubscription ? 'Confirming your subscription' : 'Confirming your payment'}{verificationAttempt > 3 ? '\nThis may take a moment...' : '...'}</Text>
           </View>
         ) : error ? (
           <View style={styles.center}>
@@ -195,7 +226,7 @@ export default function PaymentSuccessScreen() {
               <View style={styles.checkCircle}>
                 <MaterialIcons name="check" size={48} color="#fff" />
               </View>
-              <Text style={[styles.successTitle, { color: theme.text }]}>Payment Confirmed!</Text>
+              <Text style={[styles.successTitle, { color: theme.text }]}>{isAdPayment ? 'Your Ad is Live!' : 'Payment Confirmed!'}</Text>
             </Animated.View>
 
             <Animated.View style={{ opacity: contentOpacity, width: '100%' }}>

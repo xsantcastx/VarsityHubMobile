@@ -207,6 +207,7 @@ export default function FeedScreen() {
   const [followedTeamsFeedMeta, setFollowedTeamsFeedMeta] = useState<{ followed_teams_count: number } | undefined>(undefined);
   const voteSummariesRef = useRef<Record<string, VotePreviewEntry>>({});
   const [voteSummaries, setVoteSummaries] = useState<Record<string, VotePreviewEntry>>({});
+  const [showSeedBanner, setShowSeedBanner] = useState(false);
   const [hasUnreadAlerts, setHasUnreadAlerts] = useState(false);
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
   const [notificationsMenuOpen, setNotificationsMenuOpen] = useState(false);
@@ -241,8 +242,8 @@ export default function FeedScreen() {
         }
       });
       if (Object.keys(next).length !== Object.keys(voteSummariesRef.current).length) {
-        voteSummariesRef.current = next;
         setVoteSummaries(next);
+        voteSummariesRef.current = next;
       }
     } catch (err) {
       if (__DEV__) console.warn('Vote summary batch failed', err);
@@ -344,7 +345,7 @@ export default function FeedScreen() {
           // Re-fetch games now that seeds exist
           const seeded = await Game.list('-date', { limit: 30 }).catch(() => ({ games: [] }));
           const seededList = seeded?.games || (Array.isArray(seeded) ? seeded : []);
-          if (seededList.length > 0) normalizedGames = seededList;
+          if (seededList.length > 0) { normalizedGames = seededList; setShowSeedBanner(true); }
         } catch (seedErr: any) {
           if (__DEV__) console.warn('[feed] seed-samples failed:', seedErr?.message);
         }
@@ -896,6 +897,19 @@ export default function FeedScreen() {
       >
         {renderEmailReminder()}
         {renderLocationPrompt()}
+
+        {/* Sample content banner — shown when no real games exist and seeds were injected */}
+        {showSeedBanner && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colorScheme === 'dark' ? '#1e3a5f' : '#EFF6FF', borderWidth: 1, borderColor: colorScheme === 'dark' ? '#3B82F6' : '#BFDBFE', borderRadius: 8, padding: 10, marginHorizontal: 16, marginBottom: 12, gap: 8 }}>
+            <MaterialIcons name="info-outline" size={18} color={colorScheme === 'dark' ? '#93C5FD' : '#2563EB'} />
+            <Text style={{ flex: 1, fontSize: 12, color: colorScheme === 'dark' ? '#BFDBFE' : '#1E40AF', lineHeight: 17 }}>
+              These are example games to help you explore VarsityHub. Real games will appear once coaches in your area sign up.
+            </Text>
+            <Pressable onPress={() => setShowSeedBanner(false)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Dismiss sample content notice">
+              <MaterialIcons name="close" size={16} color={colorScheme === 'dark' ? '#93C5FD' : '#2563EB'} />
+            </Pressable>
+          </View>
+        )}
 
         {/* Upcoming Events with Ads — Dark hero game cards at top */}
         {upcomingWithAds.length > 0 && (
