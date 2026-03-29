@@ -1,0 +1,103 @@
+# Flow 1: Sign Up → Email Verify → Fan Onboarding → Enter App
+#
+# Prerequisites:
+#   - Dev build running on device/simulator
+#   - Local server running with ENABLE_DEV_CODES=1
+#     (the verify code is logged by the server and also returned in the API response
+#      which you can intercept via Reactotron or server logs)
+#   - TEST_EMAIL must be unique per run — use a + alias e.g. you+test1@gmail.com
+#
+# Run:
+#   maestro test .maestro/flows/01-signup-fan-onboarding.yaml \
+#     -e TEST_EMAIL=you+test1@gmail.com \
+#     -e TEST_PASSWORD=Test1234! \
+#     -e TEST_VERIFY_CODE=123456
+
+appId: com.varsithub.varsityhub-ios
+---
+
+# ── Launch fresh ────────────────────────────────────────────────────────────────
+- launchApp:
+    clearState: true
+
+# ── Sign Up screen ──────────────────────────────────────────────────────────────
+- assertVisible: "Create Account"
+
+- tapOn:
+    text: "Sign up with Email"
+
+- tapOn:
+    text: "Email"
+- inputText: ${TEST_EMAIL}
+
+- tapOn:
+    text: "Password"
+- inputText: ${TEST_PASSWORD}
+
+# Accept ToS and age checkboxes
+- tapOn:
+    text: "I agree to the Terms of Service and Privacy Policy"
+- tapOn:
+    text: "I confirm I am at least 13 years old"
+
+- tapOn:
+    text: "Sign Up"
+
+# ── Verify Email screen ─────────────────────────────────────────────────────────
+# ENABLE_DEV_CODES=1 makes the server log the code — check server logs or Reactotron
+- assertVisible: "Check Your Email"
+- assertVisible: "6-digit"
+
+- tapOn:
+    text: "Enter 6-digit code"
+- inputText: ${TEST_VERIFY_CODE}
+
+- tapOn:
+    text: "Verify Email"
+
+- assertVisible: "Email verified successfully!"
+
+# Auto-advances after 1.2s
+- waitForAnimationToEnd
+
+# ── Step 1: Role Selection ──────────────────────────────────────────────────────
+- assertVisible: "Fan"
+- assertVisible: "Coach / Organizer"
+
+- tapOn:
+    label: "Select Fan role"
+
+# Confirm Fan is selected (Continue button turns silver)
+- tapOn:
+    label: "Continue"
+
+# ── Step 2: Basic Info ──────────────────────────────────────────────────────────
+- assertVisible: "Username"
+
+- tapOn:
+    text: "username"
+- inputText: "testfan${TEST_EMAIL}"
+
+# Wait for username availability check (500ms debounce)
+- waitForAnimationToEnd
+- assertVisible: "Available!"
+
+# Date of birth — tap the DOB field and set a date
+# DateField renders as a Pressable that opens a native date picker
+- tapOn:
+    text: "Date of birth"
+- waitForAnimationToEnd
+# Native date picker: scroll to a valid date (2000-01-15, age 24+)
+# On iOS simulator this opens the native spinner — confirm with "Done"
+- tapOn:
+    text: "Done"
+
+# Zip code (optional — skip for speed)
+
+# Continue into main app
+- tapOn:
+    text: "Continue"
+- waitForAnimationToEnd
+
+# ── Main App (tabs) ─────────────────────────────────────────────────────────────
+- assertVisible: "Feed"

@@ -1,0 +1,113 @@
+# Flow 3: Sign Up as Coach → Verify → Role Select → Basic Info → Org Search → Pending Screen
+#
+# This test covers the coach onboarding funnel up to the pending approval screen.
+# It does NOT test admin approval (async, requires separate action).
+#
+# Prerequisites:
+#   - Dev build running on device/simulator
+#   - Local server with ENABLE_DEV_CODES=1
+#   - COACH_EMAIL must be unique per run
+#
+# Run:
+#   maestro test .maestro/flows/03-coach-onboarding-to-pending.yaml \
+#     -e COACH_EMAIL=coach+test1@gmail.com \
+#     -e COACH_PASSWORD=Test1234! \
+#     -e TEST_VERIFY_CODE=123456
+
+appId: com.varsithub.varsityhub-ios
+---
+
+# ── Launch fresh ────────────────────────────────────────────────────────────────
+- launchApp:
+    clearState: true
+
+# ── Sign Up ─────────────────────────────────────────────────────────────────────
+- assertVisible: "Create Account"
+
+- tapOn:
+    text: "Sign up with Email"
+
+- tapOn:
+    text: "Email"
+- inputText: ${COACH_EMAIL}
+
+- tapOn:
+    text: "Password"
+- inputText: ${COACH_PASSWORD}
+
+- tapOn:
+    text: "I agree to the Terms of Service and Privacy Policy"
+- tapOn:
+    text: "I confirm I am at least 13 years old"
+
+- tapOn:
+    text: "Sign Up"
+
+# ── Verify Email ────────────────────────────────────────────────────────────────
+- assertVisible: "Check Your Email"
+
+- tapOn:
+    text: "Enter 6-digit code"
+- inputText: ${TEST_VERIFY_CODE}
+
+- tapOn:
+    text: "Verify Email"
+
+- assertVisible: "Email verified successfully!"
+- waitForAnimationToEnd
+
+# ── Step 1: Select Coach role ───────────────────────────────────────────────────
+- assertVisible: "Coach / Organizer"
+
+- tapOn:
+    label: "Select Coach / Organizer role"
+
+# Coach requires 18+ confirmation
+- assertVisible: "I confirm I am at least 18 years old"
+- tapOn:
+    text: "I confirm I am at least 18 years old"
+
+- tapOn:
+    label: "Continue"
+
+# ── Step 2: Coach Basic Info ────────────────────────────────────────────────────
+- assertVisible: "Username"
+
+- tapOn:
+    text: "username"
+- inputText: "testcoach${COACH_EMAIL}"
+
+- waitForAnimationToEnd
+- assertVisible: "Available!"
+
+# Date of birth (must be 18+)
+- tapOn:
+    text: "Date of birth"
+- waitForAnimationToEnd
+- tapOn:
+    text: "Done"
+
+- tapOn:
+    text: "Continue"
+- waitForAnimationToEnd
+
+# ── Step 3: League/Org Setup ─────────────────────────────────────────────────────
+- assertVisible: "Organization"
+
+# Search for an existing org or create new
+# This test verifies the screen loads correctly
+- assertVisible: "Search"
+
+# Tap "Create New" to test the creation path
+- tapOn:
+    text: "Create"
+- waitForAnimationToEnd
+
+# ── League Pending Approval screen ──────────────────────────────────────────────
+# After submitting, coach should land on pending approval
+- assertVisible: "Submitted to VarsityHub for Review"
+- assertVisible: "Continue as Fan"
+- assertVisible: "Log Out"
+
+# Verify timeout message is NOT shown yet (30 min timer hasn't fired)
+- assertNotVisible: "This is taking longer than usual"

@@ -1,0 +1,65 @@
+# Flow 2: Sign In → Create Text Post → Confirm Post Appears in Feed
+#
+# Prerequisites:
+#   - Dev build running on device/simulator
+#   - TEST_ACCOUNT_EMAIL: a pre-registered, verified, onboarded fan account
+#   - TEST_ACCOUNT_PASSWORD: password for that account
+#
+# Run:
+#   maestro test .maestro/flows/02-create-text-post.yaml \
+#     -e TEST_ACCOUNT_EMAIL=testfan@varsityhub.app \
+#     -e TEST_ACCOUNT_PASSWORD=Test1234!
+
+appId: com.varsithub.varsityhub-ios
+---
+
+# ── Launch fresh ────────────────────────────────────────────────────────────────
+- launchApp:
+    clearState: true
+
+# ── Sign In ─────────────────────────────────────────────────────────────────────
+- assertVisible: "Sign In"
+
+- tapOn:
+    text: "Email"
+- inputText: ${TEST_ACCOUNT_EMAIL}
+
+- tapOn:
+    text: "Password"
+- inputText: ${TEST_ACCOUNT_PASSWORD}
+
+- tapOn:
+    text: "Sign In"
+
+- waitForAnimationToEnd
+
+# ── Main Feed ───────────────────────────────────────────────────────────────────
+- assertVisible: "Feed"
+
+# ── Navigate to Create Post tab ─────────────────────────────────────────────────
+# The create post tab is the center tab (+ icon)
+- tapOn:
+    text: "Create"
+- waitForAnimationToEnd
+
+# ── Create Post screen ──────────────────────────────────────────────────────────
+# Tap the text composer (rotates placeholder prompts — tap anywhere in the input area)
+- tapOn:
+    text: "Post"
+    # Falls back to tapping any visible Post header button area
+
+# Input post content
+- tapOn:
+    index: 0
+    text: "What's happening"
+- inputText: "Maestro smoke test — automated post ${TEST_ACCOUNT_EMAIL}"
+
+# Post button is in the header
+- tapOn:
+    text: "Post"
+- waitForAnimationToEnd
+
+# ── Confirm success ─────────────────────────────────────────────────────────────
+# After posting, app navigates back to feed
+# The new post should appear at the top
+- assertVisible: "Maestro smoke test"
