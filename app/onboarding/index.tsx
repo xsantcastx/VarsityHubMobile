@@ -2,25 +2,39 @@ import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { STEP_ROUTES, nextIncompleteStep } from '@/context/onboardingReducer';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
+// @ts-ignore
+import { User } from '@/api/entities';
 
 export default function OnboardingIndex() {
   const router = useRouter();
   const { user } = useAuth();
-  const { progress, state, isLoaded, setProgress, reducerState: _reducerState, dispatch, nextStep: _nextStep } = useOnboarding();
+  const { progress, state, isLoaded, setProgress, reducerState: _reducerState, dispatch, nextStep: _nextStep, hydrateFromServer } = useOnboarding();
   const [hasNavigated, setHasNavigated] = useState(false);
+  const hydratedRef = useRef(false);
 
   // CRITICAL: User must be authenticated to access onboarding
   useEffect(() => {
     if (!isLoaded) return;
-    
+
     if (!user) {
       if (__DEV__) console.warn('[Onboarding] Unauthenticated user trying to access onboarding - redirecting to sign-in');
       router.replace('/sign-in');
       return;
     }
-  }, [user, isLoaded, router]);
+
+    // Sync server preferences into local state — DB wins over stale AsyncStorage on conflict.
+    // Fire-and-forget: navigation proceeds immediately; state update is async.
+    if (!hydratedRef.current) {
+      hydratedRef.current = true;
+      User.me().then((me: any) => {
+        if (me?.preferences && Object.keys(me.preferences).length > 0) {
+          hydrateFromServer(me.preferences);
+        }
+      }).catch(() => {});
+    }
+  }, [user, isLoaded, router, hydrateFromServer]);
   
   useEffect(() => {
     // Don't navigate until AsyncStorage has loaded and user is authenticated

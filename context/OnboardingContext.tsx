@@ -59,10 +59,12 @@ export type OnboardingState = {
   step_3_visited?: boolean;
 };
 
-type Ctx = { 
-  state: OnboardingState; 
+type Ctx = {
+  state: OnboardingState;
   setState: (newState: React.SetStateAction<OnboardingState>) => void;
   clearOnboarding: () => Promise<void>;
+  /** Overwrite local AsyncStorage state with server preferences — DB always wins on conflict */
+  hydrateFromServer: (serverPrefs: Record<string, unknown>) => void;
   progress: number;
   setProgress: (progress: number) => void;
   isLoaded: boolean;
@@ -162,6 +164,21 @@ export function OBProvider({ children }: PropsWithChildren) {
     dispatch({ type: 'SET_STEP', stepIndex: newProgress, reason: 'LEGACY_SET_PROGRESS' });
   }, []);
 
+  const hydrateFromServer = useCallback((serverPrefs: Record<string, unknown>) => {
+    if (!serverPrefs || Object.keys(serverPrefs).length === 0) return;
+    // Only apply defined, non-null values — server wins over stale AsyncStorage on conflict
+    const filtered = Object.fromEntries(
+      Object.entries(serverPrefs).filter(([, v]) => v !== null && v !== undefined)
+    ) as Partial<OnboardingState>;
+    if (Object.keys(filtered).length === 0) return;
+    setState(prev => {
+      const merged = { ...prev, ...filtered };
+      AsyncStorage.setItem(ONBOARDING_STATE_KEY, JSON.stringify(merged)).catch(() => {});
+      return merged;
+    });
+    dispatch({ type: 'INIT_FROM_PROFILE', profile: filtered });
+  }, []);
+
   const clearOnboarding = useCallback(async () => {
     setState({});
     setProgress(0);
@@ -203,6 +220,7 @@ export function OBProvider({ children }: PropsWithChildren) {
     state,
     setState: setAndPersistState,
     clearOnboarding,
+    hydrateFromServer,
     progress,
     setProgress: setAndPersistProgress,
     isLoaded,

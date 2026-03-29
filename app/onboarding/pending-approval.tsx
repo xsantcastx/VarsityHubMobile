@@ -23,7 +23,9 @@ export default function PendingApproval() {
   const [checking, setChecking] = useState(false);
   const [completionError, setCompletionError] = useState<string | null>(null);
   const [orgId, setOrgId] = useState<string | null>(null);
+  const [timedOut, setTimedOut] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Poll /me every 30 seconds to check approval_status
   const checkApproval = useCallback(async () => {
@@ -34,6 +36,7 @@ export default function PendingApproval() {
       if (me?.approval_status === 'REJECTED') {
         setRejected(true);
         if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
+        if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
         return;
       }
       if (me?.approval_status === 'APPROVED') {
@@ -44,6 +47,7 @@ export default function PendingApproval() {
           clearInterval(intervalRef.current);
           intervalRef.current = null;
         }
+        if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
         // Complete onboarding on server, then go to main app.
         // If completion fails, stay here and show a retry state instead of redirect loops.
         let completed = false;
@@ -118,8 +122,14 @@ export default function PendingApproval() {
     void checkApproval();
     // Poll every 10 seconds for faster approval feedback
     intervalRef.current = setInterval(() => void checkApproval(), 10000);
+    // Stop polling after 30 minutes — admin has been notified, user should continue as fan
+    timeoutRef.current = setTimeout(() => {
+      if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
+      setTimedOut(true);
+    }, 30 * 60 * 1000);
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
   }, [checkApproval]);
 
@@ -189,7 +199,27 @@ export default function PendingApproval() {
           }
         </Text>
 
-        {(!approved || rejected) && (
+        {timedOut && !approved && !rejected && (
+          <>
+            <Text style={[styles.subheading, { color: isDark ? '#9CA3AF' : '#6B7280', marginBottom: 20 }]}>
+              This is taking longer than usual. We'll email you when your application is reviewed. You can continue as a fan in the meantime.
+            </Text>
+            <Pressable
+              style={[styles.primaryButton, { marginBottom: 12 }]}
+              onPress={handleProceedAsFan}
+            >
+              <Text style={styles.primaryButtonText}>Continue as Fan</Text>
+            </Pressable>
+            <Pressable style={[styles.secondaryButton, { borderColor: isDark ? '#374151' : '#D1D5DB' }]} onPress={handleLogout}>
+              <Text style={[styles.secondaryButtonText, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Log Out</Text>
+            </Pressable>
+            <Text style={[styles.supportText, { color: isDark ? '#6B7280' : '#9CA3AF' }]}>
+              Questions? Contact support@varsityhub.app
+            </Text>
+          </>
+        )}
+
+        {(!approved || rejected) && !timedOut && (
           <>
             {/* Buttons */}
             <Pressable
@@ -221,15 +251,9 @@ export default function PendingApproval() {
           <>
             <Pressable
               style={[styles.primaryButton, { backgroundColor: '#1B3A6B', marginTop: 24 }]}
-              onPress={() => router.replace(orgId ? { pathname: '/(tabs)/organization', params: { id: orgId } } as any : '/(tabs)' as any)}
+              onPress={() => router.replace('/onboarding/coach-agreement' as any)}
             >
-              <Text style={styles.primaryButtonText}>View Your Organization</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.secondaryButton, { borderColor: '#16A34A', marginBottom: 0 }]}
-              onPress={() => router.replace('/(tabs)/create-team' as any)}
-            >
-              <Text style={[styles.secondaryButtonText, { color: '#16A34A', fontWeight: '700' }]}>Create Your First Team</Text>
+              <Text style={styles.primaryButtonText}>Continue to VarsityHub →</Text>
             </Pressable>
             {completionError ? (
               <>

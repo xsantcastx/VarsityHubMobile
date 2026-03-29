@@ -24,7 +24,9 @@ export default function LeaguePendingApproval() {
   const [rejected, setRejected] = useState(false);
   const [checking, setChecking] = useState(false);
   const [completionError, setCompletionError] = useState<string | null>(null);
+  const [timedOut, setTimedOut] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Poll organization status every 30 seconds
   const checkApproval = useCallback(async () => {
@@ -39,6 +41,7 @@ export default function LeaguePendingApproval() {
       if (org?.status === 'rejected') {
         setRejected(true);
         if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
+        if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
         return;
       }
       if (org?.admin_approved === true) {
@@ -47,6 +50,7 @@ export default function LeaguePendingApproval() {
           clearInterval(intervalRef.current);
           intervalRef.current = null;
         }
+        if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
         // Complete onboarding on server, then go to main app.
         // If completion fails, stay here and surface a retry action.
         let completed = false;
@@ -104,8 +108,14 @@ export default function LeaguePendingApproval() {
     if (!orgId) return;
     void checkApproval();
     intervalRef.current = setInterval(() => void checkApproval(), 10000);
+    // Stop polling after 30 minutes — admin has been notified, user should continue as fan
+    timeoutRef.current = setTimeout(() => {
+      if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
+      setTimedOut(true);
+    }, 30 * 60 * 1000);
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
   }, [checkApproval, orgId]);
 
@@ -196,7 +206,27 @@ export default function LeaguePendingApproval() {
           </>
         ) : null}
 
-        {!approved && orgId && (
+        {timedOut && !approved && !rejected && orgId && (
+          <>
+            <Text style={[styles.subheading, { color: isDark ? '#9CA3AF' : '#6B7280', marginBottom: 20 }]}>
+              This is taking longer than usual. We'll email you when your league is approved. You can continue as a fan in the meantime.
+            </Text>
+            <Pressable
+              style={[styles.primaryButton, { marginBottom: 12 }]}
+              onPress={handleProceedAsFan}
+            >
+              <Text style={styles.primaryButtonText}>Continue as Fan</Text>
+            </Pressable>
+            <Pressable style={[styles.secondaryButton, { borderColor: isDark ? '#374151' : '#D1D5DB' }]} onPress={handleLogout}>
+              <Text style={[styles.secondaryButtonText, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Log Out</Text>
+            </Pressable>
+            <Text style={[styles.supportText, { color: isDark ? '#6B7280' : '#9CA3AF' }]}>
+              Questions? Contact support@varsityhub.app
+            </Text>
+          </>
+        )}
+
+        {!approved && !timedOut && orgId && (
           <>
             {/* Info card */}
             <View style={[styles.infoCard, { backgroundColor: isDark ? '#1F2937' : '#FFFFFF', borderColor: isDark ? '#374151' : '#D1D5DB' }]}>
@@ -242,15 +272,9 @@ export default function LeaguePendingApproval() {
           <>
             <Pressable
               style={[styles.primaryButton, { backgroundColor: '#1B3A6B', marginTop: 24 }]}
-              onPress={() => router.replace({ pathname: '/(tabs)/organization', params: { id: orgId } } as any)}
+              onPress={() => router.replace('/onboarding/coach-agreement' as any)}
             >
-              <Text style={styles.primaryButtonText}>View Your Organization</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.secondaryButton, { borderColor: '#16A34A', marginBottom: 0 }]}
-              onPress={() => router.replace('/(tabs)/create-team' as any)}
-            >
-              <Text style={[styles.secondaryButtonText, { color: '#16A34A', fontWeight: '700' }]}>Create Your First Team</Text>
+              <Text style={styles.primaryButtonText}>Continue to VarsityHub →</Text>
             </Pressable>
             {completionError ? (
               <>
