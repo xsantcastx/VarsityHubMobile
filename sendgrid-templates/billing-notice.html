@@ -1,0 +1,128 @@
+<!-- Template: Billing Notice (BILLING_NOTICE) -->
+<!-- Template ID: (pending) -->
+<!-- Subject: VarsityHub Billing Update -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VarsityHub Billing Notice</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #ffffff;">
+    <table role="presentation" style="width: 100%; border-collapse: collapse;">
+        <tr>
+            <td align="center" style="padding: 40px 20px;">
+                <table role="presentation" style="width: 100%; max-width: 600px; border-collapse: collapse;">
+                    <tr>
+                        <td align="center" style="padding-bottom: 32px;">
+                            <img src="https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765655742/6C37232F-74BC-4486-95A1-7EE208A63D06_aj2j8k.png" alt="VarsityHub" style="width: 100px; height: 100px;" />
+                        </td>
+                    </tr>
+                    <tr>
+                        <td align="center" style="padding-bottom: 24px;">
+                            <h1 style="margin: 0; font-size: 28px; color: #111827; font-weight: 700;">
+                                {{#equals billing_type "trial_ending"}}Your Trial is Ending Soon{{/equals}}{{#equals billing_type "payment_succeeded"}}Payment Successful{{/equals}}{{#equals billing_type "payment_failed"}}Payment Failed{{/equals}}{{#equals billing_type "subscription_canceled"}}Subscription Canceled{{/equals}}{{#equals billing_type "subscription_renewed"}}Subscription Renewed{{/equals}}
+                            </h1>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0 20px 32px;">
+                            <p style="margin: 0 0 16px; font-size: 16px; line-height: 1.6; color: #374151;">
+                                Hi {{user_name}},
+                            </p>
+
+                            {{#equals billing_type "trial_ending"}}
+                            <p style="margin: 0 0 16px; font-size: 16px; line-height: 1.6; color: #374151;">
+                                Your free trial for the <strong>{{plan_name}}</strong> plan is ending soon. To continue enjoying all features, please update your billing information.
+                            </p>
+                            {{/equals}}
+
+                            {{#equals billing_type "payment_succeeded"}}
+                            <p style="margin: 0 0 16px; font-size: 16px; line-height: 1.6; color: #374151;">
+                                Your payment of <strong>{{amount}}</strong> for the <strong>{{plan_name}}</strong> plan has been processed successfully.
+                            </p>
+                            {{/equals}}
+
+                            {{#equals billing_type "payment_failed"}}
+                            <p style="margin: 0 0 16px; font-size: 16px; line-height: 1.6; color: #374151;">
+                                We were unable to process your payment of <strong>{{amount}}</strong> for the <strong>{{plan_name}}</strong> plan. Please update your payment method to avoid service interruption.
+                            </p>
+                            {{/equals}}
+
+                            {{#equals billing_type "subscription_canceled"}}
+                            <p style="margin: 0 0 16px; font-size: 16px; line-height: 1.6; color: #374151;">
+                                Your <strong>{{plan_name}}</strong> subscription has been canceled. You will continue to have access until the end of your current billing period.
+                            </p>
+                            {{/equals}}
+
+                            {{#equals billing_type "subscription_renewed"}}
+                            <p style="margin: 0 0 16px; font-size: 16px; line-height: 1.6; color: #374151;">
+                                Your <strong>{{plan_name}}</strong> subscription has been renewed successfully. A charge of <strong>{{amount}}</strong> has been applied.
+                            </p>
+                            {{/equals}}
+
+                            <!-- Details Card -->
+                            <table role="presentation" style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
+                                <tr>
+                                    <td style="padding: 20px; background-color: #f3f4f6; border-radius: 12px; border: 1px solid #e5e7eb;">
+                                        <table role="presentation" style="width: 100%; border-collapse: collapse;">
+                                            <tr>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #6b7280; width: 40%;">Plan</td>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #111827; font-weight: 600;">{{plan_name}}</td>
+                                            </tr>
+                                            {{#if amount}}
+                                            <tr>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #6b7280; border-top: 1px solid #e5e7eb;">Amount</td>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #111827; font-weight: 600; border-top: 1px solid #e5e7eb;">{{amount}}</td>
+                                            </tr>
+                                            {{/if}}
+                                            {{#if team_name}}
+                                            <tr>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #6b7280; border-top: 1px solid #e5e7eb;">Team</td>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #111827; font-weight: 600; border-top: 1px solid #e5e7eb;">{{team_name}}</td>
+                                            </tr>
+                                            {{/if}}
+                                            {{#if org_name}}
+                                            <tr>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #6b7280; border-top: 1px solid #e5e7eb;">Organization</td>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #111827; font-weight: 600; border-top: 1px solid #e5e7eb;">{{org_name}}</td>
+                                            </tr>
+                                            {{/if}}
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <table role="presentation" style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
+                                <tr>
+                                    <td align="center">
+                                        <a href="{{manage_subscription_url}}" style="display: inline-block; padding: 14px 32px; background-color: #2563eb; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">
+                                            Manage Subscription
+                                        </a>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 40px; background-color: #f9fafb; border-top: 1px solid #e5e7eb;">
+                            <table role="presentation" style="border-collapse: collapse; margin: 0 auto 20px auto;">
+                                <tr>
+                                    <td style="padding: 0 10px;"><a href="https://www.instagram.com/varsityhubapp/"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Instagram_icon.png/240px-Instagram_icon.png" alt="Instagram" style="width: 32px; height: 32px;" /></a></td>
+                                    <td style="padding: 0 10px;"><a href="https://www.tiktok.com/@varsityhubapp"><img src="https://cdn-icons-png.flaticon.com/512/3046/3046121.png" alt="TikTok" style="width: 32px; height: 32px;" /></a></td>
+                                    <td style="padding: 0 10px;"><a href="https://www.facebook.com/varsityhubapp/"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/2023_Facebook_icon.svg/240px-2023_Facebook_icon.svg.png" alt="Facebook" style="width: 32px; height: 32px;" /></a></td>
+                                    <td style="padding: 0 10px;"><a href="https://www.youtube.com/@varsityhubapp"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/0/09/YouTube_full-color_icon_%282017%29.svg/240px-YouTube_full-color_icon_%282017%29.svg.png" alt="YouTube" style="width: 32px; height: 32px;" /></a></td>
+                                    <td style="padding: 0 10px;"><a href="https://limeprod.com"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/87/Globe_icon_2.svg/240px-Globe_icon_2.svg.png" alt="Website" style="width: 32px; height: 32px;" /></a></td>
+                                </tr>
+                            </table>
+                            <p style="margin: 0 0 8px; font-size: 14px; text-align: center; color: #9ca3af;">&copy; 2025 LIME PRODUCTIONS</p>
+                            <p style="margin: 0; font-size: 12px; text-align: center;"><a href="https://limeprod.com/VarsityHubPrivacy" style="color: #9ca3af; text-decoration: underline;">Privacy Policy</a></p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

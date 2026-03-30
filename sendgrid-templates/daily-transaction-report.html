@@ -1,0 +1,161 @@
+<!-- Template: Daily Transaction Report (DAILY_TRANSACTION_REPORT) -->
+<!-- Key: DAILY_TRANSACTION_REPORT -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daily Transaction Report</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #ffffff;">
+    <table role="presentation" style="width: 100%; border-collapse: collapse;">
+        <tr>
+            <td align="center" style="padding: 40px 20px;">
+                <!-- Main Container -->
+                <table role="presentation" style="width: 100%; max-width: 600px; border-collapse: collapse;">
+
+                    <!-- Logo -->
+                    <tr>
+                        <td align="center" style="padding-bottom: 32px;">
+                            <img src="https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765655742/6C37232F-74BC-4486-95A1-7EE208A63D06_aj2j8k.png" alt="VarsityHub" style="width: 100px; height: 100px; display: block;" />
+                        </td>
+                    </tr>
+
+                    <!-- Header -->
+                    <tr>
+                        <td align="center" style="padding-bottom: 8px;">
+                            <h1 style="margin: 0; font-size: 24px; color: #111827; font-weight: 700;">
+                                Daily Transaction Report
+                            </h1>
+                        </td>
+                    </tr>
+
+                    <!-- Date Subheader -->
+                    <tr>
+                        <td align="center" style="padding-bottom: 24px;">
+                            <p style="margin: 0; font-size: 16px; color: #6b7280; font-weight: 500;">
+                                {{report_date}}
+                            </p>
+                        </td>
+                    </tr>
+
+                    <!-- Body Content -->
+                    <tr>
+                        <td style="padding: 0 20px 32px;">
+
+                            <!-- Revenue Summary -->
+                            <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 24px;">
+                                <tr>
+                                    <td style="padding: 20px;">
+                                        <p style="margin: 0 0 16px; font-size: 16px; color: #111827; font-weight: 700;">
+                                            Revenue Summary
+                                        </p>
+                                        <table role="presentation" style="width: 100%; border-collapse: collapse;">
+                                            <tr>
+                                                <td style="padding: 10px 0; font-size: 14px; color: #6b7280;">Total Transactions:</td>
+                                                <td style="padding: 10px 0; font-size: 14px; color: #111827; font-weight: 600; text-align: right;">{{total_transactions}}</td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 10px 0; font-size: 14px; color: #6b7280; border-top: 1px solid #e5e7eb;">Completed Transactions:</td>
+                                                <td style="padding: 10px 0; font-size: 14px; color: #111827; font-weight: 600; text-align: right; border-top: 1px solid #e5e7eb;">{{completed_transactions}}</td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 10px 0; font-size: 14px; color: #6b7280; border-top: 1px solid #e5e7eb;">Gross Revenue:</td>
+                                                <td style="padding: 10px 0; font-size: 16px; color: #111827; font-weight: 700; text-align: right; border-top: 1px solid #e5e7eb;">{{gross_revenue}}</td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <!-- Deductions -->
+                            <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 24px;">
+                                <tr>
+                                    <td style="padding: 20px;">
+                                        <p style="margin: 0 0 16px; font-size: 16px; color: #111827; font-weight: 700;">
+                                            Deductions
+                                        </p>
+                                        <table role="presentation" style="width: 100%; border-collapse: collapse;">
+                                            <tr>
+                                                <td style="padding: 10px 0; font-size: 14px; color: #6b7280;">Stripe Fees:</td>
+                                                <td style="padding: 10px 0; font-size: 14px; color: #dc2626; font-weight: 600; text-align: right;">-{{stripe_fees}}</td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 10px 0; font-size: 14px; color: #6b7280; border-top: 1px solid #e5e7eb;">Discounts:</td>
+                                                <td style="padding: 10px 0; font-size: 14px; color: #dc2626; font-weight: 600; text-align: right; border-top: 1px solid #e5e7eb;">-{{discounts}}</td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <!-- Net Revenue -->
+                            <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f0fdf4; border: 2px solid #16a34a; border-radius: 8px; margin-bottom: 24px;">
+                                <tr>
+                                    <td style="padding: 20px;">
+                                        <table role="presentation" style="width: 100%; border-collapse: collapse;">
+                                            <tr>
+                                                <td style="font-size: 16px; color: #166534; font-weight: 700;">Net Revenue:</td>
+                                                <td style="font-size: 20px; color: #16a34a; font-weight: 700; text-align: right;">{{net_revenue}}</td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <p style="margin: 0; font-size: 12px; line-height: 1.6; color: #6b7280; text-align: center;">
+                                Report generated at {{generated_at}}
+                            </p>
+                        </td>
+                    </tr>
+
+                    <!-- Footer -->
+                    <tr>
+                        <td align="center" style="padding: 32px 20px; background-color: #f9fafb; border-top: 1px solid #e5e7eb;">
+                            <table role="presentation" style="border-collapse: collapse; margin-bottom: 16px;">
+                                <tr>
+                                    <td style="padding: 0 8px;">
+                                        <a href="https://www.instagram.com/varsityhubapp/" style="display: block;">
+                                            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Instagram_icon.png/240px-Instagram_icon.png" alt="Instagram" style="width: 32px; height: 32px; display: block;" />
+                                        </a>
+                                    </td>
+                                    <td style="padding: 0 8px;">
+                                        <a href="https://www.tiktok.com/@varsityhubapp" style="display: block;">
+                                            <img src="https://cdn-icons-png.flaticon.com/512/3046/3046121.png" alt="TikTok" style="width: 32px; height: 32px; display: block;" />
+                                        </a>
+                                    </td>
+                                    <td style="padding: 0 8px;">
+                                        <a href="https://www.facebook.com/varsityhubapp/" style="display: block;">
+                                            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/2023_Facebook_icon.svg/240px-2023_Facebook_icon.svg.png" alt="Facebook" style="width: 32px; height: 32px; display: block;" />
+                                        </a>
+                                    </td>
+                                    <td style="padding: 0 8px;">
+                                        <a href="https://www.youtube.com/@varsityhubapp" style="display: block;">
+                                            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/0/09/YouTube_full-color_icon_%282017%29.svg/240px-YouTube_full-color_icon_%282017%29.svg.png" alt="YouTube" style="width: 32px; height: 32px; display: block;" />
+                                        </a>
+                                    </td>
+                                    <td style="padding: 0 8px;">
+                                        <a href="https://limeprod.com" style="display: block;">
+                                            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/87/Globe_icon_2.svg/240px-Globe_icon_2.svg.png" alt="Lime Productions" style="width: 32px; height: 32px; display: block;" />
+                                        </a>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <p style="margin: 0 0 16px; font-size: 12px; color: #6b7280; text-align: center;">
+                                <a href="https://limeprod.com/VarsityHubPrivacy" style="color: #2563eb; text-decoration: none;">Privacy Policy</a>
+                            </p>
+
+                            <p style="margin: 0; font-size: 12px; color: #6b7280;">
+                                &copy; 2025 LIME PRODUCTIONS
+                            </p>
+                        </td>
+                    </tr>
+
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
