@@ -159,6 +159,7 @@ export default function RootLayout() {
                     <Stack.Screen name="payment-cancel" options={{ headerShown: false }} />
                     {/* Onboarding - lazy loaded */}
                     <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+                    <Stack.Screen name="onboarding/coach-agreement" options={{ headerShown: false }} />
                     {/* Organization & league detail pages */}
                     <Stack.Screen name="organizations" options={{ headerShown: false }} />
                     <Stack.Screen name="league" options={{ headerShown: false }} />

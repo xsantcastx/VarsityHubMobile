@@ -85,7 +85,9 @@ export default function PendingApproval() {
           // failure does NOT mean onboarding is incomplete on the server.
           completed = true;
           await markOnboardingCompleteLocally();
-          await checkAuth();
+          // Do NOT call checkAuth() here — it triggers AuthProvider redirect
+          // before the user sees "You're Approved!" and the action buttons.
+          // checkAuth() is called when the user taps a button to proceed.
           registerPushToken().catch(() => {});
         } catch (err: any) {
           if (__DEV__) console.warn('[pending-approval] Failed to complete onboarding:', err);
@@ -98,7 +100,6 @@ export default function PendingApproval() {
             // Fallback: try setting onboarding_completed directly via preferences
             await User.updatePreferences({ onboarding_completed: true });
             await markOnboardingCompleteLocally();
-            await checkAuth();
             completed = true;
           } catch {
             // Final check: maybe onboarding was already completed server-side

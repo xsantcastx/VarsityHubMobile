@@ -454,19 +454,35 @@ export default function EditProfileScreen() {
       preferences.accolades = accoladesList.length > 0 ? accoladesList : null;
       preferences.primary_sport = primarySport.trim() ? primarySport.trim().toLowerCase() : null;
 
-      await User.updateMe(directFields);
-
-      // Preferences must go to a separate endpoint — /me rejects the preferences field
-      if (Object.keys(preferences).length > 0) {
-        await User.updatePreferences(preferences);
+      // Save profile fields and preferences independently so one failure
+      // does not block the other (e.g. avatar domain rejection vs background image)
+      const errors: string[] = [];
+      try {
+        await User.updateMe(directFields);
+      } catch (e: any) {
+        if (__DEV__) console.error('updateMe error:', e);
+        errors.push(e?.message || 'Failed to update profile fields');
       }
-      
+
+      if (Object.keys(preferences).length > 0) {
+        try {
+          await User.updatePreferences(preferences);
+        } catch (e: any) {
+          if (__DEV__) console.error('updatePreferences error:', e);
+          errors.push(e?.message || 'Failed to update preferences');
+        }
+      }
+
       // Reload user data to reflect changes immediately
       await loadUserData();
 
-      Alert.alert('Saved', 'Profile updated successfully.', [
-        { text: 'OK', onPress: () => safeGoBack(router) },
-      ]);
+      if (errors.length > 0) {
+        Alert.alert('Partial Save', `Some changes may not have saved:\n${errors.join('\n')}`);
+      } else {
+        Alert.alert('Saved', 'Profile updated successfully.', [
+          { text: 'OK', onPress: () => safeGoBack(router) },
+        ]);
+      }
     } catch (e: any) {
       if (__DEV__) console.error('Save error:', e);
       Alert.alert('Error', e?.message || 'Failed to update profile');

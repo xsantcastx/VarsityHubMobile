@@ -30,6 +30,7 @@ export default function ResetPasswordScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const [resetSuccess, setResetSuccess] = useState(false);
 
   const onSubmit = async () => {
     const trimmedEmail = email.trim();
@@ -66,6 +67,7 @@ export default function ResetPasswordScreen() {
     try {
       await User.resetPassword(trimmedEmail, trimmedCode, password);
       setInfo('Password updated! You can sign in with your new password.');
+      setResetSuccess(true);
     } catch (e: any) {
       setError(e?.message || 'Unable to reset password.');
     } finally {
@@ -91,6 +93,15 @@ export default function ResetPasswordScreen() {
 
           {error ? <Text style={[styles.error, { color: '#b91c1c' }]}>{error}</Text> : null}
           {info ? <Text style={[styles.info, { color: '#065F46' }]}>{info}</Text> : null}
+
+          {resetSuccess ? (
+            <Pressable
+              onPress={() => router.replace('/sign-in')}
+              style={{ backgroundColor: palette.tint, paddingVertical: 14, borderRadius: 10, alignItems: 'center', marginTop: 12 }}
+            >
+              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>Back to Sign In</Text>
+            </Pressable>
+          ) : null}
 
           <Input
             placeholder="name@school.edu"

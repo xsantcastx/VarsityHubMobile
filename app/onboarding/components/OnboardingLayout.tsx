@@ -130,7 +130,7 @@ export default function OnboardingLayout({
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
-        keyboardVerticalOffset={0}
+        keyboardVerticalOffset={insets.bottom}
       >
         <ScrollView
           contentContainerStyle={styles.scrollContent}

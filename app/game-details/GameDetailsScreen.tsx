@@ -2335,7 +2335,7 @@ const renderBanner = () => {
                     color={Colors[colorScheme].tint}
                   />
                   <Text style={styles.actionText}>
-                    {storyUnlockCountdown || 'Add Story'}
+                    {'Add Story'}
                   </Text>
                 </Pressable>
               </View>

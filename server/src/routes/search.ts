@@ -126,10 +126,23 @@ searchRouter.get('/', searchLimiter, authMiddleware as any, async (req: AuthedRe
     return aExact - bExact;
   });
 
+  // Filter out system-generated usernames (UUID, CUID, random IDs) so only
+  // user-created usernames are returned to the client
+  const isSystemId = (s: string | null): boolean => {
+    if (!s) return false;
+    // UUID pattern
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)) return true;
+    // CUID v1 (starts with c, 20+ alphanumeric)
+    if (/^c[0-9a-z]{20,}$/.test(s)) return true;
+    // CUID v2 / nanoid / random ID — 8+ chars, all lowercase alphanumeric, no spaces or special chars
+    if (/^[0-9a-z]{8,}$/.test(s) && !/[aeiou]{2,}/i.test(s)) return true;
+    return false;
+  };
+
   const usersPayload = sortedUsers.map((u) => ({
     id: u.id,
-    username: u.username || null,
-    display_name: u.display_name || u.username || 'User',
+    username: isSystemId(u.username) ? null : (u.username || null),
+    display_name: isSystemId(u.display_name) ? (isSystemId(u.username) ? 'User' : u.username || 'User') : (u.display_name || u.username || 'User'),
     avatar_url: u.avatar_url,
     is_following: userFollowSet.has(u.id),
   }));

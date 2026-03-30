@@ -1424,11 +1424,11 @@ const styles = StyleSheet.create({
   searchFollowBtnText: { fontWeight: '800', fontSize: 13 },
   searchEmpty: { padding: 16, textAlign: 'center', fontSize: 14 },
   followingCard: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, marginTop: 4, marginBottom: 10 },
-  followingText: { color: '#1e3a8a', fontWeight: '700' },
+  followingText: { fontWeight: '700' },
   followingBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: '#1D4ED8' },
   followingBtnText: { color: 'white', fontWeight: '800' },
   followingCardMuted: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, marginTop: 4, marginBottom: 10 },
-  followingMutedText: { color: '#6B7280', fontWeight: '600' },
+  followingMutedText: { fontWeight: '600' },
   // Segmented tabs
   tabsWrap: { flexDirection: 'row', borderRadius: 10, marginTop: 4, marginBottom: 8, padding: 4, gap: 6, height: 40 },
   tab: { flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 8 },
@@ -1445,7 +1445,7 @@ const styles = StyleSheet.create({
   followBtnOn: {},
   followBtnText: { fontWeight: '800' },
   followBtnTextOn: {},
-  card: { padding: 14, borderRadius: 14, backgroundColor: 'white', borderWidth: 1, borderColor: '#D1D5DB' },
+  card: { padding: 14, borderRadius: 14, borderWidth: 1 },
   hero: { height: 140, borderRadius: 12, backgroundColor: '#F1F5F9', marginBottom: 12, overflow: 'hidden' },
   heroImage: { width: '100%', height: '100%' },
   cardTitle: { fontWeight: '800', fontSize: 18, marginBottom: 2 },
@@ -1462,12 +1462,10 @@ const styles = StyleSheet.create({
   personName: { marginTop: 6, fontSize: 12, maxWidth: 84 },
   // Coach Dashboard Styles
   coachDashboard: {
-    backgroundColor: '#F8FAFC',
     borderRadius: 16,
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
   },
   coachTitle: {
     fontSize: 20,

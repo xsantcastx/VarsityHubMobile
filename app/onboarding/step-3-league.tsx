@@ -129,10 +129,8 @@ export default function Step3League() {
     else if (aff === 'professional') setOrgType('professional');
     else if (aff === 'club' || aff === 'youth') setOrgType('club');
     else if (aff === 'league') setOrgType('league');
-    // Check if team or organization already exists in onboarding state
-    if (!alreadyExists && (ob.team_id || ob.organization_id)) {
-      setAlreadyExists(true);
-    }
+    // Do NOT auto-set alreadyExists from stale AsyncStorage state.
+    // Only the async DB check (Team.managed / Organization.mine) should set alreadyExists.
   }, [alreadyExists, existingOrg, ob.affiliation, ob.organization_id, ob.team_id, ob.organization_name]);
 
   // Determine what type of page to create based on plan

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/Colors';
+import { useAuth } from '@/context/AuthProvider';
 // @ts-ignore
 import { User } from '@/api/entities';
 
@@ -18,6 +19,7 @@ export default function CoachAgreementScreen() {
   const C = Colors[colorScheme];
   const isDark = colorScheme === 'dark';
   const router = useRouter();
+  const { checkAuth } = useAuth();
   const params = useLocalSearchParams<{ redirect?: string }>();
   const [accepting, setAccepting] = useState(false);
 
@@ -27,6 +29,8 @@ export default function CoachAgreementScreen() {
       await User.updatePreferences({
         coach_agreement_accepted_at: new Date().toISOString(),
       });
+      // Sync auth state now that the user has completed onboarding + agreement
+      await checkAuth();
       // Route based on redirect param; default to organization setup
       const redirect = params.redirect;
       if (redirect === 'create-team') {

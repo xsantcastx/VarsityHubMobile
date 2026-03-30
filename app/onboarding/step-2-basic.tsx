@@ -220,9 +220,14 @@ export default function Step2Basic() {
     }
   };
 
-  const dobError = dob && (new Date(dob).getFullYear() < 1920 || new Date(dob) > new Date());
+  // Parse YYYY-MM-DD as local midnight to avoid UTC off-by-one
+  const parseDobLocal = (s: string): Date => {
+    const [y, mo, day] = s.split('-').map(Number);
+    return new Date(y, mo - 1, day);
+  };
+  const dobError = dob && (parseDobLocal(dob).getFullYear() < 1920 || parseDobLocal(dob) > new Date());
   const isUnder13 = dob && (() => {
-    const d = new Date(dob);
+    const d = parseDobLocal(dob);
     if (isNaN(d.getTime())) return false;
     const now = new Date();
     let age = now.getFullYear() - d.getFullYear();
@@ -231,7 +236,7 @@ export default function Step2Basic() {
     return age < 13;
   })();
   const isUnder18 = dob && (() => {
-    const d = new Date(dob);
+    const d = parseDobLocal(dob);
     if (isNaN(d.getTime())) return false;
     const now = new Date();
     let age = now.getFullYear() - d.getFullYear();

@@ -1071,7 +1071,13 @@ export default function ProfileScreen() {
                 {thumb ? (
                   <>
                     <View style={styles.gridImageContainer}>
-                      <Image source={{ uri: displayThumb }} style={styles.gridImage} contentFit="cover" />
+                      {isVideo && !item.preview_url ? (
+                        <View style={[styles.gridImage, { backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' }]}>
+                          <Ionicons name="play-circle" size={32} color="#fff" />
+                        </View>
+                      ) : (
+                        <Image source={{ uri: displayThumb }} style={styles.gridImage} contentFit="cover" />
+                      )}
                       <View style={styles.gridImageOverlay} />
                     </View>
                     <View style={styles.gridCounts}>
@@ -1156,7 +1162,13 @@ export default function ProfileScreen() {
                 {thumb ? (
                   <>
                     <View style={styles.gridImageContainer}>
-                      <Image source={{ uri: displayThumb }} style={styles.gridImage} contentFit="cover" />
+                      {isVideo && !postItem?.preview_url ? (
+                        <View style={[styles.gridImage, { backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' }]}>
+                          <Ionicons name="play-circle" size={32} color="#fff" />
+                        </View>
+                      ) : (
+                        <Image source={{ uri: displayThumb }} style={styles.gridImage} contentFit="cover" />
+                      )}
                       <View style={styles.gridImageOverlay} />
                     </View>
                     <View style={styles.gridCounts}>
@@ -1241,7 +1253,13 @@ export default function ProfileScreen() {
                 {thumb ? (
                   <>
                     <View style={styles.gridImageContainer}>
-                      <Image source={{ uri: displayThumb }} style={styles.gridImage} contentFit="cover" />
+                      {isVideo && !postItem?.preview_url ? (
+                        <View style={[styles.gridImage, { backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' }]}>
+                          <Ionicons name="play-circle" size={32} color="#fff" />
+                        </View>
+                      ) : (
+                        <Image source={{ uri: displayThumb }} style={styles.gridImage} contentFit="cover" />
+                      )}
                       <View style={styles.gridImageOverlay} />
                     </View>
                     <View style={styles.gridCounts}>
