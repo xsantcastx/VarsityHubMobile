@@ -777,8 +777,9 @@ adminRouter.post('/wipe-production', requireVerified as any, requireAdminMiddlew
     await prisma.$executeRawUnsafe(`DELETE FROM "UserWarning"`);
     await prisma.$executeRawUnsafe(`DELETE FROM "AbuseReport"`);
     await prisma.$executeRawUnsafe(`DELETE FROM "AdminActivityLog"`);
-    await prisma.$executeRawUnsafe(`DELETE FROM "RefreshToken" WHERE "user_id" NOT IN (${keepIds.map(id => `'${id}'`).join(',')})`);
-    await prisma.$executeRawUnsafe(`DELETE FROM "User" WHERE "id" NOT IN (${keepIds.map(id => `'${id}'`).join(',')})`);
+    const { Prisma } = await import('@prisma/client');
+    await prisma.$executeRaw(Prisma.sql`DELETE FROM "RefreshToken" WHERE "user_id" NOT IN (${Prisma.join(keepIds)})`);
+    await prisma.$executeRaw(Prisma.sql`DELETE FROM "User" WHERE "id" NOT IN (${Prisma.join(keepIds)})`);
 
 
     const remaining = await prisma.user.count();

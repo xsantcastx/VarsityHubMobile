@@ -559,6 +559,25 @@ teamsRouter.post('/', requireVerified as any, requireOnboarded as any, requirePl
   const userPlan = userPrefs.plan || 'rookie';
   const maxTeams = getMaxTeamsForPlan(userPlan) ?? Infinity;
 
+  // For Veteran plan, verify Stripe subscription is active before entering transaction
+  if (userPlan === 'veteran') {
+    const subId = userPrefs.subscription_id;
+    if (!subId) {
+      return res.status(403).json({ error: 'No active subscription', message: 'Veteran plan requires an active subscription.' });
+    }
+    try {
+      const stripeLib = await import('stripe');
+      const sc = new stripeLib.default(process.env.STRIPE_SECRET_KEY || '', { apiVersion: '2024-06-20' });
+      const sub = await sc.subscriptions.retrieve(subId);
+      if (sub.status !== 'active' && sub.status !== 'trialing') {
+        return res.status(403).json({ error: 'Subscription not active', message: 'Your Veteran subscription is not active.' });
+      }
+    } catch (err) {
+      console.error('[Teams] Failed to verify Veteran subscription on POST /teams:', err);
+      return res.status(500).json({ error: 'Subscription verification failed' });
+    }
+  }
+
   const t = await prisma.$transaction(async (tx) => {
     const ownedTeamsCount = await tx.teamMembership.count({
       where: { user_id: userId, role: 'owner', status: 'active' },
@@ -1138,17 +1157,30 @@ teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, req
   try {
     const team = await prisma.$transaction(async (tx) => {
       // Re-check team limit atomically within transaction to prevent race conditions
-      if (userPlan === 'rookie' || !userPlan || userPlan === 'free') {
-        const ownedTeamsCount = await tx.teamMembership.count({
-          where: {
-            user_id: me.id,
-            role: 'owner',
-            status: 'active',
-          },
-        });
+      const ownedTeamsInTx = await tx.teamMembership.count({
+        where: { user_id: me.id, role: 'owner', status: 'active' },
+      });
 
-        if (ownedTeamsCount >= 2) {
+      if (userPlan === 'rookie' || !userPlan || userPlan === 'free') {
+        if (ownedTeamsInTx >= 2) {
           throw new Error('TEAM_LIMIT_EXCEEDED:Rookie plan allows maximum 2 teams');
+        }
+      } else if (userPlan === 'veteran') {
+        // Re-verify Stripe quantity inside transaction to prevent race condition
+        const subId = effectiveSubscriptionId;
+        if (subId) {
+          try {
+            const stripeLib = await import('stripe');
+            const sc = new stripeLib.default(process.env.STRIPE_SECRET_KEY || '', { apiVersion: '2024-06-20' });
+            const sub = await sc.subscriptions.retrieve(subId);
+            const paidQty = sub.items.data[0]?.quantity || 0;
+            if (ownedTeamsInTx >= paidQty) {
+              throw new Error(`TEAM_LIMIT_EXCEEDED:Subscription covers ${paidQty} teams but you already own ${ownedTeamsInTx}`);
+            }
+          } catch (err: any) {
+            if (err?.message?.startsWith('TEAM_LIMIT_EXCEEDED:')) throw err;
+            throw new Error('TEAM_LIMIT_EXCEEDED:Unable to verify subscription. Please try again.');
+          }
         }
       }
 

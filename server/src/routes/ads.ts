@@ -510,16 +510,12 @@ adsRouter.put('/:id([a-z0-9]{15,50})', requireAuth as any, async (req: AuthedReq
       data.target_lng = zipCoords?.lon ?? null;
     }
 
-    // If banner_url or target_url changed, require re-approval — but only if ad hasn't been paid for yet
+    // If banner_url or target_url changed, ALWAYS require re-approval regardless of payment status
     const bannerChanged = 'banner_url' in data && data.banner_url !== ad.banner_url;
     const targetUrlChanged = 'target_url' in data && data.target_url !== ad.target_url;
     if ((bannerChanged && data.banner_url) || targetUrlChanged) {
-      if (ad.payment_status === 'paid') {
-        // Already paid — don't revert status, but flag for review
-        data.admin_note = `[Auto] Content changed after payment — banner: ${bannerChanged}, target_url: ${targetUrlChanged}`;
-      } else {
-        data.status = 'pending';
-      }
+      data.status = 'pending';
+      data.admin_note = `[Auto] Content changed${ad.payment_status === 'paid' ? ' after payment' : ''} — banner: ${bannerChanged}, target_url: ${targetUrlChanged}. Ad removed from feed pending re-approval.`;
     }
 
     const updated = await prisma.ad.update({ where: { id }, data });

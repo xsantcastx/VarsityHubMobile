@@ -9,7 +9,8 @@ import { requirePlan } from '../middleware/subscription.js';
 import { getMaxRosterSizePerTeam, resolvePlan } from '../lib/planLimits.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
 
-const VALID_ROLES = ['owner', 'manager', 'coach', 'assistant_coach', 'player', 'parent', 'member', 'equipment', 'health_wellness'] as const;
+// 'owner' is intentionally excluded — ownership can only be assigned through org creation or transfer-ownership endpoint
+const VALID_ROLES = ['manager', 'coach', 'assistant_coach', 'player', 'parent', 'member', 'equipment', 'health_wellness'] as const;
 type ValidRole = typeof VALID_ROLES[number];
 
 export const teamMembershipsRouter = Router();

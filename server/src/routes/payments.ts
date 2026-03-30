@@ -333,16 +333,11 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
     }
   }
 
-  // Cancel existing subscription if upgrading between paid plans
+  // Store old subscription ID for cancellation AFTER new payment completes (in webhook/finalizeFromSession)
+  // Do NOT cancel here — if user abandons checkout, they'd lose their current subscription
   const existingSubId = prefs.subscription_id;
   if (existingSubId && currentPlan !== 'rookie') {
-    try {
-      await stripe.subscriptions.cancel(existingSubId);
-      debugLog(`[payments] Cancelled old subscription ${existingSubId} for plan upgrade ${currentPlan} → ${chosen}`);
-    } catch (cancelErr: any) {
-      console.warn(`[payments] Failed to cancel old subscription ${existingSubId}:`, cancelErr?.message);
-      // Continue with new subscription creation — old sub will eventually expire
-    }
+    debugLog(`[payments] User has existing subscription ${existingSubId} — will cancel after new payment completes`);
   }
 
   const session = await stripe.checkout.sessions.create(sessionConfig, {
@@ -2336,9 +2331,18 @@ paymentsRouter.get('/success', asyncHandler(async (req, res) => {
   const sessionId = typeof req.query.session_id === 'string' ? req.query.session_id : undefined;
   if (sessionId && process.env.STRIPE_SECRET_KEY) {
     try {
-      const session = await stripe.checkout.sessions.retrieve(sessionId);
-      if (session && session.payment_status === 'paid') {
-        await finalizeFromSession(session);
+      // Dedup: only finalize if not already processed by webhook
+      const alreadyProcessed = await prisma.processedStripeEvent.findFirst({
+        where: { event_id: `success_page_${sessionId}` },
+      });
+      if (!alreadyProcessed) {
+        const session = await stripe.checkout.sessions.retrieve(sessionId);
+        if (session && session.payment_status === 'paid') {
+          await finalizeFromSession(session);
+          await prisma.processedStripeEvent.create({
+            data: { event_id: `success_page_${sessionId}`, event_type: 'success_page_finalize' },
+          }).catch(() => {}); // Ignore duplicate key
+        }
       }
     } catch (e) {
       console.error('[payments] Post-payment finalization failed:', { session_id: sessionId, error: (e as any)?.message || e });
@@ -2436,10 +2440,13 @@ paymentsRouter.post('/apple/verify-receipt', expressPkg.json(), requireAuth as a
       return res.status(400).json({ error: `Unknown product: ${productId}` });
     }
 
-    // Verify with Apple — try production first, fall back to sandbox if status 21007
+    // Verify with Apple — production only. Sandbox receipts rejected in production.
     let result = await verifyAppleReceipt(receipt, false);
     if (result.status === 21007) {
-      // Receipt is from sandbox environment
+      if (process.env.NODE_ENV === 'production') {
+        return res.status(400).json({ error: 'Sandbox receipts are not accepted in production' });
+      }
+      // Development/staging only: fall back to sandbox verification
       result = await verifyAppleReceipt(receipt, true);
     }
 
@@ -2605,8 +2612,10 @@ paymentsRouter.post('/apple/verify-ad-receipt', expressPkg.json(), requireAuth a
 
       const inApp = result.receipt?.in_app || [];
       const matching = inApp.filter((t: any) => t.product_id === productId);
-      const qty = matching.length || quantity || 1;
-      verifiedCents += unitCents * qty;
+      if (matching.length === 0) {
+        return res.status(400).json({ error: 'No matching transactions in receipt for product', product_id: productId });
+      }
+      verifiedCents += unitCents * matching.length;
 
       const txId = matching[0]?.transaction_id || matching[0]?.original_transaction_id;
       if (txId) orderIds.push(String(txId));
