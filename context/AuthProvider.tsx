@@ -530,13 +530,24 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         return;
       }
 
-      // Clear proceeding_as_fan when coach gets approved (transition from fan mode to coach mode)
-      if (user.approval_status === 'APPROVED' && user.preferences?.role === 'coach' && user.preferences?.proceeding_as_fan === true) {
-        User.updatePreferences({ proceeding_as_fan: false }).catch((err) => {
-          // Non-fatal: next checkAuth cycle will retry this transition.
-          // Log for Sentry visibility so we know if this is recurring.
-          if (__DEV__) console.warn('[AuthProvider] Failed to clear proceeding_as_fan:', err?.message);
+      // Approved coach who was browsing as fan — restore coach role and route to coach onboarding.
+      // When a coach taps "Continue as Fan", role is saved as 'fan' with proceeding_as_fan=true.
+      // Once the org is approved, we must flip them back to coach and send them through agreement.
+      if (user.approval_status === 'APPROVED' && user.preferences?.proceeding_as_fan === true) {
+        // Restore coach role on server (fire-and-forget — next checkAuth picks it up)
+        User.updatePreferences({ proceeding_as_fan: false, role: 'coach' }).catch((err) => {
+          if (__DEV__) console.warn('[AuthProvider] Failed to restore coach role:', err?.message);
         });
+        // Route to coach-agreement if they haven't accepted it yet
+        const onAgreement = Array.isArray(segmentsRef.current) && segmentsRef.current.join('/').includes('coach-agreement');
+        if (!user.preferences?.coach_agreement_accepted_at && !onAgreement) {
+          if (__DEV__) console.log('[AuthProvider] Approved fan→coach transition — routing to coach agreement');
+          if (lastRedirectRef.current !== '/onboarding/coach-agreement') {
+            lastRedirectRef.current = '/onboarding/coach-agreement';
+            router.replace('/onboarding/coach-agreement');
+          }
+          return;
+        }
       }
 
       // Block unapproved coaches (pending/rejected) on coach path.
@@ -624,7 +635,8 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       // If onboarding is complete and user is still on onboarding route, send to main app.
       // Exception: pending-approval and league-pending-approval are completion screens —
       // the user must tap the button themselves. Don't yank them away automatically.
-      if (!needsOnboarding && firstSegment === 'onboarding' && !isPendingCoach) {
+      // Exception: coach-agreement — only keep the user there if they still need to accept it.
+      if (!needsOnboarding && firstSegment === 'onboarding' && !isPendingCoach && !(isOnAgreementScreen && isCoachWithoutAgreement)) {
         if (__DEV__) console.log('[AuthProvider] User completed onboarding, redirecting to main app');
         const landingRoute = '/(tabs)';
         if (lastRedirectRef.current !== landingRoute) {

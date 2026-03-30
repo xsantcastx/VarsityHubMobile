@@ -130,7 +130,8 @@ export function NotificationTapHandler() {
           }
 
           case 'org_approved':
-            router.push('/(tabs)/create-team' as any);
+            // Route through coach-agreement first — AuthProvider will redirect if already accepted
+            router.push('/onboarding/coach-agreement' as any);
             break;
 
           case 'event_approved':
