@@ -214,15 +214,11 @@ export default function PendingApproval() {
         </Text>
 
         {/* Show rejection reason if available */}
-        {rejected && rejectionReason ? (
+        {rejected ? (
           <View style={[styles.reasonCard, { backgroundColor: isDark ? 'rgba(220,38,38,0.1)' : '#FEF2F2', borderColor: isDark ? '#7F1D1D' : '#FECACA' }]}>
             <Text style={[styles.reasonLabel, { color: isDark ? '#FCA5A5' : '#991B1B' }]}>Reason:</Text>
-            <Text style={[styles.reasonText, { color: isDark ? '#F9FAFB' : '#111827' }]}>{rejectionReason}</Text>
+            <Text style={[styles.reasonText, { color: isDark ? '#F9FAFB' : '#111827' }]}>{rejectionReason || 'No reason provided. You can continue as a fan or try joining a different league.'}</Text>
           </View>
-        ) : rejected ? (
-          <Text style={[styles.subheading, { color: isDark ? '#9CA3AF' : '#6B7280', marginTop: -16 }]}>
-            You can continue as a fan or try joining a different league.
-          </Text>
         ) : null}
 
         {timedOut && !approved && !rejected && (

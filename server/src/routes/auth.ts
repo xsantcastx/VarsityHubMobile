@@ -211,25 +211,18 @@ authRouter.post('/register', asyncHandler(async (req, res) => {
   });
   if (process.env.NODE_ENV === 'development') console.log(`[verify-code] [register] Code stored in DB for user ${user.id} (expires ${exp.toISOString()})`);
   const access_token = signJwt({ id: user.id });
-  try {
-    if (process.env.NODE_ENV === 'development') console.log(`[verify-code] [register] Calling sendVerificationEmail → to: ${email}`);
-    const emailSend = sendVerificationEmail(email, code, display_name || sanitizedEmail.split('@')[0]);
-    const EMAIL_TIMEOUT_MS = 5000;
-    const timed = await Promise.race([
-      emailSend,
-      new Promise((resolve) => setTimeout(resolve, EMAIL_TIMEOUT_MS, 'timeout'))
-    ]);
-    if (timed === 'timeout') {
-      console.warn('[verify-code] [register] sendVerificationEmail timed out after 5s — email may still be queued by SendGrid');
-    } else if (timed === false) {
-      console.error('[verify-code] [register] sendVerificationEmail returned false — email was NOT sent (check SendGridProvider logs above for the specific error)');
-    } else {
-      console.log('[verify-code] [register] sendVerificationEmail returned true — email accepted by SendGrid');
-    }
-  } catch (e) {
-    console.error('[verify-code] [register] sendVerificationEmail threw:', e);
-    req.log?.warn?.({ err: e }, 'Email send failed; returning code in dev');
-  }
+  // Fire-and-forget email — don't block the HTTP response waiting for SendGrid
+  sendVerificationEmail(email, code, display_name || sanitizedEmail.split('@')[0])
+    .then((result) => {
+      if (result === false) {
+        console.error('[register] sendVerificationEmail returned false — email NOT sent');
+      } else {
+        console.log('[register] sendVerificationEmail accepted by SendGrid');
+      }
+    })
+    .catch((e) => {
+      console.error('[register] sendVerificationEmail threw:', e);
+    });
   // Issue refresh token on registration
   const rawRefreshReg = generateRefreshToken();
   const regTokenHash = hashRefreshToken(rawRefreshReg);

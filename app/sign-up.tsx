@@ -112,9 +112,9 @@ export default function SignUpScreen() {
 
     try {
       const res: any = await attemptRegistration();
-      // Load user into context so the routing guard (email_verified check) is active.
-      // This ensures unverified users can't navigate past the verify screen.
-      await checkAuth().catch(() => {});
+      // Don't await checkAuth — the registration response already saved tokens.
+      // Navigate immediately to verify screen for faster UX.
+      checkAuth().catch(() => {});
       // After successful signup, redirect to email verification screen
       // Pass dev code only in __DEV__ for easier testing (never in production)
       if (__DEV__ && res?.dev_verification_code) {

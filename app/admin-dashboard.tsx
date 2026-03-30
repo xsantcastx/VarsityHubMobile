@@ -677,13 +677,13 @@ export default function AdminDashboardScreen() {
             <Text style={{ color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280', marginBottom: 12 }}>
               {coachModal?.action === 'approve'
                 ? `Approve "${coachModal?.coach.display_name || coachModal?.coach.username || coachModal?.coach.email}"? Add an optional note:`
-                : `Reject "${coachModal?.coach.display_name || coachModal?.coach.username || coachModal?.coach.email}"? Enter a reason (optional):`}
+                : `Reject "${coachModal?.coach.display_name || coachModal?.coach.username || coachModal?.coach.email}"? A reason is required:`}
             </Text>
             <TextInput
               style={{ borderWidth: 1, borderColor: colorScheme === 'dark' ? '#374151' : '#D1D5DB', borderRadius: 8, padding: 10, color: colorScheme === 'dark' ? '#ECEDEE' : '#111827', backgroundColor: colorScheme === 'dark' ? '#111827' : '#F9FAFB', minHeight: 60, textAlignVertical: 'top' }}
               value={coachNote}
               onChangeText={setCoachNote}
-              placeholder={coachModal?.action === 'approve' ? 'Note (optional)...' : 'Reason (optional)...'}
+              placeholder={coachModal?.action === 'approve' ? 'Note (optional)...' : 'Reason (required)...'}
               placeholderTextColor={colorScheme === 'dark' ? '#6B7280' : '#9CA3AF'}
               multiline
             />
@@ -692,7 +692,8 @@ export default function AdminDashboardScreen() {
                 <Text style={{ color: colorScheme === 'dark' ? '#ECEDEE' : '#111827', fontWeight: '700' }}>Cancel</Text>
               </Pressable>
               <Pressable
-                style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: coachModal?.action === 'approve' ? '#22c55e' : '#dc2626', alignItems: 'center' }}
+                style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: coachModal?.action === 'approve' ? '#22c55e' : (coachNote.trim() ? '#dc2626' : '#9CA3AF'), alignItems: 'center' }}
+                disabled={coachModal?.action === 'reject' && !coachNote.trim()}
                 onPress={confirmCoachAction}
               >
                 <Text style={{ color: 'white', fontWeight: '700' }}>{coachModal?.action === 'approve' ? 'Approve' : 'Reject'}</Text>
@@ -740,6 +741,16 @@ export default function AdminDashboardScreen() {
                       <Text style={{ fontWeight: '700', color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280', width: 80 }}>Plan:</Text>
                       <Text style={{ color: colorScheme === 'dark' ? '#ECEDEE' : '#111827', flex: 1, textTransform: 'capitalize' }}>{coachDetailModal.preferences.plan}</Text>
                     </View>
+                  )}
+                  {coachDetailModal.preferences?.supporting_document_url && (
+                    <Pressable
+                      style={{ backgroundColor: colorScheme === 'dark' ? '#1B3A6B' : '#EFF6FF', borderRadius: 8, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}
+                      onPress={() => Linking.openURL(coachDetailModal.preferences.supporting_document_url).catch(() => Alert.alert('Error', 'Could not open document.'))}
+                    >
+                      <MaterialIcons name="description" size={20} color={colorScheme === 'dark' ? '#60A5FA' : '#2563EB'} />
+                      <Text style={{ color: colorScheme === 'dark' ? '#60A5FA' : '#2563EB', fontWeight: '700', flex: 1 }}>View Supporting Document</Text>
+                      <MaterialIcons name="open-in-new" size={16} color={colorScheme === 'dark' ? '#60A5FA' : '#2563EB'} />
+                    </Pressable>
                   )}
                 </View>
                 <View style={{ flexDirection: 'row', gap: 8 }}>

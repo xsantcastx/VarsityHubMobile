@@ -1,53 +1,72 @@
 /**
- * OfflineBanner - Visible connectivity indicator
- * 
- * Shows when backend health check fails
- * Provides retry mechanism
+ * OfflineBanner - Real-time connectivity indicator
+ *
+ * Shows when device loses network connectivity (via NetInfo) OR backend health check fails.
+ * Hides immediately when connectivity is restored.
  */
 
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import React from 'react';
+import NetInfo from '@react-native-community/netinfo';
+import React, { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 export function OfflineBanner() {
   const { healthOk, healthError, checkAuth } = useAuth();
   const colorScheme = useColorScheme() ?? 'light';
 
-  const [retrying, setRetrying] = React.useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const [networkConnected, setNetworkConnected] = useState(true);
+
+  // Listen for real-time connectivity changes
+  useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      const isConnected = state.isConnected !== false && state.isInternetReachable !== false;
+      setNetworkConnected(isConnected);
+      // When connectivity returns, auto-retry the health check
+      if (isConnected && !healthOk) {
+        checkAuth().catch(() => {});
+      }
+    });
+    return () => unsubscribe();
+  }, [healthOk, checkAuth]);
 
   const handleRetry = async () => {
     setRetrying(true);
     try {
       await checkAuth();
     } catch (error) {
-      // Error already handled by AuthProvider, log for debugging
-      // eslint-disable-next-line no-console
       if (__DEV__) console.log('[OfflineBanner] Retry checkAuth error:', error);
     } finally {
       setRetrying(false);
     }
   };
 
-  if (healthOk) return null;
+  // Show banner if device is offline OR backend health check failed
+  const isOffline = !networkConnected || !healthOk;
+  if (!isOffline) return null;
 
   const errorColor = colorScheme === 'dark' ? '#FCA5A5' : '#DC2626';
   const errorBg = colorScheme === 'dark' ? '#7F1D1D' : '#FEE2E2';
 
+  const message = !networkConnected
+    ? 'No internet connection'
+    : (healthError || 'Unable to connect to server');
+
   return (
     <View style={[styles.banner, { backgroundColor: errorBg }]}>
       <View style={styles.content}>
-        <MaterialIcons 
-          name="cloud-off" 
-          size={20} 
-          color={errorColor} 
+        <MaterialIcons
+          name={networkConnected ? 'cloud-off' : 'wifi-off'}
+          size={20}
+          color={errorColor}
         />
         <Text style={[styles.text, { color: errorColor }]}>
-          {healthError || 'Unable to connect to server'}
+          {message}
         </Text>
       </View>
-      <Pressable 
+      <Pressable
         onPress={handleRetry}
         disabled={retrying}
         style={[styles.retryButton, { backgroundColor: errorColor }]}

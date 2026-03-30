@@ -2,11 +2,10 @@ import { Gesture } from 'react-native-gesture-handler';
 import { runOnJS, useSharedValue } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { useContext } from 'react';
-import { NavigationHistoryContext } from '@/context/NavigationHistoryContext';
+import { NavigationHistoryContext, getNavigationFallback } from '@/context/NavigationHistoryContext';
 
 const EDGE_WIDTH = 40; // Left edge zone in px
 const SWIPE_THRESHOLD = 60; // Min horizontal distance to trigger back
-const DEFAULT_FALLBACK = '/(tabs)/feed';
 
 /**
  * Edge-swipe-to-go-back gesture for tab screens that lack native back navigation.
@@ -22,7 +21,8 @@ export function useEdgeSwipeBack() {
     if (router.canGoBack()) {
       router.back();
     } else {
-      const fallback = navHistory?.getFallbackRoute?.() ?? DEFAULT_FALLBACK;
+      // Use context history if available, then global getter, then tabs root
+      const fallback = navHistory?.getFallbackRoute?.() ?? getNavigationFallback();
       router.replace(fallback as any);
     }
   };

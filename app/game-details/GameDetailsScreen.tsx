@@ -1649,17 +1649,19 @@ const GameDetailsScreen = () => {
         return applyVoteSelection(prev, team);
       });
 
-      // For event-only or sample games, just update local state and don't call API
-      if (isEventOnly || (vm?.gameId && isSampleId(vm.gameId))) {
+      // For sample games, just update local state
+      if (vm?.gameId && isSampleId(vm.gameId)) {
         setVoteBusy(false);
         return;
       }
 
-      if (!vm?.gameId) return; // Safety check
+      // Use gameId if available, otherwise fall back to eventId for event-only pages
+      const voteId = vm?.gameId || vm?.eventId;
+      if (!voteId) return; // Safety check
 
       setVoteBusy(true);
       try {
-        const res: any = await retryWithBackoff(() => Game.castVote(vm.gameId!, team), {
+        const res: any = await retryWithBackoff(() => Game.castVote(voteId, team), {
           maxRetries: 2,
           initialDelayMs: 800,
           maxDelayMs: 4000,

@@ -24,11 +24,12 @@ void (async () => {
     const missing = await (prisma.game.findMany as any)({
       where: { location: { not: null }, latitude: null, venue_lat: null },
       select: { id: true, location: true },
-      take: 200,
     });
     if (missing.length === 0) return;
     console.log(`[games] backfill: geocoding ${missing.length} games without coordinates`);
     const { geocodeLocation } = await import('../lib/geocoding.js');
+    let success = 0;
+    let failed = 0;
     for (const game of missing) {
       try {
         const coords = await geocodeLocation(game.location!);
@@ -37,15 +38,21 @@ void (async () => {
             where: { id: game.id },
             data: { latitude: coords.latitude, longitude: coords.longitude },
           });
-          // Also update any associated events that still lack coords
           await prisma.event.updateMany({
             where: { game_id: game.id, latitude: null },
             data: { latitude: coords.latitude, longitude: coords.longitude },
           });
+          success++;
+        } else {
+          failed++;
+          console.warn(`[games] backfill: geocode returned null for game ${game.id} location="${game.location}"`);
         }
-      } catch { /* skip, try next */ }
+      } catch (err: any) {
+        failed++;
+        console.error(`[games] backfill: failed game ${game.id} location="${game.location}":`, err?.message || err);
+      }
     }
-    console.log('[games] backfill: done');
+    console.log(`[games] backfill: done — ${success} geocoded, ${failed} failed out of ${missing.length}`);
   } catch (err) {
     console.warn('[games] backfill failed:', err);
   }

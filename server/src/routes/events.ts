@@ -26,10 +26,11 @@ void (async () => {
     const missing = await prisma.event.findMany({
       where: { location: { not: null }, latitude: null },
       select: { id: true, location: true },
-      take: 200,
     });
     if (missing.length === 0) return;
     console.log(`[events] backfill: geocoding ${missing.length} events without coordinates`);
+    let success = 0;
+    let failed = 0;
     for (const ev of missing) {
       try {
         const coords = await geocodeLocation(ev.location!);
@@ -38,10 +39,17 @@ void (async () => {
             where: { id: ev.id },
             data: { latitude: coords.latitude, longitude: coords.longitude },
           });
+          success++;
+        } else {
+          failed++;
+          console.warn(`[events] backfill: geocode returned null for event ${ev.id} location="${ev.location}"`);
         }
-      } catch { /* skip this event, try next */ }
+      } catch (err: any) {
+        failed++;
+        console.error(`[events] backfill: failed event ${ev.id} location="${ev.location}":`, err?.message || err);
+      }
     }
-    console.log('[events] backfill: done');
+    console.log(`[events] backfill: done — ${success} geocoded, ${failed} failed out of ${missing.length}`);
   } catch (err) {
     console.warn('[events] backfill failed:', err);
   }
