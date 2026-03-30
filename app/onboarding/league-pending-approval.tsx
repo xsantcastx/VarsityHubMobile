@@ -89,7 +89,9 @@ export default function LeaguePendingApproval() {
             team_name: mePrefs.team_name || (ob as any).team_name,
           });
           await markOnboardingCompleteLocally();
-          await checkAuth();
+          // Do NOT call checkAuth() here — it triggers AuthProvider redirect
+          // before the user sees "Approved!" and the action buttons.
+          // checkAuth() is called when the user taps a button → coach-agreement.tsx.
           registerPushToken().catch(() => {});
           completed = true;
         } catch (err) {
