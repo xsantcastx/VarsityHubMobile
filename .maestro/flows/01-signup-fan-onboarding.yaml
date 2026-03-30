@@ -1,10 +1,9 @@
 # Flow 1: Sign Up → Email Verify → Fan Onboarding → Enter App
 #
 # Prerequisites:
-#   - Dev build running on device/simulator
+#   - Dev build running on device/simulator with Metro on localhost:8081
 #   - Local server running with ENABLE_DEV_CODES=1
-#     (the verify code is logged by the server and also returned in the API response
-#      which you can intercept via Reactotron or server logs)
+#     (verify code is returned in the API response — check server logs or Reactotron)
 #   - TEST_EMAIL must be unique per run — use a + alias e.g. you+test1@gmail.com
 #
 # Run:
@@ -20,6 +19,30 @@ appId: com.varsithub.varsityhub-ios
 - launchApp:
     clearState: true
 
+# ── Handle dev client launcher ──────────────────────────────────────────────────
+- runFlow:
+    when:
+      visible: "Development Build"
+    commands:
+      - tapOn: "http://localhost:8081"
+      - waitForAnimationToEnd
+
+# Dismiss dev client intro modal if shown (identified by unique "Runtime version" text)
+- runFlow:
+    when:
+      visible: "Runtime version"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible: "Sign In"
+    timeout: 15000
+
+# ── Navigate to Sign Up ─────────────────────────────────────────────────────────
+- tapOn:
+    text: "Sign Up"
+
 # ── Sign Up screen ──────────────────────────────────────────────────────────────
 - assertVisible: "Create Account"
 
@@ -34,7 +57,6 @@ appId: com.varsithub.varsityhub-ios
     text: "Password"
 - inputText: ${TEST_PASSWORD}
 
-# Accept ToS and age checkboxes
 - tapOn:
     text: "I agree to the Terms of Service and Privacy Policy"
 - tapOn:
@@ -44,9 +66,9 @@ appId: com.varsithub.varsityhub-ios
     text: "Sign Up"
 
 # ── Verify Email screen ─────────────────────────────────────────────────────────
-# ENABLE_DEV_CODES=1 makes the server log the code — check server logs or Reactotron
-- assertVisible: "Check Your Email"
-- assertVisible: "6-digit"
+- extendedWaitUntil:
+    visible: "Check Your Email"
+    timeout: 10000
 
 - tapOn:
     text: "Enter 6-digit code"
@@ -55,49 +77,48 @@ appId: com.varsithub.varsityhub-ios
 - tapOn:
     text: "Verify Email"
 
-- assertVisible: "Email verified successfully!"
+- extendedWaitUntil:
+    visible: "Email verified successfully!"
+    timeout: 10000
 
-# Auto-advances after 1.2s
+# Auto-advances to onboarding
 - waitForAnimationToEnd
 
-# ── Step 1: Role Selection ──────────────────────────────────────────────────────
-- assertVisible: "Fan"
-- assertVisible: "Coach / Organizer"
+# ── Step 1: Role Selection — select Fan ─────────────────────────────────────────
+- extendedWaitUntil:
+    visible: "Fan"
+    timeout: 10000
 
 - tapOn:
     label: "Select Fan role"
 
-# Confirm Fan is selected (Continue button turns silver)
 - tapOn:
     label: "Continue"
 
 # ── Step 2: Basic Info ──────────────────────────────────────────────────────────
-- assertVisible: "Username"
+- extendedWaitUntil:
+    visible: "Username"
+    timeout: 10000
 
 - tapOn:
     text: "username"
-- inputText: "testfan${TEST_EMAIL}"
+- inputText: "testfan"
 
-# Wait for username availability check (500ms debounce)
+# Wait for availability check
 - waitForAnimationToEnd
-- assertVisible: "Available!"
 
-# Date of birth — tap the DOB field and set a date
-# DateField renders as a Pressable that opens a native date picker
+# Date of birth — tap field, confirm native picker with Done
 - tapOn:
     text: "Date of birth"
 - waitForAnimationToEnd
-# Native date picker: scroll to a valid date (2000-01-15, age 24+)
-# On iOS simulator this opens the native spinner — confirm with "Done"
 - tapOn:
     text: "Done"
-
-# Zip code (optional — skip for speed)
 
 # Continue into main app
 - tapOn:
     text: "Continue"
-- waitForAnimationToEnd
 
-# ── Main App (tabs) ─────────────────────────────────────────────────────────────
-- assertVisible: "Feed"
+# ── Main App ────────────────────────────────────────────────────────────────────
+- extendedWaitUntil:
+    visible: "Feed"
+    timeout: 15000

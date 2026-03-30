@@ -85,25 +85,37 @@ export function isWithinGeofence(
 
 /**
  * Check if posting window is open for stories
- * Stories: game-day only (same UTC calendar day as the event)
+ * Stories: open from midnight UTC on event day until end of the following UTC day.
+ * The extra UTC day covers US timezones (UTC-5 to UTC-8) where a game in the evening
+ * extends past UTC midnight, so "end of day" locally is already the next UTC day.
  */
 export function isStoryPostingWindowOpen(eventDate: Date): boolean {
   const now = new Date();
   const eventDay = eventDate.toISOString().slice(0, 10);
   const todayDay = now.toISOString().slice(0, 10);
-  return eventDay === todayDay;
+  if (eventDay === todayDay) return true;
+  // Also allow posting on the UTC day immediately after game day (covers US evening games)
+  const dayAfterEvent = new Date(eventDate.getTime() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  return dayAfterEvent === todayDay;
 }
 
 /**
  * Check if posting window is open for regular posts
- * Posts: 4-day window with game day in the middle (2 days before to 1 day after)
+ * Posts: opens 2 days before event, closes at end of event day (midnight UTC day after event,
+ * plus 8h buffer for US timezones so Pacific-time users can post until their local midnight).
  */
 export function isPostPostingWindowOpen(eventDate: Date): boolean {
   const now = new Date();
   const eventTime = new Date(eventDate);
   const windowStart = new Date(eventTime.getTime() - 2 * 24 * 60 * 60 * 1000); // 2 days before
-  const windowEnd = new Date(eventTime.getTime() + 1 * 24 * 60 * 60 * 1000); // 1 day after
-  
+  // End: midnight UTC the day after event day + 8h buffer for US westernmost timezone (UTC-8)
+  const endOfEventDay = new Date(Date.UTC(
+    eventTime.getUTCFullYear(),
+    eventTime.getUTCMonth(),
+    eventTime.getUTCDate() + 1,
+  ));
+  const windowEnd = new Date(endOfEventDay.getTime() + 8 * 60 * 60 * 1000);
+
   return now >= windowStart && now <= windowEnd;
 }
 
@@ -229,11 +241,16 @@ export async function verifyEventPostingPermission(
     return { allowed: false, code: 'EVENT_NOT_FOUND', reason: 'Event not found' };
   }
 
-  // Check if posting window is open (4-day window with game in middle)
+  // Check if posting window is open (2 days before to end of event day)
   if (!isPostPostingWindowOpen(event.date)) {
     const eventTime = new Date(event.date);
     const windowStart = new Date(eventTime.getTime() - 2 * 24 * 60 * 60 * 1000);
-    const windowEnd = new Date(eventTime.getTime() + 1 * 24 * 60 * 60 * 1000);
+    const endOfEventDay = new Date(Date.UTC(
+      eventTime.getUTCFullYear(),
+      eventTime.getUTCMonth(),
+      eventTime.getUTCDate() + 1,
+    ));
+    const windowEnd = new Date(endOfEventDay.getTime() + 8 * 60 * 60 * 1000);
     return {
       allowed: false,
       code: 'POSTING_WINDOW_CLOSED',

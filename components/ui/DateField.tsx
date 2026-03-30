@@ -10,10 +10,24 @@ interface DateFieldProps {
   placeholder?: string;
 }
 
+// Format a Date to YYYY-MM-DD using local timezone (not UTC)
+function formatLocalDate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+// Parse YYYY-MM-DD as local midnight (not UTC)
+function parseLocalDate(s: string): Date {
+  const [y, m, d] = s.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
 export default function DateField({ label, value, onChange, placeholder }: DateFieldProps) {
   const colorScheme = useColorScheme() ?? 'light';
   const [show, setShow] = useState(false);
-  const [date, setDate] = useState(value ? new Date(value) : new Date());
+  const [date, setDate] = useState(value ? parseLocalDate(value) : new Date());
 
   const handleChange = (event: any, selectedDate?: Date) => {
     if (Platform.OS === 'android') {
@@ -25,17 +39,17 @@ export default function DateField({ label, value, onChange, placeholder }: DateF
   };
 
   const handleConfirm = () => {
-    // Format as YYYY-MM-DD
-    const formatted = date.toISOString().split('T')[0];
+    // Format as YYYY-MM-DD using local date components (no UTC offset)
+    const formatted = formatLocalDate(date);
     onChange(formatted);
     setShow(false);
   };
 
-  const displayValue = value 
-    ? new Date(value).toLocaleDateString('en-US', { 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
+  const displayValue = value
+    ? parseLocalDate(value).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
       })
     : placeholder || 'Select date';
 
@@ -95,7 +109,7 @@ export default function DateField({ label, value, onChange, placeholder }: DateF
               setShow(false);
               if (selectedDate) {
                 setDate(selectedDate);
-                const formatted = selectedDate.toISOString().split('T')[0];
+                const formatted = formatLocalDate(selectedDate);
                 onChange(formatted);
               }
             }}

@@ -776,7 +776,18 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
     if (viewableItems?.length) {
       const first = viewableItems[0];
       const index = first?.index ?? 0;
-      setActiveIndex(index);
+      setActiveIndex((prev) => {
+        if (prev !== index) {
+          // Close comment sheet and reset all comment state when swiping to a different post
+          setCommentsVisible(false);
+          setCommentInput('');
+          setCommentTarget(null);
+          setComments([]);
+          setCommentsCursor(null);
+          setCommentsError(null);
+        }
+        return index;
+      });
     }
   }).current;
 

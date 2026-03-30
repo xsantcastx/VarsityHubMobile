@@ -37,7 +37,7 @@ export function NotificationTapHandler() {
       devLog('[Notifications] User tapped notification:', data.type);
 
       // Guard: protected routes require auth
-      const isProtected = !['coach_approved'].includes(data.type);
+      const isProtected = !['coach_approved', 'coach_rejected'].includes(data.type);
       if (isProtected && !user) {
         devLog('[Notifications] User not authenticated, redirecting to home');
         router.replace('/(tabs)' as any);
@@ -81,9 +81,10 @@ export function NotificationTapHandler() {
           }
 
           case 'new_follower': {
-            const followerId = str(data.follower_id);
-            if (followerId) {
-              router.push({ pathname: '/user-profile', params: { userId: followerId } } as any);
+            // Follow acceptance sends user_id; new follows send follower_id
+            const userId = str(data.follower_id) || str(data.user_id);
+            if (userId) {
+              router.push({ pathname: '/user-profile', params: { id: userId } } as any);
             }
             break;
           }
@@ -107,6 +108,39 @@ export function NotificationTapHandler() {
           case 'coach_approved':
             router.push('/(tabs)' as any);
             break;
+
+          case 'coach_rejected':
+            router.push('/(tabs)' as any);
+            break;
+
+          case 'ad_approved': {
+            const adId = str(data.ad_id);
+            if (adId) {
+              router.push(`/ad-calendar?adId=${encodeURIComponent(adId)}` as any);
+            }
+            break;
+          }
+
+          case 'ad_rejected': {
+            const adId = str(data.ad_id);
+            if (adId) {
+              router.push(`/ad-calendar?adId=${encodeURIComponent(adId)}` as any);
+            }
+            break;
+          }
+
+          case 'org_approved':
+            router.push('/(tabs)/create-team' as any);
+            break;
+
+          case 'event_approved':
+          case 'event_rejected': {
+            const eventId = str(data.event_id);
+            if (eventId) {
+              router.push({ pathname: '/event-detail', params: { id: eventId } } as any);
+            }
+            break;
+          }
 
           default:
             devLog('[Notifications] Unknown notification type:', data.type);

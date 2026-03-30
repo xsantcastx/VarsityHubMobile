@@ -6,7 +6,7 @@ import { Image } from 'expo-image';
 import { Stack, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Advertisement as AdsApi, User } from '@/api/entities';
@@ -28,6 +28,7 @@ export default function AdminAdsScreen() {
   // Cross-platform modal for approve/reject notes (Alert.prompt is iOS-only)
   const [reviewModal, setReviewModal] = useState<{ adId: string; action: 'approve' | 'reject' } | null>(null);
   const [reviewNote, setReviewNote] = useState('');
+  const [detailAd, setDetailAd] = useState<any>(null);
 
   const load = useCallback(async () => {
     if (!isAdmin) return;
@@ -201,6 +202,8 @@ export default function AdminAdsScreen() {
         onPress={() => {
           if (bulkMode) {
             toggleAdSelection(String(item.id));
+          } else {
+            setDetailAd(item);
           }
         }}
       >
@@ -464,6 +467,47 @@ export default function AdminAdsScreen() {
                 <Text style={{ color: 'white', fontWeight: '700' }}>{reviewModal?.action === 'approve' ? 'Approve' : 'Reject'}</Text>
               </Pressable>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Ad Detail Modal */}
+      <Modal visible={!!detailAd} transparent animationType="slide" onRequestClose={() => setDetailAd(null)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: theme.background, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '85%', paddingBottom: 34 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: theme.border }}>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: theme.text }}>Ad Details</Text>
+              <Pressable onPress={() => setDetailAd(null)}><Ionicons name="close" size={24} color={theme.text} /></Pressable>
+            </View>
+            <ScrollView style={{ paddingHorizontal: 16, paddingTop: 12 }}>
+              {detailAd?.banner_url ? (
+                <Image source={{ uri: detailAd.banner_url }} style={{ width: '100%', height: 200, borderRadius: 12, marginBottom: 16 }} contentFit="cover" />
+              ) : null}
+              <Text style={{ fontSize: 20, fontWeight: '700', color: theme.text, marginBottom: 4 }}>{detailAd?.business_name || 'Untitled'}</Text>
+              <Text style={{ fontSize: 14, color: theme.mutedText, marginBottom: 12 }}>Status: {String(detailAd?.status || 'draft').toUpperCase()} · Payment: {String(detailAd?.payment_status || 'unpaid').toUpperCase()}</Text>
+              {detailAd?.description ? <Text style={{ fontSize: 15, color: theme.text, marginBottom: 12, lineHeight: 22 }}>{detailAd.description}</Text> : null}
+              <View style={{ gap: 6, marginBottom: 16 }}>
+                <Text style={{ fontSize: 14, color: theme.mutedText }}>Contact: {detailAd?.contact_name} · {detailAd?.contact_email}</Text>
+                <Text style={{ fontSize: 14, color: theme.mutedText }}>Target Zip: {detailAd?.target_zip_code || 'N/A'}</Text>
+                {detailAd?.target_url ? <Text style={{ fontSize: 14, color: theme.tint }}>URL: {detailAd.target_url}</Text> : null}
+              </View>
+              {detailAd?.status === 'pending' && (
+                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 20 }}>
+                  <Pressable
+                    style={{ flex: 1, paddingVertical: 12, borderRadius: 8, backgroundColor: '#22c55e', alignItems: 'center' }}
+                    onPress={() => { setDetailAd(null); setReviewNote(''); setReviewModal({ adId: detailAd.id, action: 'approve' }); }}
+                  >
+                    <Text style={{ color: '#fff', fontWeight: '700' }}>Approve</Text>
+                  </Pressable>
+                  <Pressable
+                    style={{ flex: 1, paddingVertical: 12, borderRadius: 8, backgroundColor: '#dc2626', alignItems: 'center' }}
+                    onPress={() => { setDetailAd(null); setReviewNote(''); setReviewModal({ adId: detailAd.id, action: 'reject' }); }}
+                  >
+                    <Text style={{ color: '#fff', fontWeight: '700' }}>Reject</Text>
+                  </Pressable>
+                </View>
+              )}
+            </ScrollView>
           </View>
         </View>
       </Modal>

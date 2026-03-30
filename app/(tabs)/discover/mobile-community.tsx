@@ -20,6 +20,22 @@ import SwipeBackContainer from '@/components/SwipeBackContainer';
 import GameVerticalFeedScreen, { type FeedPost } from '../../game-details/GameVerticalFeedScreen';
 import { optimizeImageUrl } from '@/utils/imageUrl';
 
+// Guard against internal IDs (cuid / UUID) being leaked as display text
+const isInternalId = (s: string) =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s) || // UUID
+  /^c[0-9a-z]{20,}$/.test(s); // CUID
+
+const safeDisplayName = (user: any): string => {
+  const name = user?.display_name || user?.username;
+  if (!name || isInternalId(name)) return 'User';
+  return name;
+};
+
+const safeUsername = (user: any): string | null => {
+  const uname = user?.username;
+  if (!uname || isInternalId(uname)) return null;
+  return uname;
+};
 
 type GameItem = { id: string; title?: string; date?: string; location?: string; latitude?: number | null; longitude?: number | null; cover_image_url?: string; banner_url?: string | null };
 
@@ -645,7 +661,7 @@ export default function CommunityDiscoverScreen() {
               const digits = v.replace(/[^0-9]/g, '');
               setZipSuggestionsOpen(digits.length >= 2);
             }}
-            style={styles.searchInput}
+            style={[styles.searchInput, { color: Colors[colorScheme].text }]}
             returnKeyType="search"
             onBlur={() => setZipSuggestionsOpen(false)}
             accessibilityLabel="Search people, teams, organizations, or zip code"
@@ -722,7 +738,7 @@ export default function CommunityDiscoverScreen() {
                   style={[styles.searchResultRow, { borderBottomColor: Colors[colorScheme].border }]}
                   onPress={() => { setQuery(''); setUnifiedSearchResults(null); void router.push(`/user-profile?id=${u.id}`); }}
                   accessibilityRole="button"
-                  accessibilityLabel={`View profile of ${u.display_name || u.username || 'User'}`}
+                  accessibilityLabel={`View profile of ${safeDisplayName(u)}`}
                 >
                   <View style={styles.searchResultLeft}>
                     {u.avatar_url ? (
@@ -731,8 +747,10 @@ export default function CommunityDiscoverScreen() {
                       <LinearGradient colors={['#1e293b', '#0f172a']} style={styles.searchResultAvatar} />
                     )}
                     <View>
-                      <Text style={[styles.searchResultName, { color: Colors[colorScheme].text }]} numberOfLines={1}>{u.display_name || u.username || 'User'}</Text>
-                      <Text style={[styles.searchResultSub, { color: Colors[colorScheme].mutedText }]} numberOfLines={1}>@{u.username || 'user'}</Text>
+                      <Text style={[styles.searchResultName, { color: Colors[colorScheme].text }]} numberOfLines={1}>{safeDisplayName(u)}</Text>
+                      {safeUsername(u) ? (
+                        <Text style={[styles.searchResultSub, { color: Colors[colorScheme].mutedText }]} numberOfLines={1}>@{safeUsername(u)}</Text>
+                      ) : null}
                     </View>
                   </View>
                   {me?.id !== u.id ? (
@@ -740,7 +758,7 @@ export default function CommunityDiscoverScreen() {
                       onPress={async (e) => { e.stopPropagation(); const next = !u.is_following; setUnifiedSearchResults((prev) => prev ? { ...prev, users: prev.users.map((x) => x.id === u.id ? { ...x, is_following: next } : x) } : null); try { if (next) await User.follow(u.id); else await User.unfollow(u.id); } catch { setUnifiedSearchResults((prev) => prev ? { ...prev, users: prev.users.map((x) => x.id === u.id ? { ...x, is_following: !next } : x) } : null); } }}
                       style={[styles.searchFollowBtn, { backgroundColor: u.is_following ? Colors[colorScheme].border : Colors[colorScheme].tint }]}
                       accessibilityRole="button"
-                      accessibilityLabel={u.is_following ? `Unfollow ${u.display_name || u.username || 'user'}` : `Follow ${u.display_name || u.username || 'user'}`}
+                      accessibilityLabel={u.is_following ? `Unfollow ${safeDisplayName(u)}` : `Follow ${safeDisplayName(u)}`}
                     >
                       <Text style={[styles.searchFollowBtnText, { color: u.is_following ? Colors[colorScheme].text : Colors[colorScheme].background }]}>{u.is_following ? 'Following' : 'Follow'}</Text>
                     </Pressable>
@@ -756,7 +774,7 @@ export default function CommunityDiscoverScreen() {
                 <Pressable
                   key={t.id}
                   style={[styles.searchResultRow, { borderBottomColor: Colors[colorScheme].border }]}
-                  onPress={() => { setQuery(''); setUnifiedSearchResults(null); void router.push(`/team-profile?id=${t.id}`); }}
+                  onPress={() => { setQuery(''); setUnifiedSearchResults(null); void router.push(`/team-page?id=${t.id}`); }}
                   accessibilityRole="button"
                   accessibilityLabel={`View team ${t.name}`}
                 >
@@ -984,8 +1002,8 @@ export default function CommunityDiscoverScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Manage your organization"
               >
-                <MaterialIcons name="business" size={24} color="#1E3A5F" />
-                <Text style={[styles.coachActionTitle, { color: '#1E3A5F' }]}>Manage Org</Text>
+                <MaterialIcons name="business" size={24} color={Colors[colorScheme].tint} />
+                <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Manage Org</Text>
                 <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Your organization</Text>
               </Pressable>
             </>
@@ -999,8 +1017,8 @@ export default function CommunityDiscoverScreen() {
                   accessibilityRole="button"
                   accessibilityLabel="Manage your organization"
                 >
-                  <MaterialIcons name="business" size={24} color="#1E3A5F" />
-                  <Text style={[styles.coachActionTitle, { color: '#1E3A5F' }]}>Manage Org</Text>
+                  <MaterialIcons name="business" size={24} color={Colors[colorScheme].tint} />
+                  <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Manage Org</Text>
                   <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Your organization</Text>
                 </Pressable>
               )}
@@ -1170,7 +1188,7 @@ export default function CommunityDiscoverScreen() {
           <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>Nearby people</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }} contentContainerStyle={{ paddingRight: 8 }}>
             {nearbyPeople.map((u) => (
-              <Pressable key={String(u.id)} style={styles.personTile} onPress={() => void router.push(`/user-profile?id=${u.id}`)} accessibilityRole="button" accessibilityLabel={`View profile of ${u.display_name || u.username || 'User'}`}>
+              <Pressable key={String(u.id)} style={styles.personTile} onPress={() => void router.push(`/user-profile?id=${u.id}`)} accessibilityRole="button" accessibilityLabel={`View profile of ${safeDisplayName(u)}`}>
                 <View style={styles.personAvatar}>
                   {u.avatar_url ? (
                     <Image source={{ uri: optimizeImageUrl(String(u.avatar_url), 100) }} style={styles.personAvatar} contentFit="cover" />
@@ -1178,7 +1196,7 @@ export default function CommunityDiscoverScreen() {
                     <LinearGradient colors={["#1e293b", "#0f172a"]} style={styles.personAvatar} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
                   )}
                 </View>
-                <Text numberOfLines={1} style={[styles.personName, { color: Colors[colorScheme].text }]}>{u.display_name || u.username || 'User'}</Text>
+                <Text numberOfLines={1} style={[styles.personName, { color: Colors[colorScheme].text }]}>{safeDisplayName(u)}</Text>
               </Pressable>
             ))}
           </ScrollView>
@@ -1226,7 +1244,7 @@ export default function CommunityDiscoverScreen() {
                     const digits = v.replace(/[^0-9]/g, '');
                     setZipSuggestionsOpen(digits.length >= 2);
                   }}
-                  style={styles.searchInput}
+                  style={[styles.searchInput, { color: Colors[colorScheme].text }]}
                   returnKeyType="search"
                   onBlur={() => setZipSuggestionsOpen(false)}
                   accessibilityLabel="Search by zip code"

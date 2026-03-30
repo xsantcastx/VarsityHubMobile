@@ -107,7 +107,9 @@ export default function NotificationsScreen() {
 
   const renderItem = ({ item }: { item: Notif }) => {
     const actorName = item.actor?.username ? `@${item.actor.username}` : (item.actor?.display_name || 'Someone');
-    const title = item.type === 'FOLLOW'
+    const title = item.type === 'FOLLOW' && item.meta?.follow_rejected
+      ? `${actorName} declined your follow request`
+      : item.type === 'FOLLOW'
       ? `${actorName} followed you`
       : item.type === 'FOLLOW_REQUEST'
       ? `${actorName} requested to follow you`

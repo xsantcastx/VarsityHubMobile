@@ -4,7 +4,7 @@ import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Linking, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { safeGoBack } from '@/utils/navigation';
 import { getApiBaseUrl } from '../api/http';
@@ -18,6 +18,7 @@ interface PendingLeague {
   description?: string | null;
   created_at: string;
   logo_url?: string | null;
+  supporting_document_url?: string | null;
   leagueOwner?: { id: string; display_name: string; email: string } | null;
   _count?: { teams: number; memberships: number };
 }
@@ -70,6 +71,10 @@ export default function AdminDashboardScreen() {
   const [coachModal, setCoachModal] = useState<{ coach: PendingCoach; action: 'approve' | 'reject' } | null>(null);
   const [coachNote, setCoachNote] = useState('');
   const [coachActionId, setCoachActionId] = useState<string | null>(null);
+
+  // Detail view modals
+  const [coachDetailModal, setCoachDetailModal] = useState<PendingCoach | null>(null);
+  const [leagueDetailModal, setLeagueDetailModal] = useState<PendingLeague | null>(null);
 
   const handleApproveCoach = (coach: PendingCoach) => {
     setCoachNote('');
@@ -315,12 +320,13 @@ export default function AdminDashboardScreen() {
               {stats.pendingLeagues.map((league) => {
                 const isActioning = leagueActionId === league.id;
                 return (
-                  <View
+                  <Pressable
                     key={league.id}
                     style={[styles.statCard, {
                       backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white',
                       borderColor: '#F59E0B',
                     }]}
+                    onPress={() => setLeagueDetailModal(league)}
                   >
                     <View style={[styles.statIcon, { backgroundColor: '#F59E0B20' }]}>
                       <MaterialIcons name="business" size={24} color="#F59E0B" />
@@ -344,7 +350,7 @@ export default function AdminDashboardScreen() {
                       <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
                         <Pressable
                           style={[styles.leagueBtn, { backgroundColor: '#16A34A', opacity: isActioning ? 0.6 : 1 }]}
-                          onPress={() => handleApproveLeague(league)}
+                          onPress={(e) => { e.stopPropagation?.(); handleApproveLeague(league); }}
                           disabled={isActioning}
                         >
                           {isActioning ? (
@@ -358,15 +364,18 @@ export default function AdminDashboardScreen() {
                         </Pressable>
                         <Pressable
                           style={[styles.leagueBtn, { backgroundColor: '#DC2626', opacity: isActioning ? 0.6 : 1 }]}
-                          onPress={() => handleRejectLeague(league)}
+                          onPress={(e) => { e.stopPropagation?.(); handleRejectLeague(league); }}
                           disabled={isActioning}
                         >
                           <MaterialIcons name="close" size={16} color="#fff" />
                           <Text style={styles.leagueBtnText}>Reject</Text>
                         </Pressable>
                       </View>
+                      <Text style={{ color: colorScheme === 'dark' ? '#6B7280' : '#9CA3AF', fontSize: 11, marginTop: 6 }}>
+                        Tap card to view details & document
+                      </Text>
                     </View>
-                  </View>
+                  </Pressable>
                 );
               })}
             </View>
@@ -383,12 +392,13 @@ export default function AdminDashboardScreen() {
               {stats.pendingCoaches.map((coach) => {
                 const isActioning = coachActionId === coach.id;
                 return (
-                  <View
+                  <Pressable
                     key={coach.id}
                     style={[styles.statCard, {
                       backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white',
                       borderColor: '#3B82F6',
                     }]}
+                    onPress={() => setCoachDetailModal(coach)}
                   >
                     <View style={[styles.statIcon, { backgroundColor: '#3B82F620' }]}>
                       <MaterialIcons name="person" size={24} color="#3B82F6" />
@@ -406,7 +416,7 @@ export default function AdminDashboardScreen() {
                       <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
                         <Pressable
                           style={[styles.leagueBtn, { backgroundColor: '#16A34A', opacity: isActioning ? 0.6 : 1 }]}
-                          onPress={() => handleApproveCoach(coach)}
+                          onPress={(e) => { e.stopPropagation?.(); handleApproveCoach(coach); }}
                           disabled={isActioning}
                         >
                           {isActioning ? (
@@ -420,15 +430,18 @@ export default function AdminDashboardScreen() {
                         </Pressable>
                         <Pressable
                           style={[styles.leagueBtn, { backgroundColor: '#DC2626', opacity: isActioning ? 0.6 : 1 }]}
-                          onPress={() => handleRejectCoach(coach)}
+                          onPress={(e) => { e.stopPropagation?.(); handleRejectCoach(coach); }}
                           disabled={isActioning}
                         >
                           <MaterialIcons name="close" size={16} color="#fff" />
                           <Text style={styles.leagueBtnText}>Reject</Text>
                         </Pressable>
                       </View>
+                      <Text style={{ color: colorScheme === 'dark' ? '#6B7280' : '#9CA3AF', fontSize: 11, marginTop: 6 }}>
+                        Tap card to view full details
+                      </Text>
                     </View>
-                  </View>
+                  </Pressable>
                 );
               })}
             </View>
@@ -685,6 +698,138 @@ export default function AdminDashboardScreen() {
                 <Text style={{ color: 'white', fontWeight: '700' }}>{coachModal?.action === 'approve' ? 'Approve' : 'Reject'}</Text>
               </Pressable>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Coach Detail Modal */}
+      <Modal visible={!!coachDetailModal} transparent animationType="slide">
+        <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <View style={{ backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 40 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <Text style={{ fontSize: 20, fontWeight: '800', color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }}>
+                Coach Application
+              </Text>
+              <Pressable onPress={() => setCoachDetailModal(null)}>
+                <MaterialIcons name="close" size={24} color={colorScheme === 'dark' ? '#9CA3AF' : '#6B7280'} />
+              </Pressable>
+            </View>
+            {coachDetailModal && (
+              <>
+                <View style={{ gap: 10, marginBottom: 20 }}>
+                  <View style={{ flexDirection: 'row', gap: 6 }}>
+                    <Text style={{ fontWeight: '700', color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280', width: 80 }}>Name:</Text>
+                    <Text style={{ color: colorScheme === 'dark' ? '#ECEDEE' : '#111827', flex: 1 }}>{coachDetailModal.display_name || coachDetailModal.username || '—'}</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', gap: 6 }}>
+                    <Text style={{ fontWeight: '700', color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280', width: 80 }}>Email:</Text>
+                    <Text style={{ color: colorScheme === 'dark' ? '#ECEDEE' : '#111827', flex: 1 }}>{coachDetailModal.email}</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', gap: 6 }}>
+                    <Text style={{ fontWeight: '700', color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280', width: 80 }}>Applied:</Text>
+                    <Text style={{ color: colorScheme === 'dark' ? '#ECEDEE' : '#111827', flex: 1 }}>{new Date(coachDetailModal.created_at).toLocaleString()}</Text>
+                  </View>
+                  {coachDetailModal.preferences?.organization_name && (
+                    <View style={{ flexDirection: 'row', gap: 6 }}>
+                      <Text style={{ fontWeight: '700', color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280', width: 80 }}>League:</Text>
+                      <Text style={{ color: colorScheme === 'dark' ? '#ECEDEE' : '#111827', flex: 1 }}>{coachDetailModal.preferences.organization_name}</Text>
+                    </View>
+                  )}
+                  {coachDetailModal.preferences?.plan && (
+                    <View style={{ flexDirection: 'row', gap: 6 }}>
+                      <Text style={{ fontWeight: '700', color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280', width: 80 }}>Plan:</Text>
+                      <Text style={{ color: colorScheme === 'dark' ? '#ECEDEE' : '#111827', flex: 1, textTransform: 'capitalize' }}>{coachDetailModal.preferences.plan}</Text>
+                    </View>
+                  )}
+                </View>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <Pressable
+                    style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: '#16A34A', alignItems: 'center' }}
+                    onPress={() => { setCoachDetailModal(null); handleApproveCoach(coachDetailModal); }}
+                  >
+                    <Text style={{ color: 'white', fontWeight: '700' }}>Approve</Text>
+                  </Pressable>
+                  <Pressable
+                    style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: '#DC2626', alignItems: 'center' }}
+                    onPress={() => { setCoachDetailModal(null); handleRejectCoach(coachDetailModal); }}
+                  >
+                    <Text style={{ color: 'white', fontWeight: '700' }}>Reject</Text>
+                  </Pressable>
+                </View>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* League Detail Modal */}
+      <Modal visible={!!leagueDetailModal} transparent animationType="slide">
+        <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <View style={{ backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 40 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <Text style={{ fontSize: 20, fontWeight: '800', color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }}>
+                League Application
+              </Text>
+              <Pressable onPress={() => setLeagueDetailModal(null)}>
+                <MaterialIcons name="close" size={24} color={colorScheme === 'dark' ? '#9CA3AF' : '#6B7280'} />
+              </Pressable>
+            </View>
+            {leagueDetailModal && (
+              <>
+                <View style={{ gap: 10, marginBottom: 20 }}>
+                  <View style={{ flexDirection: 'row', gap: 6 }}>
+                    <Text style={{ fontWeight: '700', color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280', width: 80 }}>Name:</Text>
+                    <Text style={{ color: colorScheme === 'dark' ? '#ECEDEE' : '#111827', flex: 1 }}>{leagueDetailModal.name}</Text>
+                  </View>
+                  {leagueDetailModal.sport && (
+                    <View style={{ flexDirection: 'row', gap: 6 }}>
+                      <Text style={{ fontWeight: '700', color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280', width: 80 }}>Sport:</Text>
+                      <Text style={{ color: colorScheme === 'dark' ? '#ECEDEE' : '#111827', flex: 1 }}>{leagueDetailModal.sport}</Text>
+                    </View>
+                  )}
+                  {leagueDetailModal.description && (
+                    <View style={{ flexDirection: 'row', gap: 6 }}>
+                      <Text style={{ fontWeight: '700', color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280', width: 80 }}>Desc:</Text>
+                      <Text style={{ color: colorScheme === 'dark' ? '#ECEDEE' : '#111827', flex: 1 }}>{leagueDetailModal.description}</Text>
+                    </View>
+                  )}
+                  <View style={{ flexDirection: 'row', gap: 6 }}>
+                    <Text style={{ fontWeight: '700', color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280', width: 80 }}>Owner:</Text>
+                    <Text style={{ color: colorScheme === 'dark' ? '#ECEDEE' : '#111827', flex: 1 }}>
+                      {leagueDetailModal.leagueOwner?.display_name || 'Unknown'} · {leagueDetailModal.leagueOwner?.email || ''}
+                    </Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', gap: 6 }}>
+                    <Text style={{ fontWeight: '700', color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280', width: 80 }}>Applied:</Text>
+                    <Text style={{ color: colorScheme === 'dark' ? '#ECEDEE' : '#111827', flex: 1 }}>{new Date(leagueDetailModal.created_at).toLocaleString()}</Text>
+                  </View>
+                  {leagueDetailModal.supporting_document_url && (
+                    <Pressable
+                      style={{ backgroundColor: colorScheme === 'dark' ? '#1B3A6B' : '#EFF6FF', borderRadius: 8, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}
+                      onPress={() => Linking.openURL(leagueDetailModal.supporting_document_url!).catch(() => Alert.alert('Error', 'Could not open document.'))}
+                    >
+                      <MaterialIcons name="description" size={20} color={colorScheme === 'dark' ? '#60A5FA' : '#2563EB'} />
+                      <Text style={{ color: colorScheme === 'dark' ? '#60A5FA' : '#2563EB', fontWeight: '700', flex: 1 }}>View Supporting Document</Text>
+                      <MaterialIcons name="open-in-new" size={16} color={colorScheme === 'dark' ? '#60A5FA' : '#2563EB'} />
+                    </Pressable>
+                  )}
+                </View>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <Pressable
+                    style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: '#16A34A', alignItems: 'center' }}
+                    onPress={() => { setLeagueDetailModal(null); handleApproveLeague(leagueDetailModal); }}
+                  >
+                    <Text style={{ color: 'white', fontWeight: '700' }}>Approve</Text>
+                  </Pressable>
+                  <Pressable
+                    style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: '#DC2626', alignItems: 'center' }}
+                    onPress={() => { setLeagueDetailModal(null); handleRejectLeague(leagueDetailModal); }}
+                  >
+                    <Text style={{ color: 'white', fontWeight: '700' }}>Reject</Text>
+                  </Pressable>
+                </View>
+              </>
+            )}
           </View>
         </View>
       </Modal>

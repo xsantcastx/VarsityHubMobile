@@ -12,6 +12,7 @@ import { pickerMediaTypesProp } from '@/utils/picker';
 import { getGradientForColor } from '@/utils/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { safeGoBack } from '@/utils/navigation';
 import { Image } from 'expo-image';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
@@ -325,10 +326,8 @@ export default function ProfileScreen() {
       const name = (fileName && String(fileName).includes('.')) ? String(fileName) : `background_${Date.now()}.jpg`;
       
       const { url } = await uploadAvatar(null, manipulated.uri, name);
-      const preferences = me?.preferences || {};
-      const updatedPreferences = { ...preferences, header_image_url: url };
-      await User.updateMe({ preferences: updatedPreferences });
-      setMe((prev) => (prev ? { ...prev, preferences: updatedPreferences } : null));
+      await User.updatePreferences({ header_image_url: url });
+      setMe((prev) => (prev ? { ...prev, preferences: { ...(prev.preferences || {}), header_image_url: url } } : null));
 
   } catch (error) {
     console.error('[profile] Background image upload failed:', error);
@@ -617,8 +616,11 @@ export default function ProfileScreen() {
   const rawRole = preferences?.role ?? (me as any)?.role ?? '';
   const roleRaw = typeof rawRole === 'string' ? rawRole.toLowerCase() : '';
   const roleLabel = roleRaw === 'coach' ? 'Coach / Organizer' : roleRaw === 'fan' ? 'Fan' : null;
-  // Use ONLY username (with @) - no display_name
-  const displayUsername = me?.username ? `@${me.username}` : 'User';
+  // Guard against internal IDs (cuid / UUID) being leaked as username
+  const isInternalId = (s: string) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s) || // UUID
+    /^c[0-9a-z]{20,}$/.test(s); // CUID
+  const displayUsername = me?.username && !isInternalId(me.username) ? `@${me.username}` : 'User';
   
   // Athlete-specific data from preferences (currently unused but may be needed for future features)
   const _isAthlete = Boolean(preferences?.position || preferences?.jersey_number);
@@ -716,7 +718,7 @@ export default function ProfileScreen() {
         {/* Back Button - Only when viewing another user's profile */}
         {viewingUserId && viewingUserId !== currentUserId ? (
           <Pressable
-            onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)}
+            onPress={() => safeGoBack(router)}
             hitSlop={12}
             style={[styles.controlButton, { position: 'absolute', left: 16, top: 12, zIndex: 200, elevation: 200, backgroundColor: colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)' }]}
           >
@@ -1046,7 +1048,8 @@ export default function ProfileScreen() {
           onEndReached={onEndReachedPosts}
           renderItem={({ item, index }) => {
             const thumb = item.media_url;
-            const _isVideo = !!thumb && VIDEO_EXT.test(thumb);
+            const isVideo = !!thumb && VIDEO_EXT.test(thumb);
+            const displayThumb = isVideo && item.preview_url ? item.preview_url : thumb;
             const likes = item.upvotes_count ?? 0;
             const comments = item.comments_count ?? item?._count?.comments ?? 0;
             const caption = String(item.caption || item.content || '').trim();
@@ -1068,7 +1071,7 @@ export default function ProfileScreen() {
                 {thumb ? (
                   <>
                     <View style={styles.gridImageContainer}>
-                      <Image source={{ uri: thumb }} style={styles.gridImage} contentFit="cover" />
+                      <Image source={{ uri: displayThumb }} style={styles.gridImage} contentFit="cover" />
                       <View style={styles.gridImageOverlay} />
                     </View>
                     <View style={styles.gridCounts}>
@@ -1082,7 +1085,7 @@ export default function ProfileScreen() {
                       </View>
                     </View>
                     <View style={styles.gridIconBadge}>
-                      <Ionicons name="camera-outline" size={14} color="#fff" />
+                      <Ionicons name={isVideo ? "play-circle-outline" : "camera-outline"} size={14} color="#fff" />
                     </View>
                   </>
                 ) : (
@@ -1130,7 +1133,8 @@ export default function ProfileScreen() {
           renderItem={({ item, index }) => {
             const postItem = unwrapPost(item);
             const thumb = postItem?.media_url;
-            const _isVideo = !!thumb && VIDEO_EXT.test(thumb);
+            const isVideo = !!thumb && VIDEO_EXT.test(thumb);
+            const displayThumb = isVideo && postItem?.preview_url ? postItem.preview_url : thumb;
             const likes = postItem?.upvotes_count ?? 0;
             const comments = postItem?.comments_count ?? postItem?._count?.comments ?? 0;
             const caption = String(postItem?.caption || postItem?.content || '').trim();
@@ -1152,7 +1156,7 @@ export default function ProfileScreen() {
                 {thumb ? (
                   <>
                     <View style={styles.gridImageContainer}>
-                      <Image source={{ uri: thumb }} style={styles.gridImage} contentFit="cover" />
+                      <Image source={{ uri: displayThumb }} style={styles.gridImage} contentFit="cover" />
                       <View style={styles.gridImageOverlay} />
                     </View>
                     <View style={styles.gridCounts}>
@@ -1166,7 +1170,7 @@ export default function ProfileScreen() {
                       </View>
                     </View>
                     <View style={styles.gridIconBadge}>
-                      <Ionicons name="camera-outline" size={14} color="#fff" />
+                      <Ionicons name={isVideo ? "play-circle-outline" : "camera-outline"} size={14} color="#fff" />
                     </View>
                   </>
                 ) : (
@@ -1214,7 +1218,8 @@ export default function ProfileScreen() {
           renderItem={({ item, index }) => {
             const postItem = unwrapPost(item);
             const thumb = postItem?.media_url;
-            const _isVideo = !!thumb && VIDEO_EXT.test(thumb);
+            const isVideo = !!thumb && VIDEO_EXT.test(thumb);
+            const displayThumb = isVideo && postItem?.preview_url ? postItem.preview_url : thumb;
             const likes = postItem?.upvotes_count ?? 0;
             const comments = postItem?.comments_count ?? postItem?._count?.comments ?? 0;
             const caption = String(postItem?.caption || postItem?.content || '').trim();
@@ -1236,7 +1241,7 @@ export default function ProfileScreen() {
                 {thumb ? (
                   <>
                     <View style={styles.gridImageContainer}>
-                      <Image source={{ uri: thumb }} style={styles.gridImage} contentFit="cover" />
+                      <Image source={{ uri: displayThumb }} style={styles.gridImage} contentFit="cover" />
                       <View style={styles.gridImageOverlay} />
                     </View>
                     <View style={styles.gridCounts}>
@@ -1250,7 +1255,7 @@ export default function ProfileScreen() {
                       </View>
                     </View>
                     <View style={styles.gridIconBadge}>
-                      <Ionicons name="camera-outline" size={14} color="#fff" />
+                      <Ionicons name={isVideo ? "play-circle-outline" : "camera-outline"} size={14} color="#fff" />
                     </View>
                   </>
                 ) : (

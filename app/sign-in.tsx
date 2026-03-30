@@ -13,7 +13,7 @@ import {
     View,
     useColorScheme
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
 import { Button } from '@/components/ui/button';
@@ -47,6 +47,7 @@ export default function SignInScreen() {
   const { signInWithGoogle, loading: googleLoading, ready: googleReady, isConfigured: googleConfigured } = useGoogleAuth();
   const { signInWithApple, loading: appleLoading } = useAppleAuth();
   const { checkAuth, registerPushToken } = useAuth();
+  const insets = useSafeAreaInsets();
 
   const onSubmit = async () => {
     if (loading) return;
@@ -252,15 +253,15 @@ export default function SignInScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.root, { backgroundColor: palette.background, borderLeftWidth: 0, borderRightWidth: 0 }]} edges={['top', 'bottom']}>
+    <SafeAreaView style={[styles.root, { backgroundColor: palette.background, borderLeftWidth: 0, borderRightWidth: 0 }]} edges={['top']}>
       <Stack.Screen options={{ title: 'Sign In', headerShown: false }} />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={[styles.flex, { borderWidth: 0 }]}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
+        keyboardVerticalOffset={0}
       >
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(24, insets.bottom) }]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           style={{ borderWidth: 0 }}
@@ -269,7 +270,7 @@ export default function SignInScreen() {
             <View style={[
               styles.logoContainer,
               {
-                backgroundColor: colorScheme === 'dark' ? '#1e293b' : '#FFFFFF',
+                backgroundColor: '#FFFFFF',
                 borderWidth: 1,
                 borderColor: colorScheme === 'dark' ? '#334155' : '#E5E7EB',
                 shadowColor: '#000000',

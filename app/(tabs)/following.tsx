@@ -76,7 +76,7 @@ export default function FollowingScreen() {
         onPress={() => void router.push(`/user-profile?id=${item.id}`)}
       >
         <Avatar uri={item.avatar_url} />
-        <Text style={styles.userName}>{item.display_name}</Text>
+        <Text style={[styles.userName, { color: Colors[colorScheme].text }]}>{item.display_name}</Text>
       </Pressable>
       <Button
         variant={item.is_following ? 'outline' : 'default'}
@@ -91,14 +91,14 @@ export default function FollowingScreen() {
   return (
     <SwipeBackContainer>
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top']}>
-      <Stack.Screen options={{
-        title: `${username} is Following`,
-        headerLeft: () => (
-          <Pressable onPress={() => safeGoBack(router)} style={styles.backButton}>
-            <MaterialIcons name="chevron-left" size={24} color={Colors[colorScheme].tint} />
-          </Pressable>
-        ),
-      }} />
+      <Stack.Screen options={{ headerShown: false }} />
+      <View style={styles.header}>
+        <Pressable onPress={() => safeGoBack(router)} style={styles.backButton}>
+          <MaterialIcons name="chevron-left" size={28} color={Colors[colorScheme].tint} />
+        </Pressable>
+        <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>{username ? `${username} is Following` : 'Following'}</Text>
+        <View style={{ width: 36 }} />
+      </View>
       <Input
         placeholder="Search following..."
         value={search}
@@ -140,8 +140,20 @@ export default function FollowingScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: 'transparent' }, // Will be overridden with Colors[colorScheme].background
-  backButton: { paddingLeft: 8 },
+  container: { flex: 1, backgroundColor: 'transparent' },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  headerTitle: {
+    flex: 1,
+    fontSize: 17,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  backButton: { width: 36, alignItems: 'flex-start' },
   searchInput: { margin: 16 },
   userRow: {
     flexDirection: 'row',

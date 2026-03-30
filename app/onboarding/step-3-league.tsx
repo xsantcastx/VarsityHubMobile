@@ -119,7 +119,7 @@ export default function Step3League() {
       }
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount
-  }, [router, setOB, setProgress]);
+  }, []);
 
   useEffect(() => {
     if (ob.organization_name && !existingOrg) setOrgName(ob.organization_name);
@@ -802,6 +802,16 @@ export default function Step3League() {
 
         {!showSearch && (
           <>
+            <Text style={styles.label}>Zip Code</Text>
+            <Input
+              value={searchZip}
+              onChangeText={(text: string) => setSearchZip(text.replace(/\D/g, '').slice(0, 5))}
+              placeholder="Enter zip code (e.g., 06902)"
+              keyboardType="numeric"
+              maxLength={5}
+              style={{ minHeight: 56, paddingVertical: 16, fontSize: 16, marginBottom: 16 }}
+            />
+
             <Text style={styles.label}>Location</Text>
             <View style={{ zIndex: 10, overflow: 'visible' }}>
               <LocationPicker

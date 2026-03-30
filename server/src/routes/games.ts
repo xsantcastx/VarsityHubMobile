@@ -17,6 +17,40 @@ import { registerIdValidation } from '../middleware/validateParams.js';
 export const gamesRouter = Router();
 registerIdValidation(gamesRouter);
 
+// One-time startup backfill: geocode games that have a location string but no coordinates.
+// Fire-and-forget — safe to run repeatedly (skips games already populated).
+void (async () => {
+  try {
+    const missing = await (prisma.game.findMany as any)({
+      where: { location: { not: null }, latitude: null, venue_lat: null },
+      select: { id: true, location: true },
+      take: 200,
+    });
+    if (missing.length === 0) return;
+    console.log(`[games] backfill: geocoding ${missing.length} games without coordinates`);
+    const { geocodeLocation } = await import('../lib/geocoding.js');
+    for (const game of missing) {
+      try {
+        const coords = await geocodeLocation(game.location!);
+        if (coords) {
+          await (prisma.game.update as any)({
+            where: { id: game.id },
+            data: { latitude: coords.latitude, longitude: coords.longitude },
+          });
+          // Also update any associated events that still lack coords
+          await prisma.event.updateMany({
+            where: { game_id: game.id, latitude: null },
+            data: { latitude: coords.latitude, longitude: coords.longitude },
+          });
+        }
+      } catch { /* skip, try next */ }
+    }
+    console.log('[games] backfill: done');
+  } catch (err) {
+    console.warn('[games] backfill failed:', err);
+  }
+})();
+
 // Helper function to generate Google Maps links
 const generateMapsLink = (location?: string | null, lat?: number | null, lng?: number | null, placeId?: string | null): string | null => {
   if (!location && !lat && !lng && !placeId) return null;
@@ -406,19 +440,20 @@ gamesRouter.post('/', requireVerified as any, requireOnboarded as any, gameCreat
       }
     }
 
-    // Handle auto-geocoding if requested and location is provided
-    if (parsed.data.autoGeocode && parsed.data.location && !parsed.data.latitude && !parsed.data.longitude) {
+    // Auto-geocode when location text is present but no coordinates were supplied
+    // (either directly or via home team venue). Always attempt — no flag required.
+    if (gameData.location && !gameData.latitude && !gameData.longitude) {
       try {
         const { geocodeLocation } = await import('../lib/geocoding.js');
-        const coords = await geocodeLocation(parsed.data.location);
+        const coords = await geocodeLocation(gameData.location);
         if (coords) {
           gameData.latitude = coords.latitude;
           gameData.longitude = coords.longitude;
-          debugLog(`✅ Auto-geocoded game location: ${parsed.data.location} → ${coords.latitude}, ${coords.longitude}`);
+          debugLog(`✅ Auto-geocoded game location: ${gameData.location} → ${coords.latitude}, ${coords.longitude}`);
         }
       } catch (geocodeError) {
         console.warn('Auto-geocoding failed, continuing without coordinates:', geocodeError);
-        // Continue without coordinates - don't fail the game creation
+        // Non-fatal — game is still created, just without map pin
       }
     }
 
@@ -618,6 +653,23 @@ gamesRouter.post('/seed-samples', requireAuth as any, asyncHandler(async (req: A
         event_type: 'game',
       } as any,
     });
+    // Geocode the location so the game appears as a map pin
+    try {
+      const { geocodeLocation } = await import('../lib/geocoding.js');
+      const coords = await geocodeLocation(sample.location);
+      if (coords) {
+        await (prisma.game.update as any)({
+          where: { id: game.id },
+          data: { latitude: coords.latitude, longitude: coords.longitude },
+        });
+        await prisma.event.updateMany({
+          where: { game_id: game.id },
+          data: { latitude: coords.latitude, longitude: coords.longitude },
+        });
+      }
+    } catch (geocodeErr) {
+      console.warn('[seed-samples] geocoding failed for', sample.title, ':', geocodeErr);
+    }
     // Games appear as cards in the feed carousel — no text post needed
     created.push(game);
   }

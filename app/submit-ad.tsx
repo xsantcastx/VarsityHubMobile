@@ -120,8 +120,15 @@ export default function SubmitAdScreen() {
         }
       } catch (err: any) {
         createError = err?.message || 'Could not create ad on server';
-        if (err?.status === 403) {
-          Alert.alert('Verification Required', 'Please verify your email before submitting an ad.');
+        if (err?.status === 403 && (err?.message?.toLowerCase().includes('verification') || err?.message?.toLowerCase().includes('verified'))) {
+          Alert.alert(
+            'Email Verification Required',
+            'You need to verify your email before submitting an ad. Would you like to verify now?',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Verify Now', onPress: () => router.push('/verify-email' as any) },
+            ]
+          );
           return;
         }
       }

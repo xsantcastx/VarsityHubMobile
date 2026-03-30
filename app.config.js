@@ -159,7 +159,13 @@ module.exports = ({ config }) => {
       'expo-audio',
       'expo-apple-authentication',
       'expo-asset',
-      'expo-notifications',
+      [
+        'expo-notifications',
+        {
+          icon: './assets/images/icon.png',
+          color: '#3B82F6',
+        },
+      ],
       './plugins/withAndroidManifestCleanup',
       './plugins/withAndroidLintExtraTranslationFix',
       './plugins/withAndroidBuildConfig',

@@ -25,6 +25,7 @@ export default function AdConfirmationScreen() {
   const [loading, setLoading] = useState(!!params.ad_id);
   const [paymentVerified, setPaymentVerified] = useState(false);
   const [pollError, setPollError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     if (params.ad_id) {
@@ -36,12 +37,15 @@ export default function AdConfirmationScreen() {
       }
 
       let attempt = 0;
-      const maxPollAttempts = 8;
+      const maxPollAttempts = 10;
       let timer: ReturnType<typeof setTimeout> | null = null;
+      let cancelled = false;
 
       const poll = async () => {
+        if (cancelled) return;
         try {
           const data = await Advertisement.get(adId);
+          if (cancelled) return;
           if (!data || !data.id) throw new Error('Invalid ad data received');
           setAdDetails(data);
           if (data.payment_status === 'paid') {
@@ -49,19 +53,19 @@ export default function AdConfirmationScreen() {
             setLoading(false);
             return;
           }
-          // Not yet paid — keep polling
           attempt++;
           if (attempt < maxPollAttempts) {
-            timer = setTimeout(poll, 2000);
+            timer = setTimeout(poll, 3000);
           } else {
             setPollError(true);
             setLoading(false);
           }
         } catch (err) {
+          if (cancelled) return;
           if (__DEV__) console.error('[AdConfirmation] Failed to load ad details:', err);
           attempt++;
           if (attempt < maxPollAttempts) {
-            timer = setTimeout(poll, 2000);
+            timer = setTimeout(poll, 3000);
           } else {
             setPollError(true);
             setLoading(false);
@@ -70,15 +74,15 @@ export default function AdConfirmationScreen() {
       };
 
       void poll();
-      return () => { if (timer) clearTimeout(timer); };
+      return () => { cancelled = true; if (timer) clearTimeout(timer); };
     } else {
       if (!params.businessName && !params.selectedDates && !params.totalAmount) {
         if (__DEV__) console.warn('[AdConfirmation] Missing ad_id and manual params');
       }
       setLoading(false);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- params from useLocalSearchParams are stable; businessName/selectedDates/totalAmount are only used as fallbacks
-  }, [params.ad_id]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- retryCount triggers re-poll
+  }, [params.ad_id, retryCount]);
   
   const businessName = adDetails?.business_name || params.businessName || 'Your Business';
   const selectedDates = params.selectedDates || 'your selected dates';
@@ -100,7 +104,7 @@ export default function AdConfirmationScreen() {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#10B981" />
           <Text style={[styles.loadingText, { color: Colors[colorScheme].mutedText }]}>
-            Verifying your payment...
+            Activating your ad...
           </Text>
         </View>
       ) : pollError && !paymentVerified ? (
@@ -110,10 +114,10 @@ export default function AdConfirmationScreen() {
             Payment Processing
           </Text>
           <Text style={[styles.loadingText, { color: Colors[colorScheme].mutedText, marginTop: 4 }]}>
-            Your payment is being processed. This may take a moment.
+            Your payment is being processed. You'll receive an email confirmation once your ad is active.
           </Text>
           <Pressable
-            onPress={() => { setPollError(false); setLoading(true); }}
+            onPress={() => { setPollError(false); setLoading(true); setRetryCount(c => c + 1); }}
             style={{ marginTop: 20, backgroundColor: '#10B981', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 }}
           >
             <Text style={{ color: '#fff', fontWeight: '600' }}>Try Again</Text>

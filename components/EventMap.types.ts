@@ -15,4 +15,6 @@ export interface EventMapProps {
   onEventPress?: (eventId: string, eventType?: 'game' | 'event' | 'post') => void;
   initialRegion?: Region;
   showUserLocation?: boolean;
+  /** Set to true once the parent has finished loading its data. The empty state is suppressed until then. */
+  dataLoaded?: boolean;
 }

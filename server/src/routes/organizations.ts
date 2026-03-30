@@ -969,6 +969,7 @@ organizationsRouter.post('/join-requests', requireAuth as any, async (req: Authe
           leagueName: organization.name,
           requestId: joinRequest.id,
           organizationId: organization.id,
+          coachNotes: message || undefined,
         });
 
         // Push notification to league owner

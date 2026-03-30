@@ -1,0 +1,70 @@
+# VarsityHub Mobile — Claude Instructions
+
+## Stack
+- React Native / Expo SDK 55 with Expo Router (file-based routing)
+- Backend: Express + Prisma + PostgreSQL on Railway (project: `capable-trust`, service: `api`)
+- State: React Context — `AuthProvider`, `PostCacheContext`, `OnboardingContext`, `NavigationHistoryContext`
+- API: `api/entities.ts` re-exports from domain modules (`api/teams.ts`, `api/organizations.ts`, etc.)
+- EAS Build for iOS/Android. OTA updates via Expo Updates.
+- Payments: Apple IAP (iOS only) + Stripe PaymentSheet (Android only)
+- Uploads: Direct-to-Cloudinary (signed) with server-proxy fallback
+- Push notifications: Expo Server SDK (`sendPushNotification` in `server/src/lib/notifications.ts`)
+- Error tracking: Sentry with source maps
+
+## Hard Rules
+
+**Never run `eas build` or `eas submit`.** These cost money. Provide the commands for the user to run themselves.
+
+**Never use Expo Go.** Always use `npx expo run:ios` or `npx expo run:android` (dev client). Expo Go diverges from production behavior.
+
+**Railway auto-deploys from `main`.** A bad push is an instant production outage. The app is live in the App Store.
+
+**Never change Railway env vars** (JWT_SECRET, GOOGLE_OAUTH_CLIENT_IDS, APPLE_KEY_ID, APPLE_PRIVATE_KEY) — changing them invalidates all active sessions.
+
+## Debugging Approach
+
+Trace the real data flow: button tap → API call → middleware → handler → DB → response → client state. Don't do surface-level code review.
+
+Check contract mismatches between client TypeScript types and server Zod schemas — they compile independently and can silently diverge. Test against the real API, not static analysis.
+
+Check env vars, Railway logs, and build configs — not just source code.
+
+## Production Must-Not-Break
+- iOS bundle ID is `com.varsithub.varsityhub-ios` (typo, permanently registered in App Store Connect — cannot change)
+- Apple Sign-In must stay visible whenever Google Sign-In is shown (Apple guideline)
+- iOS payments must use Apple IAP only — no Stripe links/redirects on iOS
+- Console logs are stripped in production (`babel-plugin-transform-remove-console` keeps error/warn)
+
+## Security Constraints (Already Enforced Server-Side)
+- Role escalation: owner role blocked on all generic membership/invite endpoints
+- Ad booking horizon: 56-day max from today
+- Checkout holds: fatal on failure — no partial bookings
+- Team creation enforced inside `$transaction` (race-condition safe)
+- Rate limiting requires `DISABLE_RATE_LIMITING=1` to disable (never set in Railway)
+- Apple sim tokens require `ALLOW_APPLE_SIM_TOKENS=1` (dev only, never in Railway)
+- Don't introduce client-trusted flags for things already enforced server-side
+
+## Navigation Architecture
+- Root `_layout.tsx` uses Stack — ALL sub-screens registered there
+- `safeGoBack` is the standard back helper (~199 uses across 75 files)
+- `useEdgeSwipeBack` is disabled on screens with horizontal FlatLists
+- Every screen implements its own back button (`headerShown: false` globally)
+
+## Plans (Billing)
+- Rookie: free, 2 teams, 50 roster
+- Veteran: $1/mo/team, 100 roster
+- Legend: $20/yr, unlimited teams + clubs
+
+## Known Quirks
+- Local `server/.env` has placeholder Cloudinary creds — uploads only work in production
+- `_layout.tsx` has a pre-existing TS error (`tabBarStyle.overflow`) — does not affect builds, do not fix unless asked
+- Sub-screens appear in both root Stack AND as `hiddenTab` in `(tabs)/_layout.tsx` — this is intentional Expo Router behavior
+- Email templates: 5 are "required" (server exits if missing). The rest degrade silently to plain-text or fail silently
+- `service-account-key.json` in project root is gitignored — needed for Android Play Store submissions
+
+## Working Style
+- Be surgical — only change what's needed for the task
+- Don't add abstractions, helpers, or error handling for scenarios that can't happen
+- Don't refactor or clean up code beyond what was asked
+- Fix real bugs, not theoretical issues
+- When the fix is in one file, don't touch five

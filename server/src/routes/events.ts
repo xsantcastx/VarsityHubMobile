@@ -19,6 +19,34 @@ import { registerIdValidation } from '../middleware/validateParams.js';
 export const eventsRouter = Router();
 registerIdValidation(eventsRouter);
 
+// One-time startup backfill: geocode events/games that have a location string but no lat/lng.
+// Fire-and-forget — safe to run repeatedly (skips rows already populated).
+void (async () => {
+  try {
+    const missing = await prisma.event.findMany({
+      where: { location: { not: null }, latitude: null },
+      select: { id: true, location: true },
+      take: 200,
+    });
+    if (missing.length === 0) return;
+    console.log(`[events] backfill: geocoding ${missing.length} events without coordinates`);
+    for (const ev of missing) {
+      try {
+        const coords = await geocodeLocation(ev.location!);
+        if (coords) {
+          await prisma.event.update({
+            where: { id: ev.id },
+            data: { latitude: coords.latitude, longitude: coords.longitude },
+          });
+        }
+      } catch { /* skip this event, try next */ }
+    }
+    console.log('[events] backfill: done');
+  } catch (err) {
+    console.warn('[events] backfill failed:', err);
+  }
+})();
+
 // Check if a user holds a coaching/management role on any team (DB truth, not preferences)
 async function isTeamCoach(userId: string): Promise<boolean> {
   const membership = await prisma.teamMembership.findFirst({
@@ -557,6 +585,23 @@ eventsRouter.post('/', requireVerified as any, requireOnboarded as any, eventCre
   // Use capacity if provided, otherwise max_attendees (for backward compatibility)
   const capacity = data.max_attendees ?? null;
 
+  // Auto-geocode location if not supplied — do this before the transaction so we don't
+  // hold a DB connection open during an external HTTP call.
+  let resolvedLat = data.latitude ?? null;
+  let resolvedLng = data.longitude ?? null;
+  if (data.location && resolvedLat == null && resolvedLng == null) {
+    try {
+      const coords = await geocodeLocation(data.location);
+      if (coords) {
+        resolvedLat = coords.latitude;
+        resolvedLng = coords.longitude;
+        console.log(`[events] auto-geocoded "${data.location}" → ${resolvedLat}, ${resolvedLng}`);
+      }
+    } catch (geocodeErr) {
+      console.warn('[events] geocoding failed, continuing without coordinates:', geocodeErr);
+    }
+  }
+
   let event;
   try {
   // Atomic limit check + create to prevent race condition (fans: 3 pending max)
@@ -586,8 +631,8 @@ eventsRouter.post('/', requireVerified as any, requireOnboarded as any, eventCre
         title: data.title,
         date: new Date(data.date),
         location: data.location,
-        latitude: data.latitude,
-        longitude: data.longitude,
+        latitude: resolvedLat,
+        longitude: resolvedLng,
         description: data.description,
         event_type: data.event_type,
         linked_league: data.linked_league,
@@ -1006,6 +1051,19 @@ eventsRouter.patch('/:id', requireAuth as any, requireOnboarded as any, async (r
   if (data.location !== undefined) updateData.location = data.location;
   if (data.latitude !== undefined) updateData.latitude = data.latitude;
   if (data.longitude !== undefined) updateData.longitude = data.longitude;
+  // If location text changed but no new coordinates supplied, auto-geocode the new location
+  if (data.location !== undefined && data.latitude === undefined && data.longitude === undefined) {
+    try {
+      const coords = await geocodeLocation(data.location);
+      if (coords) {
+        updateData.latitude = coords.latitude;
+        updateData.longitude = coords.longitude;
+        console.log(`[events] auto-geocoded update "${data.location}" → ${coords.latitude}, ${coords.longitude}`);
+      }
+    } catch (geocodeErr) {
+      console.warn('[events] geocoding update failed:', geocodeErr);
+    }
+  }
   if (data.description !== undefined) updateData.description = data.description;
   if (data.event_type !== undefined) updateData.event_type = data.event_type;
   if (data.linked_league !== undefined) updateData.linked_league = data.linked_league;

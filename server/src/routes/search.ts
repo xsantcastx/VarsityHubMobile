@@ -117,15 +117,33 @@ searchRouter.get('/', searchLimiter, authMiddleware as any, async (req: AuthedRe
     orgFollowSet = new Set(orgFollows.map((f) => f.organization_id));
   }
 
-  const usersPayload = users.map((u) => ({
+  // Sort users by relevance: exact match first, then startsWith, then contains
+  const sortedUsers = [...users].sort((a, b) => {
+    const aName = (a.username || a.display_name || '').toLowerCase();
+    const bName = (b.username || b.display_name || '').toLowerCase();
+    const aExact = aName === q ? 0 : aName.startsWith(q) ? 1 : 2;
+    const bExact = bName === q ? 0 : bName.startsWith(q) ? 1 : 2;
+    return aExact - bExact;
+  });
+
+  const usersPayload = sortedUsers.map((u) => ({
     id: u.id,
-    username: u.username || u.display_name || 'user',
+    username: u.username || null,
     display_name: u.display_name || u.username || 'User',
     avatar_url: u.avatar_url,
     is_following: userFollowSet.has(u.id),
   }));
 
-  const teamsPayload = teams.map((t) => ({
+  // Sort teams by relevance: name match first
+  const sortedTeams = [...teams].sort((a, b) => {
+    const aName = (a.name || '').toLowerCase();
+    const bName = (b.name || '').toLowerCase();
+    const aExact = aName === q ? 0 : aName.startsWith(q) ? 1 : 2;
+    const bExact = bName === q ? 0 : bName.startsWith(q) ? 1 : 2;
+    return aExact - bExact;
+  });
+
+  const teamsPayload = sortedTeams.map((t) => ({
     id: t.id,
     name: t.name,
     description: t.description,

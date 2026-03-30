@@ -78,8 +78,20 @@ function MasonryPostCard({ post, onPress, onDeleted: _onDeleted, onUpdated: _onU
     return heights[hash % heights.length];
   }, [post.id, mediaUrl]);
 
-  const handleVotePoll = async (pollId: string, optionId: string) => {
-    return Post.voteOnPoll(pollId, optionId);
+  const handleVotePoll = async (_pollId: string, optionId: string) => {
+    // voteOnPoll takes the POST id, not the poll id
+    const result = await Post.voteOnPoll(post.id, optionId);
+    // Transform server response to match PollCard's expected format
+    if (result?.options) {
+      const options = result.options.map((o: any) => ({
+        id: o.id,
+        text: o.text,
+        votes: o.votes_count ?? o._count?.votes ?? 0,
+      }));
+      const totalVotes = options.reduce((sum: number, o: any) => sum + o.votes, 0);
+      return { options, totalVotes };
+    }
+    return result;
   };
 
   const handleReport = () => {

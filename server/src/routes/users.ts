@@ -873,9 +873,26 @@ usersRouter.post('/:id/reject-follow', requireAuth as any, asyncHandler(async (r
   const followerId = req.params.id;
 
   try {
-    await prisma.follows.deleteMany({
+    const deleted = await prisma.follows.deleteMany({
       where: { follower_id: followerId, following_id: currentUserId, status: 'pending' },
     });
+
+    // Notify the requester that their follow request was declined
+    if (deleted.count > 0) {
+      try {
+        await prisma.notification.create({
+          data: {
+            user_id: followerId,
+            actor_id: currentUserId,
+            type: 'FOLLOW',
+            meta: { follow_rejected: true },
+          },
+        });
+      } catch (e) {
+        console.error('Failed to create follow rejection notification:', e);
+      }
+    }
+
     res.json({ ok: true });
   } catch (error) {
     console.error('Reject follow error:', error);
@@ -1022,7 +1039,7 @@ usersRouter.get('/search/mentions', requireAuth as any, mentionsSearchLimiter as
     .filter(user => (user.preferences as any)?.account_type !== 'organization')
     .map(user => ({
       id: user.id,
-      username: user.username || user.display_name || 'user',
+      username: user.username || null,
       display_name: user.display_name || user.username || 'User',
       avatar_url: user.avatar_url,
     }));

@@ -24,6 +24,8 @@ import GameVerticalFeedScreen from './game-details/GameVerticalFeedScreen';
 
 type GameItem = { id: string; title?: string; date?: string; location?: string; cover_image_url?: string; banner_url?: string | null; event_id?: string | null; home_score?: number | null; away_score?: number | null; winner?: string | null };
 
+const LIVE_WINDOW_MS = 2 * 60 * 60 * 1000; // 2 hours — must match GameDetailsScreen
+
 // RSVP Badge Component
 const RSVPBadge = ({ gameItem, onRSVPChange }: { gameItem: any, onRSVPChange?: () => void }) => {
   const colorScheme = useColorScheme();
@@ -208,7 +210,7 @@ export default function FeedScreen() {
   const voteSummariesRef = useRef<Record<string, VotePreviewEntry>>({});
   const [voteSummaries, setVoteSummaries] = useState<Record<string, VotePreviewEntry>>({});
   const [showSeedBanner, setShowSeedBanner] = useState(false);
-  const [hasUnreadAlerts, setHasUnreadAlerts] = useState(false);
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
   const [notificationsMenuOpen, setNotificationsMenuOpen] = useState(false);
   
@@ -441,11 +443,12 @@ export default function FeedScreen() {
           const timeoutPromise = new Promise((_, reject) => 
             setTimeout(() => reject(new Error('Notification check timeout')), 10000)
           );
-          const [page, unreadRes] = await Promise.all([
-            Promise.race([NotificationApi.listPage(null, 1, true), timeoutPromise]) as Promise<any>,
+          const [notifCountRes, unreadRes] = await Promise.all([
+            Promise.race([NotificationApi.unreadCount().catch(() => 0), timeoutPromise]) as Promise<any>,
             Message.unreadCount().catch(() => ({ count: 0 })),
           ]);
-          setHasUnreadAlerts(Array.isArray(page?.items) && page.items.length > 0);
+          const nc = typeof notifCountRes === 'number' ? notifCountRes : (notifCountRes?.count ?? 0);
+          setUnreadNotifCount(nc);
           setUnreadMessagesCount(typeof unreadRes?.count === 'number' ? unreadRes.count : 0);
         } catch (err: any) {
           // ignore notification poll errors, but log in dev
@@ -468,12 +471,13 @@ export default function FeedScreen() {
           const timeoutPromise = new Promise((_, reject) =>
             setTimeout(() => reject(new Error('Notification poll timeout')), 10000)
           );
-          const [page, unreadRes] = await Promise.all([
-            Promise.race([NotificationApi.listPage(null, 1, true), timeoutPromise]) as Promise<any>,
+          const [notifCountRes, unreadRes] = await Promise.all([
+            Promise.race([NotificationApi.unreadCount().catch(() => 0), timeoutPromise]) as Promise<any>,
             Message.unreadCount().catch(() => ({ count: 0 })),
           ]);
           if (!mounted) return;
-          setHasUnreadAlerts(Array.isArray(page?.items) && page.items.length > 0);
+          const nc = typeof notifCountRes === 'number' ? notifCountRes : (notifCountRes?.count ?? 0);
+          setUnreadNotifCount(nc);
           setUnreadMessagesCount(typeof unreadRes?.count === 'number' ? unreadRes.count : 0);
         } catch (err: any) {
           // ignore notification poll errors, but log in dev
@@ -525,26 +529,41 @@ export default function FeedScreen() {
     return games.filter((g) => (g.title || '').toLowerCase().includes(q) || (g.location || '').toLowerCase().includes(q));
   }, [games, query]);
 
-  // Separate upcoming and past events
+  // Separate upcoming/live and past events
+  // Events within the 2-hour live window stay in "upcoming" so they appear prominently
   const { upcomingEvents, pastEvents } = useMemo(() => {
-    const now = new Date();
+    const now = Date.now();
     const upcoming: GameItem[] = [];
     const past: GameItem[] = [];
-    
+
     filtered.forEach((game) => {
       if (game.date) {
-        const gameDate = new Date(game.date);
-        if (gameDate >= now) {
+        const gameMs = new Date(game.date).getTime();
+        const elapsed = now - gameMs;
+        if (elapsed <= LIVE_WINDOW_MS) {
+          // Not yet started (elapsed < 0) OR started within live window
           upcoming.push(game);
         } else {
           past.push(game);
         }
       } else {
-        // Games without dates go to upcoming by default
         upcoming.push(game);
       }
     });
-    
+
+    // Sort: currently-live events first, then future events by ascending start time
+    upcoming.sort((a, b) => {
+      if (!a.date) return 1;
+      if (!b.date) return -1;
+      const aMs = new Date(a.date).getTime();
+      const bMs = new Date(b.date).getTime();
+      const aLive = aMs <= now && now - aMs <= LIVE_WINDOW_MS;
+      const bLive = bMs <= now && now - bMs <= LIVE_WINDOW_MS;
+      if (aLive && !bLive) return -1;
+      if (!aLive && bLive) return 1;
+      return aMs - bMs;
+    });
+
     return { upcomingEvents: upcoming, pastEvents: past };
   }, [filtered]);
 
@@ -756,8 +775,10 @@ export default function FeedScreen() {
             >
               <View>
                 <MaterialIcons name="notifications-none" size={24} color={Colors[colorScheme].text} />
-                {hasUnreadAlerts ? (
-                  <View style={styles.alertDot} />
+                {unreadNotifCount > 0 ? (
+                  <View style={[styles.unreadBadge, { position: 'absolute', right: -6, top: -4, backgroundColor: '#EF4444' }]}>
+                    <Text style={styles.unreadBadgeText}>{unreadNotifCount > 99 ? '99+' : String(unreadNotifCount)}</Text>
+                  </View>
                 ) : null}
               </View>
             </Pressable>
@@ -1015,6 +1036,9 @@ export default function FeedScreen() {
               const gameItem = item as GameItem;
               if (!gameItem.id) return null;
               const raw = gameItem as any;
+              const gameStartMs = gameItem.date ? new Date(gameItem.date).getTime() : null;
+              const nowMs = Date.now();
+              const isLive = gameStartMs != null && gameStartMs <= nowMs && nowMs - gameStartMs <= LIVE_WINDOW_MS;
               const firstMediaUrl =
                 Array.isArray(raw?.media) && raw.media.length > 0
                   ? (raw.media[0]?.thumbnail_url || raw.media[0]?.url || null)
@@ -1052,10 +1076,10 @@ export default function FeedScreen() {
               return (
                 <Pressable
                   key={String(gameItem.id)}
-                  style={styles.singleEventCard}
+                  style={[styles.singleEventCard, isLive ? { borderWidth: 2, borderColor: '#EF4444' } : null]}
                   onPress={() => void router.push({ pathname: '/game/[id]', params: { id: String(gameItem.id) } })}
                   accessibilityRole="button"
-                  accessibilityLabel={`${gameItem.title || 'Game'} on ${eventDate}${eventTime ? ` at ${eventTime}` : ''}`}
+                  accessibilityLabel={`${gameItem.title || 'Game'} on ${eventDate}${eventTime ? ` at ${eventTime}` : ''}${isLive ? ' — LIVE NOW' : ''}`}
                 >
                   <LinearGradient colors={gradient} style={StyleSheet.absoluteFillObject} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
                   {hasBanner && (
@@ -1067,9 +1091,17 @@ export default function FeedScreen() {
                     pointerEvents="none"
                   />
                   <View style={styles.gridContent}>
-                    <View style={styles.gridDateChip}>
-                      <MaterialIcons name="event" size={12} color="#FFFFFF" />
-                      <Text style={styles.gridDateText}>{eventDate}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <View style={styles.gridDateChip}>
+                        <MaterialIcons name="event" size={12} color="#FFFFFF" />
+                        <Text style={styles.gridDateText}>{eventDate}</Text>
+                      </View>
+                      {isLive ? (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#EF4444', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2, gap: 4 }}>
+                          <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#fff' }} />
+                          <Text style={{ color: '#fff', fontSize: 10, fontWeight: '800', letterSpacing: 0.5 }}>LIVE</Text>
+                        </View>
+                      ) : null}
                     </View>
                     <Text style={styles.gridTitle} numberOfLines={2}>
                       {gameItem.title ? String(gameItem.title) : 'Game'}
@@ -1463,8 +1495,9 @@ export default function FeedScreen() {
                                   prev.map(n => n.id === item.id ? { ...n, read_at: new Date().toISOString() } : n)
                                 );
                                 // Refresh unread count
-                                const page = await NotificationApi.listPage(null, 1, true);
-                                setHasUnreadAlerts(Array.isArray(page.items) && page.items.length > 0);
+                                const countRes = await NotificationApi.unreadCount().catch(() => 0);
+                                const nc = typeof countRes === 'number' ? countRes : (countRes?.count ?? 0);
+                                setUnreadNotifCount(nc);
                               } catch (e) {
                                 if (__DEV__) console.error('Failed to mark notification as read', e);
                               }

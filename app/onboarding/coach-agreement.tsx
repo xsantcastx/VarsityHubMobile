@@ -1,4 +1,4 @@
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -18,6 +18,7 @@ export default function CoachAgreementScreen() {
   const C = Colors[colorScheme];
   const isDark = colorScheme === 'dark';
   const router = useRouter();
+  const params = useLocalSearchParams<{ redirect?: string }>();
   const [accepting, setAccepting] = useState(false);
 
   const handleAccept = async () => {
@@ -26,7 +27,13 @@ export default function CoachAgreementScreen() {
       await User.updatePreferences({
         coach_agreement_accepted_at: new Date().toISOString(),
       });
-      router.replace('/(tabs)' as any);
+      // Route based on redirect param; default to organization setup
+      const redirect = params.redirect;
+      if (redirect === 'create-team') {
+        router.replace('/(tabs)/create-team' as any);
+      } else {
+        router.replace('/(tabs)/organization' as any);
+      }
     } catch (err: any) {
       Alert.alert('Error', err?.message || 'Failed to accept agreement. Please try again.');
     } finally {

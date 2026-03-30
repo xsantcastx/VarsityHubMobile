@@ -1,65 +1,70 @@
 # Flow 2: Sign In → Create Text Post → Confirm Post Appears in Feed
 #
-# Prerequisites:
-#   - Dev build running on device/simulator
-#   - TEST_ACCOUNT_EMAIL: a pre-registered, verified, onboarded fan account
-#   - TEST_ACCOUNT_PASSWORD: password for that account
-#
 # Run:
 #   maestro test .maestro/flows/02-create-text-post.yaml \
-#     -e TEST_ACCOUNT_EMAIL=testfan@varsityhub.app \
-#     -e TEST_ACCOUNT_PASSWORD=Test1234!
+#     -e TEST_ACCOUNT_EMAIL=emancero@varsityhub.app \
+#     -e TEST_ACCOUNT_PASSWORD=YourPassword
 
 appId: com.varsithub.varsityhub-ios
 ---
 
-# ── Launch fresh ────────────────────────────────────────────────────────────────
 - launchApp:
     clearState: true
 
+# Dev client launcher — always shown with clearState
+- tapOn: "http://localhost:8081"
+
+# Dev menu intro modal — dismiss it, which opens the full dev panel
+- extendedWaitUntil:
+    visible: "Continue"
+    timeout: 20000
+- tapOn: "Continue"
+- waitForAnimationToEnd
+
+# Dismiss the full dev panel by tapping the dimmed area above the sheet
+- tapOn:
+    point: "50%,15%"
+- waitForAnimationToEnd
+
 # ── Sign In ─────────────────────────────────────────────────────────────────────
-- assertVisible: "Sign In"
+- extendedWaitUntil:
+    visible: "Sign In"
+    timeout: 10000
 
 - tapOn:
-    text: "Email"
+    id: "sign-in-email"
 - inputText: ${TEST_ACCOUNT_EMAIL}
-
-- tapOn:
-    text: "Password"
+# Use the Next key to move focus to password field (onSubmitEditing -> passwordRef.focus())
+- pressKey: Enter
+- waitForAnimationToEnd
 - inputText: ${TEST_ACCOUNT_PASSWORD}
 
 - tapOn:
     text: "Sign In"
-
 - waitForAnimationToEnd
 
 # ── Main Feed ───────────────────────────────────────────────────────────────────
-- assertVisible: "Feed"
+- extendedWaitUntil:
+    visible: "Feed"
+    timeout: 15000
 
-# ── Navigate to Create Post tab ─────────────────────────────────────────────────
-# The create post tab is the center tab (+ icon)
+# ── Navigate to Create Post ─────────────────────────────────────────────────────
 - tapOn:
     text: "Create"
 - waitForAnimationToEnd
 
-# ── Create Post screen ──────────────────────────────────────────────────────────
-# Tap the text composer (rotates placeholder prompts — tap anywhere in the input area)
-- tapOn:
-    text: "Post"
-    # Falls back to tapping any visible Post header button area
-
-# Input post content
+# ── Type a text post ────────────────────────────────────────────────────────────
 - tapOn:
     index: 0
-    text: "What's happening"
-- inputText: "Maestro smoke test — automated post ${TEST_ACCOUNT_EMAIL}"
+    text: "What"
+- inputText: "Maestro smoke test post"
 
-# Post button is in the header
+# ── Submit ──────────────────────────────────────────────────────────────────────
 - tapOn:
     text: "Post"
 - waitForAnimationToEnd
 
-# ── Confirm success ─────────────────────────────────────────────────────────────
-# After posting, app navigates back to feed
-# The new post should appear at the top
-- assertVisible: "Maestro smoke test"
+# ── Confirm post appears in feed ────────────────────────────────────────────────
+- extendedWaitUntil:
+    visible: "Maestro smoke test post"
+    timeout: 10000

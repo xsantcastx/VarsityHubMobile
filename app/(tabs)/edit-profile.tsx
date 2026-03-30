@@ -58,7 +58,7 @@ export default function EditProfileScreen() {
   const [headerImageTouched, setHeaderImageTouched] = useState(false);
   const [uploadingHeaderImage, setUploadingHeaderImage] = useState(false);
   const [headerImageOffset, setHeaderImageOffset] = useState(0); // normalized -1..1
-  const [, setHeaderImageOffsetTouched] = useState(false);
+  const [headerImageOffsetTouched, setHeaderImageOffsetTouched] = useState(false);
   
   // Sports interests
   const [sportsInterests, setSportsInterests] = useState<string[]>([]);
@@ -422,10 +422,11 @@ export default function EditProfileScreen() {
 
       // Store additional fields in preferences object
       const preferences: any = {};
-      if (location.trim()) preferences.location = location.trim();
-      if (zipCode.trim()) preferences.zip_code = zipCode.trim();
+      // Always send these so clearing a field actually persists
+      preferences.location = location.trim() || null;
+      preferences.zip_code = zipCode.trim() || null;
       if (dateOfBirth) preferences.dob = formatDateForAPI(dateOfBirth);
-      if (sportsInterests.length > 0) preferences.sports_interests = sportsInterests;
+      preferences.sports_interests = sportsInterests.length > 0 ? sportsInterests : [];
       // Only save theme_color for coach/organization accounts
       if (themeColor && (userRole === 'coach' || userRole === 'admin' || userRole === 'organization')) {
         preferences.theme_color = themeColor;
@@ -433,25 +434,25 @@ export default function EditProfileScreen() {
       if (headerImageTouched) {
         preferences.header_image_url = headerImageUrl || null;
       }
-      if (position.trim()) preferences.position = position.trim();
-      if (jerseyNumber.trim()) preferences.jersey_number = jerseyNumber.trim();
-      
+      if (headerImageTouched || headerImageOffsetTouched) {
+        preferences.header_image_focus_y = headerImageOffset;
+      }
+      preferences.position = position.trim() || null;
+      preferences.jersey_number = jerseyNumber.trim() || null;
+
       // Athlete-specific fields
-      if (gradeLevel) preferences.grade_level = gradeLevel;
+      preferences.grade_level = gradeLevel || null;
       if (graduationYear.trim()) {
         const year = parseInt(graduationYear.trim(), 10);
         if (!isNaN(year) && year >= 2020 && year <= 2040) {
           preferences.graduation_year = year;
         }
+      } else {
+        preferences.graduation_year = null;
       }
-      if (accolades.trim()) {
-        // Split by comma and clean up
-        const accoladesList = accolades.split(',').map(a => a.trim()).filter(Boolean);
-        if (accoladesList.length > 0) {
-          preferences.accolades = accoladesList;
-        }
-      }
-      if (primarySport.trim()) preferences.primary_sport = primarySport.trim().toLowerCase();
+      const accoladesList = accolades.trim() ? accolades.split(',').map(a => a.trim()).filter(Boolean) : [];
+      preferences.accolades = accoladesList.length > 0 ? accoladesList : null;
+      preferences.primary_sport = primarySport.trim() ? primarySport.trim().toLowerCase() : null;
 
       await User.updateMe(directFields);
 
@@ -462,17 +463,10 @@ export default function EditProfileScreen() {
       
       // Reload user data to reflect changes immediately
       await loadUserData();
-      
-      Alert.alert('Saved', 'Profile updated successfully.');
-      
-      // Redirect based on role
-      if (userRole === 'coach' || userRole === 'admin') {
-        // Coaches and admins go to team profile
-        safeGoBack(router);
-      } else {
-        // Fans go back to previous screen
-        safeGoBack(router);
-      }
+
+      Alert.alert('Saved', 'Profile updated successfully.', [
+        { text: 'OK', onPress: () => safeGoBack(router) },
+      ]);
     } catch (e: any) {
       if (__DEV__) console.error('Save error:', e);
       Alert.alert('Error', e?.message || 'Failed to update profile');
@@ -510,7 +504,7 @@ export default function EditProfileScreen() {
           </Text>
         </View>
       ) : (
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={0}>
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           <View style={styles.content}>
             {/* Header */}

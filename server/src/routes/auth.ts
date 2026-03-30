@@ -720,7 +720,7 @@ authRouter.post('/password/forgot', asyncHandler(async (req, res) => {
   }
   debugLog('[password-reset] User found:', user.id, user.email);
 
-  const code = String(crypto.randomInt(10000000, 99999999)); // 8-digit cryptographically secure code
+  const code = String(crypto.randomInt(100000, 999999)); // 6-digit cryptographically secure code
   const expires = new Date(Date.now() + 30 * 60 * 1000);
 
   await prisma.user.update({
@@ -750,7 +750,7 @@ authRouter.post('/password/forgot', asyncHandler(async (req, res) => {
 
 const passwordResetSchema = z.object({
   email: z.string().email(),
-  code: z.string().min(4).max(10),
+  code: z.string().length(6),
   password: passwordRequirement,
 });
 
@@ -1138,6 +1138,18 @@ authRouter.patch('/me/preferences', requireAuth as any, asyncHandler(async (req:
     dm_policy: z.enum(['everyone', 'following', 'no_one']).optional(),
     proceeding_as_fan: z.boolean().optional(),
     coach_agreement_accepted_at: z.string().optional(),
+
+    // Profile fields from edit-profile screen
+    location: z.string().max(200).optional().nullable(),
+    header_image_url: z.string().url().optional().nullable(),
+    header_image_focus_y: z.number().min(-1).max(1).optional().nullable(),
+    theme_color: z.string().max(20).optional().nullable(),
+    position: z.string().max(100).optional().nullable(),
+    jersey_number: z.string().max(10).optional().nullable(),
+    grade_level: z.enum(['Freshman', 'Sophomore', 'Junior', 'Senior']).optional().nullable(),
+    graduation_year: z.number().int().min(2020).max(2040).optional().nullable(),
+    accolades: z.array(z.string()).optional().nullable(),
+    primary_sport: z.string().max(50).optional().nullable(),
   }).partial();
 
   const parsed = schema.safeParse(req.body || {});

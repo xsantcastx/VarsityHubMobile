@@ -133,11 +133,28 @@ export function parseDeepLink(url: string): ParsedDeepLink | null {
  */
 function parseSchemeLink(parsed: Linking.ParsedURL): ParsedDeepLink | null {
   const pathParts = parsed.path?.split('/').filter(Boolean) || [];
-  
+
+  // Handle single-segment auth/public routes where params come from query string
+  // e.g., varsityhubmobile://reset-password?code=123456&email=user@example.com
+  if (pathParts.length === 1) {
+    const type = pathParts[0];
+    const screen = ROUTE_MAP[type];
+    if (screen && PUBLIC_DEEP_LINK_ROUTES.has(screen)) {
+      const queryParams = parsed.queryParams || {};
+      const params: Record<string, string> = {};
+      for (const [key, value] of Object.entries(queryParams)) {
+        if (typeof value === 'string') params[key] = value;
+      }
+      return { screen, params, source: 'scheme' };
+    }
+    if (__DEV__) console.warn('[DeepLinks] Single-segment path not a known public route:', pathParts[0]);
+    return null;
+  }
+
   if (pathParts.length < 2) {
     return null;
   }
-  
+
   // Support multi-segment types like 'join/org' (3 parts: join, org, id)
   let type: string;
   let id: string;
@@ -159,7 +176,7 @@ function parseSchemeLink(parsed: Linking.ParsedURL): ParsedDeepLink | null {
     if (__DEV__) console.warn('[DeepLinks] Invalid ID format:', type);
     return null;
   }
-  
+
   return {
     screen,
     params: { id },

@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, StyleSheet, Text, View, useColorScheme, Pressable, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
-import { User } from '@/api/entities';
+import { User, Notification as NotificationApi } from '@/api/entities';
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding } from '@/context/OnboardingContext';
 
@@ -20,6 +20,7 @@ export default function PendingApproval() {
   const ownerName = params.ownerName || 'the league admin';
   const [approved, setApproved] = useState(false);
   const [rejected, setRejected] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
   const [completionError, setCompletionError] = useState<string | null>(null);
   const [orgId, setOrgId] = useState<string | null>(null);
@@ -37,6 +38,18 @@ export default function PendingApproval() {
         setRejected(true);
         if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
         if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
+        // Fetch rejection reason from the most recent COACH_REJECTED notification
+        try {
+          const page = await NotificationApi.listPage(null, 20, false);
+          const rejectionNotif = Array.isArray(page?.items)
+            ? page.items.find((n: any) => n.type === 'COACH_REJECTED' && n.meta?.reason)
+            : null;
+          if (rejectionNotif?.meta?.reason) {
+            setRejectionReason(rejectionNotif.meta.reason);
+          }
+        } catch {
+          // ignore — reason display is best-effort
+        }
         return;
       }
       if (me?.approval_status === 'APPROVED') {
@@ -192,12 +205,24 @@ export default function PendingApproval() {
         {/* Subheading */}
         <Text style={[styles.subheading, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>
           {rejected
-            ? `Your request to join "${leagueName}" was not approved. You can continue as a fan or try joining a different league.`
+            ? `Your request to join "${leagueName}" was not approved.${rejectionReason ? '' : ' You can continue as a fan or try joining a different league.'}`
             : approved
-              ? `Welcome to ${leagueName}! Your coach account is ready. View your organization page and create your first team.`
+              ? `Welcome to ${leagueName}! Your coach account is ready. Start by viewing your organization or creating your first team.`
               : `Your request to join "${leagueName}" has been sent to ${ownerName}. You'll receive a notification when approved — typically within a few hours. You can use the app as a fan while you wait.`
           }
         </Text>
+
+        {/* Show rejection reason if available */}
+        {rejected && rejectionReason ? (
+          <View style={[styles.reasonCard, { backgroundColor: isDark ? 'rgba(220,38,38,0.1)' : '#FEF2F2', borderColor: isDark ? '#7F1D1D' : '#FECACA' }]}>
+            <Text style={[styles.reasonLabel, { color: isDark ? '#FCA5A5' : '#991B1B' }]}>Reason:</Text>
+            <Text style={[styles.reasonText, { color: isDark ? '#F9FAFB' : '#111827' }]}>{rejectionReason}</Text>
+          </View>
+        ) : rejected ? (
+          <Text style={[styles.subheading, { color: isDark ? '#9CA3AF' : '#6B7280', marginTop: -16 }]}>
+            You can continue as a fan or try joining a different league.
+          </Text>
+        ) : null}
 
         {timedOut && !approved && !rejected && (
           <>
@@ -249,22 +274,29 @@ export default function PendingApproval() {
 
         {approved && (
           <>
-            <Pressable
-              style={[styles.primaryButton, { backgroundColor: '#1B3A6B', marginTop: 24 }]}
-              onPress={() => router.replace('/onboarding/coach-agreement' as any)}
-            >
-              <Text style={styles.primaryButtonText}>Continue to VarsityHub →</Text>
-            </Pressable>
             {completionError ? (
               <>
                 <Text style={[styles.supportText, { color: '#EF4444', marginTop: 16, marginBottom: 8 }]}>
                   {completionError}
                 </Text>
-                <Pressable style={[styles.secondaryButton, { borderColor: isDark ? '#374151' : '#D1D5DB' }]} onPress={() => { void checkApproval(); }}>
+                <Pressable style={[styles.secondaryButton, { borderColor: isDark ? '#374151' : '#D1D5DB', marginBottom: 12 }]} onPress={() => { void checkApproval(); }}>
                   <Text style={[styles.secondaryButtonText, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Retry Setup</Text>
                 </Pressable>
               </>
             ) : null}
+            <Pressable
+              style={[styles.primaryButton, { backgroundColor: '#1B3A6B', marginTop: completionError ? 0 : 24 }]}
+              onPress={() => router.replace({ pathname: '/onboarding/coach-agreement', params: { redirect: 'organization' } } as any)}
+            >
+              <MaterialIcons name="business" size={20} color="#fff" />
+              <Text style={styles.primaryButtonText}>View Your Organization</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.secondaryButton, { borderColor: '#1B3A6B', marginTop: 0 }]}
+              onPress={() => router.replace({ pathname: '/onboarding/coach-agreement', params: { redirect: 'create-team' } } as any)}
+            >
+              <Text style={[styles.secondaryButtonText, { color: '#1B3A6B' }]}>Create Your First Team</Text>
+            </Pressable>
           </>
         )}
       </View>
@@ -302,4 +334,9 @@ const styles = StyleSheet.create({
   pollingRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
   pollingText: { fontSize: 12 },
   supportText: { fontSize: 12, textAlign: 'center', marginTop: 'auto', marginBottom: 16 },
+  reasonCard: {
+    width: '100%', borderRadius: 10, padding: 14, borderWidth: 1, marginBottom: 20, gap: 4,
+  },
+  reasonLabel: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  reasonText: { fontSize: 14, lineHeight: 20 },
 });

@@ -46,9 +46,9 @@ export default function ResetPasswordScreen() {
       return;
     }
     
-    // Validate reset code format (typically 6 digits or alphanumeric)
-    if (trimmedCode.length < 4 || trimmedCode.length > 20) {
-      setError('Reset code format is invalid. Please check your email for the correct code.');
+    // Validate reset code — must be exactly 6 digits
+    if (trimmedCode.length !== 6 || !/^\d{6}$/.test(trimmedCode)) {
+      setError('Enter the 6-digit code from your email.');
       return;
     }
     
@@ -110,10 +110,11 @@ export default function ResetPasswordScreen() {
           />
 
           <Input
-            placeholder="Reset code from email"
+            placeholder="6-digit code from email"
             value={code}
-            onChangeText={setCode}
-            autoCapitalize="none"
+            onChangeText={(t) => setCode(t.replace(/\D/g, '').slice(0, 6))}
+            keyboardType="number-pad"
+            maxLength={6}
             placeholderTextColor={palette.mutedText}
             style={[
               styles.input,

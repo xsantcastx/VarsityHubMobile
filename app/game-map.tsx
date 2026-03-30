@@ -167,7 +167,7 @@ export default function GameMapScreen() {
       {loading ? (
         // Show map with loading indicator while fetching games
         <View style={styles.container}>
-          <EventMap events={[]} onEventPress={handleEventPress} showUserLocation={true} />
+          <EventMap events={[]} onEventPress={handleEventPress} showUserLocation={true} dataLoaded={false} />
           <View style={styles.loadingOverlay}>
             <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
             <Text style={[styles.loadingText, { color: Colors[colorScheme].text }]}>Loading nearby games...</Text>
@@ -175,7 +175,7 @@ export default function GameMapScreen() {
         </View>
       ) : error ? (
         <View style={styles.container}>
-          <EventMap events={[]} onEventPress={handleEventPress} showUserLocation={true} />
+          <EventMap events={[]} onEventPress={handleEventPress} showUserLocation={true} dataLoaded={false} />
           <View style={styles.loadingOverlay}>
             <MaterialIcons name="cloud-off" size={40} color={Colors[colorScheme].mutedText} />
             <Text style={[styles.loadingText, { color: Colors[colorScheme].text, textAlign: 'center', marginTop: 8 }]}>{error}</Text>
@@ -186,7 +186,7 @@ export default function GameMapScreen() {
         </View>
       ) : (
         // Always show map, whether games exist or not
-        <EventMap events={events} onEventPress={handleEventPress} showUserLocation={true} />
+        <EventMap events={events} onEventPress={handleEventPress} showUserLocation={true} dataLoaded={true} />
       )}
     </View>
   );

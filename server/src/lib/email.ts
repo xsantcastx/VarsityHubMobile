@@ -25,19 +25,19 @@ const CUSTOMER_SERVICE_EMAIL = process.env.CUSTOMER_SERVICE_EMAIL || 'support@va
 
 // Common template data (social links, privacy policy, etc.) added to all emails
 const getCommonTemplateData = () => ({
-  logo_url: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765655742/6C37232F-74BC-4486-95A1-7EE208A63D06_ai2j8k.png',
+  logo_url: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765655742/6C37232F-74BC-4486-95A1-7EE208A63D06_aj2j8k.png',
   footer_logo_url: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765997882/365220-200_mvbdz7.png',
-  hero_image_url: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765655742/6C37232F-74BC-4486-95A1-7EE208A63D06_ai2j8k.png',
-  privacy_policy_url: 'https://varsityhub.app/privacy',
-  community_guidelines_url: 'https://varsityhub.app/privacy',
+  hero_image_url: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765655742/6C37232F-74BC-4486-95A1-7EE208A63D06_aj2j8k.png',
+  privacy_policy_url: 'https://limeprod.com/VarsityHubPrivacy',
+  community_guidelines_url: 'https://limeprod.com/VarsityHubPrivacy',
   instagram_url: 'https://www.instagram.com/varsityhub_?igsh=cGQ1ZDM2NzVxNm13',
   tiktok_url: 'https://www.tiktok.com/@varsity.hub?_r=1&_t=ZT-92J1z0MRGpi',
   youtube_url: 'https://youtube.com/@varsityhub?si=XTvXQD0P7GAeo9n-',
   facebook_url: 'https://www.facebook.com/share/17t7MJa9vx/?mibextid=wwXIfr',
   x_url: 'https://x.com/varsityhub00',
-  website_url: 'https://varsityhub.app',
-  communityGuidelinesUrl: 'https://varsityhub.app/privacy',
-  privacyPolicyUrl: 'https://varsityhub.app/privacy',
+  website_url: 'https://limeprod.com',
+  communityGuidelinesUrl: 'https://limeprod.com/VarsityHubPrivacy',
+  privacyPolicyUrl: 'https://limeprod.com/VarsityHubPrivacy',
   customer_service_email: CUSTOMER_SERVICE_EMAIL,
 });
 
@@ -988,6 +988,7 @@ export async function sendVerificationEmail(email: string, token: string, userNa
  */
 export async function sendPasswordResetEmail(email: string, code: string): Promise<boolean> {
   const subject = `${code} is your VarsityHub password reset code`;
+  const resetUrl = `varsityhubmobile://reset-password?code=${encodeURIComponent(code)}&email=${encodeURIComponent(email)}`;
   const sent = await sendTemplateEmail(
     TEMPLATE_IDS.PASSWORD_RESET,
     email,
@@ -998,6 +999,8 @@ export async function sendPasswordResetEmail(email: string, code: string): Promi
       reset_code: code,
       code: code,
       expires_in: '30 minutes',
+      reset_url: resetUrl,
+      action_url: resetUrl,
     },
     `Password reset email sent to ${email}`
   );
@@ -1015,6 +1018,9 @@ export async function sendPasswordResetEmail(email: string, code: string): Promi
   </p>
   <div style="text-align:center;margin:24px 0;">
     <span style="display:inline-block;background:#F3F4F6;padding:16px 32px;border-radius:12px;font-size:32px;font-weight:800;letter-spacing:8px;color:#1B3A6B;">${code}</span>
+  </div>
+  <div style="text-align:center;margin:16px 0 24px;">
+    <a href="${resetUrl}" style="display:inline-block;background:#1B3A6B;color:#fff;padding:14px 32px;border-radius:10px;font-size:16px;font-weight:700;text-decoration:none;">Open in VarsityHub App</a>
   </div>
   <p style="text-align:center;color:#6B7280;font-size:14px;">This code expires in 30 minutes.</p>
   <p style="text-align:center;color:#6B7280;font-size:14px;">If you didn't request this, you can safely ignore this email.</p>
@@ -2134,6 +2140,7 @@ export async function sendNewCoachRequestEmail(params: {
   leagueName: string;
   requestId?: string;
   organizationId?: string;
+  coachNotes?: string;
 }): Promise<boolean> {
   const approveUrl = params.requestId
     ? `${APP_BASE_URL}/organizations/join-requests/${params.requestId}/approve`
@@ -2153,6 +2160,7 @@ export async function sendNewCoachRequestEmail(params: {
       requester_name: params.coachName,
       org_name: params.leagueName,
       message: params.coachEmail,
+      coach_notes: params.coachNotes || '',
       request_id: params.requestId || '',
       approve_url: approveUrl,
       deny_url: denyUrl,
@@ -2175,7 +2183,8 @@ export async function sendNewCoachRequestEmail(params: {
   <table style="width:100%;border-collapse:collapse;margin:20px 0;">
     <tr><td style="padding:8px 12px;font-weight:bold;color:#374151;border-bottom:1px solid #E5E7EB;">Coach:</td><td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;">${params.coachName}</td></tr>
     <tr><td style="padding:8px 12px;font-weight:bold;color:#374151;border-bottom:1px solid #E5E7EB;">Email:</td><td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;"><a href="mailto:${params.coachEmail}">${params.coachEmail}</a></td></tr>
-    <tr><td style="padding:8px 12px;font-weight:bold;color:#374151;border-bottom:1px solid #E5E7EB;">League:</td><td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;">${params.leagueName}</td></tr>
+    <tr><td style="padding:8px 12px;font-weight:bold;color:#374151;border-bottom:1px solid #E5E7EB;">League:</td><td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;">${params.leagueName}</td></tr>${params.coachNotes ? `
+    <tr><td style="padding:8px 12px;font-weight:bold;color:#374151;border-bottom:1px solid #E5E7EB;">Notes:</td><td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;">${params.coachNotes}</td></tr>` : ''}
   </table>
   <div style="text-align:center;margin-bottom:12px;">
     <a href="${approveUrl}" style="display:inline-block;background:#16A34A;color:#fff;padding:12px 32px;border-radius:8px;text-decoration:none;font-weight:600;margin-right:12px;">Approve Coach</a>

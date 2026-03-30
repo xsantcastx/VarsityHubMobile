@@ -1,4 +1,5 @@
 import { User } from '@/api/entities';
+import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
@@ -22,42 +23,73 @@ export default function ForgotPasswordScreen() {
   const colorScheme = useColorScheme();
   const palette = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
 
+  // Phase 1: email
   const [email, setEmail] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  const [sendLoading, setSendLoading] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const [codeSent, setCodeSent] = useState(false);
 
-  const onSubmit = async () => {
+  // Phase 2: code + new password
+  const [code, setCode] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+
+  const onSendCode = async () => {
     const trimmed = email.trim();
     if (!trimmed) {
-      setError('Enter the email you use to sign in.');
+      setSendError('Enter the email you use to sign in.');
       return;
     }
     const emailCheck = validateEmail(trimmed);
     if (!emailCheck.valid) {
-      setError(emailCheck.error || 'Please enter a valid email address');
+      setSendError(emailCheck.error || 'Please enter a valid email address.');
       return;
     }
-    setLoading(true);
-    setError(null);
-    setInfo(null);
+    setSendLoading(true);
+    setSendError(null);
     try {
-      const res: any = await User.requestPasswordReset(trimmed);
-      if (res?.ok) {
-        setInfo('Check your email for a reset code.');
-      } else {
-        setInfo('If that email is registered, we sent reset instructions.');
-      }
+      await User.requestPasswordReset(trimmed);
+      setCodeSent(true);
     } catch (e: any) {
-      setError(e?.message || 'Unable to request password reset.');
+      // Never reveal whether the email exists — treat server errors as success
+      setCodeSent(true);
     } finally {
-      setLoading(false);
+      setSendLoading(false);
+    }
+  };
+
+  const onResetPassword = async () => {
+    const trimmedCode = code.trim();
+    if (trimmedCode.length !== 6 || !/^\d{6}$/.test(trimmedCode)) {
+      setResetError('Enter the 6-digit code from your email.');
+      return;
+    }
+    if (password.length < 8) {
+      setResetError('Password must be at least 8 characters.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setResetError('Passwords do not match.');
+      return;
+    }
+    setResetLoading(true);
+    setResetError(null);
+    try {
+      await User.resetPassword(email.trim(), trimmedCode, password);
+      setDone(true);
+    } catch (e: any) {
+      setResetError(e?.message || 'Invalid or expired code. Please try again.');
+    } finally {
+      setResetLoading(false);
     }
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: palette.background }]} edges={['top', 'bottom']}>
-      <Stack.Screen options={{ 
+    <SafeAreaView style={[styles.container, { backgroundColor: palette.background }]} edges={['top']}>
+      <Stack.Screen options={{
         title: 'Forgot Password',
         headerLeft: () => (
           <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingLeft: 8 }}>
@@ -65,46 +97,100 @@ export default function ForgotPasswordScreen() {
           </Pressable>
         ),
       }} />
-      <View style={[styles.card, { backgroundColor: palette.elevated, borderColor: palette.border }]}>
-        <Text style={[styles.title, { color: palette.text }]}>Reset your password</Text>
-        <Text style={[styles.subtitle, { color: palette.mutedText }]}>Enter your account email and we'll send a 6-digit code to reset your password.</Text>
+      <KeyboardAwareScreen contentContainerStyle={styles.scroll}>
+        <View style={[styles.card, { backgroundColor: palette.elevated, borderColor: palette.border }]}>
 
-        {error ? <Text style={[styles.error, { color: palette.destructive }]}>{error}</Text> : null}
-        {info ? <Text style={[styles.info, { color: colorScheme === 'dark' ? '#10B981' : '#065F46' }]}>{info}</Text> : null}
+          {done ? (
+            // Success state
+            <>
+              <MaterialIcons name="check-circle" size={48} color="#10B981" style={{ alignSelf: 'center' }} />
+              <Text style={[styles.title, { color: palette.text, textAlign: 'center' }]}>Password updated!</Text>
+              <Text style={[styles.subtitle, { color: palette.mutedText, textAlign: 'center' }]}>
+                You can now sign in with your new password.
+              </Text>
+              <Button onPress={() => void router.replace('/sign-in')}>
+                Sign in
+              </Button>
+            </>
+          ) : !codeSent ? (
+            // Phase 1: enter email
+            <>
+              <Text style={[styles.title, { color: palette.text }]}>Reset your password</Text>
+              <Text style={[styles.subtitle, { color: palette.mutedText }]}>
+                Enter your account email and we'll send a 6-digit code to reset your password.
+              </Text>
 
-        <Input
-          placeholder="name@school.edu"
-          value={email}
-          onChangeText={setEmail}
-          autoCapitalize="none"
-          keyboardType="email-address"
-          placeholderTextColor={palette.mutedText}
-          style={[
-            styles.input,
-            {
-              backgroundColor: palette.surface,
-              borderColor: palette.border,
-              color: palette.text,
-            },
-          ]}
-        />
+              {sendError ? <Text style={[styles.error, { color: palette.destructive }]}>{sendError}</Text> : null}
 
-        <Button onPress={onSubmit} disabled={loading}>
-          {loading ? <ActivityIndicator color="white" /> : 'Send reset code'}
-        </Button>
+              <Input
+                placeholder="name@school.edu"
+                value={email}
+                onChangeText={setEmail}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                placeholderTextColor={palette.mutedText}
+                style={[styles.input, { backgroundColor: palette.surface, borderColor: palette.border, color: palette.text }]}
+              />
 
-        <Pressable
-          style={styles.linkRow}
-          onPress={() => void router.push({ pathname: '/reset-password', params: { email: email.trim() } })}
-          disabled={!email.trim()}
-        >
-          <Text style={[styles.link, { color: palette.tint }]}>Already have a code? Reset now</Text>
-        </Pressable>
-      </View>
+              <Button onPress={onSendCode} disabled={sendLoading}>
+                {sendLoading ? <ActivityIndicator color="white" /> : 'Send reset code'}
+              </Button>
+            </>
+          ) : (
+            // Phase 2: enter code + new password
+            <>
+              <Text style={[styles.title, { color: palette.text }]}>Check your email</Text>
+              <Text style={[styles.subtitle, { color: palette.mutedText }]}>
+                We sent a 6-digit code to <Text style={{ fontWeight: '700', color: palette.text }}>{email.trim()}</Text>. Enter it below along with your new password.
+              </Text>
 
-      <Pressable style={styles.secondary} onPress={() => void router.replace('/sign-in')}>
-        <Text style={[styles.secondaryText, { color: palette.tint }]}>Back to sign in</Text>
-      </Pressable>
+              {resetError ? <Text style={[styles.error, { color: palette.destructive }]}>{resetError}</Text> : null}
+
+              <Input
+                placeholder="6-digit code"
+                value={code}
+                onChangeText={(t) => setCode(t.replace(/\D/g, '').slice(0, 6))}
+                keyboardType="number-pad"
+                maxLength={6}
+                placeholderTextColor={palette.mutedText}
+                style={[styles.input, { backgroundColor: palette.surface, borderColor: palette.border, color: palette.text }]}
+              />
+
+              <Input
+                placeholder="New password (min 8 characters)"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                placeholderTextColor={palette.mutedText}
+                style={[styles.input, { backgroundColor: palette.surface, borderColor: palette.border, color: palette.text }]}
+              />
+
+              <Input
+                placeholder="Confirm new password"
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                secureTextEntry
+                placeholderTextColor={palette.mutedText}
+                style={[styles.input, { backgroundColor: palette.surface, borderColor: palette.border, color: palette.text }]}
+              />
+
+              <Button onPress={onResetPassword} disabled={resetLoading}>
+                {resetLoading ? <ActivityIndicator color="white" /> : 'Update password'}
+              </Button>
+
+              <Pressable onPress={() => { setCodeSent(false); setCode(''); setPassword(''); setConfirmPassword(''); setResetError(null); }} style={styles.linkRow}>
+                <Text style={[styles.link, { color: palette.tint }]}>Wrong email? Go back</Text>
+              </Pressable>
+            </>
+          )}
+        </View>
+
+        {!done && (
+          <Pressable style={styles.secondary} onPress={() => void router.replace('/sign-in')}>
+            <Text style={[styles.secondaryText, { color: palette.tint }]}>Back to sign in</Text>
+          </Pressable>
+        )}
+      </KeyboardAwareScreen>
     </SafeAreaView>
   );
 }
@@ -112,8 +198,11 @@ export default function ForgotPasswordScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 24,
+  },
+  scroll: {
+    flexGrow: 1,
     justifyContent: 'center',
+    padding: 24,
   },
   card: {
     borderWidth: 1,
@@ -130,9 +219,6 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   error: {
-    fontWeight: '600',
-  },
-  info: {
     fontWeight: '600',
   },
   input: {

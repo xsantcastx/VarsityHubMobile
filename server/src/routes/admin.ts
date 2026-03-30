@@ -2,6 +2,7 @@ import express from 'express';
 import { z } from 'zod';
 import { checkReportSpike, getUserModerationHistory, issueWarning, suspendUser } from '../lib/moderation.js';
 import { sendAccountPermanentBanEmail, sendCoachApprovedEmail, sendCoachRejectedEmail } from '../lib/email.js';
+import { sendPushNotification } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
 import { getFounderMetricsReport } from '../lib/founderMetrics.js';
 import {
@@ -110,6 +111,7 @@ adminRouter.get('/dashboard', requireVerified as any, requireAdminMiddleware as 
           description: true,
           created_at: true,
           logo_url: true,
+          supporting_document_url: true,
           leagueOwner: { select: { id: true, display_name: true, email: true } },
           _count: { select: { teams: true, memberships: true } },
         },
@@ -196,10 +198,12 @@ adminRouter.post('/coaches/:id/approve', requireVerified as any, requireAdminMid
 
     // Send approval email
     if (user.email) {
+      const prefs = (user.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
+      const orgName = prefs?.organization_name || 'VarsityHub';
       sendCoachApprovedEmail({
         to: user.email,
         coachName: user.display_name || user.username || 'Coach',
-        leagueName: 'VarsityHub',
+        leagueName: orgName,
         note: note || undefined,
       }).catch((err) => console.error('[admin] Failed to send coach approved email:', err));
     }
@@ -212,6 +216,14 @@ adminRouter.post('/coaches/:id/approve', requireVerified as any, requireAdminMid
         meta: { approved_by: 'admin', note: note || undefined },
       },
     }).catch(() => {});
+
+    // Send push notification
+    sendPushNotification(
+      id,
+      'Application Approved!',
+      `Your coach application has been approved by VarsityHub.${note ? ` Note: ${note}` : ''}`,
+      { type: 'coach_approved', screen: 'onboarding' },
+    ).catch(() => {});
 
     return res.json({ ok: true, message: `Coach ${user.display_name || user.username} approved` });
   } catch (error) {
@@ -229,7 +241,7 @@ adminRouter.post('/coaches/:id/reject', requireVerified as any, requireAdminMidd
     const { id } = req.params;
     const { note } = req.body || {};
 
-    const user = await prisma.user.findUnique({ where: { id }, select: { id: true, email: true, display_name: true, username: true, approval_status: true } });
+    const user = await prisma.user.findUnique({ where: { id }, select: { id: true, email: true, display_name: true, username: true, approval_status: true, preferences: true } });
     if (!user) return res.status(404).json({ error: 'User not found' });
     if (user.approval_status !== 'PENDING') return res.status(400).json({ error: 'User is not pending approval' });
 
@@ -252,10 +264,12 @@ adminRouter.post('/coaches/:id/reject', requireVerified as any, requireAdminMidd
 
     // Send rejection email
     if (user.email) {
+      const rejectPrefs = (user.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
+      const rejectOrgName = rejectPrefs?.organization_name || 'VarsityHub';
       sendCoachRejectedEmail({
         to: user.email,
         coachName: user.display_name || user.username || 'Coach',
-        leagueName: 'VarsityHub',
+        leagueName: rejectOrgName,
         reason: note || undefined,
       }).catch((err) => console.error('[admin] Failed to send coach rejected email:', err));
     }
@@ -268,6 +282,14 @@ adminRouter.post('/coaches/:id/reject', requireVerified as any, requireAdminMidd
         meta: { rejected_by: 'admin', reason: note || undefined },
       },
     }).catch(() => {});
+
+    // Send push notification
+    sendPushNotification(
+      id,
+      'Application Update',
+      `Your coach application was not approved.${note ? ` Reason: ${note}` : ''}`,
+      { type: 'coach_rejected', screen: 'onboarding' },
+    ).catch(() => {});
 
     return res.json({ ok: true, message: `Coach ${user.display_name || user.username} rejected` });
   } catch (error) {

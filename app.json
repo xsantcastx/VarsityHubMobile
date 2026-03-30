@@ -122,7 +122,13 @@
       "expo-audio",
       "expo-apple-authentication",
       "expo-asset",
-      "expo-notifications",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#1B3A6B"
+        }
+      ],
       "./plugins/withAndroidManifestCleanup",
       "./plugins/withAndroidLintExtraTranslationFix",
       "./plugins/withAndroidBuildConfig",

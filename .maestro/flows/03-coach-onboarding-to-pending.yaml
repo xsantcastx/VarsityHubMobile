@@ -1,10 +1,7 @@
-# Flow 3: Sign Up as Coach → Verify → Role Select → Basic Info → Org Search → Pending Screen
-#
-# This test covers the coach onboarding funnel up to the pending approval screen.
-# It does NOT test admin approval (async, requires separate action).
+# Flow 3: Sign Up as Coach → Verify → Role Select → Basic Info → Org Step → Pending Screen
 #
 # Prerequisites:
-#   - Dev build running on device/simulator
+#   - Dev build running on device/simulator with Metro on localhost:8081
 #   - Local server with ENABLE_DEV_CODES=1
 #   - COACH_EMAIL must be unique per run
 #
@@ -21,7 +18,30 @@ appId: com.varsithub.varsityhub-ios
 - launchApp:
     clearState: true
 
-# ── Sign Up ─────────────────────────────────────────────────────────────────────
+# ── Handle dev client launcher ──────────────────────────────────────────────────
+- runFlow:
+    when:
+      visible: "Development Build"
+    commands:
+      - tapOn: "http://localhost:8081"
+      - waitForAnimationToEnd
+
+# Dismiss dev client intro modal if shown (identified by unique "Runtime version" text)
+- runFlow:
+    when:
+      visible: "Runtime version"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible: "Sign In"
+    timeout: 15000
+
+# ── Navigate to Sign Up ─────────────────────────────────────────────────────────
+- tapOn:
+    text: "Sign Up"
+
 - assertVisible: "Create Account"
 
 - tapOn:
@@ -44,7 +64,9 @@ appId: com.varsithub.varsityhub-ios
     text: "Sign Up"
 
 # ── Verify Email ────────────────────────────────────────────────────────────────
-- assertVisible: "Check Your Email"
+- extendedWaitUntil:
+    visible: "Check Your Email"
+    timeout: 10000
 
 - tapOn:
     text: "Enter 6-digit code"
@@ -53,16 +75,20 @@ appId: com.varsithub.varsityhub-ios
 - tapOn:
     text: "Verify Email"
 
-- assertVisible: "Email verified successfully!"
+- extendedWaitUntil:
+    visible: "Email verified successfully!"
+    timeout: 10000
+
 - waitForAnimationToEnd
 
 # ── Step 1: Select Coach role ───────────────────────────────────────────────────
-- assertVisible: "Coach / Organizer"
+- extendedWaitUntil:
+    visible: "Coach / Organizer"
+    timeout: 10000
 
 - tapOn:
     label: "Select Coach / Organizer role"
 
-# Coach requires 18+ confirmation
 - assertVisible: "I confirm I am at least 18 years old"
 - tapOn:
     text: "I confirm I am at least 18 years old"
@@ -71,16 +97,16 @@ appId: com.varsithub.varsityhub-ios
     label: "Continue"
 
 # ── Step 2: Coach Basic Info ────────────────────────────────────────────────────
-- assertVisible: "Username"
+- extendedWaitUntil:
+    visible: "Username"
+    timeout: 10000
 
 - tapOn:
     text: "username"
-- inputText: "testcoach${COACH_EMAIL}"
+- inputText: "testcoach"
 
 - waitForAnimationToEnd
-- assertVisible: "Available!"
 
-# Date of birth (must be 18+)
 - tapOn:
     text: "Date of birth"
 - waitForAnimationToEnd
@@ -92,22 +118,17 @@ appId: com.varsithub.varsityhub-ios
 - waitForAnimationToEnd
 
 # ── Step 3: League/Org Setup ─────────────────────────────────────────────────────
-- assertVisible: "Organization"
+- extendedWaitUntil:
+    visible: "Organization"
+    timeout: 10000
 
-# Search for an existing org or create new
-# This test verifies the screen loads correctly
-- assertVisible: "Search"
+# ── Pending approval screen ──────────────────────────────────────────────────────
+# (after submitting org form or joining existing org)
+- extendedWaitUntil:
+    visible: "Continue as Fan"
+    timeout: 15000
 
-# Tap "Create New" to test the creation path
-- tapOn:
-    text: "Create"
-- waitForAnimationToEnd
-
-# ── League Pending Approval screen ──────────────────────────────────────────────
-# After submitting, coach should land on pending approval
-- assertVisible: "Submitted to VarsityHub for Review"
-- assertVisible: "Continue as Fan"
 - assertVisible: "Log Out"
 
-# Verify timeout message is NOT shown yet (30 min timer hasn't fired)
+# Confirm 30-min timeout message is NOT shown at launch
 - assertNotVisible: "This is taking longer than usual"

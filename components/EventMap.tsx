@@ -30,6 +30,7 @@ export default function EventMap({
   onEventPress,
   initialRegion,
   showUserLocation = true,
+  dataLoaded = true,
 }: EventMapProps) {
   const colorScheme = useColorScheme() ?? 'light';
   const mapRef = useRef<MapView>(null);
@@ -244,8 +245,8 @@ export default function EventMap({
         </View>
       )}
 
-      {/* No Events Message */}
-      {eventsWithCoordinates.length === 0 && showEmptyState && (
+      {/* No Events Message — only shown once parent confirms data is loaded */}
+      {eventsWithCoordinates.length === 0 && dataLoaded && showEmptyState && (
         <View style={styles.noEventsContainer}>
           <TouchableOpacity
             style={[

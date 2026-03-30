@@ -334,26 +334,7 @@ export default function Step2Basic() {
         setProgress(2);
         router.replace('/onboarding/step-3-league' as any);
       } else {
-        // Fans are DONE — upload avatar, save bio, request permissions, then complete
-        // Upload avatar if selected (non-blocking — don't fail onboarding if upload fails)
-        let avatarUrl: string | undefined;
-        if (avatarUri) {
-          try {
-            const uploaded = await uploadFile(getConfig().apiUrl, avatarUri, 'avatar.jpg', 'image/jpeg');
-            avatarUrl = uploaded?.url || uploaded?.secure_url;
-          } catch (uploadErr) {
-            if (__DEV__) console.warn('[step-2] Avatar upload failed (continuing):', uploadErr);
-          }
-        }
-
-        // Save bio + avatar before completing onboarding
-        if (bio.trim() || avatarUrl) {
-          await User.patchMe({
-            ...(bio.trim() ? { bio: bio.trim() } : {}),
-            ...(avatarUrl ? { avatar_url: avatarUrl } : {}),
-          }).catch((err: any) => { if (__DEV__) console.warn('[step-2] Bio/avatar save failed (continuing):', err); });
-        }
-
+        // Fans are DONE — complete onboarding first (fast), then upload avatar in background
         await User.completeOnboarding({
           role: 'fan',
           username: finalUsername,
@@ -362,21 +343,33 @@ export default function Step2Basic() {
           affiliation,
         });
 
-        // Mark complete locally — non-fatal if AsyncStorage write fails
-        try {
-          await markOnboardingCompleteLocally();
-        } catch (localErr) {
-          if (__DEV__) console.warn('[step-2] markOnboardingCompleteLocally failed (continuing):', localErr);
-        }
-
-        // Request push + location permissions (non-blocking)
-        await requestPermissions();
-
-        // Register push token after onboarding completes (non-blocking)
-        registerPushToken().catch(() => {});
-
+        // Navigate immediately — don't block on non-critical tasks
         dispatch({ type: 'SAVE_SUCCESS', data: updatedDataWithRole });
         router.replace('/(tabs)' as any);
+
+        // Fire-and-forget: avatar upload, bio save, local storage, permissions, push token
+        if (avatarUri || bio.trim()) {
+          (async () => {
+            try {
+              let avatarUrl: string | undefined;
+              if (avatarUri) {
+                const uploaded = await uploadFile(getConfig().apiUrl, avatarUri, 'avatar.jpg', 'image/jpeg');
+                avatarUrl = uploaded?.url || uploaded?.secure_url;
+              }
+              if (bio.trim() || avatarUrl) {
+                await User.patchMe({
+                  ...(bio.trim() ? { bio: bio.trim() } : {}),
+                  ...(avatarUrl ? { avatar_url: avatarUrl } : {}),
+                });
+              }
+            } catch (err) {
+              if (__DEV__) console.warn('[step-2] Background avatar/bio save failed:', err);
+            }
+          })();
+        }
+        markOnboardingCompleteLocally().catch(() => {});
+        requestPermissions().catch(() => {});
+        registerPushToken().catch(() => {});
       }
     } catch (e: any) {
       if (__DEV__) console.error('[step-2-basic] Failed to save:', e, 'data:', e?.data);

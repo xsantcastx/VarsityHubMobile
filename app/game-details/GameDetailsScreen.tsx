@@ -30,7 +30,7 @@ import { applyClearVote, applyVoteSelection, buildVoteSummary, parseVoteSummary,
 import type { ColorValue } from 'react-native';
 const PLACEHOLDER_GRADIENT: readonly [ColorValue, ColorValue, ...ColorValue[]] = ['#1e293b', '#1d4ed8', '#38bdf8'];
 const VIDEO_EXT = /\.(mp4|mov|webm|m4v|avi)$/i;
-const GAME_WINDOW_MS = 3 * 60 * 60 * 1000; // 3 hours live window
+const GAME_WINDOW_MS = 2 * 60 * 60 * 1000; // 2 hours live window
 const isSampleId = (id?: string | null) => !!id && /^sample-/i.test(String(id));
 
 type MediaItem = {
@@ -621,6 +621,20 @@ const GameDetailsScreen = () => {
     const elapsed = nowTs - startMs;
     if (elapsed < GAME_WINDOW_MS) return { phase: 'live' as const, diffMs: 0 };
     return { phase: 'final' as const, diffMs: 0 };
+  }, [vm?.date, nowTs]);
+
+  // Poll stays open until midnight UTC the day after the event (covers all US timezones)
+  const isVoteOpen = useMemo(() => {
+    const iso = vm?.date;
+    if (!iso) return false;
+    const eventDate = new Date(iso);
+    if (!Number.isFinite(eventDate.getTime())) return false;
+    const endOfEventDay = new Date(Date.UTC(
+      eventDate.getUTCFullYear(),
+      eventDate.getUTCMonth(),
+      eventDate.getUTCDate() + 1,
+    ));
+    return nowTs < endOfEventDay.getTime();
   }, [vm?.date, nowTs]);
 
   // Countdown to when "Add Story" unlocks (12h before event start).
@@ -1393,11 +1407,23 @@ const GameDetailsScreen = () => {
       }
     } catch (err: any) {
       const status = err?.status;
-      const message = String(err?.message || err?.data?.error || '');
+      const code = err?.data?.error || '';
+      const serverMsg = err?.data?.message || '';
+      const message = String(err?.message || code || '');
       if (status === 401 || /unauthorized/i.test(message)) {
         Alert.alert('Session expired', 'Please sign in again to upload stories.', [
           { text: 'Cancel', style: 'cancel' },
           { text: 'Sign In', onPress: () => void router.push('/sign-in') },
+        ]);
+      } else if (code === 'POSTING_WINDOW_CLOSED') {
+        Alert.alert('Not Yet', serverMsg || 'The story posting window is not open for this event.');
+      } else if (code === 'TOO_FAR_FROM_VENUE') {
+        const dist = err?.data?.distance;
+        Alert.alert('Too Far', serverMsg || `You need to be within 1 km of the venue.${dist ? ` You're ${dist.toFixed(1)} km away.` : ''}`);
+      } else if (code === 'LOCATION_REQUIRED') {
+        Alert.alert('Location Required', 'Enable location access to post stories at this event.', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => Linking.openSettings() },
         ]);
       } else {
         Alert.alert('Unable to add story', err?.message || 'Please try again.');
@@ -1613,7 +1639,7 @@ const GameDetailsScreen = () => {
 
   const handleVote = useCallback(
     async (team: VoteOption) => {
-      if (vm?.isPast) return;
+      if (!isVoteOpen) return;
       // Event-only pages (no gameId) only update local state
       const isEventOnly = !vm?.gameId && vm?.eventId;
 
@@ -1654,11 +1680,11 @@ const GameDetailsScreen = () => {
         setVoteBusy(false);
       }
     },
-    [vm?.gameId, vm?.eventId, vm?.isPast, router],
+    [vm?.gameId, vm?.eventId, isVoteOpen, router],
   );
 
   const handleClearVote = useCallback(async () => {
-    if (vm?.isPast) return;
+    if (!isVoteOpen) return;
     // Event-only pages (no gameId) only update local state
     const isEventOnly = !vm?.gameId && vm?.eventId;
 
@@ -1732,16 +1758,9 @@ const GameDetailsScreen = () => {
             const isVideo = it.kind === 'video' || (typeof it.url === 'string' && VIDEO_EXT.test(it.url));
             const wasSeen = !!seenStories[it.id];
             const expiresAt = it.expires_at ? new Date(it.expires_at).getTime() : null;
-            const now = nowTs;
-            const isExpired = expiresAt != null && expiresAt <= now;
+            const isExpired = expiresAt != null && expiresAt <= nowTs;
             const isCreator = currentUserIdRef.current && it.user_id === currentUserIdRef.current;
             const showExpiredForCreator = isExpired && isCreator;
-            const msLeft = expiresAt != null && !isExpired ? expiresAt - now : 0;
-            const hoursLeft = Math.floor(msLeft / (60 * 60 * 1000));
-            const minsLeft = Math.floor((msLeft % (60 * 60 * 1000)) / (60 * 1000));
-            const countdownText = !isExpired && msLeft > 0
-              ? (hoursLeft > 0 ? `${hoursLeft}h ` : '') + (minsLeft > 0 ? `${minsLeft}m` : '< 1m')
-              : null;
             return (
               <Pressable
                 key={`${it.id}-${idx}`}
@@ -1774,12 +1793,6 @@ const GameDetailsScreen = () => {
                       <Text style={styles.storyExpiredHint}>Tap to delete</Text>
                     </View>
                   ) : null}
-                  {countdownText && !showExpiredForCreator ? (
-                    <View style={styles.storyCountdownBadge}>
-                      <Ionicons name="time-outline" size={10} color="#fff" />
-                      <Text style={styles.storyCountdownText}>{countdownText}</Text>
-                    </View>
-                  ) : null}
                 </View>
               </Pressable>
             );
@@ -1800,7 +1813,7 @@ const renderVoteSection = () => {
   const hasVotes = total > 0;
   const pctA = hasVotes ? Math.max(0, Math.min(100, summary.pctA ?? 0)) : 50;
   const pctB = hasVotes ? Math.max(0, Math.min(100, summary.pctB ?? 0)) : 50;
-  const pressDisabled = Boolean(vm?.isPast) || voteBusy;
+  const pressDisabled = !isVoteOpen || voteBusy;
   const selectedTeam = summary.userVote ?? null;
   const votesWord = total === 1 ? 'vote' : 'votes';
   const pickLabel = (
@@ -2674,7 +2687,7 @@ const renderBanner = () => {
                 const _pctA = summary.total ? Math.round(summary.pctA) : 50;
                 const _pctB = summary.total ? Math.round(summary.pctB) : 50;
                 const selected = summary.userVote;
-                const disabled = Boolean(vm?.isPast) || voteBusy;
+                const disabled = !isVoteOpen || voteBusy;
                 const bgA = themeBgA;
                 const bgOn = themeBgOn;
                 const textColor = themeTextColor;
@@ -2762,7 +2775,7 @@ const renderBanner = () => {
               })()}
             </View>
 
-            <Text style={styles.vsModalBody}>{vm?.isPast ? 'Game finished' : 'Tap a side to vote or tap again to clear your vote.'}</Text>
+            <Text style={styles.vsModalBody}>{!isVoteOpen ? 'Voting closed for this game.' : 'Tap a side to vote or tap again to clear your vote.'}</Text>
 
             <Pressable style={styles.vsModalClose} onPress={() => setVsModalOpen(false)}>
               <Text style={{ color: '#fff', fontWeight: '700' }}>Close</Text>

@@ -605,6 +605,35 @@ export default function CreatePostScreen() {
   const confirmPost = async () => {
     if (__DEV__) console.warn('[CreatePost] confirmPost called');
     if (__DEV__) console.warn('[CreatePost] State - selectedGameId:', selectedGameId, '| suggestedGame:', suggestedGame?.id);
+
+    // Proactive geofence check: if posting to a real event and location is not available, prompt first.
+    const isRealGame = selectedGameId && !isSampleEvent(selectedGameId);
+    const gameHasCoords = typeof suggestedGame?.latitude === 'number' || typeof suggestedGame?.venue_lat === 'number';
+    if (isRealGame && gameHasCoords && !locationReady) {
+      if (!permissionGranted) {
+        Alert.alert(
+          'Location Required',
+          'This event requires you to be within 3 km of the venue. Enable location access to continue.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Open Settings', onPress: () => openSettings() },
+          ],
+        );
+        return;
+      }
+      // Permission granted but no coords yet — show a warning and let the server validate
+      Alert.alert(
+        'Getting Your Location',
+        'We couldn\'t get your location. The server will verify your position. If you\'re at the venue, proceed.',
+        [{ text: 'Continue', onPress: () => void doConfirmPost() }],
+      );
+      return;
+    }
+
+    void doConfirmPost();
+  };
+
+  const doConfirmPost = async () => {
     setSubmitting(true);
     setUploadProgress(0);
     setError(null);
@@ -754,9 +783,27 @@ export default function CreatePostScreen() {
               ]
             );
           } else if (code === 'POSTING_WINDOW_CLOSED') {
-            setError(`Not yet. ${e?.data?.message || 'Posting is not open for this event yet.'}`);
+            const msg = e?.data?.message || 'Posting is not open for this event yet.';
+            Alert.alert('Not Yet', msg);
+            setError(msg);
           } else if (code === 'TOO_FAR_FROM_VENUE') {
-            setError(`You're too far from the venue. ${e?.data?.message || ''}`.trim());
+            const dist = e?.data?.distance;
+            const msg = e?.data?.message || 'You must be within 3 km of the venue to post.';
+            Alert.alert(
+              'Not at the Venue',
+              `${msg}${dist ? `\n\nYou are ${dist.toFixed(1)} km away.` : ''}`,
+            );
+            setError(msg);
+          } else if (code === 'LOCATION_REQUIRED') {
+            Alert.alert(
+              'Location Required',
+              'Enable location access so we can verify you\'re at the venue.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Open Settings', onPress: () => openSettings() },
+              ],
+            );
+            setError('Location access is required to post to this event.');
           } else {
             setError(e?.data?.error || e?.data?.message || 'You do not have permission to post to this event.');
           }
