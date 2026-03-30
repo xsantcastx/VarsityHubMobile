@@ -102,6 +102,15 @@ export default function EventMap({
     });
   };
 
+  // Auto-zoom to events when they first load
+  useEffect(() => {
+    if (eventsWithCoordinates.length > 0 && dataLoaded && !loading) {
+      // Small delay to ensure map is fully mounted
+      const timer = setTimeout(() => fitToEvents(), 500);
+      return () => clearTimeout(timer);
+    }
+  }, [eventsWithCoordinates.length, dataLoaded, loading]);
+
   // Center map on user location
   const centerOnUser = () => {
     if (!userLocation) {
