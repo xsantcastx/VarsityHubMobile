@@ -49,7 +49,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/icon.png",
+        "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#000000"
       },
       "softwareKeyboardLayoutMode": "pan",
@@ -141,7 +141,7 @@
           "url": "https://sentry.io/",
           "organization": "lime-productions",
           "project": "varsity-hub-mobile",
-          "uploadSourcemaps": false
+          "uploadSourcemaps": true
         }
       ],
       [

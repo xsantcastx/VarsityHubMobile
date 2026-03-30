@@ -84,12 +84,14 @@
         "EAS_SKIP_AUTO_FINGERPRINT": "1",
         "SENTRY_ORG": "lime-productions",
         "SENTRY_PROJECT": "varsity-hub-mobile",
-        "SENTRY_DISABLE_AUTO_UPLOAD": "true",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "false",
         "EXPO_PUBLIC_SENTRY_DSN": "https://dba14af58de85862ac7f1cb132e19ff5@o4510445730070528.ingest.us.sentry.io/4510445740687360",
         "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "514463516787-dm665i3u3a6un7eties8q73eik17vcs3.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "514463516787-bhvkja2devf8mrk204pcti7nld90d2g9.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "514463516787-rqdc3es1n5ofr3v7dn1l1gpj6r8kauqu.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID": "514463516787-rqdc3es1n5ofr3v7dn1l1gpj6r8kauqu.apps.googleusercontent.com"
+        "EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID": "514463516787-rqdc3es1n5ofr3v7dn1l1gpj6r8kauqu.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "AIzaSyDhct-4heIbBF1w9l_64SC8VafmyQWWQlg",
+        "EXPO_PUBLIC_POSTHOG_API_KEY": "phc_8y7VeTkwQftyHVGWTGxx11UAZO8ng4RigcbH82yzjQ1"
       },
       "ios": {
         "resourceClass": "m-medium",
