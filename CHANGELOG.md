@@ -63,6 +63,13 @@
 
 
 
+## v1.0.0 - 2026-03-30
+
+### ✨ Features
+- Initial release
+
+
+
 ## v1.0.0 - 2026-03-29
 
 ### ✨ Features
