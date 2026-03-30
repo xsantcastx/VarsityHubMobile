@@ -128,6 +128,11 @@ export default function SettingsScreen() {
   const [deletingAccount, setDeletingAccount] = useState(false);
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
+  // Clear all debounce timers on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => { Object.values(timers.current).forEach(clearTimeout); };
+  }, []);
+
   // Debounced PATCH updater for preferences
   // Only sends the specific fields being changed to avoid overwriting other preferences (e.g. role)
   type PrefsPatch = Omit<Partial<Preferences>, 'notifications'> & { notifications?: Partial<Preferences['notifications']> };

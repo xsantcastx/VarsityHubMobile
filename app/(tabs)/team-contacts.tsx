@@ -155,7 +155,13 @@ export default function TeamChatScreen() {
   const dot1Anim = useRef(new Animated.Value(0.4)).current;
   const dot2Anim = useRef(new Animated.Value(0.4)).current;
   const dot3Anim = useRef(new Animated.Value(0.4)).current;
-  
+  const animTimeoutRefs = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  // Clear animation timeouts on unmount
+  useEffect(() => {
+    return () => { animTimeoutRefs.current.forEach(clearTimeout); };
+  }, []);
+
   // Animation refs for messages
   const messageAnimations = useRef<Map<string, Animated.Value>>(new Map()).current;
 
@@ -233,9 +239,12 @@ export default function TeamChatScreen() {
     };
 
     // Start animations with staggered delays
-    setTimeout(() => animateDot(dot1Anim), 0);
-    setTimeout(() => animateDot(dot2Anim), 200);
-    setTimeout(() => animateDot(dot3Anim), 400);
+    animTimeoutRefs.current.forEach(clearTimeout);
+    animTimeoutRefs.current = [
+      setTimeout(() => animateDot(dot1Anim), 0),
+      setTimeout(() => animateDot(dot2Anim), 200),
+      setTimeout(() => animateDot(dot3Anim), 400),
+    ];
   }, [dot1Anim, dot2Anim, dot3Anim]);
 
   const stopTypingAnimation = useCallback(() => {

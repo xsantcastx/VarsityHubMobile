@@ -1,7 +1,7 @@
 <!-- Template: Event Approved (EVENT_APPROVED) -->
 <!-- Template ID: d-e76de706704646938e05a28e4c1a20d3 -->
 <!-- Source Name: Event Aproved - VH -->
-<!-- Subject: Your event {{eventName}} was approved -->
+<!-- Subject: Your event {{event_name}} was approved -->
 
 <!DOCTYPE html>
 <html lang="en">
@@ -37,11 +37,11 @@
                     <tr>
                         <td style="padding: 0 20px 32px;">
                             <p style="margin: 0 0 24px; font-size: 16px; line-height: 1.6; color: #374151;">
-                                Hi {{coachName}},
+                                Hi {{coach_name}},
                             </p>
                             
                             <p style="margin: 0 0 24px; font-size: 16px; line-height: 1.6; color: #374151;">
-                                Great news! <strong>{{eventName}}</strong> has been approved and is now live on VarsityHub. Share this event with your team and community!
+                                Great news! <strong>{{event_name}}</strong> has been approved and is now live on VarsityHub. Share this event with your team and community!
                             </p>
 
                             <!-- Status Badge -->
@@ -65,19 +65,19 @@
                                         <table role="presentation" style="width: 100%; border-collapse: collapse;">
                                             <tr>
                                                 <td style="padding: 8px 0; font-size: 14px; color: #047857;">Event Name:</td>
-                                                <td style="padding: 8px 0; font-size: 14px; color: #065f46; font-weight: 600; text-align: right;">{{eventName}}</td>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #065f46; font-weight: 600; text-align: right;">{{event_name}}</td>
                                             </tr>
                                             <tr>
                                                 <td style="padding: 8px 0; font-size: 14px; color: #047857;">Date:</td>
-                                                <td style="padding: 8px 0; font-size: 14px; color: #065f46; font-weight: 600; text-align: right;">{{eventDate}}</td>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #065f46; font-weight: 600; text-align: right;">{{event_date}}</td>
                                             </tr>
                                             <tr>
                                                 <td style="padding: 8px 0; font-size: 14px; color: #047857;">Time:</td>
-                                                <td style="padding: 8px 0; font-size: 14px; color: #065f46; font-weight: 600; text-align: right;">{{eventTime}}</td>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #065f46; font-weight: 600; text-align: right;">{{event_time}}</td>
                                             </tr>
                                             <tr>
                                                 <td style="padding: 8px 0; font-size: 14px; color: #047857;">Location:</td>
-                                                <td style="padding: 8px 0; font-size: 14px; color: #065f46; font-weight: 600; text-align: right;">{{eventLocation}}</td>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #065f46; font-weight: 600; text-align: right;">{{event_location}}</td>
                                             </tr>
                                             <tr>
                                                 <td style="padding: 8px 0; font-size: 14px; color: #047857;">Opponent:</td>
@@ -85,7 +85,7 @@
                                             </tr>
                                             <tr>
                                                 <td style="padding: 8px 0; font-size: 14px; color: #047857;">Organization:</td>
-                                                <td style="padding: 8px 0; font-size: 14px; color: #065f46; font-weight: 600; text-align: right;">{{organizationName}}</td>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #065f46; font-weight: 600; text-align: right;">{{organization_name}}</td>
                                             </tr>
                                         </table>
                                     </td>
@@ -101,7 +101,7 @@
                                             📝 Reviewer Notes
                                         </p>
                                         <p style="margin: 0; font-size: 14px; line-height: 1.6; color: #92400e;">
-                                            {{approvalNotes}}
+                                            {{approval_notes}}
                                         </p>
                                     </td>
                                 </tr>
@@ -116,14 +116,14 @@
                             <table role="presentation" style="width: 100%; border-collapse: collapse; margin-bottom: 16px;">
                                 <tr>
                                     <td align="center" style="padding: 0 0 12px 0;">
-                                        <a href="{{eventLink}}" style="display: inline-block; padding: 14px 28px; background-color: #10b981; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px;">
+                                        <a href="{{view_event_url}}" style="display: inline-block; padding: 14px 28px; background-color: #10b981; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px;">
                                             View Live Event
                                         </a>
                                     </td>
                                 </tr>
                                 <tr>
                                     <td align="center" style="padding: 0;">
-                                        <a href="{{manageLink}}" style="display: inline-block; padding: 14px 28px; background-color: #f3f4f6; color: #374151; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px; border: 1px solid #d1d5db;">
+                                        <a href="{{manage_event_url}}" style="display: inline-block; padding: 14px 28px; background-color: #f3f4f6; color: #374151; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px; border: 1px solid #d1d5db;">
                                             Manage Event
                                         </a>
                                     </td>
@@ -172,7 +172,7 @@
 
                             <!-- Footer Links -->
                             <p style="margin: 0 0 16px; font-size: 16px; text-align: center; line-height: 1.5;">
-                                <a href="{{privacyPolicyUrl}}" style="color: #10b981; text-decoration: none; font-weight: 500;">Privacy Policy</a> | <a href="{{communityGuidelinesUrl}}" style="color: #10b981; text-decoration: none; font-weight: 500;">Community Guidelines</a>
+                                <a href="https://limeprod.com/VarsityHubPrivacy" style="color: #10b981; text-decoration: none; font-weight: 500;">Privacy Policy</a> | <a href="{{communityGuidelinesUrl}}" style="color: #10b981; text-decoration: none; font-weight: 500;">Community Guidelines</a>
                             </p>
 
                             <!-- Copyright -->

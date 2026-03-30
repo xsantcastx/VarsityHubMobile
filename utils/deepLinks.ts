@@ -33,6 +33,8 @@ const PUBLIC_DEEP_LINK_ROUTES = new Set([
   '/reset-password',
   '/verify',
   '/verify-email',
+  '/payment-success',
+  '/payment-cancel',
 ]);
 
 // Pending deep link URL — deferred until auth settles
@@ -91,6 +93,9 @@ const ROUTE_MAP: Record<string, string> = {
   // Onboarding continuation (after coach approval)
   'onboarding': '/onboarding',
   'approvals': '/approvals',
+  // Payment redirect routes
+  'payment-success': '/payment-success',
+  'payment-cancel': '/payment-cancel',
   // Invite deep links
   'join/org': '/request-join-organization',
   'join/team': '/team-invites',

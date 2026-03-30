@@ -1,7 +1,7 @@
 <!-- Template: Event Updated (EVENT_UPDATED) -->
 <!-- Template ID: d-3c7d54711df4484e9ce1473478a7cf3e -->
 <!-- Source Name: Event updated - VH  -->
-<!-- Subject: {{eventName}} details have been updated -->
+<!-- Subject: {{event_name}} details have been updated -->
 
 <!DOCTYPE html>
 <html lang="en">
@@ -37,11 +37,11 @@
                     <tr>
                         <td style="padding: 0 20px 32px;">
                             <p style="margin: 0 0 24px; font-size: 16px; line-height: 1.6; color: #374151;">
-                                Hi {{recipientName}},
+                                Hi {{recipient_name}},
                             </p>
                             
                             <p style="margin: 0 0 24px; font-size: 16px; line-height: 1.6; color: #374151;">
-                                Important information: <strong>{{eventName}}</strong> has been updated. Please review the changes below.
+                                Important information: <strong>{{event_name}}</strong> has been updated. Please review the changes below.
                             </p>
 
                             <!-- Alert Badge -->
@@ -49,7 +49,7 @@
                                 <tr>
                                     <td align="center">
                                         <div style="display: inline-block; padding: 8px 16px; background-color: #f59e0b; color: #ffffff; border-radius: 6px; font-size: 14px; font-weight: 700;">
-                                            UPDATED {{updatedAt}}
+                                            UPDATED {{updated_at}}
                                         </div>
                                     </td>
                                 </tr>
@@ -62,7 +62,7 @@
                                         <p style="margin: 0 0 12px; font-size: 14px; color: #92400e; font-weight: 700;">
                                             🔔 What Changed
                                         </p>
-                                        <p style="margin: 0; font-size: 14px; line-height: 1.6; color: #92400e; white-space: pre-line;">{{changeSummary}}</p>
+                                        <p style="margin: 0; font-size: 14px; line-height: 1.6; color: #92400e; white-space: pre-line;">{{change_summary}}</p>
                                     </td>
                                 </tr>
                             </table>
@@ -77,23 +77,23 @@
                                         <table role="presentation" style="width: 100%; border-collapse: collapse;">
                                             <tr>
                                                 <td style="padding: 8px 0; font-size: 14px; color: #075985;">Event Name:</td>
-                                                <td style="padding: 8px 0; font-size: 14px; color: #0c4a6e; font-weight: 600; text-align: right;">{{eventName}}</td>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #0c4a6e; font-weight: 600; text-align: right;">{{event_name}}</td>
                                             </tr>
                                             <tr>
                                                 <td style="padding: 8px 0; font-size: 14px; color: #075985;">Date:</td>
-                                                <td style="padding: 8px 0; font-size: 14px; color: #0c4a6e; font-weight: 600; text-align: right;">{{eventDate}}</td>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #0c4a6e; font-weight: 600; text-align: right;">{{event_date}}</td>
                                             </tr>
                                             <tr>
                                                 <td style="padding: 8px 0; font-size: 14px; color: #075985;">Time:</td>
-                                                <td style="padding: 8px 0; font-size: 14px; color: #0c4a6e; font-weight: 600; text-align: right;">{{eventTime}}</td>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #0c4a6e; font-weight: 600; text-align: right;">{{event_time}}</td>
                                             </tr>
                                             <tr>
                                                 <td style="padding: 8px 0; font-size: 14px; color: #075985;">Location:</td>
-                                                <td style="padding: 8px 0; font-size: 14px; color: #0c4a6e; font-weight: 600; text-align: right;">{{eventLocation}}</td>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #0c4a6e; font-weight: 600; text-align: right;">{{event_location}}</td>
                                             </tr>
                                             <tr>
                                                 <td style="padding: 8px 0; font-size: 14px; color: #075985;">Organization:</td>
-                                                <td style="padding: 8px 0; font-size: 14px; color: #0c4a6e; font-weight: 600; text-align: right;">{{organizationName}}</td>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #0c4a6e; font-weight: 600; text-align: right;">{{organization_name}}</td>
                                             </tr>
                                         </table>
                                     </td>
@@ -122,14 +122,14 @@
                             <table role="presentation" style="width: 100%; border-collapse: collapse; margin-bottom: 16px;">
                                 <tr>
                                     <td align="center" style="padding: 0 0 12px 0;">
-                                        <a href="{{eventDetailLink}}" style="display: inline-block; padding: 14px 28px; background-color: #3b82f6; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px;">
+                                        <a href="{{event_detail_link}}" style="display: inline-block; padding: 14px 28px; background-color: #3b82f6; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px;">
                                             View Event Details
                                         </a>
                                     </td>
                                 </tr>
                                 <tr>
                                     <td align="center" style="padding: 0;">
-                                        <a href="{{calendarLink}}" style="display: inline-block; padding: 14px 28px; background-color: #f3f4f6; color: #374151; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px; border: 1px solid #d1d5db;">
+                                        <a href="{{calendar_link}}" style="display: inline-block; padding: 14px 28px; background-color: #f3f4f6; color: #374151; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px; border: 1px solid #d1d5db;">
                                             Update Calendar
                                         </a>
                                     </td>
@@ -178,7 +178,7 @@
 
                             <!-- Footer Links -->
                             <p style="margin: 0 0 16px; font-size: 16px; text-align: center; line-height: 1.5;">
-                                <a href="https://varsityhub.app/privacy" style="color: #10b981; text-decoration: none; font-weight: 500;">Privacy Policy & Community Guidelines</a>
+                                <a href="https://limeprod.com/VarsityHubPrivacy" style="color: #10b981; text-decoration: none; font-weight: 500;">Privacy Policy & Community Guidelines</a>
                             </p>
 
                             <!-- Copyright -->

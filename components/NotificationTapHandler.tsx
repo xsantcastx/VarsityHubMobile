@@ -142,6 +142,58 @@ export function NotificationTapHandler() {
             break;
           }
 
+          case 'post_removed':
+            router.push('/(tabs)/feed' as any);
+            break;
+
+          case 'join_request_approved': {
+            const orgId = str(data.organization_id);
+            if (orgId) {
+              router.push({ pathname: '/organization', params: { id: orgId } } as any);
+            }
+            break;
+          }
+
+          case 'team_followed':
+          case 'team_invite_accepted':
+          case 'team_invite_declined':
+          case 'team_role_changed': {
+            const teamId = str(data.team_id);
+            if (teamId) {
+              router.push({ pathname: '/team-page', params: { id: teamId } } as any);
+            }
+            break;
+          }
+
+          case 'team_member_removed':
+            router.push('/(tabs)/feed' as any);
+            break;
+
+          case 'event_updated': {
+            const evtId = str(data.event_id);
+            if (evtId) {
+              router.push({ pathname: '/event-detail', params: { id: evtId } } as any);
+            }
+            break;
+          }
+
+          case 'event_cancelled':
+          case 'game_cancelled':
+            router.push('/(tabs)/feed' as any);
+            break;
+
+          case 'game_story_added': {
+            const gameId = str(data.game_id);
+            if (gameId) {
+              router.push({ pathname: '/game', params: { id: gameId } } as any);
+            }
+            break;
+          }
+
+          case 'org_rejected':
+            router.push('/(tabs)/feed' as any);
+            break;
+
           default:
             devLog('[Notifications] Unknown notification type:', data.type);
         }

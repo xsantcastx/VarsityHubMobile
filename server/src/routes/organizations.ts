@@ -12,6 +12,7 @@ import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
+import { requireVerified } from '../middleware/requireVerified.js';
 import { requireAdmin, isEmailAdmin } from '../middleware/requireAdmin.js';
 import { debugLog } from '../lib/debugLog.js';
 import escapeHtml from 'escape-html';
@@ -162,7 +163,7 @@ const updateOrgSchema = z.object({
   contact_info: z.string().max(500).optional().nullable(),
 });
 
-organizationsRouter.patch('/:id', requireAuth as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
+organizationsRouter.patch('/:id', requireVerified as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
   try {
     const orgId = String(req.params.id);
     const userId = req.user!.id;
@@ -319,7 +320,7 @@ const createOrganizationSchema = z.object({
 });
 
 // Create organization
-organizationsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
+organizationsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) => {
   try {
     const parsed = createOrganizationSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
@@ -427,7 +428,7 @@ const createOrganizationWithTeamsSchema = z.object({
 });
 
 // Enhanced create organization for onboarding
-organizationsRouter.post('/create', requireAuth as any, async (req: AuthedRequest, res) => {
+organizationsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, res) => {
   try {
     const parsed = createOrganizationWithTeamsSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
@@ -565,7 +566,7 @@ const inviteUserSchema = z.object({
 // Invite user to organization
 // Rule B: No plan gate on the inviting user — authorized users are covered by the org owner's plan.
 // The plan-based user limit is enforced inside the handler using the org owner's tier.
-organizationsRouter.post('/:id/invite', requireAuth as any, requireOnboarded as any, inviteLimiter, async (req: AuthedRequest, res) => {
+organizationsRouter.post('/:id/invite', requireVerified as any, requireOnboarded as any, inviteLimiter, async (req: AuthedRequest, res) => {
   try {
   const id = String(req.params.id);
   const parsed = inviteUserSchema.safeParse(req.body);
@@ -1079,7 +1080,7 @@ organizationsRouter.get('/join-requests/me', requireAuth as any, async (req: Aut
 });
 
 // Approve join request
-organizationsRouter.post('/join-requests/:requestId/approve', requireAuth as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
+organizationsRouter.post('/join-requests/:requestId/approve', requireVerified as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
   try {
   const requestId = String(req.params.requestId);
 
@@ -1221,7 +1222,7 @@ const denyJoinRequestSchema = z.object({
   reason: z.string().max(500).optional(),
 });
 
-organizationsRouter.post('/join-requests/:requestId/deny', requireAuth as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
+organizationsRouter.post('/join-requests/:requestId/deny', requireVerified as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
   try {
   const requestId = String(req.params.requestId);
   const parsed = denyJoinRequestSchema.safeParse(req.body);
@@ -1323,7 +1324,7 @@ organizationsRouter.post('/join-requests/:requestId/deny', requireAuth as any, r
 // -----------------------------------------------
 // POST /organizations/:id/transfer-ownership
 // -----------------------------------------------
-organizationsRouter.post('/:id/transfer-ownership', requireAuth as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
+organizationsRouter.post('/:id/transfer-ownership', requireVerified as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const orgId = req.params.id;
@@ -1473,7 +1474,7 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
           org.leagueOwner.id,
           'Organization Approved!',
           `Your organization "${org.name}" has been approved on VarsityHub.`,
-          { type: 'ORG_APPROVED', organization_id: orgId }
+          { type: 'org_approved', organization_id: orgId }
         );
       } catch (err) {
         console.warn('[orgs] push notification failed:', (err as any)?.message || err);
@@ -1483,7 +1484,7 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
         await prisma.notification.create({
           data: {
             user_id: org.leagueOwner.id,
-            type: 'ORG_APPROVED',
+            type: 'ORG_APPROVED' as any,
             meta: { organization_id: orgId, organization_name: org.name },
           }
         });
@@ -1589,7 +1590,7 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
         org.leagueOwner.id,
         'League Not Approved',
         `Your league "${org.name}" was not approved.${reason ? ` Reason: ${reason}` : ''}`,
-        { type: 'ORG_REJECTED', organization_id: orgId }
+        { type: 'org_rejected', organization_id: orgId }
       ).catch(() => {});
 
       // In-app notification
@@ -1675,7 +1676,7 @@ organizationsRouter.get('/:id/pending-coaches', requireAuth as any, async (req: 
  * POST /organizations/:id/coaches/:userId/approve
  * League owner approves a coach. Sets approval_status: APPROVED, paid_by_owner: true.
  */
-organizationsRouter.post('/:id/coaches/:userId/approve', requireAuth as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
+organizationsRouter.post('/:id/coaches/:userId/approve', requireVerified as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const { id: orgId, userId: coachId } = req.params;
@@ -1832,7 +1833,7 @@ organizationsRouter.post('/:id/coaches/:userId/approve', requireAuth as any, req
  * POST /organizations/:id/coaches/:userId/reject
  * League owner rejects a coach request.
  */
-organizationsRouter.post('/:id/coaches/:userId/reject', requireAuth as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
+organizationsRouter.post('/:id/coaches/:userId/reject', requireVerified as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const { id: orgId, userId: coachId } = req.params;

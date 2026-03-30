@@ -343,10 +343,12 @@ export default function CommunityDiscoverScreen() {
       setUnifiedSearchResults(null);
       return;
     }
+    let mounted = true;
     const t = setTimeout(async () => {
       setUnifiedSearchLoading(true);
       try {
         const res = await Search.unified(trimmed, 10);
+        if (!mounted) return;
         setUnifiedSearchResults({
           users: res?.users ?? [],
           teams: res?.teams ?? [],
@@ -354,12 +356,13 @@ export default function CommunityDiscoverScreen() {
         });
         saveRecentSearch(trimmed);
       } catch {
+        if (!mounted) return;
         setUnifiedSearchResults({ users: [], teams: [], organizations: [] });
       } finally {
-        setUnifiedSearchLoading(false);
+        if (mounted) setUnifiedSearchLoading(false);
       }
     }, 300);
-    return () => clearTimeout(t);
+    return () => { mounted = false; clearTimeout(t); };
   }, [query]);
 
   const onRefresh = useCallback(async () => {

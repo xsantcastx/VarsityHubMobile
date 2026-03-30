@@ -2,7 +2,7 @@ import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
-import { isEmailAdmin, getIsAdmin } from '../middleware/requireAdmin.js';
+import { requireAdmin, isEmailAdmin, getIsAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { requireOnboarded } from '../middleware/requireOnboarded.js';
@@ -596,7 +596,7 @@ gamesRouter.post('/', requireVerified as any, requireOnboarded as any, gameCreat
 }));
 
 // Seed sample games as real DB records so stories/polls work (idempotent)
-gamesRouter.post('/seed-samples', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
+gamesRouter.post('/seed-samples', requireAdmin as any, asyncHandler(async (req: AuthedRequest, res) => {
   const SAMPLE_GAMES = [
     {
       title: 'Westhill Vikings vs. Stamford Knights',
@@ -1461,12 +1461,12 @@ gamesRouter.put('/:id/approve', requireAuth as any, requireOnboarded as any, asy
           updatedGame.created_by_id,
           'Event Approved!',
           `Your event "${updatedGame.title}" has been approved and is now live.`,
-          { type: 'EVENT_APPROVED', game_id: id }
+          { type: 'event_approved', game_id: id }
         );
         await prisma.notification.create({
           data: {
             user_id: updatedGame.created_by_id,
-            type: 'EVENT_APPROVED',
+            type: 'EVENT_APPROVED' as any,
             meta: { game_id: id, event_title: updatedGame.title },
           },
         });
@@ -1476,12 +1476,12 @@ gamesRouter.put('/:id/approve', requireAuth as any, requireOnboarded as any, asy
           updatedGame.created_by_id,
           'Event Not Approved',
           `Your event "${updatedGame.title}" was not approved.${(req.body as any)?.reason ? ` Reason: ${(req.body as any).reason}` : ''}`,
-          { type: 'EVENT_REJECTED', game_id: id }
+          { type: 'event_rejected', game_id: id }
         );
         await prisma.notification.create({
           data: {
             user_id: updatedGame.created_by_id,
-            type: 'EVENT_REJECTED',
+            type: 'EVENT_REJECTED' as any,
             meta: { game_id: id, event_title: updatedGame.title, reason: (req.body as any)?.reason },
           },
         });

@@ -2416,9 +2416,8 @@ async function verifyAppleReceipt(receiptData: string, useSandbox = false): Prom
   }
 }
 
-// Apple IAP receipt validation — uses requireAuth (not requireVerified) because Apple
-// already charged the user; blocking on email verification would leave them in a broken state.
-paymentsRouter.post('/apple/verify-receipt', expressPkg.json(), requireAuth as any, paymentLimiter, asyncHandler(async (req: AuthedRequest, res) => {
+// Apple IAP receipt validation
+paymentsRouter.post('/apple/verify-receipt', expressPkg.json(), requireVerified as any, paymentLimiter, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     if (!APPLE_SHARED_SECRET) {
       console.warn('[apple-iap] APPLE_IAP_SHARED_SECRET not configured — cannot verify receipts');
@@ -2554,7 +2553,7 @@ paymentsRouter.post('/apple/verify-receipt', expressPkg.json(), requireAuth as a
 }));
 
 // Apple IAP ad receipt verification (consumable products: MOND_THURS, FRI_SUN)
-paymentsRouter.post('/apple/verify-ad-receipt', expressPkg.json(), requireAuth as any, paymentLimiter, asyncHandler(async (req: AuthedRequest, res) => {
+paymentsRouter.post('/apple/verify-ad-receipt', expressPkg.json(), requireVerified as any, paymentLimiter, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     if (!APPLE_SHARED_SECRET) {
       return res.status(503).json({ error: 'IAP verification not configured. Please contact support.' });
@@ -3046,9 +3045,8 @@ async function verifyGooglePurchaseWithPlayApi(params: {
   };
 }
 
-// Google Play purchase verification — uses requireAuth (not requireVerified) because Google
-// already charged the user; blocking on email verification would leave them in a broken state.
-paymentsRouter.post('/google/verify-purchase', expressPkg.json(), requireAuth as any, paymentLimiter, asyncHandler(async (req: AuthedRequest, res) => {
+// Google Play purchase verification
+paymentsRouter.post('/google/verify-purchase', expressPkg.json(), requireVerified as any, paymentLimiter, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'AUTH_REQUIRED' });

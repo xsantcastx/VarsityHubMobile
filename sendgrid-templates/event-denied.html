@@ -1,7 +1,7 @@
 <!-- Template: Event Denied (EVENT_DENIED) -->
 <!-- Template ID: d-503431dd78274a628f43a1e6c1592b14 -->
 <!-- Source Name: Event Denied - VH -->
-<!-- Subject: Your event {{eventName}} was denied -->
+<!-- Subject: Your event {{event_name}} was denied -->
 
 <!DOCTYPE html>
 <html lang="en">
@@ -37,11 +37,11 @@
                     <tr>
                         <td style="padding: 0 20px 32px;">
                             <p style="margin: 0 0 24px; font-size: 16px; line-height: 1.6; color: #374151;">
-                                Hi {{coachName}},
+                                Hi {{coach_name}},
                             </p>
                             
                             <p style="margin: 0 0 24px; font-size: 16px; line-height: 1.6; color: #374151;">
-                                We reviewed your event submission for <strong>{{eventName}}</strong> ({{eventDate}}). Unfortunately, it doesn't meet our current guidelines and cannot be approved at this time.
+                                We reviewed your event submission for <strong>{{event_name}}</strong> ({{event_date}}). Unfortunately, it doesn't meet our current guidelines and cannot be approved at this time.
                             </p>
 
                             <!-- Status Badge -->
@@ -63,7 +63,7 @@
                                             ⚠️ Reason for Denial
                                         </p>
                                         <p style="margin: 0; font-size: 14px; line-height: 1.6; color: #991b1b;">
-                                            {{denialReason}}
+                                            {{denial_reason}}
                                         </p>
                                     </td>
                                 </tr>
@@ -79,15 +79,15 @@
                                         <table role="presentation" style="width: 100%; border-collapse: collapse;">
                                             <tr>
                                                 <td style="padding: 8px 0; font-size: 14px; color: #6b7280;">Event Name:</td>
-                                                <td style="padding: 8px 0; font-size: 14px; color: #111827; font-weight: 600; text-align: right;">{{eventName}}</td>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #111827; font-weight: 600; text-align: right;">{{event_name}}</td>
                                             </tr>
                                             <tr>
                                                 <td style="padding: 8px 0; font-size: 14px; color: #6b7280;">Date:</td>
-                                                <td style="padding: 8px 0; font-size: 14px; color: #111827; font-weight: 600; text-align: right;">{{eventDate}}</td>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #111827; font-weight: 600; text-align: right;">{{event_date}}</td>
                                             </tr>
                                             <tr>
                                                 <td style="padding: 8px 0; font-size: 14px; color: #6b7280;">Organization:</td>
-                                                <td style="padding: 8px 0; font-size: 14px; color: #111827; font-weight: 600; text-align: right;">{{organizationName}}</td>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #111827; font-weight: 600; text-align: right;">{{organization_name}}</td>
                                             </tr>
                                         </table>
                                     </td>
@@ -119,14 +119,14 @@
                             <table role="presentation" style="width: 100%; border-collapse: collapse; margin-bottom: 16px;">
                                 <tr>
                                     <td align="center" style="padding: 0 0 12px 0;">
-                                        <a href="{{resubmitLink}}" style="display: inline-block; padding: 14px 28px; background-color: #3b82f6; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px;">
+                                        <a href="{{submit_new_event_url}}" style="display: inline-block; padding: 14px 28px; background-color: #3b82f6; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px;">
                                             Submit New Event
                                         </a>
                                     </td>
                                 </tr>
                                 <tr>
                                     <td align="center" style="padding: 0;">
-                                        <a href="{{supportLink}}" style="display: inline-block; padding: 14px 28px; background-color: #f3f4f6; color: #374151; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px; border: 1px solid #d1d5db;">
+                                        <a href="{{contact_support_url}}" style="display: inline-block; padding: 14px 28px; background-color: #f3f4f6; color: #374151; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px; border: 1px solid #d1d5db;">
                                             Contact Support
                                         </a>
                                     </td>
@@ -175,7 +175,7 @@
 
                             <!-- Footer Links -->
                             <p style="margin: 0 0 16px; font-size: 16px; text-align: center; line-height: 1.5;">
-                                <a href="https://varsityhub.app/privacy" style="color: #10b981; text-decoration: none; font-weight: 500;">Privacy Policy & Community Guidelines</a>
+                                <a href="https://limeprod.com/VarsityHubPrivacy" style="color: #10b981; text-decoration: none; font-weight: 500;">Privacy Policy & Community Guidelines</a>
                             </p>
 
                             <!-- Copyright -->

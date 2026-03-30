@@ -927,14 +927,14 @@ async function approveAd(id: string, note?: string | null) {
         ad.user_id,
         'Ad Approved!',
         `Your ad for "${ad.business_name || 'your business'}" has been approved. Tap to complete payment.`,
-        { type: 'AD_APPROVED', ad_id: id }
+        { type: 'ad_approved', ad_id: id }
       );
     } catch (err) {
       console.warn('[ads] push notification failed:', (err as any)?.message || err);
     }
     try {
       await prisma.notification.create({
-        data: { user_id: ad.user_id, type: 'AD_APPROVED', meta: { ad_id: id, business_name: ad.business_name } },
+        data: { user_id: ad.user_id, type: 'AD_APPROVED' as any, meta: { ad_id: id, business_name: ad.business_name } },
       });
     } catch (err) {
       console.error('[ads] FAILED to create in-app notification:', (err as any)?.message || err);
@@ -969,14 +969,14 @@ async function rejectAd(id: string, reason?: string | null) {
         ad.user_id,
         'Ad Needs Changes',
         `Your ad for "${ad.business_name || 'your business'}" was not approved.${reason ? ` Reason: ${reason}` : ' Please review and resubmit.'}`,
-        { type: 'AD_REJECTED', ad_id: id }
+        { type: 'ad_rejected', ad_id: id }
       );
     } catch (err) {
       console.warn('[ads] reject push notification failed:', (err as any)?.message || err);
     }
     try {
       await prisma.notification.create({
-        data: { user_id: ad.user_id, type: 'AD_REJECTED', meta: { ad_id: id, business_name: ad.business_name, reason: reason || null } },
+        data: { user_id: ad.user_id, type: 'AD_REJECTED' as any, meta: { ad_id: id, business_name: ad.business_name, reason: reason || null } },
       });
     } catch (err) {
       console.error('[ads] FAILED to create ad rejected in-app notification:', (err as any)?.message || err);

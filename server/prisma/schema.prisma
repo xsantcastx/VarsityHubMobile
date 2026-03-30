@@ -194,6 +194,7 @@ model User {
   @@index([subscription_status])
   @@index([banned])
   @@index([email_verified])
+  @@index([approval_status])
 }
 
 model RefreshToken {
@@ -567,7 +568,6 @@ model AdReservation {
   created_at DateTime @default(now())
 
   @@unique([ad_id, date]) // unique per ad per date
-  @@index([ad_id, date])
 }
 
 model Ad {
@@ -837,6 +837,8 @@ model Organization {
   @@index([zip_code])
   @@index([location])
   @@index([league_owner_id])
+  @@index([admin_approved])
+  @@index([status])
 }
 
 model OrganizationJoinRequest {
@@ -873,6 +875,7 @@ model OrganizationMembership {
   @@unique([organization_id, user_id])
   @@index([organization_id, created_at])
   @@index([user_id])
+  @@index([organization_id, role, status])
 }
 
 model OrganizationInvite {
@@ -886,7 +889,7 @@ model OrganizationInvite {
   organization Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
 
   @@unique([organization_id, email]) // one active invite per organization+email
-  @@index([organization_id, email])
+  @@index([email, status])
 }
 
 model TeamMembership {
@@ -906,6 +909,7 @@ model TeamMembership {
   @@unique([team_id, user_id])
   @@index([team_id, created_at])
   @@index([user_id])
+  @@index([team_id, role, status])
 }
 
 model TeamInvite {
@@ -919,7 +923,7 @@ model TeamInvite {
   team Team @relation(fields: [team_id], references: [id], onDelete: Cascade)
 
   @@unique([team_id, email]) // one active invite per team+email
-  @@index([team_id, email])
+  @@index([email, status])
 }
 
 // ===========================
@@ -939,6 +943,7 @@ model Follows {
   @@index([follower_id])
   @@index([following_id])
   @@index([following_id, status])
+  @@index([follower_id, status])
 }
 
 model TeamFollow {

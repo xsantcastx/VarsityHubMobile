@@ -1338,6 +1338,7 @@ export async function sendJoinRequestDenied(params: {
 export async function sendOrganizationApprovalEmail(params: {
   to: string;
   organizationName: string;
+  owner_name?: string;
   dashboardLink?: string;
   orgLogoUrl?: string;
 }): Promise<boolean> {
@@ -1348,6 +1349,7 @@ export async function sendOrganizationApprovalEmail(params: {
     {
       ...getCommonTemplateData(),
       org_name: params.organizationName,
+      owner_name: params.owner_name || '',
       dashboard_url: params.dashboardLink || `${APP_BASE_URL}/team-hub`,
       org_logo_url: params.orgLogoUrl || '',
     },
@@ -1384,6 +1386,7 @@ export async function sendOrganizationDenialEmail(params: {
  */
 export async function sendContentModerationEmail(params: {
   to: string;
+  user_name?: string;
   action: 'removed' | 'flagged' | 'restored';
   postId?: string;
   reason?: string;
@@ -1395,6 +1398,7 @@ export async function sendContentModerationEmail(params: {
     `Content ${params.action} — VarsityHub`,
     {
       ...getCommonTemplateData(),
+      user_name: params.user_name || '',
       action: params.action,
       post_id: params.postId || '',
       reason: params.reason || '',
@@ -1409,6 +1413,7 @@ export async function sendContentModerationEmail(params: {
  */
 export async function sendBillingNoticeEmail(params: {
   to: string;
+  user_name?: string;
   type: 'trial_ending' | 'payment_succeeded' | 'payment_failed' | 'subscription_canceled' | 'subscription_renewed';
   planName?: string;
   amount?: string;
@@ -1423,6 +1428,7 @@ export async function sendBillingNoticeEmail(params: {
     'Billing Update — VarsityHub',
     {
       ...getCommonTemplateData(),
+      user_name: params.user_name || '',
       billing_type: params.type,
       plan_name: params.planName || 'VarsityHub Subscription',
       amount: params.amount || '',

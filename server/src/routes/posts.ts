@@ -1347,12 +1347,12 @@ postsRouter.delete('/:id', requireAuth as any, requireOnboarded as any, asyncHan
           post.author_id,
           'Post Removed',
           'Your post was removed by a moderator for violating community guidelines.',
-          { type: 'POST_REMOVED', post_id: postId }
+          { type: 'post_removed', post_id: postId }
         );
         await prisma.notification.create({
           data: {
             user_id: post.author_id,
-            type: 'POST_REMOVED' as any,
+            type: 'post_removed' as any,
             meta: { post_id: postId, reason: 'Removed by moderator' },
           },
         });

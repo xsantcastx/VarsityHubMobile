@@ -62,15 +62,18 @@ export default function PaymentSuccessScreen() {
   useEffect(() => {
     if (verifiedRef.current) return; // Prevent duplicate finalization calls
     verifiedRef.current = true;
+    let mounted = true;
     const verify = async () => {
       try {
         if (!params.session_id) {
+          if (!mounted) return;
           setError('Payment session information is missing. If you completed payment, please contact support.');
           setLoading(false);
           return;
         }
         const sessionId = params.session_id.trim();
         if (!sessionId.startsWith('cs_') && !sessionId.startsWith('sess_')) {
+          if (!mounted) return;
           setError('Invalid payment session. Please contact support if you completed payment.');
           setLoading(false);
           return;
@@ -81,6 +84,7 @@ export default function PaymentSuccessScreen() {
           if (verificationAttempt === 0) {
             try {
               const result = await httpPost('/payments/finalize-session', { session_id: sessionId });
+              if (!mounted) return;
               if (result?.ad) {
                 setAdDetails(result.ad);
                 setAmountCents(result.amount_cents || 0);
@@ -95,11 +99,14 @@ export default function PaymentSuccessScreen() {
             }
           }
 
+          if (!mounted) return;
+
           // Poll GET /ads/{id} every 2s until status === 'active'
           const adId = adIdRef.current;
           if (adId) {
             try {
               const adData: any = await httpGet(`/ads/${adId}`);
+              if (!mounted) return;
               if (adData?.status === 'active') {
                 setAdDetails(adData);
                 showSuccessState();
@@ -110,6 +117,7 @@ export default function PaymentSuccessScreen() {
             }
           }
 
+          if (!mounted) return;
           if (verificationAttempt < adMaxAttempts - 1) {
             clearRetry();
             retryTimeoutRef.current = setTimeout(() => {
@@ -124,6 +132,7 @@ export default function PaymentSuccessScreen() {
           // Subscription flow — poll for plan upgrade (Rule A: plan set = payment done)
           try {
             const me = await User.me();
+            if (!mounted) return;
             const plan = me?.preferences?.plan;
             const pending = me?.preferences?.payment_pending;
             const pendingPlan = me?.preferences?.pending_plan;
@@ -136,6 +145,7 @@ export default function PaymentSuccessScreen() {
                   await httpPost('/payments/finalize-session', { session_id: sessionId });
                 } catch (e) { if (__DEV__) console.warn('[PaymentSuccess] finalize-session:', e); }
               }
+              if (!mounted) return;
               clearRetry();
               retryTimeoutRef.current = setTimeout(() => {
                 verifiedRef.current = false;
@@ -146,15 +156,18 @@ export default function PaymentSuccessScreen() {
               try {
                 await httpPost('/payments/finalize-session', { session_id: sessionId });
                 const meAfter = await User.me();
+                if (!mounted) return;
                 if ((meAfter?.preferences?.plan === 'veteran' || meAfter?.preferences?.plan === 'legend') && meAfter?.preferences?.payment_pending === false && !meAfter?.preferences?.pending_plan) {
                   showSuccessState();
                   return;
                 }
               } catch (e) { if (__DEV__) console.warn('[PaymentSuccess] poll error:', e); }
+              if (!mounted) return;
               setError('This is taking longer than usual — you\'ll receive a confirmation email shortly.');
               setLoading(false);
             }
           } catch {
+            if (!mounted) return;
             if (verificationAttempt >= maxAttempts - 1) {
               setError('Unable to verify payment. Please contact support.');
               setLoading(false);
@@ -168,6 +181,7 @@ export default function PaymentSuccessScreen() {
           }
         }
       } catch (err: any) {
+        if (!mounted) return;
         setError('Unable to verify payment status');
         if (__DEV__) console.error('Payment verification error:', err);
         setLoading(false);
@@ -175,7 +189,7 @@ export default function PaymentSuccessScreen() {
     };
 
     void verify();
-    return () => clearRetry();
+    return () => { mounted = false; clearRetry(); };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- checkOpacity and contentOpacity are Animated.Values (ref-like), adding them causes infinite loops
   }, [params.session_id, isAdPayment, verificationAttempt]);
 

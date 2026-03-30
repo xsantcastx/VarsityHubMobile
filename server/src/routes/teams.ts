@@ -605,7 +605,7 @@ teamsRouter.post('/', requireVerified as any, requireOnboarded as any, requirePl
     } });
     await tx.teamMembership.create({ data: { team_id: team.id, user_id: me.id, role: 'owner' } });
     return team;
-  });
+  }, { isolationLevel: 'Serializable' });
 
   return res.status(201).json(t);
   } catch (err: any) {
@@ -1219,8 +1219,8 @@ teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, req
       });
 
       return newTeam;
-    });
-    
+    }, { isolationLevel: 'Serializable' });
+
     // Handle authorized users if provided
     if (data.authorized_users && Array.isArray(data.authorized_users) && data.authorized_users.length > 0) {
       try {

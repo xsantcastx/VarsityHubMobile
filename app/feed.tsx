@@ -494,20 +494,23 @@ export default function FeedScreen() {
   // Load notifications when modal opens
   useEffect(() => {
     if (!notificationsMenuOpen) return;
-    
+
+    let mounted = true;
     const loadModalData = async () => {
       setLoadingNotifications(true);
       try {
         const page = await NotificationApi.listPage(null, 20, false);
+        if (!mounted) return;
         setNotificationsList(Array.isArray(page.items) ? page.items : []);
       } catch (e) {
         if (__DEV__) console.error('Failed to load notifications', e);
       } finally {
-        setLoadingNotifications(false);
+        if (mounted) setLoadingNotifications(false);
       }
     };
-    
+
     void loadModalData();
+    return () => { mounted = false; };
   }, [notificationsMenuOpen]);
 
   const onRefresh = useCallback(async () => {
