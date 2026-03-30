@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
 import { useAnalytics } from '@/hooks/useAnalytics';
+import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import { useAppleAuth } from '@/hooks/useAppleAuth';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useGoogleAuth } from '@/hooks/useGoogleAuth';
@@ -114,6 +115,7 @@ export default function SignUpScreen() {
       const res: any = await attemptRegistration();
       // Don't await checkAuth — the registration response already saved tokens.
       // Navigate immediately to verify screen for faster UX.
+      analytics.track(ANALYTICS_EVENTS.USER_SIGNED_UP, { method: 'email', role: 'fan' });
       checkAuth().catch(() => {});
       // After successful signup, redirect to email verification screen
       // Pass dev code only in __DEV__ for easier testing (never in production)
@@ -166,6 +168,7 @@ export default function SignUpScreen() {
     try {
       trackTap('auth_google_tap', { screen: 'sign_up' });
       await signInWithGoogle();
+      analytics.track(ANALYTICS_EVENTS.USER_SIGNED_UP, { method: 'google' });
       // Let AuthProvider handle routing (onboarding vs tabs)
       await checkAuth();
     } catch (e: any) {
@@ -194,6 +197,7 @@ export default function SignUpScreen() {
     try {
       trackTap('auth_apple_tap', { screen: 'sign_up' });
       await signInWithApple();
+      analytics.track(ANALYTICS_EVENTS.USER_SIGNED_UP, { method: 'apple' });
       // Let AuthProvider handle routing (onboarding vs tabs)
       await checkAuth();
     } catch (e: any) {

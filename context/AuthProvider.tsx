@@ -23,6 +23,7 @@ import { httpGet } from '@/api/http';
 import { clearPostCacheOnLogout } from '@/context/PostCacheContext';
 import { consumePendingDeepLink, handleDeepLink } from '@/utils/deepLinks';
 import { captureException, setUserContext as setSentryUser } from '@/utils/sentry';
+import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 
 // Conditionally import notifications only if not in Expo Go
 const isExpoGo = Constants.executionEnvironment === 'storeClient';
@@ -283,6 +284,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         // NOW set user — routing effect will fire with correct hasCompletedOnboarding
         setUser(me);
         setSentryUser({ id: me.id, email: me.email, username: me.username });
+        analytics.identify(me.id, { email: me.email, role: me.role });
         setPendingVerificationEmail(null);
 
         // Fetch subscription status (non-blocking)

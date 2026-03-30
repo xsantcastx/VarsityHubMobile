@@ -24,6 +24,7 @@ import { useAppleAuth } from '@/hooks/useAppleAuth';
 import { useGoogleAuth } from '@/hooks/useGoogleAuth';
 import { captureException } from '@/utils/sentry';
 import { validateEmail } from '@/utils/formUtils';
+import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import auth from '@/api/auth';
 import { Ionicons } from '@expo/vector-icons';
 import * as AppleAuthentication from 'expo-apple-authentication';
@@ -89,6 +90,7 @@ export default function SignInScreen() {
       // Otherwise, refresh auth state - AuthProvider will handle routing
       try {
         await checkAuth();
+        analytics.track(ANALYTICS_EVENTS.USER_SIGNED_IN, { method: 'email' });
         // Register push token after successful login (non-blocking)
         registerPushToken().catch((err: any) => {
           captureException(err, { tags: { context: 'push-token-register-email-login' } });
@@ -157,6 +159,7 @@ export default function SignInScreen() {
       // Call checkAuth to set user state; AuthProvider will handle routing
       try {
         await checkAuth();
+        analytics.track(ANALYTICS_EVENTS.USER_SIGNED_IN, { method: 'google' });
         // Register push token after successful login (non-blocking)
         registerPushToken().catch((err: any) => {
           captureException(err, { tags: { context: 'push-token-register-google-login' } });
@@ -214,6 +217,7 @@ export default function SignInScreen() {
       // Call checkAuth to set user state; AuthProvider will handle routing
       try {
         await checkAuth();
+        analytics.track(ANALYTICS_EVENTS.USER_SIGNED_IN, { method: 'apple' });
         // Register push token after successful login (non-blocking)
         registerPushToken().catch((err: any) => {
           captureException(err, { tags: { context: 'push-token-register-apple-login' } });

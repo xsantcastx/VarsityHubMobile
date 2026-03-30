@@ -60,11 +60,36 @@ jobs:
       - name: Run TypeScript type check
         run: npm run typecheck
 
+  server-checks:
+    name: Server TypeScript & Prisma
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install server dependencies
+        working-directory: server
+        run: npm ci
+
+      - name: Validate Prisma schema
+        working-directory: server
+        run: npx prisma validate
+
+      - name: TypeScript check (server)
+        working-directory: server
+        run: npx tsc --noEmit --skipLibCheck
+
   # All checks must pass - this job ensures the PR gate
   all-checks:
     name: All Checks Passed
     runs-on: ubuntu-latest
-    needs: [repo-health, lint, typecheck, test]
+    needs: [repo-health, lint, typecheck, server-checks, test]
     if: always()
     steps:
       - name: Verify all checks passed
@@ -72,6 +97,7 @@ jobs:
           if [ "${{ needs.repo-health.result }}" != "success" ] || \
              [ "${{ needs.lint.result }}" != "success" ] || \
              [ "${{ needs.typecheck.result }}" != "success" ] || \
+             [ "${{ needs.server-checks.result }}" != "success" ] || \
              [ "${{ needs.test.result }}" != "success" ]; then
             echo "❌ One or more checks failed"
             exit 1

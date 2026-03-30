@@ -27,6 +27,7 @@ import * as ImagePicker from 'expo-image-picker';
 let VideoThumbnails: any = null;
 try { VideoThumbnails = require('expo-video-thumbnails'); } catch { /* native module not available */ }
 import { compressVideoSafe } from '@/utils/compressVideo';
+import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 
 // Retry thumbnail generation at multiple timestamps
 const generateVideoThumbnail = async (videoUri: string, setVideoThumbnailUri: (uri: string) => void) => {
@@ -707,6 +708,7 @@ export default function CreatePostScreen() {
       const created = await Post.create(payload);
       clearPostCache();
       if (__DEV__) console.warn('[CreatePost] Post created successfully!');
+      analytics.track(ANALYTICS_EVENTS.POST_CREATED, { type: picked?.type || 'text' });
       try {
         await settings.setJson(settings.SETTINGS_KEYS.POST_DRAFT, null);
       } catch (error) {
@@ -789,6 +791,7 @@ export default function CreatePostScreen() {
           } else if (code === 'TOO_FAR_FROM_VENUE') {
             const dist = e?.data?.distance;
             const msg = e?.data?.message || 'You must be within 3 km of the venue to post.';
+            analytics.track(ANALYTICS_EVENTS.GEOFENCE_BLOCKED, { distance: dist });
             Alert.alert(
               'Not at the Venue',
               `${msg}${dist ? `\n\nYou are ${dist.toFixed(1)} km away.` : ''}`,

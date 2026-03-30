@@ -19,6 +19,7 @@ import { Calendar } from 'react-native-calendars';
 import SwipeBackContainer from '@/components/SwipeBackContainer';
 import GameVerticalFeedScreen, { type FeedPost } from '../../game-details/GameVerticalFeedScreen';
 import { optimizeImageUrl } from '@/utils/imageUrl';
+import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 
 // Guard against internal IDs (cuid / UUID) being leaked as display text
 const isInternalId = (s: string) =>
@@ -355,6 +356,7 @@ export default function CommunityDiscoverScreen() {
           organizations: res?.organizations ?? [],
         });
         saveRecentSearch(trimmed);
+        analytics.track(ANALYTICS_EVENTS.SEARCH_PERFORMED, { query: trimmed });
       } catch {
         if (!mounted) return;
         setUnifiedSearchResults({ users: [], teams: [], organizations: [] });

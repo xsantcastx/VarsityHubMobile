@@ -15,6 +15,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { getApiBaseUrl } from '@/api/http';
 import { validateZipCode, validateYear, sanitizeText } from '@/utils/formUtils';
 import { safeGoBack } from '@/utils/navigation';
+import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 
 // Field validation errors
 interface FieldErrors {
@@ -479,6 +480,7 @@ export default function EditProfileScreen() {
       if (errors.length > 0) {
         Alert.alert('Partial Save', `Some changes may not have saved:\n${errors.join('\n')}`);
       } else {
+        analytics.track(ANALYTICS_EVENTS.PROFILE_EDITED);
         Alert.alert('Saved', 'Profile updated successfully.', [
           { text: 'OK', onPress: () => safeGoBack(router) },
         ]);

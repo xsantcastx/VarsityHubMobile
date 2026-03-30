@@ -26,6 +26,7 @@ import VideoPlayer from '@/components/VideoPlayer';
 import VideoTrimmer from '@/components/VideoTrimmer';
 import GameVerticalFeedScreen, { mapHighlightToFeedPost } from './GameVerticalFeedScreen';
 import { applyClearVote, applyVoteSelection, buildVoteSummary, parseVoteSummary, type VoteOption, type VoteSummary } from '@/utils/voteSummary';
+import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 
 import type { ColorValue } from 'react-native';
 const PLACEHOLDER_GRADIENT: readonly [ColorValue, ColorValue, ...ColorValue[]] = ['#1e293b', '#1d4ed8', '#38bdf8'];
@@ -1512,6 +1513,7 @@ const GameDetailsScreen = () => {
 
   useEffect(() => {
     void load();
+    analytics.track(ANALYTICS_EVENTS.EVENT_PAGE_VIEWED, { gameId: id, eventId });
   }, [load]);
 
   // Reset per-event UI state immediately when navigating to a different event

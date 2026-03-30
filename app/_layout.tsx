@@ -24,6 +24,7 @@ import { ThemeProvider } from '@/hooks/useCustomColorScheme';
 import { NotificationTapHandler } from '@/components/NotificationTapHandler';
 import { handleDeepLinkAuthAware, handleInitialDeepLink, setupDeepLinkListener } from '@/utils/deepLinks';
 import { initSentry } from '@/utils/sentry';
+import { initAnalytics } from '@/utils/analytics';
 import { getConfig } from '@/config/env';
 import { StripeProvider } from '@stripe/stripe-react-native';
 
@@ -41,8 +42,9 @@ const devLog = (...args: unknown[]) => {
   }
 };
 
-// Initialize Sentry before app renders
+// Initialize Sentry and PostHog before app renders
 initSentry();
+initAnalytics();
 
 // Initialize testing monitor on web (only in development)
 if (Platform.OS === 'web' && __DEV__) {
