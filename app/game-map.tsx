@@ -40,7 +40,6 @@ export default function GameMapScreen() {
       // Fetch games and events; when user has location, filter to nearby (radius 50mi)
       const eventsQuery = new URLSearchParams();
       eventsQuery.set('approval_status', 'approved');
-      eventsQuery.set('include_past', '1');
       if (lat != null && lng != null && !isNaN(lat) && !isNaN(lng)) {
         eventsQuery.set('lat', String(lat));
         eventsQuery.set('lng', String(lng));

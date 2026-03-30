@@ -761,7 +761,6 @@ export default function Step3League() {
                               onPress={() => {
                                 setSelectedOrg(org);
                                 setShowOrgDropdown(false);
-                                void requestToJoin(org);
                               }}
                             >
                               <View style={styles.orgCardContent}>

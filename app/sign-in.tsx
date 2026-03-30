@@ -260,9 +260,8 @@ export default function SignInScreen() {
     <SafeAreaView style={[styles.root, { backgroundColor: palette.background, borderLeftWidth: 0, borderRightWidth: 0 }]} edges={['top']}>
       <Stack.Screen options={{ title: 'Sign In', headerShown: false }} />
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior="height"
         style={[styles.flex, { borderWidth: 0 }]}
-        keyboardVerticalOffset={0}
       >
         <ScrollView
           contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(24, insets.bottom) }]}
@@ -275,10 +274,10 @@ export default function SignInScreen() {
               styles.logoContainer,
               {
                 backgroundColor: '#FFFFFF',
-                borderWidth: 1,
-                borderColor: colorScheme === 'dark' ? '#334155' : '#E5E7EB',
+                borderWidth: colorScheme === 'dark' ? 2 : 1,
+                borderColor: colorScheme === 'dark' ? '#475569' : '#E5E7EB',
                 shadowColor: '#000000',
-                shadowOpacity: colorScheme === 'dark' ? 0.3 : 0.1,
+                shadowOpacity: colorScheme === 'dark' ? 0.5 : 0.1,
                 shadowOffset: { width: 0, height: 4 },
                 shadowRadius: 12,
                 elevation: 6,

@@ -128,9 +128,8 @@ export default function OnboardingLayout({
       </View>
 
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior="height"
         style={{ flex: 1 }}
-        keyboardVerticalOffset={0}
       >
         <ScrollView
           contentContainerStyle={styles.scrollContent}

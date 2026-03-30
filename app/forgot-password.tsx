@@ -112,15 +112,16 @@ export default function ForgotPasswordScreen() {
                 Sign in
               </Button>
             </>
-          ) : !codeSent ? (
-            // Phase 1: enter email
+          ) : (
+            // All fields on one screen
             <>
               <Text style={[styles.title, { color: palette.text }]}>Reset your password</Text>
               <Text style={[styles.subtitle, { color: palette.mutedText }]}>
-                Enter your account email and we'll send a 6-digit code to reset your password.
+                Enter your email and we'll send a 6-digit code to reset your password.
               </Text>
 
               {sendError ? <Text style={[styles.error, { color: palette.destructive }]}>{sendError}</Text> : null}
+              {resetError ? <Text style={[styles.error, { color: palette.destructive }]}>{resetError}</Text> : null}
 
               <Input
                 placeholder="name@school.edu"
@@ -128,32 +129,30 @@ export default function ForgotPasswordScreen() {
                 onChangeText={setEmail}
                 autoCapitalize="none"
                 keyboardType="email-address"
+                editable={!codeSent}
                 placeholderTextColor={palette.mutedText}
-                style={[styles.input, { backgroundColor: palette.surface, borderColor: palette.border, color: palette.text }]}
+                style={[styles.input, { backgroundColor: palette.surface, borderColor: palette.border, color: palette.text, opacity: codeSent ? 0.5 : 1 }]}
               />
 
-              <Button onPress={onSendCode} disabled={sendLoading}>
-                {sendLoading ? <ActivityIndicator color="white" /> : 'Send reset code'}
-              </Button>
-            </>
-          ) : (
-            // Phase 2: enter code + new password
-            <>
-              <Text style={[styles.title, { color: palette.text }]}>Check your email</Text>
-              <Text style={[styles.subtitle, { color: palette.mutedText }]}>
-                We sent a 6-digit code to <Text style={{ fontWeight: '700', color: palette.text }}>{email.trim()}</Text>. Enter it below along with your new password.
-              </Text>
-
-              {resetError ? <Text style={[styles.error, { color: palette.destructive }]}>{resetError}</Text> : null}
+              {!codeSent ? (
+                <Button onPress={onSendCode} disabled={sendLoading}>
+                  {sendLoading ? <ActivityIndicator color="white" /> : 'Send reset code'}
+                </Button>
+              ) : (
+                <Text style={[styles.subtitle, { color: '#10B981', fontWeight: '600', textAlign: 'center' }]}>
+                  Code sent to {email.trim()}
+                </Text>
+              )}
 
               <Input
-                placeholder="6-digit code"
+                placeholder="Enter 6-digit code"
                 value={code}
                 onChangeText={(t) => setCode(t.replace(/\D/g, '').slice(0, 6))}
                 keyboardType="number-pad"
                 maxLength={6}
+                editable={codeSent}
                 placeholderTextColor={palette.mutedText}
-                style={[styles.input, { backgroundColor: palette.surface, borderColor: palette.border, color: palette.text }]}
+                style={[styles.input, { backgroundColor: palette.surface, borderColor: palette.border, color: palette.text, opacity: codeSent ? 1 : 0.4 }]}
               />
 
               <Input
@@ -161,8 +160,9 @@ export default function ForgotPasswordScreen() {
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry
+                editable={codeSent}
                 placeholderTextColor={palette.mutedText}
-                style={[styles.input, { backgroundColor: palette.surface, borderColor: palette.border, color: palette.text }]}
+                style={[styles.input, { backgroundColor: palette.surface, borderColor: palette.border, color: palette.text, opacity: codeSent ? 1 : 0.4 }]}
               />
 
               <Input
@@ -170,17 +170,20 @@ export default function ForgotPasswordScreen() {
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
                 secureTextEntry
+                editable={codeSent}
                 placeholderTextColor={palette.mutedText}
-                style={[styles.input, { backgroundColor: palette.surface, borderColor: palette.border, color: palette.text }]}
+                style={[styles.input, { backgroundColor: palette.surface, borderColor: palette.border, color: palette.text, opacity: codeSent ? 1 : 0.4 }]}
               />
 
-              <Button onPress={onResetPassword} disabled={resetLoading}>
-                {resetLoading ? <ActivityIndicator color="white" /> : 'Update password'}
+              <Button onPress={codeSent ? onResetPassword : onSendCode} disabled={codeSent ? resetLoading : sendLoading}>
+                {(codeSent ? resetLoading : sendLoading) ? <ActivityIndicator color="white" /> : codeSent ? 'Update password' : 'Send reset code'}
               </Button>
 
-              <Pressable onPress={() => { setCodeSent(false); setCode(''); setPassword(''); setConfirmPassword(''); setResetError(null); }} style={styles.linkRow}>
-                <Text style={[styles.link, { color: palette.tint }]}>Wrong email? Go back</Text>
-              </Pressable>
+              {codeSent ? (
+                <Pressable onPress={() => { setCodeSent(false); setCode(''); setPassword(''); setConfirmPassword(''); setResetError(null); setSendError(null); }} style={styles.linkRow}>
+                  <Text style={[styles.link, { color: palette.tint }]}>Wrong email? Change it</Text>
+                </Pressable>
+              ) : null}
             </>
           )}
         </View>

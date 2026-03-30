@@ -34,7 +34,11 @@ export default function DateField({ label, value, onChange, placeholder }: DateF
       setShow(false);
     }
     if (selectedDate) {
-      setDate(selectedDate);
+      // Normalize to local midnight to prevent timezone offset shifting the day
+      // The native picker may return UTC midnight, which in timezones behind UTC
+      // (e.g., EST = UTC-5) would display as the previous day
+      const normalized = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+      setDate(normalized);
     }
   };
 
@@ -108,8 +112,9 @@ export default function DateField({ label, value, onChange, placeholder }: DateF
             onChange={(event, selectedDate) => {
               setShow(false);
               if (selectedDate) {
-                setDate(selectedDate);
-                const formatted = formatLocalDate(selectedDate);
+                const normalized = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+                setDate(normalized);
+                const formatted = formatLocalDate(normalized);
                 onChange(formatted);
               }
             }}

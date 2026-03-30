@@ -47,7 +47,7 @@ export default function EditProfileScreen() {
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   
   // Profile fields - username is edited separately via /settings/edit-username
-  const [_displayName, setDisplayName] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [bio, setBio] = useState('');
   const [location, setLocation] = useState('');
   const [zipCode, setZipCode] = useState('');
@@ -414,6 +414,7 @@ export default function EditProfileScreen() {
       // Username is edited separately via /settings/edit-username
       const directFields: any = {
         bio: sanitizeText(bio) || null, // Explicitly send null when blank so backend clears it
+        display_name: displayName.trim() || null,
       };
 
       // Include avatar URL only if the user actually uploaded a new one
@@ -522,7 +523,7 @@ export default function EditProfileScreen() {
           </Text>
         </View>
       ) : (
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={0}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior="height">
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           <View style={styles.content}>
             {/* Header */}

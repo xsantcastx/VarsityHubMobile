@@ -24,10 +24,14 @@ import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 // Guard against internal IDs (cuid / UUID) being leaked as display text
 const isInternalId = (s: string) =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s) || // UUID
-  /^c[0-9a-z]{20,}$/.test(s); // CUID
+  /^c[0-9a-z]{20,}$/.test(s) || // CUID v1
+  (/^[0-9a-z]{8,}$/.test(s) && !/[aeiou]{2,}/i.test(s)); // Random ID (no vowel pairs = not a real name)
 
 const safeDisplayName = (user: any): string => {
-  const name = user?.display_name || user?.username;
+  // Prefer username (user-chosen) over display_name (may be system-generated)
+  const uname = user?.username;
+  if (uname && !isInternalId(uname)) return uname;
+  const name = user?.display_name;
   if (!name || isInternalId(name)) return 'User';
   return name;
 };
@@ -1394,7 +1398,7 @@ const styles = StyleSheet.create({
     borderColor: '#E5E7EB',
   },
   searchBox: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 48, borderRadius: 12, paddingHorizontal: 12, marginBottom: 8, borderWidth: 1 },
-  searchInput: { flex: 1, height: 44 },
+  searchInput: { flex: 1, height: 44, fontSize: 16 },
   viewToggle: { width: 48, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1, marginBottom: 8 },
   precisionBanner: {
     flexDirection: 'row',

@@ -23,9 +23,8 @@ const KeyboardAwareScreen: React.FC<KeyboardAwareScreenProps> = ({
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior="height"
       style={styles.container}
-      keyboardVerticalOffset={0}
     >
       <ScrollView
         style={[styles.container, style]}
