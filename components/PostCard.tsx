@@ -255,7 +255,7 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
               )}
             </View>
             <Text numberOfLines={1} style={[styles.authorName, { color: Colors[colorScheme].text }]}>
-              {author?.display_name || (author?.username ? `@${author.username}` : 'User')}
+              {author?.username ? `@${author.username}` : (author?.display_name || 'User')}
             </Text>
           </Pressable>
           {currentUser && (

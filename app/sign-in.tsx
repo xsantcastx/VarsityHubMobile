@@ -258,7 +258,7 @@ export default function SignInScreen() {
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={[styles.flex, { borderWidth: 0 }]}
-        keyboardVerticalOffset={insets.bottom}
+        keyboardVerticalOffset={0}
       >
         <ScrollView
           contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(24, insets.bottom) }]}

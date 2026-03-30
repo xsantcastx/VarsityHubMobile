@@ -295,7 +295,12 @@ export default function CommunityDiscoverScreen() {
       const nonFollowing = items.filter((p: any) => !(p && (p.is_following_author || p.is_following)));
       setFollowingPosts(followingOnly.slice(0, 12));
       setDiscoverPosts((nonFollowing.length ? nonFollowing : items).slice(0, 12));
-      setNearbyPeople(people);
+      // Filter out users whose display_name and username are both system-generated IDs
+      const filteredPeople = people.filter((u: any) => {
+        const name = u?.display_name || u?.username;
+        return name && !isInternalId(name);
+      });
+      setNearbyPeople(filteredPeople);
     } catch (personalizationError) {
       if (__DEV__) console.warn('Discover load: personalization failed', personalizationError);
       setPersonalizationNotice('Personalized suggestions are temporarily unavailable. Pull to refresh to try again.');

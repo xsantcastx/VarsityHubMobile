@@ -425,9 +425,10 @@ authRouter.post('/google', oauthLimiter, asyncHandler(async (req, res) => {
       return res.status(400).json({ error: 'Google account email is not verified' });
     }
 
+    // Use Google profile name if available, otherwise null — don't use email prefix as display name
     const displayNameSource = typeof payload.name === 'string' && payload.name.trim().length
       ? payload.name.trim()
-      : email.split('@')[0];
+      : null;
     const avatarUrl = typeof payload.picture === 'string' ? payload.picture : null;
 
     // Stage 4: User lookup/creation
@@ -627,14 +628,13 @@ authRouter.post('/apple', oauthLimiter, asyncHandler(async (req, res) => {
         try {
           // Apple private relay emails (e.g. xyz@privaterelay.appleid.com) are random tokens,
           // not real names. Always fall back to 'Apple User' for those.
-          const isPrivateRelay = email?.endsWith('@privaterelay.appleid.com') || email?.endsWith('@appleid.local');
-          const displayName = (email && !isPrivateRelay) ? email.split('@')[0] : 'Apple User';
+          // Don't set display_name from Apple email — user will set their username during onboarding
           user = await prisma.user.create({
             data: {
               email: userEmail,
               password_hash,
               apple_id: appleId,
-              display_name: displayName,
+              display_name: null,
               email_verified: true,
               preferences: { role: 'fan', onboarding_completed: false },
             },
@@ -974,10 +974,7 @@ authRouter.put('/me', requireAuth as any, asyncHandler(async (req: AuthedRequest
   if (data.username) {
     const exists = await prisma.user.findFirst({
       where: {
-        OR: [
-          { username: { equals: data.username, mode: 'insensitive' } },
-          { display_name: { equals: data.username, mode: 'insensitive' } }
-        ],
+        username: { equals: data.username, mode: 'insensitive' },
         NOT: { id: req.user!.id }
       },
       select: { id: true }
@@ -1024,10 +1021,7 @@ authRouter.patch('/me', requireAuth as any, asyncHandler(async (req: AuthedReque
   if (data.username) {
     const exists = await prisma.user.findFirst({
       where: {
-        OR: [
-          { username: { equals: data.username, mode: 'insensitive' } },
-          { display_name: { equals: data.username, mode: 'insensitive' } }
-        ],
+        username: { equals: data.username, mode: 'insensitive' },
         NOT: { id: req.user!.id }
       },
       select: { id: true }
