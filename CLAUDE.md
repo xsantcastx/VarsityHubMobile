@@ -47,6 +47,7 @@ Check env vars, Railway logs, and build configs — not just source code.
 ## Navigation Architecture
 - Root `_layout.tsx` uses Stack — ALL sub-screens registered there
 - `safeGoBack` is the standard back helper (~199 uses across 75 files)
+- All three goBack implementations (`safeGoBack`, `NavigationHistoryContext.safeGoBack`, `useEdgeSwipeBack`) now use `getNavigationFallback()` from context — no more hardcoded `/(tabs)/feed` fallbacks
 - `useEdgeSwipeBack` is disabled on screens with horizontal FlatLists
 - Every screen implements its own back button (`headerShown: false` globally)
 
@@ -59,8 +60,13 @@ Check env vars, Railway logs, and build configs — not just source code.
 - Local `server/.env` has placeholder Cloudinary creds — uploads only work in production
 - `_layout.tsx` has a pre-existing TS error (`tabBarStyle.overflow`) — does not affect builds, do not fix unless asked
 - Sub-screens appear in both root Stack AND as `hiddenTab` in `(tabs)/_layout.tsx` — this is intentional Expo Router behavior
-- Email templates: 5 are "required" (server exits if missing). The rest degrade silently to plain-text or fail silently
+- Email templates: all 46 template keys now have HTML files in `sendgrid-templates/`. 5 are "required" (server exits if missing).
 - `service-account-key.json` in project root is gitignored — needed for Android Play Store submissions
+- `@react-native-community/netinfo` is installed — requires a native rebuild (`eas build`) to take effect. OTA cannot deliver native modules.
+- `GOOGLE_MAPS_API_KEY` must be set in Railway for geocoding and map pins to work. Without it, all geocoding returns null silently.
+- Poll voting now hits the API for all events including those without a linked `gameId` (uses `eventId` as fallback). Previously event-only pages silently discarded votes.
+- Signup email send is fire-and-forget — `POST /register` does not await SendGrid before responding.
+- Pre-existing TS errors in `server/src/routes/ads.ts` (`target_lat`/`target_lng` not in schema) — do not affect builds or runtime
 
 ## Working Style
 - Be surgical — only change what's needed for the task
