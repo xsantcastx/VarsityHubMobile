@@ -307,7 +307,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         return null; // Don't crash the app on transient network/server errors
       }
     },
-    []
+    [fetchSubscription]
   );
 
   const checkAuthRef = React.useRef(checkAuth);
