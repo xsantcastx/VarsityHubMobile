@@ -109,7 +109,7 @@ export default function BillingScreen() {
     }
   };
 
-  // ── iOS: Simple free-plan screen with no pricing ────────────────────
+  // ── iOS: Show actual plan status + link to App Store subscriptions ──
   if (Platform.OS === 'ios') {
     return (
       <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -123,13 +123,13 @@ export default function BillingScreen() {
         }} />
         <Text style={[styles.title, { color: theme.text }]}>Your Plan</Text>
         <Text style={[styles.subtitle, { color: theme.mutedText }]}>
-          Your free plan includes up to 2 teams with no charges.
+          {getPlanDescription(currentPlan)}
         </Text>
         <View style={[styles.planCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <Text style={styles.planBadge}>Free plan</Text>
-          <Text style={[styles.planPrice, { color: theme.text }]}>Free</Text>
+          <Text style={styles.planBadge}>{planDefinition?.name ?? 'Rookie'}</Text>
+          <Text style={[styles.planPrice, { color: theme.text }]}>{planPriceLabel}</Text>
           <View style={styles.featureList}>
-            {['Up to 2 teams', 'Roster management', 'Game scheduling', 'Team feed & posts'].map((feature) => (
+            {planFeatures.map((feature: string) => (
               <View style={styles.featureItem} key={feature}>
                 <MaterialIcons name="check-circle" size={16} color="#16A34A" />
                 <Text style={[styles.featureText, { color: theme.text }]}>{feature}</Text>

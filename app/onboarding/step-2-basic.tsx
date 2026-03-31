@@ -253,7 +253,7 @@ export default function Step2Basic() {
   // - Zip code: optional for all users
   // - Coaches must be 18+
   const canContinue = usernameRe.test(username) &&
-    available !== false &&
+    available === true &&
     dob &&
     !dobError &&
     !isUnder13 &&
@@ -517,7 +517,7 @@ export default function Step2Basic() {
         placeholder="Tell us about yourself..."
         placeholderTextColor={Colors[colorScheme].mutedText}
         multiline
-        maxLength={300}
+        maxLength={160}
         style={{
           minHeight: 60,
           borderWidth: 1,
@@ -531,7 +531,7 @@ export default function Step2Basic() {
         }}
         accessibilityLabel="Bio"
       />
-      <Text style={[styles.muted, { textAlign: 'right', fontSize: 12 }]}>{bio.length}/300</Text>
+      <Text style={[styles.muted, { textAlign: 'right', fontSize: 12 }]}>{bio.length}/160</Text>
 
       <View style={{ marginTop: 20 }}>
         <PrimaryButton
