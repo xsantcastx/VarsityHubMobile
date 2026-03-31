@@ -434,7 +434,6 @@ export const Team = {
     });
     return httpPost('/teams/create', payload);
   },
-  createBasic: (data: { name: string; description?: string }) => httpPost('/teams', data),
   update: (id: string, data: {
     name?: string;
     description?: string;
@@ -552,13 +551,6 @@ export const Notification = {
   unreadCount: () => httpGet('/notifications/unread-count'),
 };
 
-export const CollaborativePost = {} as any;
-export const EventPost = {} as any;
-export const FreelancerBooking = {} as any;
-export const UserInteraction = {} as any;
-export const SponsorshipBid = {} as any;
-export const EventSponsorship = {} as any;
-export const SchoolPage = {} as any;
 export const Advertisement = {
   reservedDates: (from?: string, to?: string) => {
     const q: string[] = [];

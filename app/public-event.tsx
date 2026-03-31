@@ -21,9 +21,10 @@ export default function PublicEventScreen() {
   const [event, setEvent] = useState<any>(null);
 
   const loadEventData = useCallback(async () => {
+    if (!params.id) return;
     setLoading(true);
     try {
-      const eventId = params.id!;
+      const eventId = params.id;
       const isSampleEvent = /^sample-/i.test(eventId);
       if (__DEV__) console.warn('[public-event] loadEventData called | eventId:', eventId, '| isSampleEvent:', isSampleEvent);
 

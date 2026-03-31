@@ -205,8 +205,8 @@ export const auth = {
     try {
       return await httpGet('/me', options);
     } catch (e: any) {
-      // On 401, session expired — log out and re-throw
-      if (e && e.status === 401) {
+      // On 401, session expired — log out if http.ts didn't already (avoid double-logout)
+      if (e && e.status === 401 && getAuthToken()) {
         try { await auth.logout(); } catch (logoutError) {
           if (__DEV__) console.warn('[auth] Cleanup logout failed:', logoutError);
         }

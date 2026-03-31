@@ -837,6 +837,12 @@ export default function ProfileScreen() {
               <Text style={[styles.editButtonBelowBannerText, { color: theme.text }]}>Edit profile</Text>
             </Pressable>
           )}
+          {viewingUserId && viewingUserId !== currentUserId && (
+            <Pressable style={[styles.editButtonBelowBanner, { backgroundColor: '#0EA5E9', borderColor: '#0EA5E9' }]} onPress={() => void router.push(`/message-thread?with=${viewingUserId}` as any)}>
+              <Ionicons name="chatbubble-outline" size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
+              <Text style={[styles.editButtonBelowBannerText, { color: '#FFFFFF' }]}>Message</Text>
+            </Pressable>
+          )}
         </View>
 
         {/* User Details - Left aligned with avatar */}

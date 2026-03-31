@@ -63,7 +63,13 @@ export default function EditTeamScreen() {
   const [transferring, setTransferring] = useState(false);
 
   const sports = ['Basketball', 'Football', 'Soccer', 'Baseball', 'Tennis', 'Volleyball', 'Swimming', 'Track & Field', 'Other'];
-  const seasons = ['Spring 2025', 'Summer 2025', 'Fall 2025', 'Winter 2025/26'];
+  const seasons = (() => {
+    const y = new Date().getFullYear();
+    return [
+      `Spring ${y}`, `Summer ${y}`, `Fall ${y}`, `Winter ${y}/${(y + 1) % 100}`,
+      `Spring ${y + 1}`, `Summer ${y + 1}`, `Fall ${y + 1}`, `Winter ${y + 1}/${(y + 2) % 100}`,
+    ];
+  })();
 
   const loadTeam = useCallback(async () => {
     try {
@@ -183,6 +189,7 @@ export default function EditTeamScreen() {
   };
 
   const onSubmit = async () => {
+    if (!params.id) return;
     if (!name.trim()) {
       Alert.alert('Team name required', 'Please enter a team name to continue.');
       return;
@@ -258,7 +265,7 @@ export default function EditTeamScreen() {
         teamData.organization_id = organizationId;
       }
       
-      await Team.update(params.id!, teamData);
+      await Team.update(params.id, teamData);
       setExistingLogoUrl(logoUrl || null);
       setLogoUri(null);
       // Update local state so UI reflects saved data (including name)
@@ -551,7 +558,8 @@ export default function EditTeamScreen() {
                             onPress: async () => {
                               setTransferring(true);
                               try {
-                                await Team.transferOwnership(params.id!, uid);
+                                if (!params.id) return;
+                                await Team.transferOwnership(params.id, uid);
                                 setShowTransferModal(false);
                                 setMemberSearch('');
                                 setIsOwner(false);

@@ -47,7 +47,6 @@ export const Team = {
     });
     return httpPost('/teams/create', payload);
   },
-  createBasic: (data: { name: string; description?: string }) => httpPost('/teams', data),
   update: (id: string, data: {
     name?: string;
     description?: string;

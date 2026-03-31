@@ -102,8 +102,11 @@ export default function ApprovalsScreen() {
       // Sort by newest first
       allCoaches.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
       setCoaches(allCoaches);
-    } catch (err) {
+    } catch (err: any) {
       if (__DEV__) console.error('[Approvals] Load error:', err);
+      if (mountedRef.current) {
+        Alert.alert('Error', err?.message || 'Failed to load approvals. Please try again.');
+      }
     } finally {
       if (mountedRef.current) {
         setLoading(false);

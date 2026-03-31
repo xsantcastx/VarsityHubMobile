@@ -132,7 +132,7 @@ export default function OrganizationScreen() {
           if (mounted.current) setIsOrgAdmin(!!membership);
           // Fetch pending coach count for league owners
           if (membership) {
-            Organization.pendingCoaches(params.id!).then((pending: any) => {
+            Organization.pendingCoaches(orgId as string).then((pending: any) => {
               if (mounted.current) {
                 setPendingCoachError(false);
                 setPendingCoachCount(Array.isArray(pending) ? pending.length : 0);

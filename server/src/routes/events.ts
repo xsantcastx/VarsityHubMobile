@@ -493,7 +493,7 @@ const createEventSchema = z.object({
   latitude: z.number().optional(),
   longitude: z.number().optional(),
   description: z.string().trim().max(5000).optional(),
-  event_type: z.enum(['game', 'watch_party', 'fundraiser', 'tryout', 'bbq', 'team_meal', 'team_meeting', 'host_request', 'other']).optional(),
+  event_type: z.enum(['game', 'fundraiser', 'watch_party', 'team_trip', 'meeting', 'team_meal', 'tryout', 'bbq', 'team_meeting', 'host_request', 'other']).optional(),
   linked_league: z.string().trim().optional(),
   max_attendees: z.number().optional(),
   contact_info: z.string().trim().optional(),
@@ -976,7 +976,7 @@ const updateEventSchema = z.object({
   latitude: z.number().optional(),
   longitude: z.number().optional(),
   description: z.string().optional(),
-  event_type: z.enum(['game', 'watch_party', 'fundraiser', 'tryout', 'bbq', 'team_meal', 'team_meeting', 'host_request', 'other']).optional(),
+  event_type: z.enum(['game', 'fundraiser', 'watch_party', 'team_trip', 'meeting', 'team_meal', 'tryout', 'bbq', 'team_meeting', 'host_request', 'other']).optional(),
   linked_league: z.string().optional(),
   max_attendees: z.number().optional(),
   contact_info: z.string().optional(),
@@ -1266,10 +1266,10 @@ eventsRouter.patch('/:id/cancel', requireAuth as any, requireOnboarded as any, a
     }
   }
 
-  // Cancel scheduled reminders for all RSVPed users
-  for (const rsvp of rsvps) {
-    await cancelGameReminders(eventId, rsvp.user_id).catch(() => {});
-  }
+  // Cancel scheduled reminders for all RSVPed users (parallel)
+  await Promise.all(
+    rsvps.map(rsvp => cancelGameReminders(eventId, rsvp.user_id).catch(() => {}))
+  );
 
   return res.json({
     ...serializeEvent(updated),

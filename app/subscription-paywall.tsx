@@ -82,7 +82,11 @@ export default function SubscriptionPaywallScreen() {
 
   const handleSubscribe = async () => {
     if (selectedTier === 'rookie') {
-      safeGoBack(router);
+      Alert.alert(
+        'Free Plan',
+        'You are already on the free Rookie plan, or to downgrade please cancel your current subscription in your device settings.',
+        [{ text: 'OK', onPress: () => safeGoBack(router) }]
+      );
       return;
     }
 

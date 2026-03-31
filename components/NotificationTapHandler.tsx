@@ -39,8 +39,8 @@ export function NotificationTapHandler() {
       // Guard: protected routes require auth
       const isProtected = !['coach_approved', 'coach_rejected'].includes(data.type);
       if (isProtected && !user) {
-        devLog('[Notifications] User not authenticated, redirecting to home');
-        router.replace('/(tabs)' as any);
+        devLog('[Notifications] User not authenticated, redirecting to sign-in');
+        router.replace('/sign-in' as any);
         return;
       }
 

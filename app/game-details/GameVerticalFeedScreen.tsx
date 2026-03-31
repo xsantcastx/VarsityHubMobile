@@ -204,8 +204,9 @@ const FeedCard = memo(
         await Post.delete(post.id);
         setShowDeleteConfirm(false);
         onDeletePost?.();
-      } catch (error) {
-        if (__DEV__) console.error('Failed to delete post:', error);
+      } catch (error: any) {
+        setShowDeleteConfirm(false);
+        Alert.alert('Error', error?.message || 'Failed to delete post. Please try again.');
       }
     };
 
@@ -219,8 +220,8 @@ const FeedCard = memo(
         await Post.update(post.id, { content: editCaption });
         setShowEditModal(false);
         onEditPost?.(editCaption);
-      } catch (error) {
-        if (__DEV__) console.error('Failed to update post:', error);
+      } catch (error: any) {
+        Alert.alert('Error', error?.message || 'Failed to update post. Please try again.');
       }
     };
 
