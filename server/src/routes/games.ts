@@ -361,7 +361,7 @@ gamesRouter.post('/', requireVerified as any, requireOnboarded as any, gameCreat
     // Expected attendance for events
     expected_attendance: z.number().int().min(1).max(99999).optional(),
     // Event type (game, fundraiser, watch_party, team_trip, meeting, other)
-    event_type: z.enum(['game', 'fundraiser', 'watch_party', 'team_trip', 'meeting', 'team_meal', 'other']).optional(),
+    event_type: z.enum(['game', 'fundraiser', 'watch_party', 'team_trip', 'meeting', 'team_meal', 'tryout', 'bbq', 'team_meeting', 'host_request', 'other']).optional(),
     // Event type-specific fields
     donation_goal: z.number().min(0).optional(), // For fundraisers
     watch_location: z.string().trim().max(200).optional(), // For watch parties
@@ -1279,7 +1279,7 @@ gamesRouter.put('/:id', requireAuth as any, requireOnboarded as any, asyncHandle
     banner_url: z.string().url().optional().nullable(),
     appearance: z.string().optional().nullable(),
     expected_attendance: z.number().int().min(1).max(99999).optional().nullable(),
-    event_type: z.enum(['game', 'fundraiser', 'watch_party', 'team_trip', 'meeting', 'team_meal', 'other']).optional(),
+    event_type: z.enum(['game', 'fundraiser', 'watch_party', 'team_trip', 'meeting', 'team_meal', 'tryout', 'bbq', 'team_meeting', 'host_request', 'other']).optional(),
     donation_goal: z.number().min(0).optional().nullable(),
     watch_location: z.string().trim().max(200).optional().nullable(),
     watch_location_lat: z.number().min(-90).max(90).optional().nullable(),

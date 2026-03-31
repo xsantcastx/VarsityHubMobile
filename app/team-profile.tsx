@@ -1,1 +1,1 @@
-export { default } from './(tabs)/team-profile';
+export { default } from './team-page';

@@ -156,6 +156,13 @@ export default function MessageThreadScreen() {
     if (!content) return;
     setSending(true);
 
+    // Block messaging organization accounts
+    if (otherParticipant && (otherParticipant as any).account_type === 'organization') {
+      Alert.alert('Cannot Message', 'Organization accounts cannot receive direct messages.');
+      setSending(false);
+      return;
+    }
+
     // Check DM restrictions before sending
     if (me && otherParticipant) {
       const restriction = checkDMRestriction(me, otherParticipant);

@@ -363,10 +363,11 @@ export default function PostDetailScreen() {
         if (currentPostId) setPostsById((prev) => ({ ...prev, [currentPostId]: next }));
         return next;
       });
-    } catch (error) {
+    } catch (error: any) {
       // Revert optimistic update on failure
       setPost(prevPost);
       if (currentPostId && prevPost) setPostsById((prev) => ({ ...prev, [currentPostId]: prevPost }));
+      Alert.alert('Error', error?.message || 'Something went wrong. Please try again.');
       if (__DEV__) console.error('Error toggling upvote:', error);
     } finally {
       setVoting(false);
@@ -465,6 +466,7 @@ export default function PostDetailScreen() {
     } catch (error: any) {
       if (__DEV__) console.error('[post-detail] Error toggling follow:', error);
       setFollowing(prev); // Revert on error
+      Alert.alert('Error', error?.message || 'Something went wrong. Please try again.');
     } finally {
       followInFlight.current = false;
     }
@@ -482,10 +484,11 @@ export default function PostDetailScreen() {
         // Fallback to toggle if API doesn't return the state
         setSaved(!saved);
       }
-    } catch (error) {
+    } catch (error: any) {
       if (__DEV__) console.error('[post-detail] Error toggling save:', error);
       // Revert optimistic update on error
       setSaved(saved);
+      Alert.alert('Error', error?.message || 'Something went wrong. Please try again.');
     }
   };
 

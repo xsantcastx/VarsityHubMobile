@@ -1,16 +1,26 @@
 import { prisma } from './prisma.js';
 
+// Cache private user IDs for 60s to avoid querying all users on every feed request
+let _privateIdsCache: { ids: string[]; expires: number } | null = null;
+const PRIVATE_IDS_CACHE_TTL = 60_000;
+
 /**
  * Returns IDs of private-profile users whose content should be hidden from the viewer.
  * Excludes the viewer themselves and users the viewer already follows.
  */
 export async function getExcludedPrivateAuthorIds(viewerId: string | null): Promise<string[]> {
-  const privateUsers = await prisma.user.findMany({
-    where: {
-      preferences: { path: ['profile_private'], equals: true },
-    },
-    select: { id: true },
-  });
+  let privateUsers: { id: string }[];
+  if (_privateIdsCache && Date.now() < _privateIdsCache.expires) {
+    privateUsers = _privateIdsCache.ids.map(id => ({ id }));
+  } else {
+    privateUsers = await prisma.user.findMany({
+      where: {
+        preferences: { path: ['profile_private'], equals: true },
+      },
+      select: { id: true },
+    });
+    _privateIdsCache = { ids: privateUsers.map(u => u.id), expires: Date.now() + PRIVATE_IDS_CACHE_TTL };
+  }
 
   if (privateUsers.length === 0) return [];
 

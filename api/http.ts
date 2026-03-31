@@ -241,7 +241,8 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
       if (effectiveRetries > 0) {
         // Longer delays for Railway infrastructure errors (they need more time to recover)
         const baseDelay = isRailwayInfraError ? 1000 : 500;
-        const delay = Math.min(3000, baseDelay * Math.pow(2, 1 - effectiveRetries)); // Exponential backoff
+        const retryCount = maxRetriesFor502 - effectiveRetries;
+        const delay = Math.min(3000, baseDelay * Math.pow(2, retryCount)); // Exponential backoff
         
         if (__DEV__) console.log(`[http] Retrying 502 Bad Gateway after ${delay}ms... (${effectiveRetries}/${maxRetriesFor502} retries left)`);
         await new Promise(r => setTimeout(r, delay));

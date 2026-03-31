@@ -113,10 +113,9 @@ export default function SignUpScreen() {
 
     try {
       const res: any = await attemptRegistration();
-      // Don't await checkAuth — the registration response already saved tokens.
-      // Navigate immediately to verify screen for faster UX.
+      // Registration response already saved tokens — AuthProvider will pick them up.
+      // Don't call checkAuth() here to avoid a navigation race with router.replace below.
       analytics.track(ANALYTICS_EVENTS.USER_SIGNED_UP, { method: 'email', role: 'fan' });
-      checkAuth().catch(() => {});
       // After successful signup, redirect to email verification screen
       // Pass dev code only in __DEV__ for easier testing (never in production)
       if (__DEV__ && res?.dev_verification_code) {
