@@ -10,6 +10,10 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   pre-deploy-health-check:
     name: Railway Health Check Before Merge
