@@ -56,7 +56,7 @@
     "id": "legend",
     "name": "Legend",
     "icon": "medal",
-    "price": "$29.99",
+    "price": "$19.99",
     "period": "/ year",
     "priceId": "price_1SKO8lGJt8CsPE1E7RmXJblX",
     "max_teams": null,
@@ -73,7 +73,7 @@
       "Covers all approved coaches at no extra cost"
     ],
     "billing": {
-      "description": "$29.99/year — unlimited teams and coaches.",
+      "description": "$19.99/year — unlimited teams and coaches.",
       "cta": "Best choice for districts running every sport and club."
     }
   }
