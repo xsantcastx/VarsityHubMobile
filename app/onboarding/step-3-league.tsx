@@ -16,6 +16,7 @@ import { PlaceSuggestion } from '@/api/geocoding';
 import LocationPicker from '@/components/LocationPicker';
 import { httpPost } from '@/api/http';
 import { ZipCodeMapPreview } from '@/components/ZipCodeMapPreview';
+import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { useOrganizationSearch } from '@/hooks/useOrganizationSearch';
 import OnboardingLayout from './components/OnboardingLayout';
@@ -24,6 +25,7 @@ export default function Step3League() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
+  const { markOnboardingCompleteLocally, checkAuth, registerPushToken } = useAuth();
   const { state: ob, setState: setOB, setProgress } = useOnboarding();
   
   // Form state
@@ -313,7 +315,8 @@ export default function Step3League() {
         message: joinMessage.trim() || undefined
       });
       
-      // Save pending status to local context
+      // Save pending status to local context — don't complete onboarding yet.
+      // The user must press Continue to proceed (onContinue handles completeOnboarding).
       setOB((prev) => ({
         ...prev,
         organization_id: selectedOrg.id,
@@ -322,22 +325,15 @@ export default function Step3League() {
         step_3_visited: true,
       }));
 
-      // Persist organization_id to backend preferences so it survives app restarts
-      // and is available in complete-onboarding after approval
-      try {
-        await User.updatePreferences({ organization_id: selectedOrg.id, organization_name: selectedOrg.name });
-      } catch {
-        // Non-fatal: local context still has org_id; complete-onboarding will use it
-      }
+      // Persist org_id so it survives app restarts
+      await User.updatePreferences({ organization_id: selectedOrg.id, organization_name: selectedOrg.name }).catch(() => {});
 
-      // Navigate to pending approval screen (coach waits for league owner approval)
-      router.replace({
-        pathname: '/onboarding/pending-approval',
-        params: {
-          leagueName: selectedOrg.name,
-          ownerName: 'the league admin',
-        },
-      } as any);
+      // Show success — user must press Continue to proceed
+      Alert.alert(
+        'Request Sent!',
+        `Your request to join "${selectedOrg.name}" has been sent. You'll be notified when approved. Press Continue to explore the app.`,
+        [{ text: 'OK' }]
+      );
     } catch (error: any) {
       Alert.alert('Request Failed', error?.data?.error || error?.message || 'Failed to send join request');
     } finally {
@@ -353,38 +349,37 @@ export default function Step3League() {
 
     setSaving(true);
     try {
-      // If team/org already exists or join request pending, navigate to appropriate pending screen
+      // If team/org already exists or join request pending, complete onboarding and enter app
       if (alreadyExists || ob.join_request_pending) {
         setOB((prev) => ({ ...prev, step_3_visited: true }));
-        if (ob.join_request_pending) {
-          router.replace({
-            pathname: '/onboarding/pending-approval',
-            params: { leagueName: ob.organization_name || 'the league', ownerName: 'the league admin' },
-          } as any);
-        } else {
-          const resolvedOrgId = String(
-            ob.organization_id ||
-            existingTeam?.organization_id ||
-            existingTeam?.organization?.id ||
-            existingOrg?.id ||
-            ''
-          );
-          if (!resolvedOrgId) {
-            Alert.alert(
-              'Organization setup needed',
-              'We found your team, but not its league page. Please choose or create an organization to continue.'
-            );
-            setAlreadyExists(false);
-            return;
-          }
-          router.replace({
-            pathname: '/onboarding/league-pending-approval',
-            params: {
-              leagueName: ob.organization_name || existingTeam?.organization_name || existingOrg?.name || 'your league',
-              orgId: resolvedOrgId,
-            },
-          } as any);
+        const resolvedOrgId = String(
+          ob.organization_id ||
+          existingTeam?.organization_id ||
+          existingTeam?.organization?.id ||
+          existingOrg?.id ||
+          ''
+        );
+        const resolvedOrgName = ob.organization_name || existingTeam?.organization_name || existingOrg?.name || '';
+        try {
+          const me: any = await User.me().catch(() => null);
+          await User.completeOnboarding({
+            role: 'coach',
+            proceeding_as_fan: true,
+            username: me?.username || ob.username,
+            dob: me?.dob || ob.dob,
+            zip_code: me?.zip_code || ob.zip_code || ob.zip,
+            affiliation: me?.preferences?.affiliation || ob.affiliation,
+            organization_id: resolvedOrgId || undefined,
+            organization_name: resolvedOrgName || undefined,
+            join_request_pending: ob.join_request_pending || undefined,
+          });
+          await markOnboardingCompleteLocally();
+          registerPushToken().catch(() => {});
+        } catch (err) {
+          if (__DEV__) console.warn('[step-3] Failed to complete onboarding (existing):', err);
         }
+        checkAuth().catch(() => {});
+        router.replace('/(tabs)' as any);
         return;
       }
       
@@ -423,6 +418,7 @@ export default function Step3League() {
         location: locationLabel || undefined,
         zip_code: (selectedPlaceZip || searchZip.trim()) || undefined,
         supporting_document_url: docUrl,
+        onboarding: true,
       };
 
       const org = await Organization.createOrganization(payload);
@@ -440,23 +436,30 @@ export default function Step3League() {
         step_3_visited: true,
       }));
 
-      // Persist organization_id to backend user preferences immediately
-      // so it survives app crashes between step 4 and step 10
+      // Complete onboarding as coach proceeding as fan — user can use the app
+      // while waiting for the super admin to approve the org.
       try {
-        await User.updatePreferences({ organization_id: orgId, organization_name: orgName.trim() });
+        const me: any = await User.me().catch(() => null);
+        await User.completeOnboarding({
+          role: 'coach',
+          proceeding_as_fan: true,
+          username: me?.username || ob.username,
+          dob: me?.dob || ob.dob,
+          zip_code: me?.zip_code || ob.zip_code || ob.zip,
+          affiliation: me?.preferences?.affiliation || ob.affiliation,
+          organization_id: orgId,
+          organization_name: orgName.trim(),
+        });
+        await markOnboardingCompleteLocally();
+        registerPushToken().catch(() => {});
       } catch (err) {
-        if (__DEV__) console.warn('Failed to persist organization_id to backend:', err);
+        if (__DEV__) console.warn('[step-3] Failed to complete onboarding:', err);
+        await User.updatePreferences({ organization_id: orgId, organization_name: orgName.trim() }).catch(() => {});
       }
 
-      // Navigate to league pending approval screen
-      // Super admin must approve the league before it goes live
-      router.replace({
-        pathname: '/onboarding/league-pending-approval',
-        params: {
-          leagueName: orgName.trim(),
-          orgId: orgId,
-        },
-      } as any);
+      // Navigate to pending-approval — coach waits for org approval
+      checkAuth().catch(() => {});
+      router.replace('/onboarding/pending-approval' as any);
     } catch (e: any) { 
       // Check if duplicate organization error
       if (e?.message?.includes('DUPLICATE_ORGANIZATION') || e?.message?.toLowerCase().includes('duplicate')) {

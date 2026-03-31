@@ -600,15 +600,16 @@ export default function SettingsScreen() {
                           { text: 'Continue', onPress: async () => {
                             try {
                               await User.upgradeToCoach('rookie');
-                              // Refresh auth state so UI reflects new role immediately
+                              // Update local state and navigate to step-3 BEFORE checkAuth
+                              // so AuthProvider doesn't yank user to pending-approval
                               setRole('coach');
-                              await checkAuth();
-                              // Update onboarding context so step-3 knows user is a coach
                               if (setOB) {
                                 setOB((prev) => ({ ...prev, role: 'coach', plan: 'rookie', step_3_visited: false, step_4_visited: false }));
                               }
                               await markOnboardingIncompleteLocally();
                               router.push('/onboarding/step-3-league');
+                              // Fire-and-forget — routing is already done
+                              checkAuth().catch(() => {});
                             } catch (e: any) {
                               const msg = e?.data?.error || e?.message || '';
                               // If already a coach, update local state and redirect to onboarding

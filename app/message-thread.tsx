@@ -288,7 +288,7 @@ export default function MessageThreadScreen() {
   return (
     <SwipeBackContainer>
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors[colorScheme].background }} edges={['bottom']}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={0}>
         <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
           <Stack.Screen
             options={{

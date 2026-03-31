@@ -171,11 +171,14 @@ export default function VerifyScreen() {
         <View style={styles.codeSection}>
           <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Verification Code</Text>
           <Input
-            placeholder="Enter code"
+            placeholder="Enter 6-digit code"
             value={code}
-            onChangeText={(t: string) => setCode(t.toUpperCase())}
-            autoCapitalize="characters"
-            maxLength={8}
+            onChangeText={(t: string) => {
+              const cleaned = t.replace(/[^0-9]/g, '');
+              setCode(cleaned);
+            }}
+            keyboardType="number-pad"
+            maxLength={6}
             style={styles.codeInput}
           />
         </View>
@@ -208,8 +211,8 @@ export default function VerifyScreen() {
         )}
         
         {!isVerified && (
-          <Pressable style={styles.skipButton} onPress={() => router.replace('/onboarding/step-1-role')}>
-            <Text style={[styles.skipText, { color: Colors[colorScheme].mutedText }]}>Skip for now</Text>
+          <Pressable style={styles.skipButton} onPress={() => safeGoBack(router)}>
+            <Text style={[styles.skipText, { color: Colors[colorScheme].mutedText }]}>Go back</Text>
           </Pressable>
         )}
         

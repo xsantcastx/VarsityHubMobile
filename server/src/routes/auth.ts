@@ -120,10 +120,19 @@ async function getApplePublicKey(kid: string): Promise<KeyObject> {
   return key;
 }
 
+/** Parse YYYY-MM-DD as local date (avoids UTC off-by-one when timezone offset shifts the day) */
+function parseDobLocal(dob: string): Date {
+  const parts = dob.split('-').map(Number);
+  if (parts.length === 3 && parts.every(n => !isNaN(n))) {
+    return new Date(parts[0], parts[1] - 1, parts[2]);
+  }
+  return new Date(dob); // fallback
+}
+
 /** COPPA: Returns true if DOB indicates user is under 13. Do not store data for under-13 users. */
 function isUnder13(dob: string | null | undefined): boolean {
   if (!dob || typeof dob !== 'string') return false;
-  const d = new Date(dob);
+  const d = parseDobLocal(dob);
   if (isNaN(d.getTime())) return false;
   const now = new Date();
   let age = now.getFullYear() - d.getFullYear();
@@ -870,7 +879,7 @@ authRouter.post('/upgrade-to-coach', requireVerified as any, asyncHandler(async 
   // Server-side 18+ age gate — coaches must be adults
   const dob = currentPrefs.dob || currentPrefs.date_of_birth;
   if (dob) {
-    const birthDate = new Date(dob);
+    const birthDate = parseDobLocal(dob);
     const today = new Date();
     let age = today.getFullYear() - birthDate.getFullYear();
     const monthDiff = today.getMonth() - birthDate.getMonth();
@@ -1168,6 +1177,21 @@ authRouter.patch('/me/preferences', requireAuth as any, asyncHandler(async (req:
     });
   }
 
+  // Server-side 18+ age gate for coaches (mirrors /upgrade-to-coach and /complete-onboarding)
+  if (incoming.role === 'coach' && currentPrefs.role !== 'coach') {
+    const effectiveDob = incoming.dob || currentPrefs.dob || currentPrefs.date_of_birth;
+    if (effectiveDob) {
+      const birthDate = parseDobLocal(effectiveDob);
+      const today = new Date();
+      let age = today.getFullYear() - birthDate.getFullYear();
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) age--;
+      if (age < 18) {
+        return res.status(403).json({ error: 'You must be at least 18 years old to become a coach.', code: 'AGE_REQUIREMENT' });
+      }
+    }
+  }
+
   // SECURITY: If role is being set to 'coach' and user was not previously a coach,
   // force approval_status to PENDING atomically. This ensures requireOnboarded
   // blocks all coach tools until an admin or org owner explicitly approves.
@@ -1250,6 +1274,9 @@ const completeOnboardingSchema = z.object({
   location_enabled: z.boolean().optional(),
   notifications_enabled: z.boolean().optional(),
   messaging_policy_accepted: z.boolean().optional(),
+
+  // Coach proceeding as fan while awaiting approval
+  proceeding_as_fan: z.boolean().optional(),
 });
 
 authRouter.post('/me/complete-onboarding', authLimiter, requireAuth as any, requireVerified as any, asyncHandler(async (req: AuthedRequest, res) => {
@@ -1278,6 +1305,21 @@ authRouter.post('/me/complete-onboarding', authLimiter, requireAuth as any, requ
   // If role is undefined in payload, use existing role from preferences (set during step-1)
   const finalRole = data.role !== undefined ? data.role : (currentPrefs.role || 'fan');
   
+  // Server-side 18+ age gate for coaches (mirrors /upgrade-to-coach validation)
+  if (finalRole === 'coach') {
+    const effectiveDob = data.dob || currentPrefs.dob || currentPrefs.date_of_birth;
+    if (effectiveDob) {
+      const birthDate = parseDobLocal(effectiveDob);
+      const today = new Date();
+      let age = today.getFullYear() - birthDate.getFullYear();
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) age--;
+      if (age < 18) {
+        return res.status(403).json({ error: 'You must be at least 18 years old to become a coach.', code: 'AGE_REQUIREMENT' });
+      }
+    }
+  }
+
   // CRITICAL: For coaches, validate required steps are completed
   // Fall back to existing DB values for retry scenarios where payload may be incomplete
   const currentUser = await prisma.user.findUnique({ where: { id: req.user!.id } });
@@ -1336,6 +1378,7 @@ authRouter.post('/me/complete-onboarding', authLimiter, requireAuth as any, requ
     messaging_policy_accepted: data.messaging_policy_accepted,
     payment_pending: data.payment_pending,
     team_count_total: data.team_count_total,
+    proceeding_as_fan: data.proceeding_as_fan,
   };
   
   // CRITICAL: Role must NEVER be undefined - preserve from current preferences if not in payload

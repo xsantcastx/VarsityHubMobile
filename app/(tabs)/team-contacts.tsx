@@ -1549,7 +1549,7 @@ export default function TeamChatScreen() {
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
+      keyboardVerticalOffset={0}
     >
       <Stack.Screen
         options={{

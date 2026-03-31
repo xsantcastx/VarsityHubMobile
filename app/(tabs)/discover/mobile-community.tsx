@@ -28,17 +28,20 @@ const isInternalId = (s: string) =>
   (/^[0-9a-z]{8,}$/.test(s) && !/[aeiou]{2,}/i.test(s)); // Random ID (no vowel pairs = not a real name)
 
 const safeDisplayName = (user: any): string => {
-  // Prefer username (user-chosen) over display_name (may be system-generated)
+  // Prefer display_name if it's real, otherwise fall back to username
+  const name = user?.display_name;
+  if (name && !isInternalId(name)) return name;
   const uname = user?.username;
   if (uname && !isInternalId(uname)) return uname;
-  const name = user?.display_name;
-  if (!name || isInternalId(name)) return 'User';
-  return name;
+  return 'User';
 };
 
 const safeUsername = (user: any): string | null => {
   const uname = user?.username;
   if (!uname || isInternalId(uname)) return null;
+  // Don't show @username if it's already shown as the display name
+  const name = user?.display_name;
+  if (!name || isInternalId(name)) return null; // username is already used as display name
   return uname;
 };
 

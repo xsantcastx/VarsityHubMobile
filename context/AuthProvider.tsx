@@ -559,7 +559,8 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       const currentPath = Array.isArray(segmentsRef.current) ? segmentsRef.current.join('/') : '';
       // isPendingCoach is derived from user state, not route string — avoids fragile path matching
       const isPendingCoach = isUnapprovedCoach && !proceedingAsFan;
-      if (isPendingCoach && lastRedirectRef.current !== '/onboarding/pending-approval' && firstSegment !== 'sign-in' && firstSegment !== 'sign-up') {
+      // Don't yank pending coaches off onboarding routes (e.g. step-3 during upgrade flow)
+      if (isPendingCoach && lastRedirectRef.current !== '/onboarding/pending-approval' && firstSegment !== 'sign-in' && firstSegment !== 'sign-up' && firstSegment !== 'onboarding') {
         if (__DEV__) console.log('[AuthProvider] Unapproved coach blocked — must wait for approval decision');
         if (lastRedirectRef.current !== '/onboarding/pending-approval') {
           lastRedirectRef.current = '/onboarding/pending-approval';

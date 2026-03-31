@@ -5,14 +5,19 @@ import { prisma } from '../lib/prisma.js';
 export async function requireVerified(req: AuthedRequest, res: Response, next: NextFunction) {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
-  // Allow only onboarding team creation routes to bypass email verification.
-  // This must stay narrowly scoped to teams router endpoints.
+  // Allow onboarding team/org creation routes to bypass email verification.
+  // Coaches create an organization in step-3 before onboarding completes.
   const isTeamsCreateRoute =
     req.baseUrl === '/teams' &&
     req.method === 'POST' &&
     (req.path === '/' || req.path === '/create');
 
-  if (req.body?.onboarding === true && isTeamsCreateRoute) {
+  const isOrgCreateRoute =
+    req.baseUrl === '/organizations' &&
+    req.method === 'POST' &&
+    (req.path === '/' || req.path === '/create');
+
+  if (req.body?.onboarding === true && (isTeamsCreateRoute || isOrgCreateRoute)) {
     // Only allow bypass if user genuinely hasn't completed onboarding yet
     const onboardingUser = await prisma.user.findUnique({
       where: { id: req.user.id },

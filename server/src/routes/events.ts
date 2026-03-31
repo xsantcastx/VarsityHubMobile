@@ -493,7 +493,7 @@ const createEventSchema = z.object({
   latitude: z.number().optional(),
   longitude: z.number().optional(),
   description: z.string().trim().max(5000).optional(),
-  event_type: z.enum(['game', 'watch_party', 'fundraiser', 'tryout', 'bbq', 'team_meal', 'team_meeting', 'other']).optional(),
+  event_type: z.enum(['game', 'watch_party', 'fundraiser', 'tryout', 'bbq', 'team_meal', 'team_meeting', 'host_request', 'other']).optional(),
   linked_league: z.string().trim().optional(),
   max_attendees: z.number().optional(),
   contact_info: z.string().trim().optional(),
@@ -501,6 +501,11 @@ const createEventSchema = z.object({
   game_id: z.string().optional(),
   home_team_id: z.string().optional(),
   team_id: z.string().optional(), // Alias for home_team_id — frontend may send either
+  // Host request fields (sent by request-host-event screen)
+  venue_address: z.string().trim().optional(),
+  venue_place_id: z.string().trim().optional(),
+  requested_by: z.string().trim().optional(),
+  requested_email: z.string().trim().optional(),
 });
 
 eventsRouter.post('/', requireVerified as any, requireOnboarded as any, eventCreationLimiter, asyncHandler(async (req: AuthedRequest, res) => {
@@ -634,6 +639,16 @@ eventsRouter.post('/', requireVerified as any, requireOnboarded as any, eventCre
         });
       }
     }
+    // For host requests, append requester info to description
+    let finalDescription = data.description;
+    if (data.event_type === 'host_request' && (data.requested_by || data.requested_email)) {
+      const extra = [
+        data.requested_by ? `Requested by: ${data.requested_by}` : null,
+        data.requested_email ? `Email: ${data.requested_email}` : null,
+        data.venue_address ? `Venue: ${data.venue_address}` : null,
+      ].filter(Boolean).join('\n');
+      finalDescription = finalDescription ? `${finalDescription}\n\n---\n${extra}` : extra;
+    }
     return tx.event.create({
       data: {
         title: data.title,
@@ -641,12 +656,12 @@ eventsRouter.post('/', requireVerified as any, requireOnboarded as any, eventCre
         location: data.location,
         latitude: resolvedLat,
         longitude: resolvedLng,
-        description: data.description,
+        description: finalDescription,
         event_type: data.event_type,
         linked_league: data.linked_league,
         capacity: capacity,
         max_attendees: data.max_attendees, // Keep for backward compatibility
-        contact_info: data.contact_info,
+        contact_info: data.contact_info || data.requested_email,
         banner_url: data.banner_url,
         game_id: data.game_id,
         team_id: data.home_team_id || null,
@@ -961,7 +976,7 @@ const updateEventSchema = z.object({
   latitude: z.number().optional(),
   longitude: z.number().optional(),
   description: z.string().optional(),
-  event_type: z.enum(['game', 'watch_party', 'fundraiser', 'tryout', 'bbq', 'team_meal', 'team_meeting', 'other']).optional(),
+  event_type: z.enum(['game', 'watch_party', 'fundraiser', 'tryout', 'bbq', 'team_meal', 'team_meeting', 'host_request', 'other']).optional(),
   linked_league: z.string().optional(),
   max_attendees: z.number().optional(),
   contact_info: z.string().optional(),

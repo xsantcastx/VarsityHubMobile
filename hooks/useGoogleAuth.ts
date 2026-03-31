@@ -139,7 +139,18 @@ export function useGoogleAuth() {
         '[google-auth] Proxy requested but project full name could not be resolved. Falling back to custom scheme.',
       );
     }
-  }, [proxyRequested]);
+    if (!isConfigured) {
+      console.warn('[google-auth] NOT configured', {
+        platform: Platform.OS,
+        isExpoGo,
+        shouldUseProxy,
+        hasIosId: Boolean(clients.iosClientId),
+        hasAndroidId: Boolean(clients.androidClientId),
+        hasWebId: Boolean(clients.webClientId),
+        appOwnership: Constants.appOwnership,
+      });
+    }
+  }, [proxyRequested, isConfigured]);
 
   // Create request config - use placeholder values if not configured
   // The hook must be called unconditionally (React rules of hooks)

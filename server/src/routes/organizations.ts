@@ -317,6 +317,7 @@ const createOrganizationSchema = z.object({
   season_start: z.string().optional(),
   season_end: z.string().optional(),
   supporting_document_url: z.string().url({ message: 'Supporting document is required' }),
+  onboarding: z.boolean().optional(), // bypass requireVerified during onboarding
 });
 
 // Create organization
@@ -419,6 +420,7 @@ const createOrganizationWithTeamsSchema = z.object({
   season_start: z.string().optional(),
   season_end: z.string().optional(),
   supporting_document_url: z.string().url({ message: 'Supporting document is required' }),
+  onboarding: z.boolean().optional(),
   authorized_users: z.array(z.object({
     email: z.string().email().optional(),
     user_id: z.string().optional(),
