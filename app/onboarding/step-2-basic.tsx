@@ -89,7 +89,7 @@ export default function Step2Basic() {
   const { markOnboardingCompleteLocally, registerPushToken } = useAuth();
   const { state: ob, setState: setOB, setProgress, dispatch, canNavigate } = useOnboarding();
   const [username, setUsername] = useState('');
-  const [affiliation, setAffiliation] = useState<Affiliation>('none');
+  const [affiliation, setAffiliation] = useState<Affiliation>('other');
   const [dob, setDob] = useState('');
   const [zip, setZip] = useState('');
   const [checking, setChecking] = useState(false);
@@ -250,7 +250,7 @@ export default function Step2Basic() {
   // - Username: required, valid format, available
   // - DOB: required, valid date
   // - Affiliation: required ONLY for coaches (optional for fans)
-  // - Zip code: optional for all users
+  // - Zip code: required for coaches, optional for fans
   // - Coaches must be 18+
   const canContinue = usernameRe.test(username) &&
     available === true &&
@@ -258,7 +258,7 @@ export default function Step2Basic() {
     !dobError &&
     !isUnder13 &&
     !(ob.role === 'coach' && isUnder18) &&
-    (ob.role === 'fan' || affiliation); // Affiliation required for coaches only
+    (ob.role === 'fan' || (affiliation && zip.trim().length >= 5)); // Coaches need affiliation + zip
 
   const onBack = () => {
     setProgress(0);
@@ -453,7 +453,7 @@ export default function Step2Basic() {
           </Text>
           <View style={styles.affiliationGrid}>
             {[
-              { value: 'none', label: 'None', icon: '❌' },
+              { value: 'other', label: 'Other', icon: '📋' },
               { value: 'professional', label: 'Professional', icon: '🏟️' },
               { value: 'university', label: 'University', icon: '🎓' },
               { value: 'high_school', label: 'High School', icon: '🏫' },
@@ -499,7 +499,7 @@ export default function Step2Basic() {
         <Text style={styles.error}>Coach and organizer accounts require users to be at least 18 years old.</Text>
       )}
 
-      <Text style={styles.label}>Zip code <Text style={styles.muted}>(optional)</Text></Text>
+      <Text style={styles.label}>Zip code {ob.role !== 'coach' && <Text style={styles.muted}>(optional)</Text>}</Text>
       <Input
         value={zip}
         onChangeText={setZip}
@@ -514,7 +514,7 @@ export default function Step2Basic() {
       <TextInput
         value={bio}
         onChangeText={(t) => setBio(t.slice(0, 160))}
-        placeholder="Tell us about yourself..."
+        placeholder="Fan trying to show the most school spirit"
         placeholderTextColor={Colors[colorScheme].mutedText}
         multiline
         maxLength={160}

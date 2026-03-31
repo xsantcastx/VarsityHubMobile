@@ -242,7 +242,7 @@ function RoleOnboardingScreenInner() {
     {
       icon: 'trophy',
       title: 'Unlimited Teams',
-      description: 'First 2 teams free, then $1.00/month per additional team',
+      description: 'First 2 teams free, then $1.50/month per additional team',
       route: '/manage-teams',
       gradient: ['#f59e0b', '#d97706'],
     },
@@ -427,9 +427,9 @@ function RoleOnboardingScreenInner() {
             </View>
             <View style={styles.accountTypeInfo}>
               <Text style={[styles.accountTypeName, { color: Colors[colorScheme].text }]}>Veteran Coach</Text>
-              <Text style={[styles.accountTypePrice, { color: '#f59e0b' }]}>$1.00/month per team (after first 2)</Text>
+              <Text style={[styles.accountTypePrice, { color: '#f59e0b' }]}>$1.50/month per team (after first 2)</Text>
               <Text style={[styles.accountTypeDescription, { color: Colors[colorScheme].mutedText }]}>
-                For coaches managing multiple teams. First 2 free, then $1.00/month each
+                For coaches managing multiple teams. First 2 free, then $1.50/month each
               </Text>
             </View>
           </Pressable>
@@ -497,7 +497,7 @@ function RoleOnboardingScreenInner() {
     } else if (coachTier === 'veteran') {
       actions = veteranActions;
       welcomeTitle = 'Welcome, Veteran Coach! 🏆';
-      welcomeSubtitle = 'Unlimited teams at $1.00/month per additional team (first 2 free)';
+      welcomeSubtitle = 'Unlimited teams at $1.50/month per additional team (first 2 free)';
     } else if (coachTier === 'legend') {
       actions = legendActions;
       welcomeTitle = 'Welcome, Legend Coach! ⚡';
