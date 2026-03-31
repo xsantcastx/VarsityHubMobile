@@ -1441,10 +1441,19 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
         },
       }),
     ];
-    if (org.leagueOwner?.id) {
+    // Set owner's approval_status — use leagueOwner relation, fall back to owner membership
+    let ownerId = org.leagueOwner?.id;
+    if (!ownerId) {
+      const ownerMembership = await prisma.organizationMembership.findFirst({
+        where: { organization_id: orgId, role: 'owner' },
+        select: { user_id: true },
+      });
+      ownerId = ownerMembership?.user_id ?? null;
+    }
+    if (ownerId) {
       txOps.push(
         prisma.user.update({
-          where: { id: org.leagueOwner.id },
+          where: { id: ownerId },
           data: { approval_status: 'APPROVED' },
         })
       );
