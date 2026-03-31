@@ -72,8 +72,8 @@ export default function CreateFanEventScreen() {
         }
       })
       .catch(() => {
-        // If count check fails, assume limit reached to prevent exceeding it
-        setPendingEventCount(3);
+        // If count check fails, allow creation — server enforces the real limit
+        setPendingEventCount(0);
       });
   }, []);
   const isCoach = userRole === 'coach';

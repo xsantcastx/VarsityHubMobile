@@ -60,7 +60,7 @@ export default function BillingScreen() {
       setSummary(s);
       setShowQtyEditor(false);
       const billable = Math.max(0, n - 2);
-      Alert.alert('Updated', `Subscription updated to ${n} total teams (${billable} billed at $1.00 each = $${(billable * 1.0).toFixed(2)}/month).`);
+      Alert.alert('Updated', `Subscription updated to ${n} total teams (${billable} billed at $1.50 each = $${(billable * 1.5).toFixed(2)}/month).`);
     } catch (e: any) {
       Alert.alert('Update failed', e?.message || 'Unable to update quantity.');
     } finally {
@@ -101,7 +101,7 @@ export default function BillingScreen() {
   const getPlanDescription = (plan: string) => {
     switch (plan) {
       case 'veteran':
-        return 'First 2 teams free, then $1.00/month per additional team. Up to 2 authorized users per team.';
+        return 'First 2 teams free, then $1.50/month per additional team. Up to 2 authorized users per team.';
       case 'legend':
         return 'Unlimited teams at $20/year. Create extracurricular clubs (Theater, Chess, etc.). Unlimited authorized users.';
       default:
@@ -109,7 +109,7 @@ export default function BillingScreen() {
     }
   };
 
-  // ── iOS: Simple free-plan screen with no pricing ────────────────────
+  // ── iOS: Show actual plan status + link to App Store subscriptions ──
   if (Platform.OS === 'ios') {
     return (
       <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -123,13 +123,13 @@ export default function BillingScreen() {
         }} />
         <Text style={[styles.title, { color: theme.text }]}>Your Plan</Text>
         <Text style={[styles.subtitle, { color: theme.mutedText }]}>
-          Your free plan includes up to 2 teams with no charges.
+          {getPlanDescription(currentPlan)}
         </Text>
         <View style={[styles.planCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <Text style={styles.planBadge}>Free plan</Text>
-          <Text style={[styles.planPrice, { color: theme.text }]}>Free</Text>
+          <Text style={styles.planBadge}>{planDefinition?.name ?? 'Rookie'}</Text>
+          <Text style={[styles.planPrice, { color: theme.text }]}>{planPriceLabel}</Text>
           <View style={styles.featureList}>
-            {['Up to 2 teams', 'Roster management', 'Game scheduling', 'Team feed & posts'].map((feature) => (
+            {planFeatures.map((feature: string) => (
               <View style={styles.featureItem} key={feature}>
                 <MaterialIcons name="check-circle" size={16} color="#16A34A" />
                 <Text style={[styles.featureText, { color: theme.text }]}>{feature}</Text>

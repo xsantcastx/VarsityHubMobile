@@ -1,6 +1,13 @@
 // Local REST client wrappers. Swaps out Base44 for a self-hosted API.
 import auth from './auth';
 import { httpDelete, httpGet, httpPatch, httpPost, httpPostLongTimeout, httpPostWithOptions, httpPut } from './http';
+import type {
+  UpdateMePayload, UpdatePreferencesPayload, CompleteOnboardingPayload,
+  CreateGamePayload, UpdateGamePayload,
+  CreatePostPayload, UpdatePostPayload,
+  CreateEventPayload, UpdateEventPayload,
+  CreateAdPayload, UpdateAdPayload,
+} from './types';
 
 export const User = {
   me: () => auth.me(),
@@ -9,10 +16,10 @@ export const User = {
   loginViaGoogle: (idToken: string) => auth.loginWithGoogle(idToken),
   loginViaApple: (identityToken: string) => auth.loginWithApple(identityToken),
   logout: () => auth.logout(),
-  updateMe: (data: any) => httpPut('/auth/me', data),
-  patchMe: (data: any) => httpPatch('/me', data),
-  updatePreferences: (patch: any) => httpPatch('/me/preferences', patch),
-  completeOnboarding: (data: any) => httpPost('/me/complete-onboarding', data),
+  updateMe: (data: UpdateMePayload) => httpPut('/auth/me', data),
+  patchMe: (data: UpdateMePayload) => httpPatch('/me', data),
+  updatePreferences: (patch: UpdatePreferencesPayload) => httpPatch('/me/preferences', patch),
+  completeOnboarding: (data: CompleteOnboardingPayload) => httpPost('/me/complete-onboarding', data),
   requestVerification: () => auth.requestEmailVerification(),
   verifyEmail: (code: string) => auth.verifyEmail(code),
   usernameAvailable: (username: string) => httpGet('/users/username-available?username=' + encodeURIComponent(username)),
@@ -116,7 +123,7 @@ export const Game = {
   // Summary drives the game-details screen critical path.
   // Keep it bounded; caller can fall back to Game.get when unavailable.
   summary: (id: string) => httpGet('/games/' + encodeURIComponent(id) + '/summary', {}, 15000, 1),
-  create: (data: any) => httpPost('/games', data),
+  create: (data: CreateGamePayload | Record<string, unknown>) => httpPost('/games', data),
   delete: (id: string) => httpDelete('/games/' + encodeURIComponent(id)),
   posts: (id: string, options: { limit?: number; cursor?: string } = {}) => {
     const q: string[] = [];
@@ -140,7 +147,7 @@ export const Game = {
   },
   castVote: (id: string, team: 'A' | 'B') => httpPost(`/games/${encodeURIComponent(id)}/votes`, { team }),
   clearVote: (id: string) => httpDelete(`/games/${encodeURIComponent(id)}/votes`),
-  update: (id: string, data: any) => httpPut('/games/' + encodeURIComponent(id), data),
+  update: (id: string, data: UpdateGamePayload) => httpPut('/games/' + encodeURIComponent(id), data),
   setResult: (id: string, data: { home_score?: number; away_score?: number; winner?: 'home' | 'away' | 'tie' | null }) =>
     httpPatch(`/games/${encodeURIComponent(id)}/result`, data),
   setApprovalStatus: (id: string, approval: 'approved' | 'rejected') =>
@@ -180,7 +187,7 @@ export const Post = {
     const res = await httpGet('/posts' + (q.length ? '?' + q.join('&') : ''), {}, 15000, 1);
     return normalizePostItems(res);
   },
-  create: (data: any) => httpPostLongTimeout('/posts', data),
+  create: (data: CreatePostPayload) => httpPostLongTimeout('/posts', data),
   filter: async (where: { game_id?: string; type?: string; user_id?: string } = {}, sort?: string, limit: number = 20) => {
     const q: string[] = [];
     if (sort) q.push('sort=' + encodeURIComponent(sort));
@@ -253,7 +260,7 @@ export const Post = {
       }
     }
   },
-  createCollage: (data: any) => httpPost('/posts/collage', data),
+  createCollage: (data: CreatePostPayload) => httpPost('/posts/collage', data),
   get: (id: string) => httpGet('/posts/' + encodeURIComponent(id)),
   comments: (id: string) => httpGet(`/posts/${encodeURIComponent(id)}/comments`),
   addComment: (id: string, content: string, parentId?: string) =>
@@ -262,7 +269,7 @@ export const Post = {
   updateComment: (postId: string, commentId: string, content: string) => httpPatch(`/posts/${encodeURIComponent(postId)}/comments/${encodeURIComponent(commentId)}`, { content }),
   delete: (id: string) => httpDelete('/posts/' + encodeURIComponent(id)),
   restore: (id: string) => httpPost(`/posts/${encodeURIComponent(id)}/restore`, {}),
-  update: (id: string, data: { content?: string; title?: string }) => httpPatch('/posts/' + encodeURIComponent(id), data),
+  update: (id: string, data: UpdatePostPayload) => httpPatch('/posts/' + encodeURIComponent(id), data),
   toggleUpvote: (id: string) => httpPost(`/posts/${encodeURIComponent(id)}/upvote`, {}),
   toggleBookmark: (id: string) => httpPost(`/posts/${encodeURIComponent(id)}/bookmark`, {}),
   share: (id: string) => httpPost(`/posts/${encodeURIComponent(id)}/share`, {}),
@@ -272,7 +279,7 @@ export const Post = {
 };
 
 export const Event = {
-  create: (data: any) => httpPost('/events', data),
+  create: (data: CreateEventPayload) => httpPost('/events', data),
   filter: (where: { status?: string; approval_status?: string; event_type?: string; q?: string; include_cancelled?: boolean } = {}, sort?: string, limit?: number) => {
     const q: string[] = [];
     if (where.status) q.push('status=' + encodeURIComponent(where.status));
@@ -285,7 +292,7 @@ export const Event = {
     return httpGet('/events' + (q.length ? '?' + q.join('&') : ''));
   },
   get: (id: string) => httpGet('/events/' + encodeURIComponent(id)),
-  update: (id: string, data: any) => httpPatch('/events/' + encodeURIComponent(id), data),
+  update: (id: string, data: UpdateEventPayload) => httpPatch('/events/' + encodeURIComponent(id), data),
   cancel: (id: string) => httpPatch('/events/' + encodeURIComponent(id) + '/cancel'),
   rsvpStatus: (id: string) => httpGet(`/events/${encodeURIComponent(id)}/rsvp`),
   rsvp: (id: string, going?: boolean) => httpPost(`/events/${encodeURIComponent(id)}/rsvp`, typeof going === 'boolean' ? { going } : {}),
@@ -561,11 +568,11 @@ export const Advertisement = {
   },
   reservationsForAd: (ad_id: string) => httpGet('/ads/reservations?ad_id=' + encodeURIComponent(ad_id)),
   reserve: (ad_id: string, dates: string[]) => httpPost('/ads/reservations', { ad_id, dates }),
-  create: (data: any) => httpPostWithOptions('/ads', data, 15000, 0),
+  create: (data: CreateAdPayload) => httpPostWithOptions('/ads', data, 15000, 0),
   listMine: () => httpGet('/ads?mine=1'),
   listAll: () => httpGet('/ads?all=1'),
   get: (id: string) => httpGet('/ads/' + encodeURIComponent(id)),
-  update: (id: string, data: any) => httpPut('/ads/' + encodeURIComponent(id), data),
+  update: (id: string, data: UpdateAdPayload) => httpPut('/ads/' + encodeURIComponent(id), data),
   delete: (id: string) => httpDelete('/ads/' + encodeURIComponent(id)),
   forFeed: (dateISO?: string, zip?: string, limit: number = 1, lat?: number, lng?: number) => {
     const q: string[] = [];

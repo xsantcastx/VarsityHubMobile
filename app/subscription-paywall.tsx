@@ -188,7 +188,7 @@ export default function SubscriptionPaywallScreen() {
           await new Promise(r => setTimeout(r, 2000));
           try {
             const me: any = await User.me();
-            if (me?.preferences?.plan && !me?.preferences?.payment_pending) {
+            if ((me?.preferences?.plan === 'veteran' || me?.preferences?.plan === 'legend') && !me?.preferences?.payment_pending) {
               planActivated = true;
               break;
             }

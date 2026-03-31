@@ -23,6 +23,16 @@ const summarize = (n: any) => {
     case 'AD_REJECTED': return 'your ad needs changes';
     case 'ORG_APPROVED': return 'your organization has been approved';
     case 'JOIN_REQUEST_APPROVED': return 'your join request was approved';
+    case 'TEAM_INVITE_ACCEPTED': return 'accepted your team invite';
+    case 'TEAM_INVITE_DECLINED': return 'declined your team invite';
+    case 'TEAM_MEMBER_REMOVED': return 'you were removed from a team';
+    case 'TEAM_ROLE_CHANGED': return 'your team role was changed';
+    case 'TEAM_FOLLOWED': return 'followed your team';
+    case 'GAME_CANCELLED': return 'a game has been cancelled';
+    case 'GAME_STORY_ADDED': return 'added a story to a game';
+    case 'EVENT_APPROVED': return 'your event has been approved';
+    case 'EVENT_REJECTED': return 'your event was not approved';
+    case 'COACH_REJECTED': return 'your coach application was not approved';
     default: return 'did something';
   }
 };

@@ -355,7 +355,7 @@ export default function CreateTeamScreen() {
           const newTeamCount = teamCount + 1;
           Alert.alert(
             'Upgrade Required',
-            `First two teams are free on the Rookie plan. Adding this team requires upgrading to the Veteran plan at $${(newTeamCount * 1.0).toFixed(2)}/month (${newTeamCount} teams × $1.00).`,
+            `First two teams are free on the Rookie plan. Adding this team requires upgrading to the Veteran plan at $${(newTeamCount * 1.5).toFixed(2)}/month (${newTeamCount} teams × $1.50).`,
             [
               { text: 'Cancel', style: 'cancel', onPress: () => setSubmitting(false) },
               {
@@ -453,7 +453,7 @@ export default function CreateTeamScreen() {
           const newTeamCount = teamCount + 1;
           Alert.alert(
             'Add Team',
-            `Adding this team will increase your monthly charge to $${(newTeamCount * 1.0).toFixed(2)}/month (${newTeamCount} teams × $1.00). Your subscription will be updated automatically.`,
+            `Adding this team will increase your monthly charge to $${(newTeamCount * 1.5).toFixed(2)}/month (${newTeamCount} teams × $1.50). Your subscription will be updated automatically.`,
             [
               { text: 'Cancel', style: 'cancel', onPress: () => setSubmitting(false) },
               { 

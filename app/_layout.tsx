@@ -234,6 +234,7 @@ export default function RootLayout() {
                     <Stack.Screen name="organization" options={{ headerShown: false }} />
                     <Stack.Screen name="edit-organization" options={{ headerShown: false }} />
                     <Stack.Screen name="event-detail" options={{ headerShown: false }} />
+                    <Stack.Screen name="edit-event" options={{ headerShown: false }} />
                     <Stack.Screen name="event-approvals" options={{ headerShown: false }} />
                     <Stack.Screen name="approvals" options={{ headerShown: false }} />
                     <Stack.Screen name="create-fan-event" options={{ headerShown: false }} />

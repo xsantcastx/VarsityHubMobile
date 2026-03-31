@@ -70,6 +70,7 @@ export default function PendingApproval() {
           const mePrefs = me?.preferences || {};
           await User.completeOnboarding({
             role: 'coach',
+            proceeding_as_fan: false,
             username: me?.username || ob.username || mePrefs.username,
             dob: me?.dob || ob.dob || mePrefs.dob,
             zip_code: me?.zip_code || ob.zip_code || ob.zip || mePrefs.zip_code,
@@ -283,14 +284,20 @@ export default function PendingApproval() {
             ) : null}
             <Pressable
               style={[styles.primaryButton, { backgroundColor: '#1B3A6B', marginTop: completionError ? 0 : 24 }]}
-              onPress={() => router.replace({ pathname: '/onboarding/coach-agreement', params: { redirect: 'organization' } } as any)}
+              onPress={async () => {
+                await checkAuth();
+                router.replace({ pathname: '/onboarding/coach-agreement', params: { redirect: 'organization' } } as any);
+              }}
             >
               <MaterialIcons name="business" size={20} color="#fff" />
               <Text style={styles.primaryButtonText}>View Your Organization</Text>
             </Pressable>
             <Pressable
               style={[styles.secondaryButton, { borderColor: '#1B3A6B', marginTop: 0 }]}
-              onPress={() => router.replace({ pathname: '/onboarding/coach-agreement', params: { redirect: 'create-team' } } as any)}
+              onPress={async () => {
+                await checkAuth();
+                router.replace({ pathname: '/onboarding/coach-agreement', params: { redirect: 'create-team' } } as any);
+              }}
             >
               <Text style={[styles.secondaryButtonText, { color: '#1B3A6B' }]}>Create Your First Team</Text>
             </Pressable>
