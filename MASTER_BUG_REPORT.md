@@ -1,7 +1,25 @@
 # MASTER BUG REPORT — VarsityHub Mobile
 
-> Full-app audit across 13 feature areas. 120+ bugs identified.
+> Full-app audit across 13 feature areas. 147 bugs identified.
 > No fixes applied. This document is for review and prioritization only.
+
+---
+
+## AUTH & ACCOUNT (11 issues)
+
+| ID | Severity | File(s) | Root Cause | Complexity | Shared? |
+|----|----------|---------|------------|------------|---------|
+| AUTH-01 | BLOCKING | `app/reset-password.tsx` | No way to re-request an expired reset code — user is stuck with error and no forward path | LOW | No |
+| AUTH-02 | DEGRADED | `app/sign-in.tsx`, `server/src/routes/auth.ts` | Ban response contract mismatch — client reads `ban_reason`/`banned_until` but server never sends those fields; suspended users get generic message | LOW | No |
+| AUTH-03 | DEGRADED | `app/verify-identity.tsx` | Bypasses AuthProvider routing after verification — uses imperative navigation, skips coach approval/agreement handling | LOW | Yes (AuthProvider) |
+| AUTH-04 | DEGRADED | `app/verify.tsx` | Shows "Automatically continuing in a few seconds..." but no auto-redirect timer exists in this component | LOW | No |
+| AUTH-05 | DEGRADED | `api/auth.ts:209-213`, `context/AuthProvider.tsx` | Both `auth.me()` and AuthProvider call `auth.logout()` on 401 — double logout attempt (two `POST /auth/logout` calls) | LOW | Yes (auth) |
+| AUTH-06 | COSMETIC | `server/src/routes/auth.ts` (register) | COPPA check in `POST /auth/register` is unreachable — client never sends `dob` at registration | LOW | No |
+| AUTH-07 | COSMETIC | `server/src/routes/auth.ts` (apple) | Apple `POST /auth/apple` response omits `is_admin` field unlike login and Google endpoints | LOW | No |
+| AUTH-08 | COSMETIC | `app/sign-up.tsx` | `display_name` never sent at registration; server uses email prefix in verification email greeting | LOW | No |
+| AUTH-09 | COSMETIC | `app/sign-up.tsx:410-461` | Duplicate TOS/age checkboxes appear in email form view (same state, just visual duplication) | LOW | No |
+| AUTH-10 | COSMETIC | `app/forgot-password.tsx` | Swallows ALL errors from code-send request — shows success even on server 500 or network failure | LOW | No |
+| AUTH-11 | COSMETIC | Sign-in UX | Google OAuth user who tries email login gets generic "Invalid credentials" with no hint to use Google | LOW | No |
 
 ---
 
@@ -230,6 +248,7 @@
 ### By Feature
 | Feature | BLOCKING | DEGRADED | COSMETIC | Total |
 |---------|----------|----------|----------|-------|
+| Auth & Account | 1 | 4 | 6 | 11 |
 | Coach Onboarding | 0 | 0 | 7 | 7 |
 | Approval Process | 0 | 7 | 10 | 17 |
 | Ad Hosting | 3 | 4 | 4 | 11 |
@@ -242,15 +261,15 @@
 | Profile & Settings | 0 | 5 | 6 | 11 |
 | Events & Seasons | 2 | 7 | 6 | 15 |
 | Feed & Content | 1 | 7 | 4 | 12 |
-| **TOTAL** | **15** | **60** | **61** | **136** |
+| **TOTAL** | **16** | **64** | **67** | **147** |
 
 ### By Severity
 | Severity | Count |
 |----------|-------|
-| BLOCKING | 15 |
-| DEGRADED | 60 |
-| COSMETIC | 61 |
-| **Total** | **136** |
+| BLOCKING | 16 |
+| DEGRADED | 64 |
+| COSMETIC | 67 |
+| **Total** | **147** |
 
 ---
 
@@ -264,6 +283,8 @@
 | TM-06 | `server/src/routes/teams.ts` (no org filter) | Teams, Orgs |
 | NF-01 | `server/src/routes/games.ts` (wrong meta key) | Notifications, Events |
 | AP-10, ADM-01 | Server middleware (inconsistent auth level) | Approvals, Admin |
+| AUTH-03 | `app/verify-identity.tsx` → `context/AuthProvider.tsx` | Auth, Onboarding |
+| AUTH-05 | `api/auth.ts`, `context/AuthProvider.tsx` | Auth (all screens) |
 | OB-07 | `context/AuthProvider.tsx` | Onboarding (all screens) |
 | PS-11, MSG-05 | `server/src/routes/users.ts` | Profile, Messaging |
 | PAY-10 | `hooks/useIAP.ts` | Payments, Ads |
