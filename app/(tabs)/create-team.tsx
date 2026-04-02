@@ -392,7 +392,7 @@ function CreateTeamScreen() {
                       }
                       const { error } = await presentPaymentSheet();
                       if (error) {
-                        if (error.code !== 'Canceled') Alert.alert('Payment Failed', error.message);
+                        if (error.code !== 'Canceled') Alert.alert('Payment Failed', error.message || 'Payment could not be completed.');
                         setSubmitting(false);
                         return;
                       }

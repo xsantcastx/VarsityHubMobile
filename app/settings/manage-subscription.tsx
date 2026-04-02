@@ -148,7 +148,7 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
         }
         const { error } = await presentPaymentSheet();
         if (error) {
-          if (error.code !== 'Canceled') Alert.alert('Payment Failed', error.message);
+          if (error.code !== 'Canceled') Alert.alert('Payment Failed', error.message || 'Payment could not be completed.');
           return;
         }
         // Payment succeeded — try to finalize

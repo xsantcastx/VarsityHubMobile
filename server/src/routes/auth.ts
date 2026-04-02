@@ -863,7 +863,7 @@ const upgradeToCoachSchema = z.object({
   plan: z.enum(['rookie', 'veteran', 'legend']),
 });
 
-authRouter.post('/upgrade-to-coach', requireVerified as any, asyncHandler(async (req: AuthedRequest, res) => {
+authRouter.post('/upgrade-to-coach', requireAuth as any, requireVerified as any, asyncHandler(async (req: AuthedRequest, res) => {
   const parsed = upgradeToCoachSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
   const { plan } = parsed.data;

@@ -580,7 +580,7 @@ function AdCalendarScreen() {
         }
         const { error } = await presentPaymentSheet();
         if (error) {
-          if (error.code !== 'Canceled') Alert.alert('Payment Failed', error.message);
+          if (error.code !== 'Canceled') Alert.alert('Payment Failed', error.message || 'Payment could not be completed.');
           if (data.payment_intent_id) {
             httpPost('/payments/cancel-intent', { payment_intent_id: data.payment_intent_id }).catch(() => {});
           }
