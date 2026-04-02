@@ -14,6 +14,7 @@ import { requirePlan } from '../middleware/subscription.js';
 import { teamCreationLimiter, followLimiter, inviteLimiter } from '../middleware/rateLimiters.js';
 import { getAuthorizedUsersPerTeam, getMaxTeamsForPlan, planSupportsExtracurricular } from '../lib/planLimits.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
+import { isOrganizationApproved } from '../lib/approvalService.js';
 
 import { registerIdValidation } from '../middleware/validateParams.js';
 
@@ -540,9 +541,16 @@ teamsRouter.post('/', requireVerified as any, requireOnboarded as any, requirePl
     return res.status(400).json({ error: filterResult.error, code: filterResult.code });
   }
 
-  // Validate organization exists
+  // Validate organization exists and is approved
   const org = await prisma.organization.findUnique({ where: { id: parsed.data.organization_id } });
   if (!org) return res.status(400).json({ error: 'Organization not found' });
+  if (!(await isOrganizationApproved(parsed.data.organization_id, prisma))) {
+    return res.status(403).json({
+      error: 'ORGANIZATION_NOT_APPROVED',
+      message: 'Teams can only be created under organizations that have been approved by VarsityHub.',
+      code: 'ORGANIZATION_NOT_APPROVED',
+    });
+  }
   const orgMembership = await prisma.organizationMembership.findUnique({
     where: { organization_id_user_id: { organization_id: parsed.data.organization_id, user_id: userId } },
     select: { status: true },
@@ -1127,6 +1135,22 @@ teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, req
           message: 'The specified organization does not exist or is not active.',
           code: 'ORGANIZATION_NOT_FOUND'
         });
+      }
+
+      // Check target org is admin-approved before creating a team under it
+      if (!(await isOrganizationApproved(organizationId, prisma))) {
+        // Exception: org owners during onboarding are creating their first team before org gets approved
+        const isOnboarding = prefsCheck.onboarding_completed !== true;
+        const isOrgOwnerOfTarget = await prisma.organizationMembership.findFirst({
+          where: { organization_id: organizationId, user_id: me.id, role: 'owner', status: 'active' },
+        });
+        if (!(isOnboarding && isOrgOwnerOfTarget)) {
+          return res.status(403).json({
+            error: 'ORGANIZATION_NOT_APPROVED',
+            message: 'Teams can only be created under organizations that have been approved by VarsityHub.',
+            code: 'ORGANIZATION_NOT_APPROVED',
+          });
+        }
       }
 
       // Enforce org hierarchy: requester must already be an active member of target org.

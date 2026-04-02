@@ -1,8 +1,9 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { validateContent } from '../lib/contentFilter.js';
-import { sendEventApprovedEmail, sendEventCanceledEmail, sendEventDeniedEmail, sendEventRsvpConfirmedEmail, sendEventSubmissionReceivedEmail, sendEventUpdatedEmail } from '../lib/email.js';
+import { sendEventCanceledEmail, sendEventRsvpConfirmedEmail, sendEventSubmissionReceivedEmail, sendEventUpdatedEmail } from '../lib/email.js';
 import { cancelGameReminders, scheduleGameReminders, sendPushNotification } from '../lib/notifications.js';
+import { approveEvent as approveEventService, rejectEvent as rejectEventService } from '../lib/approvalService.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { authMiddleware } from '../middleware/auth.js';
@@ -761,86 +762,17 @@ eventsRouter.put('/:id/approve', requireVerified as any, requireOnboarded as any
     }
   }
 
-  // Validate event is in pending state
-  if (event.approval_status === 'approved') {
-    return res.status(400).json({ 
-      error: 'Event already approved',
-      message: 'This event has already been approved.',
-    });
-  }
-  
-  if (event.approval_status === 'rejected') {
-    return res.status(400).json({ 
-      error: 'Event already rejected',
-      message: 'This event has already been rejected. Cannot approve a rejected event.',
-    });
-  }
-  
-  if (event.approval_status !== 'pending') {
-    return res.status(400).json({ 
-      error: 'Invalid state',
-      message: 'Can only approve pending events.',
-    });
-  }
-  
-  const updated = await prisma.event.update({
-    where: { id: eventId },
-    data: {
-      approval_status: 'approved',
-      status: 'approved',
-      approved_by: userId,
-      approved_at: new Date(),
-    },
-    include: {
-      creator: { select: { id: true, display_name: true } }
-    }
-  });
-  
-  // Send notification to event creator
-  if (updated.creator_id) {
-    await sendPushNotification(
-      updated.creator_id,
-      'Event Approved',
-      `Your event "${updated.title}" has been approved and is now visible to everyone!`,
-      {
-        type: 'event_approved',
-        event_id: eventId,
-        screen: 'event-detail',
-        event_id_param: eventId,
-      }
-    ).catch(err => console.warn('[events] Failed to send approval notification:', err));
-
-    // Create in-app notification for event approval
-    try {
-      await prisma.notification.create({
-        data: { user_id: updated.creator_id, type: 'EVENT_APPROVED', meta: { event_id: eventId, event_title: updated.title } },
-      });
-    } catch (err) {
-      console.error('[events] FAILED to create event approved in-app notification:', (err as any)?.message || err);
-    }
-
-    // Send approval email via dynamic template
-    try {
-      const creator = await prisma.user.findUnique({ where: { id: updated.creator_id }, select: { email: true, display_name: true } });
-      if (creator?.email) {
-        const eventDate = updated.date ? new Date(updated.date) : new Date();
-        sendEventApprovedEmail({
-          to: creator.email,
-          recipientName: creator.display_name || 'Fan',
-          eventTitle: updated.title,
-          eventDate: eventDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }),
-          eventTime: eventDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
-          eventLocation: updated.location || '',
-          eventId: eventId,
-        }).catch(err => console.warn('[events] Failed to send approval email:', err));
-      }
-    } catch (emailErr) {
-      console.warn('[events] Failed to send approval email:', emailErr);
-    }
+  // Delegate state validation, DB write, and notifications to the approval service
+  const result = await approveEventService(eventId, userId, prisma);
+  if (result.error) {
+    const msg = result.error === 'Event already approved' ? 'This event has already been approved.'
+      : result.error === 'Event already rejected' ? 'This event has already been rejected. Cannot approve a rejected event.'
+      : 'Can only approve pending events.';
+    return res.status(result.status || 400).json({ error: result.error, message: msg });
   }
 
   return res.json({
-    ...serializeEvent(updated),
+    ...serializeEvent(result.event!),
     message: 'Event approved successfully!'
   });
 }));
@@ -887,83 +819,20 @@ eventsRouter.put('/:id/reject', requireVerified as any, requireOnboarded as any,
     }
   }
   
-  // Validate event is in pending state
-  if (event.approval_status === 'approved') {
-    return res.status(400).json({ 
-      error: 'Event already approved',
-      message: 'This event has already been approved. Cannot reject an approved event.',
-    });
-  }
-  
-  if (event.approval_status === 'rejected') {
-    return res.status(400).json({ 
-      error: 'Event already rejected',
-      message: 'This event has already been rejected.',
-    });
-  }
-  
-  if (event.approval_status !== 'pending') {
-    return res.status(400).json({ 
-      error: 'Invalid state',
-      message: 'Can only reject pending events.',
-    });
-  }
-  
   const parsed = rejectEventSchema.safeParse(req.body);
   const reason = parsed.success ? parsed.data.reason : undefined;
-  
-  const updated = await prisma.event.update({
-    where: { id: eventId },
-    data: {
-      approval_status: 'rejected',
-      status: 'rejected',
-      rejected_reason: reason,
-      approved_by: null,
-      approved_at: null,
-    },
-    include: {
-      creator: { select: { id: true, display_name: true, email: true } }
-    }
-  });
 
-  // Send notification to event creator
-  if (updated.creator_id) {
-    const reasonText = reason ? ` Reason: ${reason}` : '';
-    await sendPushNotification(
-      updated.creator_id,
-      'Event Not Approved',
-      `Your event "${updated.title}" was not approved.${reasonText}`,
-      {
-        type: 'event_rejected',
-        event_id: eventId,
-        reason: reason || null,
-        screen: 'event-detail',
-        event_id_param: eventId,
-      }
-    ).catch(err => console.warn('[events] Failed to send rejection notification:', err));
-
-    // Create in-app notification for event rejection
-    try {
-      await prisma.notification.create({
-        data: { user_id: updated.creator_id, type: 'EVENT_REJECTED', meta: { event_id: eventId, event_title: updated.title, reason: reason || null } },
-      });
-    } catch (err) {
-      console.error('[events] FAILED to create event rejected in-app notification:', (err as any)?.message || err);
-    }
-
-    // Send denial email to event creator
-    if ((updated.creator as any)?.email) {
-      sendEventDeniedEmail({
-        to: (updated.creator as any).email,
-        recipientName: (updated.creator as any).display_name || 'User',
-        eventTitle: updated.title,
-        reason: reason || undefined,
-      }).catch(err => console.warn('[events] Failed to send denial email:', err));
-    }
+  // Delegate state validation, DB write, and notifications to the approval service
+  const result = await rejectEventService(eventId, userId, prisma, { reason });
+  if (result.error) {
+    const msg = result.error === 'Event already approved' ? 'This event has already been approved. Cannot reject an approved event.'
+      : result.error === 'Event already rejected' ? 'This event has already been rejected.'
+      : 'Can only reject pending events.';
+    return res.status(result.status || 400).json({ error: result.error, message: msg });
   }
-  
+
   return res.json({
-    ...serializeEvent(updated),
+    ...serializeEvent(result.event!),
     message: 'Event rejected'
   });
 }));

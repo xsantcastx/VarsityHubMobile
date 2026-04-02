@@ -3,9 +3,9 @@ import { z } from 'zod';
 import { validateContent } from '../lib/contentFilter.js';
 import {
   sendJoinRequestApproved, sendJoinRequestDenied, sendJoinRequestToAdmin,
-  sendOrganizationInviteEmail, sendLeagueApprovalRequestEmail, sendLeagueApprovedEmail,
-  sendLeagueRejectedEmail, sendCoachApprovedEmail, sendCoachRejectedEmail,
-  sendNewCoachRequestEmail, sendAdminActionConfirmationEmail,
+  sendOrganizationInviteEmail, sendLeagueApprovalRequestEmail,
+  sendCoachApprovedEmail, sendCoachRejectedEmail,
+  sendNewCoachRequestEmail,
 } from '../lib/email.js';
 import { sendOrganizationApprovalEmail, sendPushNotification } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
@@ -21,6 +21,7 @@ import { requireOnboarded } from '../middleware/requireOnboarded.js';
 import { getAuthorizedUsersOrgLimit } from '../lib/planLimits.js';
 import { signJwt, verifyJwt } from '../lib/jwt.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
+import { approveOrganization, rejectOrganization } from '../lib/approvalService.js';
 
 export const organizationsRouter = Router();
 registerIdValidation(organizationsRouter);
@@ -1421,96 +1422,11 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
 
     const adminNote: string | undefined = req.body?.note || undefined;
 
-    const org = await prisma.organization.findUnique({
-      where: { id: orgId },
-      include: { leagueOwner: { select: { id: true, display_name: true, email: true } } },
-    });
-    if (!org) return res.status(404).json({ error: 'Organization not found' });
-    if (org.admin_approved) return res.json({ message: 'Already approved' });
+    const result = await approveOrganization(orgId, adminUserId, prisma, { note: adminNote });
+    if (result.error) return res.status((result as any).status || 500).json({ error: result.error });
+    if ((result as any).already) return res.json({ message: 'Already approved' });
 
-    // Atomic approval: org + owner approval_status in one transaction
-    // WHERE admin_approved=false prevents race condition if two admins approve simultaneously
-    const txOps: any[] = [
-      prisma.organization.updateMany({
-        where: { id: orgId, admin_approved: false },
-        data: {
-          admin_approved: true,
-          approved_by: adminUserId || 'email-token',
-          approved_at: new Date(),
-        },
-      }),
-    ];
-    // Set owner's approval_status — use leagueOwner relation, fall back to owner membership
-    let ownerId = org.leagueOwner?.id;
-    if (!ownerId) {
-      const ownerMembership = await prisma.organizationMembership.findFirst({
-        where: { organization_id: orgId, role: 'owner' },
-        select: { user_id: true },
-      });
-      ownerId = ownerMembership?.user_id ?? undefined;
-    }
-    if (ownerId) {
-      txOps.push(
-        prisma.user.update({
-          where: { id: ownerId },
-          data: { approval_status: 'APPROVED' },
-        })
-      );
-    }
-    const [updated] = await prisma.$transaction(txOps);
-
-    // If no rows updated, another request already approved it
-    if (updated.count === 0) return res.json({ message: 'Already approved' });
-
-    // Email league owner
-    if (org.leagueOwner?.email) {
-      try {
-        const emailSent = await sendLeagueApprovedEmail({
-          to: org.leagueOwner.email,
-          ownerName: org.leagueOwner.display_name || 'League Owner',
-          leagueName: org.name,
-          note: adminNote,
-        });
-        if (!emailSent) console.error('[orgs] League approved email FAILED to send to', org.leagueOwner.email);
-      } catch (err) {
-        console.error('[orgs] League approved email error:', (err as any)?.message || err);
-      }
-    }
-
-    // Push notification + in-app notification for league owner
-    if (org.leagueOwner?.id) {
-      try {
-        await sendPushNotification(
-          org.leagueOwner.id,
-          'Organization Approved!',
-          `Your organization "${org.name}" has been approved on VarsityHub.`,
-          { type: 'org_approved', organization_id: orgId }
-        );
-      } catch (err) {
-        console.warn('[orgs] push notification failed:', (err as any)?.message || err);
-      }
-
-      try {
-        await prisma.notification.create({
-          data: {
-            user_id: org.leagueOwner.id,
-            type: 'ORG_APPROVED' as any,
-            meta: { organization_id: orgId, organization_name: org.name },
-          }
-        });
-      } catch (err) {
-        console.error('[orgs] FAILED to create in-app notification:', (err as any)?.message || err);
-      }
-    }
-
-    // Confirm action to super admin (SendGrid template)
-    sendAdminActionConfirmationEmail({
-      to: 'emancero@varsityhub.app',
-      action: 'league_approved',
-      leagueName: org.name,
-      ownerName: org.leagueOwner?.display_name || undefined,
-      ownerEmail: org.leagueOwner?.email || undefined,
-    }).catch(() => {});
+    const org = (result as any).org;
 
     // If accessed via browser link, show a simple HTML confirmation (escape org.name to prevent XSS)
     if (token) {
@@ -1560,76 +1476,10 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
       if (!isEmailAdmin(me?.email)) return res.status(403).json({ error: 'Admin only' });
     }
 
-    const org = await prisma.organization.findUnique({
-      where: { id: orgId },
-      include: { leagueOwner: { select: { id: true, display_name: true, email: true } } },
-    });
-    if (!org) return res.status(404).json({ error: 'Organization not found' });
+    const result = await rejectOrganization(orgId, null, prisma, { reason });
+    if (result.error) return res.status((result as any).status || 500).json({ error: result.error });
 
-    // Cascade: reject org, unlink teams, revoke coach status for all org members
-    await prisma.$transaction(async (tx) => {
-      await tx.organization.update({
-        where: { id: orgId },
-        data: { status: 'rejected', admin_approved: false },
-      });
-
-      // Unlink teams from rejected org so they can't be used for coach actions
-      await tx.team.updateMany({
-        where: { organization_id: orgId },
-        data: { organization_id: null },
-      });
-
-      // Remove all org memberships
-      await tx.organizationMembership.deleteMany({
-        where: { organization_id: orgId },
-      });
-
-      // Set league owner back to REJECTED so they can't access coach tools
-      if (org.leagueOwner?.id) {
-        await tx.user.update({
-          where: { id: org.leagueOwner.id },
-          data: { approval_status: 'REJECTED' },
-        });
-      }
-    });
-
-    // Notify league owner: email + push + in-app
-    if (org.leagueOwner?.id) {
-      // Push notification
-      sendPushNotification(
-        org.leagueOwner.id,
-        'League Not Approved',
-        `Your league "${org.name}" was not approved.${reason ? ` Reason: ${reason}` : ''}`,
-        { type: 'org_rejected', organization_id: orgId }
-      ).catch(() => {});
-
-      // In-app notification
-      prisma.notification.create({
-        data: {
-          user_id: org.leagueOwner.id,
-          type: 'COACH_REJECTED',
-          meta: { organization_id: orgId, organization_name: org.name, reason: reason || undefined },
-        },
-      }).catch(() => {});
-    }
-    if (org.leagueOwner?.email) {
-      sendLeagueRejectedEmail({
-        to: org.leagueOwner.email,
-        ownerName: org.leagueOwner.display_name || 'League Owner',
-        leagueName: org.name,
-        reason,
-      }).catch(() => {});
-    }
-
-    // Confirm action to super admin (SendGrid template)
-    sendAdminActionConfirmationEmail({
-      to: 'emancero@varsityhub.app',
-      action: 'league_rejected',
-      leagueName: org.name,
-      ownerName: org.leagueOwner?.display_name || undefined,
-      ownerEmail: org.leagueOwner?.email || undefined,
-      reason,
-    }).catch(() => {});
+    const org = (result as any).org;
 
     if (token) {
       return res.send(`<html><body style="font-family:Arial;text-align:center;padding:60px"><h1 style="color:#DC2626">League Rejected</h1><p>"${escapeHtml(String(org.name || ''))}" has been declined.</p></body></html>`);

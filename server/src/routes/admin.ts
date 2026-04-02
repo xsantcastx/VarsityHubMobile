@@ -1,9 +1,10 @@
 import express from 'express';
 import { z } from 'zod';
 import { checkReportSpike, getUserModerationHistory, issueWarning, suspendUser } from '../lib/moderation.js';
-import { sendAccountPermanentBanEmail, sendCoachApprovedEmail, sendCoachRejectedEmail } from '../lib/email.js';
+import { sendAccountPermanentBanEmail } from '../lib/email.js';
 import { sendPushNotification } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
+import { approveCoach, rejectCoach } from '../lib/approvalService.js';
 import { getFounderMetricsReport } from '../lib/founderMetrics.js';
 import {
   getAllTransactions,
@@ -175,16 +176,11 @@ adminRouter.post('/coaches/:id/approve', requireVerified as any, requireAdminMid
     const { id } = req.params;
     const { note } = req.body || {};
 
-    const user = await prisma.user.findUnique({ where: { id }, select: { id: true, email: true, display_name: true, username: true, approval_status: true, preferences: true } });
-    if (!user) return res.status(404).json({ error: 'User not found' });
-    if (user.approval_status !== 'PENDING') return res.status(400).json({ error: 'User is not pending approval' });
-
-    await prisma.user.update({
-      where: { id },
-      data: { approval_status: 'APPROVED' },
-    });
+    const result = await approveCoach(id, req.user?.id || 'unknown', prisma, { note });
+    if (result.error) return res.status(result.status || 500).json({ error: result.error });
 
     // Log admin action
+    const user = result.user!;
     await prisma.adminActivityLog.create({
       data: {
         admin_id: req.user?.id || 'unknown',
@@ -195,35 +191,6 @@ adminRouter.post('/coaches/:id/approve', requireVerified as any, requireAdminMid
         description: `Approved coach: ${user.display_name || user.username || user.email}${note ? ` — ${note}` : ''}`,
       },
     }).catch(() => {});
-
-    // Send approval email
-    if (user.email) {
-      const prefs = (user.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
-      const orgName = prefs?.organization_name || 'VarsityHub';
-      sendCoachApprovedEmail({
-        to: user.email,
-        coachName: user.display_name || user.username || 'Coach',
-        leagueName: orgName,
-        note: note || undefined,
-      }).catch((err) => console.error('[admin] Failed to send coach approved email:', err));
-    }
-
-    // Create in-app notification
-    await prisma.notification.create({
-      data: {
-        user_id: id,
-        type: 'JOIN_REQUEST_APPROVED',
-        meta: { approved_by: 'admin', note: note || undefined },
-      },
-    }).catch(() => {});
-
-    // Send push notification
-    sendPushNotification(
-      id,
-      'Application Approved!',
-      `Your coach application has been approved by VarsityHub.${note ? ` Note: ${note}` : ''}`,
-      { type: 'coach_approved', screen: 'onboarding' },
-    ).catch(() => {});
 
     return res.json({ ok: true, message: `Coach ${user.display_name || user.username} approved` });
   } catch (error) {
@@ -241,16 +208,11 @@ adminRouter.post('/coaches/:id/reject', requireVerified as any, requireAdminMidd
     const { id } = req.params;
     const { note } = req.body || {};
 
-    const user = await prisma.user.findUnique({ where: { id }, select: { id: true, email: true, display_name: true, username: true, approval_status: true, preferences: true } });
-    if (!user) return res.status(404).json({ error: 'User not found' });
-    if (user.approval_status !== 'PENDING') return res.status(400).json({ error: 'User is not pending approval' });
-
-    await prisma.user.update({
-      where: { id },
-      data: { approval_status: 'REJECTED' },
-    });
+    const result = await rejectCoach(id, req.user?.id || 'unknown', prisma, { reason: note });
+    if (result.error) return res.status(result.status || 500).json({ error: result.error });
 
     // Log admin action
+    const user = result.user!;
     await prisma.adminActivityLog.create({
       data: {
         admin_id: req.user?.id || 'unknown',
@@ -261,35 +223,6 @@ adminRouter.post('/coaches/:id/reject', requireVerified as any, requireAdminMidd
         description: `Rejected coach: ${user.display_name || user.username || user.email}${note ? ` — ${note}` : ''}`,
       },
     }).catch(() => {});
-
-    // Send rejection email
-    if (user.email) {
-      const rejectPrefs = (user.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
-      const rejectOrgName = rejectPrefs?.organization_name || 'VarsityHub';
-      sendCoachRejectedEmail({
-        to: user.email,
-        coachName: user.display_name || user.username || 'Coach',
-        leagueName: rejectOrgName,
-        reason: note || undefined,
-      }).catch((err) => console.error('[admin] Failed to send coach rejected email:', err));
-    }
-
-    // Create in-app notification
-    await prisma.notification.create({
-      data: {
-        user_id: id,
-        type: 'COACH_REJECTED',
-        meta: { rejected_by: 'admin', reason: note || undefined },
-      },
-    }).catch(() => {});
-
-    // Send push notification
-    sendPushNotification(
-      id,
-      'Application Update',
-      `Your coach application was not approved.${note ? ` Reason: ${note}` : ''}`,
-      { type: 'coach_rejected', screen: 'onboarding' },
-    ).catch(() => {});
 
     return res.json({ ok: true, message: `Coach ${user.display_name || user.username} rejected` });
   } catch (error) {
