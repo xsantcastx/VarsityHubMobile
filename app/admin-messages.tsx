@@ -64,7 +64,7 @@ export default function AdminMessagesScreen() {
           renderItem={({ item }) => (
             <View style={[styles.row, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
               <Text style={[styles.msg, { color: Colors[colorScheme].text }]} numberOfLines={2}>{item.content || ''}</Text>
-              <Text style={[styles.meta, { color: Colors[colorScheme].mutedText }]}>{(item.sender_email || 'unknown') + ' → ' + (item.recipient_email || 'unknown')}</Text>
+              <Text style={[styles.meta, { color: Colors[colorScheme].mutedText }]}>{(item.sender?.display_name || item.sender?.username || item.sender_email || 'unknown') + ' → ' + (item.recipient?.display_name || item.recipient?.username || item.recipient_email || 'unknown')}</Text>
               <Text style={[styles.meta, { color: Colors[colorScheme].mutedText }]}>{new Date(item.created_date || item.created_at || Date.now()).toLocaleString()}</Text>
             </View>
           )}

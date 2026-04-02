@@ -140,7 +140,11 @@ export default function NotificationsScreen() {
       : item.type === 'ORG_APPROVED'
       ? `Your organization${item.meta?.organization_name ? ` "${item.meta.organization_name}"` : ''} has been approved!`
       : item.type === 'JOIN_REQUEST_APPROVED'
-      ? `Your request to join${item.meta?.organization_name ? ` "${item.meta.organization_name}"` : ''} was approved!`
+      ? (item.meta?.denied
+        ? `Your request to join${item.meta?.organization_name ? ` "${item.meta.organization_name}"` : ''} was not approved.${item.meta?.reason ? ` ${item.meta.reason}` : ''}`
+        : `Your request to join${item.meta?.organization_name ? ` "${item.meta.organization_name}"` : ''} was approved!`)
+      : item.type === 'JOIN_REQUEST_DENIED'
+      ? `Your request to join${item.meta?.organization_name ? ` "${item.meta.organization_name}"` : ''} was not approved.${item.meta?.reason ? ` ${item.meta.reason}` : ''}`
       : item.type === 'EVENT_APPROVED'
       ? `Your event${item.meta?.event_title ? ` "${item.meta.event_title}"` : ''} has been approved!`
       : item.type === 'EVENT_REJECTED'
@@ -174,8 +178,15 @@ export default function NotificationsScreen() {
         // Org approved — take coach to create their first team
         router.push('/(tabs)/create-team' as any);
       } else if (item.type === 'JOIN_REQUEST_APPROVED') {
-        const oid = item.meta?.organization_id;
-        router.push(oid ? { pathname: '/(tabs)/organization', params: { id: oid } } as any : '/(tabs)' as any);
+        if (item.meta?.denied) {
+          // Legacy denial stored as JOIN_REQUEST_APPROVED with denied:true
+          router.push('/(tabs)' as any);
+        } else {
+          const oid = item.meta?.organization_id;
+          router.push(oid ? { pathname: '/(tabs)/organization', params: { id: oid } } as any : '/(tabs)' as any);
+        }
+      } else if (item.type === 'JOIN_REQUEST_DENIED') {
+        router.push('/(tabs)' as any);
       } else if ((item.type === 'EVENT_APPROVED' || item.type === 'EVENT_REJECTED') && item.meta?.event_id) {
         router.push(`/event-detail?id=${encodeURIComponent(item.meta.event_id)}` as any);
       } else if (item.type === 'COACH_REJECTED') {
@@ -202,7 +213,7 @@ export default function NotificationsScreen() {
             <MaterialIcons name="person" size={20} color={theme.mutedText} />
           </View>
           {/* System notifications (no sender) show VarsityHub logo */}
-          {(!item.actor || ['GAME_REMINDER', 'ORG_APPROVED', 'AD_APPROVED', 'AD_REJECTED', 'EVENT_APPROVED', 'EVENT_REJECTED', 'COACH_REJECTED', 'JOIN_REQUEST_APPROVED'].includes(item.type)) && ['GAME_REMINDER', 'ORG_APPROVED', 'AD_APPROVED', 'AD_REJECTED', 'EVENT_APPROVED', 'EVENT_REJECTED', 'COACH_REJECTED', 'JOIN_REQUEST_APPROVED'].includes(item.type) ? (
+          {(!item.actor || ['GAME_REMINDER', 'ORG_APPROVED', 'AD_APPROVED', 'AD_REJECTED', 'EVENT_APPROVED', 'EVENT_REJECTED', 'COACH_REJECTED', 'JOIN_REQUEST_APPROVED', 'JOIN_REQUEST_DENIED'].includes(item.type)) && ['GAME_REMINDER', 'ORG_APPROVED', 'AD_APPROVED', 'AD_REJECTED', 'EVENT_APPROVED', 'EVENT_REJECTED', 'COACH_REJECTED', 'JOIN_REQUEST_APPROVED', 'JOIN_REQUEST_DENIED'].includes(item.type) ? (
             <Image source={{ uri: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765655742/6C37232F-74BC-4486-95A1-7EE208A63D06_ai2j8k.png' }} style={[S.avatar, S.avatarOverlay]} contentFit="cover" accessibilityLabel="VarsityHub" />
           ) : item.actor?.avatar_url ? (
             <Image source={{ uri: item.actor.avatar_url }} style={[S.avatar, S.avatarOverlay]} contentFit="cover" accessibilityLabel={`${actorName} avatar`} />

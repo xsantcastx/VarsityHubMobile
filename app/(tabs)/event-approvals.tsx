@@ -152,10 +152,9 @@ export default function EventApprovalsScreen() {
   const loadOrgRequests = async () => {
     try {
       const data = await httpGet('/organizations/join-requests/me');
-      const pending = Array.isArray(data)
-        ? data.filter((r: any) => r?.status === 'pending')
-        : [];
-      setOrgRequests(pending);
+      // Show all requests (pending, approved, denied) as read-only status view
+      const requests = Array.isArray(data) ? data : [];
+      setOrgRequests(requests);
       loadOrgFailedRef.current = false;
     } catch (e: any) {
       if (__DEV__) console.warn('[Approvals] Org join requests load failed:', e?.message);
@@ -168,29 +167,37 @@ export default function EventApprovalsScreen() {
 
   const loadAll = useCallback(async () => {
     setError(null);
+    let isApprovedCoach = false;
     try {
       const me = await User.me() as { preferences?: { role?: string }; approval_status?: string };
-      const isApprovedCoach = me?.preferences?.role === 'coach' && me?.approval_status === 'APPROVED';
-      if (!isApprovedCoach) return;
+      isApprovedCoach = me?.preferences?.role === 'coach' && me?.approval_status === 'APPROVED';
     } catch {
-      return;
+      // If me() fails, still try to load team invites (they don't require coach approval)
     }
-    await Promise.allSettled([loadEvents(), loadTeamInvites(), loadOrgRequests()]);
-    if (loadEventsFailedRef.current && loadInvitesFailedRef.current && loadOrgFailedRef.current) {
+    // Team invites (Section 2) and org join request status (Section 3) are always loaded.
+    // Pitched events (Section 1) require approved coach status.
+    const loaders: Promise<void>[] = [loadTeamInvites(), loadOrgRequests()];
+    if (isApprovedCoach) {
+      loaders.push(loadEvents());
+    } else {
+      setEvents([]);
+      setEventsLoading(false);
+    }
+    await Promise.allSettled(loaders);
+    if (loadInvitesFailedRef.current && loadOrgFailedRef.current && (!isApprovedCoach || loadEventsFailedRef.current)) {
       setError('Failed to load approvals. Pull down to refresh.');
     }
   }, []);
 
-  // Guard: redirect non-coaches
+  // Guard: redirect non-coaches (fans should not see this screen at all)
   useEffect(() => {
     void (async () => {
       try {
         const me = await User.me() as { preferences?: { role?: string }; approval_status?: string };
-        const isApprovedCoach = me?.preferences?.role === 'coach' && me?.approval_status === 'APPROVED';
-        if (!isApprovedCoach) {
+        const isCoachRole = me?.preferences?.role === 'coach';
+        if (!isCoachRole) {
           Alert.alert('Restricted', 'Only coach accounts can access Approvals.');
           safeGoBack(router);
-
         }
       } catch {
         // silently ignore — auth errors handled elsewhere
@@ -298,42 +305,7 @@ export default function EventApprovalsScreen() {
 
   // ── Org join request actions ─────────────────────────────────────────────
 
-  const [processingOrgRequestId, setProcessingOrgRequestId] = useState<string | null>(null);
-
-  const handleApproveOrgRequest = async (requestId: string) => {
-    setProcessingOrgRequestId(requestId);
-    try {
-      await httpPost(`/organizations/join-requests/${requestId}/approve`, {});
-      Alert.alert('Approved', 'The request has been approved.');
-      setOrgRequests(prev => prev.filter(r => r.id !== requestId));
-    } catch (e: any) {
-      Alert.alert('Error', e?.message || 'Failed to approve request.');
-    } finally {
-      setProcessingOrgRequestId(null);
-    }
-  };
-
-  const handleDenyOrgRequest = (requestId: string) => {
-    Alert.prompt('Deny Request', 'Provide a reason (optional):', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Deny',
-        style: 'destructive',
-        onPress: async (reason?: string) => {
-          setProcessingOrgRequestId(requestId);
-          try {
-            await httpPost(`/organizations/join-requests/${requestId}/deny`, { reason: reason?.trim() || undefined });
-            Alert.alert('Denied', 'The request has been denied.');
-            setOrgRequests(prev => prev.filter(r => r.id !== requestId));
-          } catch (e: any) {
-            Alert.alert('Error', e?.message || 'Failed to deny request.');
-          } finally {
-            setProcessingOrgRequestId(null);
-          }
-        },
-      },
-    ], 'plain-text');
-  };
+  // Note: Section 3 is read-only (user's own requests). Approve/deny is on approvals.tsx for org owners.
 
   // ── Render helpers ────────────────────────────────────────────────────────
 
@@ -485,12 +457,21 @@ export default function EventApprovalsScreen() {
   };
 
   const renderOrgRequestCard = (item: OrgJoinRequest) => {
-    const isProcessing = processingOrgRequestId === item.id;
+    // Section 3 shows the current user's OWN join requests (read-only status view).
+    // Approve/deny actions belong to the org owner on the approvals.tsx screen.
+    const statusColor =
+      item.status === 'approved' ? '#10B981' :
+      item.status === 'denied' ? '#DC2626' :
+      '#F59E0B';
+    const statusLabel =
+      item.status === 'approved' ? 'Approved' :
+      item.status === 'denied' ? 'Denied' :
+      'Pending Review';
     return (
       <View key={item.id} style={[styles.card, { backgroundColor: C.card, borderColor: C.border }]}>
         <View style={styles.cardRow}>
-          <View style={[styles.statusChip, { backgroundColor: '#F59E0B22' }]}>
-            <Text style={[styles.typeChip, { color: '#F59E0B' }]}>Pending Review</Text>
+          <View style={[styles.statusChip, { backgroundColor: statusColor + '22' }]}>
+            <Text style={[styles.typeChip, { color: statusColor }]}>{statusLabel}</Text>
           </View>
           <Text style={[styles.metaText, { color: C.mutedText }]}>
             {new Date(item.created_at).toLocaleDateString()}
@@ -506,30 +487,21 @@ export default function EventApprovalsScreen() {
           </View>
         ) : null}
 
-        <View style={styles.actionRow}>
-          <Pressable
-            style={[styles.approveBtn, isProcessing && { opacity: 0.5 }]}
-            onPress={() => handleApproveOrgRequest(item.id)}
-            disabled={isProcessing}
-          >
-            <Ionicons name="checkmark-circle-outline" size={18} color="#16A34A" />
-            <Text style={[styles.btnText, { color: '#16A34A' }]}>Approve</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.rejectBtn, isProcessing && { opacity: 0.5 }]}
-            onPress={() => handleDenyOrgRequest(item.id)}
-            disabled={isProcessing}
-          >
-            <Ionicons name="close-circle-outline" size={18} color="#DC2626" />
-            <Text style={[styles.btnText, { color: '#DC2626' }]}>Deny</Text>
-          </Pressable>
+        <View style={styles.metaRow}>
+          <Ionicons name="time-outline" size={14} color={C.mutedText} />
+          <Text style={[styles.metaText, { color: C.mutedText }]}>
+            {item.status === 'pending' ? 'Waiting for organization owner to review' : `Request ${statusLabel.toLowerCase()}`}
+          </Text>
         </View>
       </View>
     );
   };
 
   const isLoading = eventsLoading || invitesLoading || orgRequestsLoading;
-  const totalPending = events.length + teamInvites.length + orgRequests.length;
+  // Only count actually-pending items for the empty state. Section 3 now shows all statuses
+  // (pending/approved/denied) as read-only, so approved/denied requests shouldn't suppress "All caught up".
+  const pendingOrgRequests = orgRequests.filter(r => r.status === 'pending');
+  const totalPending = events.length + teamInvites.length + pendingOrgRequests.length;
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -599,7 +571,7 @@ export default function EventApprovalsScreen() {
           }
 
           {/* ── Section 3: Authorized User Requests ── */}
-          {renderSectionHeader('Authorized User Requests', 'shield-checkmark-outline', orgRequests.length, '#8B5CF6', () => router.push('/team-hub' as any))}
+          {renderSectionHeader('Authorized User Requests', 'shield-checkmark-outline', pendingOrgRequests.length, '#8B5CF6', () => router.push('/team-hub' as any))}
           {orgRequestsLoading
             ? <ActivityIndicator style={styles.sectionLoader} color={C.tint} />
             : orgRequests.length === 0

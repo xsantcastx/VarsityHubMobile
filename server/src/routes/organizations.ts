@@ -1275,7 +1275,7 @@ organizationsRouter.post('/join-requests/:requestId/deny', requireVerified as an
         status: 'denied',
         reviewed_at: new Date(),
         reviewed_by: req.user!.id,
-        message: reason || joinRequest.message // Store denial reason in message field
+        rejection_reason: reason || undefined, // Stored separately to preserve original message
       }
     }),
     // Set user approval_status to REJECTED so they don't stay PENDING forever
@@ -1291,11 +1291,10 @@ organizationsRouter.post('/join-requests/:requestId/deny', requireVerified as an
       data: {
         user_id: joinRequest.user.id,
         actor_id: req.user!.id,
-        type: 'JOIN_REQUEST_APPROVED', // reuse type — frontend checks meta for denial
+        type: 'JOIN_REQUEST_DENIED',
         meta: {
           organization_id: joinRequest.organization_id,
           organization_name: joinRequest.organization.name,
-          denied: true,
           reason: reason || undefined,
         },
       },

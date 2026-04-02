@@ -42,9 +42,23 @@ export default function OnboardingIndex() {
       return;
     }
 
-    // Always start at step 1 (role selection) — never skip steps
-    // Users were getting pages skipped because server data made steps look "complete"
-    const calculatedStepIndex = state?.role ? 1 : 0; // If role set, go to step 2; otherwise step 1
+    // Route to the first incomplete step based on actual field-level completion checks.
+    // Previously hardcoded `state?.role ? 1 : 0` which always sent returning coaches to step 2.
+    const role = state?.role as 'fan' | 'coach' | undefined;
+    const calculatedStepIndex = nextIncompleteStep(state, role);
+
+    // Edge case: if all steps are complete, the user shouldn't be in onboarding at all.
+    // AuthProvider should have routed them to /(tabs), but if they got here anyway
+    // (e.g. deep link, stale navigation), push them out rather than looping on the last step.
+    const allComplete = role === 'coach'
+      ? (!!state?.role && !!state?.step_2_visited && !!(state?.join_request_pending || state?.organization_id))
+      : (!!state?.role && !!state?.step_2_visited);
+    if (allComplete) {
+      setHasNavigated(true);
+      router.replace('/(tabs)' as any);
+      return;
+    }
+
     const targetRoute = STEP_ROUTES[calculatedStepIndex] || STEP_ROUTES[0];
 
     if (__DEV__) {

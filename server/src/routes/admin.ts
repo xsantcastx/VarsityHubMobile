@@ -412,10 +412,14 @@ async function requireAdmin(req: AuthedRequest, res: express.Response, next: exp
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    const user = await prisma.user.findUnique({ 
+    const user = await prisma.user.findUnique({
       where: { id: req.user.id },
-      select: { email: true }
+      select: { email: true, email_verified: true }
     });
+
+    if (!user?.email_verified) {
+      return res.status(403).json({ error: 'Email verification required' });
+    }
 
     // Check if user is admin using ADMIN_EMAILS environment variable
     const adminEmails = (process.env.ADMIN_EMAILS || '')
@@ -423,7 +427,7 @@ async function requireAdmin(req: AuthedRequest, res: express.Response, next: exp
       .map(e => e.trim().toLowerCase())
       .filter(Boolean);
 
-    if (!user || !adminEmails.includes(user.email?.toLowerCase() || '')) {
+    if (!adminEmails.includes(user.email?.toLowerCase() || '')) {
       return res.status(403).json({ error: 'Admin access required' });
     }
 

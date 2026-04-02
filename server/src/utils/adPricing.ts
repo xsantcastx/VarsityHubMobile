@@ -1,8 +1,9 @@
 const WEEKDAY_BLOCK_PRICE = 4.99; // USD per Mon–Thu slot
 const WEEKEND_BLOCK_PRICE = 7.99; // USD per Fri–Sun slot
 
-export const WEEKDAY_BLOCK_PRICE_CENTS = WEEKDAY_BLOCK_PRICE * 100;
-export const WEEKEND_BLOCK_PRICE_CENTS = WEEKEND_BLOCK_PRICE * 100;
+// Use Math.round to avoid floating-point imprecision (4.99 * 100 = 498.99... not 499)
+export const WEEKDAY_BLOCK_PRICE_CENTS = Math.round(WEEKDAY_BLOCK_PRICE * 100);
+export const WEEKEND_BLOCK_PRICE_CENTS = Math.round(WEEKEND_BLOCK_PRICE * 100);
 
 type WeekUsage = { hasWeekday: boolean; hasWeekend: boolean };
 

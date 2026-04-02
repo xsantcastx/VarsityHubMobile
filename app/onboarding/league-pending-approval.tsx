@@ -327,20 +327,29 @@ export default function LeaguePendingApproval() {
                   <Text style={[styles.secondaryButtonText, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Retry Setup</Text>
                 </Pressable>
               </>
-            ) : null}
-            <Pressable
-              style={[styles.primaryButton, { backgroundColor: '#1B3A6B', marginTop: completionError ? 0 : 24 }]}
-              onPress={() => router.replace({ pathname: '/onboarding/coach-agreement', params: { redirect: 'organization' } } as any)}
-            >
-              <MaterialIcons name="business" size={20} color="#fff" />
-              <Text style={styles.primaryButtonText}>View Your Organization</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.secondaryButton, { borderColor: '#1B3A6B', marginTop: 0 }]}
-              onPress={() => router.replace({ pathname: '/onboarding/coach-agreement', params: { redirect: 'create-team' } } as any)}
-            >
-              <Text style={[styles.secondaryButtonText, { color: '#1B3A6B' }]}>Create Your First Team</Text>
-            </Pressable>
+            ) : (
+              <>
+                <Pressable
+                  style={[styles.primaryButton, { backgroundColor: '#1B3A6B', marginTop: 24 }]}
+                  onPress={async () => {
+                    await checkAuth();
+                    router.replace({ pathname: '/onboarding/coach-agreement', params: { redirect: 'organization' } } as any);
+                  }}
+                >
+                  <MaterialIcons name="business" size={20} color="#fff" />
+                  <Text style={styles.primaryButtonText}>View Your Organization</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.secondaryButton, { borderColor: '#1B3A6B', marginTop: 0 }]}
+                  onPress={async () => {
+                    await checkAuth();
+                    router.replace({ pathname: '/onboarding/coach-agreement', params: { redirect: 'create-team' } } as any);
+                  }}
+                >
+                  <Text style={[styles.secondaryButtonText, { color: '#1B3A6B' }]}>Create Your First Team</Text>
+                </Pressable>
+              </>
+            )}
           </>
         )}
       </View>

@@ -349,7 +349,7 @@ export default function Step3League() {
 
     setSaving(true);
     try {
-      // If team/org already exists or join request pending, complete onboarding and enter app
+      // If team/org already exists or join request pending, complete onboarding
       if (alreadyExists || ob.join_request_pending) {
         setOB((prev) => ({ ...prev, step_3_visited: true }));
         const resolvedOrgId = String(
@@ -360,18 +360,21 @@ export default function Step3League() {
           ''
         );
         const resolvedOrgName = ob.organization_name || existingTeam?.organization_name || existingOrg?.name || '';
+        // Only proceed as fan when there's a pending join request (coach waits for approval).
+        // If org/team already exists and is approved, coach should go through normal approval flow.
+        const isPendingJoin = !!ob.join_request_pending;
         try {
           const me: any = await User.me().catch(() => null);
           await User.completeOnboarding({
             role: 'coach',
-            proceeding_as_fan: true,
+            proceeding_as_fan: isPendingJoin,
             username: me?.username || ob.username,
             dob: me?.dob || ob.dob,
             zip_code: me?.zip_code || ob.zip_code || ob.zip,
             affiliation: me?.preferences?.affiliation || ob.affiliation,
             organization_id: resolvedOrgId || undefined,
             organization_name: resolvedOrgName || undefined,
-            join_request_pending: ob.join_request_pending || undefined,
+            join_request_pending: isPendingJoin || undefined,
           });
           await markOnboardingCompleteLocally();
           registerPushToken().catch(() => {});
@@ -379,7 +382,13 @@ export default function Step3League() {
           if (__DEV__) console.warn('[step-3] Failed to complete onboarding (existing):', err);
         }
         checkAuth().catch(() => {});
-        router.replace('/(tabs)' as any);
+        if (isPendingJoin) {
+          // Pending join request — enter app as fan while waiting
+          router.replace('/(tabs)' as any);
+        } else {
+          // Existing org/team — go to coach agreement
+          router.replace({ pathname: '/onboarding/coach-agreement', params: { redirect: 'organization' } } as any);
+        }
         return;
       }
       

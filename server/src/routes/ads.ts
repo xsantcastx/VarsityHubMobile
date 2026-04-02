@@ -780,11 +780,12 @@ adsRouter.get('/alternative-zips', requireAuth as any, alternativeZipsLimiter, a
       return res.status(400).json({ error: 'Could not find coordinates for ZIP code. Please verify the ZIP code is valid.' });
     }
 
-    // Get all ads within approximate range (we'll use all ads for simplicity,
-    // but in production you'd want to filter by geographic bounds first)
+    // Get ads that actually hold slots (active + paid/hold/pending_approval).
+    // Draft ads have no reservations and shouldn't affect availability checks.
     const allAds = await prisma.ad.findMany({
       where: {
-        status: { in: ['draft', 'active'] },
+        status: 'active',
+        payment_status: { in: ['paid', 'hold', 'pending_approval'] },
       },
       select: {
         id: true,
@@ -830,7 +831,8 @@ adsRouter.get('/alternative-zips', requireAuth as any, alternativeZipsLimiter, a
     const allNearbyAds = nearbyZips.length > 0 ? await prisma.ad.findMany({
       where: {
         target_zip_code: { in: nearbyZips },
-        status: { in: ['draft', 'active'] },
+        status: 'active',
+        payment_status: { in: ['paid', 'hold', 'pending_approval'] },
       },
       include: {
         reservations: {

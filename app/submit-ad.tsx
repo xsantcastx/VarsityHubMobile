@@ -120,16 +120,31 @@ export default function SubmitAdScreen() {
         }
       } catch (err: any) {
         createError = err?.message || 'Could not create ad on server';
-        if (err?.status === 403 && (err?.message?.toLowerCase().includes('verification') || err?.message?.toLowerCase().includes('verified'))) {
-          Alert.alert(
-            'Email Verification Required',
-            'You need to verify your email before submitting an ad. Would you like to verify now?',
-            [
-              { text: 'Cancel', style: 'cancel' },
-              { text: 'Verify Now', onPress: () => router.push('/verify-email' as any) },
-            ]
-          );
-          return;
+        if (err?.status === 403) {
+          const msg = (err?.message || err?.data?.error || '').toLowerCase();
+          const code = err?.data?.code || '';
+          if (msg.includes('verification') || msg.includes('verified')) {
+            Alert.alert(
+              'Email Verification Required',
+              'You need to verify your email before submitting an ad. Would you like to verify now?',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Verify Now', onPress: () => router.push('/verify-email' as any) },
+              ]
+            );
+            return;
+          }
+          if (code === 'PLAN_REQUIRED' || msg.includes('subscription') || msg.includes('veteran') || msg.includes('legend')) {
+            Alert.alert(
+              'Subscription Required',
+              'Ad creation requires a Veteran or Legend subscription. Upgrade your plan to start advertising.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'View Plans', onPress: () => router.push('/subscription-paywall' as any) },
+              ]
+            );
+            return;
+          }
         }
       }
 
