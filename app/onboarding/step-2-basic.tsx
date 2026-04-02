@@ -117,19 +117,26 @@ export default function Step2Basic() {
     }, [])
   );
 
-  useEffect(() => { 
-    void (async () => { 
-      try { 
+  // Track the user's server-side username so availability checks can exclude it.
+  // Keyed on the actual server value (not the edited input) to avoid mid-edit mismatches.
+  const serverUsernameRef = useRef<string>('');
+
+  useEffect(() => {
+    void (async () => {
+      try {
         const me: any = await User.me();
         // Use username if available, otherwise try to normalize from display_name (legacy)
         const existingUsername = me?.username || '';
         const legacyDisplayName = me?.display_name || '';
         const normalized = existingUsername || legacyDisplayName.trim().toLowerCase().replace(/\s+/g, '_');
+        serverUsernameRef.current = existingUsername.toLowerCase();
         setUsername(normalized);
         setZip(me?.preferences?.zip_code || '');
-        
-        // Check username availability immediately if it exists
-        if (normalized && usernameRe.test(normalized)) {
+
+        // If the user already has this username on the server, it's theirs — mark as available
+        if (normalized && existingUsername && normalized === existingUsername.toLowerCase()) {
+          setAvailable(true);
+        } else if (normalized && usernameRe.test(normalized)) {
           try {
             const r: any = await User.usernameAvailable(normalized);
             setAvailable(!!r?.available);
@@ -140,8 +147,8 @@ export default function Step2Basic() {
         }
       } catch (error) {
         if (__DEV__) console.warn('[step-2-basic] Failed to load user data:', error);
-      } 
-    })(); 
+      }
+    })();
   }, []);
   useEffect(() => {
     if (ob.affiliation) setAffiliation(ob.affiliation);
@@ -160,6 +167,14 @@ export default function Step2Basic() {
     if (!username || !usernameRe.test(username)) {
       setAvailable(null);
       setAvailabilityError(false);
+      setChecking(false);
+      return;
+    }
+
+    // If the username matches the user's own server-side username, it's available by definition.
+    // Compare against the immutable server value, not the live input, to avoid mid-edit races.
+    if (serverUsernameRef.current && username === serverUsernameRef.current) {
+      setAvailable(true);
       setChecking(false);
       return;
     }

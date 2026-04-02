@@ -107,6 +107,10 @@ export function OBProvider({ children }: PropsWithChildren) {
             setState(parsed.draftData);
             dispatch({ type: 'INIT_FROM_PROFILE', profile: parsed.draftData });
           }
+          // Restore completedStepIds from persistence (was written but never read back)
+          if (Array.isArray(parsed?.completedStepIds) && parsed.completedStepIds.length > 0) {
+            dispatch({ type: 'RESTORE_COMPLETED_STEPS', stepIds: parsed.completedStepIds });
+          }
           if (typeof parsed?.currentStepIndex === 'number') {
             setProgress(parsed.currentStepIndex);
           }

@@ -707,6 +707,7 @@ enum NotificationType {
   AD_REJECTED
   ORG_APPROVED
   JOIN_REQUEST_APPROVED
+  JOIN_REQUEST_DENIED
   EVENT_APPROVED
   EVENT_REJECTED
   COACH_REJECTED
@@ -845,11 +846,12 @@ model OrganizationJoinRequest {
   id              String   @id @default(cuid())
   organization_id String
   user_id         String
-  status          String   @default("pending") // pending | approved | denied
-  message         String?  // Optional message from user
-  created_at      DateTime @default(now())
-  reviewed_at     DateTime?
-  reviewed_by     String?  // user_id of admin who reviewed
+  status           String   @default("pending") // pending | approved | denied
+  message          String?  // Optional message from user
+  rejection_reason String?  // Reason provided by admin when denying
+  created_at       DateTime @default(now())
+  reviewed_at      DateTime?
+  reviewed_by      String?  // user_id of admin who reviewed
   
   organization Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
   user         User         @relation(fields: [user_id], references: [id], onDelete: Cascade)

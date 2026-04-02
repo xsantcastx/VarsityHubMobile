@@ -27,6 +27,7 @@ import { initSentry } from '@/utils/sentry';
 import { initAnalytics } from '@/utils/analytics';
 import { getConfig } from '@/config/env';
 import { StripeProvider } from '@stripe/stripe-react-native';
+import { withIAPContext } from 'react-native-iap';
 
 // Conditionally import notifications only if not in Expo Go
 const isExpoGo = Constants.executionEnvironment === 'storeClient';
@@ -56,7 +57,7 @@ if (Platform.OS === 'web' && __DEV__) {
     .catch(error => devLog('Testing monitor failed to start', error));
 }
 
-export default function RootLayout() {
+function RootLayout() {
   const colorScheme = useColorScheme();
   const _router = useRouter();
   const [loaded] = useFonts({
@@ -258,3 +259,7 @@ export default function RootLayout() {
     </SafeAreaProvider>
   );
 }
+
+// Wrap with IAP context so useIAP() hooks work throughout the app (iOS ad payments).
+// withIAPContext must wrap the root component — without it, all IAP calls are no-ops.
+export default withIAPContext(RootLayout);

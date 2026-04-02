@@ -258,6 +258,60 @@ gamesRouter.get('/', async (req, res) => {
     whereClause.approval_status = 'approved';
   }
 
+  // Scope non-approved games to the coach's managed teams/orgs (prevent data leak).
+  // Admins see all; regular coaches only see pending games for their teams.
+  if (wantsNonApproved && canViewNonApproved && authedReq.user?.id) {
+    const requester = await prisma.user.findUnique({
+      where: { id: authedReq.user.id },
+      select: { email: true },
+    });
+    const isAdmin = isEmailAdmin(requester?.email);
+    if (!isAdmin) {
+      // Get team IDs and org IDs the coach manages
+      const [managedTeams, managedOrgs] = await Promise.all([
+        prisma.teamMembership.findMany({
+          where: {
+            user_id: authedReq.user.id,
+            role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
+            status: 'active',
+          },
+          select: { team_id: true },
+        }),
+        prisma.organizationMembership.findMany({
+          where: {
+            user_id: authedReq.user.id,
+            role: { in: ['owner', 'manager'] },
+            status: 'active',
+          },
+          select: { organization_id: true },
+        }),
+      ]);
+      const teamIds = managedTeams.map(m => m.team_id);
+      const orgIds = managedOrgs.map(m => m.organization_id);
+
+      // Also include teams that belong to managed orgs
+      let orgTeamIds: string[] = [];
+      if (orgIds.length > 0) {
+        const orgTeams = await prisma.team.findMany({
+          where: { organization_id: { in: orgIds } },
+          select: { id: true },
+        });
+        orgTeamIds = orgTeams.map(t => t.id);
+      }
+
+      const allTeamIds = [...new Set([...teamIds, ...orgTeamIds])];
+      if (allTeamIds.length > 0) {
+        whereClause.OR = [
+          { home_team_id: { in: allTeamIds } },
+          { away_team_id: { in: allTeamIds } },
+        ];
+      } else {
+        // Coach has no teams — return no pending games
+        whereClause.id = '__no_managed_teams__';
+      }
+    }
+  }
+
   if ((dateFromRaw && !Number.isNaN(dateFromRaw.getTime())) || (dateToRaw && !Number.isNaN(dateToRaw.getTime()))) {
     whereClause.date = {};
     if (dateFromRaw && !Number.isNaN(dateFromRaw.getTime())) {

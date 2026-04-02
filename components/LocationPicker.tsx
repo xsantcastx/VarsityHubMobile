@@ -1,4 +1,4 @@
-import { autocompleteLocations, PlaceSuggestion } from '@/api/geocoding';
+import { autocompleteLocations, geocodeLocation, PlaceSuggestion } from '@/api/geocoding';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -92,10 +92,29 @@ export default function LocationPicker({
       justSelectedRef.current = true;
       setSuggestions([]);
       setQuerying(false);
+      // Immediately notify parent with address + placeId (coordinates resolve async below)
       onLocationSelect({
         address: suggestion.description,
         placeId: suggestion.place_id,
       });
+      // Resolve coordinates from the selected address via geocoding API.
+      // Previously this was never done — latitude/longitude were always undefined.
+      void (async () => {
+        try {
+          const geo = await geocodeLocation(suggestion.description);
+          if (geo?.latitude != null && geo?.longitude != null) {
+            onLocationSelect({
+              address: suggestion.description,
+              placeId: suggestion.place_id,
+              latitude: geo.latitude,
+              longitude: geo.longitude,
+            });
+          }
+        } catch {
+          // Non-critical — server-side auto-geocoding on save covers this gap
+          if (__DEV__) console.warn('[LocationPicker] Failed to geocode selected location');
+        }
+      })();
     },
     [onLocationSelect],
   );

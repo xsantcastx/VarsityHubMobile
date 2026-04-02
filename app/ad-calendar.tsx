@@ -2,14 +2,15 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { usePaymentSheet } from '@stripe/stripe-react-native';
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { useAdIAP } from '@/hooks/useAdIAP';
 import { ActivityIndicator, Alert, Animated, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useUnsavedChanges } from '@/hooks/useUnsavedChanges';
 // @ts-ignore
 import { httpPost } from '@/api/http';
-import { addWeeks, format, startOfToday } from 'date-fns';
+import { addDays, format, startOfToday } from 'date-fns';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
 import { Calendar, DateData } from 'react-native-calendars';
@@ -21,7 +22,8 @@ const weekdayRate = 4.99;   // Per week (Mon-Thu slot)
 const weekendRate = 7.99;   // Per week (Fri-Sun slot)
 
 const todayISO = (): string => format(startOfToday(), 'yyyy-MM-dd');
-const maxDateISO = (): string => format(addWeeks(startOfToday(), 8), 'yyyy-MM-dd');
+// Use addDays(56) to match server's 56-day horizon exactly (avoids local time vs UTC mismatch)
+const maxDateISO = (): string => format(addDays(startOfToday(), 56), 'yyyy-MM-dd');
 
 function _toggleSet(set: Set<string>, value: string): Set<string> {
   const next = new Set(set);
@@ -181,6 +183,23 @@ export default function AdCalendarScreen() {
     })();
     return () => { mounted = false; };
   }, [adId]);
+
+  // Refresh ad status on screen focus (handles stale cache after rejection/approval)
+  useFocusEffect(
+    useCallback(() => {
+      if (!adId) return;
+      let mounted = true;
+      void (async () => {
+        try {
+          const adDetails: any = await Advertisement.get(String(adId));
+          if (mounted && adDetails?.status) setAdStatus(adDetails.status);
+        } catch {
+          // Non-critical — status may be stale but screen still works
+        }
+      })();
+      return () => { mounted = false; };
+    }, [adId])
+  );
 
   React.useEffect(() => {
     let mounted = true;

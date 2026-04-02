@@ -51,7 +51,8 @@ export type OnboardingEvent =
   | { type: 'SAVE_SUCCESS'; data: Partial<OnboardingState> }
   | { type: 'SAVE_FAIL'; error: Error }
   | { type: 'SET_STEP'; stepIndex: number; reason?: string }
-  | { type: 'UPDATE_DRAFT'; data: Partial<OnboardingState> };
+  | { type: 'UPDATE_DRAFT'; data: Partial<OnboardingState> }
+  | { type: 'RESTORE_COMPLETED_STEPS'; stepIds: number[] };
 
 /**
  * Determines if a step is complete based on required fields
@@ -119,8 +120,10 @@ export function onboardingReducer(
     }
 
     case 'INIT_FROM_PROFILE': {
-      if (state.initialized) return state;
-
+      // Always apply — do not gate on `initialized`. On multi-user devices,
+      // the persisted `initialized: true` from user A would silently block
+      // user B's profile from loading. The operation is idempotent so
+      // re-applying the same profile data is harmless.
       const profile = event.profile;
       const nextStep = nextIncompleteStep(profile, profile.role);
       logTransition(state.currentStepIndex, nextStep, 'INIT_FROM_PROFILE');
@@ -242,6 +245,12 @@ export function onboardingReducer(
         ...state,
         draftData: { ...state.draftData, ...event.data },
       };
+    }
+
+    case 'RESTORE_COMPLETED_STEPS': {
+      const restored = new Set(state.completedStepIds);
+      for (const id of event.stepIds) restored.add(id);
+      return { ...state, completedStepIds: restored };
     }
 
     default:

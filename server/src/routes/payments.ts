@@ -2614,7 +2614,10 @@ paymentsRouter.post('/apple/verify-ad-receipt', expressPkg.json(), requireVerifi
       if (matching.length === 0) {
         return res.status(400).json({ error: 'No matching transactions in receipt for product', product_id: productId });
       }
-      verifiedCents += unitCents * matching.length;
+      // Apple consumable IAP with quantity > 1 creates ONE transaction entry with a quantity field,
+      // not multiple entries. Use the transaction's quantity, not matching.length.
+      const purchasedQty = parseInt(matching[0]?.quantity || '1', 10) || 1;
+      verifiedCents += unitCents * purchasedQty;
 
       const txId = matching[0]?.transaction_id || matching[0]?.original_transaction_id;
       if (txId) orderIds.push(String(txId));
