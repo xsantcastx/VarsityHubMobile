@@ -1,5 +1,3 @@
-// GATED — restore when PAYMENTS is ready to test
-export { default } from '@/components/ComingSoon';
 import { Subscriptions, User } from '@/api/entities';
 // @ts-ignore
 import { httpPost } from '@/api/http';

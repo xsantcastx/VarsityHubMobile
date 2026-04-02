@@ -1,5 +1,3 @@
-// GATED — restore when DISCOVER is ready to test
-export { default } from '@/components/ComingSoon';
 import { useAuth } from '@/context/AuthProvider';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';

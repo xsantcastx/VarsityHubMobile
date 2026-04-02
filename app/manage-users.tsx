@@ -1,5 +1,3 @@
-// GATED — restore when TEAMS is ready to test
-export { default } from '@/components/ComingSoon';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';

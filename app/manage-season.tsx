@@ -1,5 +1,3 @@
-// GATED — restore when TEAMS is ready to test
-export { default } from '@/components/ComingSoon';
 import CustomActionModal, { ActionModalOption } from '@/components/CustomActionModal';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';

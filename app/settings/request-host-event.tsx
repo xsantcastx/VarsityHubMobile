@@ -1,6 +1,3 @@
-// GATED — restore when EVENTS is ready to test
-export { default } from '@/components/ComingSoon';
-
 import { Event, Message } from '@/api/entities';
 import { getConfig } from '@/config/env';
 import { autocompleteLocations, PlaceSuggestion } from '@/api/geocoding';

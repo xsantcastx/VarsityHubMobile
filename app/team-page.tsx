@@ -1,5 +1,3 @@
-// GATED — restore when TEAMS is ready to test
-export { default } from '@/components/ComingSoon';
 import { Game, Organization, Post, Team, User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';

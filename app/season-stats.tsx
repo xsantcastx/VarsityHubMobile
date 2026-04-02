@@ -1,5 +1,3 @@
-// GATED — restore when TEAMS is ready to test
-export { default } from '@/components/ComingSoon';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';

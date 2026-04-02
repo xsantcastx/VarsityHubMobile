@@ -1,5 +1,3 @@
-// GATED — restore when COACH ONBOARDING is ready to test
-export { default } from '@/components/ComingSoon';
 import { Input } from '@/components/ui/input';
 import PrimaryButton from '@/components/ui/PrimaryButton';
 import { Colors } from '@/constants/Colors';

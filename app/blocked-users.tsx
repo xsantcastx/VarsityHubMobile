@@ -1,5 +1,3 @@
-// GATED — restore when MESSAGING is ready to test
-export { default } from '@/components/ComingSoon';
 import { User } from '@/api/entities';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';

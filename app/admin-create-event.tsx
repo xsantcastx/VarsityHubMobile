@@ -1,5 +1,3 @@
-// GATED — restore when ADMIN is ready to test
-export { default } from '@/components/ComingSoon';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {

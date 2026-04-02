@@ -1,5 +1,3 @@
-// GATED — restore when FAVORITES is ready to test
-export { default } from '@/components/ComingSoon';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
 import { Stack, useRouter } from 'expo-router';

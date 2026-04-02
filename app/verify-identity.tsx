@@ -1,5 +1,3 @@
-// GATED — restore when VERIFICATION is ready to test
-export { default } from '@/components/ComingSoon';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';

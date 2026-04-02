@@ -1,5 +1,3 @@
-// GATED — restore when GAMES is ready to test
-export { default } from '@/components/ComingSoon';
 import CollageView, { type CollageData } from '@/components/CollageView';
 import { Colors } from '@/constants/Colors';
 import { sanitizeTitle } from '@/lib/sanitizeTitle';

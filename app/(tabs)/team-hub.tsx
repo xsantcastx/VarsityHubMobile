@@ -1,5 +1,3 @@
-// GATED — restore when TEAMS is ready to test
-export { default } from '@/components/ComingSoon';
 import { useAuth } from '@/context/AuthProvider';
 import { useRequireCoach } from '@/hooks/useRequireCoach';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';

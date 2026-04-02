@@ -1,5 +1,3 @@
-// GATED — restore when PAYMENTS is ready to test
-export { default } from '@/components/ComingSoon';
 /**
  * League Subscription Paywall
  *

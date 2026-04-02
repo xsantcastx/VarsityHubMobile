@@ -1,5 +1,3 @@
-// GATED — restore when MESSAGING is ready to test
-export { default } from '@/components/ComingSoon';
 import { AppLinks } from '@/utils/links';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';

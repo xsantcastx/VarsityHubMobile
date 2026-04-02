@@ -1,5 +1,3 @@
-// GATED — restore when HIGHLIGHTS is ready to test
-export { default } from '@/components/ComingSoon';
 import { Colors } from '@/constants/Colors';
 import { usePostCache } from '@/context/PostCacheContext';
 import { sanitizeTitle } from '@/lib/sanitizeTitle';

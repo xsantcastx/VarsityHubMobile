@@ -1,5 +1,3 @@
-// GATED — restore when ORGANIZATIONS is ready to test
-export { default } from '@/components/ComingSoon';
 import { Organization, Team } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';

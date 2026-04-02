@@ -1,5 +1,3 @@
-// GATED — restore when CONTENT CREATION is ready to test
-export { default } from '@/components/ComingSoon';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';

@@ -1,5 +1,3 @@
-// GATED — restore when NOTIFICATIONS is ready to test
-export { default } from '@/components/ComingSoon';
 import { useAuth } from '@/context/AuthProvider';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';

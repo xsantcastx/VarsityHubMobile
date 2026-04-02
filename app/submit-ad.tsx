@@ -1,5 +1,3 @@
-// GATED — restore when ADS is ready to test
-export { default } from '@/components/ComingSoon';
 import settings from '@/api/settings';
 import { BannerUpload } from '@/components/BannerUpload';
 import { ReachMapPreview } from '@/components/ReachMapPreview';

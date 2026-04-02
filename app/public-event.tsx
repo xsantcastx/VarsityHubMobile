@@ -1,5 +1,3 @@
-// GATED — restore when EVENTS is ready to test
-export { default } from '@/components/ComingSoon';
 import MasonryGrid from '@/components/MasonryGrid';
 import MasonryPostCard from '@/components/MasonryPostCard';
 import { Colors } from '@/constants/Colors';

@@ -1,5 +1,3 @@
-// GATED — restore when COACH ONBOARDING is ready to test
-export { default } from '@/components/ComingSoon';
 import { Colors } from '@/constants/Colors';
 import { ZipCodeMapPreview } from '@/components/ZipCodeMapPreview';
 import { Ionicons } from '@expo/vector-icons';

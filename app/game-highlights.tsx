@@ -1,5 +1,3 @@
-// GATED — restore when GAMES is ready to test
-export { default } from '@/components/ComingSoon';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
