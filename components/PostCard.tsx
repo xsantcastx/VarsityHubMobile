@@ -1,11 +1,11 @@
-import { Post, Report } from '@/api/entities';
+import { Post } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { sanitizeTitle } from '@/lib/sanitizeTitle';
 import { useAuth } from '@/context/AuthProvider';
 import { usePostCache } from '@/context/PostCacheContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { REPORT_REASONS, usePostInteractions } from '@/hooks/usePostInteractions';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -33,9 +33,16 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
   const { remove: removeFromCache } = usePostCache();
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
-  const [bookmarked, setBookmarked] = useState<boolean>(!!post.has_bookmarked);
-  const [bookmarksCount, setBookmarksCount] = useState<number>(post.bookmarks_count || 0);
-  const [upvotesCount, setUpvotesCount] = useState<number>(post.upvotes_count || 0);
+  const {
+    upvotesCount, bookmarked, bookmarksCount, reportSubmitting,
+    onUpvote, onBookmark, submitReport: handleReportPost,
+  } = usePostInteractions({
+    postId: String(post.id),
+    initialUpvotes: post.upvotes_count || 0,
+    initialBookmarked: !!post.has_bookmarked,
+    initialBookmarksCount: post.bookmarks_count || 0,
+    tag: 'PostCard',
+  });
   const [pressed, setPressed] = useState(false);
   const [showActionsMenu, setShowActionsMenu] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
@@ -43,7 +50,6 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
   const [editTitle, setEditTitle] = useState(post.title || '');
   const [updating, setUpdating] = useState(false);
   const [showReportMenu, setShowReportMenu] = useState(false);
-  const [reportSubmitting, setReportSubmitting] = useState(false);
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [mediaError, setMediaError] = useState(false);
 
@@ -53,71 +59,6 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
       if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current);
     };
   }, []);
-
-  const REPORT_REASONS = [
-    { value: 'copyright', label: 'Copyright / broadcast footage' },
-    { value: 'impersonation', label: 'Unauthorized use of my likeness' },
-    { value: 'nudity', label: 'Inappropriate content' },
-    { value: 'spam', label: 'Spam' },
-    { value: 'harassment', label: 'Harassment' },
-    { value: 'hate_speech', label: 'Hate speech' },
-    { value: 'violence', label: 'Violence' },
-    { value: 'false_information', label: 'False information' },
-    { value: 'other', label: 'Other' },
-  ];
-
-  const handleReportPost = async (reason: string) => {
-    setReportSubmitting(true);
-    try {
-      await Report.create({ target_type: 'post', target_id: String(post.id), reason });
-      Alert.alert('Report Submitted', 'Thank you for helping keep our community safe.');
-    } catch (error: any) {
-      if (error?.status === 409) {
-        Alert.alert('Already Reported', 'You have already reported this post.');
-      } else {
-        Alert.alert('Error', error?.message || 'Failed to submit report. Please try again.');
-      }
-    } finally {
-      setReportSubmitting(false);
-      setShowReportMenu(false);
-    }
-  };
-
-  const upvoteInFlight = useRef(false);
-  const onUpvote = async () => {
-    if (upvoteInFlight.current) return;
-    upvoteInFlight.current = true;
-    try {
-      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-      const r: any = await Post.toggleUpvote(String(post.id));
-      if (r && typeof r.count === 'number') {
-        setUpvotesCount(r.count);
-      }
-    } catch (error) {
-      if (__DEV__) console.error('[PostCard] Failed to toggle upvote:', error);
-      Alert.alert('Error', 'Failed to update vote. Please try again.');
-    } finally {
-      upvoteInFlight.current = false;
-    }
-  };
-  const bookmarkInFlight = useRef(false);
-  const onBookmark = async () => {
-    if (bookmarkInFlight.current) return;
-    bookmarkInFlight.current = true;
-    try {
-      void Haptics.selectionAsync().catch(() => {});
-      const r: any = await Post.toggleBookmark(String(post.id));
-      if (r && typeof r.bookmarks_count === 'number') {
-        setBookmarksCount(r.bookmarks_count);
-      }
-      if (r && typeof r.bookmarked === 'boolean') setBookmarked(r.bookmarked);
-    } catch (error) {
-      if (__DEV__) console.error('[PostCard] Failed to toggle bookmark:', error);
-      Alert.alert('Error', 'Failed to bookmark post. Please try again.');
-    } finally {
-      bookmarkInFlight.current = false;
-    }
-  };
 
   const handleDeletePost = async () => {
     Alert.alert(
@@ -429,7 +370,7 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
                 key={r.value}
                 style={styles.actionItem}
                 disabled={reportSubmitting}
-                onPress={() => void handleReportPost(r.value)}
+                onPress={() => { handleReportPost(r.value).then(() => setShowReportMenu(false)); }}
                 accessibilityRole="button"
                 accessibilityLabel={`Report for ${r.label}`}
               >
