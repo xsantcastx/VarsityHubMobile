@@ -244,43 +244,51 @@ if (isProd) {
 }
 debugLog('📚 API documentation available at /api-docs');
 
-app.use('/auth', authLimiter, authRouter);
-// Proxy shorthand /me/* routes to authRouter (rewrite URL so the router sees /me/*)
-app.use('/me', noStore, (req, res, next) => {
-  // Express strips the mount path (/me), so req.url is "/" or "/preferences" etc.
-  // Prepend /me back so the authRouter matches its /me, /me/preferences, etc. routes
-  const suffix = req.url === '/' ? '' : req.url;  // avoid double slash for bare /me
+// --- API route mounting ---
+// All routes mounted via mountApiRoutes so they can be served at both / and /v1/.
+// Existing clients hit / (backward compat). New clients can use /v1/.
+const meProxy = (req: any, res: any, next: any) => {
+  const suffix = req.url === '/' ? '' : req.url;
   req.url = '/me' + suffix;
   authRouter(req, res, next);
-});
-app.use('/games', apiLimiter, gamesRouter);
-app.use('/posts', apiLimiter, postsRouter);
-app.use('/notifications', noStore, apiLimiter, notificationsRouter);
-app.use('/events', apiLimiter, eventsRouter);
-app.use('/messages', noStore, apiLimiter, messagesRouter);
-app.use('/group-chats', noStore, apiLimiter, groupChatsRouter);
-app.use('/uploads', uploadsRouter);
+};
 
-// App-level route for submit-for-approval (guarantees it's registered before any router)
-app.post('/ads/:id/submit-for-approval', requireAuth as any, requireVerified as any, requireOnboarded as any, handleAdSubmitForApproval as any);
-app.use('/ads', adsRouter);
-app.use('/payments', paymentsRouter);
-app.use('/admin', noStore, apiLimiter, adminRouter);
-app.use('/geocoding', noStore, apiLimiter, geocodingRouter);
-app.use('/teams', apiLimiter, teamsRouter);
-app.use('/organizations', apiLimiter, organizationsRouter);
-app.use('/users', noStore, apiLimiter, usersRouter);
-app.use('/search', noStore, apiLimiter, searchRouter);
-app.use('/reports', noStore, apiLimiter, reportsRouter);
-app.use('/rsvps', noStore, apiLimiter, rsvpsRouter);
-app.use('/follows', noStore, apiLimiter, followsRouter);
-app.use('/support', noStore, apiLimiter, supportRouter);
-app.use('/admin/reports', noStore, apiLimiter, adminReportsRouter);
-app.use('/team-memberships', noStore, apiLimiter, teamMembershipsRouter);
-app.use('/team-invites', noStore, apiLimiter, teamInvitesRouter);
-// Legacy /upload/avatar consolidated into /uploads/avatar (see uploads.ts)
-app.use('/highlights', noStore, apiLimiter, highlightsRouter);
-app.use('/promos', noStore, apiLimiter, promosRouter);
+function mountApiRoutes(parent: any) {
+  parent.use('/auth', authLimiter, authRouter);
+  parent.use('/me', noStore, meProxy);
+  parent.use('/games', apiLimiter, gamesRouter);
+  parent.use('/posts', apiLimiter, postsRouter);
+  parent.use('/notifications', noStore, apiLimiter, notificationsRouter);
+  parent.use('/events', apiLimiter, eventsRouter);
+  parent.use('/messages', noStore, apiLimiter, messagesRouter);
+  parent.use('/group-chats', noStore, apiLimiter, groupChatsRouter);
+  parent.use('/uploads', uploadsRouter);
+  parent.post('/ads/:id/submit-for-approval', requireAuth as any, requireVerified as any, requireOnboarded as any, handleAdSubmitForApproval as any);
+  parent.use('/ads', adsRouter);
+  parent.use('/payments', paymentsRouter);
+  parent.use('/admin', noStore, apiLimiter, adminRouter);
+  parent.use('/geocoding', noStore, apiLimiter, geocodingRouter);
+  parent.use('/teams', apiLimiter, teamsRouter);
+  parent.use('/organizations', apiLimiter, organizationsRouter);
+  parent.use('/users', noStore, apiLimiter, usersRouter);
+  parent.use('/search', noStore, apiLimiter, searchRouter);
+  parent.use('/reports', noStore, apiLimiter, reportsRouter);
+  parent.use('/rsvps', noStore, apiLimiter, rsvpsRouter);
+  parent.use('/follows', noStore, apiLimiter, followsRouter);
+  parent.use('/support', noStore, apiLimiter, supportRouter);
+  parent.use('/admin/reports', noStore, apiLimiter, adminReportsRouter);
+  parent.use('/team-memberships', noStore, apiLimiter, teamMembershipsRouter);
+  parent.use('/team-invites', noStore, apiLimiter, teamInvitesRouter);
+  parent.use('/highlights', noStore, apiLimiter, highlightsRouter);
+  parent.use('/promos', noStore, apiLimiter, promosRouter);
+}
+
+// Mount at root (backward compat for existing app versions in the wild)
+mountApiRoutes(app);
+// Mount at /v1 (new clients should target this prefix for future versioning)
+const v1 = express.Router();
+mountApiRoutes(v1);
+app.use('/v1', v1);
 
 // Test endpoints (consider removing in production or adding auth)
 if (process.env.NODE_ENV !== 'production') {
