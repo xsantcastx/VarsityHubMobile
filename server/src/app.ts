@@ -105,7 +105,7 @@ if (hasWildcardOrigin) {
 const wildcardOriginMatchers = [
   /^https?:\/\/localhost(:\d+)?$/,
   /^https?:\/\/127\.0\.0\.1(:\d+)?$/,
-  /^https:\/\/([a-z0-9-]+\.)*varsityhub\.app$/,
+  // Explicit subdomains only — no wildcard *.varsityhub.app to prevent subdomain takeover attacks
 ];
 const allowedOrigins = Array.from(
   new Set([
