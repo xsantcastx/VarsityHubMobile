@@ -1,1 +1,1 @@
-// export { default } from '../edit-ad';
+export { default } from '../edit-ad';

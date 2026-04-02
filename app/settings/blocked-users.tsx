@@ -1,2 +1,2 @@
-// export { default } from '../blocked-users';
+export { default } from '../blocked-users';
 

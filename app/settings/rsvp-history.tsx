@@ -1,2 +1,2 @@
-// export { default } from '../rsvp-history';
+export { default } from '../rsvp-history';
 

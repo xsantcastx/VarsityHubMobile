@@ -1,1 +1,1 @@
-// export { default } from './(tabs)/event-detail';
+export { default } from './(tabs)/event-detail';

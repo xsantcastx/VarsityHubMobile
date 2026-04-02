@@ -1,1 +1,1 @@
-// export { default } from './(tabs)/event-approvals';
+export { default } from './(tabs)/event-approvals';

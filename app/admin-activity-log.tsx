@@ -331,3 +331,5 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
 });
+
+export default AdminActivityLogScreen;

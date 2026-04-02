@@ -95,3 +95,5 @@ const styles = StyleSheet.create({
   muted: {},
   badge: { fontWeight: '700' },
 });
+
+export default DMRestrictionsScreen;

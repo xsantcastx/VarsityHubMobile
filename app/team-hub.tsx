@@ -1,1 +1,1 @@
-// export { default } from './(tabs)/team-hub';
+export { default } from './(tabs)/team-hub';

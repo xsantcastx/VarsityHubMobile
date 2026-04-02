@@ -1185,3 +1185,5 @@ const styles = StyleSheet.create({
     marginHorizontal: 12,
   },
 });
+
+export default SeasonStatsScreen;

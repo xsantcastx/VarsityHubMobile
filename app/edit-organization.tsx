@@ -1,1 +1,1 @@
-// export { default } from './(tabs)/edit-organization';
+export { default } from './(tabs)/edit-organization';

@@ -1608,3 +1608,5 @@ const styles = StyleSheet.create({
   rosterMetaText: { fontSize: 12 },
   rosterRole: { fontSize: 12, fontWeight: '600', textTransform: 'capitalize' },
 });
+
+export default TeamScreen;

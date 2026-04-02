@@ -372,3 +372,5 @@ const S = StyleSheet.create({
     fontSize: 13,
   },
 });
+
+export default NotificationsScreen;

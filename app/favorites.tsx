@@ -419,3 +419,5 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
 });
+
+export default FavoritesScreen;

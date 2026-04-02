@@ -1,1 +1,1 @@
-// export { default } from '../game-photos';
+export { default } from '../game-photos';

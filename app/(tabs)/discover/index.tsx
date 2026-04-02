@@ -1,1 +1,1 @@
-// export { default } from './mobile-community';
+export { default } from './mobile-community';

@@ -1,1 +1,1 @@
-// export { default } from './(tabs)/approvals';
+export { default } from './(tabs)/approvals';

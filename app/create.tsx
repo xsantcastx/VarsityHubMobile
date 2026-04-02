@@ -143,3 +143,5 @@ const styles = StyleSheet.create({
   cancel: {},
   itemText: { fontWeight: '700' },
 });
+
+export default CreateScreen;

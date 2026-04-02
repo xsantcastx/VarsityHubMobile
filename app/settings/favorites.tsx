@@ -1,2 +1,2 @@
-// export { default } from '../favorites';
+export { default } from '../favorites';
 

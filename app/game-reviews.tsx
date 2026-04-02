@@ -87,3 +87,5 @@ const styles = StyleSheet.create({
   muted: { textAlign: 'center', marginTop: 16 },
 });
 
+
+export default GameReviewsScreen;

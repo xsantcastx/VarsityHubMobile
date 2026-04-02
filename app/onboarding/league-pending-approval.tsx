@@ -399,3 +399,5 @@ const styles = StyleSheet.create({
   reasonLabel: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
   reasonText: { fontSize: 14, lineHeight: 20 },
 });
+
+export default LeaguePendingApproval;

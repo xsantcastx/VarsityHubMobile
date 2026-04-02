@@ -436,3 +436,5 @@ const createStyles = (palette: Palette, scheme: 'light' | 'dark') => StyleSheet.
   },
   eventChipMutedText: { color: palette.mutedText, fontWeight: '600' },
 });
+
+export default TeamHubScreen;

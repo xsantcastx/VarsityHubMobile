@@ -396,3 +396,5 @@ const styles = StyleSheet.create({
   linkBtn: { marginTop: 12 },
   linkBtnText: { fontSize: 15 },
 });
+
+export default PaymentSuccessScreen;

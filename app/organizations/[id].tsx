@@ -227,3 +227,5 @@ function OrganizationDetailScreen() {
     </ScrollView>
   );
 }
+
+export default OrganizationDetailScreen;

@@ -1,2 +1,2 @@
-// export { default } from '../../highlights';
+export { default } from '../../highlights';
 

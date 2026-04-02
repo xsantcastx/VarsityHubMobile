@@ -1627,3 +1627,5 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     textDecorationLine: 'underline',
   },
 });
+
+export default Step3League;

@@ -255,3 +255,5 @@ const styles = StyleSheet.create({
   barValue: { width: 30, textAlign: 'right', fontSize: 12, fontWeight: '700' },
   retryBtn: { marginTop: 12, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8 },
 });
+
+export default AdminMetricsScreen;

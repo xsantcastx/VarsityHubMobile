@@ -90,3 +90,5 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   cell: { width: 110, height: 110, margin: 2, borderRadius: 8 },
 });
+
+export default GamePhotosScreen;

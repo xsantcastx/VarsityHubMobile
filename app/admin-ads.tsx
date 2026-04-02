@@ -565,3 +565,5 @@ const styles = StyleSheet.create({
     borderWidth: 1.5
   }
 });
+
+export default AdminAdsScreen;

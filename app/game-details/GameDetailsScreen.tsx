@@ -2934,7 +2934,7 @@ const renderBanner = () => {
   );
 };
 
-// export default GameDetailsScreen;
+export default GameDetailsScreen;
 
 const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors[colorScheme].background },

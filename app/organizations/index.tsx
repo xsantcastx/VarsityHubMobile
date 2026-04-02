@@ -279,3 +279,5 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     color: Colors[colorScheme].mutedText,
   },
 });
+
+export default OrganizationsIndexScreen;

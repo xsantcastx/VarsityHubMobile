@@ -176,3 +176,5 @@ const styles = StyleSheet.create({
   card: { padding: 12, borderRadius: 12, borderWidth: 1 },
   title: { fontWeight: '700' },
 });
+
+export default RsvpHistoryScreen;

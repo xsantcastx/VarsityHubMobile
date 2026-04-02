@@ -1,1 +1,1 @@
-// export { default } from '../game-detail';
+export { default } from '../game-detail';

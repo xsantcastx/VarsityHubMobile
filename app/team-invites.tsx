@@ -120,3 +120,5 @@ const styles = StyleSheet.create({
   card: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 12, borderWidth: 1 },
   name: { fontWeight: '700' },
 });
+
+export default TeamInvitesScreen;

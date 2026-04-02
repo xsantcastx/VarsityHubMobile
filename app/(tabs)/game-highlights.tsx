@@ -1,2 +1,2 @@
-// export { default } from '../game-highlights';
+export { default } from '../game-highlights';
 

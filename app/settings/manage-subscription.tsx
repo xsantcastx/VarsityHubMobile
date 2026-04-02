@@ -288,3 +288,5 @@ const styles = StyleSheet.create({
   rowValue: { fontSize: 18, fontWeight: '700', marginTop: 6 },
   description: { marginTop: 12 },
 });
+
+export default ManageSubscription;

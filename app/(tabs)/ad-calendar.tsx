@@ -1,1 +1,1 @@
-// export { default } from '../ad-calendar';
+export { default } from '../ad-calendar';

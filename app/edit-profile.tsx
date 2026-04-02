@@ -1,1 +1,1 @@
-// export { default } from './(tabs)/edit-profile';
+export { default } from './(tabs)/edit-profile';

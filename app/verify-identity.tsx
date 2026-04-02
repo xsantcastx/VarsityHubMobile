@@ -267,3 +267,5 @@ const styles = StyleSheet.create({
   devCodeText: { color: '#059669', fontSize: 14, fontWeight: '600' },
   autoRedirectText: { fontSize: 14, textAlign: 'center', marginTop: 16, fontStyle: 'italic' },
 });
+
+export default VerifyScreen;

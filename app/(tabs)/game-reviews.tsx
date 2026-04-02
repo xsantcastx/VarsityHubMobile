@@ -1,2 +1,2 @@
-// export { default } from '../game-reviews';
+export { default } from '../game-reviews';
 

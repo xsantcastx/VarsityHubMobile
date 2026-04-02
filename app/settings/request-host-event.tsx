@@ -358,3 +358,5 @@ const styles = StyleSheet.create({
   submitButtonDisabled: { opacity: 0.6 },
   submitButtonText: { color: '#fff', fontWeight: '700', fontSize: 18 },
 });
+
+export default RequestHostEventScreen;

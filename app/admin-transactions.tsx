@@ -216,3 +216,5 @@ const styles = StyleSheet.create({
   statusBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, borderWidth: 1 },
   loadMore: { marginHorizontal: 16, padding: 12, borderRadius: 10, borderWidth: 1, alignItems: 'center', marginTop: 8 },
 });
+
+export default AdminTransactionsScreen;

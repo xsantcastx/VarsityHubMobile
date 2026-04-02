@@ -152,3 +152,5 @@ const styles = StyleSheet.create({
   removeBtn: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, backgroundColor: '#DC2626' },
   removeText: { color: 'white', fontWeight: '700' },
 });
+
+export default BlockedUsersScreen;

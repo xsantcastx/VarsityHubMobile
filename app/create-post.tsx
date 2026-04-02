@@ -1,1 +1,1 @@
-// export { default } from './(tabs)/create-post';
+export { default } from './(tabs)/create-post';

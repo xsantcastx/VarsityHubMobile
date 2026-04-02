@@ -1,2 +1,2 @@
-// export { default } from '../admin-teams';
+export { default } from '../admin-teams';
 

@@ -1,2 +1,2 @@
-// export { default } from '../admin-messages';
+export { default } from '../admin-messages';
 

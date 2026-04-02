@@ -485,3 +485,5 @@ const styles = StyleSheet.create({
   modalTitle: { fontWeight: '800', fontSize: 18, marginBottom: 4 },
   modalBtn: { paddingVertical: 12, paddingHorizontal: 16, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
 });
+
+export default AdminUserDetailScreen;

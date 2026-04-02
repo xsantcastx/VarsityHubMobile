@@ -1,1 +1,1 @@
-// export { default } from '../admin-user-detail';
+export { default } from '../admin-user-detail';

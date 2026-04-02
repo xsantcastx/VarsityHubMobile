@@ -538,3 +538,5 @@ const styles = StyleSheet.create({
     color: '#0C4A6E',
   },
 });
+
+export default EditAdScreen;

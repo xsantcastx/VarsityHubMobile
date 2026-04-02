@@ -863,3 +863,5 @@ const styles = StyleSheet.create({
   sheetRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10 },
   sheetText: { fontWeight: '700' },
 });
+
+export default MessagesScreen;

@@ -1,2 +1,2 @@
-// export { default } from '../admin-ads';
+export { default } from '../admin-ads';
 

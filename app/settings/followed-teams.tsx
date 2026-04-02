@@ -70,3 +70,5 @@ const styles = StyleSheet.create({
   rowTitle: { fontWeight: '600' },
 });
 
+
+export default FollowedTeamsScreen;

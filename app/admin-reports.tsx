@@ -657,3 +657,5 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
 });
+
+export default AdminReportsScreen;

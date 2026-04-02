@@ -83,3 +83,5 @@ const styles = StyleSheet.create({
   meta: {},
   error: { padding: 12 },
 });
+
+export default AdminMessagesScreen;

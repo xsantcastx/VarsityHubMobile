@@ -1,1 +1,1 @@
-// export { default } from '../submit-ad.web';
+export { default } from '../submit-ad.web';

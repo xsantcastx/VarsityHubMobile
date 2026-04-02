@@ -96,3 +96,5 @@ const styles = StyleSheet.create({
   ok: { color: '#16a34a' },
   invited: { color: '#9CA3AF' },
 });
+
+export default ManageUsersScreen;
