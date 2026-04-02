@@ -1447,7 +1447,7 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
         where: { organization_id: orgId, role: 'owner' },
         select: { user_id: true },
       });
-      ownerId = ownerMembership?.user_id ?? null;
+      ownerId = ownerMembership?.user_id ?? undefined;
     }
     if (ownerId) {
       txOps.push(
