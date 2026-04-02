@@ -25,10 +25,10 @@ export async function authMiddleware(req: AuthedRequest, _res: Response, next: N
         select: { password_changed_at: true, banned: true, banned_until: true, ban_reason: true },
       });
     } catch (dbErr) {
-      // DB error — let request continue unauthenticated rather than crash every request
+      // DB error — return 503 instead of silently degrading to anonymous access
       console.error('[auth] Database error during auth check:', (dbErr as any)?.message || dbErr);
       clearUserContext();
-      return next();
+      return _res.status(503).json({ error: 'Service temporarily unavailable. Please try again.' });
     }
 
     // Reject deleted users silently
