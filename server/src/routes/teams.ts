@@ -249,22 +249,24 @@ teamsRouter.post('/:id/follow', requireAuth as any, followLimiter, async (req: A
           select: { user_id: true },
         });
 
-        for (const mgr of managers) {
-          await prisma.notification.create({
-            data: {
+        // Batch: create all notifications in one query, send push in parallel
+        if (managers.length > 0) {
+          await prisma.notification.createMany({
+            data: managers.map(mgr => ({
               user_id: mgr.user_id,
               actor_id: userId,
               type: 'TEAM_FOLLOWED',
               meta: { team_id: teamId, team_name: team!.name, follower_name: followerName },
-            },
+            })),
           });
-
-          await sendPushNotification(
-            mgr.user_id,
-            `New follower`,
-            `${followerName} is now following ${team!.name}`,
-            { type: 'team_followed', team_id: teamId, screen: 'team-page' }
-          );
+          await Promise.allSettled(managers.map(mgr =>
+            sendPushNotification(
+              mgr.user_id,
+              `New follower`,
+              `${followerName} is now following ${team!.name}`,
+              { type: 'team_followed', team_id: teamId, screen: 'team-page' }
+            )
+          ));
         }
       } catch (notifErr) {
         console.error('[teams] Failed to send team followed notification:', notifErr);
@@ -1599,22 +1601,23 @@ teamsRouter.post('/invites/:inviteId/accept', requireAuth as any, async (req: Au
       select: { user_id: true },
     });
 
-    for (const mgr of managers) {
-      await prisma.notification.create({
-        data: {
+    if (managers.length > 0) {
+      await prisma.notification.createMany({
+        data: managers.map(mgr => ({
           user_id: mgr.user_id,
           actor_id: req.user!.id,
           type: 'TEAM_INVITE_ACCEPTED',
           meta: { team_id: invite.team_id, team_name: teamName, accepter_name: accepterName },
-        },
+        })),
       });
-
-      await sendPushNotification(
-        mgr.user_id,
-        `${accepterName} joined ${teamName}`,
-        `Your team invite was accepted`,
-        { type: 'team_invite_accepted', team_id: invite.team_id, screen: 'team-page' }
-      );
+      await Promise.allSettled(managers.map(mgr =>
+        sendPushNotification(
+          mgr.user_id,
+          `${accepterName} joined ${teamName}`,
+          `Your team invite was accepted`,
+          { type: 'team_invite_accepted', team_id: invite.team_id, screen: 'team-page' }
+        )
+      ));
     }
   } catch (notifErr) {
     console.error('[teams] Failed to send invite accepted notification:', notifErr);
@@ -1653,22 +1656,23 @@ teamsRouter.post('/invites/:inviteId/decline', requireAuth as any, async (req: A
       select: { user_id: true },
     });
 
-    for (const mgr of managers) {
-      await prisma.notification.create({
-        data: {
+    if (managers.length > 0) {
+      await prisma.notification.createMany({
+        data: managers.map(mgr => ({
           user_id: mgr.user_id,
           actor_id: req.user!.id,
           type: 'TEAM_INVITE_DECLINED',
           meta: { team_id: invite.team_id, team_name: teamName, decliner_name: declinerName },
-        },
+        })),
       });
-
-      await sendPushNotification(
-        mgr.user_id,
-        `Invite declined`,
-        `${declinerName} declined the invite to ${teamName}`,
-        { type: 'team_invite_declined', team_id: invite.team_id, screen: 'team-page' }
-      );
+      await Promise.allSettled(managers.map(mgr =>
+        sendPushNotification(
+          mgr.user_id,
+          `Invite declined`,
+          `${declinerName} declined the invite to ${teamName}`,
+          { type: 'team_invite_declined', team_id: invite.team_id, screen: 'team-page' }
+        )
+      ));
     }
   } catch (notifErr) {
     console.error('[teams] Failed to send invite declined notification:', notifErr);
