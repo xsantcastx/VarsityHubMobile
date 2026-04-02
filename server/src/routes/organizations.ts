@@ -1275,7 +1275,7 @@ organizationsRouter.post('/join-requests/:requestId/deny', requireVerified as an
         status: 'denied',
         reviewed_at: new Date(),
         reviewed_by: req.user!.id,
-        rejection_reason: reason || undefined, // Stored separately to preserve original message
+        rejection_reason: reason || null,
       }
     }),
     // Set user approval_status to REJECTED so they don't stay PENDING forever
