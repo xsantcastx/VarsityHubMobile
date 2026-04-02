@@ -62,7 +62,7 @@ const VIDEO_MIMETYPES = new Set(['video/mp4', 'video/quicktime']);
 
 const upload = multer({
   storage,
-  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB limit for videos/images
+  limits: { fileSize: 25 * 1024 * 1024 }, // 25MB limit — memory storage, concurrent uploads can OOM at higher limits
   fileFilter: (_req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
     const ext = (file.originalname.match(/\.[^.]+$/) || [''])[0].toLowerCase();
     if (IMAGE_MIMETYPES.has(file.mimetype) && IMAGE_EXTENSIONS.has(ext)) {
@@ -85,7 +85,7 @@ const ALLOWED_MIMETYPES = new Set([
 
 const fileUpload = multer({
   storage,
-  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB for general files
+  limits: { fileSize: 25 * 1024 * 1024 }, // 25MB — memory storage, concurrent uploads can OOM at higher limits
   fileFilter: (_req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
     const ext = (file.originalname.match(/\.[^.]+$/) || [''])[0].toLowerCase();
     if (!ALLOWED_EXTENSIONS.has(ext) || !ALLOWED_MIMETYPES.has(file.mimetype)) {
