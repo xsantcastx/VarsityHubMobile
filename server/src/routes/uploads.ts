@@ -9,6 +9,33 @@ import { requireAuth } from '../middleware/requireAuth.js';
 import { uploadLimiter } from '../middleware/rateLimiters.js';
 import { signMediaPath } from '../lib/mediaAccess.js';
 
+// Magic byte signatures for file type validation (prevents MIME spoofing)
+const MAGIC_BYTES: Array<{ mime: string; bytes: number[]; offset?: number }> = [
+  { mime: 'image/jpeg', bytes: [0xFF, 0xD8, 0xFF] },
+  { mime: 'image/png', bytes: [0x89, 0x50, 0x4E, 0x47] },
+  { mime: 'image/gif', bytes: [0x47, 0x49, 0x46, 0x38] },
+  { mime: 'image/webp', bytes: [0x52, 0x49, 0x46, 0x46], offset: 0 }, // RIFF header; WEBP at offset 8
+  { mime: 'video/mp4', bytes: [0x66, 0x74, 0x79, 0x70], offset: 4 }, // ftyp at offset 4
+  { mime: 'video/quicktime', bytes: [0x66, 0x74, 0x79, 0x70], offset: 4 }, // same ftyp box
+  { mime: 'application/pdf', bytes: [0x25, 0x50, 0x44, 0x46] }, // %PDF
+];
+
+function validateMagicBytes(buffer: Buffer, claimedMime: string): boolean {
+  if (!buffer || buffer.length < 12) return false;
+  const candidates = MAGIC_BYTES.filter(m => m.mime === claimedMime);
+  if (candidates.length === 0) return false; // Unknown type — reject
+  return candidates.some(({ bytes, offset = 0 }) =>
+    bytes.every((b, i) => buffer[offset + i] === b)
+  );
+}
+
+// HEIC/HEIF uses ftyp box (same as mp4) with brand 'heic', 'heix', 'mif1'
+function isHeicBuffer(buffer: Buffer): boolean {
+  if (buffer.length < 12) return false;
+  const brand = buffer.toString('ascii', 8, 12);
+  return ['heic', 'heix', 'mif1', 'msf1', 'hevc'].includes(brand);
+}
+
 const debugLog = (...args: Parameters<typeof console.log>) => {
   if (process.env.ENABLE_SERVER_DEBUG_LOGS === 'true' || process.env.NODE_ENV !== 'production') {
     console.log(...args);
@@ -173,6 +200,18 @@ uploadsRouter.get('/sign', requireAuth as any, uploadLimiter as any, (req: Multe
 uploadsRouter.post('/', requireAuth as any, uploadLimiter as any, upload.single('file'), async (req: MulterRequest, res, next) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
+  // Magic byte validation — verify file content matches claimed MIME type
+  const fileBuffer = req.file.buffer || (req.file.path ? fs.readFileSync(req.file.path) : null);
+  if (fileBuffer) {
+    const mime = req.file.mimetype;
+    const isHeic = mime === 'image/heic' || mime === 'image/heif';
+    const magicValid = isHeic ? isHeicBuffer(fileBuffer) : validateMagicBytes(fileBuffer, mime);
+    if (!magicValid) {
+      console.warn(`[uploads] Magic byte mismatch: claimed ${mime}, file rejected`);
+      return res.status(400).json({ error: 'File content does not match declared type. Upload rejected.' });
+    }
+  }
+
   // Enforce Cloudinary in production
   if (process.env.NODE_ENV === 'production' && !useCloudinary) {
     const error = new Error('Server is not configured for file uploads in production.');
@@ -240,6 +279,19 @@ uploadsRouter.post('/', requireAuth as any, uploadLimiter as any, upload.single(
 // General file upload endpoint (all file types)
 uploadsRouter.post('/files', requireAuth as any, uploadLimiter as any, fileUpload.single('file'), async (req: MulterRequest, res, next) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+  // Magic byte validation
+  const fileBuf = req.file.buffer || (req.file.path ? fs.readFileSync(req.file.path) : null);
+  if (fileBuf) {
+    const mime = req.file.mimetype;
+    const isHeic = mime === 'image/heic' || mime === 'image/heif';
+    const magicValid = isHeic ? isHeicBuffer(fileBuf) : validateMagicBytes(fileBuf, mime);
+    if (!magicValid) {
+      console.warn(`[uploads] Magic byte mismatch on /files: claimed ${mime}, file rejected`);
+      return res.status(400).json({ error: 'File content does not match declared type. Upload rejected.' });
+    }
+  }
+
   try {
     // Cloudinary response has different structure
     let url: string;
