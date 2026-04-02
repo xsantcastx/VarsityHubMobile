@@ -1495,7 +1495,7 @@ teamsRouter.get('/invites/me', requireAuth as any, async (req: AuthedRequest, re
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const user = await prisma.user.findUnique({ where: { id: req.user.id } });
   if (!user?.email) return res.status(400).json({ error: 'User email not found' });
-  const invites = await prisma.teamInvite.findMany({ where: { email: user.email, status: 'pending' }, include: { team: true }, orderBy: { created_at: 'desc' } });
+  const invites = await prisma.teamInvite.findMany({ where: { email: user.email, status: 'pending' }, include: { team: true }, orderBy: { created_at: 'desc' }, take: 100 });
   const list = invites.map((i) => ({ id: i.id, role: i.role, created_at: i.created_at, team: { id: i.team_id, name: (i as any).team?.name || '' } }));
   return res.json(list);
   } catch (err) {

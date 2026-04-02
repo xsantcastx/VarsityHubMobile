@@ -27,6 +27,7 @@ void (async () => {
     const missing = await prisma.event.findMany({
       where: { location: { not: null }, latitude: null },
       select: { id: true, location: true },
+      take: 1000,
     });
     if (missing.length === 0) return;
     console.log(`[events] backfill: geocoding ${missing.length} events without coordinates`);

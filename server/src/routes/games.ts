@@ -24,6 +24,7 @@ void (async () => {
     const missing = await (prisma.game.findMany as any)({
       where: { location: { not: null }, latitude: null, venue_lat: null },
       select: { id: true, location: true },
+      take: 1000,
     });
     if (missing.length === 0) return;
     console.log(`[games] backfill: geocoding ${missing.length} games without coordinates`);

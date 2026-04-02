@@ -145,9 +145,10 @@ highlightsRouter.get('/', async (req: AuthedRequest, res) => {
   let followedSet = new Set<string>();
   
   if (currentUserId) {
-    const follows = await prisma.follows.findMany({ 
-      where: { follower_id: currentUserId }, 
-      select: { following_id: true } 
+    const follows = await prisma.follows.findMany({
+      where: { follower_id: currentUserId },
+      select: { following_id: true },
+      take: 5000,
     });
     followedSet = new Set(follows.map((f) => f.following_id));
   }

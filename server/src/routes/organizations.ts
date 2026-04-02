@@ -677,7 +677,8 @@ organizationsRouter.get('/invites/me', requireAuth as any, async (req: AuthedReq
     const invites = await prisma.organizationInvite.findMany({
       where: { email: user.email, status: 'pending' },
       include: { organization: true },
-      orderBy: { created_at: 'desc' }
+      orderBy: { created_at: 'desc' },
+      take: 100,
     });
 
     return res.json(invites);
@@ -828,6 +829,7 @@ organizationsRouter.post('/check-duplicate', requireAuth as any, async (req, res
       const localOrgs = await prisma.organization.findMany({
         where: { zip_code, status: 'active' },
         select: { id: true, name: true, location: true, sport: true },
+        take: 200,
       });
       const localMatch = localOrgs.find(
         (o) => normalizeOrganizationName(o.name) === normalizedInput
@@ -1046,7 +1048,8 @@ organizationsRouter.get('/:id/join-requests', requireAuth as any, async (req: Au
           }
         }
       },
-      orderBy: { created_at: 'desc' }
+      orderBy: { created_at: 'desc' },
+      take: 200,
     });
 
     return res.json(joinRequests);
@@ -1072,7 +1075,8 @@ organizationsRouter.get('/join-requests/me', requireAuth as any, async (req: Aut
           }
         }
       },
-      orderBy: { created_at: 'desc' }
+      orderBy: { created_at: 'desc' },
+      take: 100,
     });
 
     return res.json(joinRequests);
@@ -1523,6 +1527,7 @@ organizationsRouter.get('/:id/pending-coaches', requireAuth as any, async (req: 
         },
       },
       orderBy: { created_at: 'desc' },
+      take: 200,
     });
 
     return res.json(pendingRequests);

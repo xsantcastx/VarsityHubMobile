@@ -478,7 +478,7 @@ adsRouter.get('/:id([a-z0-9]{15,50})', requireAuth as any, async (req: AuthedReq
     const isAdmin = await getIsAdmin(req);
     const isOwner = !!ad.user_id && ad.user_id === req.user!.id;
     if (!isOwner && !isAdmin) return res.status(403).json({ error: 'Forbidden' });
-    const dates = await prisma.adReservation.findMany({ where: { ad_id: id }, orderBy: { date: 'asc' } });
+    const dates = await prisma.adReservation.findMany({ where: { ad_id: id }, orderBy: { date: 'asc' }, take: 1000 });
     return res.json({ ...ad, dates: dates.map((r) => r.date.toISOString().slice(0, 10)) });
   } catch (err) {
     console.error('[ads] GET /:id error:', err);
@@ -689,6 +689,7 @@ adsRouter.get('/availability', async (req, res) => {
         ...(excludeAdId ? { id: { not: excludeAdId } } : {}),
       },
       select: { id: true },
+      take: 500,
     });
 
     const adIds = adsInZip.map(a => a.id);

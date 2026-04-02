@@ -93,6 +93,7 @@ tournamentsRouter.get('/', async (_req: Request, res: Response) => {
   try {
     const tournaments = await prisma.organization.findMany({
       where: { org_type: 'tournament' },
+      take: 200,
       include: {
         teams: {
           select: {

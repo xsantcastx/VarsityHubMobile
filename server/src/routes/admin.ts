@@ -105,6 +105,7 @@ adminRouter.get('/dashboard', requireVerified as any, requireAdminMiddleware as 
       prisma.organization.findMany({
         where: { admin_approved: false, status: { not: 'rejected' } },
         orderBy: { created_at: 'desc' },
+        take: 200,
         select: {
           id: true,
           name: true,
@@ -134,6 +135,7 @@ adminRouter.get('/dashboard', requireVerified as any, requireAdminMiddleware as 
           preferences: { path: ['role'], equals: 'coach' },
         },
         orderBy: { created_at: 'desc' },
+        take: 200,
         select: {
           id: true,
           display_name: true,
