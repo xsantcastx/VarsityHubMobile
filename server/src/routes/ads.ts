@@ -831,7 +831,8 @@ adsRouter.get('/alternative-zips', requireAuth as any, alternativeZipsLimiter, a
     const allNearbyAds = nearbyZips.length > 0 ? await prisma.ad.findMany({
       where: {
         target_zip_code: { in: nearbyZips },
-        status: { in: ['draft', 'active'] },
+        status: 'active',
+        payment_status: { in: ['paid', 'hold', 'pending_approval'] },
       },
       include: {
         reservations: {

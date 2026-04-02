@@ -38,10 +38,13 @@ export default function LocationPicker({
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Track whether a suggestion was just selected to avoid re-fetching
   const justSelectedRef = useRef(false);
+  const mountedRef = useRef(true);
 
   // Cleanup timer on unmount
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
+      mountedRef.current = false;
       if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, []);
@@ -102,7 +105,7 @@ export default function LocationPicker({
       void (async () => {
         try {
           const geo = await geocodeLocation(suggestion.description);
-          if (geo?.latitude != null && geo?.longitude != null) {
+          if (mountedRef.current && geo?.latitude != null && geo?.longitude != null) {
             onLocationSelect({
               address: suggestion.description,
               placeId: suggestion.place_id,
