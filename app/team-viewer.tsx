@@ -116,7 +116,7 @@ export default function TeamViewerScreen() {
         location: game.location || 'TBD',
         type: game.home_team ? 'home' : 'away',
         status: 'upcoming',
-      })) : [];
+      }));
       
       setGames(teamGames);
     } catch (error: any) {
