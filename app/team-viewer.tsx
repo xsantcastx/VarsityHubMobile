@@ -81,14 +81,28 @@ export default function TeamViewerScreen() {
       const [teamData, membersData, gamesData] = await Promise.all([
         TeamAPI.get(params.id),
         TeamAPI.members(params.id),
-        GameAPI.list('-date') // Get all games, we'll filter for this team
+        GameAPI.list('-date', { teamId: params.id, limit: 50 })
       ]);
 
       setTeam(teamData);
-      setMembers(Array.isArray(membersData) ? membersData : []);
+      // Server returns { id: membershipId, role, status, user: { id, display_name, ... } }
+      // Flatten the nested user object so the component can read display_name, username, etc. at top level
+      const flatMembers = (Array.isArray(membersData) ? membersData : []).map((m: any) => ({
+        id: m.user?.id || m.id, // Use user ID, not membership ID
+        display_name: m.user?.display_name || m.display_name || '',
+        username: m.user?.username || m.username || '',
+        avatar_url: m.user?.avatar_url || m.avatar_url,
+        role: m.role,
+        status: m.status,
+        position: m.position,
+        jersey_number: m.jersey_number,
+        user: m.user,
+      }));
+      setMembers(flatMembers);
       
-      // Filter games for this team (simplified - in real app you'd have team-specific endpoint)
-      const teamGames: Game[] = Array.isArray(gamesData) ? gamesData.map((game: any) => ({
+      // Games are already filtered server-side by team_id
+      const normalizedGames = Array.isArray(gamesData?.games) ? gamesData.games : Array.isArray(gamesData) ? gamesData : [];
+      const teamGames: Game[] = normalizedGames.map((game: any) => ({
         id: game.id,
         homeTeam: game.home_team,
         awayTeam: game.away_team,

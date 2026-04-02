@@ -312,6 +312,18 @@ gamesRouter.get('/', async (req, res) => {
     }
   }
 
+  // Filter by team_id (matches home OR away team). Uses AND to not conflict with show_pending OR scoping.
+  const teamIdFilter = typeof req.query.team_id === 'string' ? req.query.team_id.trim() : null;
+  if (teamIdFilter) {
+    if (!whereClause.AND) whereClause.AND = [];
+    whereClause.AND.push({
+      OR: [
+        { home_team_id: teamIdFilter },
+        { away_team_id: teamIdFilter },
+      ],
+    });
+  }
+
   if ((dateFromRaw && !Number.isNaN(dateFromRaw.getTime())) || (dateToRaw && !Number.isNaN(dateToRaw.getTime()))) {
     whereClause.date = {};
     if (dateFromRaw && !Number.isNaN(dateFromRaw.getTime())) {
@@ -565,7 +577,23 @@ gamesRouter.post('/', requireVerified as any, requireOnboarded as any, gameCreat
     // Auto-approve if coach/admin, otherwise set to pending
     gameData.approval_status = (isCoach || isAdmin) ? 'approved' : 'pending';
     gameData.created_by_id = req.user.id;
-    
+
+    // Enforce fan pending event limit (matches POST /events limit of 3)
+    if (gameData.approval_status === 'pending') {
+      const pendingCount = await prisma.game.count({
+        where: { created_by_id: req.user.id, approval_status: 'pending' },
+      });
+      if (pendingCount >= 3) {
+        return res.status(403).json({
+          error: 'Event limit reached',
+          message: "You've reached your limit of 3 pending events. Upgrade to Veteran to create unlimited community events.",
+          code: 'EVENT_LIMIT_EXCEEDED',
+          limit: 3,
+          current: pendingCount,
+        });
+      }
+    }
+
     if (isCoach || isAdmin) {
       gameData.approved_by_id = req.user.id;
       gameData.approved_at = new Date();
@@ -1509,19 +1537,27 @@ gamesRouter.put('/:id/approve', requireAuth as any, requireOnboarded as any, asy
   // Notify the game creator of the approval/rejection decision
   if (updatedGame.created_by_id && updatedGame.created_by_id !== req.user!.id) {
     try {
+      // Get linked event ID so notification tap navigates correctly (client reads event_id)
+      const linkedEvent = await prisma.event.findFirst({
+        where: { game_id: id },
+        select: { id: true },
+        orderBy: { date: 'asc' },
+      });
+      const eventId = linkedEvent?.id || null;
+
       const { sendPushNotification } = await import('../lib/notifications.js');
       if (parsed.data.approval_status === 'approved') {
         await sendPushNotification(
           updatedGame.created_by_id,
           'Event Approved!',
           `Your event "${updatedGame.title}" has been approved and is now live.`,
-          { type: 'event_approved', game_id: id }
+          { type: 'event_approved', game_id: id, event_id: eventId }
         );
         await prisma.notification.create({
           data: {
             user_id: updatedGame.created_by_id,
             type: 'EVENT_APPROVED' as any,
-            meta: { game_id: id, event_title: updatedGame.title },
+            meta: { game_id: id, event_id: eventId, event_title: updatedGame.title },
           },
         });
         // Approved games appear in the feed carousel automatically via GET /games
@@ -1530,13 +1566,13 @@ gamesRouter.put('/:id/approve', requireAuth as any, requireOnboarded as any, asy
           updatedGame.created_by_id,
           'Event Not Approved',
           `Your event "${updatedGame.title}" was not approved.${(req.body as any)?.reason ? ` Reason: ${(req.body as any).reason}` : ''}`,
-          { type: 'event_rejected', game_id: id }
+          { type: 'event_rejected', game_id: id, event_id: eventId }
         );
         await prisma.notification.create({
           data: {
             user_id: updatedGame.created_by_id,
             type: 'EVENT_REJECTED' as any,
-            meta: { game_id: id, event_title: updatedGame.title, reason: (req.body as any)?.reason },
+            meta: { game_id: id, event_id: eventId, event_title: updatedGame.title, reason: (req.body as any)?.reason },
           },
         });
       }

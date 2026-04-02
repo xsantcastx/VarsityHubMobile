@@ -75,7 +75,7 @@ export default function OrganizationJoinRequestsScreen() {
         created_at: r.created_at,
         approved_at: r.status === 'approved' ? r.reviewed_at ?? undefined : undefined,
         rejected_at: r.status === 'denied' ? r.reviewed_at ?? undefined : undefined,
-        rejection_reason: r.status === 'denied' ? (r.message || undefined) : undefined,
+        rejection_reason: r.status === 'denied' ? (r.rejection_reason || r.message || undefined) : undefined,
       }));
       setRequests(mapped);
     } catch (err: any) {

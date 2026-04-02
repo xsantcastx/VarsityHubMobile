@@ -2744,20 +2744,28 @@ paymentsRouter.post('/apple/notifications', expressPkg.json(), asyncHandler(asyn
     const subtype: string = payload.subtype || '';
     const data = payload.data || {};
 
-    // The signedTransactionInfo is itself a JWS
+    // Verify inner JWS tokens using their own x5c certificate chains (Apple best practice).
+    // Falls back to jwt.decode if verification fails — the outer payload was already verified.
+    const verifyInnerJWS = (token: string): any => {
+      try {
+        const innerHeader = jwt.decode(token, { complete: true })?.header as any;
+        if (innerHeader?.x5c?.length) {
+          const innerCertPem = `-----BEGIN CERTIFICATE-----\n${innerHeader.x5c[0]}\n-----END CERTIFICATE-----`;
+          const innerKey = crypto.createPublicKey(innerCertPem);
+          return jwt.verify(token, innerKey, { algorithms: ['ES256'] });
+        }
+      } catch { /* fall through to decode */ }
+      return jwt.decode(token) || {};
+    };
+
     let transactionInfo: any = {};
     if (data.signedTransactionInfo) {
-      try {
-        transactionInfo = jwt.decode(data.signedTransactionInfo) || {};
-      } catch { /* ignore decode errors */ }
+      transactionInfo = verifyInnerJWS(data.signedTransactionInfo);
     }
 
-    // The signedRenewalInfo is also a JWS
     let renewalInfo: any = {};
     if (data.signedRenewalInfo) {
-      try {
-        renewalInfo = jwt.decode(data.signedRenewalInfo) || {};
-      } catch { /* ignore decode errors */ }
+      renewalInfo = verifyInnerJWS(data.signedRenewalInfo);
     }
 
     const originalTransactionId: string = transactionInfo.originalTransactionId || '';

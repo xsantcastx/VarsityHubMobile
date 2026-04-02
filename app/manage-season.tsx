@@ -200,7 +200,7 @@ export default function ManageSeasonScreen() {
           }) : '7:00 PM',
           location: game.location || 'TBD',
           type: (game.home_team && game.home_team !== 'Away Team' ? 'home' : 'away'),
-          status: 'upcoming',
+          status: game.winner ? 'completed' : (game.status === 'completed' || game.status === 'cancelled' ? game.status : 'upcoming'),
           banner_url: game.banner_url || undefined, // Include banner URL from backend
           cover_image_url: game.cover_image_url || undefined, // Include cover image URL from backend
         };

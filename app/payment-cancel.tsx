@@ -31,7 +31,7 @@ export default function PaymentCancelScreen() {
       // Go back to ad calendar with selections preserved
       safeGoBack(router, '/my-ads');
     } else {
-      router.replace('/onboarding/step-3-league');
+      router.replace('/subscription-paywall');
     }
   };
 

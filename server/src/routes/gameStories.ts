@@ -132,8 +132,9 @@ export const makeListMediaHandler = ({ prisma }: StoryDeps) => async (req: Reque
         expires_at: true,
       },
     });
-    // If include_expired=1 and user is authenticated, append creator's expired stories
-    const includeExpired = String((req as any).query?.include_expired ?? '') === '1';
+    // If include_expired=true|1 and user is authenticated, append creator's expired stories
+    const rawExpired = String((req as any).query?.include_expired ?? '');
+    const includeExpired = rawExpired === '1' || rawExpired === 'true';
     const currentUserId = (req as AuthedRequest).user?.id ?? null;
     if (includeExpired && currentUserId) {
       const expired = await prisma.story.findMany({
