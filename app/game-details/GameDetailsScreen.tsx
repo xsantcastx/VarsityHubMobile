@@ -585,7 +585,7 @@ const GameDetailsScreen = () => {
   // Load teams data
   const loadTeams = async () => {
     try {
-      const teamsData = await Team.list();
+      const teamsData = await Team.list(undefined, undefined, { limit: 50 });
       const teamInfo: TeamInfo[] = teamsData.map((team: any) => ({
         id: team.id,
         name: team.name,

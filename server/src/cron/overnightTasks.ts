@@ -81,31 +81,18 @@ export function startQueueCleanup() {
     debugLog('[cleanup] Starting queue cleanup...');
 
     try {
-      // Remove completed jobs older than 7 days
-      const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-      const completed = await emailQueue.getCompleted();
-      
-      let removedCount = 0;
-      for (const job of completed) {
-        if (job.finishedOn && job.finishedOn < sevenDaysAgo) {
-          await job.remove();
-          removedCount++;
-        }
-      }
+      // Batch-remove completed jobs older than 7 days and failed jobs older than 30 days.
+      // Bull's queue.clean(grace, status) does this in a single Redis operation
+      // instead of iterating and removing one-by-one.
+      const sevenDays = 7 * 24 * 60 * 60 * 1000;
+      const thirtyDays = 30 * 24 * 60 * 60 * 1000;
 
-      // Remove failed jobs older than 30 days
-      const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
-      const failed = await emailQueue.getFailed();
-      
-      let failedRemovedCount = 0;
-      for (const job of failed) {
-        if (job.finishedOn && job.finishedOn < thirtyDaysAgo) {
-          await job.remove();
-          failedRemovedCount++;
-        }
-      }
+      const [removedCompleted, removedFailed] = await Promise.all([
+        emailQueue.clean(sevenDays, 'completed'),
+        emailQueue.clean(thirtyDays, 'failed'),
+      ]);
 
-      debugLog(`[cleanup] Removed ${removedCount} completed jobs, ${failedRemovedCount} failed jobs ✅`);
+      debugLog(`[cleanup] Removed ${removedCompleted.length} completed jobs, ${removedFailed.length} failed jobs ✅`);
     } catch (error) {
       console.error('[cleanup] Cleanup failed:', error);
       captureException(error instanceof Error ? error : new Error(String(error)), { extra: { context: 'queue_cleanup' } });

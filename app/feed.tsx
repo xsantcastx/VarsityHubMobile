@@ -434,40 +434,15 @@ export default function FeedScreen() {
     void preloadVoteSummaries(games.slice(0, 12));
   }, [games, preloadVoteSummaries]);
 
-  useFocusEffect(
-    useCallback(() => {
-      void load({ silent: true });
-      // Check for unread notifications and messages when feed gains focus
-      void (async () => {
-        try {
-          const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Notification check timeout')), 10000)
-          );
-          const [notifCountRes, unreadRes] = await Promise.all([
-            Promise.race([NotificationApi.unreadCount().catch(() => 0), timeoutPromise]) as Promise<any>,
-            Message.unreadCount().catch(() => ({ count: 0 })),
-          ]);
-          const nc = typeof notifCountRes === 'number' ? notifCountRes : (notifCountRes?.count ?? 0);
-          setUnreadNotifCount(nc);
-          setUnreadMessagesCount(typeof unreadRes?.count === 'number' ? unreadRes.count : 0);
-        } catch (err: any) {
-          // ignore notification poll errors, but log in dev
-          if (__DEV__ && err?.message !== 'Notification check timeout') {
-            if (__DEV__) console.warn('[Feed] Notification check error:', err?.message);
-          }
-        }
-      })();
-    }, [load]),
-  );
-
-  // Lightweight polling to keep unread dots fresh while on the Feed
-  // Uses useFocusEffect so interval only runs when the feed tab is visible
+  // Refresh feed data + unread counts on focus, then poll every 60s while visible.
+  // Single hook replaces two separate useFocusEffects that both fetched unread counts.
   useFocusEffect(
     useCallback(() => {
       let mounted = true;
+      void load({ silent: true });
+
       const tick = async () => {
         try {
-          // Add timeout to prevent hanging
           const timeoutPromise = new Promise((_, reject) =>
             setTimeout(() => reject(new Error('Notification poll timeout')), 10000)
           );
@@ -480,15 +455,17 @@ export default function FeedScreen() {
           setUnreadNotifCount(nc);
           setUnreadMessagesCount(typeof unreadRes?.count === 'number' ? unreadRes.count : 0);
         } catch (err: any) {
-          // ignore notification poll errors, but log in dev
           if (__DEV__ && err?.message !== 'Notification poll timeout') {
             if (__DEV__) console.warn('[Feed] Notification poll error:', err?.message);
           }
         }
       };
-      const id = setInterval(tick, 60000); // Poll every 60 seconds (reduced frequency to prevent timeouts)
+
+      // Fire immediately on focus, then poll every 60 seconds
+      void tick();
+      const id = setInterval(tick, 60000);
       return () => { mounted = false; clearInterval(id); };
-    }, []),
+    }, [load]),
   );
 
   // Load notifications when modal opens

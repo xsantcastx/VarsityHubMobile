@@ -8,10 +8,19 @@ export interface AuthedRequest extends Request {
   file?: Express.Multer.File;
 }
 
+// Routes that never need auth — skip DB lookup entirely
+const PUBLIC_PREFIXES = ['/health', '/.well-known', '/privacy-policy', '/terms', '/support'];
+
 export async function authMiddleware(req: AuthedRequest, _res: Response, next: NextFunction) {
   const header = req.header('Authorization');
   if (!header || !header.startsWith('Bearer ')) {
     // Clear Sentry user context if no auth token
+    clearUserContext();
+    return next();
+  }
+
+  // Skip DB lookup for public endpoints — even if a token is present
+  if (PUBLIC_PREFIXES.some((p) => req.path.startsWith(p))) {
     clearUserContext();
     return next();
   }

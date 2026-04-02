@@ -278,7 +278,7 @@ function LeagueScreen() {
       // Fallback: if organization response didn't include teams, filter from all teams
       if (formattedTeams.length === 0) {
         try {
-          const allTeamsData = await Team.list();
+          const allTeamsData = await Team.list(undefined, undefined, { limit: 100 });
           const orgId = organizationData?.id || params.id;
           const orgName = organizationData?.name || params.name;
           const fallbackTeams = filterTeamsByOrganization(allTeamsData, orgId, orgName);

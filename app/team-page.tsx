@@ -311,7 +311,7 @@ function TeamScreen() {
         
         // Fallback to list if get() didn't work or we only have teamName
         if (!teamData) {
-          const allTeams = await Team.list();
+          const allTeams = await Team.list(undefined, undefined, { limit: 100 });
           const teamsList = Array.isArray(allTeams) ? allTeams : [];
           
           if (teamId && !teamData) {

@@ -127,7 +127,7 @@ function LeaguePendingApproval() {
   useEffect(() => {
     if (!orgId) return;
     void checkApproval();
-    intervalRef.current = setInterval(() => void checkApproval(), 10000);
+    intervalRef.current = setInterval(() => void checkApproval(), 30000);
     // Stop polling after 30 minutes — admin has been notified, user should continue as fan
     timeoutRef.current = setTimeout(() => {
       if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }

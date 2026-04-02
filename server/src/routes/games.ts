@@ -14,6 +14,7 @@ import { getExcludedPrivateAuthorIds } from '../lib/privacyUtils.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
 import { cacheGet, cacheSet } from '../lib/cache.js';
+import { isAdminEmail } from '../lib/adminEmails.js';
 
 export const gamesRouter = Router();
 registerIdValidation(gamesRouter);
@@ -928,8 +929,7 @@ gamesRouter.get('/:id/summary', async (req: AuthedRequest, res) => {
     if (!canEditResult && gameData.created_by_id === req.user.id) canEditResult = true;
     if (!canEditResult) {
       const user = await prisma.user.findUnique({ where: { id: req.user.id }, select: { email: true } });
-      const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
-      if (user?.email && adminEmails.includes(user.email.toLowerCase())) canEditResult = true;
+      if (isAdminEmail(user?.email)) canEditResult = true;
     }
   }
   
@@ -1060,8 +1060,7 @@ gamesRouter.delete('/:id', requireAuth as any, requireOnboarded as any, asyncHan
       where: { id: req.user.id },
       select: { email: true }
     });
-    const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-    const isAdmin = user?.email ? adminEmails.includes(user.email.toLowerCase()) : false;
+    const isAdmin = isAdminEmail(user?.email);
 
     // Check if user is coach/manager of either team
     let isCoach = false;
@@ -1255,8 +1254,7 @@ gamesRouter.patch('/:id/result', requireAuth as any, requireOnboarded as any, as
 
   const isCreator = game.created_by_id === req.user.id;
   const user = await prisma.user.findUnique({ where: { id: req.user.id }, select: { email: true } });
-  const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
-  const isAdmin = user?.email ? adminEmails.includes(user.email.toLowerCase()) : false;
+  const isAdmin = isAdminEmail(user?.email);
 
   if (!isCreator && !isCoach && !isAdmin) {
     return res.status(403).json({ error: 'Only coaches or team owners can update game results' });
@@ -1308,8 +1306,7 @@ gamesRouter.patch('/:id', requireAuth as any, requireOnboarded as any, asyncHand
       where: { id: req.user.id },
       select: { email: true }
     });
-    const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-    const isAdmin = user?.email ? adminEmails.includes(user.email.toLowerCase()) : false;
+    const isAdmin = isAdminEmail(user?.email);
 
     // Check if user is coach/manager of either team
     let isCoach = false;

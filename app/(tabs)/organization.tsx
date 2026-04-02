@@ -152,7 +152,7 @@ export default function OrganizationScreen() {
 
       let allTeams: any[] = [];
       try {
-        allTeams = await Team.list();
+        allTeams = await Team.list(undefined, undefined, { limit: 100 });
       } catch (err: any) {
         if (__DEV__) console.error('[organization] Failed to load teams list:', err);
         allTeams = [];

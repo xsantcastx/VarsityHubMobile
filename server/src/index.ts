@@ -5,8 +5,6 @@ import { initEmailService } from './lib/email.js';
 import { initializeQueues, shutdownQueues } from './jobs/queues.js';
 import { setupScheduler, startSchedulerWorker } from './jobs/scheduler.js';
 import { env } from './lib/env.js';
-import cron from 'node-cron';
-import { checkExpiringSubscriptions } from './jobs/subscriptionExpiryChecker.js';
 
 // Initialize SendGrid email service
 await initEmailService();
@@ -62,13 +60,8 @@ process.on('unhandledRejection', (reason, promise) => {
   captureException(reason as Error, { context: 'unhandled_rejection', promise: String(promise) });
 });
 
-// Subscription expiry check — runs daily at 9 AM
-cron.schedule('0 9 * * *', () => {
-  checkExpiringSubscriptions().catch((err) => {
-    console.error('[cron] Subscription expiry check failed:', err);
-    captureException(err instanceof Error ? err : new Error(String(err)), { context: 'subscription_expiry_cron' });
-  });
-});
+// Subscription expiry check is handled by the BullMQ scheduler (scheduler.ts line 277)
+// — no duplicate node-cron job needed here.
 
 async function runStartupChecks(): Promise<void> {
   const criticalVars: Array<{ key: string; label: string }> = [

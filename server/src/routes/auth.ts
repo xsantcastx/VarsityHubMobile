@@ -18,6 +18,7 @@ import { requireVerified } from '../middleware/requireVerified.js';
 import { authLimiter, oauthLimiter, verificationConfirmLimiter } from '../middleware/rateLimiters.js';
 import { rlIncr, rlGet, rlSet, rlDel } from '../lib/redisRateLimit.js';
 import { cacheGet, cacheSet, cacheDel } from '../lib/cache.js';
+import { isAdminEmail } from '../lib/adminEmails.js';
 
 export const authRouter = Router();
 
@@ -199,8 +200,7 @@ authRouter.post('/register', asyncHandler(async (req, res) => {
   const userRole = role || 'fan';
 
   // Set admin flag based on ADMIN_EMAILS env var
-  const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase());
-  const isAdmin = ADMIN_EMAILS.includes(sanitizedEmail);
+  const isAdmin = isAdminEmail(sanitizedEmail);
   const initialPreferences = {
     role: userRole,
     onboarding_completed: false,
@@ -277,8 +277,7 @@ authRouter.post('/login', asyncHandler(async (req, res) => {
   const sanitized = sanitizeUser(user);
   const needsOnboarding = sanitized?.preferences?.onboarding_completed === false;
   // Include is_admin flag so AuthProvider knows admin status immediately on login
-  const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-  const isLoginAdmin = user.email ? adminEmails.includes(user.email.toLowerCase()) : false;
+  const isLoginAdmin = isAdminEmail(user.email);
   const body: any = {
     access_token,
     refresh_token: rawRefresh,
@@ -509,8 +508,7 @@ authRouter.post('/google', oauthLimiter, asyncHandler(async (req, res) => {
     await prisma.refreshToken.create({ data: { token_hash: rtHash, user_id: sanitized.id, expires_at: rtExpiry } });
 
     // Include is_admin so AuthProvider knows admin status immediately
-    const oauthAdminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-    const isOAuthAdmin = sanitized.email ? oauthAdminEmails.includes(sanitized.email.toLowerCase()) : false;
+    const isOAuthAdmin = isAdminEmail(sanitized.email);
     return res.json({
       access_token,
       refresh_token: rawRefresh,
@@ -928,8 +926,7 @@ authRouter.get('/me', asyncHandler(async (req: AuthedRequest, res) => {
     },
   });
   if (!user) return res.status(404).json({ error: 'Not found' });
-  const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-  const is_admin = user.email ? adminEmails.includes(user.email.toLowerCase()) : false;
+  const is_admin = isAdminEmail(user.email);
   const defaults = {
     notifications: { game_event_reminders: false, team_updates: false, comments_upvotes: false, follows_notifications: true, messages_notifications: true },
     is_parent: false,
@@ -1210,8 +1207,7 @@ authRouter.patch('/me/preferences', requireAuth as any, asyncHandler(async (req:
   const forceApprovalPending = incoming.role === 'coach' && currentPrefs.role !== 'coach';
 
   // Check if user is admin (same logic as GET /me endpoint)
-  const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-  const is_admin = current?.email ? adminEmails.includes(current.email.toLowerCase()) : false;
+  const is_admin = isAdminEmail(current?.email);
   const defaults = {
     notifications: { game_event_reminders: false, team_updates: false, comments_upvotes: false, follows_notifications: true, messages_notifications: true },
     is_parent: false,
