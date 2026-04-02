@@ -8,7 +8,8 @@
 // These are frontend utils but they're pure TS with zero RN dependencies,
 // so we can import them directly in the server test runner.
 import { normalizeUserRole, isCoachRole } from '../../../utils/userRole.js';
-import { isCoach, isFan, assertCoach } from '../../../utils/roles.js';
+// roles.ts was removed — strict-equality helpers had zero production usage
+// and diverged from normalizeUserRole (the canonical implementation).
 
 // ---------------------------------------------------------------------------
 // 1. normalizeUserRole — full matrix
@@ -138,61 +139,3 @@ describe('isCoachRole', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// 3. roles.ts helpers
-// ---------------------------------------------------------------------------
-describe('isCoach (roles.ts)', () => {
-  it('only returns true for exact "coach" string', () => {
-    expect(isCoach('coach')).toBe(true);
-    expect(isCoach('Coach')).toBe(false); // strict match
-    expect(isCoach('head coach')).toBe(false);
-    expect(isCoach('fan')).toBe(false);
-    expect(isCoach(null)).toBe(false);
-    expect(isCoach(undefined)).toBe(false);
-    expect(isCoach('')).toBe(false);
-  });
-});
-
-describe('isFan (roles.ts)', () => {
-  it('only returns true for exact "fan" string', () => {
-    expect(isFan('fan')).toBe(true);
-    expect(isFan('Fan')).toBe(false);
-    expect(isFan('supporter')).toBe(false);
-    expect(isFan('coach')).toBe(false);
-    expect(isFan(null)).toBe(false);
-    expect(isFan(undefined)).toBe(false);
-  });
-});
-
-describe('assertCoach', () => {
-  it('does not throw for coach role', () => {
-    expect(() => assertCoach('coach')).not.toThrow();
-  });
-
-  it('throws COACH_ROLE_REQUIRED for non-coach roles', () => {
-    expect(() => assertCoach('fan')).toThrow('COACH_ROLE_REQUIRED');
-    expect(() => assertCoach(null)).toThrow('COACH_ROLE_REQUIRED');
-    expect(() => assertCoach(undefined)).toThrow('COACH_ROLE_REQUIRED');
-    expect(() => assertCoach('')).toThrow('COACH_ROLE_REQUIRED');
-    expect(() => assertCoach('head coach')).toThrow('COACH_ROLE_REQUIRED');
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 4. Behavioral contract: roles.ts vs userRole.ts
-// ---------------------------------------------------------------------------
-describe('roles.ts vs userRole.ts contract', () => {
-  it('isCoach is stricter than isCoachRole', () => {
-    // isCoach requires exact "coach" string
-    // isCoachRole normalizes first (keywords, plan inference)
-    // So isCoachRole("head coach") = true, but isCoach("head coach") = false
-    expect(isCoach('head coach')).toBe(false);
-    expect(isCoachRole('head coach', null)).toBe(true);
-  });
-
-  it('normalizeUserRole("coach") always satisfies isCoach', () => {
-    // If normalizeUserRole returns "coach", that string passes isCoach
-    const normalized = normalizeUserRole('coach', null);
-    expect(isCoach(normalized)).toBe(true);
-  });
-});
