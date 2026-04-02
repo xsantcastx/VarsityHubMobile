@@ -21,7 +21,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 // @ts-ignore
 import { httpPost } from '@/api/http';
-import { Team } from '@/api/teams';
+import { Team } from '@/api/entities';
 import { autocompleteLocations, PlaceSuggestion } from '@/api/geocoding';
 import { safeGoBack } from '@/utils/navigation';
 import { sanitizeText } from '@/utils/formUtils';

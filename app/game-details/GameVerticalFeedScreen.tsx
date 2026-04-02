@@ -31,8 +31,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { captureRef } from 'react-native-view-shot';
 
-import { Game, Highlights, Post, User } from '@/api/entities';
-import { Report } from '@/api/misc';
+import { Game, Highlights, Post, Report, User } from '@/api/entities';
 import { httpGet } from '@/api/http';
 import events from '@/utils/events';
 import { AppLinks } from '@/utils/links';

@@ -1,5 +1,4 @@
-import { Post } from '@/api/entities';
-import { Report } from '@/api/misc';
+import { Post, Report } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';

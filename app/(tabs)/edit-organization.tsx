@@ -9,11 +9,10 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
-import { Organization } from '@/api/entities';
+import { Organization, User } from '@/api/entities';
 import { uploadFile } from '@/api/upload';
 import { getApiBaseUrl } from '@/api/http';
 import { sanitizeText } from '@/utils/formUtils';
-import { User } from '@/api/user';
 
 const ORG_TYPES = [
   { label: 'School', value: 'school' },
