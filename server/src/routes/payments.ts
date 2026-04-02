@@ -2795,7 +2795,7 @@ paymentsRouter.post('/apple/notifications', expressPkg.json(), asyncHandler(asyn
           environment,
           expiresDate: expiresDate ? new Date(expiresDate).toISOString() : null,
         },
-      } as any,
+      },
     }).catch(err => console.error('[apple-s2s] Failed to log notification:', err));
 
     if (!originalTransactionId) {
@@ -2874,11 +2874,11 @@ paymentsRouter.post('/apple/notifications', expressPkg.json(), asyncHandler(asyn
         prisma.transactionLog.create({
           data: {
             transaction_type: 'SUBSCRIPTION_RENEWAL_FAILED',
-            status: 'COMPLETED',
+            status: 'FAILED',
             user_id: userId,
             order_id: originalTransactionId,
             metadata: { source: 'apple_s2s', notificationType, subtype },
-          } as any,
+          },
         }),
       ]);
       console.warn('[apple-s2s] Marked user as past_due:', userId);
