@@ -1,3 +1,5 @@
+// GATED — restore when ADS is ready to test
+export { default } from '@/components/ComingSoon';
 import { uploadFile } from '@/api/upload';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -17,7 +19,7 @@ import { Advertisement as AdsApi } from '@/api/entities';
 import settings from '@/api/settings';
 import { getApiBaseUrl } from '../api/http';
 
-export default function EditAdScreen() {
+function EditAdScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';

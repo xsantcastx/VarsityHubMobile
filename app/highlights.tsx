@@ -1,3 +1,5 @@
+// GATED — restore when HIGHLIGHTS is ready to test
+export { default } from '@/components/ComingSoon';
 import { Colors } from '@/constants/Colors';
 import { usePostCache } from '@/context/PostCacheContext';
 import { sanitizeTitle } from '@/lib/sanitizeTitle';
@@ -341,7 +343,7 @@ const TabButton = ({ title, active, onPress, colorScheme }: { title: string; act
   </Pressable>
 );
 
-export default function HighlightsScreen() {
+function HighlightsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme() ?? 'light';

@@ -1,3 +1,5 @@
+// GATED — restore when PAYMENTS is ready to test
+export { default } from '@/components/ComingSoon';
 import { httpPost } from '@/api/http';
 // @ts-ignore
 import { Subscriptions } from '@/api/entities';
@@ -10,7 +12,7 @@ import { safeGoBack } from '@/utils/navigation';
 import { useEffect, useState } from 'react';
 import { Alert, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-export default function BillingScreen() {
+function BillingScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];

@@ -1,3 +1,5 @@
+// GATED — restore when ORGANIZATIONS is ready to test
+export { default } from '@/components/ComingSoon';
 import { Event, Organization, Team } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
@@ -177,7 +179,7 @@ const filterTeamsByOrganization = (
   return normalizeTeams(filtered);
 };
 
-export default function LeagueScreen() {
+function LeagueScreen() {
   const colorScheme = useCustomColorScheme();
   const theme = Colors[colorScheme];
   const router = useRouter();

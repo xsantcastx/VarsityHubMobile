@@ -1,3 +1,5 @@
+// GATED — restore when COACH ONBOARDING is ready to test
+export { default } from '@/components/ComingSoon';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -11,7 +13,7 @@ import { User, Notification as NotificationApi } from '@/api/entities';
 import { httpGet } from '@/api/http';
 import { captureException } from '@/utils/sentry';
 
-export default function LeaguePendingApproval() {
+function LeaguePendingApproval() {
   const router = useRouter();
   const { signOut, markOnboardingCompleteLocally, checkAuth, registerPushToken } = useAuth();
   const { state: ob } = useOnboarding();

@@ -1,3 +1,5 @@
+// GATED — restore when DISCOVER is ready to test
+export { default } from '@/components/ComingSoon';
 import { useAuth } from '@/context/AuthProvider';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -101,7 +103,7 @@ const deriveTeamLabels = (game: GameItem): { teamA: string; teamB: string } => {
   return { teamA: 'Team A', teamB: 'Team B' };
 };
 
-export default function CommunityDiscoverScreen() {
+function CommunityDiscoverScreen() {
   const { user: _user } = useAuth();
   const insets = useSafeAreaInsets();
   const router = useRouter();

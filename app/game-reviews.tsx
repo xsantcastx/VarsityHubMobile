@@ -1,3 +1,5 @@
+// GATED — restore when GAMES is ready to test
+export { default } from '@/components/ComingSoon';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
@@ -8,7 +10,7 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { safeGoBack } from '@/utils/navigation';
 
-export default function GameReviewsScreen() {
+function GameReviewsScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
   const { game_id } = useLocalSearchParams<{ game_id?: string }>();

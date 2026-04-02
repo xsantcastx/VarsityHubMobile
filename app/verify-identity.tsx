@@ -1,3 +1,5 @@
+// GATED — restore when VERIFICATION is ready to test
+export { default } from '@/components/ComingSoon';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
@@ -22,7 +24,7 @@ const toSingleValue = (value: ParamValue): string | undefined => {
   return value;
 };
 
-export default function VerifyScreen() {
+function VerifyScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const { checkAuth } = useAuth();

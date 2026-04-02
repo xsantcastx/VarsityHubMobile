@@ -1,3 +1,5 @@
+// GATED — restore when TEAMS is ready to test
+export { default } from '@/components/ComingSoon';
 import { Game, Organization, Post, Team, User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
@@ -101,7 +103,7 @@ const toFeedPost = (item: any): FeedPost | null => {
   };
 };
 
-export default function TeamScreen() {
+function TeamScreen() {
   const colorScheme = useCustomColorScheme();
   const theme = Colors[colorScheme];
   const router = useRouter();

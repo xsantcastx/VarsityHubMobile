@@ -1,3 +1,5 @@
+// GATED — restore when ADS is ready to test
+export { default } from '@/components/ComingSoon';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -106,7 +108,7 @@ function getAdBlocks(selectedISO: Set<string>): { weekdayBlocks: number; weekend
   return { weekdayBlocks, weekendBlocks };
 }
 
-export default function AdCalendarScreen() {
+function AdCalendarScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ adId?: string }>();
   const adId = Array.isArray(params.adId) ? params.adId[0] : params.adId || '';

@@ -1,3 +1,5 @@
+// GATED — restore when COACH ONBOARDING is ready to test
+export { default } from '@/components/ComingSoon';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -9,7 +11,7 @@ import { User, Notification as NotificationApi } from '@/api/entities';
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding } from '@/context/OnboardingContext';
 
-export default function PendingApproval() {
+function PendingApproval() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';

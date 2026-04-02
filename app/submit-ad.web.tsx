@@ -1,3 +1,5 @@
+// GATED — restore when ADS is ready to test
+export { default } from '@/components/ComingSoon';
 import settings from '@/api/settings';
 import { BannerUpload } from '@/components/BannerUpload';
 import { Colors } from '@/constants/Colors';
@@ -31,7 +33,7 @@ type DraftAd = {
   isLocal?: boolean;
 };
 
-export default function SubmitAdScreen() {
+function SubmitAdScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme() ?? 'light';

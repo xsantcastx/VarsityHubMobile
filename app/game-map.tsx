@@ -1,3 +1,5 @@
+// GATED — restore when GAMES is ready to test
+export { default } from '@/components/ComingSoon';
 import EventMap, { EventMapData } from '@/components/EventMap';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -12,7 +14,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { Game } from '@/api/entities';
 import { httpGet } from '@/api/http';
 
-export default function GameMapScreen() {
+function GameMapScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ lat?: string; lng?: string }>();
   const colorScheme = useColorScheme() ?? 'light';

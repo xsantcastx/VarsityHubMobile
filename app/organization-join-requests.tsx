@@ -1,3 +1,5 @@
+// GATED — restore when ORGANIZATIONS is ready to test
+export { default } from '@/components/ComingSoon';
 import { Organization } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
@@ -35,7 +37,7 @@ type JoinRequest = {
   rejection_reason?: string;
 };
 
-export default function OrganizationJoinRequestsScreen() {
+function OrganizationJoinRequestsScreen() {
   const colorScheme = useCustomColorScheme();
   const theme = Colors[colorScheme];
   const router = useRouter();

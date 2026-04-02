@@ -1,3 +1,5 @@
+// GATED — restore when TEAMS is ready to test
+export { default } from '@/components/ComingSoon';
 import CustomActionModal, { ActionModalOption } from '@/components/CustomActionModal';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -73,7 +75,7 @@ interface PlayoffMatchup {
   gameDate?: string;
 }
 
-export default function ManageSeasonScreen() {
+function ManageSeasonScreen() {
   const { isCoach, loading: coachLoading } = useRequireCoach();
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';

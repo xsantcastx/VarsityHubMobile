@@ -1,3 +1,5 @@
+// GATED — restore when FOLLOWED TEAMS is ready to test
+export { default } from '@/components/ComingSoon';
 import { httpGet } from '@/api/http';
 import { Stack } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -11,7 +13,7 @@ interface FollowedTeam {
   description?: string;
 }
 
-export default function FollowedTeamsScreen() {
+function FollowedTeamsScreen() {
   const colorScheme = useColorScheme();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

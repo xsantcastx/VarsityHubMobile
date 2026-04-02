@@ -1,1 +1,3 @@
-export { default } from './(tabs)/create-team';
+// GATED — restore when TEAMS is ready to test
+export { default } from '@/components/ComingSoon';
+// export { default } from './(tabs)/create-team';

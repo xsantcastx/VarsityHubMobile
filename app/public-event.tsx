@@ -1,3 +1,5 @@
+// GATED — restore when EVENTS is ready to test
+export { default } from '@/components/ComingSoon';
 import MasonryGrid from '@/components/MasonryGrid';
 import MasonryPostCard from '@/components/MasonryPostCard';
 import { Colors } from '@/constants/Colors';
@@ -12,7 +14,7 @@ import { Event, Post } from '@/api/entities';
 import settings from '@/api/settings';
 import { safeGoBack } from '@/utils/navigation';
 
-export default function PublicEventScreen() {
+function PublicEventScreen() {
   const params = useLocalSearchParams<{ id?: string }>();
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';

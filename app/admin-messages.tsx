@@ -1,3 +1,5 @@
+// GATED — restore when ADMIN is ready to test
+export { default } from '@/components/ComingSoon';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
@@ -10,7 +12,7 @@ import { safeGoBack } from '@/utils/navigation';
 // @ts-ignore
 import { Message as MsgApi, User } from '@/api/entities';
 
-export default function AdminMessagesScreen() {
+function AdminMessagesScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
   const { isAdmin, loading: adminLoading } = useRequireAdmin();

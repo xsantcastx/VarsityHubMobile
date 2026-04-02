@@ -1,3 +1,5 @@
+// GATED — restore when EVENTS is ready to test
+export { default } from '@/components/ComingSoon';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -10,7 +12,7 @@ import { Event as EventApi } from '@/api/entities';
 
 type Item = { id: string; created_at?: string; event?: { id: string; title?: string; date?: string; location?: string } };
 
-export default function RsvpHistoryScreen() {
+function RsvpHistoryScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
   const [loading, setLoading] = useState(true);

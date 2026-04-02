@@ -1,3 +1,5 @@
+// GATED — restore when ORGANIZATIONS is ready to test
+export { default } from '@/components/ComingSoon';
 import { getConfig } from '@/config/env';
 import { httpGet } from '@/api/http';
 import { Colors } from '@/constants/Colors';
@@ -16,7 +18,7 @@ interface Organization {
   _count?: { teams: number; memberships: number };
 }
 
-export default function OrganizationsIndexScreen() {
+function OrganizationsIndexScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const [orgs, setOrgs] = useState<Organization[]>([]);

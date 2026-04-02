@@ -1,3 +1,5 @@
+// GATED — restore when TEAMS is ready to test
+export { default } from '@/components/ComingSoon';
 import CustomActionModal from '@/components/CustomActionModal';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -14,7 +16,7 @@ import { safeGoBack } from '@/utils/navigation';
 
 type Invite = { id: string; role?: string; team?: { id: string; name?: string } };
 
-export default function TeamInvitesScreen() {
+function TeamInvitesScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
   const [modal, setModal] = useState<null | { title: string; message?: string; options: any[] }>(null);

@@ -1,3 +1,5 @@
+// GATED — restore when TEAMS is ready to test
+export { default } from '@/components/ComingSoon';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
@@ -13,7 +15,7 @@ import { safeGoBack } from '@/utils/navigation';
 import { Team as TeamApi } from '@/api/entities';
 
 // TODO v1.1: Wire up navigation from admin-dashboard
-export default function ManageUsersScreen() {
+function ManageUsersScreen() {
   const { isCoach, loading: coachLoading } = useRequireCoach();
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();

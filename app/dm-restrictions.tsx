@@ -1,3 +1,5 @@
+// GATED — restore when MESSAGING is ready to test
+export { default } from '@/components/ComingSoon';
 import { User } from '@/api/entities';
 import settingsStore, { SETTINGS_KEYS } from '@/api/settings';
 import { Colors } from '@/constants/Colors';
@@ -11,7 +13,7 @@ import { safeGoBack } from '@/utils/navigation';
 
 type Policy = 'everyone' | 'following' | 'no_one';
 
-export default function DMRestrictionsScreen() {
+function DMRestrictionsScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
   const [policy, setPolicy] = useState<Policy>('everyone');

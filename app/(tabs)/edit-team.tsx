@@ -1,3 +1,5 @@
+// GATED — restore when TEAMS is ready to test
+export { default } from '@/components/ComingSoon';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireCoach } from '@/hooks/useRequireCoach';
@@ -15,7 +17,7 @@ import { useAuth } from '@/context/AuthProvider';
 import { uploadFile } from '@/api/upload';
 import { getApiBaseUrl } from '@/api/http';
 
-export default function EditTeamScreen() {
+function EditTeamScreen() {
   const { isCoach, loading: coachLoading } = useRequireCoach();
   const router = useRouter();
   const params = useLocalSearchParams<{ id?: string }>();
