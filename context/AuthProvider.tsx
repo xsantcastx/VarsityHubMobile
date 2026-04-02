@@ -438,6 +438,17 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     return () => subscription.remove();
   }, [fetchSubscription, initializing]);
 
+  // Re-register push token on app launch (not just sign-in).
+  // Expo push tokens can change after app updates or OS updates,
+  // so we re-register whenever a logged-in user finishes initializing.
+  useEffect(() => {
+    if (user?.id && !initializing) {
+      registerPushToken().catch((e) => {
+        if (__DEV__) console.warn('[AuthProvider] Push token re-registration failed:', e?.message);
+      });
+    }
+  }, [user?.id, initializing, registerPushToken]);
+
   // Safety timeout - force initialization complete after 5 seconds
   useEffect(() => {
     const timeout = setTimeout(() => {
