@@ -13,6 +13,7 @@ import { detectMediaType, getVideoPreviewUrl } from '../lib/mediaUtils.js';
 import { getExcludedPrivateAuthorIds } from '../lib/privacyUtils.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
+import { cacheGet, cacheSet } from '../lib/cache.js';
 
 export const gamesRouter = Router();
 registerIdValidation(gamesRouter);
@@ -182,6 +183,11 @@ async function canViewGameRecord(record: GameVisibilityRecord, viewerId?: string
 
 gamesRouter.get('/', async (req, res) => {
   try {
+  // Cache-aside for games list (TTL 120s) — key includes query params
+  const gameCacheKey = `games:${req.url}`;
+  const cachedGames = await cacheGet(gameCacheKey);
+  if (cachedGames) return res.json(cachedGames);
+
   const sort = String(req.query.sort || '').trim();
   const orderBy =
     sort === '-date'
@@ -400,7 +406,9 @@ gamesRouter.get('/', async (req, res) => {
   }
 
   const lastId = payload.length > 0 ? payload[payload.length - 1].id : null;
-  res.json({ games: payload, nextCursor: hasMore ? lastId : null });
+  const gamesResponse = { games: payload, nextCursor: hasMore ? lastId : null };
+  void cacheSet(gameCacheKey, gamesResponse, 120); // 120s TTL
+  res.json(gamesResponse);
   } catch (err) {
     console.error('[games] GET / error:', err);
     return res.status(500).json({ error: 'Internal server error' });

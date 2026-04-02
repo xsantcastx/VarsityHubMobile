@@ -17,6 +17,7 @@ import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { authLimiter, oauthLimiter, verificationConfirmLimiter } from '../middleware/rateLimiters.js';
 import { rlIncr, rlGet, rlSet, rlDel } from '../lib/redisRateLimit.js';
+import { cacheGet, cacheSet, cacheDel } from '../lib/cache.js';
 
 export const authRouter = Router();
 
@@ -908,6 +909,12 @@ authRouter.post('/upgrade-to-coach', requireVerified as any, asyncHandler(async 
 
 authRouter.get('/me', asyncHandler(async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+  // Cache-aside: check Redis first (TTL 60s)
+  const cacheKey = `me:${req.user.id}`;
+  const cached = await cacheGet(cacheKey);
+  if (cached) return res.json(cached);
+
   const user = await prisma.user.findUnique({
     where: { id: req.user!.id },
     include: {
@@ -935,7 +942,9 @@ authRouter.get('/me', asyncHandler(async (req: AuthedRequest, res) => {
   const prefs = mergePreferences(userPrefs, defaults);
   const has_password = !!(user as any).password_hash;
   const safe = sanitizeUser(user);
-  return res.json({ ...safe, has_password, ...(is_admin ? { role: 'admin' } : {}), preferences: prefs, is_admin });
+  const payload = { ...safe, has_password, ...(is_admin ? { role: 'admin' } : {}), preferences: prefs, is_admin };
+  void cacheSet(cacheKey, payload, 60); // 60s TTL
+  return res.json(payload);
 }));
 
 const updateMeSchema = z.object({
@@ -1004,6 +1013,7 @@ authRouter.put('/me', requireAuth as any, asyncHandler(async (req: AuthedRequest
   }
   const { preferences, ...rest } = patch;
   const user = await prisma.user.update({ where: { id: req.user!.id }, data: { ...rest, ...(preferences ? { preferences } : {}) } });
+  void cacheDel(`me:${req.user!.id}`); // Invalidate profile cache
   return res.json(sanitizeUser(user));
 }));
 
@@ -1049,8 +1059,9 @@ authRouter.patch('/me', requireAuth as any, asyncHandler(async (req: AuthedReque
       return res.status(400).json({ error: filterResult.error, code: filterResult.code });
     }
   }
-  const { preferences, ...rest } = patch;
-  const user = await prisma.user.update({ where: { id: req.user!.id }, data: { ...rest, ...(preferences ? { preferences } : {}) } });
+  const { preferences: prefs2, ...rest } = patch;
+  const user = await prisma.user.update({ where: { id: req.user!.id }, data: { ...rest, ...(prefs2 ? { preferences: prefs2 } : {}) } });
+  void cacheDel(`me:${req.user!.id}`); // Invalidate profile cache
   return res.json(sanitizeUser(user));
 }));
 
