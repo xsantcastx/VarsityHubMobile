@@ -16,7 +16,7 @@ type OrganizationData = {
   display_name?: string;
   description?: string;
   bio?: string;
-  cover_url?: string;
+  background_url?: string;
   logo_url?: string;
   avatar_url?: string;
   created_at?: string;
@@ -375,8 +375,8 @@ export default function OrganizationScreen() {
 
         {/* Cover Image */}
         <View style={[styles.card, styles.coverCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          {organization?.cover_url ? (
-            <Image source={{ uri: organization.cover_url }} style={styles.coverImage} contentFit="cover" />
+          {organization?.background_url ? (
+            <Image source={{ uri: organization.background_url }} style={styles.coverImage} contentFit="cover" />
           ) : (
             <View style={[styles.coverPlaceholder, { borderColor: theme.border }]}>
               <Ionicons name="business-outline" size={28} color={theme.mutedText} />
