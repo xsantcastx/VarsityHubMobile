@@ -91,7 +91,16 @@ export default function ResetPasswordScreen() {
           <Text style={[styles.title, { color: palette.text }]}>Enter your reset code</Text>
           <Text style={[styles.subtitle, { color: palette.mutedText }]}>We sent a reset code to your email. Enter it with your new password.</Text>
 
-          {error ? <Text style={[styles.error, { color: '#b91c1c' }]}>{error}</Text> : null}
+          {error ? (
+            <>
+              <Text style={[styles.error, { color: '#b91c1c' }]}>{error}</Text>
+              {(error.toLowerCase().includes('expired') || error.toLowerCase().includes('invalid')) && (
+                <Pressable onPress={() => router.replace('/forgot-password')} style={{ marginTop: 4, marginBottom: 8 }}>
+                  <Text style={{ color: palette.tint, fontWeight: '600', fontSize: 14 }}>Request a new code</Text>
+                </Pressable>
+              )}
+            </>
+          ) : null}
           {info ? <Text style={[styles.info, { color: '#065F46' }]}>{info}</Text> : null}
 
           {resetSuccess ? (

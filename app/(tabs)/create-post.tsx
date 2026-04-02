@@ -556,10 +556,10 @@ export default function CreatePostScreen() {
     const eventDate = suggestedGame.date ? new Date(suggestedGame.date) : null;
     if (!eventDate || isNaN(eventDate.getTime())) return null;
 
-    // Check posting window (2 days before → 1 day after)
+    // Check posting window (2 days before → ~32h after to match server's midnight UTC + 8h Pacific buffer)
     const now = Date.now();
     const windowStart = eventDate.getTime() - 2 * 24 * 60 * 60 * 1000;
-    const windowEnd = eventDate.getTime() + 1 * 24 * 60 * 60 * 1000;
+    const windowEnd = eventDate.getTime() + 32 * 60 * 60 * 1000;
     if (now < windowStart) {
       const openDate = new Date(windowStart);
       return `Posting opens ${openDate.toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${openDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. You can still draft your post now.`;

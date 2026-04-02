@@ -2,14 +2,15 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { usePaymentSheet } from '@stripe/stripe-react-native';
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { useAdIAP } from '@/hooks/useAdIAP';
 import { ActivityIndicator, Alert, Animated, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useUnsavedChanges } from '@/hooks/useUnsavedChanges';
 // @ts-ignore
 import { httpPost } from '@/api/http';
-import { addWeeks, format, startOfToday } from 'date-fns';
+import { addDays, format, startOfToday } from 'date-fns';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
 import { Calendar, DateData } from 'react-native-calendars';
@@ -21,7 +22,8 @@ const weekdayRate = 4.99;   // Per week (Mon-Thu slot)
 const weekendRate = 7.99;   // Per week (Fri-Sun slot)
 
 const todayISO = (): string => format(startOfToday(), 'yyyy-MM-dd');
-const maxDateISO = (): string => format(addWeeks(startOfToday(), 8), 'yyyy-MM-dd');
+// Use addDays(56) to match server's 56-day horizon exactly (avoids local time vs UTC mismatch)
+const maxDateISO = (): string => format(addDays(startOfToday(), 56), 'yyyy-MM-dd');
 
 function _toggleSet(set: Set<string>, value: string): Set<string> {
   const next = new Set(set);
@@ -181,6 +183,23 @@ export default function AdCalendarScreen() {
     })();
     return () => { mounted = false; };
   }, [adId]);
+
+  // Refresh ad status on screen focus (handles stale cache after rejection/approval)
+  useFocusEffect(
+    useCallback(() => {
+      if (!adId) return;
+      let mounted = true;
+      void (async () => {
+        try {
+          const adDetails: any = await Advertisement.get(String(adId));
+          if (mounted && adDetails?.status) setAdStatus(adDetails.status);
+        } catch {
+          // Non-critical — status may be stale but screen still works
+        }
+      })();
+      return () => { mounted = false; };
+    }, [adId])
+  );
 
   React.useEffect(() => {
     let mounted = true;
@@ -491,24 +510,12 @@ export default function AdCalendarScreen() {
     setSubmitting(true);
     try {
       const dates = Array.from(selected).sort((a, b) => (a < b ? -1 : 1));
-      const data: any = await httpPost('/payments/create-payment-sheet', { ad_id: String(adId), dates, promo_code: promo || undefined });
       // Calculate exact hours remaining for receipt
       const lastEnd = new Date(dates[dates.length - 1] + 'T23:59:59');
       const hrsRemaining = Math.max(0, Math.round((lastEnd.getTime() - Date.now()) / 3600000));
 
-      if (data?.free) {
-        setSubmitting(false);
-        setShowFreeSuccess(true);
-        freeSuccessOpacity.setValue(0);
-        Animated.timing(freeSuccessOpacity, { toValue: 1, duration: 300, useNativeDriver: true }).start(() => {
-          setTimeout(() => {
-            router.replace({ pathname: '/ad-confirmation', params: { ad_id: String(adId), selectedDates: dates.join(', '), totalAmount: '$0.00 (promo)', hoursRemaining: String(hrsRemaining) } });
-          }, 1200);
-        });
-        return;
-      }
       if (Platform.OS === 'ios') {
-        // iOS: use Apple IAP
+        // iOS: use Apple IAP directly — do NOT create a Stripe PaymentIntent (it would be orphaned)
         const { weekdayBlocks, weekendBlocks } = getAdBlocks(selected);
         if (weekdayBlocks <= 0 && weekendBlocks <= 0) {
           throw new Error('No ad blocks to purchase');
@@ -519,8 +526,23 @@ export default function AdCalendarScreen() {
           if (result.error) Alert.alert('Payment Error', result.error);
           return;
         }
-        const paidAmount = data?.amount_cents ? `$${(data.amount_cents / 100).toFixed(2)}` : `$${calculatePrice(selected).toFixed(2)}`;
+        const paidAmount = `$${calculatePrice(selected).toFixed(2)}`;
         router.replace({ pathname: '/ad-confirmation', params: { ad_id: String(adId), selectedDates: dates.join(', '), hoursRemaining: String(hrsRemaining), totalAmount: paidAmount } });
+        return;
+      }
+
+      // Android / non-iOS: use Stripe PaymentSheet
+      const data: any = await httpPost('/payments/create-payment-sheet', { ad_id: String(adId), dates, promo_code: promo || undefined });
+
+      if (data?.free) {
+        setSubmitting(false);
+        setShowFreeSuccess(true);
+        freeSuccessOpacity.setValue(0);
+        Animated.timing(freeSuccessOpacity, { toValue: 1, duration: 300, useNativeDriver: true }).start(() => {
+          setTimeout(() => {
+            router.replace({ pathname: '/ad-confirmation', params: { ad_id: String(adId), selectedDates: dates.join(', '), totalAmount: '$0.00 (promo)', hoursRemaining: String(hrsRemaining) } });
+          }, 1200);
+        });
         return;
       }
 

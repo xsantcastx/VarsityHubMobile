@@ -637,7 +637,8 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       // Exception: pending-approval and league-pending-approval are completion screens —
       // the user must tap the button themselves. Don't yank them away automatically.
       // Exception: coach-agreement — only keep the user there if they still need to accept it.
-      if (!needsOnboarding && firstSegment === 'onboarding' && !isPendingCoach && !(isOnAgreementScreen && isCoachWithoutAgreement)) {
+      const isOnPendingScreen = currentPath.includes('pending-approval') || currentPath.includes('league-pending-approval');
+      if (!needsOnboarding && firstSegment === 'onboarding' && !isPendingCoach && !isOnPendingScreen && !(isOnAgreementScreen && isCoachWithoutAgreement)) {
         if (__DEV__) console.log('[AuthProvider] User completed onboarding, redirecting to main app');
         const landingRoute = '/(tabs)';
         if (lastRedirectRef.current !== landingRoute) {

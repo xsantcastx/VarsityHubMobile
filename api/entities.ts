@@ -102,6 +102,7 @@ export const Game = {
       dateTo?: string;
       approvalStatus?: 'pending' | 'approved' | 'rejected';
       showPending?: boolean;
+      teamId?: string;
     }
   ) => {
     const params: string[] = [];
@@ -115,6 +116,7 @@ export const Game = {
     if (options?.dateTo) params.push(`to=${encodeURIComponent(options.dateTo)}`);
     if (options?.approvalStatus) params.push(`approval_status=${encodeURIComponent(options.approvalStatus)}`);
     if (options?.showPending) params.push('show_pending=true');
+    if (options?.teamId) params.push(`team_id=${encodeURIComponent(options.teamId)}`);
     const qs = params.length ? `?${params.join('&')}` : '';
     return httpGet('/games' + qs);
   },

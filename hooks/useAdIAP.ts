@@ -101,10 +101,21 @@ export function useAdIAP() {
           pending.resolve({ ok: false, error: msg });
         }
       } else if (needWeekend && !hasWeekend) {
+        // Set a 2-minute timeout to prevent UI getting stuck if Apple IAP stalls
+        const iapTimeout = setTimeout(() => {
+          const p = pendingAdRef.current;
+          if (p) {
+            pendingAdRef.current = null;
+            p.resolve({ ok: false, error: 'Purchase timed out. Please try again.' });
+          }
+          setPurchasing(false);
+        }, 120000);
         rnRequestPurchase({
           type: 'in-app',
           request: { apple: { sku: AD_IAP_PRODUCT_IDS.weekend, quantity: weekendBlocks } },
-        }).catch(() => {});
+        }).catch(() => {
+          clearTimeout(iapTimeout);
+        });
       }
     },
     onPurchaseError: (err: any) => {

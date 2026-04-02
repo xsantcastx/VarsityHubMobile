@@ -2614,7 +2614,10 @@ paymentsRouter.post('/apple/verify-ad-receipt', expressPkg.json(), requireVerifi
       if (matching.length === 0) {
         return res.status(400).json({ error: 'No matching transactions in receipt for product', product_id: productId });
       }
-      verifiedCents += unitCents * matching.length;
+      // Apple consumable IAP with quantity > 1 creates ONE transaction entry with a quantity field,
+      // not multiple entries. Use the transaction's quantity, not matching.length.
+      const purchasedQty = parseInt(matching[0]?.quantity || '1', 10) || 1;
+      verifiedCents += unitCents * purchasedQty;
 
       const txId = matching[0]?.transaction_id || matching[0]?.original_transaction_id;
       if (txId) orderIds.push(String(txId));
@@ -2741,20 +2744,28 @@ paymentsRouter.post('/apple/notifications', expressPkg.json(), asyncHandler(asyn
     const subtype: string = payload.subtype || '';
     const data = payload.data || {};
 
-    // The signedTransactionInfo is itself a JWS
+    // Verify inner JWS tokens using their own x5c certificate chains (Apple best practice).
+    // Falls back to jwt.decode if verification fails — the outer payload was already verified.
+    const verifyInnerJWS = (token: string): any => {
+      try {
+        const innerHeader = jwt.decode(token, { complete: true })?.header as any;
+        if (innerHeader?.x5c?.length) {
+          const innerCertPem = `-----BEGIN CERTIFICATE-----\n${innerHeader.x5c[0]}\n-----END CERTIFICATE-----`;
+          const innerKey = crypto.createPublicKey(innerCertPem);
+          return jwt.verify(token, innerKey, { algorithms: ['ES256'] });
+        }
+      } catch { /* fall through to decode */ }
+      return jwt.decode(token) || {};
+    };
+
     let transactionInfo: any = {};
     if (data.signedTransactionInfo) {
-      try {
-        transactionInfo = jwt.decode(data.signedTransactionInfo) || {};
-      } catch { /* ignore decode errors */ }
+      transactionInfo = verifyInnerJWS(data.signedTransactionInfo);
     }
 
-    // The signedRenewalInfo is also a JWS
     let renewalInfo: any = {};
     if (data.signedRenewalInfo) {
-      try {
-        renewalInfo = jwt.decode(data.signedRenewalInfo) || {};
-      } catch { /* ignore decode errors */ }
+      renewalInfo = verifyInnerJWS(data.signedRenewalInfo);
     }
 
     const originalTransactionId: string = transactionInfo.originalTransactionId || '';
