@@ -6,7 +6,7 @@ import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Linking, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Linking, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { safeGoBack } from '@/utils/navigation';
 
@@ -66,6 +66,8 @@ export default function OrganizationScreen() {
   const [isFollowing, setIsFollowing] = useState(false);
   const [followBusy, setFollowBusy] = useState(false);
   const [isRequestingJoin, setIsRequestingJoin] = useState(false);
+  const [inviteModalVisible, setInviteModalVisible] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
 
   const mounted = useRef(true);
   useEffect(() => {
@@ -347,22 +349,8 @@ export default function OrganizationScreen() {
             </Pressable>
             <Pressable
               onPress={() => {
-                Alert.prompt(
-                  'Invite Coach',
-                  'Enter the email address of the coach to invite:',
-                  async (email) => {
-                    if (!email?.trim()) return;
-                    try {
-                      await Organization.invite(organization.id, email.trim(), 'member');
-                      Alert.alert('Invited', `Invitation sent to ${email.trim()}`);
-                    } catch (err: any) {
-                      Alert.alert('Error', err?.data?.error || err?.message || 'Failed to send invite');
-                    }
-                  },
-                  'plain-text',
-                  '',
-                  'email-address'
-                );
+                setInviteEmail('');
+                setInviteModalVisible(true);
               }}
               style={[styles.adminButton, { backgroundColor: theme.card, borderWidth: 1, borderColor: theme.border, flex: 1 }]}
             >
@@ -633,6 +621,46 @@ export default function OrganizationScreen() {
           )}
         </View>
       </ScrollView>
+      {/* Invite Coach Modal — replaces iOS-only Alert.prompt */}
+      <Modal visible={inviteModalVisible} transparent animationType="fade" onRequestClose={() => setInviteModalVisible(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setInviteModalVisible(false)}>
+          <Pressable style={[styles.modalContent, { backgroundColor: theme.card }]} onPress={() => {}}>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>Invite Coach</Text>
+            <Text style={[styles.modalSubtitle, { color: theme.mutedText }]}>Enter the email address of the coach to invite:</Text>
+            <TextInput
+              style={[styles.modalInput, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+              placeholder="coach@example.com"
+              placeholderTextColor={theme.mutedText}
+              value={inviteEmail}
+              onChangeText={setInviteEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoFocus
+            />
+            <View style={styles.modalButtons}>
+              <Pressable style={[styles.modalButton, { borderColor: theme.border }]} onPress={() => setInviteModalVisible(false)}>
+                <Text style={[styles.modalButtonText, { color: theme.mutedText }]}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.modalButton, { backgroundColor: theme.tint }]}
+                onPress={async () => {
+                  if (!inviteEmail.trim() || !organization) return;
+                  try {
+                    await Organization.invite(organization.id, inviteEmail.trim(), 'member');
+                    setInviteModalVisible(false);
+                    Alert.alert('Invited', `Invitation sent to ${inviteEmail.trim()}`);
+                  } catch (err: any) {
+                    Alert.alert('Error', err?.data?.error || err?.message || 'Failed to send invite');
+                  }
+                }}
+              >
+                <Text style={[styles.modalButtonText, { color: '#fff' }]}>Send Invite</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -850,4 +878,35 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexWrap: 'wrap',
   },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 400,
+    borderRadius: 12,
+    padding: 20,
+  },
+  modalTitle: { fontSize: 18, fontWeight: '700', marginBottom: 4 },
+  modalSubtitle: { fontSize: 14, marginBottom: 12 },
+  modalInput: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    marginBottom: 16,
+  },
+  modalButtons: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8 },
+  modalButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  modalButtonText: { fontSize: 16, fontWeight: '600' },
 });
