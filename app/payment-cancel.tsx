@@ -1,3 +1,5 @@
+// GATED — restore when PAYMENTS is ready to test
+export { default } from '@/components/ComingSoon';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -9,7 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import PrimaryButton from '@/components/ui/PrimaryButton';
 
-export default function PaymentCancelScreen() {
+function PaymentCancelScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ type?: string }>();
   const isAd = params.type === 'ad';

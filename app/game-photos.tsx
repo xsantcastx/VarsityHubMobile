@@ -1,3 +1,5 @@
+// GATED — restore when GAMES is ready to test
+export { default } from '@/components/ComingSoon';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -10,7 +12,7 @@ import { Post as PostApi } from '@/api/entities';
 import { optimizeImageUrl } from '@/utils/imageUrl';
 import { safeGoBack } from '@/utils/navigation';
 
-export default function GamePhotosScreen() {
+function GamePhotosScreen() {
   const { game_id } = useLocalSearchParams<{ game_id?: string }>();
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';

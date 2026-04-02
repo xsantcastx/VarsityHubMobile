@@ -1,3 +1,5 @@
+// GATED — restore when ADS is ready to test
+export { default } from '@/components/ComingSoon';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -26,7 +28,7 @@ type ManagedAd = {
   isLocal?: boolean;
 };
 
-export default function MyAdsScreen() {
+function MyAdsScreen() {
   const router = useRouter();
   const { payment_success } = useLocalSearchParams<{ payment_success?: string }>();
   const colorScheme = useColorScheme() ?? 'light';

@@ -1,3 +1,5 @@
+// GATED — restore when MESSAGING is ready to test
+export { default } from '@/components/ComingSoon';
 import { AppLinks } from '@/utils/links';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
@@ -40,7 +42,7 @@ type Conversation = {
   messages: UIMsg[];
 };
 
-export default function MessagesScreen() {
+function MessagesScreen() {
   const router = useRouter();
   const isFocused = useIsFocused();
   const params = useLocalSearchParams<{ sharePost?: string }>();

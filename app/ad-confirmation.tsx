@@ -1,3 +1,5 @@
+// GATED — restore when ADS is ready to test
+export { default } from '@/components/ComingSoon';
 import { Advertisement } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -10,7 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { BackHeader } from '@/components/ui/BackHeader';
 import { safeGoBack } from '@/utils/navigation';
 
-export default function AdConfirmationScreen() {
+function AdConfirmationScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const params = useLocalSearchParams<{

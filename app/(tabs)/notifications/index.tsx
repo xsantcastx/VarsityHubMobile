@@ -1,3 +1,5 @@
+// GATED — restore when NOTIFICATIONS is ready to test
+export { default } from '@/components/ComingSoon';
 import { useAuth } from '@/context/AuthProvider';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
@@ -26,7 +28,7 @@ type Notif = {
   meta?: { event_id?: string; event_title?: string; [key: string]: any } | null;
 };
 
-export default function NotificationsScreen() {
+function NotificationsScreen() {
   const { user: _user } = useAuth();
   const router = useRouter();
   const colorScheme = useColorScheme();

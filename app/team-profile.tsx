@@ -1,1 +1,3 @@
-export { default } from './team-page';
+// GATED — restore when TEAMS is ready to test
+export { default } from '@/components/ComingSoon';
+// export { default } from './team-page';

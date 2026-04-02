@@ -1,3 +1,5 @@
+// GATED — restore when TEAMS is ready to test
+export { default } from '@/components/ComingSoon';
 import CustomActionModal from '@/components/CustomActionModal';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -78,7 +80,7 @@ function getRoleBadgeColor(role: string): { bg: string; text: string } {
   }
 }
 
-export default function MyTeamScreen() {
+function MyTeamScreen() {
   const { isCoach, loading: coachLoading } = useRequireCoach();
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();

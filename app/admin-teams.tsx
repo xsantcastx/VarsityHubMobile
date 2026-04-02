@@ -1,3 +1,5 @@
+// GATED — restore when ADMIN is ready to test
+export { default } from '@/components/ComingSoon';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
@@ -10,7 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Team as TeamApi, User } from '@/api/entities';
 import { safeGoBack } from '@/utils/navigation';
 
-export default function AdminTeamsScreen() {
+function AdminTeamsScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const { isAdmin, loading: adminLoading } = useRequireAdmin();
   const router = useRouter();

@@ -1,3 +1,5 @@
+// GATED — restore when CONTENT CREATION is ready to test
+export { default } from '@/components/ComingSoon';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -8,7 +10,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { User } from '@/api/entities';
 import { safeGoBack } from '@/utils/navigation';
 
-export default function CreateScreen() {
+function CreateScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const [me, setMe] = useState<any>(null);

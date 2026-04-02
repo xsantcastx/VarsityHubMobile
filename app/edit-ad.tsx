@@ -1,3 +1,5 @@
+// GATED — restore when ADS is ready to test
+export { default } from '@/components/ComingSoon';
 import { uploadFile } from '@/api/upload';
 import { ReachMapPreview } from '@/components/ReachMapPreview';
 import { Colors } from '@/constants/Colors';
@@ -19,7 +21,7 @@ import settings from '@/api/settings';
 import { getApiBaseUrl } from '../api/http';
 import { sanitizeText } from '@/utils/formUtils';
 
-export default function EditAdScreen() {
+function EditAdScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const router = useRouter();
   const _insets = useSafeAreaInsets();

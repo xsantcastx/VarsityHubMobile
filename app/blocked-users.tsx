@@ -1,3 +1,5 @@
+// GATED — restore when MESSAGING is ready to test
+export { default } from '@/components/ComingSoon';
 import { User } from '@/api/entities';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
@@ -14,7 +16,7 @@ interface BlockedUser {
   display_name?: string;
 }
 
-export default function BlockedUsersScreen() {
+function BlockedUsersScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';

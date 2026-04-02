@@ -1,3 +1,5 @@
+// GATED — restore when GAMES is ready to test
+export { default } from '@/components/ComingSoon';
 import CollageView, { type CollageData } from '@/components/CollageView';
 import { Colors } from '@/constants/Colors';
 import { sanitizeTitle } from '@/lib/sanitizeTitle';
@@ -472,7 +474,7 @@ const FeedCard = memo(
 );
 FeedCard.displayName = 'FeedCard';
 
-export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId, showHeader = true, countryCode, initialPosts, startIndex = 0, excludeMediaUrls = [], title }: GameVerticalFeedScreenProps = {}) {
+function GameVerticalFeedScreen({ onClose, gameId: externalGameId, showHeader = true, countryCode, initialPosts, startIndex = 0, excludeMediaUrls = [], title }: GameVerticalFeedScreenProps = {}) {
   const { id: gameIdParam } = useLocalSearchParams<{ id?: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();

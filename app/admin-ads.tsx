@@ -1,3 +1,5 @@
+// GATED — restore when ADMIN is ready to test
+export { default } from '@/components/ComingSoon';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
@@ -13,7 +15,7 @@ import { Advertisement as AdsApi, User } from '@/api/entities';
 
 type AdStatus = 'draft' | 'pending' | 'approved' | 'active' | 'paused';
 
-export default function AdminAdsScreen() {
+function AdminAdsScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
   const { isAdmin, loading: adminLoading } = useRequireAdmin();

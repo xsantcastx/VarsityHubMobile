@@ -1,3 +1,5 @@
+// GATED — restore when MESSAGING is ready to test
+export { default } from '@/components/ComingSoon';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
 import { useIsFocused } from '@react-navigation/native';
@@ -25,7 +27,7 @@ type Msg = {
   recipient?: MiniUser | null;
 };
 
-export default function MessageThreadScreen() {
+function MessageThreadScreen() {
   const { conversation_id, with: withParam, prefill } = useLocalSearchParams<{ conversation_id?: string; with?: string; prefill?: string }>();
   const router = useRouter();
   const isFocused = useIsFocused();

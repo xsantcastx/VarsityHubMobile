@@ -1,3 +1,5 @@
+// GATED — restore when EVENTS is ready to test
+export { default } from '@/components/ComingSoon';
 
 import { Event, Message } from '@/api/entities';
 import { getConfig } from '@/config/env';
@@ -25,7 +27,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 
 // TODO v1.1: Wire up navigation from settings or discover
-export default function RequestHostEventScreen() {
+function RequestHostEventScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const { displayName, email: profileEmail } = useUserProfile();

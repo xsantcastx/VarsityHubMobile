@@ -1,3 +1,5 @@
+// GATED — restore when ORGANIZATIONS is ready to test
+export { default } from '@/components/ComingSoon';
 import { getConfig } from '@/config/env';
 import { Colors } from '@/constants/Colors';
 import { httpGet } from '@/api/http';
@@ -34,7 +36,7 @@ interface Organization {
 
 const VALID_ID = /^[a-zA-Z0-9_-]{1,128}$/;
 
-export default function OrganizationDetailScreen() {
+function OrganizationDetailScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
   const params = useLocalSearchParams<{ id: string }>();

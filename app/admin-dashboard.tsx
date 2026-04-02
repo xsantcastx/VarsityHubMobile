@@ -1,3 +1,5 @@
+// GATED — restore when ADMIN is ready to test
+export { default } from '@/components/ComingSoon';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
@@ -52,7 +54,7 @@ interface DashboardStats {
   }>;
 }
 
-export default function AdminDashboardScreen() {
+function AdminDashboardScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
   const { isAdmin, loading: adminLoading } = useRequireAdmin();

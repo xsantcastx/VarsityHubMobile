@@ -1,3 +1,5 @@
+// GATED — restore when PAYMENTS is ready to test
+export { default } from '@/components/ComingSoon';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
@@ -20,7 +22,7 @@ type AdDetails = {
   dates: string[];
 };
 
-export default function PaymentSuccessScreen() {
+function PaymentSuccessScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];

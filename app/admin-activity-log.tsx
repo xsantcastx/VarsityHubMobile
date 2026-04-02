@@ -1,3 +1,5 @@
+// GATED — restore when ADMIN is ready to test
+export { default } from '@/components/ComingSoon';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
@@ -20,7 +22,7 @@ interface ActivityLogItem {
   timestamp: string;
 }
 
-export default function AdminActivityLogScreen() {
+function AdminActivityLogScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
   const { isAdmin, loading: adminLoading } = useRequireAdmin();

@@ -1,3 +1,5 @@
+// GATED — restore when PAYMENTS is ready to test
+export { default } from '@/components/ComingSoon';
 import { Subscriptions, User } from '@/api/entities';
 // @ts-ignore
 import { httpPost } from '@/api/http';
@@ -30,7 +32,7 @@ interface CancelResponse {
 
 const isIOS = Platform.OS === 'ios';
 
-export default function ManageSubscription() {
+function ManageSubscription() {
   const colorScheme = useColorScheme();
   const [loading, setLoading] = useState(false);
   const [plan, setPlan] = useState<string | null>(null);

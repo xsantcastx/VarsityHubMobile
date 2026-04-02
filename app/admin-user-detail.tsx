@@ -1,3 +1,5 @@
+// GATED — restore when ADMIN is ready to test
+export { default } from '@/components/ComingSoon';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
@@ -14,7 +16,7 @@ import { User } from '@/api/entities';
 
 type Severity = 'warning' | 'strike' | 'final_warning';
 
-export default function AdminUserDetailScreen() {
+function AdminUserDetailScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
   const { isAdmin, loading: adminLoading } = useRequireAdmin();

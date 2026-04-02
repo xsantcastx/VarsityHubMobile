@@ -1,3 +1,5 @@
+// GATED — restore when TEAMS is ready to test
+export { default } from '@/components/ComingSoon';
 import { useAuth } from '@/context/AuthProvider';
 import { useRequireCoach } from '@/hooks/useRequireCoach';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -34,7 +36,7 @@ const computeGoing = (count?: number | null, capacity?: number | null) => {
 
 const pickBanner = (event: any) => event?.game?.cover_image_url || event?.banner_url || null;
 
-export default function TeamHubScreen() {
+function TeamHubScreen() {
   const { user: _user } = useAuth();
   const { isCoach, loading: coachLoading } = useRequireCoach();
   const router = useRouter();

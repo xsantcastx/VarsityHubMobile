@@ -1,3 +1,5 @@
+// GATED — restore when ADMIN is ready to test
+export { default } from '@/components/ComingSoon';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -39,7 +41,7 @@ const EVENT_TYPES = [
 
 type TeamResult = { id: string; name: string; sport?: string; logo_url?: string | null };
 
-export default function CreateEventScreen() {
+function CreateEventScreen() {
   const { isAdmin, loading: adminLoading } = useRequireAdmin();
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();

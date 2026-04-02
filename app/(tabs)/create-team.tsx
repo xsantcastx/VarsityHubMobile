@@ -1,3 +1,5 @@
+// GATED — restore when TEAMS is ready to test
+export { default } from '@/components/ComingSoon';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireCoach } from '@/hooks/useRequireCoach';
@@ -42,7 +44,7 @@ const formatPlanDisplay = (tier?: string | null) => {
   return normalized.charAt(0).toUpperCase() + normalized.slice(1);
 };
 
-export default function CreateTeamScreen() {
+function CreateTeamScreen() {
   const { isCoach, loading: coachLoading } = useRequireCoach();
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';

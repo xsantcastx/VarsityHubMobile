@@ -1,3 +1,5 @@
+// GATED — restore when TEAMS is ready to test
+export { default } from '@/components/ComingSoon';
 import { useAuth } from '@/context/AuthProvider';
 import { useRequireCoach } from '@/hooks/useRequireCoach';
 import { Colors } from '@/constants/Colors';
@@ -33,7 +35,7 @@ type Team = {
   } | null;
 };
 
-export default function ManageTeamsSimpleScreen() {
+function ManageTeamsSimpleScreen() {
   const { user } = useAuth();
   const { isCoach, loading: coachLoading } = useRequireCoach();
   const router = useRouter();

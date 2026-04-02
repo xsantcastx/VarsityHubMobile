@@ -1,3 +1,5 @@
+// GATED — restore when PAYMENTS is ready to test
+export { default } from '@/components/ComingSoon';
 /**
  * League Subscription Paywall
  *
@@ -37,7 +39,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 const isIOS = Platform.OS === 'ios';
 
-export default function SubscriptionPaywallScreen() {
+function SubscriptionPaywallScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const [selectedTier, setSelectedTier] = useState<CoachTier>('veteran');

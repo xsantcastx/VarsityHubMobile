@@ -1,3 +1,5 @@
+// GATED — restore when COACH ONBOARDING is ready to test
+export { default } from '@/components/ComingSoon';
 import { Input } from '@/components/ui/input';
 import PrimaryButton from '@/components/ui/PrimaryButton';
 import { Colors } from '@/constants/Colors';
@@ -21,7 +23,7 @@ import { useOnboarding } from '@/context/OnboardingContext';
 import { useOrganizationSearch } from '@/hooks/useOrganizationSearch';
 import OnboardingLayout from './components/OnboardingLayout';
 
-export default function Step3League() {
+function Step3League() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
