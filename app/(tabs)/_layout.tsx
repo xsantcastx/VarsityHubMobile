@@ -88,53 +88,46 @@ export default function TabLayout() {
           tabBarAccessibilityLabel: 'Discover',
         }}
       />
-  {/* Hidden screens within (tabs) that should not appear as tabs */}
-  <Tabs.Screen name="index" options={hiddenTab} />
-  <Tabs.Screen name="notifications/index" options={hiddenTab} />
-  <Tabs.Screen name="messages/index" options={hiddenTab} />
-  {/* Hide nested game routes under Feed */}
-  <Tabs.Screen name="feed/game/[id]" options={hiddenTab} />
-  <Tabs.Screen name="feed/game/index" options={hiddenTab} />
-  {/* Hide nested routes under Discover */}
-  <Tabs.Screen name="discover/mobile-community" options={hiddenTab} />
-  <Tabs.Screen name="discover/game/index" options={hiddenTab} />
-  <Tabs.Screen name="discover/game/[id]" options={hiddenTab} />
-  {/* Admin screens - hidden but accessible with tab bar */}
-  <Tabs.Screen name="admin-ads" options={hiddenTab} />
-  <Tabs.Screen name="admin-messages" options={hiddenTab} />
-  <Tabs.Screen name="admin-teams" options={hiddenTab} />
-  <Tabs.Screen name="admin-users" options={hiddenTab} />
-  <Tabs.Screen name="admin-user-detail" options={hiddenTab} />
-  {/* Ad screens - hidden but accessible with tab bar */}
-  <Tabs.Screen name="ad-calendar" options={hiddenTab} />
-  <Tabs.Screen name="edit-ad" options={hiddenTab} />
-  <Tabs.Screen name="my-ads" options={hiddenTab} />
-  <Tabs.Screen name="submit-ad" options={hiddenTab} />
-  {/* Game/Event screens - hidden but accessible with tab bar */}
-  <Tabs.Screen name="game-detail" options={hiddenTab} />
-  <Tabs.Screen name="game-photos" options={hiddenTab} />
-  <Tabs.Screen name="game-highlights" options={hiddenTab} />
-  <Tabs.Screen name="game-reviews" options={hiddenTab} />
-  {/* Common navigation screens - hidden but accessible with tab bar */}
-  <Tabs.Screen name="create-post" options={hiddenTab} />
-  <Tabs.Screen name="team-profile" options={hiddenTab} />
-  <Tabs.Screen name="team-hub" options={hiddenTab} />
-  <Tabs.Screen name="team-contacts" options={hiddenTab} />
-  <Tabs.Screen name="edit-profile" options={hiddenTab} />
-  <Tabs.Screen name="create-team" options={hiddenTab} />
-  <Tabs.Screen name="edit-team" options={hiddenTab} />
-  <Tabs.Screen name="manage-teams" options={hiddenTab} />
-  <Tabs.Screen name="my-team" options={hiddenTab} />
-  <Tabs.Screen name="followers" options={hiddenTab} />
-  <Tabs.Screen name="following" options={hiddenTab} />
-  <Tabs.Screen name="organization" options={hiddenTab} />
-  <Tabs.Screen name="event-detail" options={hiddenTab} />
-  <Tabs.Screen name="edit-event" options={hiddenTab} />
-  <Tabs.Screen name="edit-organization" options={hiddenTab} />
-  <Tabs.Screen name="event-approvals" options={hiddenTab} />
-  <Tabs.Screen name="approvals" options={hiddenTab} />
-  <Tabs.Screen name="verify-email" options={hiddenTab} />
-  <Tabs.Screen name="team-page" options={hiddenTab} />
+      <Tabs.Screen name="index" options={hiddenTab} />
+      <Tabs.Screen name="notifications/index" options={hiddenTab} />
+      <Tabs.Screen name="messages/index" options={hiddenTab} />
+      <Tabs.Screen name="feed/game/[id]" options={hiddenTab} />
+      <Tabs.Screen name="feed/game/index" options={hiddenTab} />
+      <Tabs.Screen name="discover/mobile-community" options={hiddenTab} />
+      <Tabs.Screen name="discover/game/index" options={hiddenTab} />
+      <Tabs.Screen name="discover/game/[id]" options={hiddenTab} />
+      <Tabs.Screen name="admin-ads" options={hiddenTab} />
+      <Tabs.Screen name="admin-messages" options={hiddenTab} />
+      <Tabs.Screen name="admin-teams" options={hiddenTab} />
+      <Tabs.Screen name="admin-users" options={hiddenTab} />
+      <Tabs.Screen name="admin-user-detail" options={hiddenTab} />
+      <Tabs.Screen name="ad-calendar" options={hiddenTab} />
+      <Tabs.Screen name="edit-ad" options={hiddenTab} />
+      <Tabs.Screen name="my-ads" options={hiddenTab} />
+      <Tabs.Screen name="submit-ad" options={hiddenTab} />
+      <Tabs.Screen name="game-detail" options={hiddenTab} />
+      <Tabs.Screen name="game-photos" options={hiddenTab} />
+      <Tabs.Screen name="game-highlights" options={hiddenTab} />
+      <Tabs.Screen name="game-reviews" options={hiddenTab} />
+      <Tabs.Screen name="create-post" options={hiddenTab} />
+      <Tabs.Screen name="team-profile" options={hiddenTab} />
+      <Tabs.Screen name="team-hub" options={hiddenTab} />
+      <Tabs.Screen name="team-contacts" options={hiddenTab} />
+      <Tabs.Screen name="edit-profile" options={hiddenTab} />
+      <Tabs.Screen name="create-team" options={hiddenTab} />
+      <Tabs.Screen name="edit-team" options={hiddenTab} />
+      <Tabs.Screen name="manage-teams" options={hiddenTab} />
+      <Tabs.Screen name="my-team" options={hiddenTab} />
+      <Tabs.Screen name="followers" options={hiddenTab} />
+      <Tabs.Screen name="following" options={hiddenTab} />
+      <Tabs.Screen name="organization" options={hiddenTab} />
+      <Tabs.Screen name="event-detail" options={hiddenTab} />
+      <Tabs.Screen name="edit-event" options={hiddenTab} />
+      <Tabs.Screen name="edit-organization" options={hiddenTab} />
+      <Tabs.Screen name="event-approvals" options={hiddenTab} />
+      <Tabs.Screen name="approvals" options={hiddenTab} />
+      <Tabs.Screen name="verify-email" options={hiddenTab} />
+      <Tabs.Screen name="team-page" options={hiddenTab} />
       <Tabs.Screen
         name="profile/index"
         options={{
