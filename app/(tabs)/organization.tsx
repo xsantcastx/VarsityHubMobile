@@ -25,11 +25,6 @@ type OrganizationData = {
   formatted_address?: string;
   followers_count?: number;
   is_following?: boolean;
-  memberships?: Array<{
-    user?: { id: string };
-    user_id?: string;
-    role?: string;
-  }>;
 };
 
 type TeamItem = {
@@ -121,10 +116,14 @@ export default function OrganizationScreen() {
       }
 
       try {
-        const currentUser = await User.me();
+        const [currentUser, members] = await Promise.all([
+          User.me(),
+          Organization.members(orgId as string).catch(() => []),
+        ]);
         if (!mounted.current) return;
-        if (currentUser && orgData?.memberships && Array.isArray(orgData.memberships)) {
-          const membership = orgData.memberships.find((m) => {
+        const membersList = Array.isArray(members) ? members : [];
+        if (currentUser && membersList.length > 0) {
+          const membership = membersList.find((m: any) => {
             const memberUserId = m.user?.id || m.user_id;
             if (memberUserId !== currentUser.id) return false;
             return ['owner', 'manager'].includes(String(m.role || '').toLowerCase());
