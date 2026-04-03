@@ -1,5 +1,4 @@
-// GATED — restore when COACH ONBOARDING is ready to test
-export { default } from '@/components/ComingSoon';
+// Coach onboarding — ungated 2026-04-02
 import { Input } from '@/components/ui/input';
 import PrimaryButton from '@/components/ui/PrimaryButton';
 import { Colors } from '@/constants/Colors';

@@ -1,5 +1,4 @@
-// GATED — restore when COACH ONBOARDING is ready to test
-export { default } from '@/components/ComingSoon';
+// Coach onboarding — ungated 2026-04-02
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';

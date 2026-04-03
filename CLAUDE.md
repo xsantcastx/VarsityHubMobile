@@ -1,15 +1,35 @@
 # VarsityHub Mobile — Claude Instructions
 
-## Stack
-- React Native / Expo SDK 55 with Expo Router (file-based routing)
-- Backend: Express + Prisma + PostgreSQL on Railway (project: `capable-trust`, service: `api`)
-- State: React Context — `AuthProvider`, `PostCacheContext`, `OnboardingContext`, `NavigationHistoryContext`
-- API: `api/entities.ts` re-exports from domain modules (`api/teams.ts`, `api/organizations.ts`, etc.)
-- EAS Build for iOS/Android. OTA updates via Expo Updates.
-- Payments: Apple IAP (iOS only) + Stripe PaymentSheet (Android only)
-- Uploads: Direct-to-Cloudinary (signed) with server-proxy fallback
-- Push notifications: Expo Server SDK (`sendPushNotification` in `server/src/lib/notifications.ts`)
-- Error tracking: Sentry with source maps
+## Commands
+
+```bash
+# Full dev (app + server concurrently)
+npm run dev
+
+# App only (dev client, not Expo Go)
+npm run dev:expo            # or: npx expo run:ios --device
+
+# Server only
+cd server && npm run dev    # tsx watch, auto-reloads
+
+# Tests (server)
+cd server && npm test                       # all tests
+cd server && npm run test:watch             # watch mode
+cd server && npm run test:payments:confidence  # payment suite
+
+# Lint
+npm run lint
+
+# Prisma
+cd server && npx prisma studio              # browse DB
+cd server && npx prisma migrate dev --name <name>  # new migration
+
+# Diagnostics
+npm run diagnose:metro      # metro bundler issues
+npm run diagnose:env        # env var alignment check
+cd server && npm run verify:production-health
+cd server && npm run verify:email
+```
 
 ## Hard Rules
 
@@ -20,6 +40,17 @@
 **Railway auto-deploys from `main`.** A bad push is an instant production outage. The app is live in the App Store.
 
 **Never change Railway env vars** (JWT_SECRET, GOOGLE_OAUTH_CLIENT_IDS, APPLE_KEY_ID, APPLE_PRIVATE_KEY) — changing them invalidates all active sessions.
+
+## Stack
+- React Native / Expo SDK 55 with Expo Router (file-based routing)
+- Backend: Express + Prisma + PostgreSQL on Railway (project: `capable-trust`, service: `api`)
+- State: React Context — `AuthProvider`, `PostCacheContext`, `OnboardingContext`, `NavigationHistoryContext`
+- API: `api/entities.ts` re-exports from domain modules (`api/teams.ts`, `api/organizations.ts`, etc.)
+- EAS Build for iOS/Android. OTA updates via Expo Updates.
+- Payments: Apple IAP (iOS only) + Stripe PaymentSheet (Android only)
+- Uploads: Direct-to-Cloudinary (signed) with server-proxy fallback
+- Push notifications: Expo Server SDK (`sendPushNotification` in `server/src/lib/notifications.ts`)
+- Error tracking: Sentry with source maps
 
 ## Debugging Approach
 
