@@ -1,5 +1,3 @@
-// GATED — restore when TEAMS is ready to test
-export { default } from '@/components/ComingSoon';
 import CustomActionModal from '@/components/CustomActionModal';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -978,3 +976,5 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
+
+export default MyTeamScreen;

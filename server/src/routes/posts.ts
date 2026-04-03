@@ -103,6 +103,7 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
     const following = await prisma.follows.findMany({
       where: { follower_id: currentUserId, status: 'accepted' },
       select: { following_id: true },
+      take: 5000,
     });
     const followingIds = following.map((f) => f.following_id);
     followedFeedMeta = { following_count: followingIds.length };
@@ -125,6 +126,7 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
     const teamFollows = await prisma.teamFollow.findMany({
       where: { user_id: currentUserId },
       select: { team_id: true },
+      take: 1000,
     });
     const followedTeamIds = teamFollows.map((f) => f.team_id);
     followedTeamsFeedMeta = { followed_teams_count: followedTeamIds.length };
@@ -472,7 +474,8 @@ postsRouter.get('/debug/follows', requireAuth, asyncHandler(async (req: AuthedRe
       following: {
         select: { id: true, display_name: true, username: true }
       }
-    }
+    },
+    take: 5000,
   });
 
   return res.json({
@@ -680,7 +683,12 @@ postsRouter.post('/', requireVerified as any, requireOnboarded as any, postCreat
       }
       debugLog(`✅ User ${req.user.id} verified at event location (${verification.distance?.toFixed(2)} km away)`);
     } else if (gameId) {
-      debugLog(`⚠️  Game ${gameId} has no associated event — allowing post without geofence`);
+      // Game exists but has no associated event — no location data to verify against.
+      // Block the post for non-team-members since geofencing can't be applied.
+      return res.status(403).json({
+        error: 'NO_EVENT_LOCATION',
+        message: 'This game has no event with location data. Only team members can post.',
+      });
     }
   }
 

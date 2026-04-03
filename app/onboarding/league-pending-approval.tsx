@@ -1,5 +1,3 @@
-// GATED — restore when COACH ONBOARDING is ready to test
-export { default } from '@/components/ComingSoon';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -129,7 +127,7 @@ function LeaguePendingApproval() {
   useEffect(() => {
     if (!orgId) return;
     void checkApproval();
-    intervalRef.current = setInterval(() => void checkApproval(), 10000);
+    intervalRef.current = setInterval(() => void checkApproval(), 30000);
     // Stop polling after 30 minutes — admin has been notified, user should continue as fan
     timeoutRef.current = setTimeout(() => {
       if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
@@ -401,3 +399,5 @@ const styles = StyleSheet.create({
   reasonLabel: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
   reasonText: { fontSize: 14, lineHeight: 20 },
 });
+
+export default LeaguePendingApproval;

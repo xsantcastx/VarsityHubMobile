@@ -12,6 +12,7 @@ groupChatsRouter.get('/', requireAuth as any, async (req: AuthedRequest, res) =>
 
     const memberships = await prisma.groupChatMember.findMany({
       where: { user_id: req.user.id },
+      take: 100,
       include: {
         chat: {
           include: {

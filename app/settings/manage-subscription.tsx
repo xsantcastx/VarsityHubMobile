@@ -1,5 +1,3 @@
-// GATED — restore when PAYMENTS is ready to test
-export { default } from '@/components/ComingSoon';
 import { Subscriptions, User } from '@/api/entities';
 // @ts-ignore
 import { httpPost } from '@/api/http';
@@ -150,7 +148,7 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
         }
         const { error } = await presentPaymentSheet();
         if (error) {
-          if (error.code !== 'Canceled') Alert.alert('Payment Failed', error.message);
+          if (error.code !== 'Canceled') Alert.alert('Payment Failed', error.message || 'Payment could not be completed.');
           return;
         }
         // Payment succeeded — try to finalize
@@ -290,3 +288,5 @@ const styles = StyleSheet.create({
   rowValue: { fontSize: 18, fontWeight: '700', marginTop: 6 },
   description: { marginTop: 12 },
 });
+
+export default ManageSubscription;

@@ -1,5 +1,3 @@
-// GATED — restore when TEAMS is ready to test
-export { default } from '@/components/ComingSoon';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireCoach } from '@/hooks/useRequireCoach';
@@ -394,7 +392,7 @@ function CreateTeamScreen() {
                       }
                       const { error } = await presentPaymentSheet();
                       if (error) {
-                        if (error.code !== 'Canceled') Alert.alert('Payment Failed', error.message);
+                        if (error.code !== 'Canceled') Alert.alert('Payment Failed', error.message || 'Payment could not be completed.');
                         setSubmitting(false);
                         return;
                       }
@@ -1569,3 +1567,5 @@ const styles = StyleSheet.create({
   },
 });
 
+
+export default CreateTeamScreen;

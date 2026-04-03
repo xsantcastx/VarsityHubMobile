@@ -3,6 +3,7 @@ import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { prisma } from '../lib/prisma.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
+import { isAdminEmail, ADMIN_EMAILS } from '../lib/adminEmails.js';
 
 export const rsvpsRouter = Router();
 
@@ -12,11 +13,10 @@ rsvpsRouter.get('/', requireAuth as any, asyncHandler(async (req: AuthedRequest,
   const limit = Math.max(1, Math.min(parseInt(String((req.query as any).limit || '50'), 10) || 50, 200));
 
   // Determine if caller is admin
-  const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
   let isAdmin = false;
-  if (adminEmails.length > 0) {
+  if (ADMIN_EMAILS.length > 0) {
     const caller = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { email: true } });
-    isAdmin = !!caller?.email && adminEmails.includes(caller.email.toLowerCase());
+    isAdmin = isAdminEmail(caller?.email);
   }
 
   // Admins can query any user; everyone else is scoped to themselves

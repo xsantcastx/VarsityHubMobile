@@ -1,5 +1,3 @@
-// GATED — restore when TEAMS is ready to test
-export { default } from '@/components/ComingSoon';
 import { Game, Organization, Post, Team, User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
@@ -313,7 +311,7 @@ function TeamScreen() {
         
         // Fallback to list if get() didn't work or we only have teamName
         if (!teamData) {
-          const allTeams = await Team.list();
+          const allTeams = await Team.list(undefined, undefined, { limit: 100 });
           const teamsList = Array.isArray(allTeams) ? allTeams : [];
           
           if (teamId && !teamData) {
@@ -1610,3 +1608,5 @@ const styles = StyleSheet.create({
   rosterMetaText: { fontSize: 12 },
   rosterRole: { fontSize: 12, fontWeight: '600', textTransform: 'capitalize' },
 });
+
+export default TeamScreen;

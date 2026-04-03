@@ -1,5 +1,3 @@
-// GATED — restore when COACH ONBOARDING is ready to test
-export { default } from '@/components/ComingSoon';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
@@ -122,3 +120,5 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
+
+export default CoachAgreementScreen;

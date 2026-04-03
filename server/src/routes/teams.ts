@@ -14,6 +14,7 @@ import { requirePlan } from '../middleware/subscription.js';
 import { teamCreationLimiter, followLimiter, inviteLimiter } from '../middleware/rateLimiters.js';
 import { getAuthorizedUsersPerTeam, getMaxTeamsForPlan, planSupportsExtracurricular } from '../lib/planLimits.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
+import { isOrganizationApproved } from '../lib/approvalService.js';
 
 import { registerIdValidation } from '../middleware/validateParams.js';
 
@@ -248,22 +249,24 @@ teamsRouter.post('/:id/follow', requireAuth as any, followLimiter, async (req: A
           select: { user_id: true },
         });
 
-        for (const mgr of managers) {
-          await prisma.notification.create({
-            data: {
+        // Batch: create all notifications in one query, send push in parallel
+        if (managers.length > 0) {
+          await prisma.notification.createMany({
+            data: managers.map(mgr => ({
               user_id: mgr.user_id,
               actor_id: userId,
               type: 'TEAM_FOLLOWED',
               meta: { team_id: teamId, team_name: team!.name, follower_name: followerName },
-            },
+            })),
           });
-
-          await sendPushNotification(
-            mgr.user_id,
-            `New follower`,
-            `${followerName} is now following ${team!.name}`,
-            { type: 'team_followed', team_id: teamId, screen: 'team-page' }
-          );
+          await Promise.allSettled(managers.map(mgr =>
+            sendPushNotification(
+              mgr.user_id,
+              `New follower`,
+              `${followerName} is now following ${team!.name}`,
+              { type: 'team_followed', team_id: teamId, screen: 'team-page' }
+            )
+          ));
         }
       } catch (notifErr) {
         console.error('[teams] Failed to send team followed notification:', notifErr);
@@ -540,9 +543,16 @@ teamsRouter.post('/', requireVerified as any, requireOnboarded as any, requirePl
     return res.status(400).json({ error: filterResult.error, code: filterResult.code });
   }
 
-  // Validate organization exists
+  // Validate organization exists and is approved
   const org = await prisma.organization.findUnique({ where: { id: parsed.data.organization_id } });
   if (!org) return res.status(400).json({ error: 'Organization not found' });
+  if (!(await isOrganizationApproved(parsed.data.organization_id, prisma))) {
+    return res.status(403).json({
+      error: 'ORGANIZATION_NOT_APPROVED',
+      message: 'Teams can only be created under organizations that have been approved by VarsityHub.',
+      code: 'ORGANIZATION_NOT_APPROVED',
+    });
+  }
   const orgMembership = await prisma.organizationMembership.findUnique({
     where: { organization_id_user_id: { organization_id: parsed.data.organization_id, user_id: userId } },
     select: { status: true },
@@ -1129,6 +1139,22 @@ teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, req
         });
       }
 
+      // Check target org is admin-approved before creating a team under it
+      if (!(await isOrganizationApproved(organizationId, prisma))) {
+        // Exception: org owners during onboarding are creating their first team before org gets approved
+        const isOnboarding = prefsCheck.onboarding_completed !== true;
+        const isOrgOwnerOfTarget = await prisma.organizationMembership.findFirst({
+          where: { organization_id: organizationId, user_id: me.id, role: 'owner', status: 'active' },
+        });
+        if (!(isOnboarding && isOrgOwnerOfTarget)) {
+          return res.status(403).json({
+            error: 'ORGANIZATION_NOT_APPROVED',
+            message: 'Teams can only be created under organizations that have been approved by VarsityHub.',
+            code: 'ORGANIZATION_NOT_APPROVED',
+          });
+        }
+      }
+
       // Enforce org hierarchy: requester must already be an active member of target org.
       const orgMembership = await prisma.organizationMembership.findUnique({
         where: { organization_id_user_id: { organization_id: organizationId, user_id: me.id } },
@@ -1469,7 +1495,7 @@ teamsRouter.get('/invites/me', requireAuth as any, async (req: AuthedRequest, re
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const user = await prisma.user.findUnique({ where: { id: req.user.id } });
   if (!user?.email) return res.status(400).json({ error: 'User email not found' });
-  const invites = await prisma.teamInvite.findMany({ where: { email: user.email, status: 'pending' }, include: { team: true }, orderBy: { created_at: 'desc' } });
+  const invites = await prisma.teamInvite.findMany({ where: { email: user.email, status: 'pending' }, include: { team: true }, orderBy: { created_at: 'desc' }, take: 100 });
   const list = invites.map((i) => ({ id: i.id, role: i.role, created_at: i.created_at, team: { id: i.team_id, name: (i as any).team?.name || '' } }));
   return res.json(list);
   } catch (err) {
@@ -1575,22 +1601,23 @@ teamsRouter.post('/invites/:inviteId/accept', requireAuth as any, async (req: Au
       select: { user_id: true },
     });
 
-    for (const mgr of managers) {
-      await prisma.notification.create({
-        data: {
+    if (managers.length > 0) {
+      await prisma.notification.createMany({
+        data: managers.map(mgr => ({
           user_id: mgr.user_id,
           actor_id: req.user!.id,
           type: 'TEAM_INVITE_ACCEPTED',
           meta: { team_id: invite.team_id, team_name: teamName, accepter_name: accepterName },
-        },
+        })),
       });
-
-      await sendPushNotification(
-        mgr.user_id,
-        `${accepterName} joined ${teamName}`,
-        `Your team invite was accepted`,
-        { type: 'team_invite_accepted', team_id: invite.team_id, screen: 'team-page' }
-      );
+      await Promise.allSettled(managers.map(mgr =>
+        sendPushNotification(
+          mgr.user_id,
+          `${accepterName} joined ${teamName}`,
+          `Your team invite was accepted`,
+          { type: 'team_invite_accepted', team_id: invite.team_id, screen: 'team-page' }
+        )
+      ));
     }
   } catch (notifErr) {
     console.error('[teams] Failed to send invite accepted notification:', notifErr);
@@ -1629,22 +1656,23 @@ teamsRouter.post('/invites/:inviteId/decline', requireAuth as any, async (req: A
       select: { user_id: true },
     });
 
-    for (const mgr of managers) {
-      await prisma.notification.create({
-        data: {
+    if (managers.length > 0) {
+      await prisma.notification.createMany({
+        data: managers.map(mgr => ({
           user_id: mgr.user_id,
           actor_id: req.user!.id,
           type: 'TEAM_INVITE_DECLINED',
           meta: { team_id: invite.team_id, team_name: teamName, decliner_name: declinerName },
-        },
+        })),
       });
-
-      await sendPushNotification(
-        mgr.user_id,
-        `Invite declined`,
-        `${declinerName} declined the invite to ${teamName}`,
-        { type: 'team_invite_declined', team_id: invite.team_id, screen: 'team-page' }
-      );
+      await Promise.allSettled(managers.map(mgr =>
+        sendPushNotification(
+          mgr.user_id,
+          `Invite declined`,
+          `${declinerName} declined the invite to ${teamName}`,
+          { type: 'team_invite_declined', team_id: invite.team_id, screen: 'team-page' }
+        )
+      ));
     }
   } catch (notifErr) {
     console.error('[teams] Failed to send invite declined notification:', notifErr);

@@ -1,5 +1,3 @@
-// GATED — restore when ORGANIZATIONS is ready to test
-export { default } from '@/components/ComingSoon';
 import { Event, Organization, Team } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
@@ -280,7 +278,7 @@ function LeagueScreen() {
       // Fallback: if organization response didn't include teams, filter from all teams
       if (formattedTeams.length === 0) {
         try {
-          const allTeamsData = await Team.list();
+          const allTeamsData = await Team.list(undefined, undefined, { limit: 100 });
           const orgId = organizationData?.id || params.id;
           const orgName = organizationData?.name || params.name;
           const fallbackTeams = filterTeamsByOrganization(allTeamsData, orgId, orgName);
@@ -836,3 +834,5 @@ const styles = StyleSheet.create({
     marginHorizontal: 2,
   },
 });
+
+export default LeagueScreen;

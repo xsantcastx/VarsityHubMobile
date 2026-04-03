@@ -1,5 +1,3 @@
-// GATED — restore when ADS is ready to test
-export { default } from '@/components/ComingSoon';
 import settings from '@/api/settings';
 import { BannerUpload } from '@/components/BannerUpload';
 import { Colors } from '@/constants/Colors';
@@ -392,3 +390,5 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
 });
+
+export default SubmitAdScreen;

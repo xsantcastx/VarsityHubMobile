@@ -1,5 +1,3 @@
-// GATED — restore when TEAMS is ready to test
-export { default } from '@/components/ComingSoon';
 import { useAuth } from '@/context/AuthProvider';
 import { useRequireCoach } from '@/hooks/useRequireCoach';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -438,3 +436,5 @@ const createStyles = (palette: Palette, scheme: 'light' | 'dark') => StyleSheet.
   },
   eventChipMutedText: { color: palette.mutedText, fontWeight: '600' },
 });
+
+export default TeamHubScreen;

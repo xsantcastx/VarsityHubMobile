@@ -1,5 +1,3 @@
-// GATED — restore when GAMES is ready to test
-export { default } from '@/components/ComingSoon';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useDeviceLocation } from '@/hooks/useDeviceLocation';
@@ -587,7 +585,7 @@ const GameDetailsScreen = () => {
   // Load teams data
   const loadTeams = async () => {
     try {
-      const teamsData = await Team.list();
+      const teamsData = await Team.list(undefined, undefined, { limit: 50 });
       const teamInfo: TeamInfo[] = teamsData.map((team: any) => ({
         id: team.id,
         name: team.name,
@@ -2936,7 +2934,7 @@ const renderBanner = () => {
   );
 };
 
-// export default GameDetailsScreen;
+export default GameDetailsScreen;
 
 const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors[colorScheme].background },

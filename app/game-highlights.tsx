@@ -1,5 +1,3 @@
-// GATED — restore when GAMES is ready to test
-export { default } from '@/components/ComingSoon';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
@@ -93,3 +91,5 @@ const styles = StyleSheet.create({
   cellVideo: { width: 110, height: 110, margin: 2, borderRadius: 8, backgroundColor: '#111827', alignItems: 'center', justifyContent: 'center' },
   muted: { color: '#6b7280', textAlign: 'center', marginTop: 16 },
 });
+
+export default GameHighlightsScreen;

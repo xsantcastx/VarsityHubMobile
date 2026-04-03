@@ -1,5 +1,3 @@
-// GATED — restore when TEAMS is ready to test
-export { default } from '@/components/ComingSoon';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireCoach } from '@/hooks/useRequireCoach';
@@ -875,3 +873,5 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
 });
+
+export default EditTeamScreen;

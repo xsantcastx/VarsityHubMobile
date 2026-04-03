@@ -1,5 +1,3 @@
-// GATED — restore when MESSAGING is ready to test
-export { default } from '@/components/ComingSoon';
 import { AppLinks } from '@/utils/links';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
@@ -865,3 +863,5 @@ const styles = StyleSheet.create({
   sheetRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10 },
   sheetText: { fontWeight: '700' },
 });
+
+export default MessagesScreen;

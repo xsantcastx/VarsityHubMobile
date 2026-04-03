@@ -1,5 +1,3 @@
-// GATED — restore when GAMES is ready to test
-export { default } from '@/components/ComingSoon';
 import EventMap, { EventMapData } from '@/components/EventMap';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -237,3 +235,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+
+export default GameMapScreen;

@@ -1,5 +1,3 @@
-// GATED — restore when GAMES is ready to test
-export { default } from '@/components/ComingSoon';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -92,3 +90,5 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   cell: { width: 110, height: 110, margin: 2, borderRadius: 8 },
 });
+
+export default GamePhotosScreen;

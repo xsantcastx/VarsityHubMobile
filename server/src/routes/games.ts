@@ -13,6 +13,8 @@ import { detectMediaType, getVideoPreviewUrl } from '../lib/mediaUtils.js';
 import { getExcludedPrivateAuthorIds } from '../lib/privacyUtils.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
+import { cacheGet, cacheSet } from '../lib/cache.js';
+import { isAdminEmail } from '../lib/adminEmails.js';
 
 export const gamesRouter = Router();
 registerIdValidation(gamesRouter);
@@ -24,6 +26,7 @@ void (async () => {
     const missing = await (prisma.game.findMany as any)({
       where: { location: { not: null }, latitude: null, venue_lat: null },
       select: { id: true, location: true },
+      take: 1000,
     });
     if (missing.length === 0) return;
     console.log(`[games] backfill: geocoding ${missing.length} games without coordinates`);
@@ -181,6 +184,11 @@ async function canViewGameRecord(record: GameVisibilityRecord, viewerId?: string
 
 gamesRouter.get('/', async (req, res) => {
   try {
+  // Cache-aside for games list (TTL 120s) — key includes query params
+  const gameCacheKey = `games:${req.url}`;
+  const cachedGames = await cacheGet(gameCacheKey);
+  if (cachedGames) return res.json(cachedGames);
+
   const sort = String(req.query.sort || '').trim();
   const orderBy =
     sort === '-date'
@@ -399,7 +407,9 @@ gamesRouter.get('/', async (req, res) => {
   }
 
   const lastId = payload.length > 0 ? payload[payload.length - 1].id : null;
-  res.json({ games: payload, nextCursor: hasMore ? lastId : null });
+  const gamesResponse = { games: payload, nextCursor: hasMore ? lastId : null };
+  void cacheSet(gameCacheKey, gamesResponse, 120); // 120s TTL
+  res.json(gamesResponse);
   } catch (err) {
     console.error('[games] GET / error:', err);
     return res.status(500).json({ error: 'Internal server error' });
@@ -919,8 +929,7 @@ gamesRouter.get('/:id/summary', async (req: AuthedRequest, res) => {
     if (!canEditResult && gameData.created_by_id === req.user.id) canEditResult = true;
     if (!canEditResult) {
       const user = await prisma.user.findUnique({ where: { id: req.user.id }, select: { email: true } });
-      const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
-      if (user?.email && adminEmails.includes(user.email.toLowerCase())) canEditResult = true;
+      if (isAdminEmail(user?.email)) canEditResult = true;
     }
   }
   
@@ -1051,8 +1060,7 @@ gamesRouter.delete('/:id', requireAuth as any, requireOnboarded as any, asyncHan
       where: { id: req.user.id },
       select: { email: true }
     });
-    const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-    const isAdmin = user?.email ? adminEmails.includes(user.email.toLowerCase()) : false;
+    const isAdmin = isAdminEmail(user?.email);
 
     // Check if user is coach/manager of either team
     let isCoach = false;
@@ -1246,8 +1254,7 @@ gamesRouter.patch('/:id/result', requireAuth as any, requireOnboarded as any, as
 
   const isCreator = game.created_by_id === req.user.id;
   const user = await prisma.user.findUnique({ where: { id: req.user.id }, select: { email: true } });
-  const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
-  const isAdmin = user?.email ? adminEmails.includes(user.email.toLowerCase()) : false;
+  const isAdmin = isAdminEmail(user?.email);
 
   if (!isCreator && !isCoach && !isAdmin) {
     return res.status(403).json({ error: 'Only coaches or team owners can update game results' });
@@ -1299,8 +1306,7 @@ gamesRouter.patch('/:id', requireAuth as any, requireOnboarded as any, asyncHand
       where: { id: req.user.id },
       select: { email: true }
     });
-    const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-    const isAdmin = user?.email ? adminEmails.includes(user.email.toLowerCase()) : false;
+    const isAdmin = isAdminEmail(user?.email);
 
     // Check if user is coach/manager of either team
     let isCoach = false;

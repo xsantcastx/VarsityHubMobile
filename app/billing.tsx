@@ -1,5 +1,3 @@
-// GATED — restore when PAYMENTS is ready to test
-export { default } from '@/components/ComingSoon';
 import { httpPost } from '@/api/http';
 // @ts-ignore
 import { Subscriptions } from '@/api/entities';
@@ -297,3 +295,5 @@ const styles = StyleSheet.create({
   qtyRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
   qtyInput: { width: 80, borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, paddingHorizontal: 12, height: 44 },
 });
+
+export default BillingScreen;

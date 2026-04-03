@@ -475,6 +475,10 @@ export const Support = {
   feedback: (data: { user_id?: string; category: 'bug' | 'idea' | 'other'; message: string; screenshot_url?: string }) => httpPost('/support/feedback', data),
 };
 
+export const Report = {
+  create: (data: { target_type: string; target_id: string; reason: string; details?: string }) => httpPost('/reports', data),
+};
+
 async function getPaymentsConfig(): Promise<{
   stripe_publishable_key: string;
   available_plans: any[];

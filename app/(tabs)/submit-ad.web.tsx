@@ -1,3 +1,1 @@
-// GATED — restore when ADS is ready to test
-export { default } from '@/components/ComingSoon';
-// export { default } from '../submit-ad.web';
+export { default } from '../submit-ad.web';

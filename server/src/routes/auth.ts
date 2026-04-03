@@ -17,6 +17,9 @@ import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { authLimiter, oauthLimiter, verificationConfirmLimiter } from '../middleware/rateLimiters.js';
 import { rlIncr, rlGet, rlSet, rlDel } from '../lib/redisRateLimit.js';
+import { cacheGet, cacheSet, cacheDel } from '../lib/cache.js';
+import { isAdminEmail } from '../lib/adminEmails.js';
+import { invalidatePrivateIdsCache } from '../lib/privacyUtils.js';
 
 export const authRouter = Router();
 
@@ -198,8 +201,7 @@ authRouter.post('/register', asyncHandler(async (req, res) => {
   const userRole = role || 'fan';
 
   // Set admin flag based on ADMIN_EMAILS env var
-  const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase());
-  const isAdmin = ADMIN_EMAILS.includes(sanitizedEmail);
+  const isAdmin = isAdminEmail(sanitizedEmail);
   const initialPreferences = {
     role: userRole,
     onboarding_completed: false,
@@ -276,8 +278,7 @@ authRouter.post('/login', asyncHandler(async (req, res) => {
   const sanitized = sanitizeUser(user);
   const needsOnboarding = sanitized?.preferences?.onboarding_completed === false;
   // Include is_admin flag so AuthProvider knows admin status immediately on login
-  const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-  const isLoginAdmin = user.email ? adminEmails.includes(user.email.toLowerCase()) : false;
+  const isLoginAdmin = isAdminEmail(user.email);
   const body: any = {
     access_token,
     refresh_token: rawRefresh,
@@ -508,8 +509,7 @@ authRouter.post('/google', oauthLimiter, asyncHandler(async (req, res) => {
     await prisma.refreshToken.create({ data: { token_hash: rtHash, user_id: sanitized.id, expires_at: rtExpiry } });
 
     // Include is_admin so AuthProvider knows admin status immediately
-    const oauthAdminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-    const isOAuthAdmin = sanitized.email ? oauthAdminEmails.includes(sanitized.email.toLowerCase()) : false;
+    const isOAuthAdmin = isAdminEmail(sanitized.email);
     return res.json({
       access_token,
       refresh_token: rawRefresh,
@@ -862,7 +862,7 @@ const upgradeToCoachSchema = z.object({
   plan: z.enum(['rookie', 'veteran', 'legend']),
 });
 
-authRouter.post('/upgrade-to-coach', requireVerified as any, asyncHandler(async (req: AuthedRequest, res) => {
+authRouter.post('/upgrade-to-coach', requireAuth as any, requireVerified as any, asyncHandler(async (req: AuthedRequest, res) => {
   const parsed = upgradeToCoachSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
   const { plan } = parsed.data;
@@ -908,6 +908,12 @@ authRouter.post('/upgrade-to-coach', requireVerified as any, asyncHandler(async 
 
 authRouter.get('/me', asyncHandler(async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+  // Cache-aside: check Redis first (TTL 60s)
+  const cacheKey = `me:${req.user.id}`;
+  const cached = await cacheGet(cacheKey);
+  if (cached) return res.json(cached);
+
   const user = await prisma.user.findUnique({
     where: { id: req.user!.id },
     include: {
@@ -921,8 +927,7 @@ authRouter.get('/me', asyncHandler(async (req: AuthedRequest, res) => {
     },
   });
   if (!user) return res.status(404).json({ error: 'Not found' });
-  const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-  const is_admin = user.email ? adminEmails.includes(user.email.toLowerCase()) : false;
+  const is_admin = isAdminEmail(user.email);
   const defaults = {
     notifications: { game_event_reminders: false, team_updates: false, comments_upvotes: false, follows_notifications: true, messages_notifications: true },
     is_parent: false,
@@ -935,7 +940,9 @@ authRouter.get('/me', asyncHandler(async (req: AuthedRequest, res) => {
   const prefs = mergePreferences(userPrefs, defaults);
   const has_password = !!(user as any).password_hash;
   const safe = sanitizeUser(user);
-  return res.json({ ...safe, has_password, ...(is_admin ? { role: 'admin' } : {}), preferences: prefs, is_admin });
+  const payload = { ...safe, has_password, ...(is_admin ? { role: 'admin' } : {}), preferences: prefs, is_admin };
+  void cacheSet(cacheKey, payload, 60); // 60s TTL
+  return res.json(payload);
 }));
 
 const updateMeSchema = z.object({
@@ -949,7 +956,7 @@ const updateMeSchema = z.object({
         // Only allow https
         if (parsed.protocol !== 'https:') return false;
         // Allow specific domains (Cloudinary, etc.)
-        const allowedDomains = ['res.cloudinary.com', 'varsityhub.app', 'cdn.varsityhub.app'];
+        const allowedDomains = ['res.cloudinary.com', 'varsityhub.app', 'cdn.varsityhub.app', 'lh3.googleusercontent.com', 'platform-lookaside.fbsbx.com', 'graph.facebook.com'];
         return allowedDomains.some(d => parsed.hostname.endsWith(d));
       } catch (error) {
         console.warn('[auth] Invalid avatar URL format:', error);
@@ -1004,6 +1011,7 @@ authRouter.put('/me', requireAuth as any, asyncHandler(async (req: AuthedRequest
   }
   const { preferences, ...rest } = patch;
   const user = await prisma.user.update({ where: { id: req.user!.id }, data: { ...rest, ...(preferences ? { preferences } : {}) } });
+  void cacheDel(`me:${req.user!.id}`); // Invalidate profile cache
   return res.json(sanitizeUser(user));
 }));
 
@@ -1049,8 +1057,9 @@ authRouter.patch('/me', requireAuth as any, asyncHandler(async (req: AuthedReque
       return res.status(400).json({ error: filterResult.error, code: filterResult.code });
     }
   }
-  const { preferences, ...rest } = patch;
-  const user = await prisma.user.update({ where: { id: req.user!.id }, data: { ...rest, ...(preferences ? { preferences } : {}) } });
+  const { preferences: prefs2, ...rest } = patch;
+  const user = await prisma.user.update({ where: { id: req.user!.id }, data: { ...rest, ...(prefs2 ? { preferences: prefs2 } : {}) } });
+  void cacheDel(`me:${req.user!.id}`); // Invalidate profile cache
   return res.json(sanitizeUser(user));
 }));
 
@@ -1199,8 +1208,7 @@ authRouter.patch('/me/preferences', requireAuth as any, asyncHandler(async (req:
   const forceApprovalPending = incoming.role === 'coach' && currentPrefs.role !== 'coach';
 
   // Check if user is admin (same logic as GET /me endpoint)
-  const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-  const is_admin = current?.email ? adminEmails.includes(current.email.toLowerCase()) : false;
+  const is_admin = isAdminEmail(current?.email);
   const defaults = {
     notifications: { game_event_reminders: false, team_updates: false, comments_upvotes: false, follows_notifications: true, messages_notifications: true },
     is_parent: false,
@@ -1225,6 +1233,12 @@ authRouter.patch('/me/preferences', requireAuth as any, asyncHandler(async (req:
       ...(forceApprovalPending ? { approval_status: 'PENDING' } : {}),
     },
   });
+
+  // Invalidate the private-IDs feed cache when a user toggles profile_private
+  if (incoming.profile_private !== undefined) {
+    invalidatePrivateIdsCache();
+  }
+
   return res.json({ preferences: updated.preferences });
 }));
 

@@ -1,5 +1,3 @@
-// GATED — restore when HIGHLIGHTS is ready to test
-export { default } from '@/components/ComingSoon';
 import { Colors } from '@/constants/Colors';
 import { usePostCache } from '@/context/PostCacheContext';
 import { sanitizeTitle } from '@/lib/sanitizeTitle';
@@ -1383,3 +1381,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 });
+
+export default HighlightsScreen;

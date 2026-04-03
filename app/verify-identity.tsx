@@ -1,5 +1,3 @@
-// GATED — restore when VERIFICATION is ready to test
-export { default } from '@/components/ComingSoon';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
@@ -269,3 +267,5 @@ const styles = StyleSheet.create({
   devCodeText: { color: '#059669', fontSize: 14, fontWeight: '600' },
   autoRedirectText: { fontSize: 14, textAlign: 'center', marginTop: 16, fontStyle: 'italic' },
 });
+
+export default VerifyScreen;

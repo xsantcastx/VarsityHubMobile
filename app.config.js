@@ -45,6 +45,10 @@ module.exports = ({ config }) => {
       enabled: true,
       fallbackToCacheTimeout: 0,
       url: `https://u.expo.dev/${EAS_PROJECT_ID}`,
+      checkAutomatically: 'ON_LOAD',
+      requestHeaders: {
+        'expo-channel-name': 'production',
+      },
     },
     ios: {
       buildNumber: '49',
@@ -178,7 +182,7 @@ module.exports = ({ config }) => {
           url: 'https://sentry.io/',
           organization: 'lime-productions',
           project: 'varsity-hub-mobile',
-          uploadSourcemaps: false,
+          uploadSourcemaps: true,
         },
       ],
       [

@@ -1,5 +1,3 @@
-// GATED — restore when MESSAGING is ready to test
-export { default } from '@/components/ComingSoon';
 import { User } from '@/api/entities';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
@@ -154,3 +152,5 @@ const styles = StyleSheet.create({
   removeBtn: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, backgroundColor: '#DC2626' },
   removeText: { color: 'white', fontWeight: '700' },
 });
+
+export default BlockedUsersScreen;

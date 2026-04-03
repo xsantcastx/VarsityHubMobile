@@ -124,15 +124,24 @@ jobs:
           
           cat CHANGELOG.md
 
-      - name: Commit changelog
+      - name: Commit changelog via PR
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          
+
           if ! git diff --quiet CHANGELOG.md; then
+            BRANCH="chore/auto-changelog-$(date +%Y%m%d-%H%M%S)"
+            git checkout -b "$BRANCH"
             git add CHANGELOG.md
             git commit -m "chore: auto-generate changelog"
-            git push origin main
+            git push origin "$BRANCH"
+            gh pr create \
+              --title "chore: auto-generate changelog" \
+              --body "Auto-generated changelog update from CI." \
+              --base main \
+              --head "$BRANCH"
           else
             echo "No changes to changelog"
           fi

@@ -128,7 +128,7 @@ export default function OnboardingLayout({
       </View>
 
       <KeyboardAvoidingView
-        behavior="height"
+        behavior={Platform.select({ ios: 'padding', android: 'height' })}
         style={{ flex: 1 }}
       >
         <ScrollView

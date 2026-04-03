@@ -1,5 +1,3 @@
-// GATED — restore when ADMIN is ready to test
-export { default } from '@/components/ComingSoon';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
@@ -567,3 +565,5 @@ const styles = StyleSheet.create({
     borderWidth: 1.5
   }
 });
+
+export default AdminAdsScreen;

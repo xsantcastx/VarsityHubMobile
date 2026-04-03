@@ -1,9 +1,10 @@
 import express from 'express';
 import { z } from 'zod';
 import { checkReportSpike, getUserModerationHistory, issueWarning, suspendUser } from '../lib/moderation.js';
-import { sendAccountPermanentBanEmail, sendCoachApprovedEmail, sendCoachRejectedEmail } from '../lib/email.js';
+import { sendAccountPermanentBanEmail } from '../lib/email.js';
 import { sendPushNotification } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
+import { approveCoach, rejectCoach } from '../lib/approvalService.js';
 import { getFounderMetricsReport } from '../lib/founderMetrics.js';
 import {
   getAllTransactions,
@@ -104,6 +105,7 @@ adminRouter.get('/dashboard', requireVerified as any, requireAdminMiddleware as 
       prisma.organization.findMany({
         where: { admin_approved: false, status: { not: 'rejected' } },
         orderBy: { created_at: 'desc' },
+        take: 200,
         select: {
           id: true,
           name: true,
@@ -133,6 +135,7 @@ adminRouter.get('/dashboard', requireVerified as any, requireAdminMiddleware as 
           preferences: { path: ['role'], equals: 'coach' },
         },
         orderBy: { created_at: 'desc' },
+        take: 200,
         select: {
           id: true,
           display_name: true,
@@ -175,16 +178,11 @@ adminRouter.post('/coaches/:id/approve', requireVerified as any, requireAdminMid
     const { id } = req.params;
     const { note } = req.body || {};
 
-    const user = await prisma.user.findUnique({ where: { id }, select: { id: true, email: true, display_name: true, username: true, approval_status: true, preferences: true } });
-    if (!user) return res.status(404).json({ error: 'User not found' });
-    if (user.approval_status !== 'PENDING') return res.status(400).json({ error: 'User is not pending approval' });
-
-    await prisma.user.update({
-      where: { id },
-      data: { approval_status: 'APPROVED' },
-    });
+    const result = await approveCoach(id, req.user?.id || 'unknown', prisma, { note });
+    if (result.error) return res.status(result.status || 500).json({ error: result.error });
 
     // Log admin action
+    const user = result.user!;
     await prisma.adminActivityLog.create({
       data: {
         admin_id: req.user?.id || 'unknown',
@@ -195,35 +193,6 @@ adminRouter.post('/coaches/:id/approve', requireVerified as any, requireAdminMid
         description: `Approved coach: ${user.display_name || user.username || user.email}${note ? ` — ${note}` : ''}`,
       },
     }).catch(() => {});
-
-    // Send approval email
-    if (user.email) {
-      const prefs = (user.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
-      const orgName = prefs?.organization_name || 'VarsityHub';
-      sendCoachApprovedEmail({
-        to: user.email,
-        coachName: user.display_name || user.username || 'Coach',
-        leagueName: orgName,
-        note: note || undefined,
-      }).catch((err) => console.error('[admin] Failed to send coach approved email:', err));
-    }
-
-    // Create in-app notification
-    await prisma.notification.create({
-      data: {
-        user_id: id,
-        type: 'JOIN_REQUEST_APPROVED',
-        meta: { approved_by: 'admin', note: note || undefined },
-      },
-    }).catch(() => {});
-
-    // Send push notification
-    sendPushNotification(
-      id,
-      'Application Approved!',
-      `Your coach application has been approved by VarsityHub.${note ? ` Note: ${note}` : ''}`,
-      { type: 'coach_approved', screen: 'onboarding' },
-    ).catch(() => {});
 
     return res.json({ ok: true, message: `Coach ${user.display_name || user.username} approved` });
   } catch (error) {
@@ -241,16 +210,11 @@ adminRouter.post('/coaches/:id/reject', requireVerified as any, requireAdminMidd
     const { id } = req.params;
     const { note } = req.body || {};
 
-    const user = await prisma.user.findUnique({ where: { id }, select: { id: true, email: true, display_name: true, username: true, approval_status: true, preferences: true } });
-    if (!user) return res.status(404).json({ error: 'User not found' });
-    if (user.approval_status !== 'PENDING') return res.status(400).json({ error: 'User is not pending approval' });
-
-    await prisma.user.update({
-      where: { id },
-      data: { approval_status: 'REJECTED' },
-    });
+    const result = await rejectCoach(id, req.user?.id || 'unknown', prisma, { reason: note });
+    if (result.error) return res.status(result.status || 500).json({ error: result.error });
 
     // Log admin action
+    const user = result.user!;
     await prisma.adminActivityLog.create({
       data: {
         admin_id: req.user?.id || 'unknown',
@@ -261,35 +225,6 @@ adminRouter.post('/coaches/:id/reject', requireVerified as any, requireAdminMidd
         description: `Rejected coach: ${user.display_name || user.username || user.email}${note ? ` — ${note}` : ''}`,
       },
     }).catch(() => {});
-
-    // Send rejection email
-    if (user.email) {
-      const rejectPrefs = (user.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
-      const rejectOrgName = rejectPrefs?.organization_name || 'VarsityHub';
-      sendCoachRejectedEmail({
-        to: user.email,
-        coachName: user.display_name || user.username || 'Coach',
-        leagueName: rejectOrgName,
-        reason: note || undefined,
-      }).catch((err) => console.error('[admin] Failed to send coach rejected email:', err));
-    }
-
-    // Create in-app notification
-    await prisma.notification.create({
-      data: {
-        user_id: id,
-        type: 'COACH_REJECTED',
-        meta: { rejected_by: 'admin', reason: note || undefined },
-      },
-    }).catch(() => {});
-
-    // Send push notification
-    sendPushNotification(
-      id,
-      'Application Update',
-      `Your coach application was not approved.${note ? ` Reason: ${note}` : ''}`,
-      { type: 'coach_rejected', screen: 'onboarding' },
-    ).catch(() => {});
 
     return res.json({ ok: true, message: `Coach ${user.display_name || user.username} rejected` });
   } catch (error) {
@@ -747,40 +682,40 @@ adminRouter.post('/wipe-production', requireVerified as any, requireAdminMiddlew
     const keepIds = [demo?.id, admin?.id].filter(Boolean) as string[];
 
     // Use raw SQL to bypass FK constraints
-    await prisma.$executeRawUnsafe(`DELETE FROM "Story"`);
-    await prisma.$executeRawUnsafe(`DELETE FROM "GameVote"`);
-    await prisma.$executeRawUnsafe(`DELETE FROM "EventRsvp"`);
-    await prisma.$executeRawUnsafe(`DELETE FROM "AdReservation"`);
-    await prisma.$executeRawUnsafe(`DELETE FROM "Ad"`);
-    await prisma.$executeRawUnsafe(`DELETE FROM "PollVote"`);
-    await prisma.$executeRawUnsafe(`DELETE FROM "PollOption"`);
-    await prisma.$executeRawUnsafe(`DELETE FROM "Poll"`);
-    await prisma.$executeRawUnsafe(`DELETE FROM "PostUpvote"`);
-    await prisma.$executeRawUnsafe(`DELETE FROM "PostBookmark"`);
-    await prisma.$executeRawUnsafe(`DELETE FROM "CategoryAssignment"`);
-    await prisma.$executeRawUnsafe(`DELETE FROM "Comment"`);
-    await prisma.$executeRawUnsafe(`DELETE FROM "Notification"`);
-    await prisma.$executeRawUnsafe(`DELETE FROM "Message"`);
-    await prisma.$executeRawUnsafe(`DELETE FROM "Follows"`);
-    await prisma.$executeRawUnsafe(`DELETE FROM "TeamFollow"`);
-    await prisma.$executeRawUnsafe(`DELETE FROM "OrganizationFollow"`);
-    await prisma.$executeRawUnsafe(`DELETE FROM "CategoryFollow"`);
-    await prisma.$executeRawUnsafe(`DELETE FROM "BlockedUser"`);
-    await prisma.$executeRawUnsafe(`DELETE FROM "GroupChatMessage"`);
-    await prisma.$executeRawUnsafe(`DELETE FROM "GroupChatMember"`);
-    await prisma.$executeRawUnsafe(`DELETE FROM "GroupChat"`);
-    await prisma.$executeRawUnsafe(`DELETE FROM "Post"`);
-    await prisma.$executeRawUnsafe(`DELETE FROM "Event"`);
-    await prisma.$executeRawUnsafe(`DELETE FROM "Game"`);
-    await prisma.$executeRawUnsafe(`DELETE FROM "TeamMembership"`);
-    await prisma.$executeRawUnsafe(`DELETE FROM "TeamInvite"`);
-    await prisma.$executeRawUnsafe(`DELETE FROM "Team"`);
-    await prisma.$executeRawUnsafe(`DELETE FROM "OrganizationMembership"`);
-    await prisma.$executeRawUnsafe(`DELETE FROM "OrganizationJoinRequest"`);
-    await prisma.$executeRawUnsafe(`DELETE FROM "Organization"`);
-    await prisma.$executeRawUnsafe(`DELETE FROM "UserWarning"`);
-    await prisma.$executeRawUnsafe(`DELETE FROM "AbuseReport"`);
-    await prisma.$executeRawUnsafe(`DELETE FROM "AdminActivityLog"`);
+    await prisma.$executeRaw`DELETE FROM "Story"`;
+    await prisma.$executeRaw`DELETE FROM "GameVote"`;
+    await prisma.$executeRaw`DELETE FROM "EventRsvp"`;
+    await prisma.$executeRaw`DELETE FROM "AdReservation"`;
+    await prisma.$executeRaw`DELETE FROM "Ad"`;
+    await prisma.$executeRaw`DELETE FROM "PollVote"`;
+    await prisma.$executeRaw`DELETE FROM "PollOption"`;
+    await prisma.$executeRaw`DELETE FROM "Poll"`;
+    await prisma.$executeRaw`DELETE FROM "PostUpvote"`;
+    await prisma.$executeRaw`DELETE FROM "PostBookmark"`;
+    await prisma.$executeRaw`DELETE FROM "CategoryAssignment"`;
+    await prisma.$executeRaw`DELETE FROM "Comment"`;
+    await prisma.$executeRaw`DELETE FROM "Notification"`;
+    await prisma.$executeRaw`DELETE FROM "Message"`;
+    await prisma.$executeRaw`DELETE FROM "Follows"`;
+    await prisma.$executeRaw`DELETE FROM "TeamFollow"`;
+    await prisma.$executeRaw`DELETE FROM "OrganizationFollow"`;
+    await prisma.$executeRaw`DELETE FROM "CategoryFollow"`;
+    await prisma.$executeRaw`DELETE FROM "BlockedUser"`;
+    await prisma.$executeRaw`DELETE FROM "GroupChatMessage"`;
+    await prisma.$executeRaw`DELETE FROM "GroupChatMember"`;
+    await prisma.$executeRaw`DELETE FROM "GroupChat"`;
+    await prisma.$executeRaw`DELETE FROM "Post"`;
+    await prisma.$executeRaw`DELETE FROM "Event"`;
+    await prisma.$executeRaw`DELETE FROM "Game"`;
+    await prisma.$executeRaw`DELETE FROM "TeamMembership"`;
+    await prisma.$executeRaw`DELETE FROM "TeamInvite"`;
+    await prisma.$executeRaw`DELETE FROM "Team"`;
+    await prisma.$executeRaw`DELETE FROM "OrganizationMembership"`;
+    await prisma.$executeRaw`DELETE FROM "OrganizationJoinRequest"`;
+    await prisma.$executeRaw`DELETE FROM "Organization"`;
+    await prisma.$executeRaw`DELETE FROM "UserWarning"`;
+    await prisma.$executeRaw`DELETE FROM "AbuseReport"`;
+    await prisma.$executeRaw`DELETE FROM "AdminActivityLog"`;
     const { Prisma } = await import('@prisma/client');
     await prisma.$executeRaw(Prisma.sql`DELETE FROM "RefreshToken" WHERE "user_id" NOT IN (${Prisma.join(keepIds)})`);
     await prisma.$executeRaw(Prisma.sql`DELETE FROM "User" WHERE "id" NOT IN (${Prisma.join(keepIds)})`);

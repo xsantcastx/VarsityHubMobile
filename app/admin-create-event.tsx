@@ -1,5 +1,3 @@
-// GATED — restore when ADMIN is ready to test
-export { default } from '@/components/ComingSoon';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -23,7 +21,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 // @ts-ignore
 import { httpPost } from '@/api/http';
-import { Team } from '@/api/teams';
+import { Team } from '@/api/entities';
 import { autocompleteLocations, PlaceSuggestion } from '@/api/geocoding';
 import { safeGoBack } from '@/utils/navigation';
 import { sanitizeText } from '@/utils/formUtils';
@@ -626,3 +624,5 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
+
+export default CreateEventScreen;

@@ -1,5 +1,3 @@
-// GATED — restore when ORGANIZATIONS is ready to test
-export { default } from '@/components/ComingSoon';
 import { getConfig } from '@/config/env';
 import { Colors } from '@/constants/Colors';
 import { httpGet } from '@/api/http';
@@ -229,3 +227,5 @@ function OrganizationDetailScreen() {
     </ScrollView>
   );
 }
+
+export default OrganizationDetailScreen;

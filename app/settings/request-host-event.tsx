@@ -1,6 +1,3 @@
-// GATED — restore when EVENTS is ready to test
-export { default } from '@/components/ComingSoon';
-
 import { Event, Message } from '@/api/entities';
 import { getConfig } from '@/config/env';
 import { autocompleteLocations, PlaceSuggestion } from '@/api/geocoding';
@@ -361,3 +358,5 @@ const styles = StyleSheet.create({
   submitButtonDisabled: { opacity: 0.6 },
   submitButtonText: { color: '#fff', fontWeight: '700', fontSize: 18 },
 });
+
+export default RequestHostEventScreen;

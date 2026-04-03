@@ -1,5 +1,3 @@
-// GATED — restore when ORGANIZATIONS is ready to test
-export { default } from '@/components/ComingSoon';
 import { getConfig } from '@/config/env';
 import { httpGet } from '@/api/http';
 import { Colors } from '@/constants/Colors';
@@ -281,3 +279,5 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     color: Colors[colorScheme].mutedText,
   },
 });
+
+export default OrganizationsIndexScreen;

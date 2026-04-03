@@ -1,5 +1,3 @@
-// GATED — restore when GAMES is ready to test
-export { default } from '@/components/ComingSoon';
 import CollageView, { type CollageData } from '@/components/CollageView';
 import { Colors } from '@/constants/Colors';
 import { sanitizeTitle } from '@/lib/sanitizeTitle';
@@ -33,8 +31,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { captureRef } from 'react-native-view-shot';
 
-import { Game, Highlights, Post, User } from '@/api/entities';
-import { Report } from '@/api/misc';
+import { Game, Highlights, Post, Report, User } from '@/api/entities';
 import { httpGet } from '@/api/http';
 import events from '@/utils/events';
 import { AppLinks } from '@/utils/links';
@@ -1551,3 +1548,5 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 });
+
+export default GameVerticalFeedScreen;

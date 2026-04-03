@@ -1,5 +1,3 @@
-// GATED — restore when MESSAGING is ready to test
-export { default } from '@/components/ComingSoon';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
 import { useIsFocused } from '@react-navigation/native';
@@ -126,7 +124,7 @@ function MessageThreadScreen() {
       } catch {
         // Silently fail - don't disrupt conversation
       }
-    }, 5000);
+    }, 15000);
 
     return () => {
       mounted = false;
@@ -762,3 +760,5 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
+
+export default MessageThreadScreen;

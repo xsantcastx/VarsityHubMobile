@@ -1,5 +1,3 @@
-// GATED — restore when ADMIN is ready to test
-export { default } from '@/components/ComingSoon';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
@@ -218,3 +216,5 @@ const styles = StyleSheet.create({
   statusBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, borderWidth: 1 },
   loadMore: { marginHorizontal: 16, padding: 12, borderRadius: 10, borderWidth: 1, alignItems: 'center', marginTop: 8 },
 });
+
+export default AdminTransactionsScreen;

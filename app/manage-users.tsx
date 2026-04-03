@@ -1,5 +1,3 @@
-// GATED — restore when TEAMS is ready to test
-export { default } from '@/components/ComingSoon';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
@@ -98,3 +96,5 @@ const styles = StyleSheet.create({
   ok: { color: '#16a34a' },
   invited: { color: '#9CA3AF' },
 });
+
+export default ManageUsersScreen;

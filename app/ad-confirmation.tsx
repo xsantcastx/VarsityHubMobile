@@ -1,5 +1,3 @@
-// GATED — restore when ADS is ready to test
-export { default } from '@/components/ComingSoon';
 import { Advertisement } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -470,3 +468,5 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
+
+export default AdConfirmationScreen;

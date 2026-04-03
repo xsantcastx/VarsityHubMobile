@@ -9,11 +9,10 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
-import { Organization } from '@/api/entities';
+import { Organization, User } from '@/api/entities';
 import { uploadFile } from '@/api/upload';
 import { getApiBaseUrl } from '@/api/http';
 import { sanitizeText } from '@/utils/formUtils';
-import { User } from '@/api/user';
 
 const ORG_TYPES = [
   { label: 'School', value: 'school' },
@@ -55,8 +54,9 @@ export default function EditOrganizationScreen() {
 
       // Verify current user is an owner or manager before allowing edits
       const currentUser: any = await User.me();
-      if (currentUser && org.memberships && Array.isArray(org.memberships)) {
-        const membership = org.memberships.find((m: any) => {
+      const members: any[] = await Organization.members(params.id).catch(() => []);
+      if (currentUser && Array.isArray(members) && members.length > 0) {
+        const membership = members.find((m: any) => {
           const memberUserId = m.user?.id || m.user_id;
           return memberUserId === currentUser.id && ['owner', 'manager'].includes(String(m.role || '').toLowerCase());
         });

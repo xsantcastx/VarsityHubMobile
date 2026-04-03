@@ -1,5 +1,3 @@
-// GATED — restore when EVENTS is ready to test
-export { default } from '@/components/ComingSoon';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -178,3 +176,5 @@ const styles = StyleSheet.create({
   card: { padding: 12, borderRadius: 12, borderWidth: 1 },
   title: { fontWeight: '700' },
 });
+
+export default RsvpHistoryScreen;

@@ -1,5 +1,3 @@
-// GATED — restore when ORGANIZATIONS is ready to test
-export { default } from '@/components/ComingSoon';
 import { Organization } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
@@ -20,6 +18,7 @@ type ApiJoinRequest = {
   message?: string | null;
   created_at: string;
   reviewed_at?: string | null;
+  rejection_reason?: string | null;
   user: { id: string; display_name?: string | null; username?: string | null; avatar_url?: string | null; email?: string };
 };
 
@@ -669,3 +668,5 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
+
+export default OrganizationJoinRequestsScreen;

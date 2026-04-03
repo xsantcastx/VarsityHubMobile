@@ -493,6 +493,7 @@ usersRouter.get('/:id/teams', async (req: AuthedRequest, res) => {
       },
     },
     orderBy: { created_at: 'asc' },
+    take: 100,
   });
 
   const formatSeason = (start?: Date | null, end?: Date | null): string | null => {
@@ -576,6 +577,7 @@ usersRouter.delete('/me', requireAuth as any, async (req: AuthedRequest, res) =>
     const ownedOrgs = await prisma.organizationMembership.findMany({
       where: { user_id: id, role: 'owner', status: 'active' },
       select: { organization_id: true },
+      take: 100,
     });
     for (const { organization_id } of ownedOrgs) {
       const otherOwners = await prisma.organizationMembership.count({
@@ -1065,6 +1067,7 @@ usersRouter.get('/blocked', requireAuth as any, async (req: AuthedRequest, res) 
         },
       },
       orderBy: { created_at: 'desc' },
+      take: 500,
     });
 
     return res.json(blocks.map(b => b.blocked));

@@ -1,5 +1,3 @@
-// GATED — restore when TEAMS is ready to test
-export { default } from '@/components/ComingSoon';
 import { useAuth } from '@/context/AuthProvider';
 import { useRequireCoach } from '@/hooks/useRequireCoach';
 import { Colors } from '@/constants/Colors';
@@ -816,3 +814,5 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 });
+
+export default ManageTeamsSimpleScreen;

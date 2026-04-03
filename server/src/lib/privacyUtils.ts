@@ -4,6 +4,11 @@ import { prisma } from './prisma.js';
 let _privateIdsCache: { ids: string[]; expires: number } | null = null;
 const PRIVATE_IDS_CACHE_TTL = 60_000;
 
+/** Invalidate the private-IDs cache (call when a user toggles profile_private). */
+export function invalidatePrivateIdsCache(): void {
+  _privateIdsCache = null;
+}
+
 /**
  * Returns IDs of private-profile users whose content should be hidden from the viewer.
  * Excludes the viewer themselves and users the viewer already follows.

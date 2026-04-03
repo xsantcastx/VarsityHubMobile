@@ -1,3 +1,1 @@
-// GATED — restore when ORGANIZATIONS is ready to test
-export { default } from '@/components/ComingSoon';
-// export { default } from './(tabs)/organization';
+export { default } from './(tabs)/organization';
