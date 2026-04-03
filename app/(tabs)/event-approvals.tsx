@@ -35,7 +35,7 @@ type PendingEvent = {
   date: string;
   linked_league?: string;
   max_attendees?: number;
-  creator?: { id: number; display_name: string };
+  creator?: { id: number; display_name: string; username?: string };
 };
 
 type TeamInvite = {

@@ -39,6 +39,7 @@ interface ChatMessage {
   author: {
     id: string;
     display_name: string;
+    username?: string;
     avatar_url?: string;
     role?: string;
   };
