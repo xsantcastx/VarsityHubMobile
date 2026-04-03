@@ -83,7 +83,7 @@ export default function EventApprovalsScreen() {
   // Section 1 — Pitched Events
   const [events, setEvents] = useState<PendingEvent[]>([]);
   const [eventsLoading, setEventsLoading] = useState(true);
-  const [processingEventId, setProcessingEventId] = useState<number | null>(null);
+  const [processingEventId, setProcessingEventId] = useState<string | null>(null);
 
   // Section 2 — Roster Invites
   const [teamInvites, setTeamInvites] = useState<TeamInvite[]>([]);
@@ -219,7 +219,7 @@ export default function EventApprovalsScreen() {
 
   // ── Event actions ─────────────────────────────────────────────────────────
 
-  const handleApproveEvent = async (eventId: number) => {
+  const handleApproveEvent = async (eventId: string) => {
     setProcessingEventId(eventId);
     try {
       const evt = events.find(e => e.id === eventId) as any;
@@ -237,10 +237,10 @@ export default function EventApprovalsScreen() {
     }
   };
 
-  const [rejectModal, setRejectModal] = useState<{ eventId: number } | null>(null);
+  const [rejectModal, setRejectModal] = useState<{ eventId: string } | null>(null);
   const [rejectReason, setRejectReason] = useState('');
 
-  const handleRejectEvent = (eventId: number) => {
+  const handleRejectEvent = (eventId: string) => {
     setRejectReason('');
     setRejectModal({ eventId });
   };

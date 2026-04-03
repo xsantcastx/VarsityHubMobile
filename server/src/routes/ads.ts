@@ -28,7 +28,7 @@ const adCreateSchema = z.object({
     (url) => /^https:\/\//i.test(url),
     { message: 'target_url must use https protocol' }
   ).nullish(),
-  target_zip_code: z.string().regex(/^\d{5}$/, 'Must be a 5-digit US zip code'),
+  target_zip_code: z.string().min(3).max(10).regex(/^[A-Za-z0-9][A-Za-z0-9\s\-]{1,8}[A-Za-z0-9]$/, 'Must be a valid postal code'),
   radius: z.number().optional(),
   description: z.string().max(1000).nullish(),
 });

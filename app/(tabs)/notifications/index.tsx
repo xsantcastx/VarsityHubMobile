@@ -175,8 +175,8 @@ function NotificationsScreen() {
       } else if (item.type === 'AD_REJECTED' && item.meta?.ad_id) {
         router.push(`/ad-calendar?adId=${encodeURIComponent(item.meta.ad_id)}` as any);
       } else if (item.type === 'ORG_APPROVED') {
-        // Org approved — take coach to create their first team
-        router.push('/(tabs)/create-team' as any);
+        // Org approved — take coach to role onboarding to complete setup
+        router.push('/role-onboarding' as any);
       } else if (item.type === 'JOIN_REQUEST_APPROVED') {
         if (item.meta?.denied) {
           // Legacy denial stored as JOIN_REQUEST_APPROVED with denied:true

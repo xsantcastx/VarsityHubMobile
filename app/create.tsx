@@ -87,32 +87,17 @@ function CreateScreen() {
         <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/create-post')} accessibilityRole="button" accessibilityLabel="Create Post" accessibilityHint="Double tap to create a new post">
           <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>Create Post</Text>
         </Pressable>
-        <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/create-post?type=highlight')} accessibilityRole="button" accessibilityLabel="Share Highlight" accessibilityHint="Double tap to share a video highlight">
-          <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>Share Highlight</Text>
-        </Pressable>
         {/* Team creation - APPROVED COACH ONLY (pending coaches are blocked by backend requireOnboarded) */}
         {isApprovedCoach && (
           <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/create-team')} accessibilityRole="button" accessibilityLabel="Create Team" accessibilityHint="Double tap to create a new team">
             <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>Create Team</Text>
           </Pressable>
         )}
-        {/* Event creation - ALL USERS (fans pitch, approved coaches auto-approve) */}
-        <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/create-fan-event')} accessibilityRole="button" accessibilityLabel={isApprovedCoach ? 'Create Event' : 'Pitch Event'} accessibilityHint="Double tap to create or pitch an event">
-          <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>
-            {isApprovedCoach ? 'Create Event' : 'Pitch Event'}
-          </Text>
-        </Pressable>
         {isAdmin && (
           <Pressable style={[styles.item, { borderColor: '#F59E0B', backgroundColor: colorScheme === 'dark' ? '#78350F20' : '#FEF9C3' }]} onPress={() => go('/admin-create-event')} accessibilityRole="button" accessibilityLabel="Broadcast Event" accessibilityHint="Double tap to create a broadcast event visible to all users">
             <Text style={[styles.itemText, { color: colorScheme === 'dark' ? '#FDE68A' : '#92400E' }]}>Broadcast Event (Admin)</Text>
           </Pressable>
         )}
-        <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/submit-ad')} accessibilityRole="button" accessibilityLabel="Submit Ad" accessibilityHint="Double tap to submit an advertisement">
-          <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>Submit Ad</Text>
-        </Pressable>
-        <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/my-ads')} accessibilityRole="button" accessibilityLabel="My Ads" accessibilityHint="Double tap to view your ads">
-          <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>My Ads</Text>
-        </Pressable>
         <Pressable style={[styles.item, styles.cancel, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]} onPress={safeBack} accessibilityRole="button" accessibilityLabel="Cancel" accessibilityHint="Double tap to close Create menu">
           <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>Cancel</Text>
         </Pressable>

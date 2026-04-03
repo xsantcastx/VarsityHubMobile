@@ -1487,8 +1487,8 @@ export default function FeedScreen() {
                             // Route based on notification type
                             if (item.type === 'AD_APPROVED' || item.type === 'AD_REJECTED') {
                               router.push(`/ad-calendar?adId=${encodeURIComponent(item.meta?.ad_id || '')}`);
-                            } else if (item.type === 'ORG_APPROVED' && item.meta?.organization_id) {
-                              router.push(`/organization?id=${encodeURIComponent(item.meta.organization_id)}`);
+                            } else if (item.type === 'ORG_APPROVED') {
+                              router.push('/role-onboarding' as any);
                             } else if (item.type === 'JOIN_REQUEST_APPROVED' && item.meta?.organization_id) {
                               router.push(`/organization?id=${encodeURIComponent(item.meta.organization_id)}`);
                             } else if (item.type === 'TEAM_INVITE' && item.meta?.coach_approved) {

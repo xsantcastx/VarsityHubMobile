@@ -82,8 +82,8 @@ function RoleOnboardingScreenInner() {
   }, []);
 
   const validateZipCode = (zip: string): boolean => {
-    // US ZIP code: 5 digits or 5+4 format
-    const zipRegex = /^\d{5}(-\d{4})?$/;
+    // Global postal codes: 3-10 alphanumeric characters (with optional spaces/hyphens)
+    const zipRegex = /^[A-Za-z0-9][A-Za-z0-9\s\-]{1,9}[A-Za-z0-9]$/;
     return zipRegex.test(zip.trim());
   };
 

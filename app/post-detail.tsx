@@ -495,6 +495,7 @@ export default function PostDetailScreen() {
   const onReport = () => {
     if (!currentPostId) return;
     const reasons = [
+      { text: 'Harassment / Bullying', value: 'harassment' },
       { text: 'Copyright infringement', value: 'copyright' },
       { text: 'Broadcast footage', value: 'copyright' },
       { text: 'Unauthorized use of my likeness', value: 'impersonation' },
@@ -901,7 +902,7 @@ export default function PostDetailScreen() {
               )}
               <View style={styles.authorDetails}>
                 <Text style={[styles.authorName, { color: Colors[colorScheme].text }]}>
-                  {postData.author?.display_name || 'Anonymous'}
+                  {postData.author?.display_name || postData.author?.username || 'Anonymous'}
                 </Text>
                 <Text style={[styles.postTime, { color: Colors[colorScheme].tabIconDefault }]}>{timeAgo(postData.created_at)}</Text>
               </View>

@@ -65,7 +65,7 @@ function SubmitAdScreen() {
   const canSubmit = useMemo(() => {
     // Website link is required; description is optional
     if (!name.trim() || !email.trim() || !business.trim()) return false;
-    if (!/^\d{5}$/.test(zip.trim())) return false; // Must be a valid 5-digit zip
+    if (!/^[A-Za-z0-9][A-Za-z0-9\s\-]{1,9}[A-Za-z0-9]$/.test(zip.trim())) return false; // Must be a valid postal code
     if (!bannerUrl) return false; // Banner is mandatory
     if (!targetUrl.trim()) return false; // Website link mandatory
     return true;

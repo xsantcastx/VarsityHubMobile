@@ -260,7 +260,7 @@ export default function SignInScreen() {
     <SafeAreaView style={[styles.root, { backgroundColor: palette.background, borderLeftWidth: 0, borderRightWidth: 0 }]} edges={['top']}>
       <Stack.Screen options={{ title: 'Sign In', headerShown: false }} />
       <KeyboardAvoidingView
-        behavior="height"
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={[styles.flex, { borderWidth: 0 }]}
       >
         <ScrollView
