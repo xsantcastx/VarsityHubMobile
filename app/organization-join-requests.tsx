@@ -18,6 +18,7 @@ type ApiJoinRequest = {
   message?: string | null;
   created_at: string;
   reviewed_at?: string | null;
+  rejection_reason?: string | null;
   user: { id: string; display_name?: string | null; username?: string | null; avatar_url?: string | null; email?: string };
 };
 

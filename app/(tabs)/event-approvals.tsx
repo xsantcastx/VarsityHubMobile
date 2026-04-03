@@ -27,7 +27,7 @@ import { User } from '@/api/entities';
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type PendingEvent = {
-  id: number;
+  id: string;
   title: string;
   description?: string;
   event_type: string;
@@ -35,7 +35,7 @@ type PendingEvent = {
   date: string;
   linked_league?: string;
   max_attendees?: number;
-  creator?: { id: number; display_name: string; username?: string };
+  creator?: { id: string; display_name: string; username?: string; avatar_url?: string };
 };
 
 type TeamInvite = {
