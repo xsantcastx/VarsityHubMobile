@@ -19,6 +19,7 @@ import { authLimiter, oauthLimiter, verificationConfirmLimiter } from '../middle
 import { rlIncr, rlGet, rlSet, rlDel } from '../lib/redisRateLimit.js';
 import { cacheGet, cacheSet, cacheDel } from '../lib/cache.js';
 import { isAdminEmail } from '../lib/adminEmails.js';
+import { invalidatePrivateIdsCache } from '../lib/privacyUtils.js';
 
 export const authRouter = Router();
 
@@ -955,7 +956,7 @@ const updateMeSchema = z.object({
         // Only allow https
         if (parsed.protocol !== 'https:') return false;
         // Allow specific domains (Cloudinary, etc.)
-        const allowedDomains = ['res.cloudinary.com', 'varsityhub.app', 'cdn.varsityhub.app'];
+        const allowedDomains = ['res.cloudinary.com', 'varsityhub.app', 'cdn.varsityhub.app', 'lh3.googleusercontent.com', 'platform-lookaside.fbsbx.com', 'graph.facebook.com'];
         return allowedDomains.some(d => parsed.hostname.endsWith(d));
       } catch (error) {
         console.warn('[auth] Invalid avatar URL format:', error);
@@ -1232,6 +1233,12 @@ authRouter.patch('/me/preferences', requireAuth as any, asyncHandler(async (req:
       ...(forceApprovalPending ? { approval_status: 'PENDING' } : {}),
     },
   });
+
+  // Invalidate the private-IDs feed cache when a user toggles profile_private
+  if (incoming.profile_private !== undefined) {
+    invalidatePrivateIdsCache();
+  }
+
   return res.json({ preferences: updated.preferences });
 }));
 

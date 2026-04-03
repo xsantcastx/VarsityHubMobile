@@ -89,13 +89,21 @@ export default function OrganizationScreen() {
           const firstOrg = Array.isArray(myOrgs) ? myOrgs[0] : null;
           if (firstOrg?.id) {
             orgId = firstOrg.id;
+          } else if (user?.preferences?.organization_id) {
+            // Coaches who joined via request have role='member' — mine() won't return their org.
+            // Fall back to the org ID stored in their preferences during onboarding.
+            orgId = user.preferences.organization_id;
           } else {
             if (mounted.current) { setError('not_found'); setLoading(false); }
             return;
           }
         } catch {
-          if (mounted.current) { setError('not_found'); setLoading(false); }
-          return;
+          if (user?.preferences?.organization_id) {
+            orgId = user.preferences.organization_id;
+          } else {
+            if (mounted.current) { setError('not_found'); setLoading(false); }
+            return;
+          }
         }
       }
 

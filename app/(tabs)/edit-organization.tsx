@@ -54,8 +54,9 @@ export default function EditOrganizationScreen() {
 
       // Verify current user is an owner or manager before allowing edits
       const currentUser: any = await User.me();
-      if (currentUser && org.memberships && Array.isArray(org.memberships)) {
-        const membership = org.memberships.find((m: any) => {
+      const members: any[] = await Organization.members(params.id).catch(() => []);
+      if (currentUser && Array.isArray(members) && members.length > 0) {
+        const membership = members.find((m: any) => {
           const memberUserId = m.user?.id || m.user_id;
           return memberUserId === currentUser.id && ['owner', 'manager'].includes(String(m.role || '').toLowerCase());
         });

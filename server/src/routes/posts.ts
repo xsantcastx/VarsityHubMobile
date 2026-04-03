@@ -683,7 +683,12 @@ postsRouter.post('/', requireVerified as any, requireOnboarded as any, postCreat
       }
       debugLog(`✅ User ${req.user.id} verified at event location (${verification.distance?.toFixed(2)} km away)`);
     } else if (gameId) {
-      debugLog(`⚠️  Game ${gameId} has no associated event — allowing post without geofence`);
+      // Game exists but has no associated event — no location data to verify against.
+      // Block the post for non-team-members since geofencing can't be applied.
+      return res.status(403).json({
+        error: 'NO_EVENT_LOCATION',
+        message: 'This game has no event with location data. Only team members can post.',
+      });
     }
   }
 
