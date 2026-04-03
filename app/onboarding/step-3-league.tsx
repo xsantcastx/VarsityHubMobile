@@ -466,9 +466,12 @@ function Step3League() {
         await User.updatePreferences({ organization_id: orgId, organization_name: orgName.trim() }).catch(() => {});
       }
 
-      // Navigate to pending-approval — coach waits for org approval
+      // Navigate to league-pending-approval — coach waits for org + coach approval
       checkAuth().catch(() => {});
-      router.replace('/onboarding/pending-approval' as any);
+      router.replace({
+        pathname: '/onboarding/league-pending-approval',
+        params: { leagueName: orgName.trim(), orgId: orgId },
+      } as any);
     } catch (e: any) { 
       // Check if duplicate organization error
       if (e?.message?.includes('DUPLICATE_ORGANIZATION') || e?.message?.toLowerCase().includes('duplicate')) {
