@@ -8,9 +8,17 @@
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import NetInfo from '@react-native-community/netinfo';
 import React, { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+
+// NetInfo is a native module — dynamically import so OTA updates
+// don't crash on binaries built before it was added.
+let NetInfoModule: typeof import('@react-native-community/netinfo').default | null = null;
+try {
+  NetInfoModule = require('@react-native-community/netinfo').default;
+} catch {
+  // Native module not available in this binary — fall back to health-check only
+}
 
 export function OfflineBanner() {
   const { healthOk, healthError, checkAuth } = useAuth();
@@ -19,9 +27,10 @@ export function OfflineBanner() {
   const [retrying, setRetrying] = useState(false);
   const [networkConnected, setNetworkConnected] = useState(true);
 
-  // Listen for real-time connectivity changes
+  // Listen for real-time connectivity changes (only if native module exists)
   useEffect(() => {
-    const unsubscribe = NetInfo.addEventListener((state) => {
+    if (!NetInfoModule) return;
+    const unsubscribe = NetInfoModule.addEventListener((state) => {
       const isConnected = state.isConnected !== false && state.isInternetReachable !== false;
       setNetworkConnected(isConnected);
       // When connectivity returns, auto-retry the health check
