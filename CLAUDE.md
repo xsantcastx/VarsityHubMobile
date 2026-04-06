@@ -56,17 +56,53 @@ Check env vars, Railway logs, and build configs — not just source code.
 - Veteran: $1/mo/team, 100 roster
 - Legend: $20/yr, unlimited teams + clubs
 
+## OTA Updates
+- `runtimeVersion` uses `{ "policy": "appVersion" }` — auto-derived from `version` field, never hardcode a string
+- OTA only delivers JS bundle changes. New native modules (ios/android native code) require a new binary via `eas build` + App Store submission
+- Any native module added after the current App Store binary MUST be dynamically imported with try-catch (see `OfflineBanner.tsx` pattern for `@react-native-community/netinfo`)
+- `fallbackToCacheTimeout: 0` means updates download in background, apply on next cold start — users need two app opens to see changes
+- Always verify the App Store binary's runtime version matches what `eas update` is publishing
+
+## Quick Checks
+```bash
+# TypeScript errors (server)
+npx tsc --noEmit --project server/tsconfig.json 2>&1 | tail -20
+
+# Dark mode violations (text colors)
+grep -rn "'#000\|'#333\|'#374151\|'#111\|black" app/ --include="*.tsx" | grep -v backgroundColor
+
+# Unbounded queries
+grep -rn "findMany" server/src/ --include="*.ts" | grep -v "take"
+
+# Direct sgMail usage (should only be in email.ts)
+grep -rn "sgMail.send" server/src/ --include="*.ts"
+
+# Missing requireAuth on routes using req.user
+grep -rn "req.user" server/src/routes/ --include="*.ts" | grep -v requireAuth
+```
+
 ## Known Quirks
 - Local `server/.env` has placeholder Cloudinary creds — uploads only work in production
 - `_layout.tsx` has a pre-existing TS error (`tabBarStyle.overflow`) — does not affect builds, do not fix unless asked
 - Sub-screens appear in both root Stack AND as `hiddenTab` in `(tabs)/_layout.tsx` — this is intentional Expo Router behavior
 - Email templates: all 46 template keys now have HTML files in `sendgrid-templates/`. 5 are "required" (server exits if missing).
 - `service-account-key.json` in project root is gitignored — needed for Android Play Store submissions
-- `@react-native-community/netinfo` is installed — requires a native rebuild (`eas build`) to take effect. OTA cannot deliver native modules.
+- `@react-native-community/netinfo` is dynamically imported via try-catch in `OfflineBanner.tsx` — safe for OTA to binaries built before it was added
 - `GOOGLE_MAPS_API_KEY` must be set in Railway for geocoding and map pins to work. Without it, all geocoding returns null silently.
 - Poll voting now hits the API for all events including those without a linked `gameId` (uses `eventId` as fallback). Previously event-only pages silently discarded votes.
 - Signup email send is fire-and-forget — `POST /register` does not await SendGrid before responding.
 - Pre-existing TS errors in `server/src/routes/ads.ts` (`target_lat`/`target_lng` not in schema) — do not affect builds or runtime
+
+## Code Rules
+- Text colors MUST use `useColorScheme()` or theme constants — never hardcode `#000`, `#111827`, `#374151`, `black`
+- Back navigation: use `safeGoBack` — never hardcoded routes
+- Emails MUST go through `EmailService`/`sendTemplateEmail` — never `sgMail.send()` directly
+- Database: ALL `findMany` MUST have a `take` limit — no unbounded queries
+- Auth: ALL routes accessing `req.user` MUST have `requireAuth` middleware
+- Posts: users must pass `requireOnboarded` middleware to create posts
+- Teams MUST have `organization_id` — no orphaned teams
+- Run `npx tsc --noEmit --project server/tsconfig.json` after backend changes
+- Test scripts go in `server/scripts/` — never in `src/`
 
 ## Working Style
 - Be surgical — only change what's needed for the task
