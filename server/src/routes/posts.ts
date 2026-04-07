@@ -882,9 +882,18 @@ postsRouter.post('/:id/poll/vote', requireAuth as any, requireOnboarded as any, 
     return res.status(404).json({ error: 'Poll not found' });
   }
 
-  // Check if poll has expired
-  if (poll.expires_at && new Date(poll.expires_at) < new Date()) {
-    return res.status(403).json({ error: 'Poll has closed', code: 'POLL_EXPIRED' });
+  // Check if poll has expired — polls stay open until midnight UTC the day after expires_at
+  // (covers all US timezones, matches the game-details vote window behavior)
+  if (poll.expires_at) {
+    const expiresDate = new Date(poll.expires_at);
+    const endOfExpiryDay = new Date(Date.UTC(
+      expiresDate.getUTCFullYear(),
+      expiresDate.getUTCMonth(),
+      expiresDate.getUTCDate() + 1,
+    ));
+    if (new Date() >= endOfExpiryDay) {
+      return res.status(403).json({ error: 'Poll has closed', code: 'POLL_EXPIRED' });
+    }
   }
 
   const option = poll.options.find((o: any) => o.id === option_id);
@@ -925,17 +934,13 @@ postsRouter.post('/:id/poll/vote', requireAuth as any, requireOnboarded as any, 
   const updatedPoll = await prisma.poll.findUnique({
     where: { post_id: postId },
     include: {
-      options: {
-        include: {
-          _count: {
-            select: { votes: true },
-          },
-        },
-      },
+      options: true,
     },
   });
 
-  res.status(200).json(updatedPoll);
+  // Return serialized poll with the voted option
+  const postForQuestion = await prisma.post.findUnique({ where: { id: postId }, select: { content: true } });
+  res.status(200).json(updatedPoll ? serializePoll(updatedPoll, postForQuestion?.content ?? null, option_id) : updatedPoll);
 }));
 
 postsRouter.get('/:id', asyncHandler(async (req: AuthedRequest, res) => {
@@ -1020,11 +1025,7 @@ postsRouter.get('/:id', asyncHandler(async (req: AuthedRequest, res) => {
     caption: post.content ?? null,
     bookmarks_count: post._count?.bookmarks ?? 0,
     comments_count: post._count?.comments ?? 0,
-    poll: post.poll ? {
-      ...post.poll,
-      userVote: user_vote,
-      totalVotes: post.poll.options.reduce((acc: number, opt: any) => acc + opt.votes_count, 0),
-    } : null,
+    poll: post.poll ? serializePoll(post.poll, post.content, user_vote) : null,
     game: post.game ? {
       id: post.game.id,
       title: post.game.title,

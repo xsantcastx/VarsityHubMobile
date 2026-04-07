@@ -1358,6 +1358,8 @@ const GameDetailsScreen = () => {
           { text: 'Cancel', style: 'cancel' },
           { text: 'Open Settings', onPress: () => Linking.openSettings() },
         ]);
+      } else if (code === 'NO_EVENT_LOCATION') {
+        Alert.alert('Cannot Verify Location', 'This game has no event with location data. Only team members can post stories.');
       } else {
         if (__DEV__) console.error('Story upload error:', err);
         Alert.alert('Unable to add story', err?.message || 'Please try again.');
@@ -1426,6 +1428,8 @@ const GameDetailsScreen = () => {
           { text: 'Cancel', style: 'cancel' },
           { text: 'Open Settings', onPress: () => Linking.openSettings() },
         ]);
+      } else if (code === 'NO_EVENT_LOCATION') {
+        Alert.alert('Cannot Verify Location', 'This game has no event with location data. Only team members can post stories.');
       } else {
         Alert.alert('Unable to add story', err?.message || 'Please try again.');
       }

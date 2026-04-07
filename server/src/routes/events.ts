@@ -82,13 +82,16 @@ async function isOrgAdmin(userId: string): Promise<boolean> {
 }
 
 const serializeEvent = (event: any, opts: { includeGame?: boolean; rsvpCount?: number; includeCreator?: boolean } = {}) => {
+  // Fall back to linked game coordinates when event itself lacks lat/lng
+  const resolvedLat = event.latitude ?? event.game?.latitude ?? event.game?.venue_lat ?? null;
+  const resolvedLng = event.longitude ?? event.game?.longitude ?? event.game?.venue_lng ?? null;
   const base: any = {
     id: event.id,
     title: event.title,
     date: event.date instanceof Date ? event.date.toISOString() : event.date,
     location: event.location,
-    latitude: event.latitude,
-    longitude: event.longitude,
+    latitude: resolvedLat,
+    longitude: resolvedLng,
     banner_url: event.banner_url,
     game_id: event.game_id,
     capacity: event.capacity,
@@ -193,15 +196,18 @@ eventsRouter.get('/', async (req, res) => {
     orderBy,
     take: fetchLimit,
     include: {
-      game: { select: { id: true, title: true, cover_image_url: true, date: true, location: true } }
+      game: { select: { id: true, title: true, cover_image_url: true, date: true, location: true, latitude: true, longitude: true, venue_lat: true, venue_lng: true } }
     },
   });
 
   // Apply location filter: keep events without coords + events within radius
+  // Use game-derived coordinates as fallback when event itself has no lat/lng
   if (userCoords) {
     events = events.filter((e: any) => {
-      if (e.latitude == null || e.longitude == null) return true; // no location → always show
-      return haversineDistance(userCoords!.lat, userCoords!.lon, e.latitude, e.longitude) <= eventRadius;
+      const lat = e.latitude ?? e.game?.latitude ?? e.game?.venue_lat ?? null;
+      const lng = e.longitude ?? e.game?.longitude ?? e.game?.venue_lng ?? null;
+      if (lat == null || lng == null) return true; // no location → always show
+      return haversineDistance(userCoords!.lat, userCoords!.lon, lat, lng) <= eventRadius;
     });
     if (take) events = events.slice(0, take);
   }
@@ -220,7 +226,7 @@ eventsRouter.get('/my-rsvps', requireAuth as any, async (req: AuthedRequest, res
     const rows = await prisma.eventRsvp.findMany({
       where: { user_id: req.user.id },
       orderBy: { created_at: 'desc' },
-      include: { event: { include: { game: { select: { id: true, title: true, cover_image_url: true, date: true, location: true } } } } },
+      include: { event: { include: { game: { select: { id: true, title: true, cover_image_url: true, date: true, location: true, latitude: true, longitude: true, venue_lat: true, venue_lng: true } } } } },
       take: 100,
     });
     const list = rows.map((r) => ({
@@ -313,7 +319,7 @@ eventsRouter.get('/pending', requireAuth as any, requireOnboarded as any, async 
       where,
       orderBy: { created_at: 'desc' },
       include: {
-        game: { select: { id: true, title: true, cover_image_url: true, date: true, location: true } },
+        game: { select: { id: true, title: true, cover_image_url: true, date: true, location: true, latitude: true, longitude: true, venue_lat: true, venue_lng: true } },
         creator: { select: { id: true, display_name: true, avatar_url: true } }
       },
       take: 100,
@@ -331,7 +337,7 @@ eventsRouter.get('/:id', authMiddleware as any, asyncHandler(async (req: AuthedR
   const id = String(req.params.id);
   const event = await prisma.event.findUnique({
     where: { id },
-    include: { game: { select: { id: true, title: true, cover_image_url: true, date: true, location: true, home_team_id: true, away_team_id: true, home_score: true, away_score: true, winner: true } } },
+    include: { game: { select: { id: true, title: true, cover_image_url: true, date: true, location: true, latitude: true, longitude: true, venue_lat: true, venue_lng: true, home_team_id: true, away_team_id: true, home_score: true, away_score: true, winner: true } } },
   });
   if (!event) return res.status(404).json({ error: 'Not found' });
 

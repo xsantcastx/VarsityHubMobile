@@ -32,7 +32,17 @@ export default function PollCard({ poll, onVote }: PollCardProps) {
   const [voting, setVoting] = useState(false);
 
   const hasVoted = selectedOption !== null;
-  const isExpired = poll.endsAt ? new Date(poll.endsAt) < new Date() : false;
+  // Polls stay open until midnight UTC the day after endsAt (covers all US timezones)
+  const isExpired = (() => {
+    if (!poll.endsAt) return false;
+    const expiresDate = new Date(poll.endsAt);
+    const endOfExpiryDay = new Date(Date.UTC(
+      expiresDate.getUTCFullYear(),
+      expiresDate.getUTCMonth(),
+      expiresDate.getUTCDate() + 1,
+    ));
+    return new Date() >= endOfExpiryDay;
+  })();
 
   const handleVote = async (optionId: string) => {
     if (hasVoted || isExpired || voting) return;

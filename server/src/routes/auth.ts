@@ -1251,6 +1251,9 @@ authRouter.patch('/me/preferences', requireAuth as any, asyncHandler(async (req:
     },
   });
 
+  // Invalidate profile cache so GET /me returns fresh data immediately
+  void cacheDel(`me:${req.user!.id}`);
+
   // Invalidate the private-IDs feed cache when a user toggles profile_private
   if (incoming.profile_private !== undefined) {
     invalidatePrivateIdsCache();
