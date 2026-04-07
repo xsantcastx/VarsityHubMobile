@@ -551,6 +551,11 @@ gamesRouter.post('/', requireVerified as any, requireOnboarded as any, gameCreat
     });
     const isAdmin = isEmailAdmin(currentUser?.email);
     
+    // Require team association for non-admin users
+    if (!parsed.data.home_team_id && !isAdmin) {
+      return res.status(400).json({ error: 'home_team_id is required. Games must be associated with a team.' });
+    }
+
     if (parsed.data.home_team_id && !isAdmin) {
       // Regular users must be a coach/manager of the team
       const membership = await prisma.teamMembership.findFirst({

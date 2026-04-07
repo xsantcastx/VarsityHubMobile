@@ -851,6 +851,11 @@ postsRouter.post('/:id/poll/vote', requireAuth as any, requireOnboarded as any, 
     return res.status(404).json({ error: 'Poll not found' });
   }
 
+  // Check if poll has expired
+  if (poll.expires_at && new Date(poll.expires_at) < new Date()) {
+    return res.status(403).json({ error: 'Poll has closed', code: 'POLL_EXPIRED' });
+  }
+
   const option = poll.options.find((o: any) => o.id === option_id);
   if (!option) {
     return res.status(404).json({ error: 'Poll option not found' });

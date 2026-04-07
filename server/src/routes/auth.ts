@@ -1248,7 +1248,7 @@ const completeOnboardingSchema = z.object({
   // Rookie is not a role
   role: z.enum(['fan', 'coach']).optional(),
   username: z.string().min(3).max(20).regex(/^[a-z0-9_.]+$/, 'Username must contain only lowercase letters, numbers, dots, and underscores').optional(),
-  display_name: z.string().optional(),
+  display_name: z.string().min(1).max(120).refine((val) => val.trim().length > 0, { message: 'Display name cannot be only whitespace' }).optional(),
   affiliation: z.enum(['none', 'other', 'university', 'high_school', 'club', 'youth', 'school', 'independent', 'professional']).optional(),
   dob: z.string().optional(),
   zip: z.string().optional(),
@@ -1276,8 +1276,15 @@ const completeOnboardingSchema = z.object({
   authorized_users: z.array(z.any()).optional(),
   
   // Profile
-  avatar_url: z.string().optional(),
-  bio: z.string().optional(),
+  avatar_url: z.string().url().refine((url) => {
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol !== 'https:') return false;
+      const allowedDomains = ['res.cloudinary.com', 'varsityhub.app', 'cdn.varsityhub.app', 'lh3.googleusercontent.com', 'platform-lookaside.fbsbx.com', 'graph.facebook.com'];
+      return allowedDomains.some(d => parsed.hostname.endsWith(d));
+    } catch { return false; }
+  }, { message: 'Avatar must be an HTTPS URL from an allowed domain' }).optional(),
+  bio: z.string().max(300).optional(),
   sports_interests: z.array(z.string()).optional(),
   
   // Interests/Goals

@@ -603,6 +603,9 @@ adminRouter.post('/users/:id/ban', requireVerified as any, requireAdminMiddlewar
       },
     });
 
+    // Revoke all refresh tokens so banned user can't get new access tokens
+    await prisma.refreshToken.deleteMany({ where: { user_id: bannedUserId } });
+
     // Audit log: who banned whom (for compliance and debugging)
     console.warn('[ADMIN_AUDIT] user_banned', {
       admin_id: req.user.id,
