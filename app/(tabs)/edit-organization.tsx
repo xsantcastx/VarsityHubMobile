@@ -45,6 +45,7 @@ export default function EditOrganizationScreen() {
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingProfile, setUploadingProfile] = useState(false);
   const [uploadingBackground, setUploadingBackground] = useState(false);
+  const [hasPermission, setHasPermission] = useState(false);
 
   const loadOrg = useCallback(async () => {
     if (!params.id) return;
@@ -54,22 +55,35 @@ export default function EditOrganizationScreen() {
 
       // Verify current user is an owner or manager before allowing edits
       const currentUser: any = await User.me();
-      const members: any[] = await Organization.members(params.id).catch(() => []);
-      if (currentUser && Array.isArray(members) && members.length > 0) {
-        const membership = members.find((m: any) => {
-          const memberUserId = m.user?.id || m.user_id;
-          return memberUserId === currentUser.id && ['owner', 'manager'].includes(String(m.role || '').toLowerCase());
-        });
-        if (!membership) {
-          Alert.alert('Error', 'Only organization admins can edit this organization.');
-          safeGoBack(router);
-          return;
-        }
-      } else {
+      if (!currentUser?.id) {
         Alert.alert('Error', 'Could not verify edit permissions.');
         safeGoBack(router);
         return;
       }
+      let members: any[] = [];
+      try {
+        members = await Organization.members(params.id);
+      } catch {
+        // 403 = not a member, so no edit permission
+        Alert.alert('Error', 'Only organization admins can edit this organization.');
+        safeGoBack(router);
+        return;
+      }
+      if (!Array.isArray(members) || members.length === 0) {
+        Alert.alert('Error', 'Could not verify edit permissions.');
+        safeGoBack(router);
+        return;
+      }
+      const membership = members.find((m: any) => {
+        const memberUserId = m.user?.id || m.user_id;
+        return memberUserId === currentUser.id && ['owner', 'manager'].includes(String(m.role || '').toLowerCase());
+      });
+      if (!membership) {
+        Alert.alert('Error', 'Only organization admins can edit this organization.');
+        safeGoBack(router);
+        return;
+      }
+      setHasPermission(true);
 
       setName(org.name || '');
       // Strip auto-generated descriptions — treat them as blank
@@ -128,6 +142,10 @@ export default function EditOrganizationScreen() {
   const pickBackground = () => pickImage([16, 9], 'org-background.jpg', setBackgroundUrl, setUploadingBackground, 'background');
 
   const handleSave = async () => {
+    if (!hasPermission) {
+      Alert.alert('Error', 'Only organization admins can edit this organization.');
+      return;
+    }
     if (!name.trim()) {
       Alert.alert('Required', 'Organization name is required.');
       return;
@@ -156,7 +174,7 @@ export default function EditOrganizationScreen() {
     }
   };
 
-  if (loading) {
+  if (loading || !hasPermission) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
         <Stack.Screen options={{ headerShown: false }} />
