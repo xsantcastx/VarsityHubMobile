@@ -173,6 +173,14 @@ authRouter.post('/register', asyncHandler(async (req, res) => {
   const { email, password, display_name, role, dob } = parsed.data;
   const sanitizedEmail = email.trim().toLowerCase();
 
+  // Content filter display_name to prevent profane/abusive names at registration
+  if (display_name) {
+    const nameFilter = validateContent({ content: display_name });
+    if (!nameFilter.valid) {
+      return res.status(400).json({ error: 'Display name contains inappropriate content.' });
+    }
+  }
+
   // SECURITY: Rate limiting to prevent mass account creation / enumeration
   if (!(await checkAuthRateLimit(`register:${sanitizedEmail}`))) {
     return res.status(429).json({ error: 'Too many registration attempts. Please try again later.' });
