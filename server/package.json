@@ -38,7 +38,6 @@
     "@sentry/node": "^7.91.0",
     "@sentry/profiling-node": "^7.91.0",
     "bcrypt": "^6.0.0",
-    "bull": "^4.16.5",
     "bullmq": "^5.70.1",
     "cors": "^2.8.5",
     "dotenv": "^16.6.1",

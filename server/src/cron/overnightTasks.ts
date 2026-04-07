@@ -1,7 +1,7 @@
 import cron from 'node-cron';
 import { debugLog } from '../lib/debugLog.js';
 import { prisma } from '../lib/prisma.js';
-import { emailQueue } from '../lib/queue.js';
+import { emailQueue } from '../jobs/queues.js';
 import { captureException } from '../lib/sentry.js';
 
 /**
@@ -13,26 +13,28 @@ export function startOvernightMonitoring() {
   cron.schedule('0 */4 * * *', async () => {
     debugLog('[overnight] Running queue health check...');
 
-    try {
-      const counts = await emailQueue.getJobCounts();
-      const failedJobs = await emailQueue.getFailed();
-      const delayedJobs = await emailQueue.getDelayed();
+    if (!emailQueue) {
+      debugLog('[overnight] Email queue not initialized, skipping health check');
+      return;
+    }
 
-      debugLog('[overnight] Queue status:', {
-        waiting: counts.waiting,
-        active: counts.active,
-        completed: counts.completed,
-        failed: counts.failed,
-        delayed: counts.delayed,
-      });
+    try {
+      const [waiting, active, completed, failed] = await Promise.all([
+        emailQueue.getWaitingCount(),
+        emailQueue.getActiveCount(),
+        emailQueue.getCompletedCount(),
+        emailQueue.getFailedCount(),
+      ]);
+
+      debugLog('[overnight] Queue status:', { waiting, active, completed, failed });
 
       // Alert if too many failures (lowered threshold: >5 to catch problems early)
-      if (counts.failed > 5) {
-        console.error(`⚠️ [overnight] HIGH FAILURE RATE: ${counts.failed} failed jobs`);
-        
+      if (failed > 5) {
+        console.error(`[overnight] HIGH FAILURE RATE: ${failed} failed jobs`);
+
         // Log first 5 failed jobs for debugging
-        const recentFailures = failedJobs.slice(0, 5);
-        for (const job of recentFailures) {
+        const failedJobs = await emailQueue.getFailed(0, 4);
+        for (const job of failedJobs) {
           console.error('[overnight] Failed job:', {
             id: job.id,
             name: job.name,
@@ -44,31 +46,26 @@ export function startOvernightMonitoring() {
       }
 
       // Alert if jobs stuck in delayed state too long
+      const delayedJobs = await emailQueue.getDelayed(0, 100);
       const stuckJobs = delayedJobs.filter(job => {
-        const delay = job.opts.delay || 0;
-        const expectedTime = job.timestamp + delay;
+        const delay = job.opts?.delay || 0;
+        const expectedTime = job.timestamp + (typeof delay === 'number' ? delay : 0);
         const now = Date.now();
         return now > expectedTime + 60 * 60 * 1000; // 1 hour past expected
       });
 
       if (stuckJobs.length > 0) {
-        console.warn(`⚠️ [overnight] ${stuckJobs.length} jobs stuck in delayed state`);
+        console.warn(`[overnight] ${stuckJobs.length} jobs stuck in delayed state`);
       }
 
-      // Check Redis connection
-      const ping = await emailQueue.client.ping();
-      if (ping !== 'PONG') {
-        console.error('❌ [overnight] Redis connection lost!');
-      }
-
-      debugLog('[overnight] Health check complete ✅');
+      debugLog('[overnight] Health check complete');
     } catch (error) {
       console.error('[overnight] Health check failed:', error);
       captureException(error instanceof Error ? error : new Error(String(error)), { extra: { context: 'overnight_health_check' } });
     }
   });
 
-  debugLog('✅ Overnight monitoring started (runs every 4 hours)');
+  debugLog('Overnight monitoring started (runs every 4 hours)');
 }
 
 /**
@@ -80,26 +77,29 @@ export function startQueueCleanup() {
   cron.schedule('0 3 * * *', async () => {
     debugLog('[cleanup] Starting queue cleanup...');
 
+    if (!emailQueue) {
+      debugLog('[cleanup] Email queue not initialized, skipping cleanup');
+      return;
+    }
+
     try {
-      // Batch-remove completed jobs older than 7 days and failed jobs older than 30 days.
-      // Bull's queue.clean(grace, status) does this in a single Redis operation
-      // instead of iterating and removing one-by-one.
+      // BullMQ clean(grace, limit, type): remove old completed/failed jobs
       const sevenDays = 7 * 24 * 60 * 60 * 1000;
       const thirtyDays = 30 * 24 * 60 * 60 * 1000;
 
       const [removedCompleted, removedFailed] = await Promise.all([
-        emailQueue.clean(sevenDays, 'completed'),
-        emailQueue.clean(thirtyDays, 'failed'),
+        emailQueue.clean(sevenDays, 1000, 'completed'),
+        emailQueue.clean(thirtyDays, 1000, 'failed'),
       ]);
 
-      debugLog(`[cleanup] Removed ${removedCompleted.length} completed jobs, ${removedFailed.length} failed jobs ✅`);
+      debugLog(`[cleanup] Removed ${removedCompleted.length} completed jobs, ${removedFailed.length} failed jobs`);
     } catch (error) {
       console.error('[cleanup] Cleanup failed:', error);
       captureException(error instanceof Error ? error : new Error(String(error)), { extra: { context: 'queue_cleanup' } });
     }
   });
 
-  debugLog('✅ Queue cleanup started (runs daily at 3 AM)');
+  debugLog('Queue cleanup started (runs daily at 3 AM)');
 }
 
 /**
@@ -152,8 +152,8 @@ export function startAdGoLiveCheck() {
       for (const ad of firstDayAds) {
         const lastDate = ad.reservations[ad.reservations.length - 1]?.date;
 
-        await emailQueue.add('ads.goes_live', {
-          to: ad.contact_email,
+        await emailQueue?.add('ads.goes_live', {
+          to: ad.contact_email || '',
           advertiser_name: ad.contact_name,
           business_name: ad.business_name,
           ad_title: ad.business_name,

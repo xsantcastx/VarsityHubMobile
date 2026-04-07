@@ -90,11 +90,14 @@ async function runStartupChecks(): Promise<void> {
     captureException(dbErr instanceof Error ? dbErr : new Error(String(dbErr)), { context: 'startup_db_ping_failed' });
   }
 
-  // Ping Redis if configured
+  // Ping Redis if configured (uses the BullMQ queue connection)
   if (process.env.REDIS_URL) {
     try {
-      const { redis } = await import('./lib/queue.js');
-      await redis.ping();
+      const { default: Redis } = await import('ioredis');
+      const RedisCtor = Redis as unknown as new (url: string) => import('ioredis').default;
+      const testConn = new RedisCtor(process.env.REDIS_URL);
+      await testConn.ping();
+      await testConn.quit();
       debugLog('[startup] Redis ping OK');
     } catch (redisErr) {
       console.error('[startup] STARTUP: Redis ping failed:', redisErr);

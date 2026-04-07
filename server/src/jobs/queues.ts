@@ -25,13 +25,15 @@ export interface NotificationJob {
   data?: Record<string, any>;
 }
 
+/** Generic email job (to/subject/html) or named job with arbitrary data */
 export interface EmailJob {
   to: string;
-  subject: string;
+  subject?: string;
   text?: string;
   html?: string;
   template?: string;
   templateData?: Record<string, any>;
+  [key: string]: any;
 }
 
 export interface AnalyticsJob {
@@ -217,7 +219,7 @@ export async function queueEmail(job: EmailJob): Promise<string | null> {
     const emailService = getEmailService();
     const result = await emailService.send({
       to: job.to,
-      subject: job.subject,
+      subject: job.subject || '',
       text: job.text,
       html: job.html,
     });

@@ -50,14 +50,14 @@ export async function startEmailWorker(): Promise<Worker<EmailJob> | null> {
           if (template && templateData) {
             result = await emailService.send({
               to,
-              subject,
+              subject: subject || '',
               templateId: template,
               templateData,
             });
           } else {
             result = await emailService.send({
               to,
-              subject,
+              subject: subject || '',
               text,
               html,
             });
