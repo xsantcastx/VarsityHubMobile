@@ -120,6 +120,8 @@ export default function SignInScreen() {
         }
       } else if (errMsg.includes('Network') || errMsg.includes('timeout') || errMsg.includes('fetch')) {
         setError('Unable to connect to server. Please check your internet connection.');
+      } else if (status === 500 || errMsg.toLowerCase().includes('internal server')) {
+        setError('Server is temporarily unavailable. Please try again in a moment.');
       } else {
         setError(errMsg || 'Login failed. Please try again.');
       }
@@ -244,6 +246,8 @@ export default function SignInScreen() {
         setError('Apple Sign-In requires a real device. Use email/password in the simulator.');
       } else if (message.includes('Network') || message.includes('timeout') || message.includes('fetch')) {
         setError('Unable to connect to server. Please check your internet connection.');
+      } else if (message.toLowerCase().includes('internal server') || e?.status === 500) {
+        setError('Server is temporarily unavailable. Please try again in a moment.');
       } else {
         setError(message || 'Apple sign-in failed. Please try again.');
       }
