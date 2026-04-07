@@ -17,7 +17,7 @@ export default function FollowersScreen() {
   const { user: _user } = useAuth();
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
-  const { id, username } = useLocalSearchParams<{ id: string; username?: string }>();
+  const { id, username } = useLocalSearchParams<{ id?: string; username?: string }>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [users, setUsers] = useState<any[]>([]);
