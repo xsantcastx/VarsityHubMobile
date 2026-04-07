@@ -176,7 +176,7 @@ jobs:
 
       - name: Build Docker image
         if: steps.snyk-check.outputs.has-token == 'true'
-        run: docker build -t varsityhub-server:latest -f server/Dockerfile server/
+        run: docker build -t varsityhub-server:latest -f server/Dockerfile .
 
       - name: Run Snyk container scan
         if: steps.snyk-check.outputs.has-token == 'true'

@@ -105,6 +105,7 @@ describe('API type contracts', () => {
         title: 'Fundraiser',
         date: '2026-04-01T18:00:00Z',
         event_type: 'fundraiser',
+        location: 'Main Gym',
       };
       expect(payload.title).toBeDefined();
       expect(payload.date).toBeDefined();
@@ -115,6 +116,7 @@ describe('API type contracts', () => {
     it('CreateAdPayload accepts all ad fields', () => {
       const payload: CreateAdPayload = {
         business_name: 'Test Biz',
+        contact_name: 'Test User',
         contact_email: 'test@biz.com',
         banner_url: 'https://example.com/banner.jpg',
         banner_fit_mode: 'cover',

@@ -4,6 +4,10 @@ import type { AuthContextType } from '@/context/AuthProvider';
 import { useAuth } from '@/context/AuthProvider';
 import { OfflineBanner } from '../OfflineBanner';
 
+jest.mock('@react-native-community/netinfo', () => ({
+  default: { addEventListener: jest.fn(() => jest.fn()) },
+}));
+
 jest.mock('@/context/AuthProvider', () => ({
   useAuth: jest.fn(),
 }));

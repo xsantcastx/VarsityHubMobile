@@ -108,6 +108,7 @@ export default function ForgotPasswordScreen() {
               <Text style={[styles.subtitle, { color: palette.mutedText, textAlign: 'center' }]}>
                 You can now sign in with your new password.
               </Text>
+              {/* eslint-disable-next-line react-native/no-raw-text */}
               <Button onPress={() => void router.replace('/sign-in')}>
                 Sign in
               </Button>

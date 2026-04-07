@@ -123,7 +123,7 @@ function RequestHostEventScreen() {
       const eventData = {
         title,
         description,
-        event_type: 'host_request',
+        event_type: 'host_request' as const,
         location: selectedPlace?.description || location,
         venue_address: selectedPlace?.description || location,
         venue_place_id: selectedPlace?.place_id,

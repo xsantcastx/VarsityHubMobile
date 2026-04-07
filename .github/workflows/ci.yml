@@ -80,6 +80,8 @@ jobs:
       - name: Validate Prisma schema
         working-directory: server
         run: npx prisma validate
+        env:
+          DATABASE_URL: "postgresql://dummy:dummy@localhost:5432/dummy"
 
       - name: TypeScript check (server)
         working-directory: server
