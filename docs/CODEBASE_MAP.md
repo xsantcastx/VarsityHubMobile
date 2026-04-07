@@ -929,7 +929,7 @@ SecureStore/localStorage key-value store for app settings. Key prefix: `vh_setti
 #### `plan-definitions.json`
 Single source of truth for subscription plans used by both frontend and server.
 - **rookie**: Free, max 2 teams, 1 staff/team, 50 athletes/team
-- **veteran**: $1.00/mo per additional team (3+), 5 staff/team, 100 athletes/team. Stripe priceId: `price_1SVco4GJt8CsPE1EBNNlHYPB`
+- **veteran**: $0.99/mo per additional team (3+), 5 staff/team, 100 athletes/team. Stripe priceId: `price_1SVco4GJt8CsPE1EBNNlHYPB`
 - **legend**: $20/yr flat, unlimited teams/staff/roster, extracurricular support. Stripe priceId: `prod_RNLdYADy7i6dB5`
 
 ---

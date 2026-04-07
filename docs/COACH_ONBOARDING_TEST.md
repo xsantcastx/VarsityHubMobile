@@ -183,7 +183,7 @@ navigateNext(); // ⚠️ Navigates before payment completes
 ### Issue 3: Team Count for Veteran Plan
 **Location:** `app/onboarding/step-3-plan.tsx` line 125
 
-**Problem:** Default team count is 3, but pricing shows "$1.50/month per team beyond first 2"
+**Problem:** Default team count is 3, but pricing shows "$0.99/month per team beyond first 2"
 
 **Current:** `const [teamCount, setTeamCount] = useState<number>(3);`
 

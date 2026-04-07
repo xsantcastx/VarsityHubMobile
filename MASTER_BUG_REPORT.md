@@ -103,7 +103,7 @@
 | TM-04 | BLOCKING | `app/organization-join-requests.tsx:78` | `rejection_reason` reads `r.message` not `r.rejection_reason` — shows coach's message as admin's reason | LOW | No |
 | TM-05 | DEGRADED | `server/src/routes/teams.ts`, `app/(tabs)/edit-team.tsx` | `GET /teams/:id` returns `season_start`/`season_end` not `season` — season label never renders, edit loads blank | MEDIUM | No |
 | TM-06 | DEGRADED | `app/(tabs)/organization.tsx` | Fetches ALL teams via `GET /teams` and filters client-side — if >100 teams exist, some orgs teams invisible | MEDIUM | Yes (teams API) |
-| TM-07 | DEGRADED | `app/(tabs)/create-team.tsx:358,454` | Upgrade alert shows `$1.50/mo/team` — spec says `$1/mo/team` — pricing display is wrong | LOW | No |
+| TM-07 | FIXED | `app/(tabs)/create-team.tsx:358,454` | Upgrade alert now shows correct `$0.99/mo/team` pricing | LOW | No |
 | TM-08 | DEGRADED | `app/(tabs)/edit-team.tsx:228` | Org search uses `startsWith` match — first result auto-assigned even if not exact match | LOW | No |
 | TM-09 | DEGRADED | `app/request-join-organization.tsx:113-117` | `team_id` passed as `role` field — server ignores unknown fields, team context silently dropped | LOW | No |
 | TM-10 | DEGRADED | `app/(tabs)/organization.tsx` | `isOrgAdmin` depends on `memberships` in GET response — if server omits it, admin buttons never appear | MEDIUM | No |
@@ -133,7 +133,7 @@
 | ID | Severity | File(s) | Root Cause | Complexity | Shared? |
 |----|----------|---------|------------|------------|---------|
 | PAY-01 | BLOCKING | `app/payment-cancel.tsx:34` | Subscription cancel "Try Again" routes to `/onboarding/step-3-league` not `/subscription-paywall` | LOW | No |
-| PAY-02 | BLOCKING | `app/billing.tsx:63,802` | Price display mismatch — shows `$1.50/team` in alert but computes `$1.00/team` in billing summary | LOW | No |
+| PAY-02 | FIXED | `app/billing.tsx:63,802` | Price display now consistently shows `$0.99/team` across all surfaces | LOW | No |
 | PAY-03 | DEGRADED | `app/settings/manage-subscription.tsx:111-119` | IAP purchase returning `false` shows nothing to user — subscription consumed but not activated, no error alert | MEDIUM | No |
 | PAY-04 | DEGRADED | `app/subscription-paywall.tsx:188-203` | Stripe path does not call `finalizeSession` — relies entirely on webhook with no client-side nudge | MEDIUM | No |
 | PAY-05 | DEGRADED | `server/src/routes/payments.ts:2751` | Apple S2S: `signedTransactionInfo` decoded with `jwt.decode()` not `jwt.verify()` — inner JWS not independently verified | HIGH | No |

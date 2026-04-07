@@ -30,7 +30,7 @@ export default function TermsOfServiceScreen() {
           body={'You own your content. By posting, you grant us a license to display it in the app. All fan content must be personally filmed from your own vantage point. Official broadcast content (ESPN, CBS, Fox, NBC, etc.) is prohibited. VarsityHub has no affiliation with any league, conference, or broadcast partner.'} />
 
         <TermSection colorScheme={colorScheme} title="6. Subscriptions"
-          body={'Rookie: Free (2 teams). Veteran: $1.50/mo per additional team. Legend: $19.99/yr unlimited. Auto-renew unless cancelled. Payments via Apple IAP (iOS), Google Play (Android), or Stripe. Refunds case-by-case. Cancel anytime in Settings.'} />
+          body={'Rookie: Free (2 teams). Veteran: $0.99/mo per additional team. Legend: $19.99/yr unlimited. Auto-renew unless cancelled. Payments via Apple IAP (iOS), Google Play (Android), or Stripe. Refunds case-by-case. Cancel anytime in Settings.'} />
 
         <TermSection colorScheme={colorScheme} title="7. Ads"
           body={'Advertisers promote via our Ad Calendar. Ads must comply with content guidelines. We may reject or remove any ad.'} />

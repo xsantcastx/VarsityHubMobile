@@ -407,7 +407,7 @@ STRIPE_SECRET_KEY=sk_live_YOUR_LIVE_SECRET_KEY
 **Veteran Tier:**
 - Name: `Veteran Membership`
 - Description: `Access to advanced features`
-- Pricing: `$1.50/month per team` recurring
+- Pricing: `$0.99/month per team` recurring
 - Copy **Price ID**: `price_...` → `STRIPE_PRICE_VETERAN`
 
 **Legend Tier:**

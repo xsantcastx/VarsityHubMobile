@@ -77,7 +77,7 @@ navigateNext(); // ⚠️ Navigates before payment completes
 
 **Problem:**
 - Default team count is 3
-- Pricing says "First 2 teams free, then $1.50/month per team"
+- Pricing says "First 2 teams free, then $0.99/month per team"
 - Should default to 2 (first 2 free), minimum 3 for Veteran
 
 **Current:**
@@ -185,7 +185,7 @@ const [teamCount, setTeamCount] = useState<number>(2); // First 2 free
 
 // In team count modal validation:
 if (plan === 'veteran' && teamCount < 3) {
-  Alert.alert('Minimum Teams', 'Veteran plan requires at least 3 teams (first 2 free, then $1.50/month per additional team).');
+  Alert.alert('Minimum Teams', 'Veteran plan requires at least 3 teams (first 2 free, then $0.99/month per additional team).');
   setTeamCount(3);
   return;
 }

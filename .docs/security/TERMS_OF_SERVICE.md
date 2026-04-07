@@ -59,7 +59,7 @@ You agree NOT to:
 
 ### Subscription Tiers
 - **Rookie (Free)**: First two teams are free; basic features
-- **Veteran ($1.50/month per additional team)**: Pay only for teams beyond the first two; enhanced features
+- **Veteran ($0.99/month per additional team)**: Pay only for teams beyond the first two; enhanced features
 - **Legend ($20/year)**: Flat annual pricing with premium features
 
 ### Billing

@@ -8,7 +8,7 @@ Run these flows systematically when a new build lands on Railway.
 - [ ] Reach step 3 (plan selection)
 - [ ] Verify **Veteran** and **Legend** plans are visible (not greyed out)
 - [ ] No "Payments unavailable" or "Checkout unavailable" banner
-- [ ] Plan cards show correct pricing ($1.50/month, $20/year)
+- [ ] Plan cards show correct pricing ($0.99/month, $20/year)
 
 ## 2. Complete coach onboarding as Veteran — does payment go through?
 

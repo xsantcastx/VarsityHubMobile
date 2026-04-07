@@ -31,7 +31,7 @@ The payments and coach permissions system is **production-ready with consistent 
 | Feature | Rookie | Veteran | Legend |
 |---------|--------|---------|--------|
 | **Teams** | 2 free | Unlimited | Unlimited |
-| **Cost** | Free | $1.50/team/month (3+ only) | $20/year |
+| **Cost** | Free | $0.99/team/month (3+ only) | $20/year |
 | **Authorized Users/Team** | 1 | 2 | Unlimited |
 | **Extracurricular Clubs** | ✗ | ✗ | ✓ |
 | **Org-Level Authorizations** | 1 | 2×team_count | Unlimited |

@@ -173,7 +173,7 @@ PERFECT FOR:
 
 SUBSCRIPTION TIERS:
 • Rookie (Free): Basic features
-• Veteran ($1.50/team/month): Enhanced tools
+• Veteran ($0.99/team/month): Enhanced tools
 • Legend ($20/year): Premium experience
 
 Download VarsityHub today and elevate your team!

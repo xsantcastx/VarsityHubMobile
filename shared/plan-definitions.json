@@ -29,7 +29,7 @@
     "id": "veteran",
     "name": "Veteran",
     "icon": "trophy",
-    "price": "$1.50",
+    "price": "$0.99",
     "period": "/ month per team over 2",
     "priceId": "price_1SVco4GJt8CsPE1EBNNlHYPB",
     "max_teams": null,
@@ -48,7 +48,7 @@
       "Covers all approved coaches at no extra cost"
     ],
     "billing": {
-      "description": "$1.50/month per team over 2 — for growing leagues.",
+      "description": "$0.99/month per team over 2 — for growing leagues.",
       "cta": "Scale your league with predictable monthly pricing."
     }
   },

@@ -4,7 +4,7 @@
 
 ### 1. Updated Plan Pricing
 - **Rookie**: Free for 2 teams (e.g., Girls & Boys Soccer)
-- **Veteran**: $1.50/month per team after first 2
+- **Veteran**: $0.99/month per team after first 2
 - **Legend**: $29.99/year for unlimited teams/clubs
 
 ### 2. Zip Code Mandatory for Coaches

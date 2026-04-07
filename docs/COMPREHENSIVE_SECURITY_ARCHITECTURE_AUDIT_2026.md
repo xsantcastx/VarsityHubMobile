@@ -139,7 +139,7 @@ PLAN STRUCTURE:
 │ Plan        │ Price        │ Limits                                  │
 ├─────────────┼──────────────┼─────────────────────────────────────────┤
 │ Rookie      │ FREE         │ Max 2 teams, 1 staff/team              │
-│ Veteran     │ $1.50/mo/team│ Unlimited teams, $1.50 per team (3+)   │
+│ Veteran     │ $0.99/mo/team│ Unlimited teams, $0.99 per team (3+)   │
 │             │              │ 5 staff/team, no extracurricular       │
 │ Legend      │ $20/year     │ Unlimited everything, extracurricular  │
 └─────────────┴──────────────┴─────────────────────────────────────────┘
@@ -152,7 +152,7 @@ PAYMENT FLOW (Subscription):
    ✓ Email verified (403 if not)
    ✓ No duplicate recent paid sessions
    ✓ Calculate pricing:
-     - Veteran: (teamCount - 2) × $1.50/month
+     - Veteran: (teamCount - 2) × $0.99/month
      - Legend: $20/year flat
 4. Create Stripe checkout session:
    metadata: { membership: '1', plan, user_id, team_count }
@@ -273,7 +273,7 @@ SECURITY GATES:
 | Plan | Max Teams | Max Staff/Team | Extracurricular | Pricing |
 |------|-----------|----------------|-----------------|---------|
 | Rookie | 2 | 1 | ❌ | Free |
-| Veteran | ∞ | 5 | ❌ | $1.50/mo per team (3+) |
+| Veteran | ∞ | 5 | ❌ | $0.99/mo per team (3+) |
 | Legend | ∞ | ∞ | ✅ | $20/year |
 
 ---
@@ -799,7 +799,7 @@ createEventSchema = z.object({
 | Allow rookie upgrades | ✅ **PASS** | Upgrade flow works | None |
 | Don't persist plan until payment confirmed | ✅ **PASS** | Plan saved only after `payment_status === 'paid'` in webhook | None |
 | Handle email verification errors | ✅ **PASS** | [step-3-plan.tsx](../app/onboarding/step-3-plan.tsx) shows verification modal | None |
-| Enforce free first two teams | ✅ **PASS** | Veteran billing: `(teamCount - 2) × $1.50` | None |
+| Enforce free first two teams | ✅ **PASS** | Veteran billing: `(teamCount - 2) × $0.99` | None |
 
 #### Teams/Organizations
 
