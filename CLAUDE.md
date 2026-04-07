@@ -53,8 +53,8 @@ Check env vars, Railway logs, and build configs — not just source code.
 
 ## Plans (Billing)
 - Rookie: free, 2 teams, 50 roster
-- Veteran: $1/mo/team, 100 roster
-- Legend: $20/yr, unlimited teams + clubs
+- Veteran: $1.50/mo/team, 100 roster, 5 authorized users/team
+- Legend: $19.99/yr, unlimited teams + clubs + authorized users
 
 ## OTA Updates
 - `runtimeVersion` uses `{ "policy": "appVersion" }` — auto-derived from `version` field, never hardcode a string
