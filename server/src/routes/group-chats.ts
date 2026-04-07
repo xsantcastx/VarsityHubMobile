@@ -3,6 +3,8 @@ import { z } from 'zod';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { prisma } from '../lib/prisma.js';
+import { groupMessageLimiter } from '../middleware/rateLimiters.js';
+import { validateContent } from '../lib/contentFilter.js';
 const groupChatsRouter = Router();
 
 // Get all group chats for the current user
@@ -115,7 +117,7 @@ const sendMessageSchema = z.object({
   content: z.string().min(1, 'Message content required').max(5000, 'Message too long (max 5000 characters)'),
 });
 
-groupChatsRouter.post('/:chatId/messages', requireAuth as any, async (req: AuthedRequest, res) => {
+groupChatsRouter.post('/:chatId/messages', requireAuth as any, groupMessageLimiter as any, async (req: AuthedRequest, res) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
@@ -123,6 +125,11 @@ groupChatsRouter.post('/:chatId/messages', requireAuth as any, async (req: Authe
     const parsed = sendMessageSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten().fieldErrors });
     const { content } = parsed.data;
+
+    const filterResult = validateContent({ content });
+    if (!filterResult.valid) {
+      return res.status(400).json({ error: filterResult.error, code: filterResult.code });
+    }
 
     // Verify user is a member of this chat
     const membership = await prisma.groupChatMember.findFirst({

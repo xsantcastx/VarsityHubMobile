@@ -468,6 +468,39 @@ function setupFallbackCron(): boolean {
     }
   }, 60 * 1000); // Check every minute
 
+  // Coach approval reminder - daily
+  setInterval(async () => {
+    try {
+      const { prisma } = await import('../lib/prisma.js');
+      const { remindPendingCoachApprovals } = await import('../lib/approvalService.js');
+      await remindPendingCoachApprovals(prisma);
+    } catch (error) {
+      console.error('[Scheduler] Coach approval reminder failed:', error);
+    }
+  }, 24 * 60 * 60 * 1000);
+
+  // Coach approval auto-expire - daily
+  setInterval(async () => {
+    try {
+      const { prisma } = await import('../lib/prisma.js');
+      const { autoExpirePendingCoaches } = await import('../lib/approvalService.js');
+      await autoExpirePendingCoaches(prisma);
+    } catch (error) {
+      console.error('[Scheduler] Coach approval auto-expire failed:', error);
+    }
+  }, 24 * 60 * 60 * 1000);
+
+  // Stale event auto-reject - daily
+  setInterval(async () => {
+    try {
+      const { prisma } = await import('../lib/prisma.js');
+      const { autoExpireStaleEvents } = await import('../lib/approvalService.js');
+      await autoExpireStaleEvents(prisma);
+    } catch (error) {
+      console.error('[Scheduler] Stale event auto-reject failed:', error);
+    }
+  }, 24 * 60 * 60 * 1000);
+
   // Daily founder metrics report - check every minute, run at 8:00 AM
   setInterval(async () => {
     const now = new Date();

@@ -4,7 +4,7 @@ import { Router } from 'express';
 import { OAuth2Client } from 'google-auth-library';
 import jwt, { type JwtPayload } from 'jsonwebtoken';
 import { z } from 'zod';
-import { sendPasswordChangedEmail, sendPasswordResetEmail, sendVerificationEmail } from '../lib/email.js';
+import { sendPasswordChangedEmail, sendPasswordResetEmail, sendVerificationEmail, sendEmail } from '../lib/email.js';
 import { validateContent } from '../lib/contentFilter.js';
 import { ConflictError } from '../lib/errors/ConflictError.js';
 import { ValidationError } from '../lib/errors/ValidationError.js';
@@ -1438,6 +1438,18 @@ authRouter.post('/me/complete-onboarding', authLimiter, requireAuth as any, requ
     where: { id: req.user!.id },
     data: updateData
   });
+
+  // Fire-and-forget: notify admins about new coach application
+  if (finalRole === 'coach' && updateData.approval_status === 'PENDING') {
+    const adminEmail = (process.env.ADMIN_EMAILS || '').split(',')[0]?.trim();
+    if (adminEmail) {
+      sendEmail({
+        to: adminEmail,
+        subject: `New coach application: ${updated.display_name || updated.email}`,
+        text: `A new coach application has been submitted.\n\nName: ${updated.display_name || 'N/A'}\nEmail: ${updated.email}\n\nPlease review in the admin dashboard.`,
+      }).catch(() => {});
+    }
+  }
 
   return res.json({
     message: 'Onboarding completed successfully',
