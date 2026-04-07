@@ -7,7 +7,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { safeGoBack } from '@/utils/navigation';
 

@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import type { TextInput } from 'react-native';
 import {
     ActivityIndicator,
+    Platform,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -269,13 +270,14 @@ export default function SignInScreen() {
               styles.logoContainer,
               {
                 backgroundColor: '#FFFFFF',
-                borderWidth: colorScheme === 'dark' ? 2 : 1,
-                borderColor: colorScheme === 'dark' ? '#475569' : '#E5E7EB',
+                overflow: 'hidden',
+                borderWidth: colorScheme === 'dark' ? 3 : 1,
+                borderColor: colorScheme === 'dark' ? '#64748b' : '#E5E7EB',
                 shadowColor: '#000000',
-                shadowOpacity: colorScheme === 'dark' ? 0.5 : 0.1,
+                shadowOpacity: colorScheme === 'dark' ? 0.6 : 0.1,
                 shadowOffset: { width: 0, height: 4 },
-                shadowRadius: 12,
-                elevation: 6,
+                shadowRadius: 16,
+                elevation: 8,
               }
             ]}>
               <Image
@@ -462,9 +464,9 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   logoContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+    width: 130,
+    height: 130,
+    borderRadius: 65,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
@@ -472,8 +474,9 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
   },
   logo: {
-    width: 88,
-    height: 88,
+    width: 85,
+    height: 85,
+    borderRadius: 10,
   },
   title: {
     fontSize: 24,

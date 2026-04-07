@@ -11,7 +11,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Advertisement as AdsApi } from '@/api/entities';

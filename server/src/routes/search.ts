@@ -42,7 +42,7 @@ searchRouter.get('/', searchLimiter, authMiddleware as any, async (req: AuthedRe
         avatar_url: true,
       },
       take: limit,
-      orderBy: { display_name: 'asc' },
+      orderBy: { username: 'asc' },
     }),
     prisma.team.findMany({
       where: {

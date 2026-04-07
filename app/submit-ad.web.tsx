@@ -5,7 +5,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { safeGoBack } from '@/utils/navigation';
 // @ts-ignore
