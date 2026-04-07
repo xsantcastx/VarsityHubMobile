@@ -112,6 +112,7 @@ export interface CreatePostPayload {
   type?: string;
   media_url?: string;
   game_id?: string;
+  event_id?: string;
   team_id?: string;
   location?: {
     lat?: number | null;
@@ -137,13 +138,12 @@ export interface UpdatePostPayload {
 export interface CreateEventPayload {
   title: string;
   date: string;
-  location?: string;
+  location: string;
   latitude?: number;
   longitude?: number;
   banner_url?: string;
   game_id?: string;
-  capacity?: number;
-  event_type?: string;
+  event_type?: 'game' | 'fundraiser' | 'watch_party' | 'team_trip' | 'meeting' | 'team_meal' | 'tryout' | 'bbq' | 'team_meeting' | 'host_request' | 'other';
   description?: string;
   linked_league?: string;
   max_attendees?: number;
@@ -156,13 +156,13 @@ export interface UpdateEventPayload extends Partial<CreateEventPayload> {}
 // ── Ad ────────────────────────────────────────────────────────────────
 
 export interface CreateAdPayload {
-  contact_name?: string;
-  contact_email?: string;
-  business_name?: string;
+  contact_name: string;
+  contact_email: string;
+  business_name: string;
   banner_url?: string;
   banner_fit_mode?: 'cover' | 'contain' | 'fill';
   target_url?: string;
-  target_zip_code?: string;
+  target_zip_code: string;
   radius?: number;
   description?: string;
 }
