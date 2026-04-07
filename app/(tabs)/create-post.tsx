@@ -807,6 +807,12 @@ function CreatePostScreen() {
               ],
             );
             setError('Location access is required to post to this event.');
+          } else if (code === 'NO_EVENT_LOCATION') {
+            Alert.alert(
+              'Cannot Verify Location',
+              'This game has no event with location data. Only team members can post to this game.',
+            );
+            setError('Only team members can post to games without event location data.');
           } else {
             setError(e?.data?.error || e?.data?.message || 'You do not have permission to post to this event.');
           }

@@ -7,10 +7,10 @@
 // ── User ──────────────────────────────────────────────────────────────
 
 export interface UpdateMePayload {
-  display_name?: string;
-  username?: string;
-  avatar_url?: string;
-  bio?: string;
+  display_name?: string | null;
+  username?: string | null;
+  avatar_url?: string | null;
+  bio?: string | null;
 }
 
 export interface UpdatePreferencesPayload {
