@@ -158,6 +158,7 @@ function EditAdScreen() {
           <Text style={[styles.loadingText, { color: theme.mutedText }]}>Loading ad details...</Text>
         </View>
       ) : (
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
           <ScrollView
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
@@ -316,6 +317,7 @@ function EditAdScreen() {
               </Pressable>
             )}
           </ScrollView>
+          </KeyboardAvoidingView>
       )}
     </SafeAreaView>
   );

@@ -87,6 +87,7 @@ export default function EditUsernameScreen() {
           headerShown: true,
         }}
       />
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive">
         <Text style={[styles.label, { color: Colors[colorScheme ?? 'light'].mutedText }]}>Username</Text>
         <Text style={[styles.hint, { color: Colors[colorScheme ?? 'light'].mutedText }]}>
@@ -108,6 +109,7 @@ export default function EditUsernameScreen() {
           {saving ? 'Saving…' : 'Save'}
         </Button>
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

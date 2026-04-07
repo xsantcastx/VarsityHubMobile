@@ -109,6 +109,7 @@ export default function FeedbackScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['bottom']}>
       <Stack.Screen options={{ title: 'Leave Feedback', headerBackTitle: 'Back', headerShown: true }} />
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive">
         <Text style={[styles.title, { color: theme.text }]}>Send Feedback</Text>
         <Text style={[styles.subtitle, { color: theme.mutedText }]}>Help us improve VarsityHub</Text>
@@ -193,6 +194,7 @@ export default function FeedbackScreen() {
           )}
         </Pressable>
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

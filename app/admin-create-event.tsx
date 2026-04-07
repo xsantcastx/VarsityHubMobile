@@ -308,6 +308,7 @@ function CreateEventScreen() {
       edges={['bottom']}
     >
       <Stack.Screen options={{ title: 'Create Official Event' }} />
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive">
         <View style={styles.header}>
           <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Create Official Event</Text>
@@ -484,6 +485,7 @@ function CreateEventScreen() {
           )}
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
 
       <View style={[styles.footer, { borderTopColor: Colors[colorScheme].border }]}>
         <Pressable

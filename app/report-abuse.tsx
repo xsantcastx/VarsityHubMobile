@@ -157,6 +157,7 @@ export default function ReportAbuseScreen() {
               <MaterialIcons name="chevron-left" size={28} color="#007AFF" />
             </Pressable>
           ) }} />
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <ScrollView
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
@@ -270,6 +271,7 @@ export default function ReportAbuseScreen() {
             </Button>
           </View>
         </ScrollView>
+        </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

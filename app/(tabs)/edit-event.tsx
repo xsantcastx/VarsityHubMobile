@@ -118,6 +118,7 @@ export default function EditEventScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['bottom']}>
       <Stack.Screen options={{ title: 'Edit Event', headerShown: false }} />
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <ScrollView
           style={{ flex: 1 }}
           contentContainerStyle={{ paddingBottom: 32 }}
@@ -212,6 +213,7 @@ export default function EditEventScreen() {
             </Pressable>
           </View>
         </ScrollView>
+        </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

@@ -213,6 +213,7 @@ function SubmitAdScreen() {
           ),
         }} 
       />
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <ScrollView
           scrollEnabled={scrollEnabled}
           contentContainerStyle={[
@@ -330,6 +331,7 @@ function SubmitAdScreen() {
             )}
           </Pressable>
         </ScrollView>
+        </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
