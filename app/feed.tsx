@@ -868,7 +868,38 @@ export default function FeedScreen() {
         <View style={{ alignItems: 'center', paddingVertical: 40, paddingHorizontal: 24 }}>
           <MaterialIcons name="dynamic-feed" size={56} color={Colors[colorScheme].mutedText} />
           <Text style={{ color: Colors[colorScheme].text, fontSize: 18, fontWeight: '700', marginTop: 14, marginBottom: 6 }}>No posts yet</Text>
-          <Text style={[styles.muted, { color: Colors[colorScheme].mutedText, textAlign: 'center', lineHeight: 20 }]}>Follow teams and coaches to see their content here.</Text>
+          <Text style={[styles.muted, { color: Colors[colorScheme].mutedText, textAlign: 'center', lineHeight: 20, marginBottom: 20 }]}>
+            Follow teams and coaches to see their content here.
+          </Text>
+          <Pressable
+            onPress={() => router.push('/(tabs)/discover/index')}
+            style={{
+              backgroundColor: Colors[colorScheme].tint,
+              paddingHorizontal: 24,
+              paddingVertical: 12,
+              borderRadius: 10,
+              marginBottom: 10,
+              width: '100%',
+              alignItems: 'center',
+            }}
+          >
+            <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '600' }}>Discover Nearby Games</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => router.push('/(tabs)/discover/index')}
+            style={{
+              backgroundColor: 'transparent',
+              paddingHorizontal: 24,
+              paddingVertical: 12,
+              borderRadius: 10,
+              borderWidth: 1,
+              borderColor: Colors[colorScheme].border,
+              width: '100%',
+              alignItems: 'center',
+            }}
+          >
+            <Text style={{ color: Colors[colorScheme].text, fontSize: 15, fontWeight: '600' }}>Browse Teams</Text>
+          </Pressable>
         </View>
       )}
 

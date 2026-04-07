@@ -389,6 +389,11 @@ function AdminDashboardScreen() {
                   Pending Coaches ({stats.pendingCoaches.length})
                 </Text>
               </View>
+              {stats.pendingLeagues && stats.pendingLeagues.length > 0 && (
+                <Text style={{ color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280', fontSize: 13, paddingHorizontal: 16, paddingBottom: 8, fontStyle: 'italic' }}>
+                  Approve the coach's league first, then approve the coach.
+                </Text>
+              )}
               {stats.pendingCoaches.map((coach) => {
                 const isActioning = coachActionId === coach.id;
                 return (

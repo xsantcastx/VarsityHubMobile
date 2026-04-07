@@ -146,7 +146,6 @@ export default function OnboardingLayout({
           </View>
 
           {children}
-        </ScrollView>
 
       {onContinue && (
         <View style={[styles.footer, { borderTopColor: colors.border, backgroundColor: colors.background, paddingBottom: insets.bottom > 0 ? insets.bottom : 16 }]}>
@@ -168,6 +167,7 @@ export default function OnboardingLayout({
           </Pressable>
         </View>
       )}
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -220,7 +220,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 20,
-    paddingBottom: 24,
+    paddingBottom: 40,
   },
   titleSection: {
     marginBottom: 24,
