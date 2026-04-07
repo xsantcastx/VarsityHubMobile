@@ -32,7 +32,7 @@ const getCommonTemplateData = () => ({
   community_guidelines_url: 'https://limeprod.com/VarsityHubPrivacy',
   instagram_url: 'https://www.instagram.com/varsityhubapp/',
   tiktok_url: 'https://www.tiktok.com/@varsityhubapp',
-  youtube_url: 'https://youtube.com/@varsityhub',
+  youtube_url: 'https://www.youtube.com/@varsityhubapp',
   facebook_url: 'https://www.facebook.com/varsityhubapp/',
   x_url: 'https://x.com/varsityhub00',
   website_url: 'https://limeprod.com',
