@@ -459,7 +459,7 @@ const styles = StyleSheet.create({
   bookmarkBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, marginLeft: 8 },
   bookmarkText: { fontWeight: '800', fontSize: 13 },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 8, paddingVertical: 6 },
-  metaText: { color: '#6B7280', fontWeight: '700', fontSize: 12 },
+  metaText: { fontWeight: '700', fontSize: 12 },
   // Team ribbon styles
   teamRowOverlay: { position: 'absolute', top: 8, left: 8, flexDirection: 'row', alignItems: 'center', gap: 6 },
   teamPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: 'rgba(238,242,255,0.95)', borderWidth: 1, borderColor: '#C7D2FE' },
@@ -479,21 +479,21 @@ const styles = StyleSheet.create({
   
   // Modal styles
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'center', alignItems: 'center' },
-  actionsMenu: { backgroundColor: 'white', borderRadius: 12, minWidth: 160, paddingVertical: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4, elevation: 5 },
+  actionsMenu: { borderRadius: 12, minWidth: 160, paddingVertical: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4, elevation: 5 },
   actionItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, gap: 12 },
-  actionText: { fontSize: 16, fontWeight: '500', color: '#374151' },
-  actionSeparator: { height: 1, backgroundColor: '#D1D5DB', marginHorizontal: 8 },
-  
+  actionText: { fontSize: 16, fontWeight: '500' },
+  actionSeparator: { height: 1, marginHorizontal: 8 },
+
   // Edit modal styles
-  editModal: { flex: 1, backgroundColor: 'white' },
+  editModal: { flex: 1 },
   editHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 },
-  editTitle: { fontSize: 18, fontWeight: '700', color: '#111827' },
-  cancelButton: { fontSize: 16, color: '#6B7280' },
-  saveButton: { fontSize: 16, fontWeight: '600', color: '#2563EB' },
-  saveButtonDisabled: { color: '#9CA3AF' },
+  editTitle: { fontSize: 18, fontWeight: '700' },
+  cancelButton: { fontSize: 16 },
+  saveButton: { fontSize: 16, fontWeight: '600' },
+  saveButtonDisabled: { opacity: 0.5 },
   editContent: { flex: 1, padding: 16 },
-  titleInput: { borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, padding: 12, fontSize: 16, marginBottom: 12, minHeight: 50 },
-  contentInput: { borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, padding: 12, fontSize: 16, flex: 1, minHeight: 120 },
+  titleInput: { borderWidth: 1, borderRadius: 8, padding: 12, fontSize: 16, marginBottom: 12, minHeight: 50 },
+  contentInput: { borderWidth: 1, borderRadius: 8, padding: 12, fontSize: 16, flex: 1, minHeight: 120 },
 
   // Report modal styles
   reportTitle: { fontSize: 16, fontWeight: '700', paddingHorizontal: 16, paddingVertical: 12 },
