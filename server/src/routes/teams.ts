@@ -883,7 +883,7 @@ const createTeamSchema = z.object({
   onboarding: z.boolean().optional(),
 });
 
-teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, requirePlan('rookie') as any, teamCreationLimiter, async (req: AuthedRequest, res) => {
+teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, requirePlan('rookie') as any, teamCreationLimiter, asyncHandler(async (req: AuthedRequest, res) => {
   // req.user is guaranteed by requireVerified middleware
   const parsed = createTeamSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -1331,7 +1331,7 @@ teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, req
       error: `Team creation failed: ${detail}`,
     });
   }
-});
+}));
 
 // Invite user by email to a team
 const inviteSchema = z.object({ email: z.string().email(), role: z.string().optional() });

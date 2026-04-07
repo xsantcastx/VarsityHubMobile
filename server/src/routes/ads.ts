@@ -494,7 +494,7 @@ adsRouter.get('/:id([a-z0-9]{15,50})', requireAuth as any, async (req: AuthedReq
 });
 
 // Update an Ad (owner-only if authenticated)
-adsRouter.put('/:id([a-z0-9]{15,50})', requireAuth as any, async (req: AuthedRequest, res) => {
+adsRouter.put('/:id([a-z0-9]{15,50})', requireVerified as any, async (req: AuthedRequest, res) => {
   try {
     const id = String(req.params.id);
     const ad = await prisma.ad.findUnique({ where: { id } });

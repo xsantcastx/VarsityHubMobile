@@ -322,7 +322,7 @@ const createOrganizationSchema = z.object({
 });
 
 // Create organization
-organizationsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) => {
+organizationsRouter.post('/', requireVerified as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
   try {
     const parsed = createOrganizationSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
