@@ -15,6 +15,7 @@ import { sendAdPendingReviewEmail } from '../lib/email.js';
 import { signJwt, verifyJwt } from '../lib/jwt.js';
 import { sendPushNotification } from '../lib/notifications.js';
 import { approveAd as approveAdService, rejectAd as rejectAdService } from '../lib/approvalService.js';
+import { validateContent } from '../lib/contentFilter.js';
 import { z } from 'zod';
 import { registerIdValidation } from '../middleware/validateParams.js';
 
@@ -129,6 +130,12 @@ adsRouter.post('/', requireVerified as any, requireOnboarded as any, adCreationL
       return res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten().fieldErrors });
     }
     const { contact_name, contact_email, business_name, banner_url, banner_fit_mode, target_url, target_zip_code, description } = parsed.data;
+
+    const filterResult = validateContent({ content: parsed.data.description ?? undefined });
+    if (!filterResult.valid) {
+      return res.status(400).json({ error: filterResult.error, code: filterResult.code });
+    }
+
     const zipCoords = await getZipCoordinatesWithFallback(target_zip_code);
     const ad = await prisma.ad.create({
       data: {

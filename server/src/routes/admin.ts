@@ -614,6 +614,17 @@ adminRouter.post('/users/:id/ban', requireVerified as any, requireAdminMiddlewar
       at: new Date().toISOString(),
     });
 
+    await prisma.adminActivityLog.create({
+      data: {
+        admin_id: req.user.id,
+        admin_email: req.user.id,
+        action: 'BAN_USER',
+        target_type: 'user',
+        target_id: bannedUserId,
+        description: `Banned user ${bannedUserId}${reason ? ': ' + reason : ''}`,
+      },
+    }).catch(() => {});
+
     await issueWarning({
       userId: req.params.id,
       reason: reason || 'Banned by admin',
@@ -661,6 +672,17 @@ adminRouter.post('/users/:id/unban', requireVerified as any, requireAdminMiddlew
       unbanned_user_id: unbannedUserId,
       at: new Date().toISOString(),
     });
+
+    await prisma.adminActivityLog.create({
+      data: {
+        admin_id: req.user.id,
+        admin_email: req.user.id,
+        action: 'UNBAN_USER',
+        target_type: 'user',
+        target_id: unbannedUserId,
+        description: `Unbanned user ${unbannedUserId}`,
+      },
+    }).catch(() => {});
 
     return res.json({ ok: true, banned: false });
   } catch (error) {

@@ -6,7 +6,7 @@ import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
-import { mentionsSearchLimiter, userLookupLimiter, usernameAvailableLimiter } from '../middleware/rateLimiters.js';
+import { followLimiter, mentionsSearchLimiter, userLookupLimiter, usernameAvailableLimiter } from '../middleware/rateLimiters.js';
 import { detectMediaType, getVideoPreviewUrl } from '../lib/mediaUtils.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
@@ -700,7 +700,7 @@ usersRouter.get('/lookup', requireAuth as any, userLookupLimiter, asyncHandler(a
 }));
 
 // Follow a user
-usersRouter.post('/:id/follow', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
+usersRouter.post('/:id/follow', requireAuth as any, followLimiter as any, asyncHandler(async (req: AuthedRequest, res) => {
   const follower_id = req.user!.id;
   const following_id = req.params.id;
 
@@ -1175,6 +1175,17 @@ usersRouter.post('/:id/block', requireAuth as any, asyncHandler(async (req: Auth
         blocked_id,
       },
     });
+
+    // Remove follow relationships in both directions
+    await prisma.follows.deleteMany({
+      where: {
+        OR: [
+          { follower_id: blocker_id, following_id: blocked_id },
+          { follower_id: blocked_id, following_id: blocker_id },
+        ],
+      },
+    });
+
     return res.status(201).json({ success: true });
   } catch (error: any) {
     // Handle duplicate blocking

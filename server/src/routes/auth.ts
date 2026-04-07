@@ -15,7 +15,7 @@ import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
-import { authLimiter, oauthLimiter, verificationConfirmLimiter } from '../middleware/rateLimiters.js';
+import { authLimiter, oauthLimiter, passwordResetLimiter, verificationConfirmLimiter } from '../middleware/rateLimiters.js';
 import { rlIncr, rlGet, rlSet, rlDel } from '../lib/redisRateLimit.js';
 import { cacheGet, cacheSet, cacheDel } from '../lib/cache.js';
 import { isAdminEmail } from '../lib/adminEmails.js';
@@ -702,7 +702,7 @@ authRouter.post('/apple', oauthLimiter, asyncHandler(async (req, res) => {
 
 const passwordResetRequestSchema = z.object({ email: z.string().email() });
 
-authRouter.post('/password/forgot', asyncHandler(async (req, res) => {
+authRouter.post('/password/forgot', passwordResetLimiter as any, asyncHandler(async (req, res) => {
   const parsed = passwordResetRequestSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
   const email = parsed.data.email.trim().toLowerCase();
