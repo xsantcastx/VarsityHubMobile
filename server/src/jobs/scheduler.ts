@@ -286,6 +286,48 @@ const SCHEDULED_JOBS: ScheduledJob[] = [
       }
     },
   },
+  {
+    name: 'coach-approval-reminder',
+    cron: '30 9 * * *', // Every day at 9:30 AM
+    description: 'Log reminder about coaches pending > 7 days',
+    handler: async () => {
+      try {
+        const { prisma } = await import('../lib/prisma.js');
+        const { remindPendingCoachApprovals } = await import('../lib/approvalService.js');
+        await remindPendingCoachApprovals(prisma);
+      } catch (error) {
+        console.error('[Scheduler] Coach approval reminder failed:', error);
+      }
+    },
+  },
+  {
+    name: 'coach-approval-auto-expire',
+    cron: '0 10 * * *', // Every day at 10:00 AM
+    description: 'Auto-reject coaches pending > 30 days',
+    handler: async () => {
+      try {
+        const { prisma } = await import('../lib/prisma.js');
+        const { autoExpirePendingCoaches } = await import('../lib/approvalService.js');
+        await autoExpirePendingCoaches(prisma);
+      } catch (error) {
+        console.error('[Scheduler] Coach approval auto-expire failed:', error);
+      }
+    },
+  },
+  {
+    name: 'stale-event-auto-reject',
+    cron: '30 3 * * *', // Every day at 3:30 AM
+    description: 'Auto-reject pending events past their event date',
+    handler: async () => {
+      try {
+        const { prisma } = await import('../lib/prisma.js');
+        const { autoExpireStaleEvents } = await import('../lib/approvalService.js');
+        await autoExpireStaleEvents(prisma);
+      } catch (error) {
+        console.error('[Scheduler] Stale event auto-reject failed:', error);
+      }
+    },
+  },
 ];
 
 let schedulerQueue: Queue | null = null;

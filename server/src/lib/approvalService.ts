@@ -527,3 +527,88 @@ export async function rejectEvent(
 
   return { ok: true, event: updated };
 }
+
+// ────────────────────────────────────────────────────────────────────────────
+// Scheduled auto-expiration helpers
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Send reminder to admins about coaches pending > 7 days.
+ * Called by scheduler daily.
+ */
+export async function remindPendingCoachApprovals(prisma: PrismaClient): Promise<number> {
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+  const staleCoaches = await prisma.user.findMany({
+    where: {
+      approval_status: 'PENDING',
+      preferences: { path: ['role'], equals: 'coach' },
+      created_at: { lt: sevenDaysAgo },
+    },
+    select: { id: true, display_name: true, email: true, created_at: true },
+    take: 50,
+  });
+
+  if (staleCoaches.length === 0) return 0;
+
+  console.log(`[approval-reminder] ${staleCoaches.length} coach(es) pending > 7 days`);
+
+  return staleCoaches.length;
+}
+
+/**
+ * Auto-reject coaches pending > 30 days with no admin action.
+ * Called by scheduler daily. Sends rejection email with reason.
+ */
+export async function autoExpirePendingCoaches(prisma: PrismaClient): Promise<number> {
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+  const expiredCoaches = await prisma.user.findMany({
+    where: {
+      approval_status: 'PENDING',
+      preferences: { path: ['role'], equals: 'coach' },
+      created_at: { lt: thirtyDaysAgo },
+    },
+    select: { id: true, display_name: true, email: true },
+    take: 50,
+  });
+
+  for (const coach of expiredCoaches) {
+    await rejectCoach(coach.id, 'system', prisma, {
+      reason: 'Application expired after 30 days without admin review. Please re-apply.',
+    }).catch((err) => {
+      console.error(`[auto-expire] Failed to expire coach ${coach.id}:`, err);
+    });
+  }
+
+  if (expiredCoaches.length > 0) {
+    console.log(`[auto-expire] Expired ${expiredCoaches.length} coach application(s)`);
+  }
+
+  return expiredCoaches.length;
+}
+
+/**
+ * Auto-reject pending events past their event date.
+ * Called by scheduler daily.
+ */
+export async function autoExpireStaleEvents(prisma: PrismaClient): Promise<number> {
+  const now = new Date();
+
+  const result = await prisma.event.updateMany({
+    where: {
+      approval_status: 'pending',
+      date: { lt: now },
+    },
+    data: {
+      approval_status: 'rejected',
+      rejected_reason: 'Auto-expired: event date has passed',
+    },
+  });
+
+  if (result.count > 0) {
+    console.log(`[auto-expire] Expired ${result.count} past-date pending event(s)`);
+  }
+
+  return result.count;
+}
