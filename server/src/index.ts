@@ -110,6 +110,56 @@ runStartupChecks().catch((err) => {
   console.error('[startup] runStartupChecks threw unexpectedly:', err);
 });
 
+// ONE-TIME: Ensure Apple Review demo account is verified & onboarded
+// Safe to re-run (upsert). Remove after Apple approves build 90.
+(async () => {
+  try {
+    const { prisma } = await import('./lib/prisma.js');
+    const bcrypt = await import('bcrypt');
+    const hash = await bcrypt.hash('VarsityDemo2026!', 10);
+    await prisma.user.upsert({
+      where: { email: 'demo@varsityhub.app' },
+      update: {
+        password_hash: hash,
+        display_name: 'Demo User',
+        username: 'appledemo',
+        email_verified: true,
+        approval_status: 'APPROVED',
+        preferences: {
+          onboarding_completed: true,
+          role: 'fan',
+          plan: 'rookie',
+          affiliation: 'none',
+          dob: '2000-01-15',
+          notifications: { game_event_reminders: false, team_updates: false, comments_upvotes: false, follows_notifications: true, messages_notifications: true },
+        },
+      },
+      create: {
+        email: 'demo@varsityhub.app',
+        password_hash: hash,
+        display_name: 'Demo User',
+        username: 'appledemo',
+        email_verified: true,
+        approval_status: 'APPROVED',
+        subscription_tier: 'free',
+        subscription_status: 'active',
+        max_teams: 2,
+        preferences: {
+          onboarding_completed: true,
+          role: 'fan',
+          plan: 'rookie',
+          affiliation: 'none',
+          dob: '2000-01-15',
+          notifications: { game_event_reminders: false, team_updates: false, comments_upvotes: false, follows_notifications: true, messages_notifications: true },
+        },
+      },
+    });
+    debugLog('[startup] Demo account (demo@varsityhub.app) ready for Apple Review');
+  } catch (e) {
+    console.error('[startup] Demo account setup failed:', e);
+  }
+})();
+
 // Export app for testing or external usage
 export { app };
 
