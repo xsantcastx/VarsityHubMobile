@@ -1,7 +1,7 @@
 /**
  * Unit tests for email template helpers (isSendGridConfigured, getMissingEmailTemplates)
  */
-import { describe, expect, it, beforeEach, afterEach } from '@jest/globals';
+import { describe, expect, it, beforeEach, afterEach, jest } from '@jest/globals';
 
 describe('Email template helpers', () => {
   const originalEnv = process.env;

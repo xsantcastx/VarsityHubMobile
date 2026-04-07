@@ -872,7 +872,7 @@ export default function FeedScreen() {
             Follow teams and coaches to see their content here.
           </Text>
           <Pressable
-            onPress={() => router.push('/(tabs)/discover/index')}
+            onPress={() => router.push('/(tabs)/discover')}
             style={{
               backgroundColor: Colors[colorScheme].tint,
               paddingHorizontal: 24,
@@ -886,7 +886,7 @@ export default function FeedScreen() {
             <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '600' }}>Discover Nearby Games</Text>
           </Pressable>
           <Pressable
-            onPress={() => router.push('/(tabs)/discover/index')}
+            onPress={() => router.push('/(tabs)/discover')}
             style={{
               backgroundColor: 'transparent',
               paddingHorizontal: 24,

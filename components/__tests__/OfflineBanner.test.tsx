@@ -5,7 +5,12 @@ import { useAuth } from '@/context/AuthProvider';
 import { OfflineBanner } from '../OfflineBanner';
 
 jest.mock('@react-native-community/netinfo', () => ({
-  default: { addEventListener: jest.fn(() => jest.fn()) },
+  default: {
+    addEventListener: jest.fn(() => jest.fn()),
+    fetch: jest.fn().mockResolvedValue({ isConnected: true, isInternetReachable: true }),
+    configure: jest.fn(),
+  },
+  NetInfoStateType: {},
 }));
 
 jest.mock('@/context/AuthProvider', () => ({

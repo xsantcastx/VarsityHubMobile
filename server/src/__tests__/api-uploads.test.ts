@@ -27,7 +27,7 @@ describeDb('Uploads API Endpoints', () => {
         password_hash: await bcrypt.hash('TestPassword123!', 10),
         display_name: 'Upload Tester',
         email_verified: true,
-        preferences: { role: 'fan' },
+        preferences: { role: 'fan', onboarding_completed: true },
       },
     });
     testUserToken = signJwt({ id: testUser.id });

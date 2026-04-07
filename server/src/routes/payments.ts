@@ -997,6 +997,7 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
           const competingAds = await tx.ad.findMany({
             where: { target_zip_code: ad.target_zip_code, payment_status: { in: ['paid', 'hold', 'pending_approval'] }, NOT: { id: String(ad_id) } },
             select: { id: true },
+            take: 100,
           });
           if (competingAds.length > 0) {
             const dateObjects = isoDates.map((s) => new Date(s + 'T00:00:00.000Z'));

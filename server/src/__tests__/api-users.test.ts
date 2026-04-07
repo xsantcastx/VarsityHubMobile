@@ -31,7 +31,7 @@ describeDb('Users API Endpoints', () => {
         password_hash: await bcrypt.hash('TestPassword123!', 10),
         display_name: 'Test User',
         email_verified: true,
-        preferences: { role: 'fan' },
+        preferences: { role: 'fan', onboarding_completed: true },
       },
     });
     testUserToken = signJwt({ id: testUser.id });
@@ -43,7 +43,7 @@ describeDb('Users API Endpoints', () => {
         password_hash: await bcrypt.hash('TestPassword123!', 10),
         display_name: 'Other User',
         email_verified: true,
-        preferences: { role: 'fan' },
+        preferences: { role: 'fan', onboarding_completed: true },
       },
     });
   });

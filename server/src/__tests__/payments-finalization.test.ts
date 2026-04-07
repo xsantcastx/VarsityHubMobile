@@ -63,12 +63,14 @@ describeDb('Checkout session finalization', () => {
         password_hash: await bcrypt.hash('TestPassword123!', 10),
         display_name: 'Membership Finalize User',
         email_verified: true,
+        approval_status: 'APPROVED',
         preferences: {
           role: 'coach',
           plan: 'rookie',
           pending_plan: 'veteran',
           payment_pending: true,
           payment_approved: true,
+          onboarding_completed: true,
         },
       },
     });
@@ -133,7 +135,8 @@ describeDb('Checkout session finalization', () => {
         password_hash: await bcrypt.hash('TestPassword123!', 10),
         display_name: 'Ad Finalize User',
         email_verified: true,
-        preferences: { role: 'coach', plan: 'veteran' },
+        approval_status: 'APPROVED',
+        preferences: { role: 'coach', plan: 'veteran', onboarding_completed: true },
       },
     });
     createdUserIds.push(user.id);

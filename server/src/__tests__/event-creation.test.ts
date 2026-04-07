@@ -29,8 +29,10 @@ describe('Event Creation', () => {
         password_hash: coachPasswordHash,
         display_name: 'Test Coach',
         email_verified: true,
+        approval_status: 'APPROVED',
         preferences: {
           role: 'coach',
+          onboarding_completed: true,
         },
       },
     });
@@ -46,6 +48,7 @@ describe('Event Creation', () => {
         email_verified: true,
         preferences: {
           role: 'fan',
+          onboarding_completed: true,
         },
       },
     });

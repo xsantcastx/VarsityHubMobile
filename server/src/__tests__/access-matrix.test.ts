@@ -104,6 +104,7 @@ async function createUser(
       password_hash: hash,
       display_name: displayName,
       email_verified: true,
+      ...(role === 'coach' ? { approval_status: 'APPROVED' } : {}),
       preferences,
     },
   });

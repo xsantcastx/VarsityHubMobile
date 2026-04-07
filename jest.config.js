@@ -26,6 +26,7 @@ module.exports = {
   transformIgnorePatterns: [
     'node_modules/(?!(react-native|@react-native|@react-navigation|expo|expo-router|expo-asset|expo-constants|expo-font|expo-linking|expo-location|expo-notifications|expo-secure-store|expo-status-bar|expo-system-ui|expo-web-browser|expo-modules-core|@expo|@expo-google-fonts|react-clone-referenced-element|react-native-reanimated|react-native-gesture-handler|react-native-safe-area-context|react-native-screens|react-native-svg|react-native-web|react-native-worklets|@react-native-async-storage|@react-native-picker|@react-native-community|@sentry|expo-application)/)',
   ],
+  roots: ['<rootDir>/app', '<rootDir>/components', '<rootDir>/hooks', '<rootDir>/utils', '<rootDir>/api', '<rootDir>/context', '<rootDir>/constants', '<rootDir>/__tests__'],
   testPathIgnorePatterns: ['/node_modules/', '/android/', '/ios/', '/server/', '/tests/', '/__tests__/__mocks__/', 'GameDetailsScreen.vote.test.tsx', 'onboarding.e2e.test.tsx'],
   modulePathIgnorePatterns: [
     '<rootDir>/node_modules_corrupt/',

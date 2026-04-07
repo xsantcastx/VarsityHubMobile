@@ -57,7 +57,7 @@ describe('Email Invite Functions', () => {
       // Verify invite_url contains the token
       expect(mockSend).toHaveBeenCalledTimes(1);
       const payload = mockSend.mock.calls[0]![0] as any;
-      expect(payload.templateData.invite_url).toContain('token=test-token-123');
+      expect(payload.templateData.acceptLink).toContain('token=test-token-123');
     });
   });
 });

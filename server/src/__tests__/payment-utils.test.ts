@@ -21,14 +21,14 @@ describe('Payment Utilities', () => {
       const result = calculateAdPriceCents(['2025-01-06', '2025-01-11']); // Mon + Sat
       expect(result.weekdayBlocks).toBe(1);
       expect(result.weekendBlocks).toBe(1);
-      expect(result.totalCents).toBe(1300);
+      expect(result.totalCents).toBe(499 + 799); // weekday $4.99 + weekend $7.99
     });
 
     it('counts weekday blocks across multiple weeks', () => {
       const result = calculateAdPriceCents(['2025-01-06', '2025-01-13']); // Two Mondays
       expect(result.weekdayBlocks).toBe(2);
       expect(result.weekendBlocks).toBe(0);
-      expect(result.totalCents).toBe(1000);
+      expect(result.totalCents).toBe(499 * 2); // 2 × $4.99 weekday blocks
     });
   });
 
