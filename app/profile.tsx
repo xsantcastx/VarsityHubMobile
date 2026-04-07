@@ -816,13 +816,28 @@ export default function ProfileScreen() {
             </View>
           </Pressable>
 
+          {/* Edit/Message button — aligned right, same row as avatar */}
+          <View style={{ flex: 1, alignItems: 'flex-end', justifyContent: 'flex-end', paddingRight: 16, paddingBottom: 8 }}>
+            {(!viewingUserId || viewingUserId === currentUserId) && (
+              <Pressable style={[styles.editButtonBelowBanner, { backgroundColor: theme.surface || theme.background, borderColor: theme.border }]} onPress={() => void router.push('/edit-profile')}>
+                <Text style={[styles.editButtonBelowBannerText, { color: theme.text }]}>Edit profile</Text>
+              </Pressable>
+            )}
+            {viewingUserId && viewingUserId !== currentUserId && (
+              <Pressable style={[styles.editButtonBelowBanner, { backgroundColor: '#0EA5E9', borderColor: '#0EA5E9' }]} onPress={() => void router.push(`/message-thread?with=${viewingUserId}` as any)}>
+                <Ionicons name="chatbubble-outline" size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
+                <Text style={[styles.editButtonBelowBannerText, { color: '#FFFFFF' }]}>Message</Text>
+              </Pressable>
+            )}
+          </View>
+
         </View>
       </View>
 
       {/* Content Below Banner */}
       <View style={[styles.profileDetailsContainer, { backgroundColor: theme.background }]}>
-        {/* User Info + Edit Button — same row, evenly balanced */}
-        <View style={[styles.userInfoBelowBanner, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
+        {/* User Info — name + role badge */}
+        <View style={styles.userInfoBelowBanner}>
           <View style={styles.nameRow}>
             <Text style={[styles.userName, { color: theme.text }]}>{displayUsername}</Text>
             {roleLabel && (
@@ -835,17 +850,6 @@ export default function ProfileScreen() {
               </View>
             )}
           </View>
-          {(!viewingUserId || viewingUserId === currentUserId) && (
-            <Pressable style={[styles.editButtonBelowBanner, { backgroundColor: theme.surface || theme.background, borderColor: theme.border }]} onPress={() => void router.push('/edit-profile')}>
-              <Text style={[styles.editButtonBelowBannerText, { color: theme.text }]}>Edit profile</Text>
-            </Pressable>
-          )}
-          {viewingUserId && viewingUserId !== currentUserId && (
-            <Pressable style={[styles.editButtonBelowBanner, { backgroundColor: '#0EA5E9', borderColor: '#0EA5E9' }]} onPress={() => void router.push(`/message-thread?with=${viewingUserId}` as any)}>
-              <Ionicons name="chatbubble-outline" size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
-              <Text style={[styles.editButtonBelowBannerText, { color: '#FFFFFF' }]}>Message</Text>
-            </Pressable>
-          )}
         </View>
 
         {/* User Details - Left aligned with avatar */}
