@@ -39,6 +39,24 @@ const logPollSchemaFallback = (context: string, error: any) => {
   });
 };
 
+/** Transform a Prisma poll + options into the shape the PollCard component expects. */
+const serializePoll = (poll: any, postContent: string | null, userVote: string | null = null) => {
+  const options = (poll.options ?? []).map((opt: any) => ({
+    id: opt.id,
+    text: opt.text,
+    votes: opt.votes_count ?? opt._count?.votes ?? 0,
+  }));
+  const totalVotes = options.reduce((sum: number, o: any) => sum + o.votes, 0);
+  return {
+    id: poll.id,
+    question: postContent || 'Poll',
+    options,
+    totalVotes,
+    endsAt: poll.expires_at ? (poll.expires_at instanceof Date ? poll.expires_at.toISOString() : poll.expires_at) : undefined,
+    userVote,
+  };
+};
+
 const MANAGEMENT_ROLES = ['owner', 'manager', 'coach', 'assistant_coach'] as const;
 
 /** Check if user is coach/owner of any team associated with the post (team_id or game's teams) */
@@ -281,18 +299,26 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
     let upvotedIds = new Set<string>();
     let bookmarkedIds = new Set<string>();
     let followingIds = new Set<string>();
+    // Collect poll IDs for batch vote lookup
+    const pollIds = items.map((p: any) => p.post.poll?.id).filter(Boolean);
+    let pollVoteMap = new Map<string, string>(); // poll_id → voted option_id
     if (currentUserId && items.length) {
       const followPromise = authorIds.length
         ? prisma.follows.findMany({ where: { follower_id: currentUserId, following_id: { in: authorIds } }, select: { following_id: true } })
         : Promise.resolve([] as Array<{ following_id: string }>);
-      const [upvotes, bookmarks, follows] = await Promise.all([
+      const pollVotePromise = pollIds.length
+        ? prisma.pollVote.findMany({ where: { user_id: currentUserId, poll_option: { poll_id: { in: pollIds } } }, select: { poll_option: { select: { poll_id: true } }, poll_option_id: true } })
+        : Promise.resolve([] as any[]);
+      const [upvotes, bookmarks, follows, pollVotes] = await Promise.all([
         prisma.postUpvote.findMany({ where: { user_id: currentUserId, post_id: { in: postIds } }, select: { post_id: true } }),
         prisma.postBookmark.findMany({ where: { user_id: currentUserId, post_id: { in: postIds } }, select: { post_id: true } }),
         followPromise,
+        pollVotePromise,
       ]);
       upvotedIds = new Set(upvotes.map((u) => u.post_id));
       bookmarkedIds = new Set(bookmarks.map((b) => b.post_id));
       followingIds = new Set((follows as Array<{ following_id: string }>).map((f) => f.following_id));
+      pollVoteMap = new Map((pollVotes as any[]).map((v: any) => [v.poll_option.poll_id, v.poll_option_id]));
     }
     const cleanTitle = (title: string | null): string | null => {
       if (!title) return null;
@@ -319,7 +345,7 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
       has_upvoted: upvotedIds.has(post.id),
       has_bookmarked: bookmarkedIds.has(post.id),
       is_following_author: post.author ? followingIds.has(post.author.id) : false,
-      poll: post.poll ? { ...post.poll, userVote: null, totalVotes: (post.poll.options ?? []).reduce((acc: number, opt: any) => acc + (opt.votes_count ?? 0), 0) } : null,
+      poll: post.poll ? serializePoll(post.poll, post.content, pollVoteMap.get(post.poll.id) || null) : null,
     }));
     const response: Record<string, any> = { items: payload, nextCursor };
     if (followedFeedMeta) response.followed_feed_meta = followedFeedMeta;
@@ -376,25 +402,34 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
   let bookmarkedIds = new Set<string>();
   let followingIds = new Set<string>();
 
+  // Collect poll IDs for batch vote lookup
+  const pollIds: string[] = items.map((p: any) => p.poll?.id).filter(Boolean);
+  let pollVoteMap = new Map<string, string>(); // poll_id → voted option_id
+
   if (currentUserId && items.length) {
     const followPromise = authorIds.length
       ? prisma.follows.findMany({ where: { follower_id: currentUserId, following_id: { in: authorIds } }, select: { following_id: true } })
       : Promise.resolve([] as Array<{ following_id: string }>);
-    const [upvotes, bookmarks, follows] = await Promise.all([
+    const pollVotePromise = pollIds.length
+      ? prisma.pollVote.findMany({ where: { user_id: currentUserId, poll_option: { poll_id: { in: pollIds } } }, select: { poll_option: { select: { poll_id: true } }, poll_option_id: true } })
+      : Promise.resolve([] as any[]);
+    const [upvotes, bookmarks, follows, pollVotes] = await Promise.all([
       prisma.postUpvote.findMany({ where: { user_id: currentUserId, post_id: { in: postIds } }, select: { post_id: true } }),
       prisma.postBookmark.findMany({ where: { user_id: currentUserId, post_id: { in: postIds } }, select: { post_id: true } }),
       followPromise,
+      pollVotePromise,
     ]);
     upvotedIds = new Set(upvotes.map((u) => u.post_id));
     bookmarkedIds = new Set(bookmarks.map((b) => b.post_id));
     followingIds = new Set((follows as Array<{ following_id: string }>).map((f) => f.following_id));
-    
+    pollVoteMap = new Map((pollVotes as any[]).map((v: any) => [v.poll_option.poll_id, v.poll_option_id]));
+
     // Debug logging for follow relationships
-    debugLog('[posts] Follow debug:', { 
-      currentUserId, 
-      authorIds, 
+    debugLog('[posts] Follow debug:', {
+      currentUserId,
+      authorIds,
       followingIds: Array.from(followingIds),
-      followRecords: follows.length 
+      followRecords: follows.length
     });
   }
 
@@ -432,11 +467,7 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
     has_upvoted: upvotedIds.has(post.id),
     has_bookmarked: bookmarkedIds.has(post.id),
     is_following_author: post.author ? followingIds.has(post.author.id) : false,
-    poll: post.poll ? {
-      ...post.poll,
-      userVote: null, // This needs to be fetched separately if needed
-      totalVotes: post.poll.options.reduce((acc: number, opt: any) => acc + opt.votes_count, 0),
-    } : null,
+    poll: post.poll ? serializePoll(post.poll, post.content, pollVoteMap.get(post.poll.id) || null) : null,
   }));
 
   const response: Record<string, any> = { items: payload, nextCursor };

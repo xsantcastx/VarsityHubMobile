@@ -954,8 +954,8 @@ authRouter.get('/me', asyncHandler(async (req: AuthedRequest, res) => {
 }));
 
 const updateMeSchema = z.object({
-  display_name: z.string().min(1).max(120).refine((val) => val.trim().length > 0, { message: 'Display name cannot be only whitespace' }).optional(),
-  username: z.string().min(3).max(20).regex(/^[a-z0-9_.]+$/, { message: 'Username can only contain lowercase letters, numbers, dots, and underscores' }).optional(),
+  display_name: z.string().min(1).max(120).refine((val) => val.trim().length > 0, { message: 'Display name cannot be only whitespace' }).optional().nullable(),
+  username: z.string().min(3).max(20).regex(/^[a-z0-9_.]+$/, { message: 'Username can only contain lowercase letters, numbers, dots, and underscores' }).optional().nullable(),
   avatar_url: z.string()
     .url({ message: 'Avatar URL must be a valid URL' })
     .refine((url) => {
@@ -993,7 +993,12 @@ authRouter.put('/me', requireAuth as any, asyncHandler(async (req: AuthedRequest
   }
   const data = parsed.data as any;
   let patch: any = { ...data };
-  
+
+  // Strip null values for fields that should not be cleared (treat null as "don't change")
+  // bio and avatar_url CAN be null (user wants to clear them), but display_name/username should not be wiped
+  if (patch.display_name === null) delete patch.display_name;
+  if (patch.username === null) delete patch.username;
+
   // Validate username availability if provided
   if (data.username) {
     const exists = await prisma.user.findFirst({
@@ -1004,7 +1009,7 @@ authRouter.put('/me', requireAuth as any, asyncHandler(async (req: AuthedRequest
       select: { id: true }
     });
     if (exists) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Username taken',
         message: 'This username is already in use.',
       });
@@ -1041,7 +1046,11 @@ authRouter.patch('/me', requireAuth as any, asyncHandler(async (req: AuthedReque
   }
   const data = parsed.data as any;
   let patch: any = { ...data };
-  
+
+  // Strip null values for fields that should not be cleared (treat null as "don't change")
+  if (patch.display_name === null) delete patch.display_name;
+  if (patch.username === null) delete patch.username;
+
   // Validate username availability if provided
   if (data.username) {
     const exists = await prisma.user.findFirst({
@@ -1052,7 +1061,7 @@ authRouter.patch('/me', requireAuth as any, asyncHandler(async (req: AuthedReque
       select: { id: true }
     });
     if (exists) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Username taken',
         message: 'This username is already in use.',
       });
