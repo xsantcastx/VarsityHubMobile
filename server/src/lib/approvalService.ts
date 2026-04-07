@@ -313,7 +313,7 @@ export async function rejectCoach(
     data: {
       user_id: userId,
       type: 'COACH_REJECTED',
-      meta: { rejected_by: 'admin', reason: reason || undefined },
+      meta: { rejected_by: 'admin', reason: reason || null },
     },
   }).catch(() => {});
 

@@ -29,14 +29,20 @@ function CoachAgreementScreen() {
       await User.updatePreferences({
         coach_agreement_accepted_at: new Date().toISOString(),
       });
-      // Sync auth state now that the user has completed onboarding + agreement
+      // Sync auth state so we have the latest preferences
       await checkAuth();
-      // Route based on redirect param; default to organization setup
+      // Check if coach already has an org — if not, send to step-3 to create one
+      const me = await User.me();
+      const prefs = me?.preferences || {};
+      const hasOrg = !!prefs.organization_id;
       const redirect = params.redirect;
-      if (redirect === 'create-team') {
-        router.replace('/(tabs)/create-team' as any);
+      if (!hasOrg) {
+        // Coach was approved but hasn't set up org yet — continue onboarding
+        router.replace('/onboarding/step-3-league' as any);
+      } else if (redirect === 'create-team') {
+        router.replace({ pathname: '/(tabs)/create-team', params: { organization_id: prefs.organization_id } } as any);
       } else {
-        router.replace('/(tabs)/organization' as any);
+        router.replace({ pathname: '/(tabs)/organization', params: { id: prefs.organization_id } } as any);
       }
     } catch (err: any) {
       Alert.alert('Error', err?.message || 'Failed to accept agreement. Please try again.');

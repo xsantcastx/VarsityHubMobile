@@ -160,20 +160,27 @@ function PendingApproval() {
   const handleProceedAsFan = async () => {
     try {
       const me: any = await User.me().catch(() => null);
+      const username = me?.username || ob.username;
+      const dob = me?.dob || ob.dob;
+      if (!username) {
+        Alert.alert('Missing Info', 'Username is required. Please sign out and register again.');
+        return;
+      }
       await User.completeOnboarding({
         role: 'fan',
-        username: me?.username || ob.username,
-        dob: me?.dob || ob.dob,
-        zip_code: me?.zip_code || ob.zip_code || ob.zip,
-        affiliation: me?.preferences?.affiliation || ob.affiliation,
+        username,
+        ...(dob ? { dob } : {}),
+        ...(me?.zip_code || ob.zip_code || ob.zip ? { zip_code: me?.zip_code || ob.zip_code || ob.zip } : {}),
+        ...(me?.preferences?.affiliation || ob.affiliation ? { affiliation: me?.preferences?.affiliation || ob.affiliation } : {}),
         proceeding_as_fan: true,
       });
       await markOnboardingCompleteLocally();
       await checkAuth();
       router.replace('/(tabs)' as any);
-    } catch (err) {
+    } catch (err: any) {
       if (__DEV__) console.warn('[pending-approval] Failed to proceed as fan:', err);
-      Alert.alert('Failed', 'Could not complete setup. Please try again.');
+      const msg = err?.data?.error || err?.message || 'Could not complete setup. Please try again.';
+      Alert.alert('Failed', msg);
     }
   };
 
