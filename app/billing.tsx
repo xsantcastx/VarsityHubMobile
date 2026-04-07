@@ -8,7 +8,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
 import { useEffect, useState } from 'react';
-import { Alert, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 function BillingScreen() {
   const router = useRouter();
@@ -121,6 +121,7 @@ function BillingScreen() {
             </Pressable>
           ),
         }} />
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
         <Text style={[styles.title, { color: theme.text }]}>Your Plan</Text>
         <Text style={[styles.subtitle, { color: theme.mutedText }]}>
           {getPlanDescription(currentPlan)}
@@ -137,6 +138,7 @@ function BillingScreen() {
             ))}
           </View>
         </View>
+        </ScrollView>
       </View>
     );
   }
@@ -152,6 +154,7 @@ function BillingScreen() {
           </Pressable>
         ),
       }} />
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }} keyboardShouldPersistTaps="handled">
       {/* Veteran Plan Banner */}
       {summary?.plan === 'veteran' && (
         <View style={styles.banner}>
@@ -250,6 +253,7 @@ function BillingScreen() {
           </Pressable>
         </View>
       ) : null}
+      </ScrollView>
     </View>
   );
 }

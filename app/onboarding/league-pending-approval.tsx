@@ -2,7 +2,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, StyleSheet, Text, View, useColorScheme, Pressable, ActivityIndicator } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, View, useColorScheme, Pressable, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding } from '@/context/OnboardingContext';
@@ -175,7 +175,10 @@ function LeaguePendingApproval() {
     <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#0B1120' : '#F8FAFC' }]}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      <View style={styles.content}>
+      <ScrollView
+        contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Logo */}
         <View style={styles.logoRow}>
           <Image source={require('../../assets/images/logo.png')} style={{ width: 32, height: 32 }} contentFit="contain" />
@@ -352,7 +355,7 @@ function LeaguePendingApproval() {
             )}
           </>
         )}
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }

@@ -7,7 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import PrimaryButton from '@/components/ui/PrimaryButton';
@@ -150,6 +150,7 @@ function TeamHubScreen() {
           </Pressable>
         ),
       }} />
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }} keyboardShouldPersistTaps="handled">
       <Text style={[Type.h0 as any, { color: palette.text, marginHorizontal: 16, marginTop: 8, marginBottom: 12 }]}>Team Hub</Text>
 
       {/* Search */}
@@ -222,8 +223,8 @@ function TeamHubScreen() {
       {/* Countdown to Next Game */}
       {nextGame && (
         <View style={S.countdownCard}>
-          <LinearGradient 
-            colors={['#2563EB', '#1E40AF']} 
+          <LinearGradient
+            colors={['#2563EB', '#1E40AF']}
             style={S.countdownGradient}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
@@ -307,6 +308,7 @@ function TeamHubScreen() {
           })
         )}
       </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
