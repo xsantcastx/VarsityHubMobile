@@ -1106,7 +1106,7 @@ export default function PostDetailScreen() {
     <SafeAreaView style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]} edges={['top']}>
       <StatusBar barStyle={colorScheme === 'dark' ? "light-content" : "dark-content"} backgroundColor={Colors[colorScheme].background} />
       <Stack.Screen options={{ headerShown: false }} />
-      <KeyboardAvoidingView behavior="height" style={{ flex: 1 }}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
       
       {/* Custom Header */}
       <View style={[styles.header, { backgroundColor: Colors[colorScheme].surface, borderBottomColor: 'transparent' }]}>

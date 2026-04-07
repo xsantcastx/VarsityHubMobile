@@ -523,7 +523,7 @@ export default function EditProfileScreen() {
           </Text>
         </View>
       ) : (
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior="height">
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           <View style={styles.content}>
             {/* Header */}
