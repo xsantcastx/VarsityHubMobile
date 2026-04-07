@@ -1,7 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
 import { ReactNode } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { safeGoBack } from '@/utils/navigation';
@@ -127,15 +127,14 @@ export default function OnboardingLayout({
         />
       </View>
 
-      <KeyboardAvoidingView
-        behavior={Platform.select({ ios: 'padding', android: 'height' })}
-        style={{ flex: 1 }}
-      >
+
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
+          automaticallyAdjustKeyboardInsets
+          style={{ flex: 1 }}
         >
           <View style={styles.titleSection}>
             {aboveTitle}
@@ -168,7 +167,6 @@ export default function OnboardingLayout({
         </View>
       )}
         </ScrollView>
-      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

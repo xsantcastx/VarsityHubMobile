@@ -4,8 +4,6 @@ import { useRef, useState } from 'react';
 import type { TextInput } from 'react-native';
 import {
     ActivityIndicator,
-    KeyboardAvoidingView,
-    Platform,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -259,15 +257,12 @@ export default function SignInScreen() {
   return (
     <SafeAreaView style={[styles.root, { backgroundColor: palette.background, borderLeftWidth: 0, borderRightWidth: 0 }]} edges={['top']}>
       <Stack.Screen options={{ title: 'Sign In', headerShown: false }} />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={[styles.flex, { borderWidth: 0 }]}
-      >
         <ScrollView
           contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(24, insets.bottom) }]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
-          style={{ borderWidth: 0 }}
+          style={[styles.flex, { borderWidth: 0 }]}
+          automaticallyAdjustKeyboardInsets
         >
           <View style={[styles.header, { borderWidth: 0 }]}>
             <View style={[
@@ -446,7 +441,6 @@ export default function SignInScreen() {
             <Text style={[styles.footerLink, { color: palette.tint }]}>Create one</Text>
           </Pressable>
         </ScrollView>
-      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

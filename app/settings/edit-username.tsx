@@ -2,7 +2,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Stack, useRouter } from 'expo-router';
 import { useState, useEffect } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, useColorScheme } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, useColorScheme } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
@@ -87,8 +87,7 @@ export default function EditUsernameScreen() {
           headerShown: true,
         }}
       />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive">
+      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" automaticallyAdjustKeyboardInsets>
         <Text style={[styles.label, { color: Colors[colorScheme ?? 'light'].mutedText }]}>Username</Text>
         <Text style={[styles.hint, { color: Colors[colorScheme ?? 'light'].mutedText }]}>
           This is your @ handle (e.g., @rwerwqer). Lowercase letters, numbers, dots, and underscores only.
@@ -109,7 +108,6 @@ export default function EditUsernameScreen() {
           {saving ? 'Saving…' : 'Save'}
         </Button>
       </ScrollView>
-      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

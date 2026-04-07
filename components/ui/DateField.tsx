@@ -1,6 +1,6 @@
 import { Colors } from '@/constants/Colors';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Modal, Platform, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
 
 interface DateFieldProps {
@@ -28,6 +28,9 @@ export default function DateField({ label, value, onChange, placeholder }: DateF
   const colorScheme = useColorScheme() ?? 'light';
   const [show, setShow] = useState(false);
   const [date, setDate] = useState(value ? parseLocalDate(value) : new Date());
+  // Ref to avoid stale closure in handleConfirm — spinner onChange fires
+  // rapidly and React state may lag by one render cycle
+  const dateRef = useRef(date);
 
   const handleChange = (event: any, selectedDate?: Date) => {
     if (Platform.OS === 'android') {
@@ -35,16 +38,15 @@ export default function DateField({ label, value, onChange, placeholder }: DateF
     }
     if (selectedDate) {
       // Normalize to local midnight to prevent timezone offset shifting the day
-      // The native picker may return UTC midnight, which in timezones behind UTC
-      // (e.g., EST = UTC-5) would display as the previous day
       const normalized = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
       setDate(normalized);
+      dateRef.current = normalized;
     }
   };
 
   const handleConfirm = () => {
-    // Format as YYYY-MM-DD using local date components (no UTC offset)
-    const formatted = formatLocalDate(date);
+    // Use ref to get the latest value (avoids stale state from rapid spinner changes)
+    const formatted = formatLocalDate(dateRef.current);
     onChange(formatted);
     setShow(false);
   };

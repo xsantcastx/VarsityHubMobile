@@ -11,7 +11,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Advertisement as AdsApi } from '@/api/entities';
@@ -158,12 +158,12 @@ function EditAdScreen() {
           <Text style={[styles.loadingText, { color: theme.mutedText }]}>Loading ad details...</Text>
         </View>
       ) : (
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
           <ScrollView
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="interactive"
+            automaticallyAdjustKeyboardInsets
           >
             <View style={styles.header}>
               <Text style={[styles.title, { color: theme.text }]}>Edit Advertisement</Text>
@@ -317,7 +317,6 @@ function EditAdScreen() {
               </Pressable>
             )}
           </ScrollView>
-          </KeyboardAvoidingView>
       )}
     </SafeAreaView>
   );

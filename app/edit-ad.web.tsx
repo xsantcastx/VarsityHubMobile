@@ -7,7 +7,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { safeGoBack } from '@/utils/navigation';
 
@@ -171,11 +171,11 @@ function EditAdScreen() {
           <Text style={[styles.loadingText, { color: theme.mutedText }]}>Loading ad details...</Text>
         </View>
       ) : (
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
           <ScrollView
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
+            automaticallyAdjustKeyboardInsets
           >
             <View style={styles.header}>
               <Text style={[styles.title, { color: theme.text }]}>Edit Advertisement</Text>
@@ -328,7 +328,6 @@ function EditAdScreen() {
               </Pressable>
             )}
           </ScrollView>
-          </KeyboardAvoidingView>
       )}
     </SafeAreaView>
   );

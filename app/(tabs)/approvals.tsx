@@ -393,7 +393,7 @@ export default function ApprovalsScreen() {
         transparent
         onRequestClose={() => setApproveTarget(null)}
       >
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }} keyboardVerticalOffset={0}>
         <Pressable style={styles.modalOverlay} onPress={() => setApproveTarget(null)}>
           <Pressable style={[styles.modalSheet, { backgroundColor: isDark ? '#1F2937' : '#FFFFFF' }]} onPress={() => {}}>
             <View style={[styles.modalHandle, { backgroundColor: isDark ? '#4B5563' : '#D1D5DB' }]} />
@@ -445,7 +445,7 @@ export default function ApprovalsScreen() {
         transparent
         onRequestClose={() => setDeclineTarget(null)}
       >
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }} keyboardVerticalOffset={0}>
         <Pressable style={styles.modalOverlay} onPress={() => setDeclineTarget(null)}>
           <Pressable style={[styles.modalSheet, { backgroundColor: isDark ? '#1F2937' : '#FFFFFF' }]} onPress={() => {}}>
             <View style={[styles.modalHandle, { backgroundColor: isDark ? '#4B5563' : '#D1D5DB' }]} />

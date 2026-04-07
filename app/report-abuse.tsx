@@ -3,7 +3,7 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Support, User } from '@/api/entities';
@@ -157,13 +157,13 @@ export default function ReportAbuseScreen() {
               <MaterialIcons name="chevron-left" size={28} color="#007AFF" />
             </Pressable>
           ) }} />
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <ScrollView
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           keyboardDismissMode="interactive"
           style={styles.flex}
+          automaticallyAdjustKeyboardInsets
         >
           <View style={styles.header}>
             <Text style={[styles.title, { color: palette.text }]}>Report Abuse</Text>
@@ -271,7 +271,6 @@ export default function ReportAbuseScreen() {
             </Button>
           </View>
         </ScrollView>
-        </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

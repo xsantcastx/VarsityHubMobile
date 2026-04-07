@@ -668,7 +668,7 @@ export default function SettingsScreen() {
                         if (!deletingAccount) setDeleteModalVisible(false);
                       }}
                     >
-                      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+                      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }} keyboardVerticalOffset={0}>
                       <View style={styles.deleteModalBackdrop}>
                         <View style={[styles.deleteModalCard, { backgroundColor: Colors[colorScheme ?? 'light'].card, borderColor: Colors[colorScheme ?? 'light'].border }]}>
                           <Text style={[styles.deleteModalTitle, { color: Colors[colorScheme ?? 'light'].text }]}>Delete Account</Text>

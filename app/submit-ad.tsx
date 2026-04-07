@@ -7,7 +7,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { httpGet } from '@/api/http';
 import { sanitizeText } from '@/utils/formUtils';
@@ -213,7 +213,6 @@ function SubmitAdScreen() {
           ),
         }} 
       />
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <ScrollView
           scrollEnabled={scrollEnabled}
           contentContainerStyle={[
@@ -223,6 +222,7 @@ function SubmitAdScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
+          automaticallyAdjustKeyboardInsets
         >
           <View style={styles.header}>
             <Text style={[styles.title, { color: theme.text }]}>Submit a Local Ad</Text>
@@ -331,7 +331,6 @@ function SubmitAdScreen() {
             )}
           </Pressable>
         </ScrollView>
-        </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

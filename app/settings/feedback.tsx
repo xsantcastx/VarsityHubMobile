@@ -1,7 +1,7 @@
 import Textarea from '@/components/ui/textarea';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 // @ts-ignore JS exports
@@ -109,8 +109,7 @@ export default function FeedbackScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['bottom']}>
       <Stack.Screen options={{ title: 'Leave Feedback', headerBackTitle: 'Back', headerShown: true }} />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive">
+      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" automaticallyAdjustKeyboardInsets>
         <Text style={[styles.title, { color: theme.text }]}>Send Feedback</Text>
         <Text style={[styles.subtitle, { color: theme.mutedText }]}>Help us improve VarsityHub</Text>
 
@@ -194,7 +193,6 @@ export default function FeedbackScreen() {
           )}
         </Pressable>
       </ScrollView>
-      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

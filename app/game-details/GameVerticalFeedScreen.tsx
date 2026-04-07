@@ -443,7 +443,7 @@ const FeedCard = memo(
 
         {/* Edit Modal */}
         <Modal visible={showEditModal} transparent animationType="fade">
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalOverlay}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalOverlay} keyboardVerticalOffset={0}>
             <View style={styles.modalContent}>
               <Text style={styles.modalTitle}>Edit Post</Text>
               <TextInput
@@ -1159,6 +1159,7 @@ function GameVerticalFeedScreen({ onClose, gameId: externalGameId, showHeader = 
         <KeyboardAvoidingView
           style={styles.commentModalRoot}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={0}
         >
           <View style={[styles.commentSheet, { maxHeight: windowHeight * 0.75, backgroundColor: Colors[colorScheme].background }]} pointerEvents="box-none"> 
             <View style={[styles.commentHeader, { backgroundColor: Colors[colorScheme].surface }]}>

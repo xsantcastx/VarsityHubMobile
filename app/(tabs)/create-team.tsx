@@ -1073,7 +1073,7 @@ function CreateTeamScreen() {
         animationType="slide"
         onRequestClose={() => setShowOrgPicker(false)}
       >
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }} keyboardVerticalOffset={0}>
         <View style={styles.orgPickerOverlay}>
           <View style={[styles.orgPickerContainer, { backgroundColor: Colors[colorScheme].background }]}>
             <View style={[styles.orgPickerHeader, { borderBottomColor: Colors[colorScheme].border }]}>

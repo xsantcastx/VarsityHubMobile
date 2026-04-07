@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-    KeyboardAvoidingView,
     Platform,
     ScrollView,
     ScrollViewProps,
@@ -22,20 +21,16 @@ const KeyboardAwareScreen: React.FC<KeyboardAwareScreenProps> = ({
   const insets = useSafeAreaInsets();
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
+    <ScrollView
+      style={[styles.container, style]}
+      contentContainerStyle={[styles.contentContainer, { paddingBottom: insets.bottom + 20 }]}
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="interactive"
+      automaticallyAdjustKeyboardInsets
+      {...scrollViewProps}
     >
-      <ScrollView
-        style={[styles.container, style]}
-        contentContainerStyle={[styles.contentContainer, { paddingBottom: insets.bottom }]}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="interactive"
-        {...scrollViewProps}
-      >
-        {children}
-      </ScrollView>
-    </KeyboardAvoidingView>
+      {children}
+    </ScrollView>
   );
 };
 
