@@ -82,38 +82,6 @@ function getUserIdentifier(req: Request): string {
  * Create a rate limiter with sensible defaults
  * Uses Redis store in production for multi-instance scalability
  */
-/**
- * Lazy store wrapper: delegates to Redis store once it's initialized.
- * At module load, redisStore is undefined (async init). This wrapper
- * ensures limiters use Redis once connected, not just memory store.
- */
-class LazyRedisStore {
-  private memoryFallback = new Map<string, { count: number; resetTime: number }>();
-
-  async increment(key: string): Promise<{ totalHits: number; resetTime: Date }> {
-    if (redisStore && !rateLimitingDisabled) return (redisStore as any).increment(key);
-    const now = Date.now();
-    const entry = this.memoryFallback.get(key);
-    if (!entry || now > entry.resetTime) {
-      this.memoryFallback.set(key, { count: 1, resetTime: now + 60000 });
-      return { totalHits: 1, resetTime: new Date(now + 60000) };
-    }
-    entry.count++;
-    return { totalHits: entry.count, resetTime: new Date(entry.resetTime) };
-  }
-
-  async decrement(key: string): Promise<void> {
-    if (redisStore && !rateLimitingDisabled) return (redisStore as any).decrement(key);
-    const entry = this.memoryFallback.get(key);
-    if (entry && entry.count > 0) entry.count--;
-  }
-
-  async resetKey(key: string): Promise<void> {
-    if (redisStore && !rateLimitingDisabled) return (redisStore as any).resetKey(key);
-    this.memoryFallback.delete(key);
-  }
-}
-
 function createLimiter(options: Partial<Options> & { name: string }): ReturnType<typeof rateLimit> {
   const { name, ...restOptions } = options;
 
@@ -123,7 +91,8 @@ function createLimiter(options: Partial<Options> & { name: string }): ReturnType
     legacyHeaders: false,
     skip: () => rateLimitingDisabled,
     keyGenerator: getUserIdentifier,
-    store: new LazyRedisStore() as unknown as Store,
+    // Use Redis store if available (set after async init), otherwise default memory store
+    ...(redisStore && !rateLimitingDisabled ? { store: redisStore } : {}),
     handler: (req: Request, res: Response) => {
       console.warn(`[RateLimit] ${name}: User ${getUserIdentifier(req)} exceeded limit`);
       res.status(429).json({
