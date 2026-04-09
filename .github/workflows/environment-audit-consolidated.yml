@@ -162,7 +162,7 @@ jobs:
 
       - name: Create alert if services unhealthy
         if: steps.health.outputs.health_status == 'failed'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const title = '⚠️ Railway Service Health Check Failed';
