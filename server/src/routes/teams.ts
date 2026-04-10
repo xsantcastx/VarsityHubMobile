@@ -417,12 +417,16 @@ teamsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
       issues: parsed.error.issues.map((i) => ({ path: i.path, message: i.message })),
     });
   }
-  const me = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { id: true, preferences: true } });
+  const me = await prisma.user.findUnique({
+    where: { id: req.user!.id },
+    select: { id: true, preferences: true, subscription_tier: true },
+  });
   if (!me) return res.status(401).json({ error: 'Unauthorized' });
   
   // SECURITY: Enforce coach role requirement
   const prefs = (me.preferences && typeof me.preferences === 'object') ? (me.preferences as any) : {};
   const userRole = prefs.role || 'fan';
+  const plan = prefs.plan || me.subscription_tier || 'rookie';
   
   if (userRole !== 'coach') {
     return res.status(403).json({
@@ -441,9 +445,9 @@ teamsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
     }
   });
   
-  const maxTeams = (me as any).max_teams ?? 2; // Default to 2 for free users
+  const maxTeams = getMaxTeamsForPlan(plan);
   
-  if (ownedTeamsCount >= maxTeams) {
+  if (maxTeams !== null && ownedTeamsCount >= maxTeams) {
     return res.status(403).json({ 
       error: 'Team limit reached',
       message: `You've reached your limit of ${maxTeams} team${maxTeams > 1 ? 's' : ''}. Upgrade to create more teams.`,
@@ -458,9 +462,47 @@ teamsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
     return res.status(400).json({ error: filterResult.error, code: filterResult.code });
   }
   
-  const t = await prisma.team.create({ data: { name: parsed.data.name, description: parsed.data.description } });
-  await prisma.teamMembership.create({ data: { team_id: t.id, user_id: me.id, role: 'owner' } });
-  return res.status(201).json(t);
+  try {
+    const team = await prisma.$transaction(async (tx) => {
+      if (maxTeams !== null) {
+        const currentOwnedTeams = await tx.teamMembership.count({
+          where: {
+            user_id: me.id,
+            role: 'owner',
+            status: 'active',
+          },
+        });
+
+        if (currentOwnedTeams >= maxTeams) {
+          throw new Error(`TEAM_LIMIT_EXCEEDED:${maxTeams}`);
+        }
+      }
+
+      const createdTeam = await tx.team.create({
+        data: { name: parsed.data.name, description: parsed.data.description },
+      });
+
+      await tx.teamMembership.create({
+        data: { team_id: createdTeam.id, user_id: me.id, role: 'owner' },
+      });
+
+      return createdTeam;
+    });
+
+    return res.status(201).json(team);
+  } catch (error: any) {
+    if (error?.message?.startsWith('TEAM_LIMIT_EXCEEDED:')) {
+      const limit = Number.parseInt(String(error.message).split(':')[1] || '0', 10) || maxTeams || 0;
+      return res.status(403).json({
+        error: 'Team limit reached',
+        message: `You've reached your limit of ${limit} team${limit === 1 ? '' : 's'}. Upgrade to create more teams.`,
+        owned_teams: ownedTeamsCount,
+        max_teams: limit,
+        upgrade_required: true,
+      });
+    }
+    throw error;
+  }
 });
 
 // Update team (auth required). Only owners/admins can update.
@@ -1167,14 +1209,29 @@ teamsRouter.post('/invites/:inviteId/accept', async (req: AuthedRequest, res) =>
     },
   });
   const roleToApply = existingMembership?.role || invite.role;
-  await prisma.$transaction([
-    prisma.teamMembership.upsert({
-      where: { team_id_user_id: { team_id: invite.team_id, user_id: user.id } } as any,
-      update: { role: roleToApply, status: 'active' },
-      create: { team_id: invite.team_id, user_id: user.id, role: roleToApply, status: 'active' },
-    }),
-    prisma.teamInvite.update({ where: { id: invite.id }, data: { status: 'accepted' } }),
-  ]);
+  try {
+    await prisma.$transaction(async (tx) => {
+      const claim = await tx.teamInvite.updateMany({
+        where: { id: invite.id, status: 'pending' },
+        data: { status: 'accepted' },
+      });
+
+      if (claim.count !== 1) {
+        throw new Error('INVITE_ALREADY_PROCESSED');
+      }
+
+      await tx.teamMembership.upsert({
+        where: { team_id_user_id: { team_id: invite.team_id, user_id: user.id } } as any,
+        update: { role: roleToApply, status: 'active' },
+        create: { team_id: invite.team_id, user_id: user.id, role: roleToApply, status: 'active' },
+      });
+    });
+  } catch (error: any) {
+    if (error?.message === 'INVITE_ALREADY_PROCESSED') {
+      return res.status(409).json({ error: 'Invite already processed' });
+    }
+    throw error;
+  }
 
   // Check if team group chat exists, if not create it
   try {
