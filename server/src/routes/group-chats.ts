@@ -209,34 +209,63 @@ groupChatsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) =
       return res.status(400).json({ error: 'At least one member required' });
     }
 
-    // If teamId provided, verify user has permission (coach, manager, admin)
-    if (teamId) {
-      const membership = await prisma.teamMembership.findFirst({
-        where: {
-          team_id: teamId,
-          user_id: req.user.id,
-          role: {
-            in: ['coach', 'manager', 'admin', 'owner'],
-          },
-        },
-      });
+    if (typeof teamId !== 'string' || !teamId.trim()) {
+      return res.status(400).json({ error: 'teamId is required' });
+    }
 
-      if (!membership) {
-        return res.status(403).json({ error: 'No permission to create team chat' });
-      }
+    const trimmedTeamId = teamId.trim();
+
+    const membership = await prisma.teamMembership.findFirst({
+      where: {
+        team_id: trimmedTeamId,
+        user_id: req.user.id,
+        role: {
+          in: ['owner', 'manager', 'coach', 'assistant_coach'],
+        },
+        status: 'active',
+      },
+    });
+
+    if (!membership) {
+      return res.status(403).json({ error: 'Only active team coaches or managers can create team chats' });
+    }
+
+    const requestedMemberIds = Array.from(
+      new Set(
+        memberIds
+          .filter((id: unknown): id is string => typeof id === 'string' && id.trim().length > 0)
+          .map((id: string) => id.trim())
+          .filter((id: string) => id !== req.user!.id)
+      )
+    );
+
+    const validTeamMembers = requestedMemberIds.length
+      ? await prisma.teamMembership.findMany({
+          where: {
+            team_id: trimmedTeamId,
+            user_id: { in: requestedMemberIds },
+            status: 'active',
+          },
+          select: { user_id: true },
+        })
+      : [];
+    const validMemberIds = new Set(validTeamMembers.map((member) => member.user_id));
+    const invalidMemberIds = requestedMemberIds.filter((id: string) => !validMemberIds.has(id));
+
+    if (invalidMemberIds.length > 0) {
+      return res.status(400).json({ error: 'All chat members must be active members of the selected team' });
     }
 
     // Create the group chat
     const chat = await prisma.groupChat.create({
       data: {
         name: name.trim(),
-        team_id: teamId || null,
+        team_id: trimmedTeamId,
         created_by: req.user!.id,
         members: {
           create: [
             { user_id: req.user!.id }, // Add creator
-            ...memberIds
-              .filter((id: string) => id !== req.user!.id) // Avoid duplicates
+            ...requestedMemberIds
               .map((id: string) => ({ user_id: id })),
           ],
         },
