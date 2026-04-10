@@ -11,6 +11,19 @@ import { getIsAdmin } from '../middleware/requireAdmin.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 
 export const eventsRouter = Router();
+const eventModerationRoles = ['owner', 'manager', 'coach', 'assistant_coach'] as const;
+
+async function hasEventModerationAccess(userId: string): Promise<boolean> {
+  const membership = await prisma.teamMembership.findFirst({
+    where: {
+      user_id: userId,
+      role: { in: [...eventModerationRoles] },
+      status: 'active',
+    },
+    select: { id: true },
+  });
+  return Boolean(membership);
+}
 
 const serializeEvent = (event: any, opts: { includeGame?: boolean; rsvpCount?: number; includeCreator?: boolean } = {}) => {
   const base: any = {
@@ -146,19 +159,11 @@ eventsRouter.get('/my-events', requireAuth as any, async (req: AuthedRequest, re
 // Get pending events for approval (admins & coaches only) - MUST be before /:id to avoid "pending" matching as id
 eventsRouter.get('/pending', authMiddleware as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  
-  const user = await prisma.user.findUnique({ 
-    where: { id: req.user.id }, 
-    select: { id: true, preferences: true } 
-  });
-  if (!user) return res.status(401).json({ error: 'Unauthorized' });
-  
-  const prefs = (user.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
-  const userRole = prefs.role || 'fan';
   const isAdmin = await getIsAdmin(req as any);
+  const isCoach = await hasEventModerationAccess(req.user.id);
   
-  // Only coaches, organizers, and admins can view pending events
-  if (!isAdmin && userRole !== 'coach' && userRole !== 'organizer') {
+  // Only active coaches/team managers and admins can view pending events
+  if (!isAdmin && !isCoach) {
     return res.status(403).json({ error: 'Only coaches and admins can view pending events' });
   }
   
@@ -381,8 +386,10 @@ eventsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =
   if (!user) return res.status(401).json({ error: 'Unauthorized' });
   
   const prefs = (user.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
-  const userRole = prefs.role || 'fan';
   const userPlan = prefs.plan || 'rookie';
+  const isAdmin = await getIsAdmin(req as any);
+  const isCoach = await hasEventModerationAccess(user.id);
+  const userRole = isCoach ? 'coach' : 'fan';
   
   // Check event limit for free tier
   if (userRole === 'fan' && (userPlan === 'rookie' || !userPlan || userPlan === 'free')) {
@@ -404,8 +411,8 @@ eventsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =
     }
   }
   
-  // Coaches/organizers get auto-approval, fans need approval
-  const autoApprove = userRole === 'coach' || userRole === 'organizer';
+  // Real coaches/team managers and admins get auto-approval, fans need approval
+  const autoApprove = isAdmin || isCoach;
   
   // Use capacity if provided, otherwise max_attendees (for backward compatibility)
   const capacity = data.max_attendees ?? null;
@@ -457,18 +464,16 @@ eventsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =
 eventsRouter.put('/:id/approve', requireVerified as any, async (req: AuthedRequest, res) => {
   // req.user is guaranteed by requireVerified middleware
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  
-  const user = await prisma.user.findUnique({ 
-    where: { id: req.user.id }, 
-    select: { id: true, preferences: true } 
+
+  const user = await prisma.user.findUnique({
+    where: { id: req.user.id },
+    select: { id: true },
   });
   if (!user) return res.status(401).json({ error: 'Unauthorized' });
-  
-  const prefs = (user.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
-  const userRole = prefs.role || 'fan';
   const isAdmin = await getIsAdmin(req as any);
-  
-  if (!isAdmin && userRole !== 'coach' && userRole !== 'organizer') {
+  const isCoach = await hasEventModerationAccess(user.id);
+
+  if (!isAdmin && !isCoach) {
     return res.status(403).json({ error: 'Only coaches and admins can approve events' });
   }
   
@@ -540,18 +545,16 @@ const rejectEventSchema = z.object({
 eventsRouter.put('/:id/reject', requireVerified as any, async (req: AuthedRequest, res) => {
   // req.user is guaranteed by requireVerified middleware
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  
-  const user = await prisma.user.findUnique({ 
-    where: { id: req.user.id }, 
-    select: { id: true, preferences: true } 
+
+  const user = await prisma.user.findUnique({
+    where: { id: req.user.id },
+    select: { id: true },
   });
   if (!user) return res.status(401).json({ error: 'Unauthorized' });
-  
-  const prefs = (user.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
-  const userRole = prefs.role || 'fan';
   const isAdmin = await getIsAdmin(req as any);
-  
-  if (!isAdmin && userRole !== 'coach' && userRole !== 'organizer') {
+  const isCoach = await hasEventModerationAccess(user.id);
+
+  if (!isAdmin && !isCoach) {
     return res.status(403).json({ error: 'Only coaches and admins can reject events' });
   }
   
