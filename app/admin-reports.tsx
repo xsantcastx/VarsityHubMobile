@@ -184,6 +184,39 @@ export default function AdminReportsScreen() {
     );
   };
 
+  const parseReportTarget = (subject: string): { targetType: string; targetId: string } | null => {
+    const match = subject.match(/^\[(\w+):([^\]]+)\]/);
+    if (!match) return null;
+    return { targetType: match[1], targetId: match[2] };
+  };
+
+  const removeReportedContent = async (report: AbuseReport) => {
+    const target = parseReportTarget(report.subject);
+    if (!target) {
+      Alert.alert('Unsupported', 'This report does not target removable content.');
+      return;
+    }
+
+    const routeMap: Record<string, string> = {
+      post: `/admin/posts/${encodeURIComponent(target.targetId)}`,
+      message: `/admin/messages/${encodeURIComponent(target.targetId)}`,
+      event: `/admin/events/${encodeURIComponent(target.targetId)}`,
+    };
+    const route = routeMap[target.targetType];
+    if (!route) {
+      Alert.alert('Unsupported', `Direct removal is not available for ${target.targetType} reports.`);
+      return;
+    }
+
+    try {
+      const { httpDelete } = await import('@/api/http');
+      await httpDelete(route);
+      await updateReportStatus(report.id, 'resolved', 'Content removed by admin');
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Failed to remove reported content');
+    }
+  };
+
   const StatusBadge = ({ status }: { status: string }) => {
     const colors = {
       pending: '#F59E0B',
@@ -203,6 +236,8 @@ export default function AdminReportsScreen() {
 
   const ReportCard = ({ report }: { report: AbuseReport }) => {
     const isSelected = selectedReports.has(report.id);
+    const target = parseReportTarget(report.subject);
+    const canRemoveTarget = target ? ['post', 'message', 'event'].includes(target.targetType) : false;
     
     return (
       <Pressable 
@@ -262,6 +297,14 @@ export default function AdminReportsScreen() {
             >
               <Text style={[styles.actionBtnText, { color: '#6B7280' }]}>Dismiss</Text>
             </Pressable>
+            {canRemoveTarget ? (
+              <Pressable 
+                style={[styles.actionBtn, { backgroundColor: '#FEE2E2' }]}
+                onPress={() => void removeReportedContent(report)}
+              >
+                <Text style={[styles.actionBtnText, { color: '#B91C1C' }]}>Remove Target</Text>
+              </Pressable>
+            ) : null}
           </View>
         </View>
       </Pressable>

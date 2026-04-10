@@ -5,6 +5,7 @@ import {
   sendAccountSuspension45DaysEmail,
   sendAccountSuspension7DaysEmail,
   sendAccountWarningEmail,
+  sendContentRemovedEmail,
   sendOrganizationApprovalEmail,
   sendOrganizationDenialEmail,
 } from '../lib/email.js';
@@ -406,6 +407,55 @@ adminRouter.post('/users/:id/moderation', requireVerified as any, requireAdminMi
   );
 
   return res.json({ ok: true, user: updated });
+});
+
+adminRouter.delete('/posts/:id', requireVerified as any, requireAdminMiddleware as any, async (req: AuthedRequest, res) => {
+  const id = String(req.params.id);
+  const post = await prisma.post.findUnique({
+    where: { id },
+    include: { author: { select: { email: true, display_name: true } } },
+  });
+  if (!post) return res.status(404).json({ error: 'Post not found' });
+
+  const deletedAt = new Date();
+  await prisma.post.update({
+    where: { id },
+    data: { deleted_at: deletedAt },
+  });
+
+  if (post.author?.email) {
+    await sendContentRemovedEmail({
+      to: post.author.email,
+      userName: post.author.display_name || post.author.email,
+      contentType: 'post',
+      contentTitle: post.title || undefined,
+      removalReason: 'Removed by VarsityHub moderation.',
+    }).catch(() => {});
+  }
+
+  await logAdminActivityFromReq(req, 'Delete Post', 'post', id, `Removed post ${id}`);
+  return res.json({ ok: true, id, deleted_at: deletedAt.toISOString() });
+});
+
+adminRouter.delete('/messages/:id', requireVerified as any, requireAdminMiddleware as any, async (req: AuthedRequest, res) => {
+  const id = String(req.params.id);
+  const message = await prisma.message.findUnique({ where: { id } });
+  if (!message) return res.status(404).json({ error: 'Message not found' });
+
+  await prisma.notification.deleteMany({ where: { message_id: id } });
+  await prisma.message.delete({ where: { id } });
+  await logAdminActivityFromReq(req, 'Delete Message', 'message', id, `Removed message ${id}`);
+  return res.json({ ok: true, id });
+});
+
+adminRouter.delete('/events/:id', requireVerified as any, requireAdminMiddleware as any, async (req: AuthedRequest, res) => {
+  const id = String(req.params.id);
+  const event = await prisma.event.findUnique({ where: { id } });
+  if (!event) return res.status(404).json({ error: 'Event not found' });
+
+  await prisma.event.delete({ where: { id } });
+  await logAdminActivityFromReq(req, 'Delete Event', 'event', id, `Removed event ${event.title}`);
+  return res.json({ ok: true, id });
 });
 
 // Type for authenticated request
