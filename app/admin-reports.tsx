@@ -250,10 +250,10 @@ function AdminReportsScreen() {
               <Text style={[styles.actionBtnText, { color: '#10B981' }]}>Resolve</Text>
             </Pressable>
             <Pressable 
-              style={[styles.actionBtn, { backgroundColor: '#6B7280' + '20' }]}
+              style={[styles.actionBtn, { backgroundColor: Colors.light.mutedText + '20' }]}
               onPress={() => updateReportStatus(report.id, 'dismissed')}
             >
-              <Text style={[styles.actionBtnText, { color: '#6B7280' }]}>Dismiss</Text>
+              <Text style={[styles.actionBtnText, { color: Colors.light.mutedText }]}>Dismiss</Text>
             </Pressable>
           </View>
         </View>
@@ -352,7 +352,7 @@ function AdminReportsScreen() {
                   </Text>
                 </View>
                 <View style={[styles.statBox, { backgroundColor: Colors[colorScheme].card }]}>
-                  <Text style={[styles.statNumber, { color: '#6B7280' }]}>{stats.dismissed}</Text>
+                  <Text style={[styles.statNumber, { color: Colors.light.mutedText }]}>{stats.dismissed}</Text>
                   <Text style={[styles.statLabel, { color: Colors[colorScheme].mutedText }]}>
                     Dismissed
                   </Text>
@@ -574,7 +574,7 @@ const styles = StyleSheet.create({
   bulkActionBtnText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#374151',
+    color: Colors.light.text,
   },
   reportsSection: {
     paddingHorizontal: 20,

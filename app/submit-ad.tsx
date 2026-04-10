@@ -65,7 +65,7 @@ function SubmitAdScreen() {
   const canSubmit = useMemo(() => {
     // Website link is required; description is optional
     if (!name.trim() || !email.trim() || !business.trim()) return false;
-    if (!/^[A-Za-z0-9][A-Za-z0-9\s\-]{1,9}[A-Za-z0-9]$/.test(zip.trim())) return false; // Must be a valid postal code
+    if (!/^[A-Za-z0-9][A-Za-z0-9\s\-]{0,10}[A-Za-z0-9]$/.test(zip.trim())) return false; // Must be a valid postal code
     if (!bannerUrl) return false; // Banner is mandatory
     if (!targetUrl.trim()) return false; // Website link mandatory
     return true;
@@ -233,24 +233,26 @@ function SubmitAdScreen() {
 
           <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <Text style={[styles.label, { color: theme.text }]}>Your Name *</Text>
-            <TextInput 
-              value={name} 
-              onChangeText={setName} 
-              placeholder="Jane Doe" 
-              style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]} 
+            <TextInput
+              value={name}
+              onChangeText={setName}
+              placeholder="Jane Doe"
+              style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
               placeholderTextColor={theme.mutedText}
-              autoCapitalize="words" 
+              autoCapitalize="words"
+              maxLength={200}
             />
 
             <Text style={[styles.label, { color: theme.text }]}>Email Address *</Text>
-            <TextInput 
-              value={email} 
-              onChangeText={setEmail} 
-              placeholder="you@business.com" 
-              style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]} 
+            <TextInput
+              value={email}
+              onChangeText={setEmail}
+              placeholder="you@business.com"
+              style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
               placeholderTextColor={theme.mutedText}
-              keyboardType="email-address" 
-              autoCapitalize="none" 
+              keyboardType="email-address"
+              autoCapitalize="none"
+              maxLength={320}
             />
 
             <Text style={[styles.label, { color: theme.text }]}>Business Name *</Text>
@@ -270,7 +272,7 @@ function SubmitAdScreen() {
               style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
               placeholderTextColor={theme.mutedText}
               keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
-              maxLength={5}
+              maxLength={12}
             />
 
             {/* Reach Map Preview - Shows advertisers exactly where their ad will appear */}
@@ -315,6 +317,7 @@ function SubmitAdScreen() {
               multiline
               numberOfLines={4}
               textAlignVertical="top"
+              maxLength={1000}
             />
             {/* Description is optional */}
           </View>
@@ -353,8 +356,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     letterSpacing: -0.5,
   },
-  subtitle: { 
-    color: '#6b7280', 
+  subtitle: {
+    color: Colors.light.mutedText,
     fontSize: 16,
     lineHeight: 24,
   },
@@ -393,9 +396,9 @@ const styles = StyleSheet.create({
     marginTop: -4,
     marginBottom: 4,
   },
-  muted: { 
-    fontSize: 13, 
-    color: '#6b7280', 
+  muted: {
+    fontSize: 13,
+    color: Colors.light.mutedText,
     marginTop: -4,
     marginBottom: 4,
     lineHeight: 18,

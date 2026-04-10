@@ -15,6 +15,7 @@ import type { AuthedRequest } from '../middleware/auth.js';
 import { reportLimiter } from '../middleware/rateLimiters.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
+import { sendAbuseReportEmail } from '../lib/email.js';
 
 export const reportsRouter = Router();
 
@@ -266,6 +267,24 @@ reportsRouter.post('/', requireAuth as any, reportLimiter, async (req: AuthedReq
   // Log report for moderation tracking
   if (process.env.NODE_ENV !== 'production') {
     console.log(`[Reports] User ${req.user.id} reported ${target_type}:${target_id} for ${reason}`);
+  }
+
+  // Send admin notification email
+  try {
+    await sendAbuseReportEmail({
+      to: process.env.ADMIN_EMAILS?.split(',')[0]?.trim() || 'emancero@varsityhub.app',
+      reporterName: reporter?.display_name || 'Unknown',
+      reporterEmail: reporter?.email || 'unknown@email.com',
+      reportedContentType: target_type,
+      reportedContentId: target_id,
+      reportReason: reason,
+      reportDetails: details || undefined,
+      contentContext: targetContext,
+      reportId: report.id,
+    });
+  } catch (err) {
+    console.error('[Reports] Failed to send admin notification email:', err);
+    // Don't fail the report creation if email fails
   }
 
   // Auto-escalation: check if the reported user should receive a warning/strike/suspension

@@ -47,7 +47,7 @@ const styles = StyleSheet.create({
   handle: { width: 44, height: 4, borderRadius: 2 },
   title: { fontSize: 18, fontWeight: '800', marginTop: 4 },
   meta: { marginTop: 6 },
-  metaMuted: { color: '#6b7280' },
+  metaMuted: { color: Colors.light.mutedText },
   primaryBtn: { backgroundColor: '#111827', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10 },
   primaryBtnText: { color: 'white', fontWeight: '700' },
   outlineBtn: { borderWidth: 1, borderColor: '#D1D5DB', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10 },

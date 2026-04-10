@@ -1,18 +1,21 @@
-import { Tabs } from 'expo-router';
+import { Tabs, useRouter } from 'expo-router';
 import React, { useMemo } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Pressable, View, Text } from 'react-native';
 
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { HapticTab } from '@/components/HapticTab';
 import CenterTabButton from '@/components/ui/CenterTabButton';
 import { IconSymbol } from '@/components/ui/IconSymbol';
 import TabBarBackground from '@/components/ui/TabBarBackground';
+import NotificationBellIcon from '@/components/ui/NotificationBellIcon';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
 
   const hiddenTab = useMemo(
     () =>
@@ -59,6 +62,24 @@ export default function TabLayout() {
           tabBarButton: HapticTab,
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="square.grid.2x2.fill" color={color} />,
           tabBarAccessibilityLabel: 'Feed',
+          headerShown: true,
+          headerTitle: '',
+          headerRight: () => (
+            <Pressable
+              onPress={() => router.push('/notifications/index' as any)}
+              style={{ paddingRight: 16, paddingLeft: 8 }}
+              accessibilityRole="button"
+              accessibilityLabel="Notifications"
+            >
+              <NotificationBellIcon color={Colors[colorScheme].text} />
+            </Pressable>
+          ),
+          headerStyle: {
+            backgroundColor: Colors[colorScheme].background,
+            borderBottomWidth: 1,
+            borderBottomColor: Colors[colorScheme].border,
+          },
+          headerTintColor: Colors[colorScheme].text,
         }}
       />
       <Tabs.Screen

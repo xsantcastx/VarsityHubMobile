@@ -1181,7 +1181,7 @@ function CommunityDiscoverScreen() {
                     const index = posts.findIndex((post: any) => String(post.id) === String(p.id));
                     void router.push(`/post-detail?id=${p.id}&postIds=${encodeURIComponent(postIds)}&index=${Math.max(0, index)}`);
                   }}
-                  showAuthorHeader={false}
+                  showAuthorHeader={true}
                   onDeleted={(postId) => {
                     // Remove deleted post from both arrays
                     setFollowingPosts(prev => prev.filter(post => String(post.id) !== postId));

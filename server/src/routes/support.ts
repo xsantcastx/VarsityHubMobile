@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { sendAbuseReportNotification } from '../lib/email.js';
+import { sendAbuseReportEmail } from '../lib/email.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
@@ -45,12 +45,14 @@ supportRouter.post('/contact', supportLimiter, requireAuth as any, async (req: A
     });
 
     // Send email notification to customer service (async, don't block response)
-    sendAbuseReportNotification({
+    sendAbuseReportEmail({
+      to: process.env.SUPPORT_EMAIL || 'support@varsityhub.app',
       reporterName: name,
       reporterEmail: email,
-      subject,
-      message,
-      userId: req.user.id,
+      reportedContentType: 'support_contact',
+      reportedContentId: report.id,
+      reportReason: subject,
+      reportDetails: message,
     }).catch(err => {
       console.error('Failed to send abuse report email:', err);
     });

@@ -569,26 +569,36 @@ teamsRouter.post('/', requireVerified as any, requireOnboarded as any, requirePl
   const userPlan = userPrefs.plan || 'rookie';
   const maxTeams = getMaxTeamsForPlan(userPlan) ?? Infinity;
 
-  // For Veteran plan, verify Stripe subscription is active before entering transaction
-  if (userPlan === 'veteran') {
-    const subId = userPrefs.subscription_id;
-    if (!subId) {
-      return res.status(403).json({ error: 'No active subscription', message: 'Veteran plan requires an active subscription.' });
-    }
-    try {
-      const stripeLib = await import('stripe');
-      const sc = new stripeLib.default(process.env.STRIPE_SECRET_KEY || '', { apiVersion: '2024-06-20' });
-      const sub = await sc.subscriptions.retrieve(subId);
-      if (sub.status !== 'active' && sub.status !== 'trialing') {
-        return res.status(403).json({ error: 'Subscription not active', message: 'Your Veteran subscription is not active.' });
-      }
-    } catch (err) {
-      console.error('[Teams] Failed to verify Veteran subscription on POST /teams:', err);
-      return res.status(500).json({ error: 'Subscription verification failed' });
-    }
-  }
-
   const t = await prisma.$transaction(async (tx) => {
+    // For Veteran plan, verify Stripe subscription is active inside the transaction
+    if (userPlan === 'veteran') {
+      const subId = userPrefs.subscription_id;
+      if (!subId) {
+        throw Object.assign(new Error('No active subscription'), {
+          status: 403,
+          body: { error: 'No active subscription', message: 'Veteran plan requires an active subscription.' },
+        });
+      }
+      try {
+        const stripeLib = await import('stripe');
+        const sc = new stripeLib.default(process.env.STRIPE_SECRET_KEY || '', { apiVersion: '2024-06-20' });
+        const sub = await sc.subscriptions.retrieve(subId);
+        if (sub.status !== 'active' && sub.status !== 'trialing') {
+          throw Object.assign(new Error('Subscription not active'), {
+            status: 403,
+            body: { error: 'Subscription not active', message: 'Your Veteran subscription is not active.' },
+          });
+        }
+      } catch (err) {
+        if ((err as any).status) throw err; // Re-throw our custom error
+        console.error('[Teams] Failed to verify Veteran subscription on POST /teams:', err);
+        throw Object.assign(new Error('Subscription verification failed'), {
+          status: 500,
+          body: { error: 'Subscription verification failed' },
+        });
+      }
+    }
+
     const ownedTeamsCount = await tx.teamMembership.count({
       where: { user_id: userId, role: 'owner', status: 'active' },
     });

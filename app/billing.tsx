@@ -261,7 +261,7 @@ function BillingScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16, backgroundColor: 'white' },
   title: { fontSize: 24, fontWeight: '700', marginBottom: 8 },
-  subtitle: { color: '#6b7280', marginBottom: 16, lineHeight: 20 },
+  subtitle: { color: Colors.light.mutedText, marginBottom: 16, lineHeight: 20 },
   planCard: {
     borderWidth: 1,
     borderColor: '#e5e7eb',
@@ -273,7 +273,7 @@ const styles = StyleSheet.create({
   planBadge: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', color: '#2563EB', marginBottom: 6 },
   planPrice: { fontSize: 20, fontWeight: '800', marginBottom: 4 },
   planDescription: { marginBottom: 12, lineHeight: 20 },
-  planDescriptionMuted: { color: '#6B7280', fontSize: 13 },
+  planDescriptionMuted: { fontSize: 13 },
   featureList: { gap: 8, marginBottom: 8 },
   featureItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   featureText: { fontSize: 14, flex: 1 },

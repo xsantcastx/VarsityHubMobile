@@ -26,6 +26,7 @@ type PollCardProps = {
 
 export default function PollCard({ poll, onVote }: PollCardProps) {
   const colorScheme = useColorScheme() ?? 'light';
+  const theme = Colors[colorScheme];
   const [selectedOption, setSelectedOption] = useState<string | null>(poll.userVote || null);
   const [options, setOptions] = useState<PollOption[]>(poll.options);
   const [totalVotes, setTotalVotes] = useState(poll.totalVotes || 0);
@@ -137,7 +138,7 @@ export default function PollCard({ poll, onVote }: PollCardProps) {
                     {isSelected && (
                       <Ionicons name="checkmark-circle" size={16} color="#3B82F6" style={styles.checkIcon} />
                     )}
-                    <Text style={[styles.percentage, isSelected && styles.percentageSelected]}>
+                    <Text style={[styles.percentage, { color: isSelected ? '#3B82F6' : theme.mutedText }, isSelected && styles.percentageSelected]}>
                       {percentage}%
                     </Text>
                   </View>
@@ -261,7 +262,6 @@ const styles = StyleSheet.create({
   percentage: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#6B7280',
     minWidth: 40,
     textAlign: 'right',
   },

@@ -1,7 +1,6 @@
 import express from 'express';
 import { z } from 'zod';
 import { checkReportSpike, getUserModerationHistory, issueWarning, suspendUser } from '../lib/moderation.js';
-import { sendAccountPermanentBanEmail } from '../lib/email.js';
 import { sendPushNotification } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
 import { approveCoach, rejectCoach } from '../lib/approvalService.js';
@@ -632,15 +631,7 @@ adminRouter.post('/users/:id/ban', requireVerified as any, requireAdminMiddlewar
       issuedBy: req.user.id,
     });
 
-    // Notify the banned user via email
-    const bannedUser = await prisma.user.findUnique({ where: { id: bannedUserId }, select: { email: true, display_name: true } });
-    if (bannedUser?.email) {
-      sendAccountPermanentBanEmail({
-        to: bannedUser.email,
-        userName: bannedUser.display_name || 'User',
-        banReason: reason || 'Violation of community guidelines',
-      }).catch(err => console.warn('[admin] Ban email failed:', err));
-    }
+    // Ban notification email removed — non-mandatory moderation email
 
     return res.json({ ok: true, banned: true });
   } catch (error) {

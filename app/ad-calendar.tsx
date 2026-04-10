@@ -1169,7 +1169,7 @@ const styles = StyleSheet.create({
   },
   paymentBannerText: {
     fontSize: 13,
-    color: '#374151',
+    color: Colors.light.text,
     lineHeight: 18,
   },
   paymentBannerHelp: {

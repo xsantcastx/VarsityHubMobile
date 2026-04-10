@@ -29,7 +29,7 @@ const adCreateSchema = z.object({
     (url) => /^https:\/\//i.test(url),
     { message: 'target_url must use https protocol' }
   ).nullish(),
-  target_zip_code: z.string().min(3).max(10).regex(/^[A-Za-z0-9][A-Za-z0-9\s\-]{1,8}[A-Za-z0-9]$/, 'Must be a valid postal code'),
+  target_zip_code: z.string().min(2).max(12).regex(/^[A-Za-z0-9][A-Za-z0-9\s\-]{0,10}[A-Za-z0-9]$/, 'Must be a valid postal code'),
   radius: z.number().optional(),
   description: z.string().max(1000).nullish(),
 });
@@ -44,7 +44,7 @@ const adUpdateSchema = z.object({
     (url) => /^https:\/\//i.test(url),
     { message: 'target_url must use https protocol' }
   ).nullish(),
-  target_zip_code: z.string().regex(/^\d{5}$/, 'Must be a 5-digit US zip code').optional(),
+  target_zip_code: z.string().min(2).max(12).regex(/^[A-Za-z0-9][A-Za-z0-9\s\-]{0,10}[A-Za-z0-9]$/, 'Must be a valid postal code').optional(),
   radius: z.number().optional(),
   description: z.string().max(1000).nullish(),
   // status intentionally excluded — owners cannot set status directly.
@@ -364,9 +364,9 @@ adsRouter.get('/for-feed', async (req, res) => {
 
     debugLog('[ads] for-feed query:', { dateParam, dateISO, zip, lat, lng, limit, start, next });
 
-    // Validate zip format if provided
-    if (zip && !/^\d{5}$/.test(zip)) {
-      return res.status(400).json({ error: 'Invalid zip code format' });
+    // Validate zip format if provided (supports international postal codes)
+    if (zip && !/^[A-Za-z0-9][A-Za-z0-9\s\-]{0,10}[A-Za-z0-9]$/.test(zip)) {
+      return res.status(400).json({ error: 'Invalid postal code format' });
     }
 
     // Resolve user coordinates from zip or lat/lng

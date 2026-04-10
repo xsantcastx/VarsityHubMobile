@@ -220,7 +220,6 @@ const styles = StyleSheet.create({
   displayName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#111827',
   },
 });
 

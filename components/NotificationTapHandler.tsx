@@ -106,7 +106,8 @@ export function NotificationTapHandler() {
             break;
 
           case 'coach_approved':
-            router.push('/(tabs)' as any);
+            // Route to coach-agreement — AuthProvider will handle onboarding flow
+            router.push('/onboarding/coach-agreement' as any);
             break;
 
           case 'coach_rejected':

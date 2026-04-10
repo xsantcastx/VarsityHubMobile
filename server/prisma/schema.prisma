@@ -195,6 +195,8 @@ model User {
   @@index([banned])
   @@index([email_verified])
   @@index([approval_status])
+  @@index([username])
+  @@index([display_name])
 }
 
 model RefreshToken {
@@ -758,7 +760,7 @@ model Team {
   primary_color String? // hex color for team branding
   season_start DateTime?
   season_end  DateTime?
-  organization_id String?
+  organization_id String
   status      String   @default("active")
   
   // Venue information
@@ -772,10 +774,10 @@ model Team {
   city           String?
   state          String?
   league         String?
-  
+
   created_at  DateTime @default(now())
 
-  organization Organization? @relation(fields: [organization_id], references: [id], onDelete: SetNull)
+  organization Organization @relation(fields: [organization_id], references: [id], onDelete: Restrict)
   memberships TeamMembership[]
   invites     TeamInvite[]
   followers   TeamFollow[]

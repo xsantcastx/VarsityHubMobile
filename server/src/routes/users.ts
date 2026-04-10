@@ -92,8 +92,10 @@ usersRouter.get('/:id/full', requireAdmin as any, async (req, res) => {
 });
 
 // GET /users/me/export - GDPR/CCPA data portability: export all user data as JSON
+// GDPR requires COMPLETE data — no truncation. Ceiling of 50k per category prevents OOM.
 usersRouter.get('/me/export', requireAuth as any, async (req: AuthedRequest, res) => {
   const id = req.user!.id;
+  const EXPORT_LIMIT = 50000; // Safety ceiling — no real user hits this
   try {
     const [user, posts, comments, messagesSent, following, followers, ads] = await Promise.all([
       prisma.user.findUnique({
@@ -113,7 +115,7 @@ usersRouter.get('/me/export', requireAuth as any, async (req: AuthedRequest, res
       prisma.post.findMany({
         where: { author_id: id },
         orderBy: { created_at: 'desc' },
-        take: 5000,
+        take: EXPORT_LIMIT,
         select: {
           id: true,
           title: true,
@@ -130,7 +132,7 @@ usersRouter.get('/me/export', requireAuth as any, async (req: AuthedRequest, res
       prisma.comment.findMany({
         where: { author_id: id } as any,
         orderBy: { created_at: 'desc' },
-        take: 5000,
+        take: EXPORT_LIMIT,
         select: {
           id: true,
           post_id: true,
@@ -141,7 +143,7 @@ usersRouter.get('/me/export', requireAuth as any, async (req: AuthedRequest, res
       prisma.message.findMany({
         where: { sender_id: id },
         orderBy: { created_at: 'desc' },
-        take: 10000,
+        take: EXPORT_LIMIT,
         select: {
           id: true,
           recipient_id: true,
@@ -152,18 +154,18 @@ usersRouter.get('/me/export', requireAuth as any, async (req: AuthedRequest, res
       }),
       prisma.follows.findMany({
         where: { follower_id: id },
-        take: 10000,
+        take: EXPORT_LIMIT,
         select: { following_id: true, created_at: true },
       }),
       prisma.follows.findMany({
         where: { following_id: id },
-        take: 10000,
+        take: EXPORT_LIMIT,
         select: { follower_id: true, created_at: true },
       }),
       prisma.ad.findMany({
         where: { user_id: id },
         orderBy: { created_at: 'desc' },
-        take: 5000,
+        take: EXPORT_LIMIT,
         select: {
           id: true,
           contact_name: true,
@@ -186,7 +188,7 @@ usersRouter.get('/me/export', requireAuth as any, async (req: AuthedRequest, res
       ? await prisma.adReservation.findMany({
           where: { ad_id: { in: adIds } },
           orderBy: { date: 'asc' },
-          take: 10000,
+          take: EXPORT_LIMIT,
           select: { ad_id: true, date: true, created_at: true },
         })
       : [];

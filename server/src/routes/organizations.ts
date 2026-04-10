@@ -2,12 +2,10 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { validateContent } from '../lib/contentFilter.js';
 import {
-  sendJoinRequestApproved, sendJoinRequestDenied, sendJoinRequestToAdmin,
   sendOrganizationInviteEmail, sendLeagueApprovalRequestEmail,
   sendCoachApprovedEmail, sendCoachRejectedEmail,
-  sendNewCoachRequestEmail,
 } from '../lib/email.js';
-import { sendOrganizationApprovalEmail, sendPushNotification } from '../lib/notifications.js';
+import { sendPushNotification } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { authMiddleware } from '../middleware/auth.js';
@@ -709,13 +707,7 @@ organizationsRouter.post('/invites/:inviteId/accept', requireAuth as any, async 
       prisma.organizationInvite.update({ where: { id: inviteId }, data: { status: 'accepted' } }),
     ]);
 
-    // Send welcome email
-    const org = await prisma.organization.findUnique({ where: { id: invite.organization_id }, select: { name: true } });
-    if (org) {
-      await sendOrganizationApprovalEmail({ to: user.email, organizationName: org.name }).catch(err =>
-        console.warn('[org-invite-accept] Email send failed:', err)
-      );
-    }
+    // Organization approval welcome email removed — non-mandatory
 
     return res.json({ message: 'Invite accepted' });
   } catch (err) {
@@ -965,19 +957,7 @@ organizationsRouter.post('/join-requests', requireAuth as any, async (req: Authe
     if (organization.memberships.length > 0) {
       const owner = organization.memberships[0];
       try {
-        // Coach request notification to league owner (SendGrid template)
-        // Note: removed duplicate legacy sendJoinRequestToAdmin() that was sending a second email
-        await sendNewCoachRequestEmail({
-          to: owner.user.email,
-          ownerName: owner.user.display_name || 'League Owner',
-          coachName: joinRequest.user.display_name || 'A coach',
-          coachEmail: joinRequest.user.email,
-          leagueName: organization.name,
-          requestId: joinRequest.id,
-          organizationId: organization.id,
-          coachNotes: message || undefined,
-        });
-
+        // Coach request email notification removed — non-mandatory
         // Push notification to league owner
         sendPushNotification(
           owner.user.id,
@@ -1172,23 +1152,6 @@ organizationsRouter.post('/join-requests/:requestId/approve', requireVerified as
       console.warn('[orgs] failed to persist org_id into coach preferences on join-request approval:', (err as any)?.message || err);
     });
 
-  // Send approval email to user
-  const adminUser = await prisma.user.findUnique({
-    where: { id: req.user!.id },
-    select: { display_name: true }
-  });
-
-  try {
-    await sendJoinRequestApproved({
-      userEmail: joinRequest.user.email,
-      userName: joinRequest.user.display_name || 'User',
-      organizationName: joinRequest.organization.name,
-      adminName: adminUser?.display_name || 'Admin',
-    });
-  } catch (err) {
-    console.error('Failed to send join request approved email:', err);
-  }
-
   // Push notification so coach knows they were approved
   try {
     await sendPushNotification(
@@ -1306,18 +1269,6 @@ organizationsRouter.post('/join-requests/:requestId/deny', requireVerified as an
     });
   } catch (notifErr) {
     console.warn('[organizations] Failed to create denial notification:', notifErr);
-  }
-
-  // Send denial email to user
-  try {
-    await sendJoinRequestDenied({
-      userEmail: joinRequest.user.email,
-      userName: joinRequest.user.display_name || 'User',
-      organizationName: joinRequest.organization.name,
-      reason: reason,
-    });
-  } catch (err) {
-    console.error('Failed to send join request denied email:', err);
   }
 
   return res.json({ message: 'Join request denied' });
@@ -1662,8 +1613,8 @@ organizationsRouter.post('/:id/coaches/:userId/approve', requireVerified as any,
 
     sendPushNotification(
       coachId,
-      'Application Approved!',
-      `${org?.name || 'Your league'} approved your coach application`,
+      'Congratulations!',
+      `Congratulations on being accepted as a coach! Tap to complete your setup.`,
       { type: 'coach_approved', screen: 'onboarding', organization_id: orgId },
     ).then(() => {
       console.log(`[notif] push sent TEAM_INVITE(coach_approved) to user=${coachId}`);

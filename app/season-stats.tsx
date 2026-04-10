@@ -478,7 +478,7 @@ function SeasonStatsScreen() {
                       <Text style={[styles.recordLabel, { color: Colors[colorScheme].text }]}>Losses</Text>
                     </View>
                     <View style={styles.recordItem}>
-                      <Text style={[styles.recordValue, { color: '#6B7280' }]}>{teamStats.ties}</Text>
+                      <Text style={[styles.recordValue, { color: Colors.light.mutedText }]}>{teamStats.ties}</Text>
                       <Text style={[styles.recordLabel, { color: Colors[colorScheme].text }]}>Ties</Text>
                     </View>
                     <View style={styles.recordItem}>

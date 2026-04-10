@@ -110,3 +110,17 @@ grep -rn "req.user" server/src/routes/ --include="*.ts" | grep -v requireAuth
 - Don't refactor or clean up code beyond what was asked
 - Fix real bugs, not theoretical issues
 - When the fix is in one file, don't touch five
+
+## Engineering Skills (Cowork Plugin)
+Available via `/name` in Cowork. Use these for structured engineering workflows:
+
+- `/architecture` — Create or evaluate architecture decision records (ADRs). Use when choosing between technologies, documenting design decisions with trade-offs, or designing new components from requirements.
+- `/code-review` — Review code changes for security, performance, and correctness. Use with a PR URL or diff to check for N+1 queries, injection risks, missing edge cases, or error handling gaps.
+- `/debug` — Structured debugging: reproduce, isolate, diagnose, fix. Use when behavior diverges from expected and the cause isn't obvious.
+- `/deploy-checklist` — Pre-deployment verification. Use when shipping a release, deploying with migrations or feature flags, verifying CI status, or documenting rollback triggers.
+- `/documentation` — Write and maintain technical docs: API docs, READMEs, runbooks, onboarding guides.
+- `/incident-response` — Incident triage, communication, and postmortem. Use when production is down, an alert needs severity assessment, or writing a blameless postmortem.
+- `/standup` — Generate standup updates from recent activity. Formats work into yesterday/today/blockers.
+- `/system-design` — Design systems, services, and architectures. Use for API design, data modeling, or service boundary decisions.
+- `/tech-debt` — Identify, categorize, and prioritize technical debt. Use for code health audits, refactoring priorities, or maintenance backlog.
+- `/testing-strategy` — Design test strategies and test plans. Use when deciding on testing approaches, coverage goals, or test architecture.

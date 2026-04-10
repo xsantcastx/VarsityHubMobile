@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { logAdminActivity } from '../lib/adminActivityLogger.js';
-import { sendReportResolutionEmail } from '../lib/email.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
@@ -113,17 +112,7 @@ adminReportsRouter.patch('/:id', requireAdmin as any, asyncHandler(async (req: A
     { status, resolution_note, reporter: report.reporter?.email }
   );
 
-  // Notify the reporter that their report was resolved/dismissed
-  if ((status === 'resolved' || status === 'dismissed') && report.reporter?.email) {
-    sendReportResolutionEmail({
-      to: report.reporter.email,
-      userName: report.reporter.display_name || 'User',
-      reportId: id,
-      reportType: (report as any).target_type || 'content',
-      resolutionStatus: status,
-      resolutionReason: resolution_note || undefined,
-    }).catch(err => console.warn('[admin-reports] Resolution email failed:', err));
-  }
+  // Report resolution notification email removed — non-mandatory informational email
 
   return res.json({ report });
 }));

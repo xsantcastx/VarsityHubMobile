@@ -101,7 +101,7 @@ teamMembershipsRouter.post('/', requireAuth as any, requireOnboarded as any, req
         update: { role: assignedRole, status: 'active' },
         create: { team_id: teamIdStr, user_id: userIdStr, role: assignedRole, status: 'active' },
       });
-    });
+    }, { isolationLevel: 'Serializable' });
     return res.status(201).json(m);
   } catch (err: any) {
     const msg = err?.message || '';

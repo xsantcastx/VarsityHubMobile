@@ -320,8 +320,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     letterSpacing: -0.5,
   },
-  subtitle: { 
-    color: '#6b7280', 
+  subtitle: {
     fontSize: 16,
     lineHeight: 24,
   },
@@ -334,22 +333,20 @@ const styles = StyleSheet.create({
     gap: 12,
     marginBottom: 20,
   },
-  label: { 
+  label: {
     fontWeight: '700',
     fontSize: 15,
-    color: '#111827',
     marginBottom: 6,
   },
-  input: { 
-    height: 48, 
-    borderRadius: 8, 
-    borderWidth: 1, 
-    borderColor: '#D1D5DB', 
-    paddingHorizontal: 14, 
+  input: {
+    height: 48,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    paddingHorizontal: 14,
     backgroundColor: 'white',
     fontSize: 16,
     letterSpacing: 0,
-    color: '#111827',
   },
   textArea: {
     height: 100,
@@ -362,18 +359,17 @@ const styles = StyleSheet.create({
     marginTop: -4,
     marginBottom: 4,
   },
-  muted: { 
-    fontSize: 13, 
-    color: '#6b7280', 
+  muted: {
+    fontSize: 13,
     marginTop: -4,
     marginBottom: 4,
     lineHeight: 18,
   },
-  cta: { 
-    height: 52, 
-    borderRadius: 12, 
-    alignItems: 'center', 
-    justifyContent: 'center', 
+  cta: {
+    height: 52,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: '#111827',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },

@@ -89,7 +89,7 @@ function GameHighlightsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'white' },
   cellVideo: { width: 110, height: 110, margin: 2, borderRadius: 8, backgroundColor: '#111827', alignItems: 'center', justifyContent: 'center' },
-  muted: { color: '#6b7280', textAlign: 'center', marginTop: 16 },
+  muted: { textAlign: 'center', marginTop: 16 },
 });
 
 export default GameHighlightsScreen;

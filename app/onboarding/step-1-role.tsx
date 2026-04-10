@@ -56,12 +56,13 @@ function RoleCard({
   return (
     <View style={styles.cardWrapper}>
       <Pressable
+        testID={`onboarding-role-${roleType}-card`}
         onPress={onPress}
         accessibilityLabel={`Select ${title} role`}
         accessibilityRole="button"
         style={[
-          styles.card, 
-          { 
+          styles.card,
+          {
             backgroundColor: colors.cardBg,
             borderColor: colors.cardBorder,
           },
@@ -105,6 +106,7 @@ function RoleCard({
 
       {selected && onContinue && (
         <Pressable
+          testID="onboarding-step1-continue-button"
           onPress={onContinue}
           disabled={saving}
           style={[styles.sideButton, { backgroundColor: colors.buttonBg }]}

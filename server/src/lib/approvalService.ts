@@ -178,7 +178,7 @@ export async function rejectOrganization(
     prisma.notification.create({
       data: {
         user_id: org.leagueOwner.id,
-        type: 'COACH_REJECTED',
+        type: 'ORG_REJECTED',
         meta: { organization_id: orgId, organization_name: org.name, reason: reason || undefined },
       },
     }).catch(() => {});
@@ -266,8 +266,8 @@ export async function approveCoach(
 
   sendPushNotification(
     userId,
-    'Application Approved!',
-    `Your coach application has been approved by VarsityHub.${note ? ` Note: ${note}` : ''}`,
+    'Congratulations!',
+    `Congratulations on being accepted as a coach! Tap to complete your setup.${note ? ` Note: ${note}` : ''}`,
     { type: 'coach_approved', screen: 'onboarding' },
   ).catch(() => {});
 

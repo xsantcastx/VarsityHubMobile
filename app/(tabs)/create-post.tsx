@@ -839,12 +839,18 @@ function CreatePostScreen() {
 
       {/* Header */}
       <View style={[styles.header, { backgroundColor: Colors[colorScheme].background, borderBottomColor: Colors[colorScheme].border }]}>
-        <Pressable onPress={() => safeGoBack(router)} accessibilityLabel="Close" style={styles.iconBtn}>
+        <Pressable
+          testID="create-post-close-button"
+          onPress={() => safeGoBack(router)}
+          accessibilityLabel="Close"
+          style={styles.iconBtn}
+        >
           <Ionicons name="close" size={22} color={Colors[colorScheme].text} />
         </Pressable>
         <View style={styles.headerSpacer} />
         <View style={styles.postButtonContainer}>
           <Pressable
+            testID="create-post-submit-button"
             onPress={onSubmit}
             disabled={!canPost || submitting || postSuccess}
             style={[styles.headerPostBtn, submitting && { backgroundColor: '#1B3A6B', opacity: 1 }, (!canPost || postSuccess) && !submitting && { opacity: 0.45 }]}
@@ -888,11 +894,17 @@ function CreatePostScreen() {
         <View style={styles.mediaSection}>
           <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>Add Media</Text>
           <View style={styles.tilesRow}>
-            <Pressable style={[styles.tile, styles.primaryTile]} onPress={() => pickFromLibrary('image')} accessibilityLabel="Photo Gallery">
+            <Pressable
+              testID="create-post-photo-picker"
+              style={[styles.tile, styles.primaryTile]}
+              onPress={() => pickFromLibrary('image')}
+              accessibilityLabel="Photo Gallery"
+            >
               <Ionicons name="image-outline" size={24} color="#FFFFFF" />
               <Text style={[styles.tileLabel, styles.primaryTileLabel]}>Photo</Text>
             </Pressable>
             <Pressable
+              testID="create-post-camera-picker"
               style={[styles.tile, styles.primaryTile]}
               onPress={() => captureWithCamera()}
               accessibilityLabel="Camera"
@@ -900,7 +912,12 @@ function CreatePostScreen() {
               <Ionicons name="camera-outline" size={24} color="#FFFFFF" />
               <Text style={[styles.tileLabel, styles.primaryTileLabel]}>Camera</Text>
             </Pressable>
-            <Pressable style={[styles.tile, styles.primaryTile]} onPress={() => pickFromLibrary('video')} accessibilityLabel="Video Gallery">
+            <Pressable
+              testID="create-post-video-picker"
+              style={[styles.tile, styles.primaryTile]}
+              onPress={() => pickFromLibrary('video')}
+              accessibilityLabel="Video Gallery"
+            >
               <Ionicons name="videocam-outline" size={24} color="#FFFFFF" />
               <Text style={[styles.tileLabel, styles.primaryTileLabel]}>Video</Text>
             </Pressable>
@@ -927,7 +944,12 @@ function CreatePostScreen() {
                   </Text>
                 </>
               )}
-              <Pressable style={styles.removeButton} onPress={() => setPicked(null)} accessibilityLabel="Remove media">
+              <Pressable
+                testID="create-post-remove-media-button"
+                style={styles.removeButton}
+                onPress={() => setPicked(null)}
+                accessibilityLabel="Remove media"
+              >
                 <Ionicons name="close" size={16} color="#FFFFFF" />
               </Pressable>
             </View>
@@ -945,6 +967,7 @@ function CreatePostScreen() {
             </Text>
             {nearbyGames.slice(0, 3).map((game) => (
               <Pressable
+                testID={`create-post-game-card-${game.id}`}
                 key={game.id}
                 style={[styles.nearbyGameCard, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
                 onPress={() => {
@@ -982,6 +1005,7 @@ function CreatePostScreen() {
             ))}
             {nearbyGames.length > 3 && (
               <Pressable
+                testID="create-post-view-all-games"
                 style={[styles.viewMoreButton, { backgroundColor: Colors[colorScheme].surface }]}
                 onPress={() => setEventSelectorVisible(true)}
                 accessibilityRole="button"
@@ -999,6 +1023,7 @@ function CreatePostScreen() {
         {suggestedGame && selectedGameId && (
           <View style={styles.gameSection}>
             <Pressable
+              testID="create-post-tagged-game-button"
               style={{
                 flexDirection: 'row',
                 alignItems: 'center',
@@ -1027,6 +1052,7 @@ function CreatePostScreen() {
             </Pressable>
             
             <Pressable
+              testID="create-post-remove-tagged-game-button"
               style={{ alignSelf: 'flex-end', marginTop: 8, paddingVertical: 4 }}
               onPress={() => { setSuggestedGame(null); setSelectedGameId(undefined); }}
               accessibilityRole="button"
@@ -1333,7 +1359,7 @@ function CreatePostScreen() {
                 <View style={{ height: 4, backgroundColor: '#E5E7EB', borderRadius: 2, overflow: 'hidden' }}>
                   <View style={{ height: 4, backgroundColor: '#16A34A', borderRadius: 2, width: `${uploadProgress}%` }} />
                 </View>
-                <Text style={{ textAlign: 'center', color: '#6B7280', fontSize: 13, marginTop: 4 }}>
+                <Text style={{ textAlign: 'center', color: Colors.light.mutedText, fontSize: 13, marginTop: 4 }}>
                   {uploadProgress < 100 ? `Uploading... ${Math.round(uploadProgress)}%` : 'Processing...'}
                 </Text>
               </View>
@@ -1666,7 +1692,7 @@ const styles = StyleSheet.create({
   },
   gameHint: {
     fontSize: 12,
-    color: '#6B7280',
+    color: Colors.light.mutedText,
     marginTop: 8,
     textAlign: 'center',
     fontStyle: 'italic',
@@ -1945,11 +1971,11 @@ const styles = StyleSheet.create({
   emptyStateTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#111827',
+    color: Colors.light.text,
   },
   emptyStateText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: Colors.light.mutedText,
     textAlign: 'center',
     lineHeight: 20,
   },

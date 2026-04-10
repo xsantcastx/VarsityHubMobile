@@ -151,85 +151,18 @@ const SCHEDULED_JOBS: ScheduledJob[] = [
   {
     name: 'end-of-day-transaction-report',
     cron: '59 23 * * *', // Every day at 11:59 PM
-    description: 'Send end-of-day transaction report via email',
+    description: 'End-of-day transaction report (email removed, logs only)',
     handler: async () => {
       try {
         const { getEndOfDayReport } = await import('../lib/transactionLogger.js');
-        const { sendEndOfDayTransactionReport } = await import('../lib/email.js');
-        
-        // Get report for today
         const report = await getEndOfDayReport();
-        
-        // Get recipient email from environment variable or use first admin email
-        const reportEmail = process.env.TRANSACTION_REPORT_EMAIL || 
-          (process.env.ADMIN_EMAILS || '').split(',')[0]?.trim() ||
-          'emancero@varsityhub.app'; // Fallback to primary admin
-        
-        if (!reportEmail) {
-          console.warn('[Scheduler] No email configured for transaction reports');
-          return;
-        }
-        
-        await sendEndOfDayTransactionReport({
-          to: reportEmail,
-          report,
-        });
-        
-        console.log(`[Scheduler] End-of-day transaction report sent to ${reportEmail} for ${report.date}`);
+        console.log(`[Scheduler] End-of-day transaction report for ${report.date}`);
       } catch (error) {
-        console.error('[Scheduler] Failed to send end-of-day transaction report:', error);
+        console.error('[Scheduler] Failed to generate end-of-day transaction report:', error);
       }
     },
   },
-  {
-    name: 'event-reminders-12hr-email',
-    cron: '0 * * * *', // Every hour at minute 0
-    description: 'Send 12-hour event reminder emails to RSVP attendees',
-    handler: async () => {
-      try {
-        const { prisma } = await import('../lib/prisma.js');
-        const { sendEventReminderEmail } = await import('../lib/email.js');
-
-        const now = new Date();
-        const windowStart = new Date(now.getTime() + 11 * 60 * 60 * 1000); // 11h from now
-        const windowEnd = new Date(now.getTime() + 13 * 60 * 60 * 1000);   // 13h from now
-
-        const upcomingEvents = await prisma.event.findMany({
-          where: {
-            date: { gte: windowStart, lte: windowEnd },
-            status: 'approved',
-          },
-          select: { id: true, title: true, date: true, location: true, rsvps: { select: { user: { select: { email: true, display_name: true } } } } },
-        });
-
-        let sent = 0;
-        for (const event of upcomingEvents) {
-          const eventDate = new Date(event.date);
-          for (const rsvp of event.rsvps) {
-            if (!rsvp.user?.email) continue;
-            // Deduplicate: skip if already sent reminder for this event+email combo
-            const dedupeKey = `${event.id}:${rsvp.user.email}`;
-            if (await isEventReminderSent(dedupeKey)) continue;
-            await markEventReminderSent(dedupeKey);
-            sendEventReminderEmail({
-              to: rsvp.user.email,
-              recipientName: rsvp.user.display_name || 'Athlete',
-              eventTitle: event.title,
-              eventDate: eventDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }),
-              eventTime: eventDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
-              eventLocation: event.location || '',
-              eventId: event.id,
-            }).catch((err) => console.warn('[Scheduler] event reminder email failed:', err?.message || err));
-            sent++;
-          }
-        }
-
-        if (sent > 0) console.log(`[Scheduler] Sent ${sent} event reminder emails for ${upcomingEvents.length} events`);
-      } catch (error) {
-        console.error('[Scheduler] Failed to send event reminder emails:', error);
-      }
-    },
-  },
+  // Event reminder email job removed — non-mandatory engagement email
   {
     name: 'db-backup-sync',
     cron: '0 */6 * * *', // Every 6 hours
@@ -250,29 +183,7 @@ const SCHEDULED_JOBS: ScheduledJob[] = [
       }
     },
   },
-  {
-    name: 'daily-founder-metrics',
-    cron: '0 8 * * *', // Every day at 8:00 AM
-    description: 'Send daily founder metrics summary via email',
-    handler: async () => {
-      try {
-        const { getFounderMetricsReport } = await import('../lib/founderMetrics.js');
-        const { sendFounderMetricsEmail } = await import('../lib/email.js');
-
-        const report = await getFounderMetricsReport(7);
-        const reportEmail = process.env.METRICS_REPORT_EMAIL || 'customerservice@varsityhub.app';
-
-        await sendFounderMetricsEmail({
-          to: reportEmail,
-          report,
-        });
-
-        console.log(`[Scheduler] Daily founder metrics sent to ${reportEmail} for ${report.dateRange.end}`);
-      } catch (error) {
-        console.error('[Scheduler] Failed to send daily founder metrics:', error);
-      }
-    },
-  },
+  // Founder metrics job removed — non-mandatory internal report email
   {
     name: 'subscription-expiry-check',
     cron: '0 9 * * *', // Every day at 9:00 AM
@@ -445,22 +356,11 @@ function setupFallbackCron(): boolean {
       if (lastTransactionReportDate !== todayDate) {
         try {
           const { getEndOfDayReport } = await import('../lib/transactionLogger.js');
-          const { sendEndOfDayTransactionReport } = await import('../lib/email.js');
-          
           const report = await getEndOfDayReport();
-          
-          const reportEmail = process.env.TRANSACTION_REPORT_EMAIL || 
-            (process.env.ADMIN_EMAILS || '').split(',')[0]?.trim() ||
-            'emancero@varsityhub.app';
-          
-          if (reportEmail) {
-            await sendEndOfDayTransactionReport({
-              to: reportEmail,
-              report,
-            });
-            lastTransactionReportDate = todayDate;
-            console.log(`[Scheduler] End-of-day transaction report sent to ${reportEmail} for ${report.date}`);
+          if (report) {
+            console.log(`[Scheduler] Fallback EOD report for ${report.date}`);
           }
+          lastTransactionReportDate = todayDate;
         } catch (error) {
           console.error('[Scheduler] End-of-day transaction report failed:', error);
         }
@@ -507,29 +407,7 @@ function setupFallbackCron(): boolean {
     const hour = now.getHours();
     const minute = now.getMinutes();
 
-    if (hour === 8 && minute === 0) {
-      const todayDate = now.toISOString().split('T')[0];
-
-      if (lastFounderMetricsDate !== todayDate) {
-        try {
-          const { getFounderMetricsReport } = await import('../lib/founderMetrics.js');
-          const { sendFounderMetricsEmail } = await import('../lib/email.js');
-
-          const report = await getFounderMetricsReport(7);
-          const reportEmail = process.env.METRICS_REPORT_EMAIL || 'customerservice@varsityhub.app';
-
-          await sendFounderMetricsEmail({
-            to: reportEmail,
-            report,
-          });
-
-          lastFounderMetricsDate = todayDate;
-          console.log(`[Scheduler] Daily founder metrics sent to ${reportEmail} for ${report.dateRange.end}`);
-        } catch (error) {
-          console.error('[Scheduler] Daily founder metrics failed:', error);
-        }
-      }
-    }
+    // Founder metrics email removed — non-mandatory internal report email
   }, 60 * 1000); // Check every minute
 
   return true;

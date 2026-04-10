@@ -47,6 +47,7 @@ export function ZipAlternativesModal({
   loading = false,
 }: ZipAlternativesModalProps) {
   const colorScheme = useColorScheme() ?? 'light';
+  const theme = Colors[colorScheme];
 
   return (
     <CustomActionModal
@@ -57,7 +58,7 @@ export function ZipAlternativesModal({
         {
           label: 'Cancel',
           onPress: onClose,
-          color: '#6B7280',
+          color: theme.mutedText,
         },
       ]}
     >
@@ -82,7 +83,7 @@ export function ZipAlternativesModal({
         {loading && (
           <View style={styles.loadingContainer}>
             <ActivityIndicator color="#2563EB" />
-            <Text style={styles.loadingText}>Checking nearby availability...</Text>
+            <Text style={[styles.loadingText, { color: theme.mutedText }]}>Checking nearby availability...</Text>
           </View>
         )}
 
@@ -92,7 +93,7 @@ export function ZipAlternativesModal({
             <Text style={[styles.emptyText, { color: Colors[colorScheme].text }]}>
               No nearby zip codes with availability found.
             </Text>
-            <Text style={styles.emptySubtext}>
+            <Text style={[styles.emptySubtext, { color: theme.mutedText }]}>
               Try selecting different dates or check back later.
             </Text>
           </View>
@@ -122,15 +123,15 @@ export function ZipAlternativesModal({
                       {alt.zip}
                     </Text>
                     {alt.city && alt.state && (
-                      <Text style={styles.zipLocation}>
+                      <Text style={[styles.zipLocation, { color: theme.mutedText }]}>
                         {alt.city}, {alt.state}
                       </Text>
                     )}
                   </View>
                   {alt.distance !== undefined && (
                     <View style={styles.distanceBadge}>
-                      <MaterialIcons name="location-on" size={14} color="#6B7280" />
-                      <Text style={styles.distanceText}>{formatDistance(alt.distance)}</Text>
+                      <MaterialIcons name="location-on" size={14} color={theme.mutedText} />
+                      <Text style={[styles.distanceText, { color: theme.mutedText }]}>{formatDistance(alt.distance)}</Text>
                     </View>
                   )}
                 </View>
@@ -148,7 +149,7 @@ export function ZipAlternativesModal({
                       ]}
                     />
                   </View>
-                  <Text style={styles.availabilityText}>
+                  <Text style={[styles.availabilityText, { color: theme.mutedText }]}>
                     {alt.capacity - alt.reserved} of {alt.capacity} slots available
                   </Text>
                 </View>
@@ -220,7 +221,6 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 14,
-    color: '#6B7280',
   },
   emptyContainer: {
     paddingVertical: 32,
@@ -234,7 +234,6 @@ const styles = StyleSheet.create({
   },
   emptySubtext: {
     fontSize: 14,
-    color: '#6B7280',
     textAlign: 'center',
   },
   alternativesList: {
@@ -266,7 +265,6 @@ const styles = StyleSheet.create({
   },
   zipLocation: {
     fontSize: 13,
-    color: '#6B7280',
     marginTop: 2,
   },
   distanceBadge: {
@@ -281,7 +279,6 @@ const styles = StyleSheet.create({
   distanceText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#6B7280',
   },
   availabilityContainer: {
     gap: 6,
@@ -298,7 +295,6 @@ const styles = StyleSheet.create({
   },
   availabilityText: {
     fontSize: 12,
-    color: '#6B7280',
   },
   selectButton: {
     flexDirection: 'row',

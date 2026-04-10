@@ -7,7 +7,6 @@
 
 import { prisma } from './prisma.js';
 import { logAdminActivity } from './adminActivityLogger.js';
-import { sendAccountSuspension7DaysEmail, sendAccountSuspension45DaysEmail } from './email.js';
 
 // Escalation thresholds
 const WARN_THRESHOLD = 3;       // 3 reports → auto-warning
@@ -239,17 +238,7 @@ export async function suspendUser(params: {
     { banned_until: suspendUntil.toISOString(), days },
   );
 
-  // Notify suspended user via email (fire-and-forget)
-  if (suspendedUser?.email) {
-    const userName = suspendedUser.display_name || suspendedUser.username || 'User';
-    const endDate = suspendUntil.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-    const emailParams = { to: suspendedUser.email, userName, suspensionReason: reason, suspensionEndDate: endDate };
-    if (days <= 7) {
-      sendAccountSuspension7DaysEmail(emailParams).catch(e => console.error('[moderation] 7-day suspension email failed:', e));
-    } else {
-      sendAccountSuspension45DaysEmail(emailParams).catch(e => console.error('[moderation] suspension email failed:', e));
-    }
-  }
+  // Suspension notification emails removed — non-mandatory moderation emails
 }
 
 /**

@@ -40,6 +40,7 @@ const isIOS = Platform.OS === 'ios';
 function SubscriptionPaywallScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
+  const theme = Colors[colorScheme];
   const [selectedTier, setSelectedTier] = useState<CoachTier>('veteran');
   const [loading, setLoading] = useState(false);
   const [promoCode, setPromoCode] = useState('');
@@ -428,7 +429,7 @@ function SubscriptionPaywallScreen() {
                 accessibilityLabel="Promo code"
               />
             </View>
-            <Text style={styles.promoHint}>
+            <Text style={[styles.promoHint, { color: theme.mutedText }]}>
               Promo codes will be applied at checkout
             </Text>
           </View>
@@ -461,7 +462,7 @@ function SubscriptionPaywallScreen() {
             )}
           </Pressable>
 
-          <Text style={[styles.ctaSubtext, { color: '#6B7280' }]}>
+          <Text style={[styles.ctaSubtext, { color: theme.mutedText }]}>
             {selectedTier === 'legend' && 'Billed annually • Cancel anytime'}
             {selectedTier === 'veteran' && 'Billed monthly per team • Cancel anytime'}
             {selectedTier === 'rookie' && 'Free • No credit card required'}
@@ -630,7 +631,6 @@ const styles = StyleSheet.create({
   iapPriceText: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#6B7280',
     marginTop: 4,
   },
   benefitsSection: {
@@ -701,7 +701,6 @@ const styles = StyleSheet.create({
   },
   promoHint: {
     fontSize: 12,
-    color: '#6B7280',
     fontStyle: 'italic',
   },
   ctaSection: {

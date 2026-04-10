@@ -42,7 +42,7 @@ function EditAdScreen() {
   const isSubmitting = useRef(false);
 
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail.trim());
-  const zipValid = !zip.trim() || /^\d{5}$/.test(zip.trim());
+  const zipValid = !zip.trim() || /^[A-Za-z0-9][A-Za-z0-9\s\-]{0,10}[A-Za-z0-9]$/.test(zip.trim());
   const urlValid = !targetUrl.trim() || /^https?:\/\/.+/.test(targetUrl.trim());
 
   const canSave = useMemo(() => {
@@ -181,34 +181,36 @@ function EditAdScreen() {
               />
 
               <Text style={[styles.label, { color: theme.text }]}>Contact Name</Text>
-              <TextInput 
-                style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]} 
-                value={contactName} 
+              <TextInput
+                style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
+                value={contactName}
                 onChangeText={setContactName}
                 placeholder="John Smith"
                 placeholderTextColor={theme.mutedText}
                 autoCapitalize="words"
+                maxLength={200}
               />
 
               <Text style={[styles.label, { color: theme.text }]}>Contact Email *</Text>
-              <TextInput 
-                style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]} 
-                value={contactEmail} 
-                autoCapitalize="none" 
-                keyboardType="email-address" 
+              <TextInput
+                style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
+                value={contactEmail}
+                autoCapitalize="none"
+                keyboardType="email-address"
                 onChangeText={setContactEmail}
                 placeholder="you@business.com"
                 placeholderTextColor={theme.mutedText}
+                maxLength={320}
               />
 
               <Text style={[styles.label, { color: theme.text }]}>Target Zip Code</Text>
-              <TextInput 
-                style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]} 
-                value={zip} 
-                onChangeText={setZip} 
+              <TextInput
+                style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
+                value={zip}
+                onChangeText={setZip}
                 keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
                 placeholder="12345"
-                maxLength={5}
+                maxLength={12}
                 placeholderTextColor={theme.mutedText}
               />
 
@@ -261,15 +263,16 @@ function EditAdScreen() {
               )}
 
               <Text style={[styles.label, { color: theme.text }]}>Description</Text>
-              <TextInput 
-                style={[styles.input, styles.textArea, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]} 
-                value={desc} 
-                onChangeText={setDesc} 
+              <TextInput
+                style={[styles.input, styles.textArea, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
+                value={desc}
+                onChangeText={setDesc}
                 multiline
                 numberOfLines={4}
                 placeholder="Tell us about your business or message..."
                 textAlignVertical="top"
                 placeholderTextColor={theme.mutedText}
+                maxLength={1000}
               />
 
               <View style={[styles.infoCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
@@ -334,7 +337,6 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   loadingText: {
-    color: '#6B7280',
     fontSize: 15,
   },
   scrollContent: { 
@@ -350,8 +352,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     letterSpacing: -0.5,
   },
-  subtitle: { 
-    color: '#6b7280', 
+  subtitle: {
     fontSize: 16,
     lineHeight: 24,
   },
@@ -391,7 +392,6 @@ const styles = StyleSheet.create({
   infoLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#6B7280',
   },
   infoValue: {
     fontSize: 14,
@@ -408,9 +408,8 @@ const styles = StyleSheet.create({
     marginTop: -4,
     marginBottom: 4,
   },
-  muted: { 
-    fontSize: 13, 
-    color: '#6b7280',
+  muted: {
+    fontSize: 13,
     lineHeight: 18,
   },
   bannerPreview: {
@@ -441,7 +440,6 @@ const styles = StyleSheet.create({
   bannerPlaceholderText: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#6B7280',
   },
   uploadBtn: { 
     paddingVertical: 12, 

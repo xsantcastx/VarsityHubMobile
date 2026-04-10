@@ -1,7 +1,7 @@
 /**
  * Email Invite Tests
  *
- * Tests sendWelcomeEmail and sendTeamInviteEmail functions.
+ * Tests sendTeamInviteEmail function.
  */
 
 import { describe, it, expect, jest } from '@jest/globals';
@@ -26,20 +26,13 @@ jest.unstable_mockModule('../services/email/service.js', () => ({
 process.env.SENDGRID_TEAM_INVITE_TEMPLATE_ID = 'd-test-team-invite';
 
 // Dynamic import after mocks and env overrides are in place
-const { sendWelcomeEmail, sendTeamInviteEmail } = await import('../lib/email.js');
+const { sendTeamInviteEmail } = await import('../lib/email.js');
 
 // Restore env after module is loaded
 process.env.NODE_ENV = savedNodeEnv;
 process.env.JEST_WORKER_ID = savedJestWorker;
 
 describe('Email Invite Functions', () => {
-  describe('sendWelcomeEmail', () => {
-    it('should return true and not throw for a valid user', async () => {
-      const result = await sendWelcomeEmail('testuser@example.com', 'Test User');
-      expect(result).toBe(true);
-    });
-  });
-
   describe('sendTeamInviteEmail', () => {
     it('should return true and include inviteToken in invite_url', async () => {
       mockSend.mockClear();

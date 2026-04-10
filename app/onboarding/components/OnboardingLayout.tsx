@@ -1,7 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
 import { ReactNode } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { safeGoBack } from '@/utils/navigation';
@@ -116,24 +116,27 @@ export default function OnboardingLayout({
       </View>
 
       <View style={[styles.progressBarContainer, { backgroundColor: isDark ? '#374151' : '#F3F4F6' }]}>
-        <View 
+        <View
           style={[
-            styles.progressBar, 
-            { 
+            styles.progressBar,
+            {
               width: `${(step / effectiveTotalSteps) * 100}%`,
               backgroundColor: colors.primary
             }
-          ]} 
+          ]}
         />
       </View>
 
-
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+        style={{ flex: 1 }}
+      >
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
-          automaticallyAdjustKeyboardInsets
           style={{ flex: 1 }}
         >
           <View style={styles.titleSection}>
@@ -146,27 +149,28 @@ export default function OnboardingLayout({
 
           {children}
 
-      {onContinue && (
-        <View style={[styles.footer, { borderTopColor: colors.border, backgroundColor: colors.background, paddingBottom: insets.bottom > 0 ? insets.bottom : 16 }]}>
-          <Pressable
-            onPress={onContinue}
-            disabled={continueDisabled || loading}
-            style={[
-              styles.continueButton,
-              { backgroundColor: (continueDisabled || loading) ? colors.primaryMuted : colors.primary },
-            ]}
-            accessibilityLabel="Continue"
-            accessibilityRole="button"
-          >
-            {loading ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <Text style={styles.continueButtonText}>Continue</Text>
-            )}
-          </Pressable>
-        </View>
-      )}
+          {onContinue && (
+            <View style={[styles.footer, { borderTopColor: colors.border, backgroundColor: colors.background, paddingBottom: insets.bottom > 0 ? insets.bottom : 16 }]}>
+              <Pressable
+                onPress={onContinue}
+                disabled={continueDisabled || loading}
+                style={[
+                  styles.continueButton,
+                  { backgroundColor: (continueDisabled || loading) ? colors.primaryMuted : colors.primary },
+                ]}
+                accessibilityLabel="Continue"
+                accessibilityRole="button"
+              >
+                {loading ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.continueButtonText}>Continue</Text>
+                )}
+              </Pressable>
+            </View>
+          )}
         </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

@@ -6,7 +6,7 @@ import Stripe from 'stripe';
 import { Prisma } from '@prisma/client';
 import { debugLog } from '../lib/debugLog.js';
 import { withDistributedLock } from '../lib/distributedLock.js';
-import { sendAdPaymentConfirmedEmail, sendBillingNoticeEmail } from '../lib/email.js';
+import { sendBillingNoticeEmail } from '../lib/email.js';
 import { getAllPlanDefinitions, getMaxTeamsForPlan } from '../lib/planLimits.js';
 import { prisma } from '../lib/prisma.js';
 import { previewPromo, redeemPromo } from '../lib/promos.js';
@@ -31,8 +31,13 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_not_configur
 
 // Startup warnings for critical payment config
 if (process.env.NODE_ENV === 'production') {
-  if (!process.env.STRIPE_WEBHOOK_SECRET) console.error('[payments] WARNING: STRIPE_WEBHOOK_SECRET is not set — webhooks will fail silently');
+  if (!process.env.STRIPE_WEBHOOK_SECRET) {
+    console.error('[payments] FATAL: STRIPE_WEBHOOK_SECRET is not set in production — webhooks will fail silently. Server cannot start.');
+    process.exit(1);
+  }
   if (!process.env.APPLE_IAP_SHARED_SECRET) console.warn('[payments] Apple IAP shared secret not set — iOS IAP verification disabled');
+} else {
+  if (!process.env.STRIPE_WEBHOOK_SECRET) console.warn('[payments] WARNING: STRIPE_WEBHOOK_SECRET is not set in development — webhooks will fail silently');
 }
 
 // Admin notification email — first entry from ADMIN_EMAILS env var
@@ -73,63 +78,7 @@ async function getUserEmail(userId?: string | null, fallbackEmail?: string | nul
   return user?.email || null;
 }
 
-async function sendAdPaymentEmail({
-  userId,
-  fallbackEmail,
-  adId,
-  dates,
-  totalCents,
-  businessName,
-  zipCode,
-}: {
-  userId?: string | null;
-  fallbackEmail?: string | null;
-  adId: string;
-  dates: string[];
-  totalCents?: number | null;
-  businessName?: string | null;
-  zipCode?: string | null;
-}) {
-  const email = await getUserEmail(userId, fallbackEmail);
-  if (!email) return;
-  const amount = formatUsd(totalCents);
-
-  // Calculate hours from now to midnight of last booked date
-  let hoursLabel = '';
-  let hoursRemaining = 0;
-  const totalHoursBooked = dates.length * 24;
-  if (dates.length) {
-    const sorted = [...dates].sort();
-    const lastEnd = new Date(sorted[sorted.length - 1] + 'T23:59:59Z');
-    hoursRemaining = Math.max(0, Math.round((lastEnd.getTime() - Date.now()) / 3600000));
-    hoursLabel = `${hoursRemaining} hrs (${dates.length} day${dates.length !== 1 ? 's' : ''})`;
-  }
-
-  // Format dates for display
-  const formattedDates = [...dates].sort().map((d) => {
-    try {
-      return new Date(d + 'T00:00:00Z').toLocaleDateString('en-US', {
-        weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
-      });
-    } catch { return d; }
-  });
-
-  try {
-    await sendAdPaymentConfirmedEmail({
-      to: email,
-      businessName: businessName || undefined,
-      zipCode: zipCode || undefined,
-      amount: amount || undefined,
-      hoursLabel: hoursLabel || undefined,
-      totalHoursBooked: totalHoursBooked,
-      hoursRemaining: hoursRemaining,
-      dates: formattedDates,
-      adId,
-    });
-  } catch (err) {
-    console.warn('[payments] Unable to send ad payment email:', (err as any)?.message || err);
-  }
-}
+// Ad payment email notification removed — non-mandatory transactional email
 
 async function sendSubscriptionEmail({
   userId,
@@ -341,7 +290,7 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
   }
 
   const session = await stripe.checkout.sessions.create(sessionConfig, {
-    idempotencyKey: `membership_${req.user!.id}_${chosen}_${Math.floor(Date.now() / 120000)}`,
+    idempotencyKey: (req.headers['x-idempotency-key'] as string) || `membership_${req.user!.id}_${chosen}_${Math.floor(Date.now() / 60000)}`,
   });
 
   // Log subscription transaction
@@ -509,15 +458,7 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paym
       console.error('[payments] Failed to log free promo transaction:', err);
       captureException(err as Error, { context: 'free_promo_transaction_log', adId: String(ad_id) });
     });
-    // Send confirmation email (same as Stripe webhook path)
-    sendAdPaymentEmail({
-      userId: req.user!.id,
-      adId: String(ad_id),
-      dates: isoDates,
-      totalCents: 0,
-      businessName: ad.business_name,
-      zipCode: ad.target_zip_code,
-    }).catch((err) => console.warn('[payments] Free promo ad email failed:', err?.message || err));
+    // Ad payment confirmation email removed — non-mandatory
     return res.json({ free: true });
   }
 
@@ -636,7 +577,7 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paym
   // This would calculate and add tax automatically for Price IDs
 
   const session = await stripe.checkout.sessions.create(sessionConfig, {
-    idempotencyKey: `ad_${req.user!.id}_${ad_id}_${Math.floor(Date.now() / 120000)}`,
+    idempotencyKey: (req.headers['x-idempotency-key'] as string) || `ad_${req.user!.id}_${ad_id}_${Math.floor(Date.now() / 60000)}`,
   });
 
   // Hold slots: create temporary reservations + mark ad as 'hold' so other checkouts see them.
@@ -964,7 +905,7 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
       console.error('[payments] Failed to log free promo transaction:', err);
       captureException(err as Error, { context: 'free_promo_transaction_log_pi', adId: String(ad_id) });
     });
-    sendAdPaymentEmail({ userId, adId: String(ad_id), dates: isoDates, totalCents: 0, businessName: ad.business_name, zipCode: ad.target_zip_code }).catch((err) => console.warn('[payments] Free promo ad email failed:', err?.message || err));
+    // Ad payment confirmation email removed — non-mandatory
     return res.json({ free: true });
   }
 
@@ -986,7 +927,7 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
         weekend_blocks: String(pricingResult.weekendBlocks),
       },
     }, {
-      idempotencyKey: `ad_pi_${userId}_${ad_id}_${Math.floor(Date.now() / 120000)}`,
+      idempotencyKey: (req.headers['x-idempotency-key'] as string) || `ad_pi_${userId}_${ad_id}_${Math.floor(Date.now() / 60000)}`,
     });
 
     // Hold slots atomically — re-check capacity inside transaction to prevent race conditions
@@ -1410,17 +1351,8 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
             });
           }, { isolationLevel: 'Serializable' });
 
-          // Update transaction & send email
+          // Update transaction (ad payment confirmation email removed — non-mandatory)
           await updateTransactionStatus(pi.id, 'COMPLETED', { stripePaymentIntentId: pi.id });
-          const adForEmail = await prisma.ad.findUnique({ where: { id: adId }, select: { business_name: true, contact_name: true, contact_email: true, target_zip_code: true, banner_url: true } });
-          sendAdPaymentEmail({
-            userId: meta.user_id || null,
-            adId,
-            dates: piDates,
-            totalCents: pi.amount,
-            businessName: adForEmail?.business_name,
-            zipCode: adForEmail?.target_zip_code,
-          }).catch((err) => console.warn('[webhook] ad payment email failed:', err?.message || err));
           // Ad was already approved before payment — no admin review needed
 
           // Redeem promo code if one was used — retry up to 3 times to prevent reuse
@@ -1873,24 +1805,26 @@ paymentsRouter.post('/admin/reset-unpaid-subscriptions', requireVerified as any,
 
     debugLog('🔍 Admin-initiated bulk reset of unpaid subscriptions...');
 
-    // Get all users and filter in JavaScript (simpler than complex Prisma query)
-    const allUsers = await prisma.user.findMany({
+    // Find users with paid plans — filter subscription_id in JavaScript (JSON null detection is Prisma-version-specific)
+    const paidPlanUsers = await prisma.user.findMany({
+      where: {
+        OR: [
+          { preferences: { path: ['plan'], equals: 'veteran' } },
+          { preferences: { path: ['plan'], equals: 'legend' } },
+        ],
+      },
       select: {
         id: true,
         email: true,
         display_name: true,
-        preferences: true
+        preferences: true,
       },
-      take: 10000
+      take: 5000,
     });
-
-    const usersToReset = allUsers.filter(user => {
+    // Filter out users who DO have a subscription_id — these are legitimate paid users
+    const usersToReset = paidPlanUsers.filter(user => {
       const prefs = (user.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
-      const plan = prefs.plan;
-      const subscriptionId = prefs.subscription_id;
-      
-      // Find users with paid plans but no subscription ID
-      return (plan === 'veteran' || plan === 'legend') && !subscriptionId;
+      return !prefs.subscription_id;
     });
 
     debugLog(`Found ${usersToReset.length} users with paid plans but no subscription ID`);
@@ -2134,15 +2068,7 @@ async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
         where: { id: ad_id },
         select: { business_name: true, target_zip_code: true },
       });
-      await sendAdPaymentEmail({
-        userId: inferredUserId,
-        fallbackEmail,
-        adId: String(ad_id),
-        dates,
-        totalCents,
-        businessName: adForEmail?.business_name,
-        zipCode: adForEmail?.target_zip_code,
-      });
+      // Ad payment confirmation email removed — non-mandatory
       // Ad was already approved before payment — no admin review needed
     } catch (e: any) {
       if (e?.slotFull) {
@@ -2261,6 +2187,7 @@ async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
         const subscriptionTier = plan === 'rookie' ? 'free' : plan === 'veteran' ? 'premium' : 'pro';
 
         // ATOMIC: user update + transaction log must succeed or fail together
+        // Cancel old subscription AFTER DB commit — if cancel-first fails, user loses access
         await prisma.$transaction([
           prisma.user.update({
             where: { id: userId },
@@ -2281,6 +2208,21 @@ async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
             },
           }),
         ]);
+
+        // Cancel old Stripe subscription AFTER successful DB commit to prevent double-billing.
+        // Order matters: new sub verified (line above) → DB updated → old sub canceled.
+        // If we canceled first and the DB write failed, the user would lose access entirely.
+        const oldSubId = existingPrefs.subscription_id;
+        if (oldSubId && prefs.subscription_id && oldSubId !== prefs.subscription_id && String(oldSubId).startsWith('sub_')) {
+          try {
+            await stripe.subscriptions.cancel(String(oldSubId));
+            console.info('[payments] Canceled old subscription on upgrade', { old_sub: oldSubId, new_sub: prefs.subscription_id, userId });
+          } catch (cancelErr: any) {
+            // Log but don't block — old sub may already be canceled/expired.
+            // Worst case: user gets double-billed briefly, but new sub is active and old will expire.
+            console.warn('[payments] Failed to cancel old subscription (may already be inactive):', cancelErr?.message || cancelErr);
+          }
+        }
         console.info('[payments] membership finalize', {
           userId,
           plan,
@@ -2686,15 +2628,7 @@ paymentsRouter.post('/apple/verify-ad-receipt', expressPkg.json(), requireVerifi
       }),
     ]);
 
-    const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
-    sendAdPaymentEmail({
-      userId,
-      adId: String(ad_id),
-      dates,
-      totalCents: verifiedCents,
-      businessName: ad.business_name,
-      zipCode: ad.target_zip_code,
-    }).catch((err) => console.warn('[payments] ad IAP confirmation email failed:', (err as any)?.message || err));
+    // Ad payment confirmation email removed — non-mandatory
 
     debugLog('apple-iap-ad', `User ${userId} paid for ad ${ad_id} via Apple IAP`);
     return res.json({ ok: true });
@@ -2717,20 +2651,57 @@ paymentsRouter.post('/apple/notifications', expressPkg.json(), asyncHandler(asyn
     }
 
     // Verify JWS signature using the x5c certificate chain from the header.
-    // The leaf cert signs the payload; we verify by extracting the public key.
+    // The leaf cert signs the payload; we verify the chain against Apple's root CA.
     let payload: any;
     try {
-      const header = jwt.decode(signedPayload, { complete: true })?.header as any;
-      if (header?.x5c?.length) {
-        // Extract leaf certificate public key for verification
-        const leafCertPem = `-----BEGIN CERTIFICATE-----\n${header.x5c[0]}\n-----END CERTIFICATE-----`;
-        const leafCert = crypto.createPublicKey(leafCertPem);
-        payload = jwt.verify(signedPayload, leafCert, { algorithms: ['ES256'] });
-      } else {
-        // Reject notifications without a valid certificate chain — never trust unverified payloads
+      // Step 1: Decode header WITHOUT verification to inspect x5c chain
+      const decoded = jwt.decode(signedPayload, { complete: true });
+      const header = decoded?.header as any;
+      if (!header?.x5c?.length) {
         console.error('[apple-s2s] No x5c certificate chain in JWS header — rejecting unverified payload');
         return res.status(400).json({ error: 'Missing certificate chain' });
       }
+
+      // Step 2: Enforce ES256 algorithm — reject anything else
+      if (header.alg !== 'ES256') {
+        console.error('[apple-s2s] Unexpected algorithm:', header.alg, '— only ES256 is accepted');
+        return res.status(403).json({ error: 'Invalid algorithm' });
+      }
+
+      // Step 3: Build PEM certs from x5c chain
+      const x5cCerts = (header.x5c as string[]).map(
+        (c: string) => `-----BEGIN CERTIFICATE-----\n${c}\n-----END CERTIFICATE-----`
+      );
+      const leafCertPem = x5cCerts[0];
+
+      // Step 4: Pin root cert to Apple Root CA - G3
+      // Apple's App Store S2S notifications always chain to "Apple Root CA - G3"
+      const rootCert = x5cCerts[x5cCerts.length - 1];
+      const rootX509 = new crypto.X509Certificate(rootCert);
+      // Check CN and O fields for Apple Root CA identity
+      if (!rootX509.subject.includes('Apple Root CA') || !rootX509.issuer.includes('Apple Root CA')) {
+        console.error('[apple-s2s] Root cert is NOT Apple Root CA — rejecting. Subject:', rootX509.subject, 'Issuer:', rootX509.issuer);
+        return res.status(403).json({ error: 'Invalid certificate chain' });
+      }
+      // Verify root is self-signed
+      if (!rootX509.checkIssued(rootX509)) {
+        console.error('[apple-s2s] Root cert is not self-signed — rejecting');
+        return res.status(403).json({ error: 'Invalid root certificate' });
+      }
+
+      // Step 5: Verify full chain — each cert issued by the next
+      for (let i = 0; i < x5cCerts.length - 1; i++) {
+        const cert = new crypto.X509Certificate(x5cCerts[i]);
+        const issuerCert = new crypto.X509Certificate(x5cCerts[i + 1]);
+        if (!cert.checkIssued(issuerCert)) {
+          console.error(`[apple-s2s] Certificate chain broken at index ${i} — rejecting`);
+          return res.status(403).json({ error: 'Broken certificate chain' });
+        }
+      }
+
+      // Step 6: Verify JWS signature with leaf cert public key — strict ES256 only
+      const leafCert = crypto.createPublicKey(leafCertPem);
+      payload = jwt.verify(signedPayload, leafCert, { algorithms: ['ES256'] });
     } catch (decodeErr) {
       console.error('[apple-s2s] Failed to verify/decode signedPayload:', decodeErr);
       return res.sendStatus(200);
@@ -2741,9 +2712,24 @@ paymentsRouter.post('/apple/notifications', expressPkg.json(), asyncHandler(asyn
       return res.sendStatus(200);
     }
 
+    // Step 7: Validate payload claims — bundleId and environment
+    const EXPECTED_BUNDLE_ID = process.env.APPLE_BUNDLE_ID || 'com.varsithub.varsityhub-ios';
+    const data = payload.data || {};
     const notificationType: string = payload.notificationType || '';
     const subtype: string = payload.subtype || '';
-    const data = payload.data || {};
+
+    // Verify bundleId matches our app (prevents cross-app replay)
+    if (data.bundleId && data.bundleId !== EXPECTED_BUNDLE_ID) {
+      console.error('[apple-s2s] bundleId mismatch:', data.bundleId, 'expected:', EXPECTED_BUNDLE_ID);
+      return res.status(403).json({ error: 'Bundle ID mismatch' });
+    }
+
+    // Reject sandbox notifications in production (optional safety check)
+    const environment: string = data.environment || payload.environment || 'Production';
+    if (process.env.NODE_ENV === 'production' && environment === 'Sandbox') {
+      console.warn('[apple-s2s] Rejecting sandbox notification in production');
+      return res.sendStatus(200);
+    }
 
     // Verify inner JWS tokens using their own x5c certificate chains (Apple best practice).
     // Falls back to jwt.decode if verification fails — the outer payload was already verified.
@@ -2772,7 +2758,6 @@ paymentsRouter.post('/apple/notifications', expressPkg.json(), asyncHandler(asyn
     const originalTransactionId: string = transactionInfo.originalTransactionId || '';
     const productId: string = transactionInfo.productId || '';
     const expiresDate: number = transactionInfo.expiresDate || 0; // ms timestamp
-    const environment: string = data.environment || payload.environment || 'Production';
 
     console.log('[apple-s2s] Notification received:', {
       notificationType,
@@ -2805,15 +2790,16 @@ paymentsRouter.post('/apple/notifications', expressPkg.json(), asyncHandler(asyn
     }
 
     // Find user by apple_original_transaction_id stored in preferences JSON
-    // This was saved during verify-receipt (see line ~2430)
-    // Escape LIKE wildcards to prevent injection via crafted transaction IDs
-    const escapedTxId = originalTransactionId.replace(/[%_\\]/g, '\\$&');
-    const users = await (prisma as any).$queryRaw`
-      SELECT id, preferences FROM "User"
-      WHERE preferences::text LIKE ${'%' + escapedTxId + '%'} ESCAPE '\\'
-      LIMIT 1
-    `;
-    const matchedUser = Array.isArray(users) && users.length > 0 ? users[0] : null;
+    // Uses PostgreSQL JSON path query — exact match, indexed, no LIKE needed
+    const matchedUser = await prisma.user.findFirst({
+      where: {
+        preferences: {
+          path: ['apple_original_transaction_id'],
+          equals: originalTransactionId,
+        },
+      },
+      select: { id: true, preferences: true },
+    });
 
     if (!matchedUser) {
       console.warn('[apple-s2s] No user found for originalTransactionId:', originalTransactionId);

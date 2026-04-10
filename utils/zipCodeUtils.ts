@@ -25,19 +25,22 @@ interface ZipCodeAvailability {
 
 
 /**
- * Validates US zip code format
+ * Validates international postal code format
+ * Supports: US (12345, 12345-6789), UK (SW1A 1AA), Canada (K1A 0B1), Japan (123-4567), etc.
  */
 export function isValidZipCode(zip: string): boolean {
-  // 5-digit or 5+4 format
-  const zipRegex = /^\d{5}(-\d{4})?$/;
+  // Allow alphanumeric with optional spaces/hyphens, 2-12 chars
+  // Starts and ends with alphanumeric to prevent edge cases
+  const zipRegex = /^[A-Za-z0-9][A-Za-z0-9\s\-]{0,10}[A-Za-z0-9]$/;
   return zipRegex.test(zip);
 }
 
 /**
- * Normalizes zip code to 5-digit format
+ * Normalizes zip code format (uppercase, trim whitespace)
+ * Preserves hyphens and spaces for international postal codes
  */
 export function normalizeZipCode(zip: string): string {
-  return zip.replace(/[^\d]/g, '').substring(0, 5);
+  return zip.trim().toUpperCase();
 }
 
 /**

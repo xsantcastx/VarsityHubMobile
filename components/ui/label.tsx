@@ -6,7 +6,7 @@ export function Label({ style, ...props }: TextProps) {
 }
 
 const styles = StyleSheet.create({
-  label: { fontSize: 14, color: '#374151' },
+  label: { fontSize: 14 },
 });
 
 export default Label;

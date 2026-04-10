@@ -20,7 +20,7 @@ export function AvatarFallback({ children }: { children?: React.ReactNode }) {
 
 const styles = StyleSheet.create({
   fallback: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#D1D5DB' },
-  fallbackText: { fontWeight: '700', color: '#374151' },
+  fallbackText: { fontWeight: '700' },
 });
 
 export default Avatar;

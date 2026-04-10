@@ -103,7 +103,7 @@ const styles = StyleSheet.create({
   },
   cancelText: {
     fontSize: 16,
-    color: '#6B7280',
+    color: Colors.light.mutedText,
     textAlign: 'center',
     marginBottom: 32,
     lineHeight: 24,
@@ -123,7 +123,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   secondaryButtonText: {
-    color: '#6B7280',
+    color: Colors.light.mutedText,
     fontSize: 16,
     fontWeight: '500',
   },

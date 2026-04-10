@@ -126,7 +126,7 @@ const styles = StyleSheet.create({
   toggleTextOn: { color: '#FFFFFF' }, // White text for active state
   row: { padding: 12, borderRadius: 12, backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#D1D5DB' },
   title: { fontWeight: '800', fontSize: 16 },
-  meta: { color: '#6b7280' },
+  meta: { color: Colors.light.mutedText },
   badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, borderWidth: 1, borderColor: '#D1D5DB', backgroundColor: '#D1D5DB' },
   badgeText: { fontWeight: '800', fontSize: 10 },
   btn: { backgroundColor: '#111827', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },

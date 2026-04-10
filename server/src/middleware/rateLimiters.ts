@@ -364,6 +364,16 @@ export const paymentLimiter = createLimiter({
 });
 
 /**
+ * Promo code validation attempts
+ * 10 attempts per 15 minutes per user (prevents brute force code guessing)
+ */
+export const promoCodeLimiter = createLimiter({
+  name: 'promo-code',
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: rateLimitingDisabled ? 100000 : 10,
+});
+
+/**
  * Alternative zips (public geocoding endpoint)
  * 30 per minute per IP to prevent abuse
  */
@@ -469,6 +479,7 @@ export const rateLimiters = {
   vote: voteLimiter,
   adCreation: adCreationLimiter,
   payment: paymentLimiter,
+  promoCode: promoCodeLimiter,
   userLookup: userLookupLimiter,
   mentionsSearch: mentionsSearchLimiter,
 };

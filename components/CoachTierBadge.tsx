@@ -6,7 +6,8 @@
  */
 
 import { Ionicons } from '@expo/vector-icons';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { Colors } from '@/constants/Colors';
 
 export type CoachTier = 'rookie' | 'veteran' | 'legend';
 
@@ -107,6 +108,8 @@ interface TierBenefitsProps {
 }
 
 export function CoachTierBenefits({ tier, compact = false }: TierBenefitsProps) {
+  const colorScheme = useColorScheme() ?? 'light';
+  const theme = Colors[colorScheme];
   const benefits = getTierBenefits(tier);
   const config = getTierConfig(tier);
 
@@ -115,19 +118,19 @@ export function CoachTierBenefits({ tier, compact = false }: TierBenefitsProps) 
       <View style={styles.benefitsHeader}>
         <CoachTierBadge tier={tier} size="medium" showLabel={true} />
         {!compact && (
-          <Text style={styles.benefitsPrice}>{benefits.price}</Text>
+          <Text style={[styles.benefitsPrice, { color: theme.text }]}>{benefits.price}</Text>
         )}
       </View>
-      
+
       {!compact && (
-        <Text style={styles.benefitsDescription}>{benefits.description}</Text>
+        <Text style={[styles.benefitsDescription, { color: theme.mutedText }]}>{benefits.description}</Text>
       )}
       
       <View style={styles.benefitsList}>
         {benefits.features.map((feature, index) => (
           <View key={index} style={styles.benefitRow}>
             <Ionicons name="checkmark-circle" size={16} color={config.backgroundColor} />
-            <Text style={styles.benefitText}>{feature}</Text>
+            <Text style={[styles.benefitText, { color: theme.text }]}>{feature}</Text>
           </View>
         ))}
       </View>
@@ -222,11 +225,9 @@ const styles = StyleSheet.create({
   benefitsPrice: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#111827',
   },
   benefitsDescription: {
     fontSize: 14,
-    color: '#6B7280',
     marginBottom: 12,
     lineHeight: 20,
   },
@@ -240,7 +241,6 @@ const styles = StyleSheet.create({
   },
   benefitText: {
     fontSize: 14,
-    color: '#374151',
     flex: 1,
     lineHeight: 20,
     fontWeight: '700',

@@ -5,7 +5,7 @@ import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { requireOnboarded } from '../middleware/requireOnboarded.js';
-import { postCreationLimiter, commentLimiter, interactionLimiter } from '../middleware/rateLimiters.js';
+import { commentLimiter, interactionLimiter } from '../middleware/rateLimiters.js';
 import { haversineDistance, getZipCoordinates } from '../lib/geoUtils.js';
 import { geocodeLocation } from '../lib/geocoding.js';
 import { detectMediaType, getVideoPreviewUrl } from '../lib/mediaUtils.js';
@@ -159,6 +159,8 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
         ],
       },
       select: { id: true },
+      take: 500,
+      orderBy: { start_time: 'desc' },
     });
     const gameIds = gamesWithFollowedTeams.map((g) => g.id);
     where.OR = [
@@ -567,10 +569,9 @@ import { verifyEventPostingPermission } from '../lib/geofencing.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
 import { notifyCommentReply, notifyPostInteraction } from '../lib/notifications.js';
 import { notifyMentions } from '../lib/mentionNotifications.js';
-import { validateContent } from '../lib/contentFilter.js';
 import { stripHtml } from '../lib/sanitizeHtml.js';
 
-postsRouter.post('/', requireVerified as any, requireOnboarded as any, postCreationLimiter, asyncHandler(async (req: AuthedRequest, res) => {
+postsRouter.post('/', requireVerified as any, requireOnboarded as any, asyncHandler(async (req: AuthedRequest, res) => {
   // Sample game IDs (sample-*) are handled downstream — stored in title with [SAMPLE_GAME:] prefix
   // instead of game_id (which has a foreign key constraint). See line ~604.
 
@@ -584,15 +585,6 @@ postsRouter.post('/', requireVerified as any, requireOnboarded as any, postCreat
   }
   const data = parsed.data;
 
-  // Content filter: profanity, spam, bullying
-  const filterResult = validateContent({ title: data.title, content: data.content });
-  if (!filterResult.valid) {
-    return res.status(400).json({
-      error: filterResult.error,
-      code: filterResult.code,
-    });
-  }
-  
   // Normalize and enrich location
   let lat: number | null = null;
   let lng: number | null = null;
@@ -1126,15 +1118,6 @@ postsRouter.post('/:id/comments', requireAuth as any, commentLimiter, asyncHandl
   const { content, parent_id } = parsed.data;
   const sanitizedContent = stripHtml(content);
 
-  // Content filter: profanity, spam, bullying
-  const filterResult = validateContent({ content: sanitizedContent });
-  if (!filterResult.valid) {
-    return res.status(400).json({
-      error: filterResult.error,
-      code: filterResult.code,
-    });
-  }
-
   // Validate parent_id if provided (reply to comment)
   if (parent_id) {
     const parentComment = await prisma.comment.findFirst({
@@ -1231,21 +1214,23 @@ postsRouter.post('/:id/upvote', requireAuth as any, interactionLimiter, async (r
   const upvoteBlocked = await getBlockedUserIds(userId);
   if (upvoteBlocked.includes(postExists.author_id)) return res.status(404).json({ error: 'Post not found' });
 
-  const existing = await prisma.postUpvote.findUnique({ where: { post_id_user_id: { post_id: postId, user_id: userId } } });
-  if (existing) {
-    await prisma.$transaction([
-      prisma.postUpvote.delete({ where: { post_id_user_id: { post_id: postId, user_id: userId } } }),
-      prisma.post.update({ where: { id: postId }, data: { upvotes_count: { decrement: 1 } } }),
-    ]);
-    const { upvotes_count } = await prisma.post.findFirstOrThrow({ where: { id: postId, deleted_at: null }, select: { upvotes_count: true } });
-    return res.json({ has_upvoted: false, upvotes_count, upvoted: false, count: upvotes_count });
-  }
+  // Atomic upvote toggle — check + mutate inside one Serializable transaction to prevent race conditions
+  const result = await prisma.$transaction(async (tx) => {
+    const existing = await tx.postUpvote.findUnique({ where: { post_id_user_id: { post_id: postId, user_id: userId } } });
+    if (existing) {
+      await tx.postUpvote.delete({ where: { post_id_user_id: { post_id: postId, user_id: userId } } });
+      const updated = await tx.post.update({ where: { id: postId }, data: { upvotes_count: { decrement: 1 } }, select: { upvotes_count: true } });
+      return { has_upvoted: false, upvotes_count: updated.upvotes_count };
+    }
+    await tx.postUpvote.create({ data: { post_id: postId, user_id: userId } });
+    const updated = await tx.post.update({ where: { id: postId }, data: { upvotes_count: { increment: 1 } }, select: { upvotes_count: true } });
+    return { has_upvoted: true, upvotes_count: updated.upvotes_count };
+  }, { isolationLevel: 'Serializable' });
 
-  await prisma.$transaction([
-    prisma.postUpvote.create({ data: { post_id: postId, user_id: userId } }),
-    prisma.post.update({ where: { id: postId }, data: { upvotes_count: { increment: 1 } } }),
-  ]);
-  const { upvotes_count } = await prisma.post.findFirstOrThrow({ where: { id: postId, deleted_at: null }, select: { upvotes_count: true } });
+  if (!result.has_upvoted) {
+    return res.json({ has_upvoted: false, upvotes_count: result.upvotes_count, upvoted: false, count: result.upvotes_count });
+  }
+  const { upvotes_count } = result;
 
   // Notify post author (if not self)
   try {
@@ -1465,20 +1450,6 @@ postsRouter.patch('/:id', requireAuth as any, requireOnboarded as any, asyncHand
       return res.status(400).json({ error: 'No valid fields to update' });
     }
 
-    // Content filter when updating content/title
-    if (updateData.content !== undefined || updateData.title !== undefined) {
-      const filterResult = validateContent({
-        title: updateData.title as string | undefined,
-        content: updateData.content as string | undefined,
-      });
-      if (!filterResult.valid) {
-        return res.status(400).json({
-          error: filterResult.error,
-          code: filterResult.code,
-        });
-      }
-    }
-
     const updatedPost = await prisma.post.update({
       where: { id: postId },
       data: updateData,
@@ -1568,15 +1539,6 @@ postsRouter.patch('/:postId/comments/:commentId', requireAuth as any, asyncHandl
       return res.status(403).json({ error: 'You can only edit your own comments' });
     }
 
-    // Content filter
-    const filterResult = validateContent({ content: parsed.data.content });
-    if (!filterResult.valid) {
-      return res.status(400).json({
-        error: filterResult.error,
-        code: filterResult.code,
-      });
-    }
-    
     // Update the comment (sanitize HTML to prevent XSS)
     const updatedComment = await prisma.comment.update({
       where: { id: commentId },
@@ -1604,13 +1566,6 @@ postsRouter.post('/collage', requireVerified as any, requireOnboarded as any, as
   const { title, postIds } = parsed.data;
 
   const collageTitle = typeof title === 'string' ? title.trim() : 'My Collage';
-  const filterResult = validateContent({ title: collageTitle });
-  if (!filterResult.valid) {
-    return res.status(400).json({
-      error: filterResult.error,
-      code: filterResult.code,
-    });
-  }
 
   const posts = await prisma.post.findMany({
     where: {

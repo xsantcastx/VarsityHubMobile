@@ -147,6 +147,7 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
   return (
     <View style={{ position: 'relative' }}>
     <Pressable
+      testID={`post-card-${post.id}`}
       onPress={onPress}
       onPressIn={() => setPressed(true)}
       onPressOut={() => setPressed(false)}
@@ -177,6 +178,7 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
       {showAuthorHeader && author ? (
         <View style={styles.authorRow}>
           <Pressable
+            testID={`post-card-author-${post.id}`}
             style={styles.authorInfo}
             onPress={() => { if (!author?.id) return; void router.push({ pathname: '/user-profile', params: { id: String(author.id), username: author.username || 'User' } });
             }}
@@ -187,8 +189,8 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
               {author?.avatar_url ? (
                 <Image source={{ uri: optimizeImageUrl(String(author.avatar_url), 80) }} style={styles.authorAvatar} contentFit="cover" />
               ) : (
-                <View style={[styles.authorAvatar, styles.avatarFallback]}>
-                  <Text style={styles.avatarFallbackText}>
+                <View style={[styles.authorAvatar, styles.avatarFallback, { backgroundColor: Colors[colorScheme].mutedText }]}>
+                  <Text style={[styles.avatarFallbackText, { color: Colors[colorScheme].background }]}>
                     {(author?.display_name || author?.username || '?').charAt(0).toUpperCase()}
                   </Text>
                 </View>
@@ -200,6 +202,7 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
           </Pressable>
           {currentUser && (
             <Pressable
+              testID={`post-card-actions-${post.id}`}
               style={styles.actionsButton}
               onPress={() => setShowActionsMenu(true)}
               accessibilityRole="button"
@@ -273,10 +276,11 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
 
       {/* Meta + actions footer */}
       <View style={styles.footer}>
-        <Pressable 
-          onPress={onUpvote} 
-          style={[styles.upvoteBtn, { backgroundColor: Colors[colorScheme].tint }]} 
-          accessibilityRole="button" 
+        <Pressable
+          testID={`post-card-upvote-${post.id}`}
+          onPress={onUpvote}
+          style={[styles.upvoteBtn, { backgroundColor: Colors[colorScheme].tint }]}
+          accessibilityRole="button"
           accessibilityLabel="Upvote"
         >
           <MaterialIcons name="arrow-upward" size={16} color={Colors[colorScheme].background} />
@@ -287,7 +291,13 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
           <MaterialIcons name="chat-bubble-outline" size={16} color={Colors[colorScheme].mutedText} />
           <Text style={[styles.metaText, { color: Colors[colorScheme].mutedText }]}>{post.comments_count || 0}</Text>
         </View>
-        <Pressable onPress={onBookmark} style={[styles.bookmarkBtn, { backgroundColor: Colors[colorScheme].surface }]} accessibilityRole="button" accessibilityLabel="Bookmark">
+        <Pressable
+          testID={`post-card-bookmark-${post.id}`}
+          onPress={onBookmark}
+          style={[styles.bookmarkBtn, { backgroundColor: Colors[colorScheme].surface }]}
+          accessibilityRole="button"
+          accessibilityLabel={bookmarked ? "Remove bookmark" : "Bookmark"}
+        >
           <MaterialIcons name={bookmarked ? 'bookmark' : 'bookmark-outline'} size={18} color={Colors[colorScheme].text} />
           <Text style={[styles.bookmarkText, { color: Colors[colorScheme].text }]}>{bookmarksCount}</Text>
         </Pressable>
@@ -308,6 +318,7 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
             {isAuthor ? (
               <>
                 <Pressable
+                  testID={`post-card-edit-${post.id}`}
                   style={styles.actionItem}
                   onPress={() => {
                     setShowActionsMenu(false);
@@ -321,6 +332,7 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
                 </Pressable>
                 <View style={[styles.actionSeparator, { backgroundColor: theme.border }]} />
                 <Pressable
+                  testID={`post-card-delete-${post.id}`}
                   style={styles.actionItem}
                   onPress={() => {
                     setShowActionsMenu(false);
@@ -335,6 +347,7 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
               </>
             ) : (
               <Pressable
+                testID={`post-card-report-${post.id}`}
                 style={styles.actionItem}
                 onPress={() => {
                   setShowActionsMenu(false);
@@ -472,8 +485,8 @@ const styles = StyleSheet.create({
   authorInfo: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
   authorAvatarWrap: { width: 28, height: 28, borderRadius: 14, overflow: 'hidden' },
   authorAvatar: { width: 28, height: 28, borderRadius: 14 },
-  avatarFallback: { backgroundColor: '#374151', alignItems: 'center', justifyContent: 'center' },
-  avatarFallbackText: { color: '#fff', fontWeight: '700', fontSize: 12 },
+  avatarFallback: { alignItems: 'center', justifyContent: 'center' },
+  avatarFallbackText: { fontWeight: '700', fontSize: 12 },
   authorName: { fontWeight: '700', maxWidth: 220 },
   actionsButton: { padding: 4, borderRadius: 12 },
   

@@ -26,6 +26,7 @@ function parseLocalDate(s: string): Date {
 
 export default function DateField({ label, value, onChange, placeholder }: DateFieldProps) {
   const colorScheme = useColorScheme() ?? 'light';
+  const theme = Colors[colorScheme];
   const [show, setShow] = useState(false);
   const [date, setDate] = useState(value ? parseLocalDate(value) : new Date());
   // Ref to avoid stale closure in handleConfirm — spinner onChange fires
@@ -87,7 +88,7 @@ export default function DateField({ label, value, onChange, placeholder }: DateF
             <View style={[styles.modalContent, { backgroundColor: Colors[colorScheme].background }]}>
               <View style={styles.modalHeader}>
                 <Pressable onPress={() => setShow(false)}>
-                  <Text style={styles.cancelButton}>Cancel</Text>
+                  <Text style={[styles.cancelButton, { color: theme.mutedText }]}>Cancel</Text>
                 </Pressable>
                 <Text style={[styles.modalTitle, { color: Colors[colorScheme].text }]}>Select Date</Text>
                 <Pressable onPress={handleConfirm}>
@@ -170,7 +171,6 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     fontSize: 16,
-    color: '#6B7280',
   },
   doneButton: {
     fontSize: 16,

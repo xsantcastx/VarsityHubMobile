@@ -47,50 +47,65 @@
                                         </p>
                                         <table role="presentation" style="width: 100%; border-collapse: collapse;">
                                             <tr>
-                                                <td style="padding: 8px 0; font-size: 14px; color: #6b7280;">Reporter Name:</td>
-                                                <td style="padding: 8px 0; font-size: 14px; color: #111827; font-weight: 600; text-align: right;">{{reporter_name}}</td>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #6b7280;">Report ID:</td>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #111827; font-weight: 600; text-align: right;">{{report_id}}</td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #6b7280; border-top: 1px solid #e5e7eb;">Reporter Name:</td>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #111827; font-weight: 600; text-align: right; border-top: 1px solid #e5e7eb;">{{reporter_name}}</td>
                                             </tr>
                                             <tr>
                                                 <td style="padding: 8px 0; font-size: 14px; color: #6b7280; border-top: 1px solid #e5e7eb;">Reporter Email:</td>
                                                 <td style="padding: 8px 0; font-size: 14px; color: #111827; font-weight: 600; text-align: right; border-top: 1px solid #e5e7eb;">{{reporter_email}}</td>
                                             </tr>
                                             <tr>
-                                                <td style="padding: 8px 0; font-size: 14px; color: #6b7280; border-top: 1px solid #e5e7eb;">User ID:</td>
-                                                <td style="padding: 8px 0; font-size: 14px; color: #111827; font-weight: 600; text-align: right; border-top: 1px solid #e5e7eb;">{{user_id}}</td>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #6b7280; border-top: 1px solid #e5e7eb;">Content Type:</td>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #111827; font-weight: 600; text-align: right; border-top: 1px solid #e5e7eb;">{{reported_type}}</td>
                                             </tr>
                                             <tr>
-                                                <td style="padding: 8px 0; font-size: 14px; color: #6b7280; border-top: 1px solid #e5e7eb;">Submitted At:</td>
-                                                <td style="padding: 8px 0; font-size: 14px; color: #111827; font-weight: 600; text-align: right; border-top: 1px solid #e5e7eb;">{{submitted_at}}</td>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #6b7280; border-top: 1px solid #e5e7eb;">Content ID:</td>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #111827; font-weight: 600; text-align: right; border-top: 1px solid #e5e7eb;">{{reported_id}}</td>
                                             </tr>
                                         </table>
                                     </td>
                                 </tr>
                             </table>
 
-                            <!-- Subject -->
+                            <!-- Reason -->
                             <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 24px;">
                                 <tr>
                                     <td style="padding: 20px;">
                                         <p style="margin: 0 0 8px; font-size: 14px; color: #6b7280; font-weight: 600;">
-                                            Subject
+                                            Reason
                                         </p>
                                         <p style="margin: 0; font-size: 16px; line-height: 1.6; color: #111827; font-weight: 600;">
-                                            {{subject}}
+                                            {{report_reason}}
                                         </p>
                                     </td>
                                 </tr>
                             </table>
 
-                            <!-- Message -->
+                            <!-- Details -->
                             <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f9fafb; border-left: 4px solid #2563eb; border-radius: 4px; margin-bottom: 24px;">
                                 <tr>
                                     <td style="padding: 16px;">
                                         <p style="margin: 0 0 8px; font-size: 14px; color: #6b7280; font-weight: 600;">
-                                            Message
+                                            Details
                                         </p>
                                         <p style="margin: 0; font-size: 14px; line-height: 1.6; color: #374151;">
-                                            {{message}}
+                                            {{report_details}}
                                         </p>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <!-- Review Button -->
+                            <table role="presentation" style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
+                                <tr>
+                                    <td align="center">
+                                        <a href="{{dashboard_url}}" style="display: inline-block; padding: 14px 32px; background-color: #2563eb; color: #ffffff; text-decoration: none; border-radius: 8px; font-size: 16px; font-weight: 600;">
+                                            Review in Admin Dashboard
+                                        </a>
                                     </td>
                                 </tr>
                             </table>

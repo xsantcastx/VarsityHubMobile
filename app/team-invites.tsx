@@ -33,7 +33,7 @@ function TeamInvitesScreen() {
           title: 'Invite Accepted!',
           message: 'You have successfully joined the team. Would you like to view the team now?',
           options: [
-            { label: 'Later', onPress: () => {}, color: '#6b7280' },
+            { label: 'Later', onPress: () => {}, color: Colors.light.mutedText },
             { label: 'View Team', onPress: () => router.push(`/team-viewer?id=${teamId}`), color: '#2563eb' }
           ]
         });

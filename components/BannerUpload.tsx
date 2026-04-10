@@ -49,6 +49,7 @@ export function BannerUpload({
   onScrollLock,
 }: BannerUploadProps) {
   const colorScheme = useColorScheme() ?? 'light';
+  const theme = Colors[colorScheme];
   const [fitMode, setFitMode] = useState<BannerFitMode>('fill');
   const [uploading, setUploading] = useState(false);
   const [position, setPosition] = useState<BannerPosition>({ x: 50, y: 50 });
@@ -266,8 +267,8 @@ export function BannerUpload({
                   { opacity: hintOpacity },
                 ]}
               >
-                <MaterialIcons name="aspect-ratio" size={16} color="#111827" />
-                <Text style={styles.hintText}>Pinch to crop</Text>
+                <MaterialIcons name="aspect-ratio" size={16} color={theme.text} />
+                <Text style={[styles.hintText, { color: theme.text }]}>Pinch to crop</Text>
               </Animated.View>
             )}
             {/* Gesture overlay for Fill mode */}
@@ -477,7 +478,6 @@ const styles = StyleSheet.create({
   },
   hintText: {
     fontSize: 12,
-    color: '#111827',
     fontWeight: '600',
   },
 });

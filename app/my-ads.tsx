@@ -498,7 +498,7 @@ function badgeTextStyleForStatus(status?: string) {
   if (s === 'approved') return { color: '#059669' };
   if (s === 'pending') return { color: '#F59E0B' };
   if (s === 'rejected') return { color: '#EF4444' };
-  if (s === 'archived') return { color: '#6B7280' };
+  if (s === 'archived') return { color: Colors.light.mutedText };
   return { color: '#3B82F6' };
 }
 function badgeStyleForPayment(p?: string, colorScheme: 'light' | 'dark' = 'light') {
@@ -575,7 +575,7 @@ const styles = StyleSheet.create({
   bannerPlaceholderText: {
     marginTop: 6,
     fontSize: 12,
-    color: '#6B7280',
+    color: Colors.light.mutedText,
   },
   infoContainer: {
     padding: 16,
@@ -672,7 +672,7 @@ const styles = StyleSheet.create({
   dateBadgeText: {
     fontSize: 12,
     fontWeight: '500',
-    color: '#374151',
+    color: Colors.light.text,
   },
   dateBadgeTextCompleted: {
     color: '#065F46',

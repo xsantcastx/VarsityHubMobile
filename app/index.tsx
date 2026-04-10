@@ -65,10 +65,12 @@ export default function Index() {
       backgroundColor: Colors[colorScheme].background,
       gap: 24,
     }}>
-      <Image
-        source={require('../assets/images/logo.svg')}
-        style={{ width: 80, height: 80, borderRadius: 16 }}
-      />
+      <View style={{ backgroundColor: '#FFFFFF', borderRadius: 16, padding: 4 }}>
+        <Image
+          source={require('../assets/images/logo.svg')}
+          style={{ width: 80, height: 80, borderRadius: 12 }}
+        />
+      </View>
       <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
     </View>
   );

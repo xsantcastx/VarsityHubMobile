@@ -96,6 +96,7 @@ const RSVPBadge = ({ gameItem, onRSVPChange }: { gameItem: any, onRSVPChange?: (
 
   return (
     <Pressable
+      testID="feed-rsvp-button"
       onPress={handleRSVP}
       disabled={isLoading || isEventPast}
       style={{
@@ -666,6 +667,7 @@ export default function FeedScreen() {
     if (!me || emailVerified) return null;
     return (
       <Pressable
+        testID="feed-verify-email-button"
         onPress={() => void router.push('/verify-email')}
         style={{
           padding: 10,
@@ -706,6 +708,7 @@ export default function FeedScreen() {
             Enable location or add your zip code in Settings to see local content and ads.
           </Text>
           <Pressable
+            testID="feed-zip-code-settings-button"
             onPress={() => void router.push('/settings/zip-code')}
             style={{
               alignSelf: 'flex-start',
@@ -722,6 +725,7 @@ export default function FeedScreen() {
           </Pressable>
         </View>
         <Pressable
+          testID="feed-dismiss-location-button"
           onPress={() => setLocationPromptDismissed(true)}
           hitSlop={8}
           accessibilityRole="button"
@@ -747,10 +751,11 @@ export default function FeedScreen() {
         <View style={styles.headerRow}>
           {/* Notifications on LEFT */}
           <View style={styles.headerActions}>
-            <Pressable 
-              onPress={() => setNotificationsMenuOpen(true)} 
-              style={styles.iconButton} 
-              accessibilityRole="button" 
+            <Pressable
+              testID="feed-notifications-button"
+              onPress={() => setNotificationsMenuOpen(true)}
+              style={styles.iconButton}
+              accessibilityRole="button"
               accessibilityLabel="Open notifications"
             >
               <View>
@@ -764,8 +769,9 @@ export default function FeedScreen() {
             </Pressable>
           </View>
           <View style={{ flex: 1 }} />
-          <Pressable 
-            style={styles.brandRow} 
+          <Pressable
+            testID="feed-brand-button"
+            style={styles.brandRow}
             onPress={openInstagram}
             accessibilityRole="button"
             accessibilityLabel="Open VarsityHub Instagram"
@@ -776,7 +782,8 @@ export default function FeedScreen() {
           <View style={{ flex: 1 }} />
           {/* Messages on RIGHT */}
           <View style={styles.headerActions}>
-            <Pressable 
+            <Pressable
+              testID="feed-messages-button"
               onPress={() => void router.push('/messages' as any)}
               style={styles.iconButton} 
               accessibilityRole="button" 
@@ -802,6 +809,7 @@ export default function FeedScreen() {
           <MaterialIcons name="cloud-off" size={48} color={Colors[colorScheme].mutedText} style={{ marginBottom: 12 }} />
           <Text style={{ color: Colors[colorScheme].text, fontSize: 16, fontWeight: '600', textAlign: 'center', marginBottom: 6 }}>{error}</Text>
           <Pressable
+            testID="feed-retry-button"
             onPress={() => void load()}
             style={{ marginTop: 12, paddingVertical: 10, paddingHorizontal: 24, borderRadius: 8, backgroundColor: Colors[colorScheme].tint }}
             accessibilityLabel="Retry loading feed"
@@ -811,6 +819,7 @@ export default function FeedScreen() {
           </Pressable>
           {(error.includes('sign in') || error.includes('Sign in')) && (
             <Pressable
+              testID="feed-signin-button"
               onPress={() => void router.push('/sign-in')}
               style={{ marginTop: 10, paddingVertical: 8 }}
               accessibilityLabel="Sign in"
@@ -872,6 +881,7 @@ export default function FeedScreen() {
             Follow teams and coaches to see their content here.
           </Text>
           <Pressable
+            testID="feed-discover-games-button"
             onPress={() => router.push('/(tabs)/discover')}
             style={{
               backgroundColor: Colors[colorScheme].tint,
@@ -882,10 +892,13 @@ export default function FeedScreen() {
               width: '100%',
               alignItems: 'center',
             }}
+            accessibilityRole="button"
+            accessibilityLabel="Discover nearby games"
           >
             <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '600' }}>Discover Nearby Games</Text>
           </Pressable>
           <Pressable
+            testID="feed-browse-teams-button"
             onPress={() => router.push('/(tabs)/discover')}
             style={{
               backgroundColor: 'transparent',
@@ -897,6 +910,8 @@ export default function FeedScreen() {
               width: '100%',
               alignItems: 'center',
             }}
+            accessibilityRole="button"
+            accessibilityLabel="Browse teams to follow"
           >
             <Text style={{ color: Colors[colorScheme].text, fontSize: 15, fontWeight: '600' }}>Browse Teams</Text>
           </Pressable>
@@ -937,7 +952,13 @@ export default function FeedScreen() {
             <Text style={{ flex: 1, fontSize: 12, color: colorScheme === 'dark' ? '#BFDBFE' : '#1E40AF', lineHeight: 17 }}>
               These are example games to help you explore VarsityHub. Real games will appear once coaches in your area sign up.
             </Text>
-            <Pressable onPress={() => setShowSeedBanner(false)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Dismiss sample content notice">
+            <Pressable
+              testID="feed-dismiss-seed-banner"
+              onPress={() => setShowSeedBanner(false)}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Dismiss sample content notice"
+            >
               <MaterialIcons name="close" size={16} color={colorScheme === 'dark' ? '#93C5FD' : '#2563EB'} />
             </Pressable>
           </View>
@@ -1086,6 +1107,7 @@ export default function FeedScreen() {
 
               return (
                 <Pressable
+                  testID={`feed-game-card-${gameItem.id}`}
                   key={String(gameItem.id)}
                   style={[styles.singleEventCard, isLive ? { borderWidth: 2, borderColor: '#EF4444' } : null]}
                   onPress={() => void router.push({ pathname: '/game/[id]', params: { id: String(gameItem.id) } })}
@@ -1176,6 +1198,7 @@ export default function FeedScreen() {
                     : 'Check back soon — when they post, it will show up here.'}
                 </Text>
                 <Pressable
+                  testID="feed-discover-users-button"
                   style={[styles.socialFeedEmptyButton, { backgroundColor: Colors[colorScheme].tint }]}
                   onPress={() => void router.push('/(tabs)/discover')}
                   accessibilityLabel={followedFeedMeta?.following_count === 0 ? 'Find people to follow' : 'Discover more'}
@@ -1207,6 +1230,7 @@ export default function FeedScreen() {
                   const gradient: [string, string] = index % 2 === 0 ? ['#1e293b', '#0f172a'] : ['#0f172a', '#1e293b'];
                   return (
                     <Pressable
+                      testID={`feed-team-post-card-${post.id}`}
                       key={String(post.id)}
                       style={styles.singleEventCard}
                       onPress={() => void router.push(`/post-detail?id=${encodeURIComponent(String(post.id))}&postIds=${followedTeamsPosts.map((p: any) => String(p.id)).join(',')}&index=${index}`)}
@@ -1269,6 +1293,7 @@ export default function FeedScreen() {
                     : 'Check back soon — when they post, it will show up here.'}
                 </Text>
                 <Pressable
+                  testID="feed-discover-teams-button"
                   style={[styles.socialFeedEmptyButton, { backgroundColor: Colors[colorScheme].tint }]}
                   onPress={() => void router.push('/(tabs)/discover')}
                   accessibilityLabel={followedTeamsFeedMeta?.followed_teams_count === 0 ? 'Find teams to follow' : 'Discover more'}
@@ -1328,6 +1353,7 @@ export default function FeedScreen() {
 
                 return (
                   <Pressable
+                    testID={`feed-nearby-game-card-${item.id}`}
                     key={String(item.id)}
                     style={styles.singleEventCard}
                     onPress={() => void router.push({ pathname: '/game/[id]', params: { id: String(item.id) } })}
@@ -1385,6 +1411,7 @@ export default function FeedScreen() {
           <View style={styles.verticalFeedSection}>
             <Text style={styles.sectionTitle}>{verticalFeedTitle}</Text>
             <Pressable
+              testID="feed-vertical-feed-button"
               onPress={openVerticalFeed}
               style={styles.verticalFeedCard}
               accessibilityRole="button"
@@ -1440,6 +1467,7 @@ export default function FeedScreen() {
           <View style={[styles.menuHeader, { borderBottomColor: Colors[colorScheme].border }]}>
             <Text style={[styles.menuTitle, { color: Colors[colorScheme].text }]}>Updates</Text>
             <Pressable
+              testID="feed-close-notifications-button"
               onPress={() => setNotificationsMenuOpen(false)}
               style={styles.closeButton}
               accessibilityLabel="Close notifications"
@@ -1840,7 +1868,7 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 3,
   },
-  sponsoredGridLabel: { color: '#6b7280', fontWeight: '800', fontSize: 11, letterSpacing: 1.2 },
+  sponsoredGridLabel: { color: Colors.light.mutedText, fontWeight: '800', fontSize: 11, letterSpacing: 1.2 },
   sponsoredGridImageWrapper: { height: 140, borderRadius: 14, overflow: 'hidden' },
   sponsoredGridImage: { width: '100%', height: '100%' },
   sponsoredGridTitle: { fontWeight: '800', fontSize: 16 },
@@ -1870,7 +1898,7 @@ const styles = StyleSheet.create({
   zipSuggestionList: { marginTop: 6, marginBottom: 8, borderRadius: 12, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', overflow: 'hidden', shadowColor: '#0f172a', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
   zipSuggestionItem: { paddingHorizontal: 16, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   zipSuggestionZip: { fontWeight: '700', fontSize: 15 },
-  zipSuggestionCount: { color: '#6b7280', fontSize: 12 },
+  zipSuggestionCount: { color: Colors.light.mutedText, fontSize: 12 },
   verticalFeedSection: { marginTop: 32, marginBottom: 24 },
   verticalFeedCard: { marginTop: 12, borderRadius: 20, overflow: 'hidden', backgroundColor: '#0f172a', minHeight: 220, aspectRatio: 1, justifyContent: 'flex-end' },
   verticalFeedImage: { ...StyleSheet.absoluteFillObject },

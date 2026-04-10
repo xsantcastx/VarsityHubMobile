@@ -52,6 +52,7 @@ export function EventMergeSuggestionModal({
   loading = false,
 }: EventMergeSuggestionModalProps) {
   const colorScheme = useColorScheme() ?? 'light';
+  const theme = Colors[colorScheme];
   const [merging, setMerging] = useState(false);
   const [actionModal, setActionModal] = useState<{
     visible: boolean;
@@ -128,7 +129,7 @@ export function EventMergeSuggestionModal({
         {
           label: 'Cancel',
           onPress: () => setActionModal(null),
-          color: '#6B7280',
+          color: theme.mutedText,
         },
         {
           label: 'Keep Separate',
@@ -152,7 +153,7 @@ export function EventMergeSuggestionModal({
           {
             label: 'Keep Separate',
             onPress: handleDismiss,
-            color: '#6B7280',
+            color: theme.mutedText,
           },
           {
             label: merging ? 'Merging...' : 'Merge Events',
@@ -194,18 +195,18 @@ export function EventMergeSuggestionModal({
                 {primaryEvent.title || 'Untitled Event'}
               </Text>
               <View style={styles.eventDetail}>
-                <MaterialIcons name="access-time" size={14} color="#6B7280" />
-                <Text style={styles.eventDetailText}>{formatEventDate(primaryEvent.date)}</Text>
+                <MaterialIcons name="access-time" size={14} color={theme.mutedText} />
+                <Text style={[styles.eventDetailText, { color: theme.mutedText }]}>{formatEventDate(primaryEvent.date)}</Text>
               </View>
               <View style={styles.eventDetail}>
-                <MaterialIcons name="location-on" size={14} color="#6B7280" />
-                <Text style={styles.eventDetailText}>{formatLocation(primaryEvent.location)}</Text>
+                <MaterialIcons name="location-on" size={14} color={theme.mutedText} />
+                <Text style={[styles.eventDetailText, { color: theme.mutedText }]}>{formatLocation(primaryEvent.location)}</Text>
               </View>
             </View>
 
             {/* Merge Icon */}
             <View style={styles.mergeIconContainer}>
-              <MaterialIcons name="arrow-downward" size={24} color="#6B7280" />
+              <MaterialIcons name="arrow-downward" size={24} color={theme.mutedText} />
             </View>
 
             {/* Duplicate Event */}
@@ -215,12 +216,12 @@ export function EventMergeSuggestionModal({
                 {duplicateEvent.title || 'Untitled Event'}
               </Text>
               <View style={styles.eventDetail}>
-                <MaterialIcons name="access-time" size={14} color="#6B7280" />
-                <Text style={styles.eventDetailText}>{formatEventDate(duplicateEvent.date)}</Text>
+                <MaterialIcons name="access-time" size={14} color={theme.mutedText} />
+                <Text style={[styles.eventDetailText, { color: theme.mutedText }]}>{formatEventDate(duplicateEvent.date)}</Text>
               </View>
               <View style={styles.eventDetail}>
-                <MaterialIcons name="location-on" size={14} color="#6B7280" />
-                <Text style={styles.eventDetailText}>
+                <MaterialIcons name="location-on" size={14} color={theme.mutedText} />
+                <Text style={[styles.eventDetailText, { color: theme.mutedText }]}>
                   {formatLocation(duplicateEvent.location)}
                 </Text>
               </View>
@@ -320,7 +321,6 @@ const styles = StyleSheet.create({
   },
   eventDetailText: {
     fontSize: 13,
-    color: '#6B7280',
   },
   mergeIconContainer: {
     alignItems: 'center',

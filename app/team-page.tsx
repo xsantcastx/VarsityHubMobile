@@ -594,7 +594,13 @@ function TeamScreen() {
 
         {/* Back Button - Top Left */}
         <View style={[styles.headerControls, { top: Math.max(12, insets.top), left: 16 }]}>
-          <Pressable onPress={handleBack} style={[styles.controlButton, { backgroundColor: colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)' }]}>
+          <Pressable
+            testID="team-page-back-button"
+            onPress={handleBack}
+            style={[styles.controlButton, { backgroundColor: colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)' }]}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+          >
             <Ionicons name="arrow-back" size={18} color={colorScheme === 'dark' ? '#FFFFFF' : '#333'} />
           </Pressable>
         </View>
@@ -602,7 +608,13 @@ function TeamScreen() {
         {/* Settings Button - Top Right */}
         {isTeamAdmin && (
           <View style={[styles.headerControls, { top: Math.max(12, insets.top) }]}>
-            <Pressable onPress={() => void router.push('/settings')} style={[styles.controlButton, { backgroundColor: colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)' }]}>
+            <Pressable
+              testID="team-page-settings-button"
+              onPress={() => void router.push('/settings')}
+              style={[styles.controlButton, { backgroundColor: colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)' }]}
+              accessibilityRole="button"
+              accessibilityLabel="Team settings"
+            >
               <Ionicons name="settings-outline" size={18} color={colorScheme === 'dark' ? '#FFFFFF' : '#333'} />
             </Pressable>
           </View>
@@ -644,12 +656,19 @@ function TeamScreen() {
           <Text style={[styles.userHandle, { color: theme.text }]}>{teamHandle}</Text>
           <View style={{ flexDirection: 'row', gap: 8 }}>
             {isTeamAdmin && (
-              <Pressable style={[styles.editButtonBelowBanner, { backgroundColor: theme.surface || theme.background, borderColor: theme.border }]} onPress={() => void router.push(`/edit-team?id=${team?.id}` as any)}>
+              <Pressable
+                testID="team-page-edit-button"
+                style={[styles.editButtonBelowBanner, { backgroundColor: theme.surface || theme.background, borderColor: theme.border }]}
+                onPress={() => void router.push(`/edit-team?id=${team?.id}` as any)}
+                accessibilityRole="button"
+                accessibilityLabel="Edit team profile"
+              >
                 <Text style={[styles.editButtonBelowBannerText, { color: theme.text }]}>Edit profile</Text>
               </Pressable>
             )}
             {!isTeamAdmin && (
               <Pressable
+                testID="team-page-follow-button"
                 style={[
                   styles.followButtonBelowBanner,
                   {
@@ -657,6 +676,8 @@ function TeamScreen() {
                     borderWidth: 0,
                   }
                 ]}
+                accessibilityRole="button"
+                accessibilityLabel={isFollowing ? 'Unfollow team' : 'Follow team'}
                 onPress={async () => {
                   // eslint-disable-next-line no-console
                   if (__DEV__) console.log('[Follow] button pressed — team?.id:', team?.id, '| isFollowing:', isFollowing);
@@ -814,26 +835,42 @@ function TeamScreen() {
       {/* Tabs */}
       <View style={[styles.tabsContainer, { borderBottomColor: theme.border }]}>
         <Pressable
+          testID="team-page-posts-tab"
           onPress={() => setActiveTab('posts')}
           style={[styles.tab, activeTab === 'posts' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
+          accessibilityRole="tab"
+          accessibilityLabel="Posts"
+          accessibilityState={{ selected: activeTab === 'posts' }}
         >
           <Text style={[styles.tabText, { color: activeTab === 'posts' ? theme.tint : theme.mutedText }]}>Posts</Text>
         </Pressable>
         <Pressable
+          testID="team-page-replies-tab"
           onPress={() => setActiveTab('replies')}
           style={[styles.tab, activeTab === 'replies' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
+          accessibilityRole="tab"
+          accessibilityLabel="Replies"
+          accessibilityState={{ selected: activeTab === 'replies' }}
         >
           <Text style={[styles.tabText, { color: activeTab === 'replies' ? theme.tint : theme.mutedText }]}>Replies</Text>
         </Pressable>
         <Pressable
+          testID="team-page-upvotes-tab"
           onPress={() => setActiveTab('upvotes')}
           style={[styles.tab, activeTab === 'upvotes' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
+          accessibilityRole="tab"
+          accessibilityLabel="Upvotes"
+          accessibilityState={{ selected: activeTab === 'upvotes' }}
         >
           <Text style={[styles.tabText, { color: activeTab === 'upvotes' ? theme.tint : theme.mutedText }]}>Upvotes</Text>
         </Pressable>
         <Pressable
+          testID="team-page-events-tab"
           onPress={() => setActiveTab('events')}
           style={[styles.tab, activeTab === 'events' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
+          accessibilityRole="tab"
+          accessibilityLabel="Events"
+          accessibilityState={{ selected: activeTab === 'events' }}
         >
           <Text style={[styles.tabText, { color: activeTab === 'events' ? theme.tint : theme.mutedText }]}>Events</Text>
         </Pressable>
@@ -1343,7 +1380,7 @@ const styles = StyleSheet.create({
   followButtonBelowBannerText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#000',
+    color: Colors.light.text,
   },
   followingIndicator: {
     width: 28,

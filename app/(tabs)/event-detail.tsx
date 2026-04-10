@@ -373,7 +373,7 @@ export default function EventDetailScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'white' },
   title: { fontSize: 22, fontWeight: '800' },
-  meta: { color: '#6b7280' },
+  meta: { color: Colors.light.mutedText },
   error: { color: '#b91c1c' },
   locationCard: {
     flexDirection: 'row',
@@ -397,7 +397,7 @@ const styles = StyleSheet.create({
   locationLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#6B7280',
+    color: Colors.light.mutedText,
     textTransform: 'uppercase',
     marginBottom: 2,
   },

@@ -424,7 +424,13 @@ export default function Step2Basic() {
       <Stack.Screen options={{ headerShown: false }} />
       
       {/* Profile Picture (optional) */}
-      <Pressable onPress={pickAvatar} style={{ alignSelf: 'center', marginBottom: 16 }} accessibilityLabel="Choose profile picture" accessibilityRole="button">
+      <Pressable
+        testID="onboarding-step2-avatar-picker"
+        onPress={pickAvatar}
+        style={{ alignSelf: 'center', marginBottom: 16 }}
+        accessibilityLabel="Choose profile picture"
+        accessibilityRole="button"
+      >
         <View style={{ width: 90, height: 90, borderRadius: 45, backgroundColor: Colors[colorScheme].surface, borderWidth: 2, borderColor: Colors[colorScheme].border, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
           {avatarUri ? (
             <Image source={{ uri: avatarUri }} style={{ width: 90, height: 90 }} />
@@ -436,7 +442,14 @@ export default function Step2Basic() {
       </Pressable>
 
       <Text style={styles.label}>Username</Text>
-      <Input value={username} onChangeText={setUsername} autoCapitalize="none" placeholder="username" style={{ marginBottom: 4, letterSpacing: 0 }} onEndEditing={async () => {
+      <Input
+        testID="onboarding-step2-username-input"
+        value={username}
+        onChangeText={setUsername}
+        autoCapitalize="none"
+        placeholder="username"
+        style={{ marginBottom: 4, letterSpacing: 0 }}
+        onEndEditing={async () => {
         if (!usernameRe.test(username)) { setAvailable(null); return; }
         setAvailabilityError(false);
         try { const r: any = await User.usernameAvailable(username); setAvailable(!!r?.available); } catch (error) { if (__DEV__) console.warn('[onboarding] Username availability check failed:', error); setAvailable(null); setAvailabilityError(true); }
@@ -446,11 +459,17 @@ export default function Step2Basic() {
       ) : checking ? (
         <Text style={styles.muted}>Checking availability…</Text>
       ) : availabilityError ? (
-        <Pressable onPress={async () => {
-          setAvailabilityError(false);
-          setChecking(true);
-          try { const r: any = await User.usernameAvailable(username); setAvailable(!!r?.available); } catch { setAvailable(null); setAvailabilityError(true); } finally { setChecking(false); }
-        }} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+        <Pressable
+          testID="onboarding-step2-retry-username-check"
+          onPress={async () => {
+            setAvailabilityError(false);
+            setChecking(true);
+            try { const r: any = await User.usernameAvailable(username); setAvailable(!!r?.available); } catch { setAvailable(null); setAvailabilityError(true); } finally { setChecking(false); }
+          }}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+          accessibilityRole="button"
+          accessibilityLabel="Retry checking username availability"
+        >
           <Text style={styles.error}>Couldn't check availability — tap to retry</Text>
         </Pressable>
       ) : available === false ? (
@@ -476,6 +495,7 @@ export default function Step2Basic() {
               { value: 'youth', label: 'Youth Org', icon: '🏀' },
             ].map((option) => (
               <Pressable
+                testID={`onboarding-step2-affiliation-${option.value}`}
                 key={option.value}
                 style={[
                   styles.affiliationButton,
@@ -516,6 +536,7 @@ export default function Step2Basic() {
 
       <Text style={styles.label}>Zip code {ob.role !== 'coach' && <Text style={styles.muted}>(optional)</Text>}</Text>
       <Input
+        testID="onboarding-step2-zip-input"
         value={zip}
         onChangeText={setZip}
         autoCapitalize="none"
@@ -527,6 +548,7 @@ export default function Step2Basic() {
 
       <Text style={styles.label}>Bio <Text style={styles.muted}>(optional)</Text></Text>
       <TextInput
+        testID="onboarding-step2-bio-input"
         value={bio}
         onChangeText={(t) => setBio(t.slice(0, 160))}
         placeholder="Fan trying to show the most school spirit"
@@ -550,6 +572,7 @@ export default function Step2Basic() {
 
       <View style={{ marginTop: 20 }}>
         <PrimaryButton
+          testID="onboarding-step2-continue-button"
           label="Continue"
           onPress={onContinue}
           disabled={!canContinue}

@@ -683,10 +683,13 @@ export default function ProfileScreen() {
       {/* Banner Header - Exact Match to Reference */}
       <View style={[styles.headerContainer, { backgroundColor: theme.background }]}>
         {/* Background Image / Gradient */}
-        <Pressable 
-          onPress={handleBackgroundImagePress} 
+        <Pressable
+          testID="profile-background-image"
+          onPress={handleBackgroundImagePress}
           style={styles.headerBackgroundPressable}
           disabled={isUploadingAvatar}
+          accessibilityRole="button"
+          accessibilityLabel="Edit background image"
         >
           {headerBackgroundImage ? (
             <Image
@@ -721,9 +724,12 @@ export default function ProfileScreen() {
         {/* Back Button - Only when viewing another user's profile */}
         {viewingUserId && viewingUserId !== currentUserId ? (
           <Pressable
+            testID="profile-back-button"
             onPress={() => safeGoBack(router)}
             hitSlop={12}
             style={[styles.controlButton, { position: 'absolute', left: 16, top: 12, zIndex: 200, elevation: 200, backgroundColor: colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)' }]}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
           >
             <Ionicons name="chevron-back" size={18} color={colorScheme === 'dark' ? '#FFFFFF' : '#333'} />
           </Pressable>
@@ -734,6 +740,7 @@ export default function ProfileScreen() {
           {/* Follow Button - Only for viewing other users */}
           {viewingUserId && viewingUserId !== currentUserId ? (
             <Pressable
+              testID="profile-follow-button"
               style={[
                 styles.headerFollowButton,
                 isFollowing
@@ -743,6 +750,8 @@ export default function ProfileScreen() {
               ]}
               onPress={handleFollowToggle}
               disabled={followLoading}
+              accessibilityRole="button"
+              accessibilityLabel={isFollowing ? "Unfollow" : "Follow"}
             >
               {isFollowing ? (
                 <Ionicons name="checkmark-circle" size={18} color="#FFB800" />
@@ -757,6 +766,7 @@ export default function ProfileScreen() {
           {/* Block & Report menu for other users */}
           {viewingUserId && viewingUserId !== currentUserId ? (
             <Pressable
+              testID="profile-options-button"
               onPress={() => {
                 Alert.alert(
                   'Options',
@@ -784,7 +794,14 @@ export default function ProfileScreen() {
 
           {/* Settings Button - Only when viewing own profile */}
           {!viewingUserId || viewingUserId === currentUserId ? (
-            <Pressable onPress={() => router.push('/settings')} hitSlop={12} style={[styles.controlButton, { backgroundColor: colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)' }]}>
+            <Pressable
+              testID="profile-settings-button"
+              onPress={() => router.push('/settings')}
+              hitSlop={12}
+              style={[styles.controlButton, { backgroundColor: colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)' }]}
+              accessibilityRole="button"
+              accessibilityLabel="Settings"
+            >
               <Ionicons name="settings-outline" size={18} color={colorScheme === 'dark' ? '#FFFFFF' : '#333'} />
             </Pressable>
           ) : null}
@@ -794,11 +811,14 @@ export default function ProfileScreen() {
         <View style={styles.profileContent}>
           {/* Large Avatar - Overlapping Banner */}
           <Pressable
+            testID="profile-avatar"
             onPress={me?.avatar_url
               ? () => setAvatarViewerVisible(true)
               : (isOwnProfile ? handleAvatarPress : undefined)}
             disabled={isOwnProfile && isUploadingAvatar}
             style={styles.avatarSection}
+            accessibilityRole="button"
+            accessibilityLabel={isOwnProfile ? "Edit profile picture" : "View profile picture"}
           >
             <View style={styles.avatarContainer}>
               {me?.avatar_url ? (
@@ -819,12 +839,24 @@ export default function ProfileScreen() {
           {/* Edit/Message button — aligned right, same row as avatar */}
           <View style={{ flex: 1, alignItems: 'flex-end', justifyContent: 'flex-end', paddingRight: 16, paddingBottom: 8 }}>
             {(!viewingUserId || viewingUserId === currentUserId) && (
-              <Pressable style={[styles.editButtonBelowBanner, { backgroundColor: theme.surface || theme.background, borderColor: theme.border }]} onPress={() => void router.push('/edit-profile')}>
+              <Pressable
+                testID="profile-edit-button"
+                style={[styles.editButtonBelowBanner, { backgroundColor: theme.surface || theme.background, borderColor: theme.border }]}
+                onPress={() => void router.push('/edit-profile')}
+                accessibilityRole="button"
+                accessibilityLabel="Edit profile"
+              >
                 <Text style={[styles.editButtonBelowBannerText, { color: theme.text }]}>Edit profile</Text>
               </Pressable>
             )}
             {viewingUserId && viewingUserId !== currentUserId && (
-              <Pressable style={[styles.editButtonBelowBanner, { backgroundColor: '#0EA5E9', borderColor: '#0EA5E9' }]} onPress={() => void router.push(`/message-thread?with=${viewingUserId}` as any)}>
+              <Pressable
+                testID="profile-message-button"
+                style={[styles.editButtonBelowBanner, { backgroundColor: '#0EA5E9', borderColor: '#0EA5E9' }]}
+                onPress={() => void router.push(`/message-thread?with=${viewingUserId}` as any)}
+                accessibilityRole="button"
+                accessibilityLabel="Send message"
+              >
                 <Ionicons name="chatbubble-outline" size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
                 <Text style={[styles.editButtonBelowBannerText, { color: '#FFFFFF' }]}>Message</Text>
               </Pressable>
@@ -921,20 +953,32 @@ export default function ProfileScreen() {
       {/* Tabs */}
       <View style={[styles.tabsContainer, { borderBottomColor: theme.border }]}>
         <Pressable
+          testID="profile-posts-tab"
           onPress={() => { setActiveTab('posts'); try { globalThis?.localStorage?.setItem('profile.activeTab','posts'); } catch (error) { if (__DEV__) console.warn('[profile] localStorage error:', error); } }}
           style={[styles.tab, activeTab === 'posts' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
+          accessibilityRole="tab"
+          accessibilityLabel="Posts"
+          accessibilityState={{ selected: activeTab === 'posts' }}
         >
           <Text style={[styles.tabText, { color: activeTab === 'posts' ? theme.tint : theme.mutedText }]}>Posts</Text>
         </Pressable>
         <Pressable
+          testID="profile-replies-tab"
           onPress={() => { setActiveTab('replies'); try { globalThis?.localStorage?.setItem('profile.activeTab','replies'); } catch (error) { if (__DEV__) console.warn('[profile] localStorage error:', error); } }}
           style={[styles.tab, activeTab === 'replies' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
+          accessibilityRole="tab"
+          accessibilityLabel="Replies"
+          accessibilityState={{ selected: activeTab === 'replies' }}
         >
           <Text style={[styles.tabText, { color: activeTab === 'replies' ? theme.tint : theme.mutedText }]}>Replies</Text>
         </Pressable>
         <Pressable
+          testID="profile-upvotes-tab"
           onPress={() => { setActiveTab('upvotes'); try { globalThis?.localStorage?.setItem('profile.activeTab','upvotes'); } catch (error) { if (__DEV__) console.warn('[profile] localStorage error:', error); } }}
           style={[styles.tab, activeTab === 'upvotes' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
+          accessibilityRole="tab"
+          accessibilityLabel="Upvotes"
+          accessibilityState={{ selected: activeTab === 'upvotes' }}
         >
           <Text style={[styles.tabText, { color: activeTab === 'upvotes' ? theme.tint : theme.mutedText }]}>Upvotes</Text>
         </Pressable>
@@ -1669,7 +1713,7 @@ const styles = StyleSheet.create({
   credentialsTextCompact: {
     fontSize: 13,
     fontWeight: '400',
-    color: '#6B7280',
+    color: Colors.light.mutedText,
   },
   bioSectionCompact: {
     paddingHorizontal: 16,
@@ -1680,7 +1724,7 @@ const styles = StyleSheet.create({
   userBioCompact: {
     fontSize: 14,
     fontWeight: '400',
-    color: '#374151',
+    color: Colors.light.text,
     lineHeight: 20,
   },
   badgesRow: { 
@@ -1742,8 +1786,8 @@ const styles = StyleSheet.create({
   },
   
   // Legacy styles kept for existing components
-  statValue: { fontSize: 20, fontWeight: '800', color: '#1f2937' },
-  name: { fontSize: 18, fontWeight: '800', marginBottom: 4, color: '#111827' },
+  statValue: { fontSize: 20, fontWeight: '800', color: Colors.light.text },
+  name: { fontSize: 18, fontWeight: '800', marginBottom: 4, color: Colors.light.text },
   bio: { fontSize: 15, color: '#4B5563', lineHeight: 20, marginTop: 8 },
   editProfileButton: { 
     flex: 1,
@@ -1779,9 +1823,9 @@ const styles = StyleSheet.create({
     paddingBottom: 0,
   },
   tab: { flex: 1, paddingVertical: 12, alignItems: 'center' }, // Reduced padding
-  activeTab: { borderBottomWidth: 2, borderBottomColor: 'black' },
-  tabText: { color: '#6B7280', fontWeight: '600', fontSize: 15 },
-  activeTabText: { color: 'black' },
+  activeTab: { borderBottomWidth: 2, borderBottomColor: Colors.light.text },
+  tabText: { color: Colors.light.mutedText, fontWeight: '600', fontSize: 15 },
+  activeTabText: { color: Colors.light.text },
   filtersBar: { paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, gap: 12, backgroundColor: 'transparent' },
   segmentedRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   segment: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20 },

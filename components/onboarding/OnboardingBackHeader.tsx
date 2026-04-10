@@ -18,7 +18,8 @@ export function OnboardingBackHeader({ title, subtitle, onBack, rightSlot }: Pro
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme() ?? 'light';
-  const borderColor = Colors[colorScheme].border;
+  const theme = Colors[colorScheme];
+  const borderColor = theme.border;
   const handleBack = () => {
     if (onBack) {
       onBack();
@@ -30,15 +31,15 @@ export function OnboardingBackHeader({ title, subtitle, onBack, rightSlot }: Pro
   return (
     <SafeAreaView
       edges={['top', 'left', 'right']}
-      style={[styles.safeArea, { paddingTop: Math.max(insets.top, 16), borderBottomColor: borderColor, backgroundColor: Colors[colorScheme].background }]}
+      style={[styles.safeArea, { paddingTop: Math.max(insets.top, 16), borderBottomColor: theme.border, backgroundColor: theme.background }]}
     >
       <View style={styles.headerRow}>
         <Pressable accessibilityRole="button" onPress={handleBack} style={styles.backButton}>
-          <MaterialIcons name="chevron-left" size={24} color="#111827" />
+          <MaterialIcons name="chevron-left" size={24} color={theme.text} />
         </Pressable>
         <View style={styles.textContainer}>
-          {title ? <Text style={styles.title}>{title}</Text> : null}
-          {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+          {title ? <Text style={[styles.title, { color: theme.text }]}>{title}</Text> : null}
+          {subtitle ? <Text style={[styles.subtitle, { color: theme.mutedText }]}>{subtitle}</Text> : null}
         </View>
         <View style={styles.rightSlot}>{rightSlot}</View>
       </View>
@@ -73,11 +74,9 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#111827',
   },
   subtitle: {
     fontSize: 14,
-    color: '#6B7280',
     marginTop: 4,
   },
   rightSlot: {

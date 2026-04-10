@@ -42,6 +42,40 @@ const debugLog = (...args: Parameters<typeof console.log>) => {
   }
 };
 
+// File size limits by type (in bytes)
+const FILE_SIZE_LIMITS = {
+  image: 10 * 1024 * 1024,      // 10MB for images
+  video: 100 * 1024 * 1024,     // 100MB for videos
+  pdf: 25 * 1024 * 1024,        // 25MB for PDFs
+  document: 25 * 1024 * 1024,   // 25MB for general documents
+  avatar: 5 * 1024 * 1024,      // 5MB for avatars
+};
+
+/**
+ * Validate file size based on MIME type
+ * @returns error string if size exceeds limit, null if valid
+ */
+function validateFileSizeByType(file: Express.Multer.File): string | null {
+  const mime = file.mimetype;
+  let limit = FILE_SIZE_LIMITS.document; // default
+
+  if (mime.startsWith('image/')) {
+    limit = FILE_SIZE_LIMITS.image;
+  } else if (mime.startsWith('video/')) {
+    limit = FILE_SIZE_LIMITS.video;
+  } else if (mime.includes('pdf')) {
+    limit = FILE_SIZE_LIMITS.pdf;
+  }
+
+  if (file.size > limit) {
+    const limitMB = Math.round(limit / (1024 * 1024));
+    const actualMB = Math.round(file.size / (1024 * 1024));
+    return `File size (${actualMB}MB) exceeds limit of ${limitMB}MB for this file type`;
+  }
+
+  return null;
+}
+
 // Force Cloudinary in production, otherwise uploads will be lost on deploy
 if (process.env.NODE_ENV === 'production' && !isCloudinaryConfigured()) {
   const errorMessage = 'CRITICAL: Cloudinary is not configured for production. File uploads will fail. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET in Railway.';
@@ -200,6 +234,12 @@ uploadsRouter.get('/sign', requireAuth as any, uploadLimiter as any, (req: Multe
 uploadsRouter.post('/', requireAuth as any, uploadLimiter as any, upload.single('file'), async (req: MulterRequest, res, next) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
+  // Validate file size for media uploads
+  const sizeError = validateFileSizeByType(req.file);
+  if (sizeError) {
+    return res.status(413).json({ error: sizeError });
+  }
+
   // Magic byte validation — verify file content matches claimed MIME type
   const fileBuffer = req.file.buffer || (req.file.path ? fs.readFileSync(req.file.path) : null);
   if (fileBuffer) {
@@ -279,6 +319,12 @@ uploadsRouter.post('/', requireAuth as any, uploadLimiter as any, upload.single(
 // General file upload endpoint (all file types)
 uploadsRouter.post('/files', requireAuth as any, uploadLimiter as any, fileUpload.single('file'), async (req: MulterRequest, res, next) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+  // Validate file size for general uploads
+  const sizeError = validateFileSizeByType(req.file);
+  if (sizeError) {
+    return res.status(413).json({ error: sizeError });
+  }
 
   // Magic byte validation
   const fileBuf = req.file.buffer || (req.file.path ? fs.readFileSync(req.file.path) : null);

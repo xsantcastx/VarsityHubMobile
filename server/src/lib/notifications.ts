@@ -6,8 +6,7 @@
  * Re-export email functions for backward compatibility
  */
 export {
-    initEmailService as initNotifications, sendBillingNoticeEmail, sendContentModerationEmail, sendOrganizationApprovalEmail,
-    sendOrganizationDenialEmail, sendOrganizationInviteEmail, sendVerificationEmail
+    initEmailService as initNotifications, sendBillingNoticeEmail, sendOrganizationInviteEmail, sendVerificationEmail
 } from './email.js';
 
 /**

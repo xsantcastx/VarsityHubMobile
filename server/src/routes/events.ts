@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { validateContent } from '../lib/contentFilter.js';
-import { sendEventCanceledEmail, sendEventRsvpConfirmedEmail, sendEventSubmissionReceivedEmail, sendEventUpdatedEmail } from '../lib/email.js';
 import { cancelGameReminders, scheduleGameReminders, sendPushNotification } from '../lib/notifications.js';
 import { approveEvent as approveEventService, rejectEvent as rejectEventService } from '../lib/approvalService.js';
 import { prisma } from '../lib/prisma.js';
@@ -443,20 +442,7 @@ eventsRouter.post('/:id/rsvp', requireAuth as any, rsvpLimiter, asyncHandler(asy
       });
       
       // Send RSVP confirmation email (best-effort, don't block response)
-      if (me.email) {
-        const eventDate = new Date(event.date);
-        const eventDateStr = eventDate.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-        const eventTimeStr = eventDate.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-        sendEventRsvpConfirmedEmail({
-          to: me.email,
-          userName: me.display_name || me.username || 'there',
-          eventName: event.title || 'Event',
-          eventDate: eventDateStr,
-          eventTime: eventTimeStr,
-          eventLocation: event.location || undefined,
-          eventLink: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/event-detail?id=${id}`,
-        }).catch(err => console.warn('[events] Failed to send RSVP confirmation email:', err));
-      }
+      // RSVP confirmation email removed — non-mandatory transactional email
       
       // Schedule game reminder notifications (12h and 1h before)
       await scheduleGameReminders(id, me.id).catch(err => 
@@ -682,24 +668,7 @@ eventsRouter.post('/', requireVerified as any, requireOnboarded as any, eventCre
     });
   });
 
-  // Send submission-received confirmation email to the creator
-  try {
-    const creator = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, display_name: true } });
-    if (creator?.email) {
-      const eventDate = new Date(data.date);
-      sendEventSubmissionReceivedEmail({
-        to: creator.email,
-        coachName: creator.display_name || 'Coach',
-        eventTitle: data.title,
-        eventDate: eventDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }),
-        eventTime: eventDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
-        eventLocation: data.location || '',
-        reviewTimelineHours: autoApprove ? 0 : 24,
-      }).catch((err) => console.warn('[events] submission email failed:', err?.message || err));
-    }
-  } catch (emailErr) {
-    console.warn('[events] Failed to send submission email:', emailErr);
-  }
+  // Submission-received confirmation email removed — non-mandatory transactional email
 
   // Admin events route through /games and appear as game cards in the feed carousel.
   // No separate text post needed — game cards have full detail pages with stories/polls/RSVP.
@@ -1018,20 +987,7 @@ eventsRouter.patch('/:id', requireAuth as any, requireOnboarded as any, async (r
     const eventDateTime = `${eventDate} at ${updatedDate.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`;
 
     for (const rsvp of rsvps) {
-      const email = rsvp.user?.email || rsvp.user_email;
-      if (email) {
-        sendEventUpdatedEmail({
-          to: email,
-          recipientName: rsvp.user?.display_name || 'Team Member',
-          eventName,
-          eventDate: eventDateTime,
-          changeSummary,
-          eventId,
-          eventDetailLink: `${appBase}/event-detail?id=${eventId}`,
-          updatedAt: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
-          organizationName: 'VarsityHub',
-        }).catch(err => console.warn('[events] Failed to send event updated email:', err));
-      }
+      // Event updated email removed — non-mandatory transactional email
       if (rsvp.user?.id && rsvp.user.id !== userId) {
         sendPushNotification(
           rsvp.user.id,
@@ -1114,24 +1070,8 @@ eventsRouter.patch('/:id/cancel', requireAuth as any, requireOnboarded as any, a
   const eventLocation = [event.location].filter(Boolean).join(', ');
   const appBase = process.env.APP_BASE_URL || 'https://varsityhub.app';
 
-  // Send cancellation emails and push notifications (best-effort, non-blocking)
+  // Send cancellation push notifications (event canceled email removed — non-mandatory)
   for (const rsvp of rsvps) {
-    const email = rsvp.user?.email || rsvp.user_email;
-    if (email) {
-      sendEventCanceledEmail({
-        to: email,
-        recipientName: rsvp.user?.display_name || 'Team Member',
-        eventName: event.title || 'Event',
-        eventDate: eventDateStr,
-        eventTime: eventTimeStr,
-        eventLocation,
-        canceledAt: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
-        organizationName: 'VarsityHub',
-        cancelReason: '',
-        upcomingEventsLink: `${appBase}/events`,
-        contactOrganizerLink: `mailto:support@varsityhub.app`,
-      }).catch(err => console.warn('[events] Failed to send cancellation email:', err));
-    }
     if (rsvp.user?.id && rsvp.user.id !== userId) {
       sendPushNotification(
         rsvp.user.id,

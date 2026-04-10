@@ -4,7 +4,7 @@ import { Router } from 'express';
 import { OAuth2Client } from 'google-auth-library';
 import jwt, { type JwtPayload } from 'jsonwebtoken';
 import { z } from 'zod';
-import { sendPasswordChangedEmail, sendPasswordResetEmail, sendVerificationEmail, sendEmail } from '../lib/email.js';
+import { sendPasswordResetEmail, sendVerificationEmail, sendEmail } from '../lib/email.js';
 import { validateContent } from '../lib/contentFilter.js';
 import { ConflictError } from '../lib/errors/ConflictError.js';
 import { ValidationError } from '../lib/errors/ValidationError.js';
@@ -813,11 +813,7 @@ authRouter.post('/password/reset', asyncHandler(async (req, res) => {
     prisma.refreshToken.deleteMany({ where: { user_id: user.id } }),
   ]);
 
-  // Security alert: notify account owner that their password was changed
-  const userName = user.display_name || user.username || 'User';
-  sendPasswordChangedEmail(user.email, userName).catch((err) =>
-    console.warn('[auth] Failed to send password-changed security email:', err)
-  );
+  // Security alert: password changed notification removed as part of email cleanup
 
   return res.json({ ok: true });
 }));
@@ -852,16 +848,9 @@ authRouter.post('/password/change', authLimiter, requireAuth as any, asyncHandle
     }),
     prisma.refreshToken.deleteMany({ where: { user_id: user.id } }),
   ]);
-  
-  // Send confirmation email
-  try {
-    const userName = user.display_name || user.email?.split('@')[0] || 'VarsityHub user';
-    await sendPasswordChangedEmail(user.email, userName);
-  } catch (e) {
-    console.warn('[email] Password changed email failed:', e);
-    // Don't fail the request if email fails
-  }
-  
+
+  // Password changed notification removed as part of email cleanup
+
   return res.json({ ok: true });
 }));
 
@@ -1542,6 +1531,7 @@ function sanitizeUser(u: any) {
     email_verification_expires,
     password_reset_code,
     password_reset_expires,
+    ban_reason,
     ...rest
   } = u as any;
   return rest;
