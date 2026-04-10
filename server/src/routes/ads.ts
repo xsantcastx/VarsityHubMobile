@@ -75,7 +75,7 @@ adsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) => {
       banner_fit_mode: banner_fit_mode ? String(banner_fit_mode) : null,
       target_url: target_url ? String(target_url) : null,
       target_zip_code: String(target_zip_code),
-      radius: typeof radius === 'number' ? radius : 45,
+      radius: typeof radius === 'number' ? radius : 10,
       description: description ? String(description) : null,
       status: status ? String(status) : 'draft',
       payment_status: payment_status ? String(payment_status) : 'unpaid',
@@ -503,9 +503,9 @@ adsRouter.post('/reservations', requireVerified as any, async (req: AuthedReques
       return createdMany.count;
     }, { isolationLevel: 'Serializable' });
 
-    // Use shared ad pricing helper for consistent calculation
-    // Mon-Thu = $5.00 per week block, Fri-Sun = $8.00 per week block
-    // Properly groups dates into week blocks (multiple dates in same week = single charge)
+    // Use shared ad pricing helper for consistent calculation.
+    // Mon-Thu = $4.99 per week block, Fri-Sun = $7.99 per week block.
+    // Properly groups dates into week blocks (multiple dates in same week = single charge).
     const totalPrice = calculateAdPriceDollars(isoDates);
 
     return res.status(201).json({ ok: true, reserved: createdCount, dates: isoDates, price: totalPrice });

@@ -28,9 +28,9 @@ describe('Advertisements', () => {
       expect(ad.target_zip_code).toMatch(/^\d{5}$/);
     });
 
-    it('should have default radius of 45 miles', () => {
-      const defaultRadius = 45;
-      expect(defaultRadius).toBe(45);
+    it('should have default radius of 10', () => {
+      const defaultRadius = 10;
+      expect(defaultRadius).toBe(10);
     });
   });
 
@@ -76,8 +76,8 @@ describe('Advertisements', () => {
       });
     });
 
-    it('should validate radius in miles', () => {
-      const radius = 45;
+    it('should validate radius values', () => {
+      const radius = 10;
       expect(radius).toBeGreaterThan(0);
       expect(radius).toBeLessThanOrEqual(250);
     });

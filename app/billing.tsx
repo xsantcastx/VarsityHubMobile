@@ -100,9 +100,9 @@ export default function BillingScreen() {
   const getPlanDescription = (plan: string) => {
     switch (plan) {
       case 'veteran':
-        return 'First 2 teams free, then $1.50/month per additional team. Up to 2 authorized users per team.';
+        return 'First 2 teams free, then $1.00/month per additional team. Up to 2 authorized users per team.';
       case 'legend':
-        return 'Unlimited teams at $20/year. Create extracurricular clubs (Theater, Chess, etc.). Unlimited authorized users.';
+        return 'Unlimited teams at $29.99/year. Create extracurricular clubs (Theater, Chess, etc.). Unlimited authorized users.';
       default:
         return 'Free plan with 2 teams. 1 authorized user per team.';
     }

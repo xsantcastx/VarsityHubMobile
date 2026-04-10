@@ -29,7 +29,7 @@
     "id": "veteran",
     "name": "Veteran",
     "icon": "trophy",
-    "price": "$1.50",
+    "price": "$1.00",
     "period": "/ month per additional team",
     "priceId": "price_1SVco4GJt8CsPE1EBNNlHYPB",
     "max_teams": null,
@@ -54,7 +54,7 @@
     "id": "legend",
     "name": "Legend",
     "icon": "medal",
-    "price": "$20.00",
+    "price": "$29.99",
     "period": "/ year",
     "priceId": "price_1SKO8lGJt8CsPE1E7RmXJblX",
     "max_teams": null,
@@ -70,7 +70,7 @@
       "Create extracurricular clubs (Theater, Chess, Debate, etc.)"
     ],
     "billing": {
-      "description": "Flat $20/year for unlimited programs and staff.",
+      "description": "Flat $29.99/year for unlimited programs and staff.",
       "cta": "Best choice for districts running every sport and club."
     }
   }

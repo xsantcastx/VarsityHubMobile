@@ -428,7 +428,7 @@ router.post('/subscription-expiring', async (req, res) => {
     planName,
     expiresDate: futureDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
     daysRemaining: 7,
-    renewalPrice: '$1.50/month',
+    renewalPrice: '$1.00/month',
   });
   return res.json({ ok });
 });

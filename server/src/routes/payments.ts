@@ -204,13 +204,13 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
         quantity: chosen === 'veteran' ? billableQuantity : 1,
         price_data: {
           currency: 'usd',
-          unit_amount: chosen === 'veteran' ? 150 : 2000, // Veteran: $1.50/month per additional team, Legend: $20.00/year
+          unit_amount: chosen === 'veteran' ? 100 : 2999, // Veteran: $1.00/month per additional team, Legend: $29.99/year
           recurring: { interval: chosen === 'veteran' ? 'month' : 'year' },
           product_data: {
             name: 'Membership - ' + chosen,
             description: chosen === 'veteran'
-              ? `Veteran plan - $1.50/month per additional team (${billableQuantity} billable of ${teamCount} total, 2 free)`
-              : 'Legend plan - $20.00/year unlimited (fallback price)',
+              ? `Veteran plan - $1.00/month per additional team (${billableQuantity} billable of ${teamCount} total, 2 free)`
+              : 'Legend plan - $29.99/year unlimited (fallback price)',
           },
         },
       }];
@@ -258,7 +258,7 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
     where: { id: req.user!.id },
     select: { email: true }
   });
-  const amount = chosen === 'veteran' ? 150 * billableQuantity : 2000; // Veteran: $1.50/month per additional team, Legend: $20.00/year
+  const amount = chosen === 'veteran' ? 100 * billableQuantity : 2999; // Veteran: $1.00/month per additional team, Legend: $29.99/year
   await logTransaction({
     transactionType: 'SUBSCRIPTION_PURCHASE',
     status: 'PENDING',
@@ -731,7 +731,7 @@ paymentsRouter.post('/update-subscription-quantity', expressPkg.json(), requireV
         subscription_id: subscriptionId,
         total_teams: team_count,
         billable_teams: billable,
-        monthly_cost: billable * 1.50
+        monthly_cost: billable * 1.0
       });
     } catch (err: any) {
       console.warn('Failed to update Stripe subscription quantity:', err?.message || err);

@@ -259,9 +259,10 @@ export default function CreateTeamScreen() {
 
         if (userPlan === 'rookie' && teamCount >= 2) {
           const newTeamCount = teamCount + 1;
+          const billableTeamCount = Math.max(0, newTeamCount - 2);
           Alert.alert(
             'Upgrade Required',
-            `First two teams are free on the Rookie plan. Adding this team requires upgrading to the Veteran plan at $${(newTeamCount * 1.5).toFixed(2)}/month (${newTeamCount} teams × $1.50).`,
+            `First two teams are free on the Rookie plan. Adding this team requires upgrading to the Veteran plan at $${billableTeamCount.toFixed(2)}/month (${billableTeamCount} billable team${billableTeamCount === 1 ? '' : 's'} beyond the first 2 free at $1.00 each).`,
             [
               { text: 'Cancel', style: 'cancel', onPress: () => setSubmitting(false) },
               {
@@ -306,9 +307,10 @@ export default function CreateTeamScreen() {
         if (userPlan === 'veteran') {
           // Veteran plan: Per-team monthly charge - update subscription quantity
           const newTeamCount = teamCount + 1;
+          const billableTeamCount = Math.max(0, newTeamCount - 2);
           Alert.alert(
             'Add Team',
-            `Adding this team will increase your monthly charge to $${(newTeamCount * 1.5).toFixed(2)}/month (${newTeamCount} teams × $1.50). Your subscription will be updated automatically.`,
+            `Adding this team will increase your monthly charge to $${billableTeamCount.toFixed(2)}/month (${billableTeamCount} billable team${billableTeamCount === 1 ? '' : 's'} beyond the first 2 free at $1.00 each). Your subscription will be updated automatically.`,
             [
               { text: 'Cancel', style: 'cancel', onPress: () => setSubmitting(false) },
               { 
@@ -1169,4 +1171,3 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
 });
-
