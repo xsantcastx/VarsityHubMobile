@@ -873,7 +873,7 @@ organizationsRouter.post('/join-requests/:requestId/deny', requireAuth as any, a
     }
   });
   
-  if (!membership || !['owner', 'manager'].includes(membership.role)) {
+  if (!membership || !isOrganizationAdmin(membership.role)) {
     return res.status(403).json({ error: 'Insufficient permissions' });
   }
   
