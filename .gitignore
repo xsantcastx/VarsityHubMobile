@@ -78,6 +78,18 @@ server/.env.railway.api
 
 app-example
 
+# Local iCloud / duplicate-worktree artifacts
+.git 2
+.git.nosync/
+node_modules 2
+node_modules.nosync/
+FIX_ICLOUD_AND_PUSH.command
+FIX_ICLOUD_READ.command
+FIX_NOW.command
+KILL_AND_FIX.command
+MOVE_OUT_OF_ICLOUD.command
+PUSH_NOW.command
+
 .vercel
 
 # Snyk Security Extension - AI Rules (auto-generated)
