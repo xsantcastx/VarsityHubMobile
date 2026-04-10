@@ -218,10 +218,10 @@ export default function AdminDashboardScreen() {
             <StatCard
               title="Messages"
               value={stats?.totalMessages || 0}
-              subtitle="Platform-wide messages"
+              subtitle="Counts only"
               icon="chatbubbles"
               color="#EC4899"
-              onPress={() => void router.push('/admin-messages')}
+              onPress={() => {}}
             />
           </View>
 

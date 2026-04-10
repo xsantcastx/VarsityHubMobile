@@ -5,7 +5,6 @@ import { notifyNewMessage } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
-import { getIsAdmin } from '../middleware/requireAdmin.js';
 import { messageLimiter } from '../middleware/rateLimiters.js';
 
 export const messagesRouter = Router();
@@ -81,10 +80,10 @@ const withParam = (req.query as any).with ? String((req.query as any).with) : un
 const all = String((req.query as any).all || '') === '1';
 
 if (all) {
-const isAdmin = await getIsAdmin(req);
-if (!isAdmin) return res.status(403).json({ error: 'Admin only' });
-const msgs = await prisma.message.findMany({ orderBy, take: limit, include: { sender: { select: baseUserSelect }, recipient: { select: baseUserSelect } }, });
-return res.json(msgs);
+return res.status(403).json({
+error: 'MESSAGE_AUDIT_SCOPE_REQUIRED',
+message: 'Platform-wide private message browsing is disabled. Review messages through report-scoped moderation flows only.',
+});
 }
 
 const meId = req.user!.id;

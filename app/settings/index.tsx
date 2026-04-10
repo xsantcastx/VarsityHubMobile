@@ -429,11 +429,6 @@ export default function SettingsScreen() {
                           subtitle="Review and moderate advertisements" 
                           onPress={() => void router.navigate('/admin-ads')} 
                         />
-                        <NavRow 
-                          title="View Messages" 
-                          subtitle="Content moderation" 
-                          onPress={() => void router.navigate('/admin-messages')} 
-                        />
                       </SectionCard>
                     )}
 

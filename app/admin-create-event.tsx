@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 // @ts-ignore
 import { httpPost } from '@/api/http';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -32,6 +33,7 @@ const EVENT_TYPES = [
 export default function CreateEventScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
+  const { isAdmin, loading: adminLoading } = useRequireAdmin();
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -76,6 +78,28 @@ export default function CreateEventScreen() {
     }
   };
 
+  if (adminLoading) {
+    return (
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: Colors[colorScheme].background, justifyContent: 'center', alignItems: 'center' }]}
+        edges={['bottom']}
+      >
+        <ActivityIndicator />
+      </SafeAreaView>
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: Colors[colorScheme].background, justifyContent: 'center', alignItems: 'center' }]}
+        edges={['bottom']}
+      >
+        <Text style={{ color: Colors[colorScheme].text, fontSize: 16, fontWeight: '600' }}>Admin access required</Text>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}
@@ -86,7 +110,7 @@ export default function CreateEventScreen() {
         <View style={styles.header}>
           <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Create Official Event</Text>
           <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>
-            As an administrator, this event will be automatically approved and published.
+            Official admin-created events are published immediately.
           </Text>
         </View>
 

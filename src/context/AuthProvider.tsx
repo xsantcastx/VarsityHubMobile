@@ -32,6 +32,7 @@ interface AuthUser {
   email: string;
   username?: string;
   role?: string;
+  is_admin?: boolean;
   preferences?: {
     onboarding_completed?: boolean;
   };
@@ -89,7 +90,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
   }, [segments]);
 
   // Derived state
-  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN' || user?.is_admin === true;
+  const isAdmin = user?.is_admin === true;
 
   // Check backend health (once on startup)
   const checkHealth = useCallback(async () => {

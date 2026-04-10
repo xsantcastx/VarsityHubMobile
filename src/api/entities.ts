@@ -434,7 +434,6 @@ export const Message = {
     };
     return httpGet('/messages?' + q.join('&'), options);
   },
-  listAll: (limit: number = 200) => httpGet('/messages?all=1&limit=' + String(limit)),
   filter: (_where: any = {}, sort: string = '-created_at') => {
     const options = {
       headers: {
