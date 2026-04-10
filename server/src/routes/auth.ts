@@ -11,6 +11,7 @@ import { signJwt, signRefreshJwt, verifyRefreshJwt } from '../lib/jwt.js';
 import { prisma } from '../lib/prisma.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
+import { requireAdmin } from '../middleware/requireAdmin.js';
 
 export const authRouter = Router();
 // Simple in-memory rate limiting for auth endpoints
@@ -1157,7 +1158,7 @@ function sanitizeUser(u: any) {
 }
 
 // Test email endpoint (development only)
-authRouter.post('/test-email', async (req, res) => {
+authRouter.post('/test-email', requireAdmin as any, async (req, res) => {
   if (process.env.NODE_ENV === 'production') {
     return res.status(403).json({ error: 'Test endpoint not available in production' });
   }
