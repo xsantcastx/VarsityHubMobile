@@ -685,7 +685,8 @@ paymentsRouter.post('/update-subscription-quantity', expressPkg.json(), requireV
       return res.status(400).json({ error: 'No active subscription found' });
     }
 
-    // CRITICAL: Verify user actually owns this many teams before updating payment
+    // Allow syncing billing to the current count or reserving capacity for one
+    // additional team in the create-team flow.
     const actualTeamCount = await prisma.teamMembership.count({
       where: {
         user_id: userId,
@@ -694,12 +695,15 @@ paymentsRouter.post('/update-subscription-quantity', expressPkg.json(), requireV
       }
     });
 
-    if (team_count !== actualTeamCount) {
+    const maxRequestedTeams = actualTeamCount + 1;
+
+    if (team_count !== actualTeamCount && team_count !== maxRequestedTeams) {
       return res.status(400).json({
         error: 'Team count mismatch',
-        message: `You currently own ${actualTeamCount} team${actualTeamCount !== 1 ? 's' : ''} but requested to pay for ${team_count}. You can only pay for teams you own.`,
+        message: `You currently own ${actualTeamCount} team${actualTeamCount !== 1 ? 's' : ''}. You can sync billing to that count or reserve capacity for exactly one additional team.`,
         owned_teams: actualTeamCount,
-        requested_teams: team_count
+        requested_teams: team_count,
+        max_requested_teams: maxRequestedTeams,
       });
     }
 

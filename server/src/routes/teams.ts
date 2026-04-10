@@ -314,7 +314,9 @@ teamsRouter.get('/:id/members', async (req, res) => {
 });
 
 // All members across teams (for admin screens); optional search q
-teamsRouter.get('/members/all', async (req, res) => {
+teamsRouter.get('/members/all', requireAuth as any, async (req, res) => {
+  const isAdmin = await getIsAdmin(req as any);
+  if (!isAdmin) return res.status(403).json({ error: 'Admin only' });
   const q = String((req.query as any).q || '').trim().toLowerCase();
   const mems = await prisma.teamMembership.findMany({
     orderBy: { created_at: 'desc' },
@@ -697,14 +699,18 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
       const subscriptionItem = subscription.items.data[0];
       const paidQuantity = subscriptionItem?.quantity || 0;
       
-      // User is trying to create team number (ownedTeamsCount + 1)
-      // They should have paid for at least that many teams
-      if (ownedTeamsCount >= paidQuantity) {
+      const includedTotalTeams = paidQuantity + 2;
+      const requestedTeamNumber = ownedTeamsCount + 1;
+
+      // Veteran charges only for teams beyond the first two free slots.
+      // Stripe quantity stores billable teams, so convert it back to total allowed teams.
+      if (requestedTeamNumber > includedTotalTeams) {
         return res.status(403).json({
           error: 'Team limit reached',
-          message: `You've paid for ${paidQuantity} team${paidQuantity > 1 ? 's' : ''} but are trying to create team #${ownedTeamsCount + 1}. Please update your subscription first.`,
+          message: `Your subscription currently covers ${includedTotalTeams} total team${includedTotalTeams === 1 ? '' : 's'} (${paidQuantity} billable beyond the first 2 free). Please update your subscription before creating team #${requestedTeamNumber}.`,
           code: 'SUBSCRIPTION_QUANTITY_EXCEEDED',
           paid_quantity: paidQuantity,
+          included_total_teams: includedTotalTeams,
           current_teams: ownedTeamsCount,
         });
       }
