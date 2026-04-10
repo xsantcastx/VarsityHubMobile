@@ -277,7 +277,7 @@ export default function ProfileScreen() {
         exif: false,
       } as any);
 
-      if (pickerResult.canceled) {
+      if (pickerResult.canceled || !pickerResult.assets?.length) {
         return;
       }
 
@@ -317,7 +317,7 @@ export default function ProfileScreen() {
         exif: false,
       } as any);
 
-      if (pickerResult.canceled) {
+      if (pickerResult.canceled || !pickerResult.assets?.length) {
         return;
       }
 

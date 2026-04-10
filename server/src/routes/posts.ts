@@ -121,7 +121,7 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
     const following = await prisma.follows.findMany({
       where: { follower_id: currentUserId, status: 'accepted' },
       select: { following_id: true },
-      take: 5000,
+      take: 1000,
     });
     const followingIds = following.map((f) => f.following_id);
     followedFeedMeta = { following_count: followingIds.length };
@@ -508,7 +508,7 @@ postsRouter.get('/debug/follows', requireAuth, asyncHandler(async (req: AuthedRe
         select: { id: true, display_name: true, username: true }
       }
     },
-    take: 5000,
+    take: 1000,
   });
 
   return res.json({

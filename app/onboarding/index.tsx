@@ -32,7 +32,9 @@ export default function OnboardingIndex() {
         if (me?.preferences && Object.keys(me.preferences).length > 0) {
           hydrateFromServer(me.preferences);
         }
-      }).catch(() => {});
+      }).catch((err: any) => {
+        console.warn('[onboarding] Failed to sync server preferences:', err?.message || err);
+      });
     }
   }, [user, isLoaded, router, hydrateFromServer]);
   

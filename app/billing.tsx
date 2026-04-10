@@ -14,6 +14,7 @@ function BillingScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
+  const styles = createStyles(theme);
   // Demo subtotal; replace with real cart subtotal
   const [subtotalCents] = useState(4999);
   const [code, setCode] = useState('');
@@ -258,46 +259,47 @@ function BillingScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: 'white' },
-  title: { fontSize: 24, fontWeight: '700', marginBottom: 8 },
-  subtitle: { color: Colors.light.mutedText, marginBottom: 16, lineHeight: 20 },
+// Theme-aware styles — created inside component to access `theme`
+const createStyles = (t: typeof Colors.light) => StyleSheet.create({
+  container: { flex: 1, padding: 16, backgroundColor: t.background },
+  title: { fontSize: 24, fontWeight: '700', marginBottom: 8, color: t.text },
+  subtitle: { color: t.mutedText, marginBottom: 16, lineHeight: 20 },
   planCard: {
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: t.border,
     borderRadius: 14,
     padding: 16,
     marginBottom: 16,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: t.surface,
   },
   planBadge: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', color: '#2563EB', marginBottom: 6 },
-  planPrice: { fontSize: 20, fontWeight: '800', marginBottom: 4 },
-  planDescription: { marginBottom: 12, lineHeight: 20 },
-  planDescriptionMuted: { fontSize: 13 },
+  planPrice: { fontSize: 20, fontWeight: '800', marginBottom: 4, color: t.text },
+  planDescription: { marginBottom: 12, lineHeight: 20, color: t.text },
+  planDescriptionMuted: { fontSize: 13, color: t.mutedText },
   featureList: { gap: 8, marginBottom: 8 },
   featureItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  featureText: { fontSize: 14, flex: 1 },
-  sectionTitle: { fontSize: 16, fontWeight: '700', marginBottom: 8, marginTop: 8 },
+  featureText: { fontSize: 14, flex: 1, color: t.text },
+  sectionTitle: { fontSize: 16, fontWeight: '700', marginBottom: 8, marginTop: 8, color: t.text },
   applyRow: { flexDirection: 'row', gap: 8, alignItems: 'center', marginBottom: 12 },
-  input: { flex: 1, borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, paddingHorizontal: 12, height: 44 },
-  btn: { backgroundColor: '#111827', paddingHorizontal: 16, height: 44, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  btnText: { color: 'white', fontWeight: '700' },
+  input: { flex: 1, borderWidth: 1, borderColor: t.border, borderRadius: 8, paddingHorizontal: 12, height: 44, color: t.text, backgroundColor: t.surface },
+  btn: { backgroundColor: t.text, paddingHorizontal: 16, height: 44, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  btnText: { color: t.background, fontWeight: '700' },
   btnDisabled: { opacity: 0.6 },
   error: { color: '#b91c1c', marginTop: 6 },
-  previewBox: { marginTop: 12, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb', backgroundColor: '#f9fafb', gap: 6 },
-  previewLine: {},
+  previewBox: { marginTop: 12, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: t.border, backgroundColor: t.surface, gap: 6 },
+  previewLine: { color: t.text },
   btnPrimary: { backgroundColor: '#2563EB', paddingVertical: 12, borderRadius: 10, alignItems: 'center', marginTop: 8 },
-  btnPrimaryText: { color: 'white', fontWeight: '800' },
-  banner: { marginBottom: 12, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb', backgroundColor: '#F5F5F5' },
+  btnPrimaryText: { color: '#FFFFFF', fontWeight: '800' },
+  banner: { marginBottom: 12, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: t.border, backgroundColor: t.surface },
   bannerLegend: { backgroundColor: '#FFFBEB' },
-  bannerTitle: { fontSize: 16, fontWeight: '800', color: '#6B6B6B' },
+  bannerTitle: { fontSize: 16, fontWeight: '800', color: t.mutedText },
   bannerTitleLegend: { color: '#92600A' },
-  bannerDescription: { fontSize: 13, marginTop: 4, marginBottom: 8, color: '#6B6B6B', lineHeight: 18 },
-  bannerLine: { marginTop: 4, color: '#6B6B6B' },
+  bannerDescription: { fontSize: 13, marginTop: 4, marginBottom: 8, color: t.mutedText, lineHeight: 18 },
+  bannerLine: { marginTop: 4, color: t.mutedText },
   bannerHint: { marginTop: 6, color: '#047857', fontSize: 12 },
   bold: { fontWeight: '800' },
   qtyRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
-  qtyInput: { width: 80, borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, paddingHorizontal: 12, height: 44 },
+  qtyInput: { width: 80, borderWidth: 1, borderColor: t.border, borderRadius: 8, paddingHorizontal: 12, height: 44, color: t.text, backgroundColor: t.surface },
 });
 
 export default BillingScreen;
