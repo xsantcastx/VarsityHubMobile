@@ -160,7 +160,7 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
       },
       select: { id: true },
       take: 500,
-      orderBy: { start_time: 'desc' },
+      orderBy: { date: 'desc' },
     });
     const gameIds = gamesWithFollowedTeams.map((g) => g.id);
     where.OR = [

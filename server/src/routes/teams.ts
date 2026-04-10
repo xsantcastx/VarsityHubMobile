@@ -1232,7 +1232,7 @@ teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, req
           primary_color: data.primary_color?.trim() || null,
           season_start: data.season_start ? new Date(data.season_start) : null,
           season_end: data.season_end ? new Date(data.season_end) : null,
-          organization_id: organizationId, // Now guaranteed to exist
+          organization_id: organizationId!, // Guaranteed set by org validation above
           logo_url: data.logo_url || null,
           city: data.city?.trim() || null,
           state: data.state?.trim() || null,

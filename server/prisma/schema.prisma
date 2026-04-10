@@ -713,6 +713,7 @@ enum NotificationType {
   EVENT_APPROVED
   EVENT_REJECTED
   COACH_REJECTED
+  ORG_REJECTED
 }
 
 model Notification {

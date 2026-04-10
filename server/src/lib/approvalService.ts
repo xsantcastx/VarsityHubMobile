@@ -149,9 +149,10 @@ export async function rejectOrganization(
       where: { id: orgId },
       data: { status: 'rejected', admin_approved: false },
     });
+    // organization_id is non-nullable — soft-delete teams by setting status instead
     await tx.team.updateMany({
       where: { organization_id: orgId },
-      data: { organization_id: null },
+      data: { status: 'inactive' },
     });
     await tx.organizationMembership.deleteMany({
       where: { organization_id: orgId },
