@@ -252,7 +252,7 @@ adsRouter.delete('/:id', requireVerified as any, async (req: AuthedRequest, res)
 });
 
 // Admin review (approve/reject) with optional note and email notification
-adsRouter.post('/:id/review', async (req: AuthedRequest, res) => {
+adsRouter.post('/:id/review', requireVerified as any, async (req: AuthedRequest, res) => {
   const isAdmin = await getIsAdmin(req as any);
   if (!isAdmin) return res.status(403).json({ error: 'Admin only' });
 
@@ -266,10 +266,14 @@ adsRouter.post('/:id/review', async (req: AuthedRequest, res) => {
   if (!ad) return res.status(404).json({ error: 'Ad not found' });
 
   if (action === 'approve') {
+    if (ad.payment_status !== 'paid') {
+      return res.status(400).json({ error: 'Ad must be paid before it can be approved' });
+    }
+
     const updated = await prisma.ad.update({
       where: { id },
       data: {
-        status: 'approved',
+        status: 'active',
         admin_note: note || null,
       },
     });

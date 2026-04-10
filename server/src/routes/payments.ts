@@ -362,7 +362,7 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
     }
     try {
       await prisma.$transaction([
-        prisma.ad.update({ where: { id: String(ad_id) }, data: { payment_status: 'paid' } }),
+        prisma.ad.update({ where: { id: String(ad_id) }, data: { payment_status: 'paid', status: 'active' } }),
         prisma.adReservation.createMany({ data: isoDates.map((s) => ({ ad_id: String(ad_id), date: new Date(s + 'T00:00:00.000Z') })), skipDuplicates: true }),
       ]);
     } catch (e) {}

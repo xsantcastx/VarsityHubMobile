@@ -460,16 +460,35 @@ export default function AdCalendarScreen() {
       }
       if (data?.url) {
         try {
-          await WebBrowser.openBrowserAsync(String(data.url));
-          Alert.alert(
-            'Check Payment Status',
-            'If you completed checkout, a confirmation screen should appear shortly. If you canceled the payment, you can reopen checkout from this screen.',
+          const result = await WebBrowser.openAuthSessionAsync(
+            String(data.url),
+            'varsityhubmobile://payment-success'
           );
+
+          if (result.type === 'success' && typeof result.url === 'string') {
+            const redirectUrl = new URL(result.url);
+            const sessionId = redirectUrl.searchParams.get('session_id');
+            const paymentType = redirectUrl.searchParams.get('type') || 'ad';
+
+            if (sessionId) {
+              router.replace({
+                pathname: '/payment-success',
+                params: { session_id: sessionId, type: paymentType },
+              });
+              return;
+            }
+          }
+
+          if (result.type !== 'cancel' && result.type !== 'dismiss') {
+            Alert.alert(
+              'Check Payment Status',
+              'If checkout completed but the app did not redirect automatically, open your ads list and retry payment verification there.',
+            );
+            return;
+          }
         } catch (browserErr) {
           console.error('Browser error:', browserErr);
           Alert.alert('Error', 'Could not open payment page. Please try again.');
-        } finally {
-          setSubmitting(false);
         }
         return;
       }
