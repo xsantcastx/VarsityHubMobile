@@ -434,20 +434,94 @@ adsRouter.post('/reservations', requireVerified as any, async (req: AuthedReques
   if (ad.payment_status !== 'paid') return res.status(403).json({ error: 'Ad is not paid' });
 
   const isoDates: string[] = Array.from(new Set(dates.map((d: any) => String(d))));
-  // No global conflicts: allow multiple ads on the same date.
-  // Enforce only one reservation per ad per date via DB unique constraint.
-  // Create (skip duplicates for idempotency)
-  const createdMany = await prisma.adReservation.createMany({
-    data: isoDates.map((s) => ({ ad_id: String(ad_id), date: new Date(s + 'T00:00:00.000Z') })),
-    skipDuplicates: true,
-  });
+  const dateObjects = isoDates.map((value) => new Date(`${value}T00:00:00.000Z`));
+  const MAX_AD_SLOTS = 3;
 
-  // Use shared ad pricing helper for consistent calculation
-  // Mon-Thu = $5.00 per week block, Fri-Sun = $8.00 per week block
-  // Properly groups dates into week blocks (multiple dates in same week = single charge)
-  const totalPrice = calculateAdPriceDollars(isoDates);
+  try {
+    const createdCount = await prisma.$transaction(async (tx) => {
+      const currentAd = await tx.ad.findUnique({
+        where: { id: String(ad_id) },
+        select: { id: true, user_id: true, payment_status: true, target_zip_code: true },
+      });
 
-  return res.status(201).json({ ok: true, reserved: createdMany.count, dates: isoDates, price: totalPrice });
+      if (!currentAd) {
+        const err = new Error('AD_NOT_FOUND');
+        throw err;
+      }
+      if (currentAd.user_id !== req.user?.id) {
+        const err = new Error('FORBIDDEN');
+        throw err;
+      }
+      if (currentAd.payment_status !== 'paid') {
+        const err = new Error('AD_NOT_PAID');
+        throw err;
+      }
+
+      const existingReservations = await tx.adReservation.findMany({
+        where: { ad_id: String(ad_id), date: { in: dateObjects } },
+        select: { date: true },
+      });
+      const existingDates = new Set(existingReservations.map((reservation) => reservation.date.toISOString().slice(0, 10)));
+      const newDates = isoDates.filter((value) => !existingDates.has(value));
+
+      if (newDates.length > 0 && currentAd.target_zip_code) {
+        const otherPaidAds = await tx.ad.findMany({
+          where: {
+            target_zip_code: currentAd.target_zip_code,
+            payment_status: 'paid',
+            NOT: { id: String(ad_id) },
+          },
+          select: { id: true },
+        });
+
+        if (otherPaidAds.length > 0) {
+          const bookedSlots = await tx.adReservation.groupBy({
+            by: ['date'],
+            where: {
+              ad_id: { in: otherPaidAds.map((otherAd) => otherAd.id) },
+              date: { in: newDates.map((value) => new Date(`${value}T00:00:00.000Z`)) },
+            },
+            _count: { date: true },
+          });
+          const fullDates = bookedSlots
+            .filter((slot) => slot._count.date >= MAX_AD_SLOTS)
+            .map((slot) => slot.date.toISOString().slice(0, 10));
+
+          if (fullDates.length > 0) {
+            const err = new Error('SLOT_FULL') as Error & { dates?: string[] };
+            err.dates = fullDates;
+            throw err;
+          }
+        }
+      }
+
+      const createdMany = await tx.adReservation.createMany({
+        data: isoDates.map((value) => ({ ad_id: String(ad_id), date: new Date(`${value}T00:00:00.000Z`) })),
+        skipDuplicates: true,
+      });
+
+      return createdMany.count;
+    }, { isolationLevel: 'Serializable' });
+
+    // Use shared ad pricing helper for consistent calculation
+    // Mon-Thu = $5.00 per week block, Fri-Sun = $8.00 per week block
+    // Properly groups dates into week blocks (multiple dates in same week = single charge)
+    const totalPrice = calculateAdPriceDollars(isoDates);
+
+    return res.status(201).json({ ok: true, reserved: createdCount, dates: isoDates, price: totalPrice });
+  } catch (error: any) {
+    if (error?.message === 'AD_NOT_FOUND') return res.status(404).json({ error: 'Ad not found' });
+    if (error?.message === 'FORBIDDEN') return res.status(403).json({ error: 'Forbidden' });
+    if (error?.message === 'AD_NOT_PAID') return res.status(403).json({ error: 'Ad is not paid' });
+    if (error?.message === 'SLOT_FULL') {
+      return res.status(409).json({
+        error: 'Selected dates are no longer available',
+        code: 'SLOT_FULL',
+        dates: error.dates || [],
+      });
+    }
+    throw error;
+  }
 });
 
 /**
