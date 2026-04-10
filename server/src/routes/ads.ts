@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { getZipCoordinates, haversineDistance } from '../lib/geoUtils.js';
 import { geocodeLocation } from '../lib/geocoding.js';
 import { sendAdApprovedEmail, sendAdRejectedEmail } from '../lib/email.js';
@@ -31,6 +32,20 @@ async function getZipCoordinatesWithFallback(zipCode: string): Promise<{ lat: nu
 }
 
 export const adsRouter = Router();
+
+const updateAdSchema = z
+  .object({
+    contact_name: z.string().min(1).max(255).optional(),
+    contact_email: z.string().email().optional(),
+    business_name: z.string().min(1).max(255).optional(),
+    banner_url: z.string().url().nullable().optional(),
+    banner_fit_mode: z.enum(['contain', 'cover']).nullable().optional(),
+    target_url: z.string().url().nullable().optional(),
+    target_zip_code: z.string().min(1).max(32).optional(),
+    radius: z.number().int().min(1).max(500).optional(),
+    description: z.string().max(5000).nullable().optional(),
+  })
+  .strict();
 
 // Create an Ad (optionally associated to the authenticated user)
 adsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) => {
@@ -177,20 +192,24 @@ adsRouter.get('/:id', async (req, res) => {
   return res.json({ ...ad, dates: dates.map((r) => r.date.toISOString().slice(0, 10)) });
 });
 
-// Update an Ad (owner-only if authenticated)
-adsRouter.put('/:id', async (req: AuthedRequest, res) => {
+// Update an Ad (owner-only unless admin)
+adsRouter.put('/:id', requireVerified as any, async (req: AuthedRequest, res) => {
   const id = String(req.params.id);
+  const parsed = updateAdSchema.safeParse(req.body || {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
+  }
+
   const existing = await prisma.ad.findUnique({ where: { id } });
   if (!existing) return res.status(404).json({ error: 'Not found' });
-  if (existing.user_id && req.user?.id && existing.user_id !== req.user.id) {
+
+  const isAdmin = await getIsAdmin(req as any);
+  const isOwner = existing.user_id === req.user?.id;
+  if (!isAdmin && !isOwner) {
     return res.status(403).json({ error: 'Forbidden' });
   }
-  const data: any = {};
-  const allowed = ['contact_name','contact_email','business_name','banner_url','banner_fit_mode','target_url','target_zip_code','radius','description','status','payment_status'] as const;
-  for (const k of allowed) {
-    if (k in (req.body || {})) (data as any)[k] = (req.body as any)[k];
-  }
-  const ad = await prisma.ad.update({ where: { id }, data });
+
+  const ad = await prisma.ad.update({ where: { id }, data: parsed.data });
   return res.json(ad);
 });
 
