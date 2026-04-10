@@ -982,7 +982,7 @@ gamesRouter.put('/:id/approve', requireAuth as any, async (req: AuthedRequest, r
   // Get the game to check permissions
   const game = await (prisma.game.findUnique as any)({
     where: { id },
-    select: { id: true, home_team_id: true, away_team_id: true, approval_status: true }
+    select: { id: true, home_team_id: true, away_team_id: true, approval_status: true, created_by_id: true }
   });
   
   if (!game) return res.status(404).json({ error: 'Event not found' });
@@ -1006,6 +1006,9 @@ gamesRouter.put('/:id/approve', requireAuth as any, async (req: AuthedRequest, r
 
   if (!isCoach && !isAdmin) {
     return res.status(403).json({ error: 'Only coaches and admins can approve events' });
+  }
+  if (!isAdmin && game.created_by_id === req.user.id) {
+    return res.status(403).json({ error: 'You cannot approve your own game' });
   }
   
   const updatedGame = await (prisma.game.update as any)({

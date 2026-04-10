@@ -43,6 +43,7 @@ function checkAuthRateLimit(identifier: string): boolean {
 
 // simple in-memory rate limiting for verification send: 1/30s, 5/hour per user
 const verifyRate: Map<string, { last: number; count: number; hourStart: number }> = new Map();
+const verifyConfirmRate: Map<string, { attempts: number; resetAt: number }> = new Map();
 const GOOGLE_ALLOWED_AUDIENCES = (process.env.GOOGLE_OAUTH_CLIENT_IDS || process.env.GOOGLE_OAUTH_AUDIENCE || '')
   .split(',')
   .map((value) => value.trim())
@@ -86,10 +87,29 @@ function isUnder13(dob: string | null | undefined): boolean {
   return age < 13;
 }
 
-function issueAuthTokens(userId: string) {
+function getSessionVersion(preferences: unknown): number {
+  const prefs =
+    preferences && typeof preferences === 'object' && !Array.isArray(preferences)
+      ? (preferences as Record<string, unknown>)
+      : {};
+  const raw = prefs.session_version;
+  return typeof raw === 'number' && Number.isFinite(raw) ? raw : 0;
+}
+
+function bumpSessionVersion(preferences: unknown) {
+  const prefs =
+    preferences && typeof preferences === 'object' && !Array.isArray(preferences)
+      ? ({ ...(preferences as Record<string, unknown>) } as Record<string, unknown>)
+      : {};
+  const next = getSessionVersion(prefs) + 1;
+  return { ...prefs, session_version: next };
+}
+
+function issueAuthTokens(user: { id: string; preferences?: unknown }) {
+  const sessionVersion = getSessionVersion(user.preferences);
   return {
-    access_token: signJwt({ id: userId }),
-    refresh_token: signRefreshJwt({ id: userId, type: 'refresh' }),
+    access_token: signJwt({ id: user.id, sv: sessionVersion }),
+    refresh_token: signRefreshJwt({ id: user.id, type: 'refresh', sv: sessionVersion }),
   };
 }
 
@@ -166,7 +186,7 @@ authRouter.post('/register', asyncHandler(async (req, res) => {
     }
   });
   console.log(`[verify-code] [register] Code stored in DB for user ${user.id} (expires ${exp.toISOString()})`);
-  const { access_token, refresh_token } = issueAuthTokens(user.id);
+  const { access_token, refresh_token } = issueAuthTokens(user);
   try {
     console.log(`[verify-code] [register] Calling sendVerificationEmail → to: ${email}`);
     const emailSend = sendVerificationEmail(email, code, display_name || sanitizedEmail.split('@')[0]);
@@ -210,7 +230,7 @@ authRouter.post('/login', async (req, res) => {
   if (user.banned) return res.status(403).json({ error: 'Account banned' });
   const ok = await bcrypt.compare(password, user.password_hash);
   if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
-  const { access_token, refresh_token } = issueAuthTokens(user.id);
+  const { access_token, refresh_token } = issueAuthTokens(user);
   const sanitized = sanitizeUser(user);
   const needsOnboarding = sanitized?.preferences?.onboarding_completed === false;
   const body: any = { access_token, refresh_token, user: sanitized, needs_onboarding: needsOnboarding };
@@ -226,16 +246,22 @@ authRouter.post('/refresh', async (req, res) => {
   const parsed = refreshSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
 
-  const payload = verifyRefreshJwt<{ id?: string; type?: string }>(parsed.data.refresh_token);
+  const payload = verifyRefreshJwt<{ id?: string; type?: string; sv?: number }>(parsed.data.refresh_token);
   if (!payload?.id || payload.type !== 'refresh') {
     return res.status(401).json({ error: 'Invalid refresh token' });
   }
 
-  const user = await prisma.user.findUnique({ where: { id: payload.id } });
+  const user = await prisma.user.findUnique({
+    where: { id: payload.id },
+    select: { id: true, banned: true, preferences: true },
+  });
   if (!user) return res.status(401).json({ error: 'Invalid refresh token' });
   if (user.banned) return res.status(403).json({ error: 'Account banned' });
+  if ((payload.sv ?? 0) !== getSessionVersion(user.preferences)) {
+    return res.status(401).json({ error: 'Invalid refresh token' });
+  }
 
-  const tokens = issueAuthTokens(user.id);
+  const tokens = issueAuthTokens(user);
   return res.json(tokens);
 });
 
@@ -332,7 +358,7 @@ authRouter.post('/google', async (req, res) => {
     }
 
     const sanitized = sanitizeUser(user);
-    const { access_token, refresh_token } = issueAuthTokens(sanitized.id);
+    const { access_token, refresh_token } = issueAuthTokens(user);
     const needsOnboarding = sanitized?.preferences?.onboarding_completed === false;
 
     return res.json({
@@ -491,7 +517,7 @@ authRouter.post('/apple', async (req, res) => {
     }
 
     const sanitized = sanitizeUser(user);
-    const { access_token, refresh_token } = issueAuthTokens(sanitized.id);
+    const { access_token, refresh_token } = issueAuthTokens(user);
     const needsOnboarding = sanitized?.preferences?.onboarding_completed === false;
 
     return res.json({
@@ -578,6 +604,7 @@ authRouter.post('/password/reset', async (req, res) => {
       password_hash,
       password_reset_code: null,
       password_reset_expires: null,
+      preferences: bumpSessionVersion(user.preferences),
     },
   });
 
@@ -609,7 +636,10 @@ authRouter.post('/password/change', async (req: AuthedRequest, res) => {
   // Update password
   await prisma.user.update({
     where: { id: user.id },
-    data: { password_hash },
+    data: {
+      password_hash,
+      preferences: bumpSessionVersion(user.preferences),
+    },
   });
   
   // Send confirmation email
@@ -1162,9 +1192,20 @@ authRouter.post('/verify/confirm', async (req: AuthedRequest, res) => {
   const user = await prisma.user.findUnique({ where: { id: req.user.id } });
   if (!user) return res.status(404).json({ error: 'Not found' });
   if (user.email_verified) return res.json({ ok: true, already_verified: true });
+  const now = Date.now();
+  const confirmKey = user.id;
+  const confirmRec = verifyConfirmRate.get(confirmKey);
+  if (confirmRec && now < confirmRec.resetAt && confirmRec.attempts >= 10) {
+    return res.status(429).json({ error: 'Too many verification attempts. Please request a new code or try again later.' });
+  }
   if (!user.email_verification_code || !user.email_verification_expires) return res.status(400).json({ error: 'No verification in progress' });
   if (new Date() > user.email_verification_expires) return res.status(400).json({ error: 'Code expired' });
-  if (String(code) !== String(user.email_verification_code)) return res.status(400).json({ error: 'Invalid code' });
+  if (String(code) !== String(user.email_verification_code)) {
+    const nextAttempts = confirmRec && now < confirmRec.resetAt ? confirmRec.attempts + 1 : 1;
+    verifyConfirmRate.set(confirmKey, { attempts: nextAttempts, resetAt: now + AUTH_WINDOW_MS });
+    return res.status(400).json({ error: 'Invalid code' });
+  }
+  verifyConfirmRate.delete(confirmKey);
   const updated = await prisma.user.update({ where: { id: user.id }, data: { email_verified: true, email_verification_code: null, email_verification_expires: null } });
   return res.json({ ok: true, user: sanitizeUser(updated) });
 });

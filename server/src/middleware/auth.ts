@@ -16,13 +16,25 @@ export async function authMiddleware(req: AuthedRequest, _res: Response, next: N
     return next();
   }
   const token = header.slice('Bearer '.length).trim();
-  const payload = verifyJwt<{ id: string }>(token);
+  const payload = verifyJwt<{ id: string; sv?: number }>(token);
   if (payload?.id) {
     const user = await prisma.user.findUnique({
       where: { id: payload.id },
-      select: { id: true, banned: true },
+      select: { id: true, banned: true, preferences: true },
     });
     if (!user || user.banned) {
+      clearUserContext();
+      return next();
+    }
+    const prefs =
+      user.preferences && typeof user.preferences === 'object' && !Array.isArray(user.preferences)
+        ? (user.preferences as Record<string, unknown>)
+        : {};
+    const sessionVersion =
+      typeof prefs.session_version === 'number' && Number.isFinite(prefs.session_version)
+        ? prefs.session_version
+        : 0;
+    if ((payload.sv ?? 0) !== sessionVersion) {
       clearUserContext();
       return next();
     }

@@ -480,6 +480,9 @@ eventsRouter.put('/:id/approve', requireVerified as any, async (req: AuthedReque
   const eventId = String(req.params.id);
   const event = await prisma.event.findUnique({ where: { id: eventId } });
   if (!event) return res.status(404).json({ error: 'Event not found' });
+  if (!isAdmin && event.creator_id === user.id) {
+    return res.status(403).json({ error: 'You cannot approve your own event' });
+  }
   
   // Validate event is in pending state
   if (event.approval_status === 'approved') {
@@ -572,6 +575,9 @@ eventsRouter.put('/:id/reject', requireVerified as any, async (req: AuthedReques
   const eventId = String(req.params.id);
   const event = await prisma.event.findUnique({ where: { id: eventId } });
   if (!event) return res.status(404).json({ error: 'Event not found' });
+  if (!isAdmin && event.creator_id === user.id) {
+    return res.status(403).json({ error: 'You cannot review your own event' });
+  }
   
   // Validate event is in pending state
   if (event.approval_status === 'approved') {
