@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /**
  * Real-World Profile Pages End-to-End Test Suite
- * 
+ *
  * This script tests the profile pages (User, Team, Organization) to ensure
  * they work correctly in real-world scenarios.
  */
 
-import { Organization, Team, User } from '../api/entities.js';
+import { Organization, Team, User } from '../src/api/entities.js';
 
 const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001';
 
@@ -73,7 +73,7 @@ async function runProfilePagesTests() {
     try {
       const user = await User.me();
       if (!user?.id) return false;
-      
+
       const posts = await User.postsForProfile(String(user.id), { limit: 10 });
       return Array.isArray(posts.items || posts);
     } catch {
@@ -86,10 +86,10 @@ async function runProfilePagesTests() {
     try {
       const user = await User.me();
       if (!user?.id) return false;
-      
-      const replies = await User.interactionsForProfile(String(user.id), { 
-        type: 'comment', 
-        limit: 10 
+
+      const replies = await User.interactionsForProfile(String(user.id), {
+        type: 'comment',
+        limit: 10,
       });
       return Array.isArray(replies.items || replies);
     } catch {
@@ -102,10 +102,10 @@ async function runProfilePagesTests() {
     try {
       const user = await User.me();
       if (!user?.id) return false;
-      
-      const upvotes = await User.interactionsForProfile(String(user.id), { 
-        type: 'like', 
-        limit: 10 
+
+      const upvotes = await User.interactionsForProfile(String(user.id), {
+        type: 'like',
+        limit: 10,
       });
       return Array.isArray(upvotes.items || upvotes);
     } catch {
@@ -118,7 +118,7 @@ async function runProfilePagesTests() {
     try {
       const user = await User.me();
       if (!user?.id) return false;
-      
+
       // Check if created_at exists and is valid date
       if (user.created_at) {
         const date = new Date(user.created_at);
@@ -147,15 +147,15 @@ async function runProfilePagesTests() {
       const user = await User.me();
       const teams = await Team.list();
       const teamsList = Array.isArray(teams) ? teams : [];
-      
+
       if (teamsList.length === 0) return true; // No teams to test
-      
+
       const firstTeam = teamsList[0];
       if (!user?.id || !firstTeam?.id) return false;
-      
+
       const members = await Team.members(firstTeam.id);
       const memberList = Array.isArray(members) ? members : [];
-      
+
       // Check if user is admin/owner/coach
       const isAdmin = memberList.some((m: any) => {
         const memberUserId = m.user_id || m.user?.id;
@@ -163,7 +163,7 @@ async function runProfilePagesTests() {
         const role = String(m.role || '').toLowerCase();
         return ['owner', 'coach', 'admin'].includes(role);
       });
-      
+
       return true; // Test passes if we can check permissions
     } catch {
       return false;
@@ -176,9 +176,9 @@ async function runProfilePagesTests() {
       const teams = await Team.list();
       const teamsList = Array.isArray(teams) ? teams : [];
       if (teamsList.length === 0) return true;
-      
+
       // Get posts for team games
-      const games = await Team.games?.(teamsList[0].id) || [];
+      const games = (await Team.games?.(teamsList[0].id)) || [];
       return Array.isArray(games);
     } catch {
       return false;
@@ -202,14 +202,14 @@ async function runProfilePagesTests() {
       const user = await User.me();
       const orgs = await Organization.list();
       const orgsList = Array.isArray(orgs) ? orgs : [];
-      
+
       if (orgsList.length === 0) return true; // No orgs to test
-      
+
       const firstOrg = orgsList[0];
       if (!user?.id || !firstOrg?.id) return false;
-      
+
       const orgData = await Organization.get(firstOrg.id);
-      
+
       // Check if user is admin
       if (orgData?.memberships && Array.isArray(orgData.memberships)) {
         const isAdmin = orgData.memberships.some((m: any) => {
@@ -220,7 +220,7 @@ async function runProfilePagesTests() {
         });
         return true; // Test passes if we can check permissions
       }
-      
+
       return true;
     } catch {
       return false;
@@ -233,7 +233,7 @@ async function runProfilePagesTests() {
       const orgs = await Organization.list();
       const orgsList = Array.isArray(orgs) ? orgs : [];
       if (orgsList.length === 0) return true;
-      
+
       const orgData = await Organization.get(orgsList[0].id);
       if (orgData?.created_at) {
         const date = new Date(orgData.created_at);
@@ -251,9 +251,9 @@ async function runProfilePagesTests() {
       const user = await User.me();
       const teams = await Team.list();
       const teamsList = Array.isArray(teams) ? teams : [];
-      
+
       if (!user?.id || teamsList.length === 0) return true;
-      
+
       // Verify team data structure
       const team = teamsList[0];
       return !!team.id && !!team.name;
@@ -267,12 +267,12 @@ async function runProfilePagesTests() {
     try {
       const teams = await Team.list();
       const teamsList = Array.isArray(teams) ? teams : [];
-      
+
       if (teamsList.length === 0) return true;
-      
+
       const team = teamsList[0];
       if (!team.organization_id) return true; // Team may not have org
-      
+
       const org = await Organization.get(team.organization_id);
       return !!org && !!org.id;
     } catch {
@@ -285,11 +285,10 @@ async function runProfilePagesTests() {
     try {
       const user = await User.me();
       if (!user) return false;
-      
+
       // Check that all required fields exist for dark mode rendering
-      const hasRequiredFields = 
-        typeof user.display_name === 'string' || user.display_name === null;
-      
+      const hasRequiredFields = typeof user.display_name === 'string' || user.display_name === null;
+
       return hasRequiredFields;
     } catch {
       return false;
@@ -303,7 +302,7 @@ async function runProfilePagesTests() {
       // We can't force empty state, but we can verify the API returns arrays
       const user = await User.me();
       if (!user?.id) return false;
-      
+
       const posts = await User.postsForProfile(String(user.id), { limit: 1 });
       return Array.isArray(posts.items || posts);
     } catch {
@@ -316,21 +315,23 @@ async function runProfilePagesTests() {
     try {
       const user = await User.me();
       if (!user?.id) return false;
-      
+
       // Test that we can switch between tabs without errors
       const posts = await User.postsForProfile(String(user.id), { limit: 1 });
-      const replies = await User.interactionsForProfile(String(user.id), { 
-        type: 'comment', 
-        limit: 1 
+      const replies = await User.interactionsForProfile(String(user.id), {
+        type: 'comment',
+        limit: 1,
       });
-      const upvotes = await User.interactionsForProfile(String(user.id), { 
-        type: 'like', 
-        limit: 1 
+      const upvotes = await User.interactionsForProfile(String(user.id), {
+        type: 'like',
+        limit: 1,
       });
-      
-      return Array.isArray(posts.items || posts) &&
-             Array.isArray(replies.items || replies) &&
-             Array.isArray(upvotes.items || upvotes);
+
+      return (
+        Array.isArray(posts.items || posts) &&
+        Array.isArray(replies.items || replies) &&
+        Array.isArray(upvotes.items || upvotes)
+      );
     } catch {
       return false;
     }
@@ -341,11 +342,13 @@ async function runProfilePagesTests() {
     try {
       const user = await User.me();
       if (!user) return false;
-      
+
       // Check avatar_url format if it exists
       if (user.avatar_url) {
-        return typeof user.avatar_url === 'string' && 
-               (user.avatar_url.startsWith('http') || user.avatar_url.startsWith('/'));
+        return (
+          typeof user.avatar_url === 'string' &&
+          (user.avatar_url.startsWith('http') || user.avatar_url.startsWith('/'))
+        );
       }
       return true; // avatar_url is optional
     } catch {
@@ -358,7 +361,7 @@ async function runProfilePagesTests() {
     try {
       const user = await User.me();
       if (!user) return false;
-      
+
       // Check bio format
       if (user.bio) {
         return typeof user.bio === 'string';
@@ -374,7 +377,7 @@ async function runProfilePagesTests() {
     try {
       const user = await User.me();
       if (!user) return false;
-      
+
       // Check _count structure
       if (user._count) {
         const following = user._count.following ?? 0;
@@ -393,34 +396,36 @@ async function runProfilePagesTests() {
   console.log('║                    TEST SUMMARY                                  ║');
   console.log('╚════════════════════════════════════════════════════════════════╝');
   console.log('');
-  
+
   const passed = results.filter(r => r.passed).length;
   const failed = results.filter(r => !r.passed).length;
   const total = results.length;
-  
+
   console.log(`Total Tests: ${total}`);
   console.log(`✅ Passed: ${passed}`);
   console.log(`❌ Failed: ${failed}`);
   console.log(`Success Rate: ${((passed / total) * 100).toFixed(1)}%`);
   console.log('');
-  
+
   if (failed > 0) {
     console.log('Failed Tests:');
-    results.filter(r => !r.passed).forEach(r => {
-      console.log(`  ❌ ${r.name}`);
-      if (r.error) {
-        console.log(`     Error: ${r.error}`);
-      }
-    });
+    results
+      .filter(r => !r.passed)
+      .forEach(r => {
+        console.log(`  ❌ ${r.name}`);
+        if (r.error) {
+          console.log(`     Error: ${r.error}`);
+        }
+      });
     console.log('');
   }
-  
+
   // Exit with appropriate code
   process.exit(failed > 0 ? 1 : 0);
 }
 
 // Run tests
-runProfilePagesTests().catch((error) => {
+runProfilePagesTests().catch(error => {
   console.error('Fatal error running tests:', error);
   process.exit(1);
 });

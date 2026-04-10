@@ -7,65 +7,40 @@
     "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@/api/*": [
-        "api/*"
-      ],
-      "@/components/*": [
-        "components/*"
-      ],
-      "@/constants/*": [
-        "constants/*"
-      ],
-      "@/hooks/*": [
-        "hooks/*"
-      ],
-      "@/context/*": [
-        "context/*"
-      ],
-      "@/utils/*": [
-        "utils/*"
-      ],
-      "@/config/*": [
-        "config/*"
-      ],
-      "@/data/*": [
-        "app/data/*"
-      ],
-      "@/ui/*": [
-        "components/ui/*"
-      ],
-      "@/features/*": [
-        "app/features/*"
-      ],
-      "@/shared/*": [
-        "shared/*"
-      ],
-      "react-native-calendars": [
-        "types/react-native-calendars.d.ts"
-      ]
+      "@/api/*": ["src/api/*"],
+      "@/components/*": ["components/*"],
+      "@/constants/*": ["src/constants/*"],
+      "@/hooks/*": ["src/hooks/*"],
+      "@/context/*": ["src/context/*"],
+      "@/utils/*": ["src/utils/*"],
+      "@/config/*": ["src/config/*"],
+      "@/data/*": ["app/data/*"],
+      "@/ui/*": ["components/ui/*"],
+      "@/features/*": ["src/features/*"],
+      "@/services/*": ["src/services/*"],
+      "@/theme/*": ["src/theme/*"],
+      "@/types/*": ["src/types/*"],
+      "@/shared/*": ["shared/*"],
+      "react-native-calendars": ["src/types/react-native-calendars.d.ts"]
     },
     "resolveJsonModule": true,
-    "types": [
-      "react",
-      "react-native",
-      "jest"
-    ]
+    "types": ["react", "react-native", "jest"]
   },
   "include": [
     "app/**/*.ts",
     "app/**/*.tsx",
-    "api/**/*.ts",
-    "api/**/*.tsx",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "src/**/*.js",
+    "src/**/*.jsx",
     "components/**/*.ts",
     "components/**/*.tsx",
-    "constants/**/*.ts",
-    "constants/**/*.tsx",
-    "hooks/**/*.ts",
-    "hooks/**/*.tsx",
     "__tests__/**/*.ts",
     "__tests__/**/*.tsx",
     "jest.setup.ts",
-    "types/**/*.d.ts",
+    "src/types/**/*.d.ts",
+    "components/**/*.ts",
+    "components/**/*.tsx",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
   ]

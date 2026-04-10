@@ -1,3 +1,1 @@
-declare const __DEV__: boolean;
-
-declare module 'expo-router/entry';
+export * from '../src/types/globals.d';

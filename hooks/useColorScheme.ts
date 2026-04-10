@@ -1,1 +1,1 @@
-export { useCustomColorScheme as useColorScheme } from './useCustomColorScheme';
+export * from '../src/hooks/useColorScheme';

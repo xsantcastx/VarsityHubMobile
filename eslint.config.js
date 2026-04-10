@@ -12,7 +12,11 @@ module.exports = [
   },
   // RN rules for RN source folders (excluding test files)
   {
-    files: ['app/**/*.{js,jsx,ts,tsx}', 'components/**/*.{js,jsx,ts,tsx}', 'hooks/**/*.{js,jsx,ts,tsx}'],
+    files: [
+      'app/**/*.{js,jsx,ts,tsx}',
+      'components/**/*.{js,jsx,ts,tsx}',
+      'src/**/*.{js,jsx,ts,tsx}',
+    ],
     ignores: ['**/*.test.{js,jsx,ts,tsx}', '**/__tests__/**'],
     languageOptions: {
       parser: tsParser,
@@ -23,8 +27,8 @@ module.exports = [
         project: './tsconfig.json',
       },
     },
-    plugins: { 
-      'react-native': reactNative, 
+    plugins: {
+      'react-native': reactNative,
       'react-hooks': reactHooks,
       '@typescript-eslint': tsPlugin,
     },
@@ -34,7 +38,10 @@ module.exports = [
       'react-hooks/exhaustive-deps': 'warn',
       // Use TS version instead of base ESLint rule
       'no-unused-vars': 'off',
-      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-vars': [
+        'warn',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+      ],
       // Intentional fire-and-forget patterns (haptics, analytics) - warn not error
       '@typescript-eslint/no-floating-promises': 'warn',
       '@typescript-eslint/await-thenable': 'warn',

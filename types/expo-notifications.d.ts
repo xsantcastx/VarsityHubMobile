@@ -1,1 +1,1 @@
-declare module 'expo-notifications';
+export * from '../src/types/expo-notifications.d';

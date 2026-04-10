@@ -2,8 +2,13 @@
  * Unit tests for onboarding reducer and step calculation
  */
 
-import { nextIncompleteStep, onboardingReducer, createInitialState, OnboardingReducerState } from '../context/onboardingReducer';
-import { OnboardingState } from '../context/OnboardingContext';
+import {
+  nextIncompleteStep,
+  onboardingReducer,
+  createInitialState,
+  OnboardingReducerState,
+} from '../src/context/onboardingReducer';
+import { OnboardingState } from '../src/context/OnboardingContext';
 
 describe('nextIncompleteStep', () => {
   it('should return step 1 if no role is selected', () => {
@@ -176,16 +181,16 @@ describe('Step order integration', () => {
     // Simulate completing each step
     steps.push(nextIncompleteStep(state, 'coach')); // Should be step 2 (role already set)
     state = { ...state, role: 'coach' };
-    
+
     steps.push(nextIncompleteStep(state, 'coach')); // Should be step 2
     state = { ...state, username: 'test', dob: '2000-01-01', zip: '12345' };
-    
+
     steps.push(nextIncompleteStep(state, 'coach')); // Should be step 3
     state = { ...state, plan: 'rookie' };
-    
+
     steps.push(nextIncompleteStep(state, 'coach')); // Should be step 4
     state = { ...state, team_id: 'team-123' };
-    
+
     steps.push(nextIncompleteStep(state, 'coach')); // Should be step 6 (not 7!)
 
     // Verify steps are in order and no steps are skipped
