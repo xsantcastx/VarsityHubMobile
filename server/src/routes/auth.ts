@@ -938,6 +938,7 @@ authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
     push_token: z.string().optional(),
     profile_private: z.boolean().optional(),
     comment_permission: z.enum(['everyone', 'following', 'none']).optional(),
+    dm_policy: z.enum(['everyone', 'following', 'no_one']).optional(),
   }).partial();
   
   const parsed = schema.safeParse(req.body || {});

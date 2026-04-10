@@ -55,6 +55,11 @@ async function hasAcceptedFollow(followerId: string, followingId: string): Promi
   return follow?.status === 'accepted';
 }
 
+function normalizeDmPolicy(raw: unknown): 'everyone' | 'following' | 'no_one' {
+  if (raw === 'following' || raw === 'no_one') return raw;
+  return 'everyone';
+}
+
 function parseSort(q: unknown) {
 const s = String(q ?? '').trim();
 if (s === '-created_at' || s === '-created_date') return { created_at: 'desc' as const };
@@ -196,8 +201,26 @@ const [me, recipient] = await Promise.all([
   prisma.user.findUnique({ where: { id: meId }, select: { preferences: true } }),
   prisma.user.findUnique({ where: { id: toId! }, select: { preferences: true } }),
 ]);
+const recipientDmPolicy = normalizeDmPolicy((recipient?.preferences as any)?.dm_policy);
 const senderAge = ageFromDob((me?.preferences as any)?.dob);
 const recipientAge = ageFromDob((recipient?.preferences as any)?.dob);
+
+if (recipientDmPolicy === 'no_one') {
+  return res.status(403).json({
+    error: 'DM_POLICY_BLOCKED',
+    message: 'This user is not accepting direct messages right now.',
+  });
+}
+
+if (recipientDmPolicy === 'following') {
+  const recipientFollowsSender = await hasAcceptedFollow(toId!, meId);
+  if (!recipientFollowsSender) {
+    return res.status(403).json({
+      error: 'DM_POLICY_BLOCKED',
+      message: 'This user only accepts direct messages from people they follow.',
+    });
+  }
+}
 
 // Minor (under 18) may only message accounts they follow
 if (senderAge !== null && senderAge < 18) {

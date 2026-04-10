@@ -1,10 +1,11 @@
+import { User } from '@/api/entities';
 import settingsStore, { SETTINGS_KEYS } from '@/api/settings';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 type Policy = 'everyone' | 'following' | 'no_one';
@@ -18,21 +19,38 @@ export default function DMRestrictionsScreen() {
   useEffect(() => {
     let mounted = true;
     void (async () => {
-      const p = await settingsStore.getString(SETTINGS_KEYS.DM_POLICY, 'everyone');
-      if (!mounted) return;
-      setPolicy((p as Policy) || 'everyone');
+      try {
+        const me: any = await User.me();
+        const serverPolicy = me?.preferences?.dm_policy;
+        const nextPolicy: Policy =
+          serverPolicy === 'following' || serverPolicy === 'no_one' ? serverPolicy : 'everyone';
+        await settingsStore.setString(SETTINGS_KEYS.DM_POLICY, nextPolicy);
+        if (!mounted) return;
+        setPolicy(nextPolicy);
+      } catch {
+        const localPolicy = await settingsStore.getString(SETTINGS_KEYS.DM_POLICY, 'everyone');
+        if (!mounted) return;
+        setPolicy((localPolicy as Policy) || 'everyone');
+      }
     })();
     return () => { mounted = false; };
   }, []);
 
   const save = async (p: Policy) => {
     setSaving(true);
-    await settingsStore.setString(SETTINGS_KEYS.DM_POLICY, p);
-    setSaving(false);
-    if (router.canGoBack()) {
-      router.back();
-    } else {
-      router.replace('/(tabs)' as any);
+    try {
+      await User.updatePreferences({ dm_policy: p });
+      await settingsStore.setString(SETTINGS_KEYS.DM_POLICY, p);
+      setPolicy(p);
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace('/(tabs)' as any);
+      }
+    } catch (error: any) {
+      Alert.alert('Unable to Save', error?.message || 'Failed to update your DM restriction.');
+    } finally {
+      setSaving(false);
     }
   };
 
