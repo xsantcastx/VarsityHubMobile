@@ -867,6 +867,36 @@ authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
     });
   }
   const current = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true, email: true } });
+  const currentPrefs = (current?.preferences && typeof current.preferences === 'object')
+    ? (current.preferences as Record<string, any>)
+    : {};
+  const onboardingCompleted = currentPrefs.onboarding_completed === true;
+
+  const currentPlan = typeof currentPrefs.plan === 'string' ? currentPrefs.plan : undefined;
+  const requestedPlan = typeof incoming.plan === 'string' ? incoming.plan : undefined;
+  if (requestedPlan !== undefined && requestedPlan !== currentPlan) {
+    const canSetInitialRookiePlan =
+      requestedPlan === 'rookie' &&
+      !onboardingCompleted &&
+      (!currentPlan || currentPlan === 'rookie');
+
+    if (!canSetInitialRookiePlan) {
+      return res.status(403).json({
+        error: 'PLAN_UPDATE_NOT_ALLOWED',
+        message: 'Plan changes are managed by billing and cannot be updated from preferences.',
+      });
+    }
+  }
+
+  const currentRole = typeof currentPrefs.role === 'string' ? currentPrefs.role : undefined;
+  const requestedRole = typeof incoming.role === 'string' ? incoming.role : undefined;
+  if (requestedRole !== undefined && requestedRole !== currentRole && onboardingCompleted) {
+    return res.status(403).json({
+      error: 'ROLE_UPDATE_NOT_ALLOWED',
+      message: 'Role changes are only allowed during onboarding.',
+    });
+  }
+
   // Check if user is admin (same logic as GET /me endpoint)
   const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
   const is_admin = current?.email ? adminEmails.includes(current.email.toLowerCase()) : false;
@@ -889,7 +919,7 @@ authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
   // 1. Start with defaults (fill in missing fields)
   // 2. Apply current user preferences on top (preserve user's actual values)
   // 3. Apply incoming changes on top (apply this update)
-  const merged = mergePreferences(mergePreferences(defaults, current?.preferences || {}), incoming);
+  const merged = mergePreferences(mergePreferences(defaults, currentPrefs), incoming);
   const updated = await prisma.user.update({ where: { id: req.user.id }, data: { preferences: merged } });
   return res.json({ preferences: updated.preferences });
 });
