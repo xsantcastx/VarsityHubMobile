@@ -10,8 +10,7 @@ import { app } from '../testApp.js';
 let prisma: any;
 let signJwt: any;
 
-const isCi = `${process.env.CI ?? ''}`.toLowerCase() === 'true';
-const shouldSkipDbTests = isCi || process.env.SKIP_SERVER_DB_TESTS === '1';
+const shouldSkipDbTests = process.env.SKIP_SERVER_DB_TESTS === '1';
 const describeDb = shouldSkipDbTests ? describe.skip : describe;
 
 describeDb('Uploads API Endpoints', () => {
