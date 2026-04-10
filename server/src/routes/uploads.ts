@@ -26,6 +26,22 @@ interface MulterRequest extends Request {
   file?: Express.Multer.File;
 }
 
+function cleanupUploadedDiskFile(file?: Express.Multer.File) {
+  if (!file?.path) return;
+  fs.promises.unlink(file.path).catch((error) => {
+    console.warn('[uploads] Failed to clean up temporary file:', file.path, error);
+  });
+}
+
+function ensureNonEmptyUpload(file?: Express.Multer.File): string | null {
+  if (!file) return 'No file uploaded';
+  if (!Number.isFinite(file.size) || file.size <= 0) {
+    cleanupUploadedDiskFile(file);
+    return 'Uploaded file is empty';
+  }
+  return null;
+}
+
 // Save under server/uploads regardless of where the process is started
 const UPLOAD_DIR = path.resolve(process.cwd(), 'uploads');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -106,7 +122,9 @@ uploadsRouter.get('/sign', requireAuth as any, (req: MulterRequest, res) => {
 
 // Original media upload endpoint (images/videos only)
 uploadsRouter.post('/', requireAuth as any, uploadLimiter as any, upload.single('file'), async (req: MulterRequest, res, next) => {
-  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  const uploadError = ensureNonEmptyUpload(req.file);
+  if (uploadError) return res.status(400).json({ error: uploadError });
+  const file = req.file as Express.Multer.File;
 
   // Enforce Cloudinary in production
   if (process.env.NODE_ENV === 'production' && !useCloudinary) {
@@ -122,24 +140,24 @@ uploadsRouter.post('/', requireAuth as any, uploadLimiter as any, upload.single(
     let signedUrl: string | undefined;
   
     if (useCloudinary) {
-      const cloudResult = await uploadBufferToCloudinary(req.file, {
-        resourceType: req.file.mimetype.startsWith('video/') ? 'video' : 'image',
+      const cloudResult = await uploadBufferToCloudinary(file, {
+        resourceType: file.mimetype.startsWith('video/') ? 'video' : 'image',
       });
       url = cloudResult.secure_url || cloudResult.url || '';
-      type = req.file.mimetype.startsWith('video/') ? 'video' : 'image';
+      type = file.mimetype.startsWith('video/') ? 'video' : 'image';
       
       debugLog('[uploads] Cloudinary upload:', {
-        originalname: req.file.originalname,
+        originalname: file.originalname,
         cloudinary_url: url,
-        mimetype: req.file.mimetype,
-        size: req.file.size,
+        mimetype: file.mimetype,
+        size: file.size,
       });
     } else {
       // Local disk file
-      const rel = `/uploads/${req.file.filename}`;
+      const rel = `/uploads/${file.filename}`;
       const base = `${req.protocol}://${req.get('host')}`;
       url = `${base}${rel}`;
-      type = req.file.mimetype.startsWith('video/') ? 'video' : 'image';
+      type = file.mimetype.startsWith('video/') ? 'video' : 'image';
       try {
         const signed = signMediaPath(rel);
         signedUrl = `${base}${signed.path}?token=${signed.token}&exp=${signed.exp}`;
@@ -149,10 +167,10 @@ uploadsRouter.post('/', requireAuth as any, uploadLimiter as any, upload.single(
       
       if (process.env.NODE_ENV !== 'production') {
         debugLog('[uploads] Local disk upload:', {
-          originalname: req.file.originalname,
-          filename: req.file.filename,
-          mimetype: req.file.mimetype,
-          size: req.file.size,
+          originalname: file.originalname,
+          filename: file.filename,
+          mimetype: file.mimetype,
+          size: file.size,
           url,
         });
       }
@@ -162,11 +180,12 @@ uploadsRouter.post('/', requireAuth as any, uploadLimiter as any, upload.single(
       url, 
       signed_url: signedUrl || undefined,
       type, 
-      mime: req.file.mimetype, 
-      size: req.file.size,
+      mime: file.mimetype, 
+      size: file.size,
       storage: useCloudinary ? 'cloudinary' : 'local'
     });
   } catch (error) {
+    cleanupUploadedDiskFile(req.file);
     captureException(error as Error, { context: 'media_upload_error', path: req.path });
     next(error);
   }
@@ -174,7 +193,9 @@ uploadsRouter.post('/', requireAuth as any, uploadLimiter as any, upload.single(
 
 // General file upload endpoint (all file types)
 uploadsRouter.post('/files', requireAuth as any, uploadLimiter as any, fileUpload.single('file'), async (req: MulterRequest, res, next) => {
-  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  const uploadError = ensureNonEmptyUpload(req.file);
+  if (uploadError) return res.status(400).json({ error: uploadError });
+  const file = req.file as Express.Multer.File;
   try {
     // Cloudinary response has different structure
     let url: string;
@@ -182,19 +203,19 @@ uploadsRouter.post('/files', requireAuth as any, uploadLimiter as any, fileUploa
     let signedUrl: string | undefined;
   
     if (useCloudinary) {
-      const cloudResult = await uploadBufferToCloudinary(req.file, { resourceType: 'auto' });
+      const cloudResult = await uploadBufferToCloudinary(file, { resourceType: 'auto' });
       url = cloudResult.secure_url || cloudResult.url || '';
       
       // Determine file type based on MIME type
-      if (req.file.mimetype.startsWith('image/')) type = 'image';
-      else if (req.file.mimetype.startsWith('video/')) type = 'video';
-      else if (req.file.mimetype.startsWith('audio/')) type = 'audio';
-      else if (req.file.mimetype.includes('pdf')) type = 'pdf';
-      else if (req.file.mimetype.includes('zip') || req.file.mimetype.includes('rar')) type = 'archive';
+      if (file.mimetype.startsWith('image/')) type = 'image';
+      else if (file.mimetype.startsWith('video/')) type = 'video';
+      else if (file.mimetype.startsWith('audio/')) type = 'audio';
+      else if (file.mimetype.includes('pdf')) type = 'pdf';
+      else if (file.mimetype.includes('zip') || file.mimetype.includes('rar')) type = 'archive';
       else type = 'document';
     } else {
       // Local disk file
-      const rel = `/uploads/${req.file.filename}`;
+      const rel = `/uploads/${file.filename}`;
       const base = `${req.protocol}://${req.get('host')}`;
       url = `${base}${rel}`;
       try {
@@ -205,11 +226,11 @@ uploadsRouter.post('/files', requireAuth as any, uploadLimiter as any, fileUploa
       }
       
       // Determine file type based on MIME type
-      if (req.file.mimetype.startsWith('image/')) type = 'image';
-      else if (req.file.mimetype.startsWith('video/')) type = 'video';
-      else if (req.file.mimetype.startsWith('audio/')) type = 'audio';
-      else if (req.file.mimetype.includes('pdf')) type = 'pdf';
-      else if (req.file.mimetype.includes('zip') || req.file.mimetype.includes('rar')) type = 'archive';
+      if (file.mimetype.startsWith('image/')) type = 'image';
+      else if (file.mimetype.startsWith('video/')) type = 'video';
+      else if (file.mimetype.startsWith('audio/')) type = 'audio';
+      else if (file.mimetype.includes('pdf')) type = 'pdf';
+      else if (file.mimetype.includes('zip') || file.mimetype.includes('rar')) type = 'archive';
       else type = 'document';
     }
     
@@ -217,12 +238,13 @@ uploadsRouter.post('/files', requireAuth as any, uploadLimiter as any, fileUploa
       url, 
       signed_url: signedUrl || undefined,
       type, 
-      mime: req.file.mimetype, 
-      size: req.file.size,
-      originalName: req.file.originalname,
+      mime: file.mimetype, 
+      size: file.size,
+      originalName: file.originalname,
       storage: useCloudinary ? 'cloudinary' : 'local'
     });
   } catch (error) {
+    cleanupUploadedDiskFile(req.file);
     captureException(error as Error, { context: 'file_upload_error', path: req.path });
     next(error);
   }
