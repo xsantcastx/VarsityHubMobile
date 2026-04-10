@@ -1,18 +1,21 @@
 import { Router } from 'express';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
+import { requireAuth } from '../middleware/requireAuth.js';
 
 export const rsvpsRouter = Router();
 
 // GET /rsvps?user_id=me&limit=...
-rsvpsRouter.get('/', async (req: AuthedRequest, res) => {
+rsvpsRouter.get('/', requireAuth as any, async (req: AuthedRequest, res) => {
   const userParam = String((req.query as any).user_id || '');
   const limit = Math.min(parseInt(String((req.query as any).limit || '50'), 10) || 50, 200);
   let userId: string | null = null;
   if (userParam === 'me') {
-    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-    userId = req.user.id;
+    userId = req.user!.id;
   } else if (userParam) {
+    if (userParam !== req.user!.id) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
     userId = userParam;
   }
   if (!userId) return res.status(400).json({ error: 'user_id required' });
@@ -30,4 +33,3 @@ rsvpsRouter.get('/', async (req: AuthedRequest, res) => {
   }));
   return res.json(list);
 });
-

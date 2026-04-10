@@ -267,7 +267,7 @@ uploadsRouter.use((err: any, req: Request, res: Response, next: NextFunction) =>
 });
 
 // Dev helper: list uploaded files
-uploadsRouter.get('/list', (_req, res) => {
+uploadsRouter.get('/list', requireAuth as any, (_req, res) => {
   try {
     const files = fs.readdirSync(UPLOAD_DIR).filter((f) => !f.startsWith('.'));
     const base = `${_req.protocol}://${_req.get('host')}`;
