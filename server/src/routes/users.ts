@@ -22,6 +22,22 @@ function hasPrivateProfile(preferences: unknown): boolean {
   return prefs.profile_private === true;
 }
 
+async function haveUsersBlockedEachOther(userA: string | null | undefined, userB: string | null | undefined): Promise<boolean> {
+  if (!userA || !userB) return false;
+
+  const block = await prisma.blockedUser.findFirst({
+    where: {
+      OR: [
+        { blocker_id: userA, blocked_id: userB },
+        { blocker_id: userB, blocked_id: userA },
+      ],
+    },
+    select: { blocker_id: true },
+  });
+
+  return !!block;
+}
+
 // List users (admin only)
 usersRouter.get('/', requireAdmin as any, async (req, res) => {
   const q = String((req.query as any).q || '').trim().toLowerCase();
@@ -549,6 +565,13 @@ usersRouter.post('/:id/follow', requireAuth as any, async (req: AuthedRequest, r
     return res.status(400).json({ error: 'You cannot follow yourself.' });
   }
 
+  if (await haveUsersBlockedEachOther(follower_id, following_id)) {
+    return res.status(403).json({
+      error: 'FOLLOW_BLOCKED',
+      message: 'You cannot follow a user you have blocked or who has blocked you.',
+    });
+  }
+
   const targetUser = await prisma.user.findUnique({
     where: { id: following_id },
     select: { id: true, preferences: true },
@@ -865,6 +888,10 @@ usersRouter.get('/:id', async (req: AuthedRequest, res) => {
   const id = String(req.params.id);
   const currentUserId = req.user?.id || null;
 
+  if (await haveUsersBlockedEachOther(currentUserId, id)) {
+    return res.status(403).json({ error: 'PROFILE_BLOCKED' });
+  }
+
   const user = await prisma.user.findUnique({
     where: { id },
     select: {
@@ -943,11 +970,22 @@ usersRouter.post('/:id/block', requireAuth as any, async (req: AuthedRequest, re
   }
 
   try {
-    await prisma.blockedUser.create({
-      data: {
-        blocker_id,
-        blocked_id,
-      },
+    await prisma.$transaction(async (tx) => {
+      await tx.blockedUser.create({
+        data: {
+          blocker_id,
+          blocked_id,
+        },
+      });
+
+      await tx.follows.deleteMany({
+        where: {
+          OR: [
+            { follower_id: blocker_id, following_id: blocked_id },
+            { follower_id: blocked_id, following_id: blocker_id },
+          ],
+        },
+      });
     });
     return res.status(201).json({ success: true });
   } catch (error: any) {

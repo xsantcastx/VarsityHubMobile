@@ -5,6 +5,26 @@ import { authMiddleware } from '../middleware/auth.js';
 
 export const searchRouter = Router();
 
+async function getBlockedUserIds(userId: string | null): Promise<Set<string>> {
+  if (!userId) return new Set<string>();
+
+  const blocks = await prisma.blockedUser.findMany({
+    where: {
+      OR: [
+        { blocker_id: userId },
+        { blocked_id: userId },
+      ],
+    },
+    select: { blocker_id: true, blocked_id: true },
+  });
+
+  return new Set(
+    blocks
+      .map((block) => (block.blocker_id === userId ? block.blocked_id : block.blocker_id))
+      .filter(Boolean)
+  );
+}
+
 /**
  * GET /search?q=...
  * Unified search across users, teams, and organizations.
@@ -15,6 +35,7 @@ searchRouter.get('/', authMiddleware as any, async (req: AuthedRequest, res) => 
   const q = String((req.query as any).q || '').trim().toLowerCase();
   const limit = Math.min(parseInt(String((req.query as any).limit || '10'), 10) || 10, 20);
   const currentUserId = req.user?.id ?? null;
+  const blockedUserIds = await getBlockedUserIds(currentUserId);
 
   if (!q || q.length < 1) {
     return res.json({ users: [], teams: [], organizations: [] });
@@ -77,17 +98,20 @@ searchRouter.get('/', authMiddleware as any, async (req: AuthedRequest, res) => 
     }),
   ]);
 
+  const visibleUsers = users.filter((user) => !blockedUserIds.has(user.id));
+
   let userFollowSet = new Set<string>();
   let teamFollowSet = new Set<string>();
   let orgFollowSet = new Set<string>();
 
-  if (currentUserId && (users.length || teams.length || organizations.length)) {
+  if (currentUserId && (visibleUsers.length || teams.length || organizations.length)) {
     const [userFollows, teamFollows, orgFollows] = await Promise.all([
-      users.length
+      visibleUsers.length
         ? prisma.follows.findMany({
             where: {
               follower_id: currentUserId,
-              following_id: { in: users.map((u) => u.id) },
+              following_id: { in: visibleUsers.map((u) => u.id) },
+              status: 'accepted',
             },
             select: { following_id: true },
           })
@@ -116,7 +140,7 @@ searchRouter.get('/', authMiddleware as any, async (req: AuthedRequest, res) => 
     orgFollowSet = new Set(orgFollows.map((f) => f.organization_id));
   }
 
-  const usersPayload = users.map((u) => ({
+  const usersPayload = visibleUsers.map((u) => ({
     id: u.id,
     username: u.username || u.display_name || 'user',
     display_name: u.display_name || u.username || 'User',
