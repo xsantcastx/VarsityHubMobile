@@ -67,7 +67,6 @@ export default function Step4Organization() {
     void (async () => {
       setChecking(true);
       try {
-        const e2e = String(process.env.EXPO_PUBLIC_E2E || '').trim() === '1';
         // Check for existing managed teams
         const teams = await Team.managed();
         if (teams && teams.length > 0) {
@@ -80,19 +79,6 @@ export default function Step4Organization() {
             team_id: firstTeam.id, 
             team_name: firstTeam.name 
           }));
-          
-          // DON'T auto-skip - let user see step 4 even if team exists
-          // They can still review/update organization info
-          // Only skip in E2E tests
-          if (e2e) {
-            setProgress(4); // step-6 is index 4
-            if (returnToConfirmation) {
-              router.replace('/onboarding/step-10-confirmation');
-            } else {
-              router.replace('/onboarding/step-6-authorized-users');
-            }
-            return;
-          }
         } else if (ob.plan === 'veteran' || ob.plan === 'legend') {
           // Check for existing organizations that the user can manage
           const orgs = await Organization.mine();
@@ -107,19 +93,6 @@ export default function Step4Organization() {
               organization_id: firstOrg.id, 
               organization_name: firstOrg.name 
             }));
-            
-            // DON'T auto-skip - let user see step 4 even if org exists
-            // They can still review/update organization info
-            // Only skip in E2E tests
-            if (e2e) {
-              setProgress(4); // step-6 is index 4
-              if (returnToConfirmation) {
-                router.replace('/onboarding/step-10-confirmation');
-              } else {
-                router.replace('/onboarding/step-6-authorized-users');
-              }
-              return;
-          }
           }
         }
       } catch {

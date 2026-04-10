@@ -314,9 +314,8 @@ export default function Step3Plan() {
           return;
         }
         console.warn('Unexpected subscribe response', res);
-        Alert.alert('Payment', 'Unable to start checkout. You can continue and set up billing later.');
-        setProgress(3);
-        navigateNext();
+        setOB((prev) => ({ ...prev, plan, payment_pending: false }));
+        Alert.alert('Payment', 'Unable to start checkout. Your selected plan was not changed. Please try again.');
       } catch (err: any) {
         console.warn('Failed to start subscription checkout for plan:', err);
         
@@ -330,6 +329,7 @@ export default function Step3Plan() {
           
         if (isEmailVerificationError) {
           // Show email verification modal instead of just showing an alert
+          setOB((prev) => ({ ...prev, plan, payment_pending: false }));
           setShowVerifyModal(true);
           return; // Don't navigate to next step when showing verification modal
         } else if (err && err.data && err.data.error) {
@@ -337,24 +337,9 @@ export default function Step3Plan() {
         } else if (err && err.message) {
           Alert.alert('Payment error', String(err.message));
         } else {
-          Alert.alert('Payment', 'Unable to start checkout. You can continue and set up billing later.');
+          Alert.alert('Payment', 'Unable to start checkout. Your selected plan was not changed. Please try again.');
         }
-        
-        // On payment failure, default to rookie plan so they can continue
-        const fallbackPlan = 'rookie';
-        setOB((prev) => ({ ...prev, plan: fallbackPlan, payment_pending: false, payment_required: false }));
-        setPlan(fallbackPlan);
-        
-        // Save rookie plan to backend so onboarding can complete
-        try {
-          await User.updatePreferences({ plan: fallbackPlan, payment_pending: false });
-        } catch (updateErr) {
-          console.warn('Failed to save fallback rookie plan:', updateErr);
-        }
-        
-        // Allow navigation to continue with rookie plan
-        setProgress(3);
-        navigateNext();
+        setOB((prev) => ({ ...prev, plan, payment_pending: false }));
       }
     } finally {
       setSaving(false);
