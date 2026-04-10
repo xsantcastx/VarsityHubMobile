@@ -4,10 +4,12 @@ import { validateContent } from '../lib/contentFilter.js';
 import { notifyNewMessage } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/requireAuth.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
 import { messageLimiter } from '../middleware/rateLimiters.js';
 
 export const messagesRouter = Router();
+messagesRouter.use(requireAuth as any);
 
 function ageFromDob(dob: string | null | undefined): number | null {
   if (!dob || typeof dob !== 'string') return null;
@@ -40,7 +42,6 @@ return u?.id;
 }
 
 messagesRouter.get('/', async (req: AuthedRequest, res) => {
-if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 const orderBy = parseSort((req.query as any).sort);
 const limit = Math.min(parseInt(String((req.query as any).limit ?? '50'), 10) || 50, 200);
 const conversation_id = (req.query as any).conversation_id ? String((req.query as any).conversation_id) : undefined;
@@ -54,7 +55,7 @@ const msgs = await prisma.message.findMany({ orderBy, take: limit, include: { se
 return res.json(msgs);
 }
 
-const meId = req.user.id;
+const meId = req.user!.id;
 
 if (conversation_id) {
 const accessCheck = await prisma.message.findFirst({
@@ -114,7 +115,6 @@ recipient_email: z.string().email().optional(),
 });
 
 messagesRouter.post('/', messageLimiter, async (req: AuthedRequest, res) => {
-if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 const parsed = sendSchema.safeParse(req.body);
 if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
 const { content, conversation_id, recipient_id, recipient_email } = parsed.data;
@@ -128,7 +128,7 @@ if (!filterResult.valid) {
   return res.status(400).json({ error: filterResult.error, code: filterResult.code });
 }
 
-const meId = req.user.id;
+const meId = req.user!.id;
 let toId = recipient_id;
 
 if (!toId && recipient_email) {
@@ -236,10 +236,8 @@ return res.status(201).json(created);
 });
 
 messagesRouter.post('/mark-read', async (req: AuthedRequest, res) => {
-  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  
   const { conversation_id, with: withParam } = req.body || {};
-  const meId = req.user.id;
+  const meId = req.user!.id;
   
   try {
     let updateCount = 0;
