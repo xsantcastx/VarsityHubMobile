@@ -60,8 +60,38 @@ adminReportsRouter.get('/stats', requireAdmin as any, async (req: AuthedRequest,
     prisma.abuseReport.count({ where: { status: 'dismissed' } }),
     prisma.abuseReport.count(),
   ]);
+
+  const unresolvedReports = await prisma.abuseReport.findMany({
+    where: {
+      status: { in: ['pending', 'reviewed'] },
+      subject: { startsWith: '[' },
+    },
+    select: { id: true, subject: true, created_at: true },
+    take: 1000,
+  });
+
+  const spikeMap = new Map<string, { target_type: string; target_id: string; count: number; latest_report_at: string }>();
+  for (const report of unresolvedReports) {
+    const match = report.subject.match(/^\[(\w+):([^\]]+)\]/);
+    if (!match) continue;
+    const [, target_type, target_id] = match;
+    const key = `${target_type}:${target_id}`;
+    const current = spikeMap.get(key);
+    const latest = report.created_at.toISOString();
+    if (!current) {
+      spikeMap.set(key, { target_type, target_id, count: 1, latest_report_at: latest });
+      continue;
+    }
+    current.count += 1;
+    if (latest > current.latest_report_at) current.latest_report_at = latest;
+  }
+
+  const spikes = Array.from(spikeMap.values())
+    .filter((item) => item.count >= 10)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 20);
   
-  return res.json({ pending, reviewed, resolved, dismissed, total });
+  return res.json({ pending, reviewed, resolved, dismissed, total, spikes });
 });
 
 // PATCH /admin/reports/:id - Update report status

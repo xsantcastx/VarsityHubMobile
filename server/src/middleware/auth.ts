@@ -34,7 +34,17 @@ export async function authMiddleware(req: AuthedRequest, _res: Response, next: N
       typeof prefs.session_version === 'number' && Number.isFinite(prefs.session_version)
         ? prefs.session_version
         : 0;
+    const suspensionUntil =
+      typeof prefs.suspension_until === 'string' ? new Date(String(prefs.suspension_until)) : null;
+    const suspended =
+      suspensionUntil instanceof Date &&
+      !Number.isNaN(suspensionUntil.getTime()) &&
+      suspensionUntil.getTime() > Date.now();
     if ((payload.sv ?? 0) !== sessionVersion) {
+      clearUserContext();
+      return next();
+    }
+    if (suspended) {
       clearUserContext();
       return next();
     }

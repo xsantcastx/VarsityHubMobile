@@ -114,6 +114,23 @@ function issueAuthTokens(user: { id: string; preferences?: unknown }) {
   };
 }
 
+function getModerationPreferences(preferences: unknown) {
+  return preferences && typeof preferences === 'object' && !Array.isArray(preferences)
+    ? (preferences as Record<string, any>)
+    : {};
+}
+
+function getSuspensionStatus(preferences: unknown): { active: boolean; until: string | null } {
+  const prefs = getModerationPreferences(preferences);
+  const raw = typeof prefs.suspension_until === 'string' ? prefs.suspension_until : null;
+  if (!raw) return { active: false, until: null };
+  const until = new Date(raw);
+  if (Number.isNaN(until.getTime()) || until.getTime() <= Date.now()) {
+    return { active: false, until: raw };
+  }
+  return { active: true, until: until.toISOString() };
+}
+
 const registerSchema = z.object({
   email: z.string().trim().email(),
   password: z.string().min(8),
@@ -229,6 +246,10 @@ authRouter.post('/login', async (req, res) => {
   const user = await prisma.user.findUnique({ where: { email: sanitizedEmail } });
   if (!user) return res.status(401).json({ error: 'Invalid credentials' });
   if (user.banned) return res.status(403).json({ error: 'Account banned' });
+  const suspension = getSuspensionStatus(user.preferences);
+  if (suspension.active) {
+    return res.status(403).json({ error: 'Account suspended', suspension_until: suspension.until });
+  }
   const ok = await bcrypt.compare(password, user.password_hash);
   if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
   const { access_token, refresh_token } = issueAuthTokens(user);
@@ -258,6 +279,10 @@ authRouter.post('/refresh', async (req, res) => {
   });
   if (!user) return res.status(401).json({ error: 'Invalid refresh token' });
   if (user.banned) return res.status(403).json({ error: 'Account banned' });
+  const suspension = getSuspensionStatus(user.preferences);
+  if (suspension.active) {
+    return res.status(403).json({ error: 'Account suspended', suspension_until: suspension.until });
+  }
   if ((payload.sv ?? 0) !== getSessionVersion(user.preferences)) {
     return res.status(401).json({ error: 'Invalid refresh token' });
   }
@@ -688,8 +713,18 @@ authRouter.get('/me', async (req: AuthedRequest, res) => {
   // Non-admin users' preferences are merged without forcing onboarding_completed
   const userPrefs = (user as any).preferences || {};
   const prefs = mergePreferences(userPrefs, defaults);
+  const moderationPrefs = getModerationPreferences(user.preferences);
   const { password_hash, ...rest } = user as any;
-  return res.json({ ...rest, ...(is_admin ? { role: 'admin' } : {}), preferences: prefs, is_admin });
+  return res.json({
+    ...rest,
+    ...(is_admin ? { role: 'admin' } : {}),
+    preferences: prefs,
+    is_admin,
+    approval_status: typeof moderationPrefs.approval_status === 'string' ? moderationPrefs.approval_status : null,
+    approval_reason: typeof moderationPrefs.approval_reason === 'string' ? moderationPrefs.approval_reason : null,
+    suspension_until:
+      typeof moderationPrefs.suspension_until === 'string' ? moderationPrefs.suspension_until : null,
+  });
 });
 
 const updateMeSchema = z.object({

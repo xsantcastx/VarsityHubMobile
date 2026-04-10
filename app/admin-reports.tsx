@@ -42,6 +42,12 @@ interface ReportStats {
   resolved: number;
   dismissed: number;
   total: number;
+  spikes?: Array<{
+    target_type: string;
+    target_id: string;
+    count: number;
+    latest_report_at: string;
+  }>;
 }
 
 export default function AdminReportsScreen() {
@@ -339,32 +345,44 @@ export default function AdminReportsScreen() {
           <>
             {/* Stats */}
             {stats && (
-              <View style={styles.statsContainer}>
-                <View style={[styles.statBox, { backgroundColor: Colors[colorScheme].card }]}>
-                  <Text style={[styles.statNumber, { color: '#F59E0B' }]}>{stats.pending}</Text>
-                  <Text style={[styles.statLabel, { color: Colors[colorScheme].mutedText }]}>
-                    Pending
-                  </Text>
+              <>
+                <View style={styles.statsContainer}>
+                  <View style={[styles.statBox, { backgroundColor: Colors[colorScheme].card }]}>
+                    <Text style={[styles.statNumber, { color: '#F59E0B' }]}>{stats.pending}</Text>
+                    <Text style={[styles.statLabel, { color: Colors[colorScheme].mutedText }]}>
+                      Pending
+                    </Text>
+                  </View>
+                  <View style={[styles.statBox, { backgroundColor: Colors[colorScheme].card }]}>
+                    <Text style={[styles.statNumber, { color: '#10B981' }]}>{stats.resolved}</Text>
+                    <Text style={[styles.statLabel, { color: Colors[colorScheme].mutedText }]}>
+                      Resolved
+                    </Text>
+                  </View>
+                  <View style={[styles.statBox, { backgroundColor: Colors[colorScheme].card }]}>
+                    <Text style={[styles.statNumber, { color: '#6B7280' }]}>{stats.dismissed}</Text>
+                    <Text style={[styles.statLabel, { color: Colors[colorScheme].mutedText }]}>
+                      Dismissed
+                    </Text>
+                  </View>
+                  <View style={[styles.statBox, { backgroundColor: Colors[colorScheme].card }]}>
+                    <Text style={[styles.statNumber, { color: Colors[colorScheme].tint }]}>{stats.total}</Text>
+                    <Text style={[styles.statLabel, { color: Colors[colorScheme].mutedText }]}>
+                      Total
+                    </Text>
+                  </View>
                 </View>
-                <View style={[styles.statBox, { backgroundColor: Colors[colorScheme].card }]}>
-                  <Text style={[styles.statNumber, { color: '#10B981' }]}>{stats.resolved}</Text>
-                  <Text style={[styles.statLabel, { color: Colors[colorScheme].mutedText }]}>
-                    Resolved
-                  </Text>
-                </View>
-                <View style={[styles.statBox, { backgroundColor: Colors[colorScheme].card }]}>
-                  <Text style={[styles.statNumber, { color: '#6B7280' }]}>{stats.dismissed}</Text>
-                  <Text style={[styles.statLabel, { color: Colors[colorScheme].mutedText }]}>
-                    Dismissed
-                  </Text>
-                </View>
-                <View style={[styles.statBox, { backgroundColor: Colors[colorScheme].card }]}>
-                  <Text style={[styles.statNumber, { color: Colors[colorScheme].tint }]}>{stats.total}</Text>
-                  <Text style={[styles.statLabel, { color: Colors[colorScheme].mutedText }]}>
-                    Total
-                  </Text>
-                </View>
-              </View>
+                {Array.isArray(stats.spikes) && stats.spikes.length > 0 ? (
+                  <View style={[styles.spikeCard, { backgroundColor: Colors[colorScheme].card }]}>
+                    <Text style={[styles.spikeTitle, { color: Colors[colorScheme].text }]}>Spike Alerts</Text>
+                    {stats.spikes.slice(0, 3).map((spike) => (
+                      <Text key={`${spike.target_type}:${spike.target_id}`} style={[styles.spikeItem, { color: Colors[colorScheme].mutedText }]}>
+                        {spike.target_type}:{spike.target_id} has {spike.count} unresolved reports
+                      </Text>
+                    ))}
+                  </View>
+                ) : null}
+              </>
             )}
 
             {/* Filter Tabs */}
@@ -533,6 +551,21 @@ const styles = StyleSheet.create({
   statLabel: {
     fontSize: 12,
     fontWeight: '500',
+  },
+  spikeCard: {
+    marginHorizontal: 20,
+    marginBottom: 16,
+    borderRadius: 12,
+    padding: 16,
+    gap: 8,
+  },
+  spikeTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  spikeItem: {
+    fontSize: 13,
+    lineHeight: 18,
   },
   filterContainer: {
     paddingHorizontal: 20,

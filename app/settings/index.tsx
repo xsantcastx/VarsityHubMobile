@@ -429,6 +429,11 @@ export default function SettingsScreen() {
                           subtitle="Review and moderate advertisements" 
                           onPress={() => void router.navigate('/admin-ads')} 
                         />
+                        <NavRow 
+                          title="Review Organizations" 
+                          subtitle="Approve or reject organization pages" 
+                          onPress={() => void router.navigate('/admin-organizations')} 
+                        />
                       </SectionCard>
                     )}
 

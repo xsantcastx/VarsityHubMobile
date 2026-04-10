@@ -1,4 +1,13 @@
 import express from 'express';
+import { logAdminActivityFromReq } from '../lib/adminActivityLogger.js';
+import {
+  sendAccountPermanentBanEmail,
+  sendAccountSuspension45DaysEmail,
+  sendAccountSuspension7DaysEmail,
+  sendAccountWarningEmail,
+  sendOrganizationApprovalEmail,
+  sendOrganizationDenialEmail,
+} from '../lib/email.js';
 import { prisma } from '../lib/prisma.js';
 import { getFounderMetricsReport } from '../lib/founderMetrics.js';
 import {
@@ -10,6 +19,16 @@ import { requireAdmin as requireAdminMiddleware } from '../middleware/requireAdm
 import { requireVerified } from '../middleware/requireVerified.js';
 
 const adminRouter = express.Router();
+
+function getPreferenceObject(preferences: unknown): Record<string, any> {
+  return preferences && typeof preferences === 'object' && !Array.isArray(preferences)
+    ? ({ ...(preferences as Record<string, any>) } as Record<string, any>)
+    : {};
+}
+
+function addDays(days: number): Date {
+  return new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+}
 
 /**
  * GET /admin/dashboard
@@ -179,6 +198,214 @@ adminRouter.get('/activity-log', requireVerified as any, requireAdminMiddleware 
     console.error('[admin] Error fetching activity log:', error);
     return res.status(500).json({ error: 'Failed to fetch activity log' });
   }
+});
+
+adminRouter.get('/organizations', requireVerified as any, requireAdminMiddleware as any, async (req: AuthedRequest, res) => {
+  const status = typeof req.query.status === 'string' && req.query.status.trim() ? String(req.query.status) : 'all';
+  const where = status === 'all' ? {} : { status };
+  const organizations = await prisma.organization.findMany({
+    where,
+    orderBy: [{ updated_at: 'desc' }, { created_at: 'desc' }],
+    include: {
+      _count: {
+        select: { teams: true, memberships: true, joinRequests: true },
+      },
+    },
+    take: 200,
+  });
+  return res.json({ items: organizations });
+});
+
+adminRouter.patch('/organizations/:id/status', requireVerified as any, requireAdminMiddleware as any, async (req: AuthedRequest, res) => {
+  const id = String(req.params.id);
+  const status = String(req.body?.status || '').trim().toLowerCase();
+  const note = typeof req.body?.note === 'string' ? req.body.note.trim() : '';
+
+  if (!['pending', 'active', 'rejected'].includes(status)) {
+    return res.status(400).json({ error: 'Invalid organization status' });
+  }
+
+  const existing = await prisma.organization.findUnique({ where: { id } });
+  if (!existing) return res.status(404).json({ error: 'Organization not found' });
+
+  const updated = await prisma.organization.update({
+    where: { id },
+    data: { status, updated_at: new Date() },
+  });
+
+  const ownerMembership = await prisma.organizationMembership.findFirst({
+    where: { organization_id: id, role: 'owner', status: 'active' },
+    include: { user: { select: { email: true } } },
+    orderBy: { created_at: 'asc' },
+  });
+
+  const ownerEmail = ownerMembership?.user?.email;
+  if (ownerEmail) {
+    if (status === 'active') {
+      await sendOrganizationApprovalEmail({
+        to: ownerEmail,
+        organizationName: updated.name,
+      }).catch(() => {});
+    } else if (status === 'rejected') {
+      await sendOrganizationDenialEmail({
+        to: ownerEmail,
+        organizationName: updated.name,
+        reason: note || undefined,
+      }).catch(() => {});
+    }
+  }
+
+  await logAdminActivityFromReq(
+    req,
+    'Review Organization',
+    'organization',
+    updated.id,
+    `Set organization ${updated.name} to ${status}`,
+    { status, note: note || null }
+  );
+
+  return res.json({ ok: true, organization: updated });
+});
+
+adminRouter.post('/users/:id/moderation', requireVerified as any, requireAdminMiddleware as any, async (req: AuthedRequest, res) => {
+  const userId = String(req.params.id);
+  const action = String(req.body?.action || '').trim();
+  const reason = typeof req.body?.reason === 'string' ? req.body.reason.trim() : '';
+  const organizationId = typeof req.body?.organization_id === 'string' ? req.body.organization_id.trim() : '';
+
+  if (
+    ![
+      'warning',
+      'suspend_7_days',
+      'suspend_45_days',
+      'permanent_ban',
+      'clear_suspension',
+      'approve_coach',
+      'reject_coach',
+    ].includes(action)
+  ) {
+    return res.status(400).json({ error: 'Invalid moderation action' });
+  }
+
+  if (action !== 'clear_suspension' && !reason) {
+    return res.status(400).json({ error: 'Reason is required' });
+  }
+
+  const target = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      email: true,
+      display_name: true,
+      banned: true,
+      preferences: true,
+    },
+  });
+  if (!target) return res.status(404).json({ error: 'User not found' });
+
+  const prefs = getPreferenceObject(target.preferences);
+  const offenseCount = Number.isFinite(Number(prefs.offense_count)) ? Number(prefs.offense_count) : 0;
+  const updatedPrefs: Record<string, any> = { ...prefs };
+  const updateData: Record<string, any> = { preferences: updatedPrefs };
+
+  let emailPromise: Promise<any> | null = null;
+
+  if (action === 'warning') {
+    updatedPrefs.offense_count = offenseCount + 1;
+    updatedPrefs.last_warning_reason = reason;
+    updatedPrefs.last_warning_at = new Date().toISOString();
+    emailPromise = sendAccountWarningEmail({
+      to: target.email,
+      userName: target.display_name || target.email,
+      warningReason: reason,
+      offenseCount: updatedPrefs.offense_count,
+    });
+  }
+
+  if (action === 'suspend_7_days' || action === 'suspend_45_days') {
+    const days = action === 'suspend_7_days' ? 7 : 45;
+    const suspensionEnd = addDays(days);
+    updatedPrefs.offense_count = offenseCount + 1;
+    updatedPrefs.suspension_until = suspensionEnd.toISOString();
+    updatedPrefs.suspension_reason = reason;
+    updatedPrefs.suspension_reviewed_at = new Date().toISOString();
+    updateData.preferences = updatedPrefs;
+    emailPromise =
+      action === 'suspend_7_days'
+        ? sendAccountSuspension7DaysEmail({
+            to: target.email,
+            userName: target.display_name || target.email,
+            suspensionReason: reason,
+            suspensionEndDate: suspensionEnd.toISOString().slice(0, 10),
+          })
+        : sendAccountSuspension45DaysEmail({
+            to: target.email,
+            userName: target.display_name || target.email,
+            suspensionReason: reason,
+            suspensionEndDate: suspensionEnd.toISOString().slice(0, 10),
+          });
+  }
+
+  if (action === 'permanent_ban') {
+    updatedPrefs.offense_count = offenseCount + 1;
+    updatedPrefs.ban_reason = reason;
+    updatedPrefs.ban_reviewed_at = new Date().toISOString();
+    updateData.banned = true;
+    emailPromise = sendAccountPermanentBanEmail({
+      to: target.email,
+      userName: target.display_name || target.email,
+      banReason: reason,
+    });
+  }
+
+  if (action === 'clear_suspension') {
+    updatedPrefs.suspension_until = null;
+    updatedPrefs.suspension_reason = null;
+    updatedPrefs.suspension_reviewed_at = new Date().toISOString();
+  }
+
+  if (action === 'approve_coach' || action === 'reject_coach') {
+    updatedPrefs.approval_status = action === 'approve_coach' ? 'APPROVED' : 'REJECTED';
+    updatedPrefs.approval_reason = reason;
+    updatedPrefs.approval_reviewed_at = new Date().toISOString();
+    if (organizationId) {
+      const org = await prisma.organization.findUnique({
+        where: { id: organizationId },
+        select: { id: true, name: true },
+      });
+      if (org) {
+        updatedPrefs.organization_id = org.id;
+        updatedPrefs.organization_name = org.name;
+      }
+    }
+  }
+
+  const updated = await prisma.user.update({
+    where: { id: userId },
+    data: updateData,
+    select: {
+      id: true,
+      email: true,
+      display_name: true,
+      banned: true,
+      preferences: true,
+    },
+  });
+
+  if (emailPromise) {
+    await emailPromise.catch(() => {});
+  }
+
+  await logAdminActivityFromReq(
+    req,
+    'Moderate User',
+    'user',
+    updated.id,
+    `Applied moderation action ${action} to ${updated.email}`,
+    { action, reason: reason || null, organization_id: organizationId || null }
+  );
+
+  return res.json({ ok: true, user: updated });
 });
 
 // Type for authenticated request

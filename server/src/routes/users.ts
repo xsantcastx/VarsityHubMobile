@@ -77,7 +77,19 @@ usersRouter.post('/:id/unban', requireAdmin as any, async (req, res) => {
 // Full user detail with ads and their reservation dates (admin only)
 usersRouter.get('/:id/full', requireAdmin as any, async (req, res) => {
   const id = String(req.params.id);
-  const user = await prisma.user.findUnique({ where: { id }, select: { id: true, email: true, username: true, email_verified: true, banned: true, created_at: true } });
+  const user = await prisma.user.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      email: true,
+      username: true,
+      display_name: true,
+      email_verified: true,
+      banned: true,
+      created_at: true,
+      preferences: true,
+    },
+  });
   if (!user) return res.status(404).json({ error: 'Not found' });
   const ads = await prisma.ad.findMany({ where: { user_id: id }, orderBy: { created_at: 'desc' } });
   const adIds = ads.map(a => a.id);
