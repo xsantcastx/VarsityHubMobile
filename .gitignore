@@ -127,3 +127,4 @@ overnight-logs-*/
 .env.bak
 builds/
 credentials.json
+dist-verify/
