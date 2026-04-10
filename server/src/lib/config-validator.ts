@@ -5,7 +5,7 @@ type ServiceKey =
   | 'jwt'
   | 'stripe'
   | 'cloudinary'
-  | 'smtp'
+  | 'email'
   | 'googleOAuth'
   | 'googleMaps'
   | 'twilio'
@@ -49,14 +49,17 @@ const serviceDefinitions: ServiceDefinition[] = [
     label: 'Cloudinary',
     required: false,
     help: 'Set CLOUDINARY_CLOUD_NAME/API_KEY/API_SECRET to enable media uploads.',
-    check: () => !!(env.CLOUDINARY_CLOUD_NAME && env.CLOUDINARY_API_KEY && env.CLOUDINARY_API_SECRET),
+    check: () =>
+      !!(env.CLOUDINARY_CLOUD_NAME && env.CLOUDINARY_API_KEY && env.CLOUDINARY_API_SECRET),
   },
   {
-    key: 'smtp',
-    label: 'SMTP',
+    key: 'email',
+    label: 'Email service',
     required: true,
-    help: 'Set SMTP_HOST/USER/PASS so transactional email works.',
-    check: () => !!(env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASS),
+    help: 'Set EMAIL_PROVIDER=sendgrid, SENDGRID_API_KEY, and EMAIL_FROM so transactional email works.',
+    check: () =>
+      env.EMAIL_PROVIDER === 'test' ||
+      !!(env.SENDGRID_API_KEY && (env.EMAIL_FROM || env.FROM_EMAIL)),
   },
   {
     key: 'googleOAuth',
@@ -96,15 +99,15 @@ const serviceDefinitions: ServiceDefinition[] = [
 ];
 
 export function validateConfig() {
-  const services: ServiceStatus[] = serviceDefinitions.map((definition) => ({
+  const services: ServiceStatus[] = serviceDefinitions.map(definition => ({
     key: definition.key,
     label: definition.label,
     required: definition.required,
     help: definition.help,
     ok: definition.check(),
   }));
-  const errors = services.filter((s) => s.required && !s.ok).map((s) => `${s.label}: ${s.help}`);
-  const warnings = services.filter((s) => !s.required && !s.ok).map((s) => `${s.label}: ${s.help}`);
+  const errors = services.filter(s => s.required && !s.ok).map(s => `${s.label}: ${s.help}`);
+  const warnings = services.filter(s => !s.required && !s.ok).map(s => `${s.label}: ${s.help}`);
   return {
     valid: errors.length === 0,
     errors,

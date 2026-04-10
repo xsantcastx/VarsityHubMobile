@@ -1,6 +1,6 @@
 /**
  * Email Service Types
- * 
+ *
  * Centralized type definitions for the email service
  */
 
@@ -40,6 +40,7 @@ export type EmailOptions = BaseEmailOptions | TemplateEmailOptions;
 export interface EmailResult {
   success: boolean;
   messageId?: string;
+  statusCode?: number;
   error?: string;
   errorCode?: string;
   provider?: string;
@@ -71,7 +72,7 @@ export interface EmailError extends Error {
 }
 
 export interface EmailServiceConfig {
-  provider: 'sendgrid' | 'smtp' | 'test';
+  provider: 'sendgrid' | 'test';
   defaultFrom: EmailRecipient | EmailAddress;
   defaultReplyTo?: EmailRecipient | EmailAddress;
   timeout?: number;

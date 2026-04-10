@@ -3,6 +3,7 @@
  */
 
 export { EmailService } from './EmailService.js';
+export * from './templates/index.js';
 export type {
   EmailOptions,
   BaseEmailOptions,

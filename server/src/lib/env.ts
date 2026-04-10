@@ -27,10 +27,14 @@ const envSchema = z.object({
   CLOUDINARY_API_SECRET: z.string().optional().transform(toOptional),
   GOOGLE_OAUTH_CLIENT_IDS: z.string().optional().transform(toOptional),
   GOOGLE_MAPS_API_KEY: z.string().optional().transform(toOptional),
-  SMTP_HOST: z.string().optional().transform(toOptional),
-  SMTP_PORT: z.string().optional(),
-  SMTP_USER: z.string().optional().transform(toOptional),
-  SMTP_PASS: z.string().optional().transform(toOptional),
+  EMAIL_PROVIDER: z.enum(['sendgrid', 'test']).optional().default('sendgrid'),
+  EMAIL_FROM: z.string().optional().transform(toOptional),
+  EMAIL_TIMEOUT_MS: z.string().optional(),
+  EMAIL_RETRY_ATTEMPTS: z.string().optional(),
+  EMAIL_RETRY_DELAY_MS: z.string().optional(),
+  EMAIL_ENABLE_QUEUE: z.string().optional(),
+  EMAIL_ENABLE_LOGGING: z.string().optional(),
+  SENDGRID_API_KEY: z.string().optional().transform(toOptional),
   FROM_EMAIL: z.string().optional().transform(toOptional),
   CUSTOMER_SERVICE_EMAIL: z.string().optional().transform(toOptional),
   WEB_URL: z.string().optional().transform(toOptional),
@@ -44,6 +48,7 @@ const envSchema = z.object({
   REDIS_URL: z.string().optional().transform(toOptional),
   SENTRY_DSN: z.string().optional().transform(toOptional),
   UPLOADS_PUBLIC: z.string().optional(),
+  EMAIL_SANDBOX_MODE: z.string().optional().transform(toOptional),
 });
 
 const parsed = envSchema.safeParse(process.env);

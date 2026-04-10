@@ -29,6 +29,7 @@ if (!validation.valid) {
 // Check environment variables
 console.log('🔐 Environment Variables:');
 const requiredVars = [
+  'EMAIL_PROVIDER',
   'SENDGRID_API_KEY',
   'EMAIL_FROM',
   'APP_BASE_URL',

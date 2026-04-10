@@ -1,11 +1,12 @@
 /**
  * Email Service Singleton
- * 
+ *
  * Provides a configured instance of EmailService
  */
 
 import { EmailService } from './EmailService.js';
 import type { EmailServiceConfig } from './types.js';
+import { env } from '../../lib/env.js';
 
 let emailServiceInstance: EmailService | null = null;
 
@@ -14,18 +15,17 @@ let emailServiceInstance: EmailService | null = null;
  */
 export function getEmailService(): EmailService {
   if (!emailServiceInstance) {
-    const provider = (process.env.EMAIL_PROVIDER || 'sendgrid') as 'sendgrid' | 'smtp' | 'test';
-    // Default sender: noreply@varsityhub.app (Twilio SendGrid)
-    const defaultFrom = process.env.EMAIL_FROM || process.env.FROM_EMAIL || 'noreply@varsityhub.app';
+    const provider = env.EMAIL_PROVIDER as 'sendgrid' | 'test';
+    const defaultFrom = env.EMAIL_FROM || env.FROM_EMAIL || 'noreply@varsityhub.app';
 
     const config: EmailServiceConfig = {
       provider,
       defaultFrom,
-      timeout: parseInt(process.env.EMAIL_TIMEOUT_MS || '10000', 10),
-      retryAttempts: parseInt(process.env.EMAIL_RETRY_ATTEMPTS || '2', 10),
-      retryDelay: parseInt(process.env.EMAIL_RETRY_DELAY_MS || '1000', 10),
-      enableQueue: process.env.EMAIL_ENABLE_QUEUE === 'true',
-      enableLogging: process.env.EMAIL_ENABLE_LOGGING !== 'false',
+      timeout: parseInt(env.EMAIL_TIMEOUT_MS || '10000', 10),
+      retryAttempts: parseInt(env.EMAIL_RETRY_ATTEMPTS || '2', 10),
+      retryDelay: parseInt(env.EMAIL_RETRY_DELAY_MS || '1000', 10),
+      enableQueue: env.EMAIL_ENABLE_QUEUE === 'true',
+      enableLogging: env.EMAIL_ENABLE_LOGGING !== 'false',
     };
 
     emailServiceInstance = new EmailService(config);
@@ -50,7 +50,7 @@ export function initEmailService(): { success: boolean; errors: string[] } {
     console.log(`   Retries: ${config.retryAttempts}`);
   } else {
     console.warn('⚠️ Email service configuration issues:');
-    validation.errors.forEach((error) => {
+    validation.errors.forEach(error => {
       console.warn(`   - ${error}`);
     });
     if (!service.isConfigured()) {
