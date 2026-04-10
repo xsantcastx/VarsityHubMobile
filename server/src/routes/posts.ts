@@ -38,6 +38,44 @@ const logPollSchemaFallback = (context: string, error: any) => {
 
 const MANAGEMENT_ROLES = ['owner', 'manager', 'coach', 'assistant_coach'] as const;
 
+function hasPrivateProfile(preferences: unknown): boolean {
+  const prefs =
+    preferences && typeof preferences === 'object' && !Array.isArray(preferences)
+      ? (preferences as Record<string, unknown>)
+      : {};
+  return prefs.profile_private === true;
+}
+
+async function getBlockedUserIds(userId: string | null): Promise<Set<string>> {
+  if (!userId) return new Set<string>();
+  const blocks = await prisma.blockedUser.findMany({
+    where: {
+      OR: [
+        { blocker_id: userId },
+        { blocked_id: userId },
+      ],
+    },
+    select: { blocker_id: true, blocked_id: true },
+  });
+  return new Set(
+    blocks.map((block) => (block.blocker_id === userId ? block.blocked_id : block.blocker_id)).filter(Boolean)
+  );
+}
+
+function canViewAuthorPosts(
+  author: { id: string; preferences?: unknown } | null | undefined,
+  viewerId: string | null,
+  acceptedFollowIds: Set<string>,
+  blockedIds: Set<string>
+): boolean {
+  if (!author?.id) return false;
+  if (viewerId && blockedIds.has(author.id)) return false;
+  if (!hasPrivateProfile(author.preferences)) return true;
+  if (!viewerId) return false;
+  if (viewerId === author.id) return true;
+  return acceptedFollowIds.has(author.id);
+}
+
 /** Check if user is coach/owner of any team associated with the post (team_id or game's teams) */
 async function isCoachOfPostTeam(
   userId: string,
@@ -97,7 +135,7 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
       return res.status(401).json({ items: [], nextCursor: null, followed_feed_meta: { following_count: 0 } });
     }
     const following = await prisma.follows.findMany({
-      where: { follower_id: currentUserId },
+      where: { follower_id: currentUserId, status: 'accepted' },
       select: { following_id: true },
     });
     const followingIds = following.map((f) => f.following_id);
@@ -157,10 +195,10 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
   // Trending: fetch pool, compute time-decay score, sort, paginate
   if (sort === 'trending') {
     const poolQuery: any = {
-      where,
+        where,
       orderBy: [{ created_at: 'desc' as const }],
       include: {
-        author: { select: { id: true, username: true, display_name: true, avatar_url: true } },
+        author: { select: { id: true, username: true, display_name: true, avatar_url: true, preferences: true } },
         team: { select: { id: true, name: true, logo_url: true } },
         _count: { select: { comments: true, bookmarks: true } },
         poll: { include: { options: true } },
@@ -219,7 +257,7 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
     let followingIds = new Set<string>();
     if (currentUserId && items.length) {
       const followPromise = authorIds.length
-        ? prisma.follows.findMany({ where: { follower_id: currentUserId, following_id: { in: authorIds } }, select: { following_id: true } })
+        ? prisma.follows.findMany({ where: { follower_id: currentUserId, following_id: { in: authorIds }, status: 'accepted' }, select: { following_id: true } })
         : Promise.resolve([] as Array<{ following_id: string }>);
       const [upvotes, bookmarks, follows] = await Promise.all([
         prisma.postUpvote.findMany({ where: { user_id: currentUserId, post_id: { in: postIds } }, select: { post_id: true } }),
@@ -230,12 +268,16 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
       bookmarkedIds = new Set(bookmarks.map((b) => b.post_id));
       followingIds = new Set((follows as Array<{ following_id: string }>).map((f) => f.following_id));
     }
+    const blockedIds = await getBlockedUserIds(currentUserId);
+    const visibleItems = items.filter(({ post }: any) =>
+      canViewAuthorPosts(post.author, currentUserId, followingIds, blockedIds)
+    );
     const cleanTitle = (title: string | null): string | null => {
       if (!title) return null;
       const match = title.match(/^\[SAMPLE_GAME:[^\]]+\]\s*(.*)$/);
       return match ? match[1] || null : title;
     };
-    const payload = items.map(({ post }: any) => ({
+    const payload = visibleItems.map(({ post }: any) => ({
       id: post.id,
       author_id: post.author_id,
       team_id: post.team_id ?? null,
@@ -266,12 +308,12 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
     where,
     orderBy,
     include: {
-      author: { select: { id: true, username: true, display_name: true, avatar_url: true } },
+      author: { select: { id: true, username: true, display_name: true, avatar_url: true, preferences: true } },
       team: { select: { id: true, name: true, logo_url: true } },
       _count: { select: { comments: true, bookmarks: true } },
       poll: { include: { options: true } },
     },
-    take: limit + 1,
+    take: Math.min(limit * 4, 200) + 1,
   };
   if (cursor) {
     query.cursor = { id: cursor };
@@ -291,8 +333,12 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
     delete fallbackQuery.include.poll;
     rows = await prisma.post.findMany(fallbackQuery);
   }
-  const items = rows.slice(0, limit);
-  const nextCursor = rows.length > limit ? rows[limit].id : null;
+  const blockedIds = await getBlockedUserIds(currentUserId);
+  const visibleRows = rows.filter((post: any) =>
+    canViewAuthorPosts(post.author, currentUserId, followingIds, blockedIds)
+  );
+  const items = visibleRows.slice(0, limit);
+  const nextCursor = visibleRows.length > limit ? visibleRows[limit].id : null;
 
   const postIds: string[] = items.map((p: any) => p.id);
   const authorIds: string[] = items.map((p: any) => p.author_id).filter(Boolean);
@@ -303,7 +349,7 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
 
   if (currentUserId && items.length) {
     const followPromise = authorIds.length
-      ? prisma.follows.findMany({ where: { follower_id: currentUserId, following_id: { in: authorIds } }, select: { following_id: true } })
+      ? prisma.follows.findMany({ where: { follower_id: currentUserId, following_id: { in: authorIds }, status: 'accepted' }, select: { following_id: true } })
       : Promise.resolve([] as Array<{ following_id: string }>);
     const [upvotes, bookmarks, follows] = await Promise.all([
       prisma.postUpvote.findMany({ where: { user_id: currentUserId, post_id: { in: postIds } }, select: { post_id: true } }),
