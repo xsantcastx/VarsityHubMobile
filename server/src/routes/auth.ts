@@ -11,6 +11,7 @@ import { signJwt, signRefreshJwt, verifyRefreshJwt } from '../lib/jwt.js';
 import { prisma } from '../lib/prisma.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
+import { passwordResetLimiter } from '../middleware/rateLimiters.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
 
 export const authRouter = Router();
@@ -413,11 +414,15 @@ authRouter.post('/apple', async (req, res) => {
         }
 
         const appleClientId = process.env.APPLE_CLIENT_ID;
+        if (!appleClientId) {
+          console.error('[auth/apple] APPLE_CLIENT_ID is not configured');
+          return res.status(500).json({ error: 'Apple sign-in is not configured' });
+        }
         const appleKey = await getApplePublicKey(kid);
         const jwtPayload = jwt.verify(identity_token, appleKey, {
           algorithms: ['RS256'],
           issuer: 'https://appleid.apple.com',
-          ...(appleClientId ? { audience: appleClientId } : {}),
+          audience: appleClientId,
         }) as JwtPayload;
 
         appleId = jwtPayload.sub as string;
@@ -535,7 +540,7 @@ authRouter.post('/apple', async (req, res) => {
 
 const passwordResetRequestSchema = z.object({ email: z.string().email() });
 
-authRouter.post('/password/forgot', async (req, res) => {
+authRouter.post('/password/forgot', passwordResetLimiter, async (req, res) => {
   const parsed = passwordResetRequestSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
   const email = parsed.data.email.trim();
@@ -582,7 +587,7 @@ const passwordResetSchema = z.object({
   password: z.string().min(8),
 });
 
-authRouter.post('/password/reset', async (req, res) => {
+authRouter.post('/password/reset', passwordResetLimiter, async (req, res) => {
   const parsed = passwordResetSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
   const { email, code, password } = parsed.data;
