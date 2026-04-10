@@ -24,6 +24,38 @@ function ageFromDob(dob: string | null | undefined): number | null {
 
 const baseUserSelect = { id: true, email: true, display_name: true, avatar_url: true };
 
+async function getBlockedUserIds(userId: string): Promise<Set<string>> {
+  const blocks = await prisma.blockedUser.findMany({
+    where: {
+      OR: [
+        { blocker_id: userId },
+        { blocked_id: userId },
+      ],
+    },
+    select: { blocker_id: true, blocked_id: true },
+  });
+
+  return new Set(
+    blocks
+      .map((block) => (block.blocker_id === userId ? block.blocked_id : block.blocker_id))
+      .filter(Boolean)
+  );
+}
+
+async function hasAcceptedFollow(followerId: string, followingId: string): Promise<boolean> {
+  const follow = await prisma.follows.findUnique({
+    where: {
+      follower_id_following_id: {
+        follower_id: followerId,
+        following_id: followingId,
+      },
+    },
+    select: { status: true },
+  });
+
+  return follow?.status === 'accepted';
+}
+
 function parseSort(q: unknown) {
 const s = String(q ?? '').trim();
 if (s === '-created_at' || s === '-created_date') return { created_at: 'desc' as const };
@@ -56,6 +88,7 @@ return res.json(msgs);
 }
 
 const meId = req.user!.id;
+const blockedUserIds = await getBlockedUserIds(meId);
 
 if (conversation_id) {
 const accessCheck = await prisma.message.findFirst({
@@ -83,12 +116,15 @@ orderBy,
 take: limit,
 include: { sender: { select: baseUserSelect }, recipient: { select: baseUserSelect } },
 });
-return res.json(messages);
+return res.json(messages.filter((message) => !blockedUserIds.has(message.sender_id) && !blockedUserIds.has(message.recipient_id)));
 }
 
 const otherUserId = await resolveWithToUserId(withParam);
 
 if (otherUserId) {
+if (blockedUserIds.has(otherUserId)) {
+return res.status(403).json({ error: 'MESSAGE_BLOCKED', message: 'Messaging is disabled between these users.' });
+}
 const messages = await prisma.message.findMany({
 where: { OR: [ { sender_id: meId, recipient_id: otherUserId }, { sender_id: otherUserId, recipient_id: meId }, ], },
 orderBy,
@@ -104,7 +140,7 @@ orderBy,
 take: limit,
 include: { sender: { select: baseUserSelect }, recipient: { select: baseUserSelect } },
 });
-return res.json(messages);
+return res.json(messages.filter((message) => !blockedUserIds.has(message.sender_id) && !blockedUserIds.has(message.recipient_id)));
 });
 
 const sendSchema = z.object({
@@ -166,9 +202,7 @@ const recipientAge = ageFromDob((recipient?.preferences as any)?.dob);
 
 // Minor (under 18) may only message accounts they follow
 if (senderAge !== null && senderAge < 18) {
-  const follows = await prisma.follows.findUnique({
-    where: { follower_id_following_id: { follower_id: meId, following_id: toId! } }
-  });
+  const follows = await hasAcceptedFollow(meId, toId!);
   if (!follows) {
     return res.status(403).json({
       error: 'AGE_POLICY_BLOCKED',
@@ -179,9 +213,7 @@ if (senderAge !== null && senderAge < 18) {
 
 // Adult (18+) messaging minor (under 18): adult must follow the minor
 if (senderAge !== null && senderAge >= 18 && recipientAge !== null && recipientAge < 18) {
-  const adultFollowsMinor = await prisma.follows.findUnique({
-    where: { follower_id_following_id: { follower_id: meId, following_id: toId! } }
-  });
+  const adultFollowsMinor = await hasAcceptedFollow(meId, toId!);
   if (!adultFollowsMinor) {
     return res.status(403).json({
       error: 'AGE_POLICY_BLOCKED',
