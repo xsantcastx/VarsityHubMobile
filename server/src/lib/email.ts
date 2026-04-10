@@ -791,8 +791,8 @@ export async function sendTeamInviteEmail(params: {
   const prettyRole =
     params.role?.replace(/_/g, ' ').replace(/\b\w/g, m => m.toUpperCase()) || 'member';
   const inviteUrl = params.inviteToken
-    ? `varsityhubmobile://invites/${params.inviteToken}`
-    : `${APP_BASE_URL}/invites`;
+    ? `varsityhubmobile://team-invites?token=${encodeURIComponent(params.inviteToken)}`
+    : 'varsityhubmobile://team-invites';
   const inviteUrlWeb = params.inviteToken
     ? `${APP_BASE_URL}/invites?token=${params.inviteToken}`
     : `${APP_BASE_URL}/invites`;
@@ -933,7 +933,7 @@ export async function sendOrganizationInviteEmail(params: {
       inviterName: params.inviterName || 'VarsityHub Admin',
       expiryDate: formatInviteExpiry(7),
       invite_url: params.inviteToken
-        ? `varsityhubmobile://invites/${params.inviteToken}`
+        ? `${APP_BASE_URL}/invites?token=${params.inviteToken}`
         : `${APP_BASE_URL}/invites`,
       invite_url_web: params.inviteToken
         ? `${APP_BASE_URL}/invites?token=${params.inviteToken}`

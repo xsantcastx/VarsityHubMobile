@@ -49,11 +49,26 @@ const ROUTE_MAP: Record<string, string> = {
   team: '/team-detail',
   profile: '/public-profile',
   user: '/public-profile',
+  invites: '/team-invites',
+  'team-invites': '/team-invites',
+  'payment-success': '/payment-success',
+  'payment-cancel': '/payment-cancel',
   // Auth-related routes
   'reset-password': '/reset-password',
   'verify-email': '/verify-email',
   verify: '/verify',
 };
+
+function extractStringParams(queryParams?: Linking.ParsedURL['queryParams']): Record<string, string> {
+  const params: Record<string, string> = {};
+  if (!queryParams) return params;
+
+  for (const [key, value] of Object.entries(queryParams)) {
+    if (typeof value === 'string') params[key] = value;
+  }
+
+  return params;
+}
 
 /**
  * Parse a deep link URL into screen and params
@@ -92,6 +107,20 @@ export function parseDeepLink(url: string): ParsedDeepLink | null {
  */
 function parseSchemeLink(parsed: Linking.ParsedURL): ParsedDeepLink | null {
   const pathParts = parsed.path?.split('/').filter(Boolean) || [];
+
+  if (pathParts.length === 1) {
+    const [type] = pathParts;
+    const screen = ROUTE_MAP[type];
+    if (!screen) {
+      console.warn('[DeepLinks] Unknown content type:', type);
+      return null;
+    }
+    return {
+      screen,
+      params: extractStringParams(parsed.queryParams),
+      source: 'scheme',
+    };
+  }
 
   if (pathParts.length < 2) {
     return null;
@@ -159,6 +188,17 @@ function parseUniversalLink(parsed: Linking.ParsedURL): ParsedDeepLink | null {
  */
 function parsePathLink(parsed: Linking.ParsedURL): ParsedDeepLink | null {
   const pathParts = parsed.path?.split('/').filter(Boolean) || [];
+
+  if (pathParts.length === 1) {
+    const [type] = pathParts;
+    const screen = ROUTE_MAP[type];
+    if (!screen) return null;
+    return {
+      screen,
+      params: extractStringParams(parsed.queryParams),
+      source: 'unknown',
+    };
+  }
 
   if (pathParts.length < 2) {
     return null;
