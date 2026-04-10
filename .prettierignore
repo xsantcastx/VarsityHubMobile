@@ -1,33 +1,11 @@
-# Dependencies
-node_modules/
-server/node_modules/
-
-# Build outputs
-dist/
-build/
-.expo/
-web-build/
-android/build/
-ios/build/
-
-# Generated files
-*.log
-*.tsbuildinfo
-expo-env.d.ts
-
-# Config files that shouldn't be formatted
+node_modules
+node_modules.nosync
+.expo
+android
+ios
+server/dist
+coverage
+playwright-report
+test-results
 package-lock.json
-yarn.lock
-pnpm-lock.yaml
-
-# Server
-server/dist/
-server/build/
-
-# Documentation (optional - you may want to format these)
-# docs/
-
-# Test outputs
-coverage/
-playwright-report/
-test-results/
+server/package-lock.json

@@ -1,127 +1,172 @@
-# VarsityHub Mobile & API
+# VarsityHub Mobile
 
-This repository contains the Expo mobile app and the Node/Express API.
+VarsityHub is an Expo / React Native app backed by a Node / Express API in `server/`. This repo now uses a clearer split between Expo Router route files at the root `app/` and shared app code under `src/`.
 
-**Repository Size**: ~18 MB (source code only, excludes generated artifacts)
+## Tech Stack
 
-## 🚀 Quick Start
+- Expo 54
+- React Native 0.81
+- Expo Router
+- TypeScript
+- Jest and Playwright
+- Express
+- Prisma
+- SendGrid for email
+- Stripe, Cloudinary, Sentry, Twilio integrations
 
-### First Time Setup
+## Local Setup
+
+1. Install root dependencies:
+
 ```bash
-# Install dependencies (generates ~2 GB of artifacts)
-npm install
-
-# iOS native dependencies (macOS only)
-cd ios && pod install && cd ..
-
-# Server dependencies
-cd server && npm install && cd ..
+npm ci
 ```
 
-### Start Development
+2. Install server dependencies:
+
 ```bash
-# One command to run mobile + server
+npm --prefix server ci
+```
+
+3. Create local env files from the examples:
+
+```bash
+cp .env.example .env
+cp server/.env.example server/.env
+```
+
+4. Fill in the minimum required values:
+
+- `DATABASE_URL`
+- `JWT_SECRET`
+- `EXPO_PUBLIC_API_URL`
+- email config if you want real email delivery
+
+5. If you run iOS locally, install CocoaPods:
+
+```bash
+cd ios && pod install && cd ..
+```
+
+## Environment Setup
+
+- General env reference: [docs/ENV.md](/Users/varsityhub/Desktop/CODE/VarsityHubMobile/docs/ENV.md)
+- Email env reference: [docs/EMAIL_ENV.md](/Users/varsityhub/Desktop/CODE/VarsityHubMobile/docs/EMAIL_ENV.md)
+- Safe examples:
+  - [.env.example](/Users/varsityhub/Desktop/CODE/VarsityHubMobile/.env.example)
+  - [server/.env.example](/Users/varsityhub/Desktop/CODE/VarsityHubMobile/server/.env.example)
+
+## Running The Project
+
+Full stack development:
+
+```bash
 npm run dev
 ```
 
-See **[docs/INDEX.md](./docs/INDEX.md)** for the full documentation index.
-
----
-
-## 📚 Key Documentation
-
-- **[docs/INDEX.md](./docs/INDEX.md)** - Documentation entry point
-- **[docs/01-SETUP.md](./docs/01-SETUP.md)** - Development environment setup
-- **[docs/04-DEVELOPMENT.md](./docs/04-DEVELOPMENT.md)** - Development workflow and standards
-- **[docs/07-PRODUCTION.md](./docs/07-PRODUCTION.md)** - Production launch guide
-- **[docs/release/CHECKLIST.md](./docs/release/CHECKLIST.md)** - Release gating checklist
-- **[docs/status/INDEX.md](./docs/status/INDEX.md)** - Status reports and checklists
-
----
-
-## 🔍 Repository Health
-
-This repository is kept lean by excluding generated artifacts (~2 GB):
-- `node_modules/` - npm dependencies
-- `ios/Pods/` - CocoaPods dependencies  
-- Build artifacts (`ios/build`, `android/build`)
-- User uploads (`server/uploads/*`)
-
-**Verify repository health**:
-```bash
-./scripts/check-repo-health.sh
-```
-
----
-
-## ✅ Quick Verify (Backend)
-
-After deploying to Railway, verify endpoints:
+App only:
 
 ```bash
-SERVICE_URL="https://<your-service>.up.railway.app"
-./scripts/smoke-test.sh
+npm run start
+npm run android
+npm run ios
+npm run web
 ```
 
-Local DB connectivity check:
-
-```
-cd server
-DATABASE_URL="postgresql://..." node scripts/check-db.js
-```
-
----
-
-## 🔐 Security
-
-**Foundation Grade: A-** (see [SECURITY.md](./SECURITY.md))
-
-Recent security enhancements:
-- ✅ Refresh token system (1h access tokens + 30d refresh)
-- ✅ Comprehensive audit logging
-- ✅ JWT secret validation on startup
-- ✅ Rate limiting on authentication endpoints
-
----
-
-## 🛠️ Common Commands
+Server only:
 
 ```bash
-# Development
-npm install                    # Install root dependencies
-npm run dev                    # Start mobile + server
-npm run dev:expo               # Start Expo dev server only
-
-# Server
-cd server && npm install       # Install backend deps
-cd server && npm run dev       # Start backend server
-cd server && npx prisma studio # Open database GUI
-
-# iOS (macOS only)
-cd ios && pod install          # Install CocoaPods
-npx expo run:ios              # Build and run on iOS
-
-# Repository health
-./scripts/check-repo-health.sh # Verify clean state
-./scripts/clean-repo-artifacts.sh
-du -sh * | sort -h             # Check directory sizes
+npm --prefix server run dev
 ```
 
----
+## Quality Commands
 
-## 🧪 Feature Flags
-
-- `EXPO_PUBLIC_FORCE_SAMPLE_FEED`: When set to `true`, the Feed shows bundled sample events (UNC/Duke, Warriors/Lakers, Patriots/Jets) regardless of backend results. Great for demos and regression tests. Configure in `.env` or your CI/CD env.
-
-Example:
 ```bash
-EXPO_PUBLIC_FORCE_SAMPLE_FEED=true npx expo start
+npm run lint
+npm run format
+npm run typecheck
+npm test
+npm --prefix server test
 ```
 
-On EAS/production, set it via your environment management (or keep `false` to use live data).
+## Folder Structure
 
----
+```text
+.
+├── app/                  Expo Router routes only
+├── assets/               Expo assets
+├── components/           shared UI components that remain route-adjacent
+├── docs/
+├── scripts/
+├── src/
+│   ├── api/
+│   ├── config/
+│   ├── constants/
+│   ├── context/
+│   ├── features/
+│   ├── hooks/
+│   ├── services/
+│   ├── theme/
+│   ├── types/
+│   └── utils/
+├── tests/
+└── server/
+    ├── scripts/
+    ├── src/
+    │   ├── routes/
+    │   ├── jobs/
+    │   ├── workers/
+    │   ├── lib/
+    │   └── services/email/
+    └── tests/
+```
 
-**Last Updated**: December 2, 2025  
-**Security Grade**: A-  
-**Repository Size**: ~18 MB (source) / ~2.5 GB (with dependencies)
+Conventions:
+
+- `app/` is only for route files, layouts, and route-local helpers.
+- `src/` contains shared app code.
+- `server/src/services/email/` owns provider logic and reusable email templates.
+- `server/src/lib/email.ts` keeps compatibility exports for callers, but it should delegate to the email service instead of talking to providers directly.
+
+## How Email Works
+
+- Frontend auth and workflow triggers call server routes.
+- The server uses `server/src/lib/email.ts` compatibility helpers.
+- Those helpers delegate to `server/src/services/email/EmailService.ts`.
+- SendGrid is the primary provider.
+- Fallback HTML/text templates live in `server/src/services/email/templates/`.
+
+For details:
+
+- [docs/EMAIL_AUDIT.md](/Users/varsityhub/Desktop/CODE/VarsityHubMobile/docs/EMAIL_AUDIT.md)
+- [docs/EMAIL_GUIDE.md](/Users/varsityhub/Desktop/CODE/VarsityHubMobile/docs/EMAIL_GUIDE.md)
+
+## Testing Emails Locally
+
+Config-only verification:
+
+```bash
+npm --prefix server run verify:email
+```
+
+Real delivery test:
+
+```bash
+tsx server/scripts/verify-email-templates.ts --test-to=you@example.com
+```
+
+## Troubleshooting
+
+- Expo app cannot reach the API:
+  - check `EXPO_PUBLIC_API_URL`
+  - confirm the server is running on the expected host and port
+- Email verification or password reset does not arrive:
+  - verify `EMAIL_PROVIDER`, `EMAIL_FROM`, and `SENDGRID_API_KEY`
+  - verify the related `SENDGRID_*_TEMPLATE_ID`
+  - check `/health` and server logs
+- Typecheck fails after adding shared code:
+  - import shared app modules through `@/...`
+  - keep route files in `app/`
+- Queue-backed jobs do not run:
+  - verify `REDIS_URL`
+  - confirm the relevant worker process is running
