@@ -12,17 +12,112 @@ import { requireVerified } from '../middleware/requireVerified.js';
 
 export const eventsRouter = Router();
 const eventModerationRoles = ['owner', 'manager', 'coach', 'assistant_coach'] as const;
+const organizationModerationRoles = ['owner', 'manager', 'administrator'] as const;
 
 async function hasEventModerationAccess(userId: string): Promise<boolean> {
-  const membership = await prisma.teamMembership.findFirst({
-    where: {
-      user_id: userId,
-      role: { in: [...eventModerationRoles] },
-      status: 'active',
-    },
-    select: { id: true },
-  });
-  return Boolean(membership);
+  const scope = await getEventModerationScope(userId);
+  return scope.teamIds.length > 0 || scope.organizationIds.length > 0 || scope.organizationNames.length > 0;
+}
+
+async function getEventModerationScope(userId: string) {
+  const [teamMemberships, organizationMemberships] = await Promise.all([
+    prisma.teamMembership.findMany({
+      where: {
+        user_id: userId,
+        role: { in: [...eventModerationRoles] },
+        status: 'active',
+      },
+      select: { team_id: true },
+    }),
+    prisma.organizationMembership.findMany({
+      where: {
+        user_id: userId,
+        role: { in: [...organizationModerationRoles] },
+        status: 'active',
+      },
+      include: {
+        organization: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    }),
+  ]);
+
+  const organizationIds = new Set<string>();
+  const organizationNames = new Set<string>();
+  for (const membership of organizationMemberships) {
+    if (membership.organization_id) {
+      organizationIds.add(String(membership.organization_id));
+    }
+    if (membership.organization?.name) {
+      organizationNames.add(membership.organization.name.trim());
+    }
+  }
+
+  return {
+    teamIds: teamMemberships.map((membership) => membership.team_id),
+    organizationIds: Array.from(organizationIds),
+    organizationNames: Array.from(organizationNames),
+  };
+}
+
+function buildPendingEventsWhere(scope: { teamIds: string[]; organizationIds: string[]; organizationNames: string[] }) {
+  const scopedConditions: any[] = [];
+
+  if (scope.teamIds.length > 0) {
+    scopedConditions.push({
+      game: {
+        OR: [
+          { home_team_id: { in: scope.teamIds } },
+          { away_team_id: { in: scope.teamIds } },
+        ],
+      },
+    });
+  }
+
+  if (scope.organizationIds.length > 0 || scope.organizationNames.length > 0) {
+    scopedConditions.push({
+      OR: [
+        ...(scope.organizationIds.length > 0 ? [{ linked_league: { in: scope.organizationIds } }] : []),
+        ...scope.organizationNames.map((name) => ({
+          linked_league: { equals: name, mode: 'insensitive' as const },
+        })),
+      ],
+    });
+  }
+
+  if (scopedConditions.length === 0) {
+    return {
+      approval_status: 'pending',
+      id: '__no_visible_events__',
+    };
+  }
+
+  return {
+    approval_status: 'pending',
+    OR: scopedConditions,
+  };
+}
+
+function canModerateEvent(
+  event: { game?: { home_team_id?: string | null; away_team_id?: string | null } | null; linked_league?: string | null },
+  scope: { teamIds: string[]; organizationIds: string[]; organizationNames: string[] }
+) {
+  if (event.game?.home_team_id && scope.teamIds.includes(event.game.home_team_id)) return true;
+  if (event.game?.away_team_id && scope.teamIds.includes(event.game.away_team_id)) return true;
+  if (event.linked_league) {
+    if (scope.organizationIds.includes(event.linked_league)) {
+      return true;
+    }
+    const normalizedLeague = event.linked_league.trim().toLowerCase();
+    if (scope.organizationNames.some((name) => name.trim().toLowerCase() === normalizedLeague)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 const serializeEvent = (event: any, opts: { includeGame?: boolean; rsvpCount?: number; includeCreator?: boolean } = {}) => {
@@ -160,7 +255,8 @@ eventsRouter.get('/my-events', requireAuth as any, async (req: AuthedRequest, re
 eventsRouter.get('/pending', authMiddleware as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const isAdmin = await getIsAdmin(req as any);
-  const isCoach = await hasEventModerationAccess(req.user.id);
+  const scope = await getEventModerationScope(req.user.id);
+  const isCoach = scope.teamIds.length > 0 || scope.organizationIds.length > 0 || scope.organizationNames.length > 0;
   
   // Only active coaches/team managers and admins can view pending events
   if (!isAdmin && !isCoach) {
@@ -168,10 +264,10 @@ eventsRouter.get('/pending', authMiddleware as any, async (req: AuthedRequest, r
   }
   
   const events = await prisma.event.findMany({
-    where: { approval_status: 'pending' },
+    where: isAdmin ? { approval_status: 'pending' } : buildPendingEventsWhere(scope),
     orderBy: { created_at: 'desc' },
     include: { 
-      game: { select: { id: true, title: true, cover_image_url: true, date: true, location: true } },
+      game: { select: { id: true, title: true, cover_image_url: true, date: true, location: true, home_team_id: true, away_team_id: true } },
       creator: { select: { id: true, display_name: true, avatar_url: true } }
     },
   });
@@ -472,17 +568,31 @@ eventsRouter.put('/:id/approve', requireVerified as any, async (req: AuthedReque
   });
   if (!user) return res.status(401).json({ error: 'Unauthorized' });
   const isAdmin = await getIsAdmin(req as any);
-  const isCoach = await hasEventModerationAccess(user.id);
+  const scope = await getEventModerationScope(user.id);
+  const isCoach = scope.teamIds.length > 0 || scope.organizationIds.length > 0 || scope.organizationNames.length > 0;
 
   if (!isAdmin && !isCoach) {
     return res.status(403).json({ error: 'Only coaches and admins can approve events' });
   }
   
   const eventId = String(req.params.id);
-  const event = await prisma.event.findUnique({ where: { id: eventId } });
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    include: {
+      game: {
+        select: {
+          home_team_id: true,
+          away_team_id: true,
+        },
+      },
+    },
+  });
   if (!event) return res.status(404).json({ error: 'Event not found' });
   if (!isAdmin && event.creator_id === user.id) {
     return res.status(403).json({ error: 'You cannot approve your own event' });
+  }
+  if (!isAdmin && !canModerateEvent(event, scope)) {
+    return res.status(403).json({ error: 'You can only approve events for teams or organizations you manage' });
   }
   
   // Validate event is in pending state
@@ -567,17 +677,31 @@ eventsRouter.put('/:id/reject', requireVerified as any, async (req: AuthedReques
   });
   if (!user) return res.status(401).json({ error: 'Unauthorized' });
   const isAdmin = await getIsAdmin(req as any);
-  const isCoach = await hasEventModerationAccess(user.id);
+  const scope = await getEventModerationScope(user.id);
+  const isCoach = scope.teamIds.length > 0 || scope.organizationIds.length > 0 || scope.organizationNames.length > 0;
 
   if (!isAdmin && !isCoach) {
     return res.status(403).json({ error: 'Only coaches and admins can reject events' });
   }
   
   const eventId = String(req.params.id);
-  const event = await prisma.event.findUnique({ where: { id: eventId } });
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    include: {
+      game: {
+        select: {
+          home_team_id: true,
+          away_team_id: true,
+        },
+      },
+    },
+  });
   if (!event) return res.status(404).json({ error: 'Event not found' });
   if (!isAdmin && event.creator_id === user.id) {
     return res.status(403).json({ error: 'You cannot review your own event' });
+  }
+  if (!isAdmin && !canModerateEvent(event, scope)) {
+    return res.status(403).json({ error: 'You can only review events for teams or organizations you manage' });
   }
   
   // Validate event is in pending state
