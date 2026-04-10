@@ -594,7 +594,7 @@ gamesRouter.delete('/:id', requireAuth as any, async (req: AuthedRequest, res) =
     // Check if game exists
     const game = await prisma.game.findUnique({
       where: { id },
-      select: { id: true, created_by_id: true, home_team_id: true }
+      select: { id: true, created_by_id: true, home_team_id: true, away_team_id: true }
     });
 
     if (!game) return res.status(404).json({ error: 'Game not found' });
@@ -611,12 +611,13 @@ gamesRouter.delete('/:id', requireAuth as any, async (req: AuthedRequest, res) =
     const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
     const isAdmin = user?.email ? adminEmails.includes(user.email.toLowerCase()) : false;
 
-    // Check if user is coach/manager of the home team
+    // Check if user is coach/manager of either team
+    const teamIds = [game.home_team_id, game.away_team_id].filter(Boolean) as string[];
     let isCoach = false;
-    if (game.home_team_id) {
+    if (teamIds.length > 0) {
       const membership = await prisma.teamMembership.findFirst({
         where: {
-          team_id: game.home_team_id,
+          team_id: { in: teamIds },
           user_id: req.user.id,
           role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
           status: 'active'
@@ -779,7 +780,7 @@ gamesRouter.patch('/:id', requireAuth as any, async (req: AuthedRequest, res) =>
     // CRITICAL: Check authorization before allowing updates
     const game = await prisma.game.findUnique({
       where: { id },
-      select: { id: true, created_by_id: true, home_team_id: true }
+      select: { id: true, created_by_id: true, home_team_id: true, away_team_id: true }
     });
 
     if (!game) return res.status(404).json({ error: 'Game not found' });
@@ -795,14 +796,15 @@ gamesRouter.patch('/:id', requireAuth as any, async (req: AuthedRequest, res) =>
     const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
     const isAdmin = user?.email ? adminEmails.includes(user.email.toLowerCase()) : false;
 
-    // Check if user is coach/manager of the home team
+    // Check if user is coach/manager of either team
+    const teamIds = [game.home_team_id, game.away_team_id].filter(Boolean) as string[];
     let isCoach = false;
-    if (game.home_team_id) {
+    if (teamIds.length > 0) {
       const membership = await prisma.teamMembership.findFirst({
         where: {
-          team_id: game.home_team_id,
+          team_id: { in: teamIds },
           user_id: req.user.id,
-          role: { in: ['owner', 'manager', 'coach'] },
+          role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
           status: 'active'
         }
       });
