@@ -285,8 +285,12 @@ teamsRouter.get('/:id', async (req, res) => {
 });
 
 // Team members list
-teamsRouter.get('/:id/members', async (req, res) => {
+teamsRouter.get('/:id/members', requireAuth as any, async (req: AuthedRequest, res) => {
   const id = String(req.params.id);
+  const canViewMemberEmails =
+    (await getIsAdmin(req as any)) ||
+    (await canManageTeamMembers(id, req.user!.id));
+
   const mems = await prisma.teamMembership.findMany({
     where: { team_id: id },
     orderBy: { created_at: 'asc' },
@@ -314,7 +318,7 @@ teamsRouter.get('/:id/members', async (req, res) => {
       jersey_number: (m as any).jersey_number || null,
       user: {
         id: m.user_id,
-        email: user?.email || null,
+        email: canViewMemberEmails || m.user_id === req.user!.id ? user?.email || null : null,
         display_name: user?.display_name || null,
         avatar_url: user?.avatar_url || null,
         username: user?.username || null,
