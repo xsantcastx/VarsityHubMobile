@@ -201,7 +201,7 @@ eventsRouter.get('/:id', authMiddleware as any, async (req: AuthedRequest, res) 
 });
 
 // Get RSVP status and count
-eventsRouter.get('/:id/rsvp', async (req: AuthedRequest, res) => {
+eventsRouter.get('/:id/rsvp', authMiddleware as any, async (req: AuthedRequest, res) => {
   const id = String(req.params.id);
   const event = await prisma.event.findUnique({ 
     where: { id }, 
@@ -219,8 +219,7 @@ eventsRouter.get('/:id/rsvp', async (req: AuthedRequest, res) => {
 // Toggle/set RSVP
 const rsvpSchema = z.object({ attending: z.boolean().optional(), going: z.boolean().optional() });
 
-eventsRouter.post('/:id/rsvp', async (req: AuthedRequest, res) => {
-  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+eventsRouter.post('/:id/rsvp', requireAuth as any, async (req: AuthedRequest, res) => {
   const id = String(req.params.id);
   
   // Get event with date, capacity, title, location for RSVP and confirmation email
@@ -247,7 +246,7 @@ eventsRouter.post('/:id/rsvp', async (req: AuthedRequest, res) => {
       issues: parsed.error.issues.map((i) => ({ path: i.path, message: i.message })),
     });
   }
-  const me = await prisma.user.findUnique({ where: { id: req.user.id } });
+  const me = await prisma.user.findUnique({ where: { id: req.user!.id } });
   if (!me) return res.status(401).json({ error: 'Unauthorized' });
   const current = await prisma.eventRsvp.findUnique({ where: { event_id_user_id: { event_id: id, user_id: me.id } } as any });
   const desired =
