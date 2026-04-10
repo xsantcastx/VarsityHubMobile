@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { notifyNewFollower } from '../lib/notifications.js';
+import { notifyNewFollower, sendPushNotification } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
@@ -13,6 +13,14 @@ const publicUserSelect = {
   display_name: true,
   avatar_url: true,
 };
+
+function hasPrivateProfile(preferences: unknown): boolean {
+  const prefs =
+    preferences && typeof preferences === 'object' && !Array.isArray(preferences)
+      ? (preferences as Record<string, unknown>)
+      : {};
+  return prefs.profile_private === true;
+}
 
 // List users (admin only)
 usersRouter.get('/', requireAdmin as any, async (req, res) => {
@@ -228,13 +236,12 @@ async function isProfileHiddenFromViewer(ownerId: string, viewerId: string | nul
     where: { id: ownerId },
     select: { preferences: true },
   });
-  const prefs = (owner?.preferences || {}) as any;
-  if (prefs?.profile_private !== true) return false;
+  if (!hasPrivateProfile(owner?.preferences)) return false;
   const rel = await prisma.follows.findUnique({
     where: { follower_id_following_id: { follower_id: viewerId, following_id: ownerId } },
-    select: { follower_id: true },
+    select: { status: true },
   });
-  return !rel; // Hidden if not a follower
+  return rel?.status !== 'accepted'; // Hidden if not an accepted follower
 }
 
 const VIDEO_EXTENSIONS = ['.mp4', '.mov', '.webm', '.m4v', '.avi', '.mkv'];
@@ -542,42 +549,80 @@ usersRouter.post('/:id/follow', requireAuth as any, async (req: AuthedRequest, r
     return res.status(400).json({ error: 'You cannot follow yourself.' });
   }
 
+  const targetUser = await prisma.user.findUnique({
+    where: { id: following_id },
+    select: { id: true, preferences: true },
+  });
+  if (!targetUser) return res.status(404).json({ error: 'User not found' });
+
+  const existing = await prisma.follows.findUnique({
+    where: {
+      follower_id_following_id: {
+        follower_id,
+        following_id,
+      },
+    },
+    select: { status: true },
+  });
+  if (existing?.status === 'accepted') {
+    return res.status(200).json({ is_following_author: true, status: 'accepted' });
+  }
+  if (existing?.status === 'pending') {
+    return res.status(200).json({ is_following_author: false, status: 'pending' });
+  }
+
+  const requiresApproval = hasPrivateProfile(targetUser.preferences);
+  const status = requiresApproval ? 'pending' : 'accepted';
+
   try {
     await prisma.follows.create({
       data: {
         follower_id,
         following_id,
+        status,
       },
     });
-    // Create follow notification for the recipient
+
     try {
       if (follower_id !== following_id) {
+        const follower = await prisma.user.findUnique({
+          where: { id: follower_id },
+          select: { display_name: true },
+        });
+        const followerName = follower?.display_name || 'Someone';
+
         await (prisma as any).notification.create({
           data: {
             user_id: following_id,
             actor_id: follower_id,
-            type: 'FOLLOW' as any,
+            type: requiresApproval ? 'FOLLOW_REQUEST' as any : 'FOLLOW' as any,
           },
         });
-        
-        // Send push notification
-        const follower = await prisma.user.findUnique({ 
-          where: { id: follower_id }, 
-          select: { display_name: true } 
-        });
-        if (follower) {
-          await notifyNewFollower(
+
+        if (requiresApproval) {
+          await sendPushNotification(
             following_id,
-            follower_id,
-            follower.display_name || 'Someone'
+            `${followerName} requested to follow you`,
+            'Tap to review this follow request.',
+            {
+              type: 'follow_request',
+              follower_id,
+              screen: 'profile',
+              user_id_param: follower_id,
+            },
           );
+        } else {
+          await notifyNewFollower(following_id, follower_id, followerName);
         }
       }
     } catch (e) {
       console.error('Failed to send follow notification:', e);
     }
-    // Return is_following_author for caller
-    res.status(201).json({ is_following_author: true });
+
+    return res.status(201).json({
+      is_following_author: status === 'accepted',
+      status,
+    });
   } catch (error) {
     res.status(500).json({ error: 'Something went wrong.' });
   }
@@ -603,6 +648,84 @@ usersRouter.delete('/:id/follow', requireAuth as any, async (req: AuthedRequest,
   }
 });
 
+usersRouter.post('/:id/follow-request/approve', requireAuth as any, async (req: AuthedRequest, res) => {
+  const follower_id = String(req.params.id);
+  const following_id = req.user!.id;
+
+  const follow = await prisma.follows.findUnique({
+    where: {
+      follower_id_following_id: {
+        follower_id,
+        following_id,
+      },
+    },
+    select: { follower_id: true, status: true },
+  });
+  if (!follow || follow.status !== 'pending') {
+    return res.status(404).json({ error: 'Follow request not found' });
+  }
+
+  await prisma.follows.update({
+    where: {
+      follower_id_following_id: {
+        follower_id,
+        following_id,
+      },
+    },
+    data: { status: 'accepted' },
+  });
+
+  try {
+    const approver = await prisma.user.findUnique({
+      where: { id: following_id },
+      select: { display_name: true },
+    });
+    await sendPushNotification(
+      follower_id,
+      `${approver?.display_name || 'Someone'} accepted your follow request`,
+      'Tap to view their profile.',
+      {
+        type: 'follow_request_approved',
+        user_id_param: following_id,
+        screen: 'profile',
+      },
+    );
+  } catch (error) {
+    console.error('Failed to send follow approval notification:', error);
+  }
+
+  return res.json({ ok: true, status: 'accepted' });
+});
+
+usersRouter.post('/:id/follow-request/deny', requireAuth as any, async (req: AuthedRequest, res) => {
+  const follower_id = String(req.params.id);
+  const following_id = req.user!.id;
+
+  const follow = await prisma.follows.findUnique({
+    where: {
+      follower_id_following_id: {
+        follower_id,
+        following_id,
+      },
+    },
+    select: { follower_id: true, status: true },
+  });
+  if (!follow || follow.status !== 'pending') {
+    return res.status(404).json({ error: 'Follow request not found' });
+  }
+
+  await prisma.follows.delete({
+    where: {
+      follower_id_following_id: {
+        follower_id,
+        following_id,
+      },
+    },
+  });
+
+  return res.json({ ok: true, status: 'denied' });
+});
+
 // Get followers
 usersRouter.get('/:id/followers', requireAuth as any, async (req: AuthedRequest, res) => {
   const { id } = req.params;
@@ -613,7 +736,7 @@ usersRouter.get('/:id/followers', requireAuth as any, async (req: AuthedRequest,
   const cursor = (req.query.cursor as string | undefined) || undefined;
 
   const follows = await prisma.follows.findMany({
-    where: { following_id: id },
+    where: { following_id: id, status: 'accepted' },
     take: limit + 1,
     cursor: cursor ? { follower_id_following_id: { follower_id: cursor, following_id: id } } : undefined,
     include: { follower: { select: publicUserSelect } },
@@ -629,6 +752,7 @@ usersRouter.get('/:id/followers', requireAuth as any, async (req: AuthedRequest,
         where: {
           follower_id: currentUserId,
           following_id: { in: userIds },
+          status: 'accepted',
         },
         select: { following_id: true },
       })).map(f => f.following_id)
@@ -649,7 +773,7 @@ usersRouter.get('/:id/following', requireAuth as any, async (req: AuthedRequest,
   const cursor = (req.query.cursor as string | undefined) || undefined;
 
   const follows = await prisma.follows.findMany({
-    where: { follower_id: id },
+    where: { follower_id: id, status: 'accepted' },
     take: limit + 1,
     cursor: cursor ? { follower_id_following_id: { follower_id: id, following_id: cursor } } : undefined,
     include: { following: { select: publicUserSelect } },
@@ -665,6 +789,7 @@ usersRouter.get('/:id/following', requireAuth as any, async (req: AuthedRequest,
         where: {
           follower_id: currentUserId,
           following_id: { in: userIds },
+          status: 'accepted',
         },
         select: { following_id: true },
       })).map(f => f.following_id)
@@ -758,9 +883,9 @@ usersRouter.get('/:id', async (req: AuthedRequest, res) => {
   } else if (currentUserId) {
     const rel = await prisma.follows.findUnique({
       where: { follower_id_following_id: { follower_id: currentUserId, following_id: id } },
-      select: { follower_id: true },
+      select: { status: true },
     });
-    isFollower = Boolean(rel);
+    isFollower = rel?.status === 'accepted';
   }
 
   // Private profile: non-followers get only basic info
@@ -775,12 +900,12 @@ usersRouter.get('/:id', async (req: AuthedRequest, res) => {
 
   const [posts_count, followers_count, following_count, rel] = await Promise.all([
     prisma.post.count({ where: { author_id: id, deleted_at: null } }),
-    prisma.follows.count({ where: { following_id: id } }),
-    prisma.follows.count({ where: { follower_id: id } }),
+    prisma.follows.count({ where: { following_id: id, status: 'accepted' } }),
+    prisma.follows.count({ where: { follower_id: id, status: 'accepted' } }),
     currentUserId
       ? prisma.follows.findUnique({
           where: { follower_id_following_id: { follower_id: currentUserId, following_id: id } },
-          select: { follower_id: true },
+          select: { status: true },
         })
       : Promise.resolve(null),
   ]);
@@ -795,7 +920,8 @@ usersRouter.get('/:id', async (req: AuthedRequest, res) => {
     posts_count,
     followers_count,
     following_count,
-    is_following: Boolean(rel),
+    is_following: rel?.status === 'accepted',
+    follow_status: rel?.status || null,
     is_parent, // Include parent status for coaches viewing profiles
   });
 });
