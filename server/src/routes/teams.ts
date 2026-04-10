@@ -18,6 +18,18 @@ const debugLog = (...args: Parameters<typeof console.log>) => {
   }
 };
 
+async function canManageTeamMembers(teamId: string, userId: string): Promise<boolean> {
+  const membership = await prisma.teamMembership.findFirst({
+    where: {
+      team_id: teamId,
+      user_id: userId,
+      role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
+      status: 'active',
+    },
+  });
+  return Boolean(membership);
+}
+
 // Get teams managed by current user (requires authentication)
 teamsRouter.get('/managed', authMiddleware as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Authentication required' });
@@ -311,6 +323,54 @@ teamsRouter.get('/:id/members', async (req, res) => {
     };
   });
   return res.json(list);
+});
+
+teamsRouter.patch('/:id/members/:userId', requireAuth as any, async (req: AuthedRequest, res) => {
+  const teamId = String(req.params.id);
+  const userId = String(req.params.userId);
+  const { role } = (req.body || {}) as { role?: string };
+
+  if (!role) return res.status(400).json({ error: 'role is required' });
+
+  const membership = await prisma.teamMembership.findUnique({
+    where: { team_id_user_id: { team_id: teamId, user_id: userId } } as any,
+  });
+  if (!membership) return res.status(404).json({ error: 'Membership not found' });
+
+  const canManage = await canManageTeamMembers(teamId, req.user!.id);
+  if (!canManage) {
+    return res.status(403).json({
+      error: 'PERMISSION_DENIED',
+      message: 'Only team owners, managers, or coaches can update roles.',
+    });
+  }
+
+  const updated = await prisma.teamMembership.update({
+    where: { id: membership.id },
+    data: { role: String(role) },
+  });
+  return res.json(updated);
+});
+
+teamsRouter.delete('/:id/members/:userId', requireAuth as any, async (req: AuthedRequest, res) => {
+  const teamId = String(req.params.id);
+  const userId = String(req.params.userId);
+  const membership = await prisma.teamMembership.findUnique({
+    where: { team_id_user_id: { team_id: teamId, user_id: userId } } as any,
+  });
+  if (!membership) return res.status(404).json({ error: 'Membership not found' });
+
+  const canManage = await canManageTeamMembers(teamId, req.user!.id);
+  const isSelf = req.user!.id === membership.user_id;
+  if (!canManage && !isSelf) {
+    return res.status(403).json({
+      error: 'PERMISSION_DENIED',
+      message: 'Only team owners, managers, or coaches can remove members.',
+    });
+  }
+
+  await prisma.teamMembership.delete({ where: { id: membership.id } });
+  return res.json({ ok: true });
 });
 
 // All members across teams (for admin screens); optional search q
