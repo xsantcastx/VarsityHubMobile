@@ -7,7 +7,7 @@ import { sendPasswordChangedEmail, sendPasswordResetEmail, sendVerificationEmail
 import { validateContent } from '../lib/contentFilter.js';
 import { ConflictError } from '../lib/errors/ConflictError.js';
 import { ValidationError } from '../lib/errors/ValidationError.js';
-import { signJwt } from '../lib/jwt.js';
+import { signJwt, signRefreshJwt, verifyRefreshJwt } from '../lib/jwt.js';
 import { prisma } from '../lib/prisma.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
@@ -85,6 +85,13 @@ function isUnder13(dob: string | null | undefined): boolean {
   return age < 13;
 }
 
+function issueAuthTokens(userId: string) {
+  return {
+    access_token: signJwt({ id: userId }),
+    refresh_token: signRefreshJwt({ id: userId, type: 'refresh' }),
+  };
+}
+
 const registerSchema = z.object({
   email: z.string().trim().email(),
   password: z.string().min(8),
@@ -152,7 +159,7 @@ authRouter.post('/register', asyncHandler(async (req, res) => {
     }
   });
   console.log(`[verify-code] [register] Code stored in DB for user ${user.id} (expires ${exp.toISOString()})`);
-  const access_token = signJwt({ id: user.id });
+  const { access_token, refresh_token } = issueAuthTokens(user.id);
   try {
     console.log(`[verify-code] [register] Calling sendVerificationEmail → to: ${email}`);
     const emailSend = sendVerificationEmail(email, code, display_name || sanitizedEmail.split('@')[0]);
@@ -172,7 +179,7 @@ authRouter.post('/register', asyncHandler(async (req, res) => {
     console.error('[verify-code] [register] sendVerificationEmail threw:', e);
     req.log?.warn?.({ err: e }, 'Email send failed; returning code in dev');
   }
-  const payload: any = { access_token, user: sanitizeUser(user) };
+  const payload: any = { access_token, refresh_token, user: sanitizeUser(user) };
   if (process.env.NODE_ENV !== 'production') payload.dev_verification_code = code;
   debugLog('[register] Completed in', Date.now() - start, 'ms');
   res.status(201).json(payload);
@@ -196,12 +203,33 @@ authRouter.post('/login', async (req, res) => {
   if (user.banned) return res.status(403).json({ error: 'Account banned' });
   const ok = await bcrypt.compare(password, user.password_hash);
   if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
-  const access_token = signJwt({ id: user.id });
+  const { access_token, refresh_token } = issueAuthTokens(user.id);
   const sanitized = sanitizeUser(user);
   const needsOnboarding = sanitized?.preferences?.onboarding_completed === false;
-  const body: any = { access_token, user: sanitized, needs_onboarding: needsOnboarding };
+  const body: any = { access_token, refresh_token, user: sanitized, needs_onboarding: needsOnboarding };
   if (!user.email_verified) body.needs_verification = true;
   return res.json(body);
+});
+
+const refreshSchema = z.object({
+  refresh_token: z.string().min(1),
+});
+
+authRouter.post('/refresh', async (req, res) => {
+  const parsed = refreshSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
+
+  const payload = verifyRefreshJwt<{ id?: string; type?: string }>(parsed.data.refresh_token);
+  if (!payload?.id || payload.type !== 'refresh') {
+    return res.status(401).json({ error: 'Invalid refresh token' });
+  }
+
+  const user = await prisma.user.findUnique({ where: { id: payload.id } });
+  if (!user) return res.status(401).json({ error: 'Invalid refresh token' });
+  if (user.banned) return res.status(403).json({ error: 'Account banned' });
+
+  const tokens = issueAuthTokens(user.id);
+  return res.json(tokens);
 });
 
 const googleAuthSchema = z.object({
@@ -297,11 +325,12 @@ authRouter.post('/google', async (req, res) => {
     }
 
     const sanitized = sanitizeUser(user);
-    const access_token = signJwt({ id: sanitized.id });
+    const { access_token, refresh_token } = issueAuthTokens(sanitized.id);
     const needsOnboarding = sanitized?.preferences?.onboarding_completed === false;
 
     return res.json({
       access_token,
+      refresh_token,
       user: sanitized,
       needs_onboarding: needsOnboarding,
       created,
@@ -455,11 +484,12 @@ authRouter.post('/apple', async (req, res) => {
     }
 
     const sanitized = sanitizeUser(user);
-    const access_token = signJwt({ id: sanitized.id });
+    const { access_token, refresh_token } = issueAuthTokens(sanitized.id);
     const needsOnboarding = sanitized?.preferences?.onboarding_completed === false;
 
     return res.json({
       access_token,
+      refresh_token,
       user: sanitized,
       needs_onboarding: needsOnboarding,
       created,
