@@ -166,7 +166,7 @@ organizationsRouter.get('/:id', async (req, res) => {
 });
 
 // Get organization members
-organizationsRouter.get('/:id/members', async (req, res) => {
+organizationsRouter.get('/:id/members', requireAuth as any, async (req: AuthedRequest, res) => {
   const id = String(req.params.id);
   const organization = await prisma.organization.findUnique({ where: { id } });
   if (!organization) return res.status(404).json({ error: 'Organization not found' });
@@ -193,7 +193,10 @@ organizationsRouter.get('/:id/members', async (req, res) => {
     return {
       ...m,
       user: {
-        ...user,
+        id: user?.id || m.user_id,
+        display_name: user?.display_name || null,
+        username: user?.username || null,
+        avatar_url: user?.avatar_url || null,
         is_parent: prefs?.is_parent === true,
       }
     };
