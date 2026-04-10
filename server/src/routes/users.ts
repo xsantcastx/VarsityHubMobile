@@ -680,6 +680,13 @@ usersRouter.post('/:id/follow-request/approve', requireAuth as any, async (req: 
       where: { id: following_id },
       select: { display_name: true },
     });
+    await (prisma as any).notification.create({
+      data: {
+        user_id: follower_id,
+        actor_id: following_id,
+        type: 'FOLLOW' as any,
+      },
+    });
     await sendPushNotification(
       follower_id,
       `${approver?.display_name || 'Someone'} accepted your follow request`,
