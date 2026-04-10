@@ -369,16 +369,6 @@ eventsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =
     });
   }
   
-  // Validate event date is in the future
-  const eventDate = new Date(data.date);
-  const now = new Date();
-  if (eventDate < now) {
-    return res.status(400).json({
-      error: 'Invalid date',
-      message: 'Event date must be in the future.',
-    });
-  }
-  
   const user = await prisma.user.findUnique({ 
     where: { id: req.user!.id }, 
     select: { id: true, preferences: true } 
@@ -387,7 +377,18 @@ eventsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =
   
   const prefs = (user.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
   const userPlan = prefs.plan || 'rookie';
+  const accountRole = prefs.role || 'fan';
   const isAdmin = await getIsAdmin(req as any);
+
+  // Fans cannot create past events, but coaches/admins may need to log historical events.
+  const eventDate = new Date(data.date);
+  const now = new Date();
+  if (eventDate < now && !isAdmin && accountRole === 'fan') {
+    return res.status(400).json({
+      error: 'Invalid date',
+      message: 'Fan-created event dates must be in the future.',
+    });
+  }
   const isCoach = await hasEventModerationAccess(user.id);
   const userRole = isCoach ? 'coach' : 'fan';
   
