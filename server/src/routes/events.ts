@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { validateContent } from '../lib/contentFilter.js';
-import { sendEventCanceledEmail, sendEventRsvpConfirmedEmail, sendEventUpdatedEmail } from '../lib/email.js';
+import { sendEventApprovedEmail, sendEventCanceledEmail, sendEventRsvpConfirmedEmail, sendEventUpdatedEmail } from '../lib/email.js';
 import { cancelGameReminders, scheduleGameReminders, sendPushNotification } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
@@ -512,9 +512,20 @@ eventsRouter.put('/:id/approve', requireVerified as any, async (req: AuthedReque
       approved_at: new Date(),
     },
     include: {
-      creator: { select: { id: true, display_name: true } }
+      creator: { select: { id: true, email: true, display_name: true } }
     }
   });
+
+  if (updated.creator?.email) {
+    await sendEventApprovedEmail({
+      to: updated.creator.email,
+      recipientName: updated.creator.display_name || 'Coach',
+      eventId: updated.id,
+      eventTitle: updated.title,
+      eventDate: updated.date instanceof Date ? updated.date.toISOString().slice(0, 10) : String(updated.date || ''),
+      eventLocation: updated.location || '',
+    }).catch((err) => console.warn('[events] Failed to send approval email:', err));
+  }
   
   // Send notification to event creator
   if (updated.creator_id) {
