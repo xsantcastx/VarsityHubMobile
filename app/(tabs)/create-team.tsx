@@ -40,6 +40,8 @@ export default function CreateTeamScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const insets = useSafeAreaInsets();
+  const [accessResolved, setAccessResolved] = useState(false);
+  const [hasCoachAccess, setHasCoachAccess] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [sport, setSport] = useState('');
@@ -173,7 +175,36 @@ export default function CreateTeamScreen() {
 
   useEffect(() => {
     let mounted = true;
+    void (async () => {
+      try {
+        const me: any = await User.me();
+        const isCoach = me?.preferences?.role === 'coach';
+        if (!mounted) return;
+        if (!isCoach) {
+          Alert.alert('Access Restricted', 'Only coach accounts can create teams.');
+          router.replace('/(tabs)' as any);
+          return;
+        }
+        setHasCoachAccess(true);
+      } catch {
+        if (!mounted) return;
+        router.replace('/(tabs)' as any);
+      } finally {
+        if (mounted) setAccessResolved(true);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [router]);
+
+  useEffect(() => {
+    let mounted = true;
     const loadLimits = async () => {
+      if (!hasCoachAccess) {
+        if (mounted) setLimitsLoading(false);
+        return;
+      }
       setLimitsLoading(true);
       setLimitsError(null);
       try {
@@ -197,7 +228,7 @@ export default function CreateTeamScreen() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [hasCoachAccess]);
 
   const onSubmit = async () => {
     if (!name.trim()) { 
@@ -385,6 +416,17 @@ export default function CreateTeamScreen() {
       setSubmitting(false); 
     }
   };
+
+  if (!accessResolved || !hasCoachAccess) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'left', 'right']}>
+        <View style={styles.accessLoadingContainer}>
+          <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
+          <Text style={[styles.accessLoadingText, { color: Colors[colorScheme].mutedText }]}>Checking coach access...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['bottom']}>
@@ -842,6 +884,17 @@ const styles = StyleSheet.create({
   container: { 
     flex: 1, 
     backgroundColor: '#F8FAFC' 
+  },
+  accessLoadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    padding: 24,
+  },
+  accessLoadingText: {
+    fontSize: 15,
+    fontWeight: '600',
   },
   // Header
   header: {

@@ -1,7 +1,7 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -14,6 +14,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { User } from '@/api/entities';
 // @ts-ignore
 import { httpGet, httpPost, httpPut } from '@/api/http';
 
@@ -68,8 +69,11 @@ const ROLE_LABELS: Record<string, string> = {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function EventApprovalsScreen() {
+  const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const C = Colors[colorScheme];
+  const [accessResolved, setAccessResolved] = useState(false);
+  const [hasCoachAccess, setHasCoachAccess] = useState(false);
 
   // Section 1 — Pitched Events
   const [events, setEvents] = useState<PendingEvent[]>([]);
@@ -86,6 +90,31 @@ export default function EventApprovalsScreen() {
   const [orgRequestsLoading, setOrgRequestsLoading] = useState(true);
 
   const [refreshing, setRefreshing] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    void (async () => {
+      try {
+        const me: any = await User.me();
+        const isCoach = me?.preferences?.role === 'coach';
+        if (!mounted) return;
+        if (!isCoach) {
+          Alert.alert('Access Restricted', 'Only coach accounts can review approvals.');
+          router.replace('/(tabs)' as any);
+          return;
+        }
+        setHasCoachAccess(true);
+      } catch {
+        if (!mounted) return;
+        router.replace('/(tabs)' as any);
+      } finally {
+        if (mounted) setAccessResolved(true);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [router]);
 
   // ── Loaders ──────────────────────────────────────────────────────────────
 
@@ -138,16 +167,20 @@ export default function EventApprovalsScreen() {
     await Promise.allSettled([loadEvents(), loadTeamInvites(), loadOrgRequests()]);
   }, []);
 
-  useEffect(() => { void loadAll(); }, []);
+  useEffect(() => {
+    if (!hasCoachAccess) return;
+    void loadAll();
+  }, [hasCoachAccess, loadAll]);
 
   const onRefresh = useCallback(async () => {
+    if (!hasCoachAccess) return;
     setRefreshing(true);
     setEventsLoading(true);
     setInvitesLoading(true);
     setOrgRequestsLoading(true);
     await loadAll();
     setRefreshing(false);
-  }, [loadAll]);
+  }, [hasCoachAccess, loadAll]);
 
   // ── Event actions ─────────────────────────────────────────────────────────
 
@@ -392,6 +425,17 @@ export default function EventApprovalsScreen() {
 
   // ── Render ────────────────────────────────────────────────────────────────
 
+  if (!accessResolved || !hasCoachAccess) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: C.background }]} edges={['bottom']}>
+        <View style={styles.accessLoadingContainer}>
+          <ActivityIndicator size="large" color={C.tint} />
+          <Text style={[styles.accessLoadingText, { color: C.mutedText }]}>Checking access...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: C.background }]} edges={['bottom']}>
       <Stack.Screen options={{ title: 'Approvals', headerShown: true }} />
@@ -456,6 +500,8 @@ export default function EventApprovalsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  accessLoadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 },
+  accessLoadingText: { fontSize: 15, fontWeight: '600' },
   scrollContent: { padding: 16, gap: 8, paddingBottom: 32 },
 
   // Section headers
