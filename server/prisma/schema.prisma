@@ -450,8 +450,9 @@ model Ad {
   target_zip_code String?
   radius          Int      @default(45) // non-null with default
   description     String?
-  status          String   @default("draft") // draft | active | archived | pending
+  status          String   @default("draft") // draft | pending | approved | active | rejected | archived
   payment_status  String   @default("unpaid") // unpaid | paid | refunded
+  admin_note      String?  // Admin note on approval/rejection
   created_at      DateTime @default(now())
 
   reservations AdReservation[]
@@ -545,6 +546,7 @@ model Story {
 
 enum NotificationType {
   FOLLOW
+  FOLLOW_REQUEST
   UPVOTE
   COMMENT
   TEAM_INVITE
@@ -741,6 +743,7 @@ model TeamInvite {
 model Follows {
   follower_id  String
   following_id String
+  status       String   @default("accepted")   // "pending" | "accepted"
   created_at   DateTime @default(now())
 
   follower  User @relation("following", fields: [follower_id], references: [id], onDelete: Cascade)
@@ -749,6 +752,7 @@ model Follows {
   @@id([follower_id, following_id])
   @@index([follower_id])
   @@index([following_id])
+  @@index([following_id, status])
 }
 
 model TeamFollow {

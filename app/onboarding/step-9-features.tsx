@@ -111,12 +111,13 @@ export default function Step9Features() {
     setSaving(true);
     console.log('[Step9] onContinue: role =', ob.role, '| locationEnabled =', locationEnabled, '| notificationsEnabled =', notificationsEnabled);
     try {
-      // Save to context
+      // Save to context (mark step as visited)
       setOB((prev) => ({
         ...prev,
         location_enabled: locationEnabled,
         notifications_enabled: notificationsEnabled,
         messaging_policy_accepted: true,
+        step_9_visited: true,
       }));
 
       // Save to backend

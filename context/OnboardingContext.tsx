@@ -52,8 +52,11 @@ export type OnboardingState = {
   location_enabled?: boolean;
   notifications_enabled?: boolean;
   messaging_policy_accepted?: boolean;
-  // Track if step 6 (authorized users) has been visited/skipped
+  // Track if steps have been visited/skipped
   step_6_visited?: boolean;
+  step_7_visited?: boolean;
+  step_8_visited?: boolean;
+  step_9_visited?: boolean;
 };
 
 type Ctx = { 

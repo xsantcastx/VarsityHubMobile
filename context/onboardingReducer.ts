@@ -75,12 +75,12 @@ function isStepComplete(stepId: number, state: OnboardingState, role?: 'fan' | '
       return !!(state.team_id || state.organization_id);
     case 6: // Authorized users (optional for coaches, but must be visited)
       return !!state.step_6_visited; // Must visit this step before continuing
-    case 7: // Profile
-      return !!state.username; // At minimum, username is required
-    case 8: // Interests
-      return true; // Optional
-    case 9: // Features
-      return true; // Optional
+    case 7: // Profile - must be visited (username alone isn't enough, it's set in step 2)
+      return !!state.step_7_visited;
+    case 8: // Interests - must be visited
+      return !!state.step_8_visited;
+    case 9: // Features - must be visited
+      return !!state.step_9_visited;
     case 10: // Confirmation
       return false; // Final step, not "complete" until onboarding is done
     default:
@@ -134,12 +134,12 @@ export function nextIncompleteStep(
     return ONBOARDING_STEPS.STEP_7_PROFILE.index;
   }
   
-  // Step 8: Interests (optional)
+  // Step 8: Interests (must be visited)
   if (!isStepComplete(8, state, role)) {
     return ONBOARDING_STEPS.STEP_8_INTERESTS.index;
   }
-  
-  // Step 9: Features (optional)
+
+  // Step 9: Features (must be visited)
   if (!isStepComplete(9, state, role)) {
     return ONBOARDING_STEPS.STEP_9_FEATURES.index;
   }

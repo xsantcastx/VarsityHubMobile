@@ -280,6 +280,32 @@ export async function sendAdReservationEmail(params: any): Promise<boolean> {
   ]);
 }
 
+export async function sendAdApprovedEmail(params: {
+  to: string;
+  businessName: string;
+  adminNote?: string;
+}): Promise<boolean> {
+  return genericTemplateEmail(params.to, `Your ad "${params.businessName}" has been approved`, [
+    `Great news! Your ad for ${params.businessName} has been approved.`,
+    params.adminNote ? `Note from admin: ${params.adminNote}` : null,
+    `You can now complete payment to make your ad go live.`,
+    `Open VarsityHub to proceed with payment.`,
+  ]);
+}
+
+export async function sendAdRejectedEmail(params: {
+  to: string;
+  businessName: string;
+  adminNote?: string;
+}): Promise<boolean> {
+  return genericTemplateEmail(params.to, `Your ad "${params.businessName}" was not approved`, [
+    `Unfortunately, your ad for ${params.businessName} was not approved.`,
+    params.adminNote ? `Reason: ${params.adminNote}` : null,
+    `Your ad has been returned to draft status so you can make changes and resubmit.`,
+    `If you have questions, contact support@varsityhub.app.`,
+  ]);
+}
+
 export async function sendAthleteFollowerNotificationEmail(params: any): Promise<boolean> {
   return genericTemplateEmail(params?.to, 'New follower alert', [
     `${params?.followerName || 'Someone'} followed ${params?.athleteName || 'you'}.`,

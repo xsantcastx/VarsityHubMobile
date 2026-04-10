@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { getZipCoordinates, haversineDistance } from '../lib/geoUtils.js';
 import { geocodeLocation } from '../lib/geocoding.js';
+import { sendAdApprovedEmail, sendAdRejectedEmail } from '../lib/email.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
@@ -227,6 +228,63 @@ adsRouter.delete('/:id', requireVerified as any, async (req: AuthedRequest, res)
   } catch (error) {
     console.error('[ads] DELETE /:id - Error deleting ad', { id, error });
     return res.status(500).json({ error: 'Failed to delete ad' });
+  }
+});
+
+// Admin review (approve/reject) with optional note and email notification
+adsRouter.post('/:id/review', async (req: AuthedRequest, res) => {
+  const isAdmin = await getIsAdmin(req as any);
+  if (!isAdmin) return res.status(403).json({ error: 'Admin only' });
+
+  const id = String(req.params.id);
+  const { action, note } = req.body || {};
+  if (!action || !['approve', 'reject'].includes(action)) {
+    return res.status(400).json({ error: 'action must be "approve" or "reject"' });
+  }
+
+  const ad = await prisma.ad.findUnique({ where: { id } });
+  if (!ad) return res.status(404).json({ error: 'Ad not found' });
+
+  if (action === 'approve') {
+    const updated = await prisma.ad.update({
+      where: { id },
+      data: {
+        status: 'approved',
+        admin_note: note || null,
+      },
+    });
+
+    // Notify ad owner
+    const emailTo = ad.contact_email || (ad.user_id
+      ? (await prisma.user.findUnique({ where: { id: ad.user_id }, select: { email: true } }))?.email
+      : null);
+    if (emailTo) {
+      await sendAdApprovedEmail({ to: emailTo, businessName: ad.business_name || 'your ad', adminNote: note });
+    }
+
+    return res.json({ ok: true, ad: updated });
+  } else {
+    // Reject → revert to draft so user can edit and resubmit
+    const updated = await prisma.ad.update({
+      where: { id },
+      data: {
+        status: 'draft',
+        payment_status: 'unpaid',
+        admin_note: note || null,
+      },
+    });
+
+    // Delete any held reservations
+    await prisma.adReservation.deleteMany({ where: { ad_id: id } });
+
+    const emailTo = ad.contact_email || (ad.user_id
+      ? (await prisma.user.findUnique({ where: { id: ad.user_id }, select: { email: true } }))?.email
+      : null);
+    if (emailTo) {
+      await sendAdRejectedEmail({ to: emailTo, businessName: ad.business_name || 'your ad', adminNote: note });
+    }
+
+    return res.json({ ok: true, ad: updated });
   }
 });
 

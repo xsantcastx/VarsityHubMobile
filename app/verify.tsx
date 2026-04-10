@@ -251,11 +251,7 @@ export default function VerifyScreen() {
         </View>
       )}
 
-      {!isVerified && (
-        <Pressable style={styles.skipButton} onPress={() => void router.replace('/onboarding/step-1-role')}>
-          <Text style={[styles.skipText, { color: Colors[colorScheme].mutedText }]}>Skip for now</Text>
-        </Pressable>
-      )}
+      {/* Email verification is mandatory — no skip button */}
 
       {isVerified && (
         <Text style={[styles.autoRedirectText, { color: Colors[colorScheme].mutedText }]}>

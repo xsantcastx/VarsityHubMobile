@@ -173,8 +173,8 @@ export default function Step2Basic() {
       return;
     }
     
-    // Final normalization pass
-    const finalUsername = username.trim().toLowerCase().replace(/\s+/g, '_');
+    // Final normalization: lowercase, replace spaces/hyphens with underscores, strip invalid chars
+    const finalUsername = username.trim().toLowerCase().replace(/[\s-]+/g, '_').replace(/[^a-z0-9_.]/g, '');
     setSaving(true);
     dispatch({ type: 'SAVE_START' });
     
@@ -204,14 +204,12 @@ export default function Step2Basic() {
         // Preserve role in updated data to prevent it from being lost
         const currentRole = ob.role;
         const updatedDataWithRole = { ...updatedData, role: currentRole };
-        const updatedState = { ...ob, ...updatedDataWithRole };
         const isCoach = currentRole === 'coach';
-        const nextStepIndex = isCoach
-          ? 2 // Step 3 (Plan) for coaches, always sequential from Step 2
-          : nextIncompleteStep(updatedState, currentRole);
+        // Always navigate sequentially — coaches go to step 3, fans go to step 7 (profile)
+        const nextStepIndex = isCoach ? 2 : 5;
         const nextRoute = isCoach
           ? '/onboarding/step-3-plan'
-          : (STEP_ROUTES[nextStepIndex] || STEP_ROUTES[0]);
+          : '/onboarding/step-7-profile';
         
         if (__DEV__) {
           // eslint-disable-next-line no-console

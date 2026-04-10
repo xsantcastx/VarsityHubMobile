@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Advertisement as AdsApi, User } from '@/api/entities';
@@ -23,6 +23,25 @@ export default function AdminAdsScreen() {
   const [selectedAds, setSelectedAds] = useState<Set<string>>(new Set());
   const [updating, setUpdating] = useState(false);
   const [filterStatus, setFilterStatus] = useState<'all' | AdStatus>('all');
+  const [reviewModal, setReviewModal] = useState<{ id: string; action: 'approve' | 'reject'; name: string } | null>(null);
+  const [reviewNote, setReviewNote] = useState('');
+  const [reviewing, setReviewing] = useState(false);
+
+  const submitReview = async () => {
+    if (!reviewModal) return;
+    setReviewing(true);
+    try {
+      await AdsApi.review(reviewModal.id, reviewModal.action, reviewNote.trim() || undefined);
+      Alert.alert('Success', `Ad ${reviewModal.action === 'approve' ? 'approved' : 'rejected'}`);
+      setReviewModal(null);
+      setReviewNote('');
+      await load();
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || `Failed to ${reviewModal.action}`);
+    } finally {
+      setReviewing(false);
+    }
+  };
 
   const load = useCallback(async () => {
     if (!isAdmin) return;
@@ -63,7 +82,7 @@ export default function AdminAdsScreen() {
     try {
       for (const adId of Array.from(selectedAds)) {
         try {
-          await AdsApi.update(adId, { status: 'approved' });
+          await AdsApi.review(adId, 'approve');
         } catch (e) {
           console.error('Failed to approve ad:', adId, e);
         }
@@ -95,7 +114,7 @@ export default function AdminAdsScreen() {
             try {
               for (const adId of Array.from(selectedAds)) {
                 try {
-                  await AdsApi.update(adId, { status: 'rejected' });
+                  await AdsApi.review(adId, 'reject');
                 } catch (e) {
                   console.error('Failed to reject ad:', adId, e);
                 }
@@ -246,32 +265,16 @@ export default function AdminAdsScreen() {
             <View style={{ flexDirection: 'row', gap: 8 }}>
               {item.status === 'pending' && (
                 <>
-                  <Pressable 
-                    style={[styles.btn, { backgroundColor: '#22c55e', flex: 1 }]} 
-                    onPress={async () => {
-                      try {
-                        await AdsApi.update(item.id, { status: 'approved' });
-                        Alert.alert('Success', 'Ad approved');
-                        await load();
-                      } catch (e: any) {
-                        Alert.alert('Error', e?.message || 'Failed to approve');
-                      }
-                    }}
+                  <Pressable
+                    style={[styles.btn, { backgroundColor: '#22c55e', flex: 1 }]}
+                    onPress={() => { setReviewNote(''); setReviewModal({ id: item.id, action: 'approve', name: item.business_name || 'Ad' }); }}
                   >
                     <Ionicons name="checkmark-circle" size={16} color="#fff" />
                     <Text style={styles.btnText}>Approve</Text>
                   </Pressable>
-                  <Pressable 
-                    style={[styles.btn, { backgroundColor: '#dc2626', flex: 1 }]} 
-                    onPress={async () => {
-                      try {
-                        await AdsApi.update(item.id, { status: 'rejected' });
-                        Alert.alert('Success', 'Ad rejected');
-                        await load();
-                      } catch (e: any) {
-                        Alert.alert('Error', e?.message || 'Failed to reject');
-                      }
-                    }}
+                  <Pressable
+                    style={[styles.btn, { backgroundColor: '#dc2626', flex: 1 }]}
+                    onPress={() => { setReviewNote(''); setReviewModal({ id: item.id, action: 'reject', name: item.business_name || 'Ad' }); }}
                   >
                     <Ionicons name="close-circle" size={16} color="#fff" />
                     <Text style={styles.btnText}>Reject</Text>
@@ -404,6 +407,57 @@ export default function AdminAdsScreen() {
           }
         />
       )}
+
+      {/* Review Modal with Notes */}
+      <Modal visible={!!reviewModal} transparent animationType="fade" onRequestClose={() => setReviewModal(null)}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)', padding: 24 }}>
+          <View style={[styles.card, { backgroundColor: theme.card, width: '100%', maxWidth: 400 }]}>
+            <Text style={[styles.title, { color: theme.text, fontSize: 18, marginBottom: 8 }]}>
+              {reviewModal?.action === 'approve' ? 'Approve' : 'Reject'} Ad
+            </Text>
+            <Text style={[styles.meta, { color: theme.mutedText, marginBottom: 12 }]}>
+              {reviewModal?.name}
+            </Text>
+            <Text style={{ color: theme.text, fontWeight: '600', marginBottom: 6, fontSize: 14 }}>
+              {reviewModal?.action === 'approve' ? 'Note to advertiser (optional)' : 'Reason for rejection (optional)'}
+            </Text>
+            <TextInput
+              style={{
+                borderWidth: 1,
+                borderColor: theme.border,
+                borderRadius: 8,
+                padding: 12,
+                minHeight: 80,
+                color: theme.text,
+                backgroundColor: theme.surface || theme.background,
+                textAlignVertical: 'top',
+                fontSize: 14,
+                marginBottom: 16,
+              }}
+              placeholder={reviewModal?.action === 'approve' ? 'e.g., Looks great! Payment link sent.' : 'e.g., Banner image is too blurry, please re-upload.'}
+              placeholderTextColor={theme.mutedText}
+              value={reviewNote}
+              onChangeText={setReviewNote}
+              multiline
+            />
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <Pressable
+                style={[styles.btn, { flex: 1, backgroundColor: reviewModal?.action === 'approve' ? '#22c55e' : '#dc2626' }]}
+                onPress={submitReview}
+                disabled={reviewing}
+              >
+                <Text style={styles.btnText}>{reviewing ? 'Submitting...' : reviewModal?.action === 'approve' ? 'Approve' : 'Reject'}</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.btn, styles.btnSecondary, { flex: 1 }]}
+                onPress={() => setReviewModal(null)}
+              >
+                <Text style={[styles.btnText, { color: theme.text }]}>Cancel</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }

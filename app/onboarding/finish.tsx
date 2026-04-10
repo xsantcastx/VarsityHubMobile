@@ -73,23 +73,22 @@ export default function OnboardingFinish() {
     finally { setVerifying(false); }
   };
 
-  const skip = async () => {
-    // Mark onboarding as complete even when skipping email verification
+  const finishOnboarding = async () => {
+    // Only called after email is verified — mark onboarding complete
     try {
       await User.completeOnboarding({});
       const updatedUser: any = await checkAuth();
       setMe(updatedUser);
-      // Onboarding marked complete during skip
     } catch (completeErr) {
       console.error('[Onboarding][Finish] Failed to mark onboarding complete:', completeErr);
     }
-    
+
     try {
       await markOnboardingCompleteLocally();
     } catch (error) {
       console.warn('[Onboarding][Finish] Failed to mark locally:', error);
     }
-    
+
     router.replace('/(tabs)/feed');
   };
 
@@ -106,17 +105,17 @@ export default function OnboardingFinish() {
         {verified ? (
           <>
             <Text style={[styles.muted, { color: theme.mutedText }]}>Your email is verified. Enjoy Varsity Hub!</Text>
-            <PrimaryButton label="Go to Feed" onPress={() => skip()} />
+            <PrimaryButton label="Go to Feed" onPress={() => finishOnboarding()} />
           </>
         ) : (
           <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Text style={[styles.cardTitle, { color: theme.text }]}>Verify your email to unlock messaging & RSVPs</Text>
+            <Text style={[styles.cardTitle, { color: theme.text }]}>Verify your email to complete setup</Text>
+            <Text style={[styles.muted, { color: theme.mutedText, marginBottom: 8 }]}>Check your inbox for a 6-digit verification code.</Text>
             <Input placeholder="Enter 6-digit code" value={code} onChangeText={setCode} keyboardType="number-pad" style={{ marginBottom: 8 }} />
-            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
               <PrimaryButton label={cooldown>0 ? `Resend in ${cooldown}s` : 'Send Code'} onPress={sendCode} disabled={sending || cooldown>0} loading={sending} />
               <PrimaryButton label={verifying ? 'Verifying…' : 'Verify'} onPress={verify} disabled={verifying} loading={verifying} />
             </View>
-            <PrimaryButton label="Skip for now" onPress={skip} />
           </View>
         )}
       </View>

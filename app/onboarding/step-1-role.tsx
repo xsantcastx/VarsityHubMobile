@@ -237,13 +237,10 @@ export default function Step1Role() {
         setProgress(8);
         router.replace('/onboarding/step-10-confirmation');
       } else {
-        // Use reducer to calculate next step deterministically
-        const updatedState = (role === 'coach' && !wasCoachBefore)
-          ? { role }
-          : { ...ob, role };
-        const nextStepIndex = nextIncompleteStep(updatedState, role);
-        const nextRoute = STEP_ROUTES[nextStepIndex] || STEP_ROUTES[0];
-        
+        // Always navigate sequentially to step 2 (basic info) — never skip ahead
+        const nextStepIndex = 1; // Step 2 index
+        const nextRoute = '/onboarding/step-2-basic';
+
         if (__DEV__) {
           // eslint-disable-next-line no-console
           console.log('[STEP-1] Navigation after role selection:', {
@@ -251,14 +248,13 @@ export default function Step1Role() {
             wasCoachBefore,
             nextStepIndex,
             nextRoute,
-            calculatedNext: nextIncompleteStep(updatedState, role),
           });
         }
-        
-        // Save role and navigate to calculated next step
-        dispatch({ 
-          type: 'SAVE_SUCCESS', 
-          data: { role } 
+
+        // Save role and navigate to step 2
+        dispatch({
+          type: 'SAVE_SUCCESS',
+          data: { role }
         });
         setProgress(nextStepIndex);
         router.replace(nextRoute as any);

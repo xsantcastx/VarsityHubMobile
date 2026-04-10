@@ -124,13 +124,14 @@ export default function Step7Profile() {
 
     setSaving(true);
     try {
-      // Save to context
-      setOB((prev) => ({ 
-        ...prev, 
+      // Save to context (mark step as visited)
+      setOB((prev) => ({
+        ...prev,
         avatar_url: avatar || undefined,
         username: username || undefined,
         bio: bio || undefined,
-        sports_interests: interests as any
+        sports_interests: interests as any,
+        step_7_visited: true,
       }));
       
       // Save to backend

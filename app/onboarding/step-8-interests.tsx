@@ -44,7 +44,7 @@ export default function Step8Interests() {
     setSaving(true);
     try {
       // IMPORTANT: Save to onboarding context FIRST (persists to AsyncStorage immediately)
-      setOB((prev) => ({ ...prev, primary_intents: sel as any }));
+      setOB((prev) => ({ ...prev, primary_intents: sel as any, step_8_visited: true }));
       
       // Then save to backend
       await User.updatePreferences({ primary_intents: sel });

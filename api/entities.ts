@@ -40,6 +40,8 @@ export const User = {
   following: (id: string, cursor?: string) => { if (!id || id === 'undefined' || id === 'null') throw new Error('[User.following] Invalid user ID'); return httpGet(`/users/${encodeURIComponent(id)}/following` + (cursor ? `?cursor=${encodeURIComponent(cursor)}` : '')); },
   follow: (id: string) => { if (!id || id === 'undefined' || id === 'null') throw new Error('[User.follow] Invalid user ID'); return httpPost(`/users/${encodeURIComponent(id)}/follow`, {}); },
   unfollow: (id: string) => { if (!id || id === 'undefined' || id === 'null') throw new Error('[User.unfollow] Invalid user ID'); return httpDelete(`/users/${encodeURIComponent(id)}/follow`); },
+  approveFollowRequest: (followerId: string) => { if (!followerId || followerId === 'undefined' || followerId === 'null') throw new Error('[User.approveFollowRequest] Invalid user ID'); return httpPost(`/users/${encodeURIComponent(followerId)}/follow-request/approve`, {}); },
+  denyFollowRequest: (followerId: string) => { if (!followerId || followerId === 'undefined' || followerId === 'null') throw new Error('[User.denyFollowRequest] Invalid user ID'); return httpPost(`/users/${encodeURIComponent(followerId)}/follow-request/deny`, {}); },
   postsForProfile: (id: string, opts: { cursor?: string | null; limit?: number; sort?: 'newest' | 'most_upvoted' | 'most_commented' } = {}) => {
     if (!id || id === 'undefined' || id === 'null') throw new Error('[User.postsForProfile] Invalid user ID');
     const q: string[] = [];
@@ -551,6 +553,7 @@ export const Advertisement = {
   listAll: () => httpGet('/ads?all=1'),
   get: (id: string) => httpGet('/ads/' + encodeURIComponent(id)),
   update: (id: string, data: any) => httpPut('/ads/' + encodeURIComponent(id), data),
+  review: (id: string, action: 'approve' | 'reject', note?: string) => httpPost('/ads/' + encodeURIComponent(id) + '/review', { action, note }),
   delete: (id: string) => httpDelete('/ads/' + encodeURIComponent(id)),
   forFeed: (dateISO?: string, zip?: string, limit: number = 1) => {
     const q: string[] = [];
