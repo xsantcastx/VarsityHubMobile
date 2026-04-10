@@ -2,7 +2,7 @@ import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
-import { isEmailAdmin } from '../middleware/requireAdmin.js';
+import { getIsAdmin, isEmailAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { makeCreateStoryHandler, makeListMediaHandler, serializeMedia } from './gameStories.js';
 import { debugLog } from '../lib/debugLog.js';
@@ -980,25 +980,27 @@ gamesRouter.put('/:id/approve', requireAuth as any, async (req: AuthedRequest, r
   // Get the game to check permissions
   const game = await (prisma.game.findUnique as any)({
     where: { id },
-    select: { id: true, home_team_id: true, approval_status: true }
+    select: { id: true, home_team_id: true, away_team_id: true, approval_status: true }
   });
   
   if (!game) return res.status(404).json({ error: 'Event not found' });
   
   // Check if user is coach/manager of the team
+  const teamIds = [game.home_team_id, game.away_team_id].filter(Boolean) as string[];
   let isCoach = false;
-  if (game.home_team_id) {
+  if (teamIds.length > 0) {
     const membership = await prisma.teamMembership.findFirst({
       where: {
-        team_id: game.home_team_id,
+        team_id: { in: teamIds },
         user_id: req.user.id,
-        role: { in: ['coach', 'manager', 'owner'] }
+        role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
+        status: 'active',
       }
     });
     isCoach = !!membership;
   }
-  
-  const isAdmin = ['ADMIN', 'SUPER_ADMIN'].includes(String((req.user as any)?.role || '').toUpperCase());
+
+  const isAdmin = await getIsAdmin(req);
 
   if (!isCoach && !isAdmin) {
     return res.status(403).json({ error: 'Only coaches and admins can approve events' });
