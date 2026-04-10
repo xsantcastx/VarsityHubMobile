@@ -146,17 +146,41 @@ export default function RootLayout() {
             }
             break;
 
+          case 'follow_request':
+            if (data.follower_id || data.user_id_param) {
+              const userId = String(data.follower_id || data.user_id_param);
+              devLog('[Notifications] Navigating to follow requester profile:', userId);
+              router.push({
+                pathname: '/user-profile',
+                params: { userId },
+              } as any);
+            }
+            break;
+
+          case 'follow_request_approved':
+            if (data.user_id_param) {
+              devLog('[Notifications] Navigating to approved follow profile:', data.user_id_param);
+              router.push({
+                pathname: '/user-profile',
+                params: { userId: data.user_id_param },
+              } as any);
+            }
+            break;
+
           case 'team_invite':
             devLog('[Notifications] Navigating to team invites');
             router.push('/team-invites');
             break;
 
+          case 'event_approved':
+          case 'event_rejected':
           case 'game_reminder':
-            if (data.event_id) {
-              devLog('[Notifications] Navigating to event:', data.event_id);
+            if (data.event_id || data.event_id_param) {
+              const eventId = String(data.event_id || data.event_id_param);
+              devLog('[Notifications] Navigating to event:', eventId);
               router.push({
                 pathname: '/event-detail',
-                params: { id: data.event_id },
+                params: { id: eventId },
               } as any);
             }
             break;
