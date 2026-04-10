@@ -148,12 +148,9 @@ authRouter.post('/register', asyncHandler(async (req, res) => {
   const exp = new Date(Date.now() + 30 * 60 * 1000);
   const userRole = role || 'fan';
 
-  // Set admin flag for the main admin account
-  const isAdmin = sanitizedEmail === 'emilmancero@gmail.com';
   const initialPreferences = {
     role: userRole,
     onboarding_completed: false,
-    ...(isAdmin && { is_admin: true })
   };
 
   debugLog('[register] Creating user record');
