@@ -218,7 +218,7 @@ export default function Step2Basic() {
             isCoach,
             nextStepIndex,
             nextRoute,
-            calculatedNext: nextIncompleteStep(updatedState, currentRole),
+            calculatedNext: nextIncompleteStep(updatedDataWithRole as any, currentRole),
           });
         }
         
