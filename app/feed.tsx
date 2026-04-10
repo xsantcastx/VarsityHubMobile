@@ -429,11 +429,11 @@ export default function FeedScreen() {
           const timeoutPromise = new Promise((_, reject) => 
             setTimeout(() => reject(new Error('Notification check timeout')), 10000)
           );
-          const page = await Promise.race([
-            NotificationApi.listPage(null, 1, true),
+          const payload = await Promise.race([
+            NotificationApi.unreadCount(),
             timeoutPromise
           ]) as any;
-          setHasUnreadAlerts(Array.isArray(page.items) && page.items.length > 0);
+          setHasUnreadAlerts(Boolean(payload?.has_unread));
         } catch (err: any) {
           // ignore notification poll errors, but log in dev
           if (__DEV__ && err?.message !== 'Notification check timeout') {
@@ -453,12 +453,12 @@ export default function FeedScreen() {
         const timeoutPromise = new Promise((_, reject) => 
           setTimeout(() => reject(new Error('Notification poll timeout')), 10000)
         );
-        const page = await Promise.race([
-          NotificationApi.listPage(null, 1, true),
+        const payload = await Promise.race([
+          NotificationApi.unreadCount(),
           timeoutPromise
         ]) as any;
         if (!mounted) return;
-        setHasUnreadAlerts(Array.isArray(page.items) && page.items.length > 0);
+        setHasUnreadAlerts(Boolean(payload?.has_unread));
       } catch (err: any) {
         // ignore notification poll errors, but log in dev
         if (__DEV__ && err?.message !== 'Notification poll timeout') {

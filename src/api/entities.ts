@@ -723,6 +723,7 @@ export const Notification = {
       throw error;
     }
   },
+  unreadCount: () => httpGet('/notifications/unread-count'),
   markRead: (id: string) => httpPost(`/notifications/${encodeURIComponent(id)}/read`, {}),
   markAllRead: () => httpPost('/notifications/mark-read-all', {}),
 };

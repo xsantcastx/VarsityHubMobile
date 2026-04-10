@@ -20,6 +20,27 @@ const summarize = (n: any) => {
   }
 };
 
+// GET /notifications/unread-count
+notificationsRouter.get('/unread-count', requireAuth as any, async (req: AuthedRequest, res) => {
+  try {
+    const count = await prisma.notification.count({
+      where: {
+        user_id: req.user!.id,
+        read_at: null,
+      },
+    });
+    return res.json({ unread_count: count, has_unread: count > 0 });
+  } catch (error: any) {
+    console.error('[notifications] Error fetching unread count:', error);
+    return res.status(500).json({
+      error: 'Failed to fetch unread count',
+      message: error.message || 'Unknown error',
+      unread_count: 0,
+      has_unread: false,
+    });
+  }
+});
+
 // GET /notifications?cursor=...&limit=...&unread=1
 notificationsRouter.get('/', requireAuth as any, async (req: AuthedRequest, res) => {
   try {
