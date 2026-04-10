@@ -17,7 +17,7 @@ import { requireAdmin } from '../middleware/requireAdmin.js';
 export const authRouter = Router();
 // Simple in-memory rate limiting for auth endpoints
 const authRate: Map<string, { attempts: number; resetAt: number }> = new Map();
-const MAX_AUTH_ATTEMPTS = 5;
+const MAX_AUTH_ATTEMPTS = 10;
 const AUTH_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 const debugLog = (...args: Parameters<typeof console.log>) => {
   if (process.env.ENABLE_SERVER_DEBUG_LOGS === 'true' || process.env.NODE_ENV !== 'production') {
@@ -693,8 +693,8 @@ authRouter.get('/me', async (req: AuthedRequest, res) => {
 });
 
 const updateMeSchema = z.object({
-  display_name: z.string().min(1).max(120).refine((val) => val.trim().length > 0, { message: 'Display name cannot be only whitespace' }).optional(),
-  username: z.string().min(3).max(20).regex(/^[a-z0-9_.]+$/, { message: 'Username can only contain lowercase letters, numbers, dots, and underscores' }).optional(),
+  display_name: z.string().min(1).max(15).refine((val) => val.trim().length > 0, { message: 'Display name cannot be only whitespace' }).optional(),
+  username: z.string().min(1).max(25).regex(/^[a-z0-9_.]+$/, { message: 'Username can only contain lowercase letters, numbers, dots, and underscores' }).optional(),
   avatar_url: z.string()
     .url({ message: 'Avatar URL must be a valid URL' })
     .refine((url) => {
@@ -983,7 +983,7 @@ const completeOnboardingSchema = z.object({
   // Core identity fields
   // Rookie is not a role
   role: z.enum(['fan', 'coach']).optional(),
-  username: z.string().min(3).max(20).optional(),
+  username: z.string().min(1).max(25).optional(),
   display_name: z.string().optional(),
   affiliation: z.enum(['none', 'university', 'high_school', 'club', 'youth', 'school', 'independent']).optional(),
   dob: z.string().optional(),

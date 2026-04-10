@@ -40,12 +40,12 @@ export default function EditUsernameScreen() {
       Alert.alert('Invalid username', 'Username can only contain lowercase letters, numbers, dots, and underscores');
       return;
     }
-    if (v.length < 3) {
-      Alert.alert('Username too short', 'Username must be at least 3 characters');
+    if (v.length < 1) {
+      Alert.alert('Username too short', 'Username must be at least 1 character');
       return;
     }
-    if (v.length > 20) {
-      Alert.alert('Username too long', 'Username must be 20 characters or less');
+    if (v.length > 25) {
+      Alert.alert('Username too long', 'Username must be 25 characters or less');
       return;
     }
     setSaving(true);
@@ -136,4 +136,3 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
 });
-

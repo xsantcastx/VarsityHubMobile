@@ -259,7 +259,7 @@ export default function Step2Basic() {
         try { const r: any = await User.usernameAvailable(username); setAvailable(!!r?.available); } catch (error) { console.warn('[onboarding] Username availability check failed:', error); setAvailable(null); }
       }} />
       {usernameError ? (
-        <Text style={styles.error}>Use 3-20 lowercase letters, numbers, underscores, or periods.</Text>
+        <Text style={styles.error}>Use 1-25 lowercase letters, numbers, underscores, or periods.</Text>
       ) : checking ? (
         <Text style={styles.muted}>Checking availability…</Text>
       ) : available === false ? (

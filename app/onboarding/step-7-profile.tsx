@@ -117,8 +117,8 @@ export default function Step7Profile() {
       return;
     }
 
-    if (username.trim().length < 3) {
-      Alert.alert('Username Too Short', 'Username must be at least 3 characters.');
+    if (username.trim().length < 1) {
+      Alert.alert('Username Too Short', 'Username must be at least 1 character.');
       return;
     }
 
@@ -404,7 +404,6 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   chip: { borderWidth: StyleSheet.hairlineWidth, borderColor: Colors[colorScheme].border, color: Colors[colorScheme].text, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999 },
   chipSelected: { backgroundColor: Colors[colorScheme].tint, color: colorScheme === 'dark' ? Colors[colorScheme].text : '#FFFFFF', borderColor: Colors[colorScheme].tint },
 });
-
 
 
 

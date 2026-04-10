@@ -124,11 +124,11 @@ export function calculatePasswordStrength(password: string): { score: number; fe
  */
 export function validateUsername(username: string): ValidationResult {
   if (!username) return { valid: false, error: 'Username is required' };
-  if (username.length < 3) {
-    return { valid: false, error: 'Username must be at least 3 characters' };
+  if (username.length < 1) {
+    return { valid: false, error: 'Username must be at least 1 character' };
   }
-  if (username.length > 20) {
-    return { valid: false, error: 'Username must be 20 characters or less' };
+  if (username.length > 25) {
+    return { valid: false, error: 'Username must be 25 characters or less' };
   }
   if (!/^[a-z0-9_.]+$/.test(username)) {
     return {

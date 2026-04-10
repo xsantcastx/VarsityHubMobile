@@ -9,8 +9,8 @@ describe('Username Update Validation', () => {
     if (!username || username.trim().length === 0) return false;
     const v = username.trim().toLowerCase();
     if (!/^[a-z0-9_.]+$/.test(v)) return false;
-    if (v.length < 3) return false;
-    if (v.length > 20) return false;
+    if (v.length < 1) return false;
+    if (v.length > 25) return false;
     return true;
   };
 
@@ -40,14 +40,14 @@ describe('Username Update Validation', () => {
       expect(isValidUsername('test.user_456')).toBe(true);
     });
 
-    it('should accept minimum length (3)', () => {
-      expect(isValidUsername('abc')).toBe(true);
-      expect(isValidUsername('123')).toBe(true);
+    it('should accept minimum length (1)', () => {
+      expect(isValidUsername('a')).toBe(true);
+      expect(isValidUsername('1')).toBe(true);
     });
 
-    it('should accept maximum length (20)', () => {
-      expect(isValidUsername('a'.repeat(20))).toBe(true);
-      expect(isValidUsername('test_user_12345678')).toBe(true);
+    it('should accept maximum length (25)', () => {
+      expect(isValidUsername('a'.repeat(25))).toBe(true);
+      expect(isValidUsername('test_user_name_123456789')).toBe(true);
     });
   });
 
@@ -73,13 +73,13 @@ describe('Username Update Validation', () => {
     });
 
     it('should reject too short usernames', () => {
-      expect(isValidUsername('ab')).toBe(false);
-      expect(isValidUsername('a')).toBe(false);
+      expect(isValidUsername('')).toBe(false);
+      expect(isValidUsername('   ')).toBe(false);
     });
 
     it('should reject too long usernames', () => {
-      expect(isValidUsername('a'.repeat(21))).toBe(false);
-      expect(isValidUsername('test_user_1234567890123')).toBe(false);
+      expect(isValidUsername('a'.repeat(26))).toBe(false);
+      expect(isValidUsername('test_user_name_1234567890')).toBe(false);
     });
 
     it('should reject usernames with spaces', () => {
@@ -105,15 +105,15 @@ describe('Username Update Validation', () => {
   });
 
   describe('Edge cases', () => {
-    it('should handle exactly 3 characters', () => {
-      expect(isValidUsername('abc')).toBe(true);
-      expect(isValidUsername('123')).toBe(true);
-      expect(isValidUsername('a_b')).toBe(true);
+    it('should handle exactly 1 character', () => {
+      expect(isValidUsername('a')).toBe(true);
+      expect(isValidUsername('1')).toBe(true);
+      expect(isValidUsername('_')).toBe(true);
     });
 
-    it('should handle exactly 20 characters', () => {
-      expect(isValidUsername('a'.repeat(20))).toBe(true);
-      expect(isValidUsername('test_user_12345678')).toBe(true);
+    it('should handle exactly 25 characters', () => {
+      expect(isValidUsername('a'.repeat(25))).toBe(true);
+      expect(isValidUsername('test_user_name_123456789')).toBe(true);
     });
 
     it('should handle dots and underscores together', () => {
