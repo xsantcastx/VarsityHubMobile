@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { logAdminActivityFromReq } from '../lib/adminActivityLogger.js';
 import { getZipCoordinates, haversineDistance } from '../lib/geoUtils.js';
 import { geocodeLocation } from '../lib/geocoding.js';
 import { sendAdApprovedEmail, sendAdRejectedEmail } from '../lib/email.js';
@@ -281,6 +282,15 @@ adsRouter.post('/:id/review', async (req: AuthedRequest, res) => {
       await sendAdApprovedEmail({ to: emailTo, businessName: ad.business_name || 'your ad', adminNote: note });
     }
 
+    await logAdminActivityFromReq(
+      req,
+      'Approve Ad',
+      'ad',
+      id,
+      `Approved ad ${ad.business_name || id}`,
+      { action: 'approve', note: note || null }
+    );
+
     return res.json({ ok: true, ad: updated });
   } else {
     // Reject → revert to draft so user can edit and resubmit
@@ -302,6 +312,15 @@ adsRouter.post('/:id/review', async (req: AuthedRequest, res) => {
     if (emailTo) {
       await sendAdRejectedEmail({ to: emailTo, businessName: ad.business_name || 'your ad', adminNote: note });
     }
+
+    await logAdminActivityFromReq(
+      req,
+      'Reject Ad',
+      'ad',
+      id,
+      `Rejected ad ${ad.business_name || id}`,
+      { action: 'reject', note: note || null }
+    );
 
     return res.json({ ok: true, ad: updated });
   }

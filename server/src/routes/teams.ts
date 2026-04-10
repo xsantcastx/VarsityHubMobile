@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { logAdminActivityFromReq } from '../lib/adminActivityLogger.js';
 import { sendTeamInviteEmail } from '../lib/email.js';
 import { validateContent } from '../lib/contentFilter.js';
 import { sendPushNotification } from '../lib/notifications.js';
@@ -658,6 +659,17 @@ teamsRouter.delete('/:id', requireVerified as any, async (req: AuthedRequest, re
       // Delete the team itself
       prisma.team.delete({ where: { id: teamId } }),
     ]);
+
+    if (isAdmin) {
+      await logAdminActivityFromReq(
+        req,
+        'Delete Team',
+        'team',
+        teamId,
+        `Deleted team ${team.name}`,
+        { team_name: team.name }
+      );
+    }
     
     return res.json({ ok: true, message: 'Team deleted successfully' });
   } catch (err: any) {

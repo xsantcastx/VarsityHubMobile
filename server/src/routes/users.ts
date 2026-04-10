@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { logAdminActivityFromReq } from '../lib/adminActivityLogger.js';
 import { notifyNewFollower, sendPushNotification } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
@@ -62,12 +63,14 @@ usersRouter.get('/', requireAdmin as any, async (req, res) => {
 usersRouter.post('/:id/ban', requireAdmin as any, async (req, res) => {
   const id = String(req.params.id);
   const u = await prisma.user.update({ where: { id }, data: { banned: true } });
+  await logAdminActivityFromReq(req, 'Ban User', 'user', u.id, `Banned user ${u.email || u.id}`);
   return res.json({ ok: true, id: u.id, banned: true });
 });
 
 usersRouter.post('/:id/unban', requireAdmin as any, async (req, res) => {
   const id = String(req.params.id);
   const u = await prisma.user.update({ where: { id }, data: { banned: false } });
+  await logAdminActivityFromReq(req, 'Unban User', 'user', u.id, `Unbanned user ${u.email || u.id}`);
   return res.json({ ok: true, id: u.id, banned: false });
 });
 
