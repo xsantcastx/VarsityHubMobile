@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { Router } from 'express';
+import { validateContent } from '../lib/contentFilter.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 
@@ -123,6 +124,11 @@ groupChatsRouter.post('/:chatId/messages', requireAuth as any, async (req: Authe
     // SECURITY: Type validation for content (must be string)
     if (typeof content !== 'string' || !content.trim()) {
       return res.status(400).json({ error: 'Message content required' });
+    }
+
+    const filterResult = validateContent({ content });
+    if (!filterResult.valid) {
+      return res.status(400).json({ error: filterResult.error, code: filterResult.code });
     }
 
     // Verify user is a member of this chat

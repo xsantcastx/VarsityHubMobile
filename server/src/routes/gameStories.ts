@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
 import { z } from 'zod';
+import { validateContent } from '../lib/contentFilter.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import type { PrismaClient } from '@prisma/client';
 import { verifyStoryPostingPermission } from '../lib/geofencing.js';
@@ -190,6 +191,13 @@ export const makeCreateStoryHandler = ({ prisma }: StoryDeps) => async (req: Aut
   const location = parsed.data.location;
   const lat = location?.lat ?? null;
   const lng = location?.lng ?? null;
+
+  if (parsed.data.caption && parsed.data.caption.trim().length > 0) {
+    const filterResult = validateContent({ content: parsed.data.caption });
+    if (!filterResult.valid) {
+      return res.status(400).json({ error: filterResult.error, code: filterResult.code });
+    }
+  }
   
   const createdAt = new Date();
   const expiresAt = new Date(createdAt.getTime() + STORY_EXPIRY_HOURS * 60 * 60 * 1000);

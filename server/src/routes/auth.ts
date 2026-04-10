@@ -117,6 +117,15 @@ authRouter.post('/register', asyncHandler(async (req, res) => {
   const { email, password, display_name, role, dob } = parsed.data;
   const sanitizedEmail = email.trim().toLowerCase();
 
+  if (display_name && display_name.trim().length > 0) {
+    const filterResult = validateContent({ content: display_name });
+    if (!filterResult.valid) {
+      throw new ValidationError(filterResult.error || 'Invalid display name', {
+        errorCode: filterResult.code,
+      });
+    }
+  }
+
   // COPPA: Reject registration if DOB indicates under 13
   if (dob && isUnder13(dob)) {
     throw new ValidationError('VarsityHub is not available for users under 13. Please have a parent or guardian contact support@varsityhub.app.', {
@@ -713,6 +722,12 @@ authRouter.put('/me', async (req: AuthedRequest, res) => {
       return res.status(400).json({ error: filterResult.error, code: filterResult.code });
     }
   }
+  if (data.display_name != null && data.display_name !== '') {
+    const filterResult = validateContent({ content: data.display_name });
+    if (!filterResult.valid) {
+      return res.status(400).json({ error: filterResult.error, code: filterResult.code });
+    }
+  }
   
   if (data.preferences) {
     // COPPA: Reject if DOB in preferences indicates under 13
@@ -767,6 +782,12 @@ authRouter.patch('/me', async (req: AuthedRequest, res) => {
   }
   if (data.bio != null && data.bio !== '') {
     const filterResult = validateContent({ content: data.bio });
+    if (!filterResult.valid) {
+      return res.status(400).json({ error: filterResult.error, code: filterResult.code });
+    }
+  }
+  if (data.display_name != null && data.display_name !== '') {
+    const filterResult = validateContent({ content: data.display_name });
     if (!filterResult.valid) {
       return res.status(400).json({ error: filterResult.error, code: filterResult.code });
     }
@@ -988,6 +1009,12 @@ authRouter.post('/me/complete-onboarding', async (req: AuthedRequest, res) => {
       error: 'COPPA_UNDER_13',
       message: 'VarsityHub is not available for users under 13. Please have a parent or guardian contact support@varsityhub.app.',
     });
+  }
+  if (data.display_name && data.display_name.trim().length > 0) {
+    const filterResult = validateContent({ content: data.display_name });
+    if (!filterResult.valid) {
+      return res.status(400).json({ error: filterResult.error, code: filterResult.code });
+    }
   }
   
   // Get current preferences FIRST to preserve role if not in payload
