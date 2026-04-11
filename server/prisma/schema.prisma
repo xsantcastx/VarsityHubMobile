@@ -555,6 +555,8 @@ enum NotificationType {
   COMMENT_REPLY
   SHARE
   GAME_REMINDER
+  COACH_APPROVED
+  COACH_REJECTED
 }
 
 model Notification {
@@ -943,7 +945,6 @@ model AbuseReport {
   @@index([status])
   @@index([created_at])
 }
-
 
 
 

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { logAdminActivityFromReq } from '../lib/adminActivityLogger.js';
-import { notifyNewFollower, sendPushNotification } from '../lib/notifications.js';
+import { createInAppNotification, notifyNewFollower, sendPushNotification } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
@@ -629,12 +629,10 @@ usersRouter.post('/:id/follow', requireAuth as any, async (req: AuthedRequest, r
         });
         const followerName = follower?.display_name || 'Someone';
 
-        await (prisma as any).notification.create({
-          data: {
-            user_id: following_id,
-            actor_id: follower_id,
-            type: requiresApproval ? 'FOLLOW_REQUEST' as any : 'FOLLOW' as any,
-          },
+        await createInAppNotification({
+          userId: following_id,
+          actorId: follower_id,
+          type: requiresApproval ? 'FOLLOW_REQUEST' : 'FOLLOW',
         });
 
         if (requiresApproval) {
@@ -718,12 +716,10 @@ usersRouter.post('/:id/follow-request/approve', requireAuth as any, async (req: 
       where: { id: following_id },
       select: { display_name: true },
     });
-    await (prisma as any).notification.create({
-      data: {
-        user_id: follower_id,
-        actor_id: following_id,
-        type: 'FOLLOW' as any,
-      },
+    await createInAppNotification({
+      userId: follower_id,
+      actorId: following_id,
+      type: 'FOLLOW',
     });
     await sendPushNotification(
       follower_id,

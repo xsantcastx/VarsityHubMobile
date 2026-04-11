@@ -172,6 +172,16 @@ export default function RootLayout() {
             router.push('/team-invites');
             break;
 
+          case 'coach_approved':
+            devLog('[Notifications] Navigating to coach agreement');
+            router.push('/onboarding/coach-agreement' as any);
+            break;
+
+          case 'coach_rejected':
+            devLog('[Notifications] Navigating to pending approval');
+            router.push('/onboarding/pending-approval' as any);
+            break;
+
           case 'event_approved':
           case 'event_rejected':
           case 'game_reminder':

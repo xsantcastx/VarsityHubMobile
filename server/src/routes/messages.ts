@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { validateContent } from '../lib/contentFilter.js';
-import { notifyNewMessage } from '../lib/notifications.js';
+import { createInAppNotification, notifyNewMessage } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
@@ -21,7 +21,7 @@ function ageFromDob(dob: string | null | undefined): number | null {
   return a;
 }
 
-const baseUserSelect = { id: true, email: true, display_name: true, avatar_url: true };
+const baseUserSelect = { id: true, display_name: true, avatar_url: true, username: true };
 
 async function getBlockedUserIds(userId: string): Promise<Set<string>> {
   const blocks = await prisma.blockedUser.findMany({
@@ -148,7 +148,7 @@ return res.json(messages.filter((message) => !blockedUserIds.has(message.sender_
 });
 
 const sendSchema = z.object({
-content: z.string().min(1),
+content: z.string().min(1).max(4000),
 conversation_id: z.string().min(1).optional(),
 recipient_id: z.string().min(1).optional(),
 recipient_email: z.string().email().optional(),
@@ -213,11 +213,11 @@ if (recipientDmPolicy === 'no_one') {
 }
 
 if (recipientDmPolicy === 'following') {
-  const recipientFollowsSender = await hasAcceptedFollow(toId!, meId);
-  if (!recipientFollowsSender) {
+  const senderFollowsRecipient = await hasAcceptedFollow(meId, toId!);
+  if (!senderFollowsRecipient) {
     return res.status(403).json({
       error: 'DM_POLICY_BLOCKED',
-      message: 'This user only accepts direct messages from people they follow.',
+      message: 'You can only message people you follow.',
     });
   }
 }
@@ -258,19 +258,15 @@ include: { sender: { select: baseUserSelect }, recipient: { select: baseUserSele
 // Only notify if recipient is different from sender (prevent self-notifications)
 if (toId !== meId) {
   try {
-    // Create in-app notification record
-    // Note: message_id column doesn't exist in database yet, storing message info in meta instead
-    await (prisma as any).notification.create({
-      data: {
-        user_id: toId!,
-        actor_id: meId,
-        type: 'MESSAGE',
-        // message_id removed - column doesn't exist in database yet
-        meta: {
-          conversation_id: convId!,
-          message_id: created.id, // Store in meta for now
-          preview: content.substring(0, 100),
-        },
+    await createInAppNotification({
+      userId: toId!,
+      actorId: meId,
+      type: 'MESSAGE',
+      messageId: created.id,
+      meta: {
+        conversation_id: convId!,
+        message_id: created.id,
+        preview: content.substring(0, 100),
       },
     });
     

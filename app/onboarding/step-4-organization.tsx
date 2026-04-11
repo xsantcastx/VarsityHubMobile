@@ -8,7 +8,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useColorScheme, View } from 'react-native';
 // @ts-ignore
-import { Organization, Team } from '@/api/entities';
+import { Organization, Team, User } from '@/api/entities';
 import { PlaceSuggestion } from '@/api/geocoding';
 import LocationPicker from '@/components/LocationPicker';
 import { httpPost } from '@/api/http';
@@ -251,29 +251,34 @@ export default function Step4Organization() {
         organization_id: selectedOrg.id,
         message: joinMessage.trim() || undefined
       });
+      await User.updatePreferences({
+        organization_id: selectedOrg.id,
+        organization_name: selectedOrg.name,
+        approval_status: 'PENDING',
+        approval_reason: null,
+      }).catch(() => {});
       
       Alert.alert(
         'Request Sent!',
-        `Your request to join "${selectedOrg.name}" has been sent to the organization administrator. You'll receive an email notification when it's reviewed.`,
+        `Your request to join "${selectedOrg.name}" is pending admin review. You’ll be notified as soon as it’s approved.`,
         [
           {
             text: 'OK',
             onPress: () => {
-              // Save pending status and continue
               setOB((prev) => ({
                 ...prev,
                 organization_id: selectedOrg.id,
                 organization_name: selectedOrg.name,
                 join_request_pending: true
               }));
-              
-              if (returnToConfirmation) {
-                setProgress(7);
-                router.replace('/onboarding/step-10-confirmation');
-              } else {
-                setProgress(4); // step-6 is index 4 (NOT step 7)
-                router.replace('/onboarding/step-6-authorized-users');
-              }
+              setProgress(4);
+              router.replace({
+                pathname: '/onboarding/pending-approval',
+                params: {
+                  leagueName: selectedOrg.name,
+                  ownerName: 'VarsityHub review team',
+                },
+              } as any);
             }
           }
         ]
@@ -309,6 +314,24 @@ export default function Step4Organization() {
       // If team/org already exists, still navigate to step 6 (not step 7)
       // User should still see step 4 to review, but can continue to step 6
       if (alreadyExists) {
+        const me: any = await User.me().catch(() => null);
+        const approvalStatus =
+          typeof me?.approval_status === 'string'
+            ? me.approval_status
+            : typeof me?.preferences?.approval_status === 'string'
+              ? me.preferences.approval_status
+              : null;
+        if (approvalStatus !== 'APPROVED') {
+          setProgress(4);
+          router.replace({
+            pathname: '/onboarding/pending-approval',
+            params: {
+              leagueName: existingOrg?.name || ob.organization_name || 'your organization',
+              ownerName: 'VarsityHub review team',
+            },
+          } as any);
+          return;
+        }
         if (returnToConfirmation) {
           setProgress(7);
           router.replace('/onboarding/step-10-confirmation');
@@ -335,39 +358,37 @@ export default function Step4Organization() {
       if (ob.plan) payload.plan = ob.plan;
 
       const org = await Organization.createOrganization(payload);
+      await User.updatePreferences({
+        organization_id: org?.id,
+        organization_name: orgName.trim(),
+        approval_status: 'PENDING',
+        approval_reason: null,
+      }).catch(() => {});
       setOB((prev) => ({ 
         ...prev, 
         organization_id: org?.id, 
         organization_name: orgName.trim(),
         organization_place_id: selectedPlace?.place_id ?? null,
         organization_location: locationLabel || null,
+        join_request_pending: false,
       }));
       
-      // Show success toast
       Alert.alert(
         'Organization Created!',
-        `"${orgName.trim()}" has been created successfully.`,
-        [{ text: 'Continue', onPress: () => {
-          // If onboarding indicates payment is pending, persist that to server preferences
-          void (async () => {
-            try {
-              if (ob.payment_pending) {
-                await (await import('@/api/entities')).User.updatePreferences({ payment_pending: true });
-              }
-            } catch (e) {
-              console.warn('Failed to persist payment_pending flag:', (e as any)?.message || e);
-            }
-            
-            // Navigate to next step
-            if (returnToConfirmation) {
-              setProgress(7);
-              router.replace('/onboarding/step-10-confirmation');
-            } else {
-              setProgress(4); // step-6 is index 4 in stepRoutes array
-              router.replace('/onboarding/step-6-authorized-users');
-            }
-          })();
-        }}]
+        `"${orgName.trim()}" was created and sent for admin approval. Your coach access will unlock once it’s approved.`,
+        [{
+          text: 'Continue',
+          onPress: () => {
+            setProgress(4);
+            router.replace({
+              pathname: '/onboarding/pending-approval',
+              params: {
+                leagueName: orgName.trim(),
+                ownerName: 'VarsityHub review team',
+              },
+            } as any);
+          }
+        }]
       );
     } catch (e: any) { 
       // Check if duplicate organization error

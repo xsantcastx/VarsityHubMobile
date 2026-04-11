@@ -228,6 +228,32 @@ export default function Step3Plan() {
     })();
   };
 
+  const verifyPaidPlanActivation = async (selectedPlan: Plan, sessionId: string) => {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      try {
+        await Subscriptions.finalizeSession(sessionId);
+      } catch {
+        // Webhooks may still complete activation even if manual finalization fails.
+      }
+
+      try {
+        const me: any = await User.me();
+        const prefs = me?.preferences || {};
+        if (prefs.plan === selectedPlan && prefs.payment_pending === false) {
+          return true;
+        }
+      } catch {
+        // Retry a few times before surfacing a verification error.
+      }
+
+      if (attempt < 4) {
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+      }
+    }
+
+    return false;
+  };
+
   const onContinue = async () => {
     if (!plan) return;
     if (plan !== 'rookie' && paymentsTemporarilyDisabled) {
@@ -306,11 +332,47 @@ export default function Step3Plan() {
           return;
         }
         if (res?.url) {
-          // Stripe checkout was successful, user will pay through Stripe
-          // The plan will be saved by the payment finalization process
-          await WebBrowser.openBrowserAsync(String(res.url));
-          setProgress(3);
-          navigateNext();
+          const browserResult = await WebBrowser.openAuthSessionAsync(
+            String(res.url),
+            'varsityhubmobile://payment-success'
+          );
+
+          if (browserResult.type === 'success' && typeof browserResult.url === 'string') {
+            const redirectUrl = new URL(browserResult.url);
+            const sessionId = redirectUrl.searchParams.get('session_id');
+
+            if (!sessionId) {
+              setOB((prev) => ({ ...prev, plan, payment_pending: false }));
+              Alert.alert(
+                'Payment',
+                'Checkout completed, but the app did not receive a valid confirmation. Please try again.'
+              );
+              return;
+            }
+
+            const activated = await verifyPaidPlanActivation(plan, sessionId);
+            if (!activated) {
+              setOB((prev) => ({ ...prev, plan, payment_pending: true }));
+              Alert.alert(
+                'Payment still processing',
+                'Your payment was submitted, but plan activation is still processing. Please wait a moment and try again.'
+              );
+              return;
+            }
+
+            setOB((prev) => ({ ...prev, plan, payment_pending: false }));
+            setProgress(3);
+            navigateNext();
+            return;
+          }
+
+          setOB((prev) => ({ ...prev, plan, payment_pending: false }));
+          if (browserResult.type !== 'cancel' && browserResult.type !== 'dismiss') {
+            Alert.alert(
+              'Check Payment Status',
+              'If payment completed but the app did not return automatically, reopen checkout and finish from the success screen.'
+            );
+          }
           return;
         }
         console.warn('Unexpected subscribe response', res);

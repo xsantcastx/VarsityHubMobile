@@ -1,4 +1,4 @@
-import { Organization, Team, User } from '@/api/entities';
+import { Notification as NotificationApi, Organization, Team, User } from '@/api/entities';
 import uploadFile from '@/api/upload';
 import { Sport } from '@/components/JerseyBadge';
 import { Button } from '@/components/ui/button';
@@ -24,6 +24,7 @@ import GameVerticalFeedScreen, { FeedPost } from './game-details/GameVerticalFee
 
 type ProfilePreferences = {
   role?: string | null;
+  approval_status?: string | null;
   plan?: string | null;
   position?: string | null;
   jersey_number?: string | number | null;
@@ -114,7 +115,7 @@ export default function ProfileScreen() {
   const isInitialMount = useRef(true);
   const lastUsernameRef = useRef<string | null>(null);
   const meRef = useRef<CurrentUser | null>(null);
-  const [activeTab, setActiveTab] = useState<'posts' | 'replies' | 'upvotes'>(() => {
+  const [activeTab, setActiveTab] = useState<'posts' | 'replies' | 'upvotes' | 'bookmarks'>(() => {
     try { return (globalThis?.localStorage?.getItem('profile.activeTab') as any) || 'posts'; } catch (error) { console.warn('[profile] Failed to read activeTab from localStorage:', error); return 'posts'; }
   });
   const [posts, setPosts] = useState<any[]>([]);
@@ -134,6 +135,12 @@ export default function ProfileScreen() {
   const [upvotesHasMore, setUpvotesHasMore] = useState(true);
   const [upvotesLoading, setUpvotesLoading] = useState(false);
   const upvotesRequestInFlight = useRef(false);
+  const [bookmarks, setBookmarks] = useState<any[]>([]);
+  const [bookmarksCursor, setBookmarksCursor] = useState<string | null>(null);
+  const [bookmarksHasMore, setBookmarksHasMore] = useState(true);
+  const [bookmarksLoading, setBookmarksLoading] = useState(false);
+  const bookmarksRequestInFlight = useRef(false);
+  const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
   const [sort, _setSort] = useState<'newest' | 'most_upvoted' | 'most_commented'>('newest');
   const [_counts, setCounts] = useState<{ posts: number; likes: number; comments: number; reposts: number; saves: number } | null>(null);
   const _rememberingTab = useRef(false);
@@ -145,7 +152,7 @@ export default function ProfileScreen() {
   const viewingUserId = params.id;
   const [isFollowing, setIsFollowing] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [userTeams, setUserTeams] = useState<Array<{ id: string; name: string; logo_url?: string | null; role?: string; position?: string | null; jersey_number?: string | number | null }>>([]);
+  const [userTeams, setUserTeams] = useState<Array<{ id: string; name: string; logo_url?: string | null; avatar_url?: string | null; role?: string; position?: string | null; jersey_number?: string | number | null }>>([]);
   const [avatarViewerVisible, setAvatarViewerVisible] = useState(false);
 
   const isOwnProfile = !viewingUserId || viewingUserId === currentUserId;
@@ -246,6 +253,23 @@ export default function ProfileScreen() {
       setUpvotesLoading(false);
     }
   }, [sort, setIfDifferent]);
+
+  const refreshBookmarks = useCallback(async (userId: string) => {
+    if (bookmarksRequestInFlight.current) return;
+    if (!userId || userId === 'undefined' || userId === 'null') return;
+    bookmarksRequestInFlight.current = true;
+    setBookmarksLoading(true);
+    try {
+      const page = await User.interactionsForProfile(String(userId), { limit: 10, type: 'save', sort });
+      setIfDifferent(setBookmarks, page.items || []);
+      setBookmarksCursor(page.nextCursor || null);
+      setBookmarksHasMore(Boolean(page.nextCursor));
+      if (page.counts) setCounts(page.counts);
+    } finally {
+      bookmarksRequestInFlight.current = false;
+      setBookmarksLoading(false);
+    }
+  }, [setIfDifferent, sort]);
 
   // Vertical viewer state
   const [viewerOpen, setViewerOpen] = useState(false);
@@ -393,6 +417,8 @@ export default function ProfileScreen() {
           await refreshReplies(u.id);
         } else if (activeTab === 'upvotes') {
           await refreshUpvotes(u.id);
+        } else if (activeTab === 'bookmarks' && (!viewingUserId || viewingUserId === currentUser?.id)) {
+          await refreshBookmarks(u.id);
         }
       }
     } catch (e: any) {
@@ -418,7 +444,7 @@ export default function ProfileScreen() {
       setLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, refreshPosts, refreshReplies, refreshUpvotes, viewingUserId]);
+  }, [activeTab, refreshBookmarks, refreshPosts, refreshReplies, refreshUpvotes, viewingUserId]);
 
   // Initial load on mount - only once
   useEffect(() => {
@@ -534,9 +560,11 @@ export default function ProfileScreen() {
       void refreshReplies(String(me.id));
     } else if (activeTab === 'upvotes') {
       void refreshUpvotes(String(me.id));
+    } else if (activeTab === 'bookmarks' && isOwnProfile) {
+      void refreshBookmarks(String(me.id));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, me?.id]);
+  }, [activeTab, isOwnProfile, me?.id]);
 
   // When sort changes while on Replies or Upvotes tab, refresh
   useEffect(() => {
@@ -547,9 +575,36 @@ export default function ProfileScreen() {
     } else if (activeTab === 'upvotes') {
       setError(null);
       void refreshUpvotes(String(me.id));
+    } else if (activeTab === 'bookmarks' && isOwnProfile) {
+      setError(null);
+      void refreshBookmarks(String(me.id));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sort, me?.id]);
+  }, [isOwnProfile, sort, me?.id]);
+
+  useEffect(() => {
+    if (isOwnProfile || activeTab !== 'bookmarks') return;
+    setActiveTab('posts');
+  }, [activeTab, isOwnProfile]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!isOwnProfile) return undefined;
+      const checkUnread = async () => {
+        try {
+          const payload: any = await NotificationApi.unreadCount();
+          setHasUnreadNotifications(Boolean(payload?.has_unread));
+        } catch {
+          // Ignore profile header polling failures.
+        }
+      };
+      void checkUnread();
+      const id = setInterval(() => {
+        void checkUnread();
+      }, 60000);
+      return () => clearInterval(id);
+    }, [isOwnProfile]),
+  );
 
   // Refresh replies when a new comment is created from the viewer
   useEffect(() => {
@@ -608,10 +663,36 @@ export default function ProfileScreen() {
     }
   }, [upvotesCursor, upvotesHasMore, upvotesLoading, sort]);
 
+  const loadMoreBookmarks = useCallback(async (userId: string) => {
+    if (bookmarksLoading || !bookmarksHasMore) return;
+    if (!userId || userId === 'undefined' || userId === 'null') return;
+    setBookmarksLoading(true);
+    try {
+      const page = await User.interactionsForProfile(String(userId), { limit: 10, sort, type: 'save', cursor: bookmarksCursor || undefined });
+      setBookmarks((prev) => [...prev, ...(page.items || [])]);
+      setBookmarksCursor(page.nextCursor || null);
+      setBookmarksHasMore(Boolean(page.nextCursor));
+      if (page.counts) setCounts(page.counts);
+    } finally {
+      setBookmarksLoading(false);
+    }
+  }, [bookmarksCursor, bookmarksHasMore, bookmarksLoading, sort]);
+
   const preferences = me?.preferences ? (me.preferences as ProfilePreferences) : null;
   const rawRole = preferences?.role ?? (me as any)?.role ?? '';
   const roleRaw = typeof rawRole === 'string' ? rawRole.toLowerCase() : '';
-  const roleLabel = roleRaw === 'coach' ? 'Coach / Organizer' : roleRaw === 'fan' ? 'Fan' : null;
+  const approvalStatusRaw =
+    typeof preferences?.approval_status === 'string'
+      ? preferences.approval_status
+      : typeof (me as any)?.approval_status === 'string'
+        ? (me as any).approval_status
+        : '';
+  const badgeRoleRaw = roleRaw === 'coach' && approvalStatusRaw.toUpperCase() === 'APPROVED'
+    ? 'coach'
+    : roleRaw === 'fan'
+      ? 'fan'
+      : null;
+  const roleLabel = badgeRoleRaw === 'coach' ? 'Coach / Organizer' : badgeRoleRaw === 'fan' ? 'Fan' : null;
   // Use ONLY username (with @) - no display_name
   const displayUsername = me?.username ? `@${me.username}` : 'User';
   
@@ -763,11 +844,10 @@ export default function ProfileScreen() {
               <Text style={[styles.userName, { color: userNameTextColor }]}>{displayUsername}</Text>
               {roleLabel && (
                 <View style={[styles.roleBadge, 
-                  roleRaw === 'coach' && styles.coachBadge,
-                  roleRaw === 'player' && styles.playerBadge,
-                  roleRaw === 'fan' && styles.fanBadge
+                  badgeRoleRaw === 'coach' && styles.coachBadge,
+                  badgeRoleRaw === 'fan' && styles.fanBadge
                 ]}>
-                  <Text style={styles.roleText}>{roleRaw === 'coach' ? 'COACH' : roleRaw.toUpperCase()}</Text>
+                  <Text style={styles.roleText}>{badgeRoleRaw === 'coach' ? 'COACH' : String(badgeRoleRaw).toUpperCase()}</Text>
                 </View>
               )}
             </View>
@@ -783,6 +863,27 @@ export default function ProfileScreen() {
             <Pressable style={[styles.editButtonBelowBanner, { backgroundColor: theme.surface || theme.background, borderColor: theme.border }]} onPress={() => void router.push('/edit-profile')}>
               <Text style={[styles.editButtonBelowBannerText, { color: theme.text }]}>Edit profile</Text>
             </Pressable>
+            <View style={styles.profileShortcutRow}>
+              <Pressable
+                style={[styles.profileShortcutButton, { backgroundColor: theme.surface || theme.background, borderColor: theme.border }]}
+                onPress={() => void router.push('/notifications')}
+              >
+                <Ionicons name="notifications-outline" size={18} color={theme.text} />
+                {hasUnreadNotifications ? <View style={styles.profileShortcutDot} /> : null}
+              </Pressable>
+              <Pressable
+                style={[styles.profileShortcutButton, { backgroundColor: theme.surface || theme.background, borderColor: theme.border }]}
+                onPress={() => void router.push('/messages')}
+              >
+                <Ionicons name="chatbubbles-outline" size={18} color={theme.text} />
+              </Pressable>
+              <Pressable
+                style={[styles.profileShortcutButton, { backgroundColor: theme.surface || theme.background, borderColor: theme.border }]}
+                onPress={() => void router.push('/favorites')}
+              >
+                <Ionicons name="bookmark-outline" size={18} color={theme.text} />
+              </Pressable>
+            </View>
           </View>
         ) : null}
 
@@ -868,6 +969,14 @@ export default function ProfileScreen() {
         >
           <Text style={[styles.tabText, { color: activeTab === 'upvotes' ? theme.tint : theme.mutedText }]}>Upvotes</Text>
         </Pressable>
+        {isOwnProfile ? (
+          <Pressable
+            onPress={() => { setActiveTab('bookmarks'); try { globalThis?.localStorage?.setItem('profile.activeTab','bookmarks'); } catch (error) { if (__DEV__) console.warn('[profile] localStorage error:', error); } }}
+            style={[styles.tab, activeTab === 'bookmarks' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
+          >
+            <Text style={[styles.tabText, { color: activeTab === 'bookmarks' ? theme.tint : theme.mutedText }]}>Bookmarks</Text>
+          </Pressable>
+        ) : null}
       </View>
     </>
   );
@@ -906,9 +1015,16 @@ export default function ProfileScreen() {
     </View>
   );
 
+  const renderEmptyBookmarks = () => (
+    <View style={styles.emptyContainer}>
+      <Text style={[styles.emptyTitle, { color: theme.text }]}>No bookmarks yet</Text>
+    </View>
+  );
+
   const onEndReachedPosts = useCallback(() => { if (me?.id) void loadMorePosts(String(me.id)); }, [me?.id, loadMorePosts]);
   const onEndReachedReplies = useCallback(() => { if (me?.id) void loadMoreReplies(String(me.id)); }, [me?.id, loadMoreReplies]);
   const onEndReachedUpvotes = useCallback(() => { if (me?.id) void loadMoreUpvotes(String(me.id)); }, [me?.id, loadMoreUpvotes]);
+  const onEndReachedBookmarks = useCallback(() => { if (me?.id && isOwnProfile) void loadMoreBookmarks(String(me.id)); }, [isOwnProfile, loadMoreBookmarks, me?.id]);
 
   // Some interaction items may wrap a post (e.g., { type, post, created_at })
   const unwrapPost = useCallback((item: any) => {
@@ -1118,7 +1234,7 @@ export default function ProfileScreen() {
           }}
           ListFooterComponent={repliesLoading ? <ActivityIndicator style={{ marginVertical: 16 }} /> : null}
         />
-      ) : (
+      ) : activeTab === 'upvotes' ? (
         <FlatList
           data={upvotes}
           key={`${activeTab}-grid-2cols`}
@@ -1190,6 +1306,75 @@ export default function ProfileScreen() {
           }}
           ListFooterComponent={upvotesLoading ? <ActivityIndicator style={{ marginVertical: 16 }} /> : null}
         />
+      ) : (
+        <FlatList
+          data={bookmarks}
+          key={`${activeTab}-grid-2cols`}
+          numColumns={2}
+          columnWrapperStyle={styles.gridRow}
+          keyExtractor={(item, index) => {
+            const postItem = unwrapPost(item);
+            return postItem?.id ?? item?.id ?? `bookmark-${index}`;
+          }}
+          ListHeaderComponent={renderHeader}
+          ListEmptyComponent={renderEmptyBookmarks}
+          contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16), paddingHorizontal: 8 }}
+          onEndReachedThreshold={0.5}
+          onEndReached={onEndReachedBookmarks}
+          renderItem={({ item, index }) => {
+            const postItem = unwrapPost(item);
+            const thumb = postItem?.media_url;
+            const likes = postItem?.upvotes_count ?? 0;
+            const comments = postItem?.comments_count ?? postItem?._count?.comments ?? 0;
+            return (
+              <Pressable
+                style={styles.gridItem}
+                onPress={() => {
+                  const mapped = (bookmarks || []).map(unwrapPost).map(toFeedPost);
+                  const items = mapped.filter(Boolean) as FeedPost[];
+                  const targetId = unwrapPost(bookmarks[index])?.id;
+                  const targetIdx = targetId ? items.findIndex((p) => p.id === targetId) : index;
+                  setViewerItems(items);
+                  setViewerIndex(Math.max(0, targetIdx));
+                  setViewerOpen(true);
+                }}
+              >
+                {thumb ? (
+                  <View style={styles.gridImageContainer}>
+                    <Image source={{ uri: thumb }} style={styles.gridImage} contentFit="cover" />
+                    <View style={styles.gridImageOverlay} />
+                  </View>
+                ) : (
+                  <View style={[styles.gridImage, styles.gridImageFallback]}>
+                    <LinearGradient
+                      colors={["#667eea", "#764ba2", "#f093fb"]}
+                      style={StyleSheet.absoluteFillObject as any}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                    />
+                    <View style={styles.textPostOverlay}>
+                      <Text numberOfLines={4} style={styles.gridTextOnly}>{String(postItem?.caption || postItem?.content || '').trim() || 'Post'}</Text>
+                    </View>
+                  </View>
+                )}
+                <View style={styles.gridCounts}>
+                  <View style={styles.gridCountItem}>
+                    <Ionicons name="arrow-up" size={12} color="#fff" />
+                    <Text style={styles.gridCountText}>{likes}</Text>
+                  </View>
+                  <View style={styles.gridCountItem}>
+                    <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
+                    <Text style={styles.gridCountText}>{comments}</Text>
+                  </View>
+                </View>
+                <View style={styles.gridIconBadge}>
+                  <Ionicons name={thumb ? 'camera-outline' : 'text'} size={14} color="#fff" />
+                </View>
+              </Pressable>
+            );
+          }}
+          ListFooterComponent={bookmarksLoading ? <ActivityIndicator style={{ marginVertical: 16 }} /> : null}
+        />
       )}
 
       {/* Avatar Viewer — shown when tapping another user's profile picture */}
@@ -1225,7 +1410,7 @@ export default function ProfileScreen() {
           showHeader
           initialPosts={viewerItems}
           startIndex={viewerIndex}
-          title={activeTab === 'posts' ? 'Your posts' : activeTab === 'replies' ? 'Your replies' : 'Your upvotes'}
+          title={activeTab === 'posts' ? 'Your posts' : activeTab === 'replies' ? 'Your replies' : activeTab === 'upvotes' ? 'Your upvotes' : 'Your bookmarks'}
         />
       </Modal>
     </SafeAreaView>
@@ -1443,11 +1628,33 @@ const styles = StyleSheet.create({
   usernameRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-end',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingTop: 0,
     paddingBottom: 0,
     gap: 12,
+  },
+  profileShortcutRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  profileShortcutButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  profileShortcutDot: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#EF4444',
   },
   userHandle: {
     fontSize: 15,

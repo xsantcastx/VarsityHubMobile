@@ -375,6 +375,10 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       Array.isArray(segmentsRef.current) && segmentsRef.current.length
         ? String(segmentsRef.current[0])
         : '';
+    const secondSegment =
+      Array.isArray(segmentsRef.current) && segmentsRef.current.length > 1
+        ? String(segmentsRef.current[1])
+        : '';
     const publicRoutes = new Set([
       'sign-in',
       'sign-up',
@@ -385,6 +389,13 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       'reset-password',
     ]);
     const isPublic = publicRoutes.has(firstSegment);
+    const onboardingHandoffScreens = new Set([
+      'pending-approval',
+      'league-pending-approval',
+      'coach-agreement',
+    ]);
+    const isOnboardingHandoffScreen =
+      firstSegment === 'onboarding' && onboardingHandoffScreens.has(secondSegment);
 
     console.log(
       '[AuthProvider] Routing check - segment:',
@@ -433,7 +444,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       }
 
       // If onboarding is complete and user is still on onboarding route, send to main app
-      if (!needsOnboarding && firstSegment === 'onboarding') {
+      if (!needsOnboarding && firstSegment === 'onboarding' && !isOnboardingHandoffScreen) {
         console.log('[AuthProvider] User completed onboarding, redirecting to main app');
         const landingRoute = '/(tabs)';
         if (lastRedirectRef.current !== landingRoute) {

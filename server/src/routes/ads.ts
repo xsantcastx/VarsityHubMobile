@@ -8,6 +8,7 @@ import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
 import { requireVerified } from '../middleware/requireVerified.js';
+import { adCreationLimiter } from '../middleware/rateLimiters.js';
 import { debugLog } from '../lib/debugLog.js';
 import { calculateAdPriceDollars } from '../utils/adPricing.js';
 
@@ -49,7 +50,7 @@ const updateAdSchema = z
   .strict();
 
 // Create an Ad (optionally associated to the authenticated user)
-adsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) => {
+adsRouter.post('/', adCreationLimiter, requireVerified as any, async (req: AuthedRequest, res) => {
   const {
     contact_name,
     contact_email,
@@ -60,8 +61,6 @@ adsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) => {
     target_zip_code,
     radius,
     description,
-    status,
-    payment_status,
   } = req.body || {};
   if (!contact_name || !contact_email || !business_name || !target_zip_code) {
     return res.status(400).json({ error: 'Missing required fields' });
@@ -78,8 +77,8 @@ adsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) => {
       target_zip_code: String(target_zip_code),
       radius: typeof radius === 'number' ? radius : 10,
       description: description ? String(description) : null,
-      status: status ? String(status) : 'draft',
-      payment_status: payment_status ? String(payment_status) : 'unpaid',
+      status: 'draft',
+      payment_status: 'unpaid',
     },
   });
   return res.status(201).json(ad);
@@ -297,18 +296,19 @@ adsRouter.post('/:id/review', requireVerified as any, async (req: AuthedRequest,
 
     return res.json({ ok: true, ad: updated });
   } else {
-    // Reject → revert to draft so user can edit and resubmit
+    const preservesPaidState = ad.payment_status === 'paid';
     const updated = await prisma.ad.update({
       where: { id },
       data: {
-        status: 'draft',
-        payment_status: 'unpaid',
+        status: 'rejected',
+        payment_status: preservesPaidState ? 'paid' : ad.payment_status,
         admin_note: note || null,
       },
     });
 
-    // Delete any held reservations
-    await prisma.adReservation.deleteMany({ where: { ad_id: id } });
+    if (!preservesPaidState) {
+      await prisma.adReservation.deleteMany({ where: { ad_id: id } });
+    }
 
     const emailTo = ad.contact_email || (ad.user_id
       ? (await prisma.user.findUnique({ where: { id: ad.user_id }, select: { email: true } }))?.email
@@ -323,10 +323,17 @@ adsRouter.post('/:id/review', requireVerified as any, async (req: AuthedRequest,
       'ad',
       id,
       `Rejected ad ${ad.business_name || id}`,
-      { action: 'reject', note: note || null }
+      { action: 'reject', note: note || null, refund_review_required: preservesPaidState }
     );
 
-    return res.json({ ok: true, ad: updated });
+    return res.json({
+      ok: true,
+      ad: updated,
+      refund_review_required: preservesPaidState,
+      message: preservesPaidState
+        ? 'Ad rejected. Payment state was preserved for refund review.'
+        : undefined,
+    });
   }
 });
 

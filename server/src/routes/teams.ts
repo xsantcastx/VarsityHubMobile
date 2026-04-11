@@ -19,6 +19,50 @@ const debugLog = (...args: Parameters<typeof console.log>) => {
   }
 };
 
+function getCoachApprovalStatus(preferences: unknown): string {
+  const prefs =
+    preferences && typeof preferences === 'object' && !Array.isArray(preferences)
+      ? (preferences as Record<string, unknown>)
+      : {};
+  return typeof prefs.approval_status === 'string' ? prefs.approval_status.toUpperCase() : '';
+}
+
+async function assertApprovedCoachOrAdmin(req: AuthedRequest, preferences: unknown): Promise<{ isAdmin: boolean }> {
+  const isAdmin = await getIsAdmin(req as any);
+  if (isAdmin) return { isAdmin: true };
+
+  const prefs =
+    preferences && typeof preferences === 'object' && !Array.isArray(preferences)
+      ? (preferences as Record<string, unknown>)
+      : {};
+  const userRole = typeof prefs.role === 'string' ? prefs.role : 'fan';
+  const approvalStatus = getCoachApprovalStatus(preferences);
+
+  if (userRole !== 'coach') {
+    const error: any = new Error('Only coach accounts can create teams.');
+    error.status = 403;
+    error.payload = {
+      error: 'COACH_ROLE_REQUIRED',
+      message: 'Only coach accounts can create teams.',
+      code: 'COACH_ROLE_REQUIRED',
+    };
+    throw error;
+  }
+
+  if (approvalStatus !== 'APPROVED') {
+    const error: any = new Error('Coach approval is required before creating teams.');
+    error.status = 403;
+    error.payload = {
+      error: 'COACH_APPROVAL_REQUIRED',
+      message: 'Your coach account must be approved before creating teams.',
+      code: 'COACH_APPROVAL_REQUIRED',
+    };
+    throw error;
+  }
+
+  return { isAdmin: false };
+}
+
 async function canManageTeamMembers(teamId: string, userId: string): Promise<boolean> {
   const membership = await prisma.teamMembership.findFirst({
     where: {
@@ -428,13 +472,12 @@ teamsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
   const prefs = (me.preferences && typeof me.preferences === 'object') ? (me.preferences as any) : {};
   const userRole = prefs.role || 'fan';
   const plan = prefs.plan || me.subscription_tier || 'rookie';
-  
-  if (userRole !== 'coach') {
-    return res.status(403).json({
-      error: 'COACH_ROLE_REQUIRED',
-      message: 'Only coach accounts can create teams.',
-      code: 'COACH_ROLE_REQUIRED'
-    });
+  try {
+    await assertApprovedCoachOrAdmin(req, me.preferences);
+  } catch (error: any) {
+    return res.status(error?.status || 403).json(
+      error?.payload || { error: 'COACH_APPROVAL_REQUIRED', message: error?.message || 'Forbidden' }
+    );
   }
   
   // Check team ownership limit
@@ -447,6 +490,54 @@ teamsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
   });
   
   const maxTeams = getMaxTeamsForPlan(plan);
+
+  if (plan === 'veteran') {
+    const subscriptionId = prefs.subscription_id;
+    if (!subscriptionId) {
+      return res.status(403).json({
+        error: 'No active subscription',
+        message: 'Veteran plan requires an active subscription. Please update your billing settings.',
+        code: 'NO_ACTIVE_SUBSCRIPTION',
+      });
+    }
+
+    try {
+      const stripe = await import('stripe');
+      const stripeClient = new stripe.default(process.env.STRIPE_SECRET_KEY || '', {
+        apiVersion: '2024-06-20',
+      });
+      const subscription = await stripeClient.subscriptions.retrieve(subscriptionId);
+      const subscriptionItem = subscription.items.data[0];
+      const paidQuantity = subscriptionItem?.quantity || 0;
+      const includedTotalTeams = paidQuantity + 2;
+      const requestedTeamNumber = ownedTeamsCount + 1;
+
+      if (subscription.status !== 'active' && subscription.status !== 'trialing') {
+        return res.status(403).json({
+          error: 'Subscription not active',
+          message: 'Your Veteran subscription is not active. Please update your billing settings.',
+          code: 'SUBSCRIPTION_NOT_ACTIVE',
+        });
+      }
+
+      if (requestedTeamNumber > includedTotalTeams) {
+        return res.status(403).json({
+          error: 'Team limit reached',
+          message: `Your subscription currently covers ${includedTotalTeams} total team${includedTotalTeams === 1 ? '' : 's'}. Please update your subscription before creating another team.`,
+          code: 'SUBSCRIPTION_QUANTITY_EXCEEDED',
+          paid_quantity: paidQuantity,
+          included_total_teams: includedTotalTeams,
+          current_teams: ownedTeamsCount,
+        });
+      }
+    } catch (error) {
+      console.error('[Teams] Failed to verify Veteran subscription on legacy route:', error);
+      return res.status(500).json({
+        error: 'Subscription verification failed',
+        message: 'Unable to verify your subscription. Please try again or contact support.',
+      });
+    }
+  }
   
   if (maxTeams !== null && ownedTeamsCount >= maxTeams) {
     return res.status(403).json({ 
@@ -737,15 +828,12 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
   // Check team limit for free tier (Rookie plan)
   const prefs = (me.preferences && typeof me.preferences === 'object') ? (me.preferences as any) : {};
   const userPlan = prefs.plan || 'rookie';
-  const userRole = prefs.role || 'fan';
-
-  // Enforce coach role requirement for team creation
-  if (userRole !== 'coach') {
-    return res.status(403).json({
-      error: 'COACH_ROLE_REQUIRED',
-      message: 'Only coach accounts can create teams.',
-      code: 'COACH_ROLE_REQUIRED'
-    });
+  try {
+    await assertApprovedCoachOrAdmin(req, me.preferences);
+  } catch (error: any) {
+    return res.status(error?.status || 403).json(
+      error?.payload || { error: 'COACH_APPROVAL_REQUIRED', message: error?.message || 'Forbidden' }
+    );
   }
   
   // Legend tier restriction: Only Legend users can create extracurricular clubs
@@ -753,7 +841,7 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
   if (clubType === 'extracurricular' && userPlan !== 'legend') {
     return res.status(403).json({
       error: 'Extracurricular clubs require Legend tier',
-      message: 'Upgrade to Legend ($19.99/year) to create extracurricular clubs like Theater, Chess, Debate, etc.',
+      message: 'Upgrade to Legend ($29.99/year) to create extracurricular clubs like Theater, Chess, Debate, etc.',
       code: 'LEGEND_TIER_REQUIRED',
       feature: 'extracurricular_clubs',
     });

@@ -116,6 +116,17 @@ export default function EventApprovalsScreen() {
     };
   }, [router]);
 
+  if (!accessResolved) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: C.background }]} edges={['top']}>
+        <Stack.Screen options={{ title: 'Approvals' }} />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={C.tint} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   // ── Loaders ──────────────────────────────────────────────────────────────
 
   const loadEvents = async () => {

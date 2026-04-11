@@ -57,6 +57,7 @@ export type OnboardingState = {
   organization_name?: string;
   organization_place_id?: string | null;
   organization_location?: string | null;
+  join_request_pending?: boolean;
   sport?: string;
   authorized?: Array<{ email?: string; user_id?: string; role?: TeamRole; assign_team?: string }>;
   authorized_users?: Array<{
@@ -80,6 +81,7 @@ export type OnboardingState = {
   step_7_visited?: boolean;
   step_8_visited?: boolean;
   step_9_visited?: boolean;
+  step_3_visited?: boolean;
 };
 
 type Ctx = {

@@ -27,6 +27,30 @@ import { debugLog } from './debugLog.js';
 
 const expo = new Expo();
 
+type InAppNotificationInput = {
+  userId: string;
+  actorId: string;
+  type: string;
+  postId?: string | null;
+  commentId?: string | null;
+  messageId?: string | null;
+  meta?: Record<string, unknown> | null;
+};
+
+export async function createInAppNotification(input: InAppNotificationInput): Promise<void> {
+  await prisma.notification.create({
+    data: {
+      user_id: input.userId,
+      actor_id: input.actorId,
+      type: input.type as any,
+      post_id: input.postId ?? undefined,
+      comment_id: input.commentId ?? undefined,
+      message_id: input.messageId ?? undefined,
+      meta: (input.meta ?? undefined) as any,
+    },
+  });
+}
+
 /**
  * Send a push notification to a user
  */
@@ -303,17 +327,15 @@ export async function notifyUpcomingGames(hoursBeforeGame: number): Promise<void
       // Create in-app notification record so it appears in notification history
       const actorId = (event as any).creator_id ?? user.id;
       try {
-        await prisma.notification.create({
-          data: {
-            user_id: user.id,
-            actor_id: actorId,
-            type: 'GAME_REMINDER',
-            meta: {
-              event_id: event.id,
-              event_title: event.title,
-              hours_before: hoursBeforeGame,
-              location: event.location,
-            },
+        await createInAppNotification({
+          userId: user.id,
+          actorId,
+          type: 'GAME_REMINDER',
+          meta: {
+            event_id: event.id,
+            event_title: event.title,
+            hours_before: hoursBeforeGame,
+            location: event.location,
           },
         });
       } catch (e) {

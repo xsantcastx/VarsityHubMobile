@@ -15,6 +15,16 @@ interface DashboardStats {
   totalTeams: number;
   totalAds: number;
   pendingAds: number;
+  pendingCoachCount: number;
+  pendingCoaches: Array<{
+    id: string;
+    email: string | null;
+    display_name: string | null;
+    created_at: string;
+    organization_id: string | null;
+    organization_name: string | null;
+    approval_status: string | null;
+  }>;
   totalPosts: number;
   totalMessages: number;
   recentActivity: Array<{
@@ -205,6 +215,15 @@ export default function AdminDashboardScreen() {
               color="#F59E0B"
               onPress={() => void router.push('/admin-ads')}
             />
+
+            <StatCard
+              title="Pending Coaches"
+              value={stats?.pendingCoachCount || 0}
+              subtitle="Coach approvals waiting on review"
+              icon="person-add"
+              color="#EF4444"
+              onPress={() => void router.push('/admin-users')}
+            />
             
             <StatCard
               title="Posts"
@@ -223,6 +242,52 @@ export default function AdminDashboardScreen() {
               color="#EC4899"
               onPress={() => {}}
             />
+          </View>
+
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
+                Pending Coach Queue
+              </Text>
+              <Pressable onPress={() => void router.push('/admin-users')}>
+                <Text style={[styles.viewAll, { color: Colors[colorScheme].tint }]}>
+                  Manage Users
+                </Text>
+              </Pressable>
+            </View>
+
+            {stats?.pendingCoaches?.length ? stats.pendingCoaches.map((coach) => (
+              <Pressable
+                key={coach.id}
+                style={[styles.queueCard, {
+                  backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white',
+                  borderColor: colorScheme === 'dark' ? '#374151' : '#E5E7EB',
+                }]}
+                onPress={() => void router.push(`/admin-user-detail?id=${encodeURIComponent(coach.id)}`)}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.queueTitle, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
+                    {coach.display_name || coach.email || 'Pending coach'}
+                  </Text>
+                  <Text style={[styles.queueMeta, { color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280' }]}>
+                    {coach.organization_name || 'Organization pending assignment'}
+                  </Text>
+                  <Text style={[styles.queueMeta, { color: colorScheme === 'dark' ? '#6B7280' : '#9CA3AF' }]}>
+                    Submitted {new Date(coach.created_at).toLocaleString()}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={colorScheme === 'dark' ? '#9CA3AF' : '#6B7280'} />
+              </Pressable>
+            )) : (
+              <View style={[styles.emptyQueue, {
+                backgroundColor: colorScheme === 'dark' ? '#111827' : '#F9FAFB',
+                borderColor: colorScheme === 'dark' ? '#374151' : '#E5E7EB',
+              }]}>
+                <Text style={{ color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280' }}>
+                  No coach approvals are waiting right now.
+                </Text>
+              </View>
+            )}
           </View>
 
           {/* Quick Actions */}
@@ -263,7 +328,7 @@ export default function AdminDashboardScreen() {
                   backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white',
                   borderColor: colorScheme === 'dark' ? '#374151' : '#E5E7EB',
                 }]}
-                onPress={() => void router.push('/admin-organizations')}
+                onPress={() => void router.push('/admin-organizations' as any)}
               >
                 <Ionicons name="business" size={28} color="#8B5CF6" />
                 <Text style={[styles.actionText, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
@@ -440,6 +505,27 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: StyleSheet.hairlineWidth,
     marginBottom: 8,
+  },
+  queueCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginBottom: 10,
+  },
+  queueTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  queueMeta: {
+    fontSize: 12,
+  },
+  emptyQueue: {
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 14,
   },
   activityDot: {
     width: 8,

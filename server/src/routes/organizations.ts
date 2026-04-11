@@ -37,6 +37,37 @@ function isOrganizationAdmin(role: string | null | undefined): boolean {
   return role === 'owner' || role === 'manager' || role === 'administrator';
 }
 
+function getPreferenceObject(preferences: unknown): Record<string, any> {
+  return preferences && typeof preferences === 'object' && !Array.isArray(preferences)
+    ? ({ ...(preferences as Record<string, any>) } as Record<string, any>)
+    : {};
+}
+
+async function markCoachApprovalPending(
+  userId: string,
+  updates: { organization_id?: string; organization_name?: string }
+) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { preferences: true },
+  });
+  const prefs = getPreferenceObject(user?.preferences);
+  if (prefs.role !== 'coach') return;
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      preferences: {
+        ...prefs,
+        ...updates,
+        approval_status: 'PENDING',
+        approval_reason: null,
+        approval_reviewed_at: null,
+      },
+    },
+  });
+}
+
 // List organizations (public, with optional search)
 organizationsRouter.get('/', async (req, res) => {
   const q = String((req.query as any).q || '').trim();
@@ -256,8 +287,14 @@ organizationsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res
     data: { 
       organization_id: organization.id, 
       user_id: req.user!.id, 
-      role: 'owner' 
+      role: 'owner',
+      status: 'invited',
     } 
+  });
+
+  await markCoachApprovalPending(req.user!.id, {
+    organization_id: organization.id,
+    organization_name: organization.name,
   });
   
   return res.status(201).json(organization);
@@ -324,8 +361,14 @@ organizationsRouter.post('/create', requireAuth as any, async (req: AuthedReques
     data: { 
       organization_id: organization.id, 
       user_id: req.user!.id, 
-      role: 'owner' 
+      role: 'owner',
+      status: 'invited',
     } 
+  });
+
+  await markCoachApprovalPending(req.user!.id, {
+    organization_id: organization.id,
+    organization_name: organization.name,
   });
   
   // Send invites to authorized users
@@ -691,6 +734,11 @@ organizationsRouter.post('/join-requests', requireAuth as any, async (req: Authe
       requestId: joinRequest.id,
     });
   }
+
+  await markCoachApprovalPending(req.user!.id, {
+    organization_id,
+    organization_name: organization.name,
+  });
   
   return res.status(201).json(joinRequest);
 });

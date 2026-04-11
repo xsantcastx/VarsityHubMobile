@@ -5,7 +5,7 @@
  * Shared between the mobile app (via this wrapper) and the backend (via shared/plan-definitions.json).
  */
 
-import planDefinitionsData from '../shared/plan-definitions.json';
+import planDefinitionsData from '../../shared/plan-definitions.json';
 
 export type Plan = 'rookie' | 'veteran' | 'legend';
 

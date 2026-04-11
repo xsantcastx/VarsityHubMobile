@@ -4,6 +4,7 @@ import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { getIsAdmin, isEmailAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
+import { requireVerified } from '../middleware/requireVerified.js';
 import { makeCreateStoryHandler, makeListMediaHandler, serializeMedia } from './gameStories.js';
 import { debugLog } from '../lib/debugLog.js';
 
@@ -181,7 +182,7 @@ gamesRouter.get('/', async (req, res) => {
 });
 
 // Create a new game
-gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
+gamesRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   
   const schema = z.object({
@@ -303,16 +304,39 @@ gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
       }
     }
 
-    // Approval workflow: Check if user is a coach/manager OR if user is admin
+    // Approval workflow: only approved coaches/managers or admins can create games.
     const managementRoles = ['owner', 'manager', 'coach', 'assistant_coach'];
     let isCoach = false;
     
     // Check if user is super admin (can create events for ANY team)
     const currentUser = await prisma.user.findUnique({
       where: { id: req.user.id },
-      select: { email: true },
+      select: { email: true, preferences: true },
     });
     const isAdmin = isEmailAdmin(currentUser?.email);
+    const approvalStatus =
+      typeof (currentUser?.preferences as any)?.approval_status === 'string'
+        ? String((currentUser?.preferences as any)?.approval_status).toUpperCase()
+        : '';
+    const role =
+      typeof (currentUser?.preferences as any)?.role === 'string'
+        ? String((currentUser?.preferences as any)?.role).toLowerCase()
+        : 'fan';
+
+    if (!isAdmin) {
+      if (role !== 'coach' || approvalStatus !== 'APPROVED') {
+        return res.status(403).json({
+          error: 'COACH_APPROVAL_REQUIRED',
+          message: 'Only approved coach accounts can create games.',
+        });
+      }
+      if (!parsed.data.home_team_id) {
+        return res.status(400).json({
+          error: 'HOME_TEAM_REQUIRED',
+          message: 'A managed home team is required to create a game.',
+        });
+      }
+    }
     
     if (parsed.data.home_team_id && !isAdmin) {
       // Regular users must be a coach/manager of the team
@@ -330,14 +354,17 @@ gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
       debugLog(`✅ Admin ${currentUser?.email} creating event for team ${parsed.data.home_team_id || 'N/A'}`);
     }
     
-    // Auto-approve if coach/admin, otherwise set to pending
-    gameData.approval_status = (isCoach || isAdmin) ? 'approved' : 'pending';
-    gameData.created_by_id = req.user.id;
-    
-    if (isCoach || isAdmin) {
-      gameData.approved_by_id = req.user.id;
-      gameData.approved_at = new Date();
+    if (!isCoach && !isAdmin) {
+      return res.status(403).json({
+        error: 'TEAM_MANAGEMENT_REQUIRED',
+        message: 'You must be an active coach or manager of the home team to create this game.',
+      });
     }
+
+    gameData.approval_status = 'approved';
+    gameData.created_by_id = req.user.id;
+    gameData.approved_by_id = req.user.id;
+    gameData.approved_at = new Date();
 
     const game = await (prisma.game.create as any)({
       data: gameData,

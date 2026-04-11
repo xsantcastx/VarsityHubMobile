@@ -9,6 +9,7 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
+import { sendEmail } from '../lib/email.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { reportLimiter } from '../middleware/rateLimiters.js';
@@ -258,6 +259,23 @@ reportsRouter.post('/', reportLimiter, requireAuth as any, async (req: AuthedReq
       }, null, 2),
       status: 'pending',
     },
+  });
+
+  await sendEmail({
+    to: 'support@varsityhub.app',
+    subject: `[VarsityHub Report] ${target_type}:${target_id} • ${reason.replace(/_/g, ' ')}`,
+    text: [
+      `Reporter: ${reporter?.display_name || 'Unknown'} <${reporter?.email || 'unknown@email.com'}>`,
+      `Target: ${target_type}:${target_id}`,
+      `Reason: ${reason}`,
+      details ? `Details: ${details}` : null,
+      `Context: ${JSON.stringify(targetContext, null, 2)}`,
+      `Report ID: ${report.id}`,
+    ]
+      .filter(Boolean)
+      .join('\n\n'),
+  }).catch((error) => {
+    console.error('[Reports] Failed to send support email:', error);
   });
 
   // Log report for moderation tracking

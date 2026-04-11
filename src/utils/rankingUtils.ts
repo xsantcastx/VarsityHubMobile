@@ -1,4 +1,4 @@
-import { RankingType } from '../components/RankingBadge';
+import { RankingType } from '@/components/RankingBadge';
 
 export interface HighlightItem {
   id: string;

@@ -58,6 +58,13 @@ export default function NotificationsScreen() {
     void load(null, false).catch(() => {});
   }, [load]);
 
+  useEffect(() => {
+    const id = setInterval(() => {
+      void load(null, false).catch(() => {});
+    }, 60000);
+    return () => clearInterval(id);
+  }, [load]);
+
   const onRefresh = () => {
     setRefreshing(true);
     void load(null, false).catch(() => {});
@@ -89,6 +96,8 @@ export default function NotificationsScreen() {
   const renderItem = ({ item }: { item: Notif }) => {
     const title = item.type === 'FOLLOW'
       ? `${item.actor?.display_name || 'Someone'} followed you`
+      : item.type === 'FOLLOW_REQUEST'
+      ? `${item.actor?.display_name || 'Someone'} requested to follow you`
       : item.type === 'UPVOTE'
       ? `${item.actor?.display_name || 'Someone'} upvoted your post`
       : item.type === 'COMMENT'
@@ -105,9 +114,13 @@ export default function NotificationsScreen() {
       ? `${item.actor?.display_name || 'Someone'} shared your post`
       : item.type === 'GAME_REMINDER'
       ? `Game reminder: ${(item.event?.title || item.meta?.event_title) || 'Your game'}`
+      : item.type === 'COACH_APPROVED'
+      ? 'Your coach account was approved'
+      : item.type === 'COACH_REJECTED'
+      ? 'Your coach application was updated'
       : 'Notification';
     const onPress = () => {
-      if (item.type === 'FOLLOW' && item.actor?.id) {
+      if ((item.type === 'FOLLOW' || item.type === 'FOLLOW_REQUEST') && item.actor?.id) {
         router.push(`/user-profile?id=${encodeURIComponent(item.actor.id)}`);
       } else if ((item.type === 'UPVOTE' || item.type === 'COMMENT' || item.type === 'MENTION' || item.type === 'COMMENT_REPLY' || item.type === 'SHARE') && item.post?.id) {
         const q = (item.type === 'MENTION' || item.type === 'COMMENT_REPLY') && item.comment?.id
@@ -120,6 +133,10 @@ export default function NotificationsScreen() {
         router.push('/team-invites');
       } else if (item.type === 'GAME_REMINDER' && (item.event?.id || item.meta?.event_id)) {
         router.push(`/event-detail?id=${encodeURIComponent(item.event?.id || item.meta?.event_id || '')}`);
+      } else if (item.type === 'COACH_APPROVED') {
+        router.push('/onboarding/coach-agreement' as any);
+      } else if (item.type === 'COACH_REJECTED') {
+        router.push('/onboarding/pending-approval' as any);
       }
       // Mark read optimistically
       if (!item.read_at) {
@@ -139,7 +156,7 @@ export default function NotificationsScreen() {
           {item.actor?.avatar_url ? (
             <Image source={{ uri: item.actor.avatar_url }} style={S.avatar} />
           ) : (
-            <View style={[S.avatar, { backgroundColor: '#E5E7EB' }]} />
+            <Image source={require('../../../assets/images/logo.png')} style={S.avatar} contentFit="contain" />
           )}
         </View>
         <View style={{ flex: 1 }}>

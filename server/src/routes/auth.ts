@@ -1,5 +1,5 @@
 import bcrypt from 'bcrypt';
-import crypto, { createPublicKey, type KeyObject } from 'crypto';
+import crypto, { createPublicKey, randomInt, type KeyObject } from 'crypto';
 import { Router } from 'express';
 import jwt, { type JwtPayload } from 'jsonwebtoken';
 import { z } from 'zod';
@@ -24,6 +24,8 @@ const debugLog = (...args: Parameters<typeof console.log>) => {
     console.log(...args);
   }
 };
+
+const generateOtpCode = () => String(randomInt(100000, 1000000));
 
 function checkAuthRateLimit(identifier: string): boolean {
   const now = Date.now();
@@ -181,8 +183,7 @@ authRouter.post('/register', asyncHandler(async (req, res) => {
     });
   }
   const password_hash = await bcrypt.hash(password, 10);
-  const code = String(Math.floor(100000 + Math.random() * 900000));
-  console.log(`[verify-code] [register] Code generated: ${code} for ${sanitizedEmail}`);
+  const code = generateOtpCode();
   const exp = new Date(Date.now() + 30 * 60 * 1000);
   const userRole = role || 'fan';
 
@@ -203,10 +204,8 @@ authRouter.post('/register', asyncHandler(async (req, res) => {
       preferences: initialPreferences
     }
   });
-  console.log(`[verify-code] [register] Code stored in DB for user ${user.id} (expires ${exp.toISOString()})`);
   const { access_token, refresh_token } = issueAuthTokens(user);
   try {
-    console.log(`[verify-code] [register] Calling sendVerificationEmail → to: ${email}`);
     const emailSend = sendVerificationEmail(email, code, display_name || sanitizedEmail.split('@')[0]);
     const EMAIL_TIMEOUT_MS = 5000;
     const timed = await Promise.race([
@@ -218,7 +217,7 @@ authRouter.post('/register', asyncHandler(async (req, res) => {
     } else if (timed === false) {
       console.error('[verify-code] [register] sendVerificationEmail returned false — email was NOT sent (check SendGridProvider logs above for the specific error)');
     } else {
-      console.log('[verify-code] [register] sendVerificationEmail returned true — email accepted by SendGrid');
+      debugLog('[verify-code] [register] verification email accepted by provider');
     }
   } catch (e) {
     console.error('[verify-code] [register] sendVerificationEmail threw:', e);
@@ -578,7 +577,7 @@ authRouter.post('/password/forgot', passwordResetLimiter, async (req, res) => {
   }
   debugLog('[password-reset] User found:', user.id, user.email);
 
-  const code = String(Math.floor(100000 + Math.random() * 900000));
+  const code = generateOtpCode();
   const expires = new Date(Date.now() + 30 * 60 * 1000);
 
   await prisma.user.update({
@@ -714,9 +713,9 @@ authRouter.get('/me', async (req: AuthedRequest, res) => {
   const userPrefs = (user as any).preferences || {};
   const prefs = mergePreferences(userPrefs, defaults);
   const moderationPrefs = getModerationPreferences(user.preferences);
-  const { password_hash, ...rest } = user as any;
+  const sanitizedUser = sanitizeUser(user);
   return res.json({
-    ...rest,
+    ...sanitizedUser,
     ...(is_admin ? { role: 'admin' } : {}),
     preferences: prefs,
     is_admin,
@@ -1195,18 +1194,15 @@ authRouter.post('/verify/request', async (req: AuthedRequest, res) => {
   if (now - rec.hourStart > 3600_000) { rec.hourStart = now; rec.count = 0; }
   if (now - rec.last < 30_000) return res.status(429).json({ error: 'Please wait before requesting another code' });
   if (rec.count >= 5) return res.status(429).json({ error: 'Too many requests' });
-  const code = String(Math.floor(100000 + Math.random() * 900000));
-  console.log(`[verify-code] [verify/request] Code generated: ${code} for user ${user.id} (${user.email})`);
+  const code = generateOtpCode();
   const exp = new Date(Date.now() + 30 * 60 * 1000);
   await prisma.user.update({ where: { id: user.id }, data: { email_verification_code: code, email_verification_expires: exp } });
-  console.log(`[verify-code] [verify/request] Code stored in DB (expires ${exp.toISOString()})`);
   try {
-    console.log(`[verify-code] [verify/request] Calling sendVerificationEmail → to: ${user.email}`);
     const sent = await sendVerificationEmail(user.email, code, user.display_name || user.email.split('@')[0]);
     if (!sent) {
       console.error('[verify-code] [verify/request] sendVerificationEmail returned false — email was NOT sent (check SendGridProvider logs above for the specific error)');
     } else {
-      console.log('[verify-code] [verify/request] sendVerificationEmail returned true — email accepted by SendGrid');
+      debugLog('[verify-code] [verify/request] verification email accepted by provider');
     }
   } catch (e) {
     console.error('[verify-code] [verify/request] sendVerificationEmail threw:', e);
@@ -1258,6 +1254,9 @@ function sanitizeUser(u: any) {
     email_verification_expires,
     password_reset_code,
     password_reset_expires,
+    google_id,
+    apple_id,
+    stripe_customer_id,
     ...rest
   } = u as any;
   return rest;
