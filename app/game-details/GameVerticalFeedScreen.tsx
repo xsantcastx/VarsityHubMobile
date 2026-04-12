@@ -35,11 +35,20 @@ import { AppLinks } from '@/utils/links';
 
 const { height: windowHeight, width: windowWidth } = Dimensions.get('window');
 
+// `react-native-fast-image` has no web entry point, so requiring it under
+// Metro's web bundler emits an unresolvable-module warning even when the
+// require is wrapped in try/catch. Gate on Platform.OS so the web build
+// never references the module at all and falls through to the expo-image
+// fallback below.
 let FastImage: any = null;
-try {
-  FastImage = require('react-native-fast-image');
-} catch (error) {
-  console.warn('[GameVerticalFeedScreen] FastImage not available, using fallback:', error);
+if (Platform.OS !== 'web') {
+  try {
+    FastImage = require('react-native-fast-image');
+  } catch (error) {
+    console.warn('[GameVerticalFeedScreen] FastImage not available, using fallback:', error);
+  }
+}
+if (!FastImage) {
   FastImage = ({ source, style, resizeMode }: any) => (
     <Image
       source={source}
