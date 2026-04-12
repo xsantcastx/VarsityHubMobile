@@ -992,7 +992,7 @@ teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, req
   if (clubType === 'extracurricular' && !planSupportsExtracurricular(userPlan)) {
     return res.status(403).json({
       error: 'Extracurricular clubs require Legend tier',
-      message: 'Upgrade to Legend ($19.99/year) to create extracurricular clubs like Theater, Chess, Debate, etc.',
+      message: 'Upgrade to Legend ($29.99/year) to create extracurricular clubs like Theater, Chess, Debate, etc.',
       code: 'LEGEND_TIER_REQUIRED',
       feature: 'extracurricular_clubs',
     });

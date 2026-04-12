@@ -117,7 +117,7 @@ This document provides a comprehensive overview of all tools, services, and inte
 - **Configuration**: 
   - `STRIPE_SECRET_KEY` environment variable
   - `STRIPE_WEBHOOK_SECRET` for webhook verification
-- **Plans**: Rookie (free), Veteran ($9.99/year), Legend ($19.99/year)
+- **Plans**: Rookie (free), Veteran ($0.99/month per additional team), Legend ($29.99/year)
 
 **Documentation**:
 - `docs/STRIPE_PRICING_CONFIG.md`

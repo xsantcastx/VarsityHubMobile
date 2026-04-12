@@ -11,9 +11,9 @@ async function createTestPrices() {
   try {
     console.log('Creating test prices for subscription plans...');
 
-    // Create Veteran plan price (monthly: $2.50 per team)
+    // Create Veteran plan price (monthly: $0.99 per team over 2)
     const veteranPrice = await stripe.prices.create({
-      unit_amount: 250, // $2.50 in cents
+      unit_amount: 99, // $0.99 in cents
       currency: 'usd',
       recurring: { interval: 'month' },
       product_data: {
@@ -23,9 +23,9 @@ async function createTestPrices() {
 
     console.log('✅ Veteran plan price created:', veteranPrice.id);
 
-    // Create Legend plan price (annual: $19.99)
+    // Create Legend plan price (annual: $29.99)
     const legendPrice = await stripe.prices.create({
-      unit_amount: 1999, // $19.99 in cents
+      unit_amount: 2999, // $29.99 in cents
       currency: 'usd',
       recurring: { interval: 'year' },
       product_data: {

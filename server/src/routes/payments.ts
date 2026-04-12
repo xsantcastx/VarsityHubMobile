@@ -231,13 +231,13 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
         quantity: chosen === 'veteran' ? billableQuantity : 1,
         price_data: {
           currency: 'usd',
-          unit_amount: chosen === 'veteran' ? 99 : 1999, // Veteran: $0.99/month per additional team, Legend: $19.99/year
+          unit_amount: chosen === 'veteran' ? 99 : 2999, // Veteran: $0.99/month per additional team, Legend: $29.99/year
           recurring: { interval: chosen === 'veteran' ? 'month' : 'year' },
           product_data: {
             name: 'Membership - ' + chosen,
             description: chosen === 'veteran'
               ? `Veteran plan - $0.99/month per additional team (${billableQuantity} billable of ${teamCount} total, 2 free)`
-              : 'Legend plan - $19.99/year unlimited',
+              : 'Legend plan - $29.99/year unlimited',
           },
         },
       }];
@@ -298,7 +298,7 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
     where: { id: req.user!.id },
     select: { email: true }
   });
-  const amount = chosen === 'veteran' ? 99 * billableQuantity : 1999; // Veteran: $0.99/month per additional team, Legend: $19.99/year
+  const amount = chosen === 'veteran' ? 99 * billableQuantity : 2999; // Veteran: $0.99/month per additional team, Legend: $29.99/year
   await logTransaction({
     transactionType: 'SUBSCRIPTION_PURCHASE',
     status: 'PENDING',
@@ -750,13 +750,13 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
           quantity: chosen === 'veteran' ? billableQuantity : 1,
           price_data: {
             currency: 'usd',
-            unit_amount: chosen === 'veteran' ? 99 : 1999,
+            unit_amount: chosen === 'veteran' ? 99 : 2999,
             recurring: { interval: chosen === 'veteran' ? ('month' as const) : ('year' as const) },
             product_data: {
               name: 'Membership - ' + chosen,
               description: chosen === 'veteran'
                 ? `Veteran plan - $0.99/month per additional team (${billableQuantity} billable of ${effectiveTeamCount} total, 2 free)`
-                : 'Legend plan - $19.99/year unlimited',
+                : 'Legend plan - $29.99/year unlimited',
             },
           },
         }];
@@ -785,8 +785,8 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
         return res.status(500).json({ error: 'Subscription created but payment could not be initialized. Please contact support.' });
       }
 
-      // Log transaction (must match actual Stripe charge: $0.99/team veteran, $19.99/year legend)
-      const amount = chosen === 'veteran' ? 99 * billableQuantity : 1999;
+      // Log transaction (must match actual Stripe charge: $0.99/team veteran, $29.99/year legend)
+      const amount = chosen === 'veteran' ? 99 * billableQuantity : 2999;
       await logTransaction({
         transactionType: 'SUBSCRIPTION_PURCHASE',
         status: 'PENDING',
@@ -1748,8 +1748,8 @@ paymentsRouter.get('/subscription/summary', requireVerified as any, asyncHandler
         console.warn('[payments] Failed to retrieve summary subscription:', (err as any)?.message || err);
       }
     } else if (plan === 'legend') {
-      // Annual cost fixed at $19.99
-      annual_cost = 19.99;
+      // Annual cost fixed at $29.99
+      annual_cost = 29.99;
       // status can be determined if subscription id exists
       if (subscriptionId && process.env.STRIPE_SECRET_KEY) {
         try {

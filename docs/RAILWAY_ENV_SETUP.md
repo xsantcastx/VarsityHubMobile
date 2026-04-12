@@ -54,8 +54,8 @@ Get from: https://dashboard.stripe.com/apikeys
 ```bash
 STRIPE_SECRET_KEY=sk_live_...      # or sk_test_... for testing
 STRIPE_WEBHOOK_SECRET=whsec_...    # from webhook setup (step below)
-STRIPE_PRICE_VETERAN=price_...     # Veteran tier: $2.50/month per additional team
-STRIPE_PRICE_LEGEND=price_...      # Legend tier: $19.99/year unlimited
+STRIPE_PRICE_VETERAN=price_...     # Veteran tier: $0.99/month per additional team
+STRIPE_PRICE_LEGEND=price_...      # Legend tier: $29.99/year unlimited
 ```
 
 **Ad Pricing (Hardcoded in server/src/routes/payments.ts):**
@@ -66,10 +66,10 @@ STRIPE_PRICE_LEGEND=price_...      # Legend tier: $19.99/year unlimited
 **Create Stripe Products:**
 1. Go to Stripe Dashboard → Products
 2. Create "Veteran" product:
-   - Price: $2.50/month recurring (per-unit billing)
+   - Price: $0.99/month recurring (per-unit billing)
    - Copy `price_...` ID → `STRIPE_PRICE_VETERAN`
 3. Create "Legend" product:
-   - Price: $19.99/year recurring
+   - Price: $29.99/year recurring
    - Copy `price_...` ID → `STRIPE_PRICE_LEGEND`
 
 ### 2. Cloudinary (Image/Video Uploads)
