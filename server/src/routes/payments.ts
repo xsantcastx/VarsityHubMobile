@@ -303,6 +303,15 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
   // Ensure ad exists
   const ad = await prisma.ad.findUnique({ where: { id: String(ad_id) } });
   if (!ad) return res.status(404).json({ error: 'Ad not found' });
+  if (!req.user?.id || ad.user_id !== req.user.id) {
+    return res.status(403).json({ error: 'You can only pay for ads on your own account' });
+  }
+  if (ad.payment_status === 'paid') {
+    return res.status(409).json({ error: 'Ad has already been paid for' });
+  }
+  if (ad.status === 'rejected') {
+    return res.status(409).json({ error: 'Rejected ads cannot be checked out' });
+  }
 
   // Slot availability check — reject before Stripe if any date is already full.
   // Up to MAX_AD_SLOTS different ads may run per date per zip.
@@ -1038,7 +1047,19 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
         // This is the second line of defence after the pre-checkout check —
         // it catches the race where two sessions were created before either paid.
         const MAX_AD_SLOTS = 3;
-        const adRecord = await tx.ad.findUnique({ where: { id: ad_id }, select: { target_zip_code: true } });
+        const adRecord = await tx.ad.findUnique({
+          where: { id: ad_id },
+          select: { user_id: true, target_zip_code: true, payment_status: true },
+        });
+        if (!adRecord) {
+          throw new Error('AD_NOT_FOUND');
+        }
+        if (metadataUserId && adRecord.user_id && adRecord.user_id !== metadataUserId) {
+          throw new Error('AD_OWNER_MISMATCH');
+        }
+        if (adRecord.payment_status === 'paid') {
+          return;
+        }
         if (adRecord?.target_zip_code) {
           const paidAdsInZip = await tx.ad.findMany({
             where: { target_zip_code: adRecord.target_zip_code, payment_status: 'paid', NOT: { id: ad_id } },

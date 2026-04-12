@@ -2,9 +2,13 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { validateContent } from '../lib/contentFilter.js';
 import { sendJoinRequestApproved, sendJoinRequestDenied, sendJoinRequestToAdmin, sendOrganizationInviteEmail } from '../lib/email.js';
-import { sendOrganizationApprovalEmail } from '../lib/notifications.js';
+import {
+  createInAppNotification,
+  sendOrganizationApprovalEmail,
+  sendPushNotification,
+} from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
-import type { AuthedRequest } from '../middleware/auth.js';
+import { invalidateAuthCache, type AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { debugLog } from '../lib/debugLog.js';
 import { getAuthorizedUsersOrgLimit } from '../lib/planLimits.js';
@@ -66,6 +70,61 @@ async function markCoachApprovalPending(
       },
     },
   });
+}
+
+async function markCoachApprovedForOrganization(
+  userId: string,
+  organizationId: string,
+  organizationName: string,
+  actorId?: string
+) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { preferences: true },
+  });
+  const prefs = getPreferenceObject(user?.preferences);
+  if (prefs.role !== 'coach') return;
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      preferences: {
+        ...prefs,
+        organization_id: organizationId,
+        organization_name: organizationName,
+        approval_status: 'APPROVED',
+        approval_reason: null,
+        approval_reviewed_at: new Date().toISOString(),
+      },
+    },
+  });
+  invalidateAuthCache(userId);
+
+  if (!actorId) return;
+
+  await createInAppNotification({
+    userId,
+    actorId,
+    type: 'COACH_APPROVED',
+    meta: {
+      organization_id: organizationId,
+      organization_name: organizationName,
+    },
+  }).catch(() => {});
+
+  await sendPushNotification(
+    userId,
+    'Coach account approved',
+    organizationName
+      ? `Your coach access for ${organizationName} is now active.`
+      : 'Your coach access is now active.',
+    {
+      type: 'coach_approved',
+      organization_id: organizationId,
+      organization_name: organizationName,
+      screen: 'organization',
+    }
+  ).catch(() => {});
 }
 
 // List organizations (public, with optional search)
@@ -523,6 +582,7 @@ organizationsRouter.post('/invites/:inviteId/accept', requireAuth as any, async 
   // Send welcome email
   const org = await prisma.organization.findUnique({ where: { id: invite.organization_id }, select: { name: true } });
   if (org) {
+    await markCoachApprovedForOrganization(user.id, invite.organization_id, org.name, req.user!.id);
     await sendOrganizationApprovalEmail({ to: user.email, organizationName: org.name }).catch(err => 
       console.warn('[org-invite-accept] Email send failed:', err)
     );
@@ -864,6 +924,13 @@ organizationsRouter.post('/join-requests/:requestId/approve', requireAuth as any
       }
     })
   ]);
+
+  await markCoachApprovedForOrganization(
+    joinRequest.user_id,
+    joinRequest.organization_id,
+    joinRequest.organization.name,
+    req.user!.id
+  );
   
   // Send approval email to user
   const adminUser = await prisma.user.findUnique({

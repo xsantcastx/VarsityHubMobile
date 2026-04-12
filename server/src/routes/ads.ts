@@ -150,6 +150,7 @@ adsRouter.get('/for-feed', async (req, res) => {
 
   const whereAd: any = {
     payment_status: 'paid',
+    status: 'active',
     // Removed banner_url requirement - allow ads with or without banners
   };
   if (zip) whereAd.target_zip_code = zip;
@@ -296,19 +297,24 @@ adsRouter.post('/:id/review', requireVerified as any, async (req: AuthedRequest,
 
     return res.json({ ok: true, ad: updated });
   } else {
-    const preservesPaidState = ad.payment_status === 'paid';
+    if (ad.payment_status === 'paid') {
+      return res.status(409).json({
+        error: 'PAID_AD_REJECTION_REQUIRES_REFUND',
+        message:
+          'Paid ads cannot be rejected directly. Refund or resolve the payment first to avoid charging the advertiser for a rejected ad.',
+      });
+    }
+
     const updated = await prisma.ad.update({
       where: { id },
       data: {
         status: 'rejected',
-        payment_status: preservesPaidState ? 'paid' : ad.payment_status,
+        payment_status: ad.payment_status,
         admin_note: note || null,
       },
     });
 
-    if (!preservesPaidState) {
-      await prisma.adReservation.deleteMany({ where: { ad_id: id } });
-    }
+    await prisma.adReservation.deleteMany({ where: { ad_id: id } });
 
     const emailTo = ad.contact_email || (ad.user_id
       ? (await prisma.user.findUnique({ where: { id: ad.user_id }, select: { email: true } }))?.email
@@ -323,16 +329,12 @@ adsRouter.post('/:id/review', requireVerified as any, async (req: AuthedRequest,
       'ad',
       id,
       `Rejected ad ${ad.business_name || id}`,
-      { action: 'reject', note: note || null, refund_review_required: preservesPaidState }
+      { action: 'reject', note: note || null }
     );
 
     return res.json({
       ok: true,
       ad: updated,
-      refund_review_required: preservesPaidState,
-      message: preservesPaidState
-        ? 'Ad rejected. Payment state was preserved for refund review.'
-        : undefined,
     });
   }
 });
