@@ -167,7 +167,21 @@ export const auth = {
     return res;
   },
   async me() {
-    await loadToken();
+    // Short-circuit when the client has no credentials at all. Previously
+    // a fresh/logged-out app shell (ThemeProvider's useCustomColorScheme
+    // loads the theme on mount and calls User.me()) would fire an
+    // unauthenticated `GET /me` and take a visible 401 in the browser
+    // network panel. No token + no refresh token means we know the answer.
+    const token = await loadToken();
+    if (!token) {
+      const refreshable = await loadRefreshToken();
+      if (!refreshable) {
+        const err: any = new Error('Not authenticated');
+        err.status = 401;
+        err.code = 'NO_CREDENTIALS';
+        throw err;
+      }
+    }
     const options = {
       headers: {
         'Cache-Control': 'no-store',

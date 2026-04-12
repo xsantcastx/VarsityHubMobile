@@ -18,7 +18,7 @@ const VIDEO_EXTENSIONS = ['.mp4', '.mov', '.webm', '.m4v', '.avi', '.mkv'];
 const detectMediaType = (url?: string | null): 'video' | 'image' => {
   if (!url) return 'image';
   const sanitized = url.split('?')[0].split('#')[0].toLowerCase();
-  return VIDEO_EXTENSIONS.some((ext) => sanitized.endsWith(ext)) ? 'video' : 'image';
+  return VIDEO_EXTENSIONS.some(ext => sanitized.endsWith(ext)) ? 'video' : 'image';
 };
 const isMissingPollSchemaError = (error: any): boolean => {
   if (!error || (error.code !== 'P2021' && error.code !== 'P2022')) return false;
@@ -38,10 +38,28 @@ const logPollSchemaFallback = (context: string, error: any) => {
 
 const MANAGEMENT_ROLES = ['owner', 'manager', 'coach', 'assistant_coach'] as const;
 
-function hasPrivateProfile(preferences: unknown): boolean {
+/**
+ * Whether the author has asked for a private profile. The canonical value
+ * lives in the new `User.profile_private` Boolean column; the legacy JSON
+ * location is read as a fallback only so in-flight sessions that haven't
+ * yet re-synced their preferences stay correct during the migration window.
+ */
+function hasPrivateProfile(
+  author:
+    | {
+        profile_private?: boolean | null;
+        preferences?: unknown;
+      }
+    | null
+    | undefined
+): boolean {
+  if (!author) return false;
+  if (author.profile_private === true) return true;
   const prefs =
-    preferences && typeof preferences === 'object' && !Array.isArray(preferences)
-      ? (preferences as Record<string, unknown>)
+    author.preferences &&
+    typeof author.preferences === 'object' &&
+    !Array.isArray(author.preferences)
+      ? (author.preferences as Record<string, unknown>)
       : {};
   return prefs.profile_private === true;
 }
@@ -50,30 +68,83 @@ async function getBlockedUserIds(userId: string | null): Promise<Set<string>> {
   if (!userId) return new Set<string>();
   const blocks = await prisma.blockedUser.findMany({
     where: {
-      OR: [
-        { blocker_id: userId },
-        { blocked_id: userId },
-      ],
+      OR: [{ blocker_id: userId }, { blocked_id: userId }],
     },
     select: { blocker_id: true, blocked_id: true },
   });
   return new Set(
-    blocks.map((block) => (block.blocker_id === userId ? block.blocked_id : block.blocker_id)).filter(Boolean)
+    blocks
+      .map(block => (block.blocker_id === userId ? block.blocked_id : block.blocker_id))
+      .filter(Boolean)
   );
 }
 
 function canViewAuthorPosts(
-  author: { id: string; preferences?: unknown } | null | undefined,
+  author:
+    | { id: string; profile_private?: boolean | null; preferences?: unknown }
+    | null
+    | undefined,
   viewerId: string | null,
   acceptedFollowIds: Set<string>,
   blockedIds: Set<string>
 ): boolean {
   if (!author?.id) return false;
   if (viewerId && blockedIds.has(author.id)) return false;
-  if (!hasPrivateProfile(author.preferences)) return true;
+  if (!hasPrivateProfile(author)) return true;
   if (!viewerId) return false;
   if (viewerId === author.id) return true;
   return acceptedFollowIds.has(author.id);
+}
+
+/**
+ * Fetch every author the viewer has an accepted follow on. Used once per
+ * request to build the SQL visibility filter; previously we computed this
+ * post-query against a bloated pool and threw away most rows in JS.
+ */
+async function getViewerAcceptedFollowIds(viewerId: string | null): Promise<string[]> {
+  if (!viewerId) return [];
+  const follows = await prisma.follows.findMany({
+    where: { follower_id: viewerId, status: 'accepted' },
+    select: { following_id: true },
+  });
+  return follows.map(f => f.following_id);
+}
+
+/**
+ * Build the SQL-level visibility filter for the feed. Returns a fragment to
+ * merge into `where.AND`:
+ *
+ *   - Hide authors the viewer has blocked (either direction).
+ *   - Hide private-profile authors unless the viewer is the author or has
+ *     an accepted follow on them.
+ *
+ * The private-profile path became safe to push into SQL once we promoted
+ * `profile_private` from JSON to a real Boolean column; the legacy
+ * JSON-path filter misbehaved for rows where the key was absent.
+ * `canViewAuthorPosts` remains as a defence-in-depth JS check.
+ */
+function buildPostVisibilityWhere(
+  viewerId: string | null,
+  acceptedFollowIds: string[],
+  blockedIds: string[]
+): Record<string, unknown> | null {
+  const clauses: Array<Record<string, unknown>> = [];
+  if (blockedIds.length > 0) {
+    clauses.push({ author_id: { notIn: blockedIds } });
+  }
+
+  const visibilityAllowed: Array<Record<string, unknown>> = [
+    { author: { profile_private: false } },
+  ];
+  if (viewerId) {
+    visibilityAllowed.push({ author_id: viewerId });
+    if (acceptedFollowIds.length > 0) {
+      visibilityAllowed.push({ author_id: { in: acceptedFollowIds } });
+    }
+  }
+  clauses.push({ OR: visibilityAllowed });
+
+  return clauses.length === 0 ? null : { AND: clauses };
 }
 
 /** Check if user is coach/owner of any team associated with the post (team_id or game's teams) */
@@ -103,7 +174,6 @@ async function isCoachOfPostTeam(
   return !!membership;
 }
 
-
 /** Time-decay trending score: upvotes / (hours_since_posted + 2)^1.5 */
 const TRENDING_POOL_SIZE = 100;
 const trendingScore = (upvotes: number, createdAt: Date): number => {
@@ -120,11 +190,12 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
   const currentUserId = req.user?.id ?? null;
 
   const hasTeamFilter = !!req.query.team_id;
-  const orderBy = sort === 'trending'
-    ? [{ created_at: 'desc' as const }] // Fetch by recency; we'll re-sort by score
-    : hasTeamFilter
-      ? [{ is_pinned: 'desc' as const }, { created_at: 'desc' as const }] // Pinned first on team feed
-      : [{ created_at: 'desc' as const }];
+  const orderBy =
+    sort === 'trending'
+      ? [{ created_at: 'desc' as const }] // Fetch by recency; we'll re-sort by score
+      : hasTeamFilter
+        ? [{ is_pinned: 'desc' as const }, { created_at: 'desc' as const }] // Pinned first on team feed
+        : [{ created_at: 'desc' as const }];
 
   const where: Record<string, any> = { deleted_at: null };
 
@@ -132,13 +203,15 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
   let followedFeedMeta: { following_count: number } | undefined;
   if (followedOnly) {
     if (!currentUserId) {
-      return res.status(401).json({ items: [], nextCursor: null, followed_feed_meta: { following_count: 0 } });
+      return res
+        .status(401)
+        .json({ items: [], nextCursor: null, followed_feed_meta: { following_count: 0 } });
     }
     const following = await prisma.follows.findMany({
       where: { follower_id: currentUserId, status: 'accepted' },
       select: { following_id: true },
     });
-    const followingIds = following.map((f) => f.following_id);
+    const followingIds = following.map(f => f.following_id);
     followedFeedMeta = { following_count: followingIds.length };
     if (followingIds.length === 0) {
       return res.json({ items: [], nextCursor: null, followed_feed_meta: followedFeedMeta });
@@ -150,27 +223,32 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
   let followedTeamsFeedMeta: { followed_teams_count: number } | undefined;
   if (followedTeams) {
     if (!currentUserId) {
-      return res.status(401).json({ items: [], nextCursor: null, followed_teams_feed_meta: { followed_teams_count: 0 } });
+      return res.status(401).json({
+        items: [],
+        nextCursor: null,
+        followed_teams_feed_meta: { followed_teams_count: 0 },
+      });
     }
     const teamFollows = await prisma.teamFollow.findMany({
       where: { user_id: currentUserId },
       select: { team_id: true },
     });
-    const followedTeamIds = teamFollows.map((f) => f.team_id);
+    const followedTeamIds = teamFollows.map(f => f.team_id);
     followedTeamsFeedMeta = { followed_teams_count: followedTeamIds.length };
     if (followedTeamIds.length === 0) {
-      return res.json({ items: [], nextCursor: null, followed_teams_feed_meta: followedTeamsFeedMeta });
+      return res.json({
+        items: [],
+        nextCursor: null,
+        followed_teams_feed_meta: followedTeamsFeedMeta,
+      });
     }
     const gamesWithFollowedTeams = await prisma.game.findMany({
       where: {
-        OR: [
-          { home_team_id: { in: followedTeamIds } },
-          { away_team_id: { in: followedTeamIds } },
-        ],
+        OR: [{ home_team_id: { in: followedTeamIds } }, { away_team_id: { in: followedTeamIds } }],
       },
       select: { id: true },
     });
-    const gameIds = gamesWithFollowedTeams.map((g) => g.id);
+    const gameIds = gamesWithFollowedTeams.map(g => g.id);
     where.OR = [
       { team_id: { in: followedTeamIds } },
       ...(gameIds.length > 0 ? [{ game_id: { in: gameIds } }] : []),
@@ -192,13 +270,32 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
   if (req.query.type) where.type = String(req.query.type);
   if (req.query.user_id) where.author_id = String(req.query.user_id);
 
+  // Pre-compute the viewer's block list + follow graph once per request and
+  // push the full visibility filter into SQL. The JS `canViewAuthorPosts`
+  // below is kept as defence-in-depth but should be a no-op now.
+  const blockedIdsList = Array.from(await getBlockedUserIds(currentUserId));
+  const viewerFollows = await getViewerAcceptedFollowIds(currentUserId);
+  const visibilityWhere = buildPostVisibilityWhere(currentUserId, viewerFollows, blockedIdsList);
+  if (visibilityWhere) {
+    where.AND = Array.isArray(where.AND) ? [...where.AND, visibilityWhere] : [visibilityWhere];
+  }
+
   // Trending: fetch pool, compute time-decay score, sort, paginate
   if (sort === 'trending') {
     const poolQuery: any = {
-        where,
+      where,
       orderBy: [{ created_at: 'desc' as const }],
       include: {
-        author: { select: { id: true, username: true, display_name: true, avatar_url: true, preferences: true } },
+        author: {
+          select: {
+            id: true,
+            username: true,
+            display_name: true,
+            avatar_url: true,
+            profile_private: true,
+            preferences: true,
+          },
+        },
         team: { select: { id: true, name: true, logo_url: true } },
         _count: { select: { comments: true, bookmarks: true } },
         poll: { include: { options: true } },
@@ -219,14 +316,20 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
       pool = await prisma.post.findMany(fallback);
     }
     const ranked = pool
-      .map((p) => ({
+      .map(p => ({
         post: p,
-        score: trendingScore(p.upvotes_count ?? 0, p.created_at instanceof Date ? p.created_at : new Date(p.created_at)),
+        score: trendingScore(
+          p.upvotes_count ?? 0,
+          p.created_at instanceof Date ? p.created_at : new Date(p.created_at)
+        ),
         createdAt: p.created_at instanceof Date ? p.created_at : new Date(p.created_at),
       }))
       .sort((a, b) => {
         if (b.score !== a.score) return b.score - a.score;
-        return b.createdAt.getTime() - a.createdAt.getTime() || String(b.post.id).localeCompare(String(a.post.id));
+        return (
+          b.createdAt.getTime() - a.createdAt.getTime() ||
+          String(b.post.id).localeCompare(String(a.post.id))
+        );
       });
     let filtered = ranked;
     if (cursor && cursor.startsWith('t:')) {
@@ -235,11 +338,12 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
         const [scoreStr, createdAtStr, id] = parts;
         const cursorScore = parseFloat(scoreStr);
         const cursorTime = new Date(createdAtStr).getTime();
-        filtered = ranked.filter((r) => {
+        filtered = ranked.filter(r => {
           if (r.score < cursorScore - 1e-9) return true;
           if (Math.abs(r.score - cursorScore) <= 1e-9) {
             if (r.createdAt.getTime() < cursorTime) return true;
-            if (r.createdAt.getTime() === cursorTime) return String(r.post.id).localeCompare(id) < 0;
+            if (r.createdAt.getTime() === cursorTime)
+              return String(r.post.id).localeCompare(id) < 0;
           }
           return false;
         });
@@ -251,24 +355,29 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
       ? `t:${nextRow.score}|${nextRow.createdAt.toISOString()}|${nextRow.post.id}`
       : null;
     const postIds = items.map((p: any) => p.post.id);
-    const authorIds = items.map((p: any) => p.post.author_id).filter(Boolean);
     let upvotedIds = new Set<string>();
     let bookmarkedIds = new Set<string>();
-    let followingIds = new Set<string>();
+    // Reuse the viewer's full follow set computed up-front for the SQL
+    // visibility filter — no need to re-query for just the post authors.
+    const followingIds = new Set<string>(viewerFollows);
     if (currentUserId && items.length) {
-      const followPromise = authorIds.length
-        ? prisma.follows.findMany({ where: { follower_id: currentUserId, following_id: { in: authorIds }, status: 'accepted' }, select: { following_id: true } })
-        : Promise.resolve([] as Array<{ following_id: string }>);
-      const [upvotes, bookmarks, follows] = await Promise.all([
-        prisma.postUpvote.findMany({ where: { user_id: currentUserId, post_id: { in: postIds } }, select: { post_id: true } }),
-        prisma.postBookmark.findMany({ where: { user_id: currentUserId, post_id: { in: postIds } }, select: { post_id: true } }),
-        followPromise,
+      const [upvotes, bookmarks] = await Promise.all([
+        prisma.postUpvote.findMany({
+          where: { user_id: currentUserId, post_id: { in: postIds } },
+          select: { post_id: true },
+        }),
+        prisma.postBookmark.findMany({
+          where: { user_id: currentUserId, post_id: { in: postIds } },
+          select: { post_id: true },
+        }),
       ]);
-      upvotedIds = new Set(upvotes.map((u) => u.post_id));
-      bookmarkedIds = new Set(bookmarks.map((b) => b.post_id));
-      followingIds = new Set((follows as Array<{ following_id: string }>).map((f) => f.following_id));
+      upvotedIds = new Set(upvotes.map(u => u.post_id));
+      bookmarkedIds = new Set(bookmarks.map(b => b.post_id));
     }
-    const blockedIds = await getBlockedUserIds(currentUserId);
+    // Defence-in-depth: if a row slipped past the SQL filter (e.g. schema
+    // drift, JSON path edge case), drop it here too. Expected to be a no-op
+    // given buildPostVisibilityWhere, but worth the microsecond.
+    const blockedIds = new Set<string>(blockedIdsList);
     const visibleItems = items.filter(({ post }: any) =>
       canViewAuthorPosts(post.author, currentUserId, followingIds, blockedIds)
     );
@@ -291,12 +400,30 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
       comments_count: post._count?.comments ?? 0,
       bookmarks_count: post._count?.bookmarks ?? 0,
       created_at: post.created_at instanceof Date ? post.created_at.toISOString() : post.created_at,
-      author: post.author ? { id: post.author.id, username: post.author.username, display_name: post.author.display_name, avatar_url: post.author.avatar_url } : null,
-      team: post.team ? { id: post.team.id, name: post.team.name, logo_url: post.team.logo_url } : null,
+      author: post.author
+        ? {
+            id: post.author.id,
+            username: post.author.username,
+            display_name: post.author.display_name,
+            avatar_url: post.author.avatar_url,
+          }
+        : null,
+      team: post.team
+        ? { id: post.team.id, name: post.team.name, logo_url: post.team.logo_url }
+        : null,
       has_upvoted: upvotedIds.has(post.id),
       has_bookmarked: bookmarkedIds.has(post.id),
       is_following_author: post.author ? followingIds.has(post.author.id) : false,
-      poll: post.poll ? { ...post.poll, userVote: null, totalVotes: (post.poll.options ?? []).reduce((acc: number, opt: any) => acc + (opt.votes_count ?? 0), 0) } : null,
+      poll: post.poll
+        ? {
+            ...post.poll,
+            userVote: null,
+            totalVotes: (post.poll.options ?? []).reduce(
+              (acc: number, opt: any) => acc + (opt.votes_count ?? 0),
+              0
+            ),
+          }
+        : null,
     }));
     const response: Record<string, any> = { items: payload, nextCursor };
     if (followedFeedMeta) response.followed_feed_meta = followedFeedMeta;
@@ -308,12 +435,23 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
     where,
     orderBy,
     include: {
-      author: { select: { id: true, username: true, display_name: true, avatar_url: true, preferences: true } },
+      author: {
+        select: {
+          id: true,
+          username: true,
+          display_name: true,
+          avatar_url: true,
+          profile_private: true,
+          preferences: true,
+        },
+      },
       team: { select: { id: true, name: true, logo_url: true } },
       _count: { select: { comments: true, bookmarks: true } },
       poll: { include: { options: true } },
     },
-    take: Math.min(limit * 4, 200) + 1,
+    // Visibility is enforced in SQL now; no over-fetch buffer needed. +1 is
+    // the cursor lookahead.
+    take: limit + 1,
   };
   if (cursor) {
     query.cursor = { id: cursor };
@@ -333,24 +471,10 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
     delete fallbackQuery.include.poll;
     rows = await prisma.post.findMany(fallbackQuery);
   }
-  const rowAuthorIds: string[] = Array.from(
-    new Set(rows.map((post: any) => post.author_id).filter(Boolean))
-  );
-  let followingIds = new Set<string>();
-  if (currentUserId && rowAuthorIds.length) {
-    const follows = await prisma.follows.findMany({
-      where: {
-        follower_id: currentUserId,
-        following_id: { in: rowAuthorIds },
-        status: 'accepted',
-      },
-      select: { following_id: true },
-    });
-    followingIds = new Set(
-      (follows as Array<{ following_id: string }>).map((follow) => follow.following_id)
-    );
-  }
-  const blockedIds = await getBlockedUserIds(currentUserId);
+  // Reuse the viewer's follow set from the up-front visibility query.
+  const followingIds = new Set<string>(viewerFollows);
+  const blockedIds = new Set<string>(blockedIdsList);
+  // Defence-in-depth: if any row slipped through the SQL filter, drop it here.
   const visibleRows = rows.filter((post: any) =>
     canViewAuthorPosts(post.author, currentUserId, followingIds, blockedIds)
   );
@@ -364,16 +488,22 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
 
   if (currentUserId && items.length) {
     const [upvotes, bookmarks] = await Promise.all([
-      prisma.postUpvote.findMany({ where: { user_id: currentUserId, post_id: { in: postIds } }, select: { post_id: true } }),
-      prisma.postBookmark.findMany({ where: { user_id: currentUserId, post_id: { in: postIds } }, select: { post_id: true } }),
+      prisma.postUpvote.findMany({
+        where: { user_id: currentUserId, post_id: { in: postIds } },
+        select: { post_id: true },
+      }),
+      prisma.postBookmark.findMany({
+        where: { user_id: currentUserId, post_id: { in: postIds } },
+        select: { post_id: true },
+      }),
     ]);
-    upvotedIds = new Set(upvotes.map((u) => u.post_id));
-    bookmarkedIds = new Set(bookmarks.map((b) => b.post_id));
+    upvotedIds = new Set(upvotes.map(u => u.post_id));
+    bookmarkedIds = new Set(bookmarks.map(b => b.post_id));
 
     // Debug logging for follow relationships
     debugLog('[posts] Follow debug:', {
       currentUserId,
-      rowAuthorIds,
+      itemAuthorIds: items.map((p: any) => p.author_id).filter(Boolean),
       followingIds: Array.from(followingIds),
       followRecords: followingIds.size,
     });
@@ -408,15 +538,19 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
           avatar_url: post.author.avatar_url,
         }
       : null,
-    team: post.team ? { id: post.team.id, name: post.team.name, logo_url: post.team.logo_url } : null,
+    team: post.team
+      ? { id: post.team.id, name: post.team.name, logo_url: post.team.logo_url }
+      : null,
     has_upvoted: upvotedIds.has(post.id),
     has_bookmarked: bookmarkedIds.has(post.id),
     is_following_author: post.author ? followingIds.has(post.author.id) : false,
-    poll: post.poll ? {
-      ...post.poll,
-      userVote: null, // This needs to be fetched separately if needed
-      totalVotes: post.poll.options.reduce((acc: number, opt: any) => acc + opt.votes_count, 0),
-    } : null,
+    poll: post.poll
+      ? {
+          ...post.poll,
+          userVote: null, // This needs to be fetched separately if needed
+          totalVotes: post.poll.options.reduce((acc: number, opt: any) => acc + opt.votes_count, 0),
+        }
+      : null,
   }));
 
   const response: Record<string, any> = { items: payload, nextCursor };
@@ -434,15 +568,15 @@ postsRouter.get('/trending', async (req: AuthedRequest, res, next) => {
 // Debug endpoint to check follow relationships
 postsRouter.get('/debug/follows', requireAuth, async (req: AuthedRequest, res) => {
   const currentUserId = req.user!.id;
-  
+
   const follows = await prisma.follows.findMany({
     where: { follower_id: currentUserId },
     select: {
       following_id: true,
       following: {
-        select: { id: true, display_name: true, username: true }
-      }
-    }
+        select: { id: true, display_name: true, username: true },
+      },
+    },
   });
 
   return res.json({
@@ -451,11 +585,10 @@ postsRouter.get('/debug/follows', requireAuth, async (req: AuthedRequest, res) =
     following: follows.map(f => ({
       id: f.following_id,
       display_name: f.following.display_name,
-      username: f.following.username
-    }))
+      username: f.following.username,
+    })),
   });
 });
-
 
 // Count posts by simple filters (e.g., game_id, type)
 postsRouter.get('/count', async (req, res) => {
@@ -467,18 +600,20 @@ postsRouter.get('/count', async (req, res) => {
   res.json({ count });
 });
 
-const locationSchema = z.object({
-  lat: z.number().nullable().optional(),
-  lng: z.number().nullable().optional(),
-  place_id: z.string().nullable().optional(),
-  place_name: z.string().nullable().optional(),
-  locality: z.string().nullable().optional(),
-  admin_area: z.string().nullable().optional(),
-  country: z.string().nullable().optional(),
-  country_code: z.string().nullable().optional(),
-  source: z.enum(['device','places','zip','derived']).nullable().optional(),
-  zip: z.string().nullable().optional(),
-}).optional();
+const locationSchema = z
+  .object({
+    lat: z.number().nullable().optional(),
+    lng: z.number().nullable().optional(),
+    place_id: z.string().nullable().optional(),
+    place_name: z.string().nullable().optional(),
+    locality: z.string().nullable().optional(),
+    admin_area: z.string().nullable().optional(),
+    country: z.string().nullable().optional(),
+    country_code: z.string().nullable().optional(),
+    source: z.enum(['device', 'places', 'zip', 'derived']).nullable().optional(),
+    zip: z.string().nullable().optional(),
+  })
+  .optional();
 
 const createPostSchema = z
   .object({
@@ -493,10 +628,16 @@ const createPostSchema = z
     location: locationSchema,
   })
   // Require at least content or media_url
-  .refine((d) => Boolean((d.content && d.content.trim().length > 0) || (d.media_url && d.media_url.trim().length > 0)), {
-    message: 'Either content or media_url is required',
-    path: ['content'],
-  });
+  .refine(
+    d =>
+      Boolean(
+        (d.content && d.content.trim().length > 0) || (d.media_url && d.media_url.trim().length > 0)
+      ),
+    {
+      message: 'Either content or media_url is required',
+      path: ['content'],
+    }
+  );
 
 import { geocodeZip, getCountryFromReqOrPrefs, reverseGeocode } from '../lib/geo.js';
 import { verifyEventPostingPermission } from '../lib/geofencing.js';
@@ -512,7 +653,7 @@ postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
   if (!parsed.success) {
     return res.status(400).json({
       error: 'Invalid payload',
-      issues: parsed.error.issues.map((i) => ({ path: i.path, message: i.message })),
+      issues: parsed.error.issues.map(i => ({ path: i.path, message: i.message })),
     });
   }
   const data = parsed.data;
@@ -525,20 +666,24 @@ postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
       code: filterResult.code,
     });
   }
-  
+
   // Normalize and enrich location
   let lat: number | null = null;
   let lng: number | null = null;
   let country_code: string | null = null;
   let admin1: string | null = null;
   let place_name: string | null = null;
-  
+
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  const prefs = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true } });
+  const prefs = await prisma.user.findUnique({
+    where: { id: req.user.id },
+    select: { preferences: true },
+  });
   const preferCountry = getCountryFromReqOrPrefs(req as any, prefs?.preferences);
   const loc = (data as any).location || {};
   if (typeof loc.lat === 'number' && typeof loc.lng === 'number') {
-    lat = loc.lat; lng = loc.lng;
+    lat = loc.lat;
+    lng = loc.lng;
     try {
       const rev = await reverseGeocode(lat as number, lng as number);
       country_code = rev.country_code || preferCountry;
@@ -549,7 +694,9 @@ postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
     try {
       const zip = String(loc.zip || (prefs?.preferences as any)?.zip_code);
       const gg = await geocodeZip(zip, preferCountry);
-      lat = gg.lat; lng = gg.lng; country_code = gg.country_code || preferCountry;
+      lat = gg.lat;
+      lng = gg.lng;
+      country_code = gg.country_code || preferCountry;
     } catch (_error) {}
   } else {
     country_code = preferCountry || null;
@@ -562,7 +709,7 @@ postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
   const gameId = data.game_id;
   const isSampleEvent = eventId && /^sample-/i.test(String(eventId));
   const isSampleGame = gameId && /^sample-/i.test(String(gameId));
-  
+
   // For sample events, we can't use game_id (foreign key constraint)
   // Store sample game_id in title field with special marker for querying
   let finalGameId: string | null = null;
@@ -579,7 +726,7 @@ postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
   } else if (gameId) {
     finalGameId = gameId;
   }
-  
+
   // Allow posting to sample events/games without geofencing
   if (isSampleEvent || isSampleGame) {
     debugLog(`✅ Sample event/game detected (${eventId || gameId}) - skipping geofencing check`);
@@ -605,6 +752,9 @@ postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
           },
         },
       });
+      if (!game) {
+        return res.status(404).json({ error: 'Game not found' });
+      }
       if (game) {
         homeTeamId = game.home_team_id ?? null;
         awayTeamId = game.away_team_id ?? null;
@@ -618,22 +768,18 @@ postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
     // Admins and active members of either team bypass geofencing/time-window checks
     const isAdmin = await getIsAdmin(req as any);
     const teamIds = [homeTeamId, awayTeamId].filter(Boolean) as string[];
-    const isTeamMember = teamIds.length > 0
-      ? !!(await prisma.teamMembership.findFirst({
-          where: { user_id: req.user.id, team_id: { in: teamIds }, status: 'active' },
-          select: { id: true },
-        }))
-      : false;
+    const isTeamMember =
+      teamIds.length > 0
+        ? !!(await prisma.teamMembership.findFirst({
+            where: { user_id: req.user.id, team_id: { in: teamIds }, status: 'active' },
+            select: { id: true },
+          }))
+        : false;
 
     if (isAdmin || isTeamMember) {
       debugLog(`✅ Geofencing bypassed (isAdmin=${isAdmin}, isTeamMember=${isTeamMember})`);
     } else if (targetEventId) {
-      const verification = await verifyEventPostingPermission(
-        targetEventId,
-        req.user.id,
-        lat,
-        lng
-      );
+      const verification = await verifyEventPostingPermission(targetEventId, req.user.id, lat, lng);
       if (!verification.allowed) {
         return res.status(403).json({
           error: verification.code || 'LOCATION_VERIFICATION_FAILED',
@@ -641,7 +787,9 @@ postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
           distance: verification.distance,
         });
       }
-      debugLog(`✅ User ${req.user.id} verified at event location (${verification.distance?.toFixed(2)} km away)`);
+      debugLog(
+        `✅ User ${req.user.id} verified at event location (${verification.distance?.toFixed(2)} km away)`
+      );
     } else if (gameId) {
       debugLog(`⚠️  Game ${gameId} has no associated event — allowing post without geofence`);
     }
@@ -663,7 +811,9 @@ postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
       },
     });
     if (!membership) {
-      return res.status(403).json({ error: 'Only team coaches or owners can post to their team page' });
+      return res
+        .status(403)
+        .json({ error: 'Only team coaches or owners can post to their team page' });
     }
     finalTeamId = data.team_id;
   }
@@ -698,7 +848,13 @@ postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
       await notifyMentions({
         content: contentForMentions,
         actorId: req.user.id,
-        actorName: (await prisma.user.findUnique({ where: { id: req.user.id }, select: { display_name: true } }))?.display_name || 'Someone',
+        actorName:
+          (
+            await prisma.user.findUnique({
+              where: { id: req.user.id },
+              select: { display_name: true },
+            })
+          )?.display_name || 'Someone',
         postId: post.id,
         context: 'post',
       });
@@ -707,10 +863,10 @@ postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
     }
   }
 
-  res.status(201).json({ 
-    ...post, 
+  res.status(201).json({
+    ...post,
     title: cleanTitle(post.title),
-    location: { lat, lng, place_name, country_code } 
+    location: { lat, lng, place_name, country_code },
   });
 });
 
@@ -745,7 +901,7 @@ postsRouter.post('/:id/poll', requireAuth as any, async (req: AuthedRequest, res
         post_id: postId,
         expires_at: expires_at ? new Date(expires_at) : undefined,
         options: {
-          create: options.map((text) => ({ text })),
+          create: options.map(text => ({ text })),
         },
       },
       include: {
@@ -782,7 +938,10 @@ postsRouter.post('/:id/poll/vote', requireAuth as any, async (req: AuthedRequest
 
   const { option_id } = parsed.data;
 
-  const postExists = await prisma.post.findFirst({ where: { id: postId, deleted_at: null }, select: { id: true } });
+  const postExists = await prisma.post.findFirst({
+    where: { id: postId, deleted_at: null },
+    select: { id: true },
+  });
   if (!postExists) {
     return res.status(404).json({ error: 'Post not found' });
   }
@@ -829,14 +988,23 @@ postsRouter.post('/:id/poll/vote', requireAuth as any, async (req: AuthedRequest
 
     await prisma.$transaction([
       prisma.pollVote.delete({ where: { id: existingVote.id } }),
-      prisma.pollOption.update({ where: { id: existingVote.poll_option_id }, data: { votes_count: { decrement: 1 } } }),
+      prisma.pollOption.update({
+        where: { id: existingVote.poll_option_id },
+        data: { votes_count: { decrement: 1 } },
+      }),
       prisma.pollVote.create({ data: { poll_option_id: option_id, user_id: userId } }),
-      prisma.pollOption.update({ where: { id: option_id }, data: { votes_count: { increment: 1 } } }),
+      prisma.pollOption.update({
+        where: { id: option_id },
+        data: { votes_count: { increment: 1 } },
+      }),
     ]);
   } else {
     await prisma.$transaction([
       prisma.pollVote.create({ data: { poll_option_id: option_id, user_id: userId } }),
-      prisma.pollOption.update({ where: { id: option_id }, data: { votes_count: { increment: 1 } } }),
+      prisma.pollOption.update({
+        where: { id: option_id },
+        data: { votes_count: { increment: 1 } },
+      }),
     ]);
   }
 
@@ -862,14 +1030,14 @@ postsRouter.get('/:id', async (req: AuthedRequest, res) => {
 
   let post: any;
   try {
-    post = await prisma.post.findFirst({ 
-      where: { id, deleted_at: null }, 
-      include: { 
+    post = await prisma.post.findFirst({
+      where: { id, deleted_at: null },
+      include: {
         author: { select: { id: true, username: true, display_name: true, avatar_url: true } },
         game: { select: { id: true, title: true, home_team: true, away_team: true, date: true } },
         _count: { select: { comments: true, bookmarks: true } },
         poll: { include: { options: true } },
-      } 
+      },
     });
   } catch (error: any) {
     if (!isMissingPollSchemaError(error)) {
@@ -877,16 +1045,16 @@ postsRouter.get('/:id', async (req: AuthedRequest, res) => {
       return res.status(500).json({ error: 'Failed to fetch post' });
     }
     logPollSchemaFallback('GET /posts/:id', error);
-    post = await prisma.post.findFirst({ 
-      where: { id, deleted_at: null }, 
-      include: { 
+    post = await prisma.post.findFirst({
+      where: { id, deleted_at: null },
+      include: {
         author: { select: { id: true, username: true, display_name: true, avatar_url: true } },
         game: { select: { id: true, title: true, home_team: true, away_team: true, date: true } },
         _count: { select: { comments: true, bookmarks: true } },
-      } 
+      },
     });
   }
-  
+
   if (!post) return res.status(404).json({ error: 'Not found' });
 
   let has_upvoted = false;
@@ -896,12 +1064,29 @@ postsRouter.get('/:id', async (req: AuthedRequest, res) => {
 
   if (currentUserId && post) {
     const [upvotes, bookmarks, follows, pollVote] = await Promise.all([
-      prisma.postUpvote.findUnique({ where: { post_id_user_id: { post_id: id, user_id: currentUserId } } }),
-      prisma.postBookmark.findUnique({ where: { post_id_user_id: { post_id: id, user_id: currentUserId } } }),
-      post.author_id ? prisma.follows.findUnique({ where: { follower_id_following_id: { follower_id: currentUserId, following_id: post.author_id } } }) : null,
-      post.poll ? prisma.pollVote.findFirst({ where: { user_id: currentUserId, poll_option: { poll_id: post.poll.id } } }) : null,
+      prisma.postUpvote.findUnique({
+        where: { post_id_user_id: { post_id: id, user_id: currentUserId } },
+      }),
+      prisma.postBookmark.findUnique({
+        where: { post_id_user_id: { post_id: id, user_id: currentUserId } },
+      }),
+      post.author_id
+        ? prisma.follows.findUnique({
+            where: {
+              follower_id_following_id: {
+                follower_id: currentUserId,
+                following_id: post.author_id,
+              },
+            },
+          })
+        : null,
+      post.poll
+        ? prisma.pollVote.findFirst({
+            where: { user_id: currentUserId, poll_option: { poll_id: post.poll.id } },
+          })
+        : null,
     ]);
-    
+
     has_upvoted = !!upvotes;
     has_bookmarked = !!bookmarks;
     is_following_author = !!follows;
@@ -925,18 +1110,22 @@ postsRouter.get('/:id', async (req: AuthedRequest, res) => {
     caption: post.content ?? null,
     bookmarks_count: post._count?.bookmarks ?? 0,
     comments_count: post._count?.comments ?? 0,
-    poll: post.poll ? {
-      ...post.poll,
-      userVote: user_vote,
-      totalVotes: post.poll.options.reduce((acc: number, opt: any) => acc + opt.votes_count, 0),
-    } : null,
-    game: post.game ? {
-      id: post.game.id,
-      title: post.game.title,
-      home_team: post.game.home_team,
-      away_team: post.game.away_team,
-      date: post.game.date,
-    } : null,
+    poll: post.poll
+      ? {
+          ...post.poll,
+          userVote: user_vote,
+          totalVotes: post.poll.options.reduce((acc: number, opt: any) => acc + opt.votes_count, 0),
+        }
+      : null,
+    game: post.game
+      ? {
+          id: post.game.id,
+          title: post.game.title,
+          home_team: post.game.home_team,
+          away_team: post.game.away_team,
+          date: post.game.date,
+        }
+      : null,
   };
 
   res.json(response);
@@ -945,7 +1134,10 @@ postsRouter.get('/:id', async (req: AuthedRequest, res) => {
 // Comments
 postsRouter.get('/:id/comments', async (req, res) => {
   const { id } = req.params;
-  const post = await prisma.post.findFirst({ where: { id, deleted_at: null }, select: { id: true } });
+  const post = await prisma.post.findFirst({
+    where: { id, deleted_at: null },
+    select: { id: true },
+  });
   if (!post) return res.status(404).json({ error: 'Post not found' });
   const limit = Math.min(parseInt(String(req.query.limit ?? '20'), 10) || 20, 50);
   const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : null;
@@ -953,7 +1145,7 @@ postsRouter.get('/:id/comments', async (req, res) => {
     where: { post_id: id },
     orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
     include: {
-      author: { select: { id: true, display_name: true, avatar_url: true } }
+      author: { select: { id: true, display_name: true, avatar_url: true } },
     },
     take: limit + 1,
   };
@@ -987,7 +1179,9 @@ postsRouter.post('/:id/comments', requireAuth as any, async (req: AuthedRequest,
   }
   if (commentPermission === 'following' && post.author_id !== req.user!.id) {
     const follows = await prisma.follows.findUnique({
-      where: { follower_id_following_id: { follower_id: req.user!.id, following_id: post.author_id } },
+      where: {
+        follower_id_following_id: { follower_id: req.user!.id, following_id: post.author_id },
+      },
       select: { follower_id: true },
     });
     if (!follows) {
@@ -1006,7 +1200,7 @@ postsRouter.post('/:id/comments', requireAuth as any, async (req: AuthedRequest,
   if (!parsed.success) {
     return res.status(400).json({
       error: 'Invalid payload',
-      issues: parsed.error.issues.map((i) => ({ path: i.path, message: i.message })),
+      issues: parsed.error.issues.map(i => ({ path: i.path, message: i.message })),
     });
   }
 
@@ -1110,16 +1304,26 @@ postsRouter.post('/:id/upvote', requireAuth as any, async (req: AuthedRequest, r
   const postId = String(req.params.id);
   const userId = req.user!.id;
 
-  const postExists = await prisma.post.findFirst({ where: { id: postId, deleted_at: null }, select: { id: true } });
+  const postExists = await prisma.post.findFirst({
+    where: { id: postId, deleted_at: null },
+    select: { id: true },
+  });
   if (!postExists) return res.status(404).json({ error: 'Post not found' });
 
-  const existing = await prisma.postUpvote.findUnique({ where: { post_id_user_id: { post_id: postId, user_id: userId } } });
+  const existing = await prisma.postUpvote.findUnique({
+    where: { post_id_user_id: { post_id: postId, user_id: userId } },
+  });
   if (existing) {
     await prisma.$transaction([
-      prisma.postUpvote.delete({ where: { post_id_user_id: { post_id: postId, user_id: userId } } }),
+      prisma.postUpvote.delete({
+        where: { post_id_user_id: { post_id: postId, user_id: userId } },
+      }),
       prisma.post.update({ where: { id: postId }, data: { upvotes_count: { decrement: 1 } } }),
     ]);
-    const { upvotes_count } = await prisma.post.findFirstOrThrow({ where: { id: postId, deleted_at: null }, select: { upvotes_count: true } });
+    const { upvotes_count } = await prisma.post.findFirstOrThrow({
+      where: { id: postId, deleted_at: null },
+      select: { upvotes_count: true },
+    });
     return res.json({ has_upvoted: false, upvotes_count, upvoted: false, count: upvotes_count });
   }
 
@@ -1127,25 +1331,31 @@ postsRouter.post('/:id/upvote', requireAuth as any, async (req: AuthedRequest, r
     prisma.postUpvote.create({ data: { post_id: postId, user_id: userId } }),
     prisma.post.update({ where: { id: postId }, data: { upvotes_count: { increment: 1 } } }),
   ]);
-  const { upvotes_count } = await prisma.post.findFirstOrThrow({ where: { id: postId, deleted_at: null }, select: { upvotes_count: true } });
-  
+  const { upvotes_count } = await prisma.post.findFirstOrThrow({
+    where: { id: postId, deleted_at: null },
+    select: { upvotes_count: true },
+  });
+
   // Notify post author (if not self)
   try {
-    const post = await prisma.post.findFirst({ 
-      where: { id: postId, deleted_at: null }, 
-      select: { 
+    const post = await prisma.post.findFirst({
+      where: { id: postId, deleted_at: null },
+      select: {
         author_id: true,
-        author: { select: { display_name: true } }
-      } 
+        author: { select: { display_name: true } },
+      },
     });
     const recipient = post?.author_id;
     if (recipient && recipient !== userId) {
-      await (prisma as any).notification.create({ 
-        data: { user_id: recipient, actor_id: userId, type: 'UPVOTE', post_id: postId } 
+      await (prisma as any).notification.create({
+        data: { user_id: recipient, actor_id: userId, type: 'UPVOTE', post_id: postId },
       });
-      
+
       // Send push notification
-      const actor = await prisma.user.findUnique({ where: { id: userId }, select: { display_name: true } });
+      const actor = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { display_name: true },
+      });
       if (actor) {
         await notifyPostInteraction(
           recipient,
@@ -1162,17 +1372,23 @@ postsRouter.post('/:id/upvote', requireAuth as any, async (req: AuthedRequest, r
   return res.json({ has_upvoted: true, upvotes_count, upvoted: true, count: upvotes_count });
 });
 
-
 postsRouter.post('/:id/bookmark', requireAuth as any, async (req: AuthedRequest, res) => {
   const postId = String(req.params.id);
   const userId = req.user!.id;
 
-  const postExists = await prisma.post.findFirst({ where: { id: postId, deleted_at: null }, select: { id: true } });
+  const postExists = await prisma.post.findFirst({
+    where: { id: postId, deleted_at: null },
+    select: { id: true },
+  });
   if (!postExists) return res.status(404).json({ error: 'Post not found' });
 
-  const existing = await prisma.postBookmark.findUnique({ where: { post_id_user_id: { post_id: postId, user_id: userId } } });
+  const existing = await prisma.postBookmark.findUnique({
+    where: { post_id_user_id: { post_id: postId, user_id: userId } },
+  });
   if (existing) {
-    await prisma.postBookmark.delete({ where: { post_id_user_id: { post_id: postId, user_id: userId } } });
+    await prisma.postBookmark.delete({
+      where: { post_id_user_id: { post_id: postId, user_id: userId } },
+    });
     const bookmarks_count = await prisma.postBookmark.count({ where: { post_id: postId } });
     return res.json({ has_bookmarked: false, bookmarks_count, bookmarked: false });
   }
@@ -1204,7 +1420,10 @@ postsRouter.post('/:id/share', requireAuth as any, async (req: AuthedRequest, re
           post_id: postId,
         },
       });
-      const actor = await prisma.user.findUnique({ where: { id: userId }, select: { display_name: true } });
+      const actor = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { display_name: true },
+      });
       await notifyPostInteraction(
         postAuthorId,
         'share',
@@ -1237,9 +1456,11 @@ postsRouter.delete('/:id', requireAuth as any, async (req: AuthedRequest, res) =
     const isAuthor = post.author_id === userId;
     const isTeamCoach = await isCoachOfPostTeam(userId, post);
     if (!isAuthor && !isTeamCoach) {
-      return res.status(403).json({ error: 'You can only delete your own posts or posts on your team page' });
+      return res
+        .status(403)
+        .json({ error: 'You can only delete your own posts or posts on your team page' });
     }
-    
+
     const deletedAt = new Date();
     await prisma.post.update({ where: { id: postId }, data: { deleted_at: deletedAt } });
     res.json({
@@ -1341,7 +1562,9 @@ postsRouter.patch('/:id', requireAuth as any, async (req: AuthedRequest, res) =>
       // Coach can only toggle is_pinned
       updateData = { is_pinned: parsed.data.is_pinned };
     } else {
-      return res.status(403).json({ error: 'You can only edit your own posts or pin posts on your team page' });
+      return res
+        .status(403)
+        .json({ error: 'You can only edit your own posts or pin posts on your team page' });
     }
 
     if (Object.keys(updateData).length === 0) {
@@ -1379,98 +1602,108 @@ postsRouter.patch('/:id', requireAuth as any, async (req: AuthedRequest, res) =>
 });
 
 // Delete comment (author or post owner)
-postsRouter.delete('/:postId/comments/:commentId', requireAuth as any, async (req: AuthedRequest, res) => {
-  const { postId, commentId } = req.params;
-  const userId = req.user!.id;
+postsRouter.delete(
+  '/:postId/comments/:commentId',
+  requireAuth as any,
+  async (req: AuthedRequest, res) => {
+    const { postId, commentId } = req.params;
+    const userId = req.user!.id;
 
-  try {
-    // Check if comment exists and get post owner for permission check
-    const comment = await prisma.comment.findUnique({ 
-      where: { id: commentId },
-      include: { post: { select: { author_id: true } } }
-    });
-    
-    if (!comment) {
-      return res.status(404).json({ error: 'Comment not found' });
+    try {
+      // Check if comment exists and get post owner for permission check
+      const comment = await prisma.comment.findUnique({
+        where: { id: commentId },
+        include: { post: { select: { author_id: true } } },
+      });
+
+      if (!comment) {
+        return res.status(404).json({ error: 'Comment not found' });
+      }
+
+      if (comment.post_id !== postId) {
+        return res.status(400).json({ error: 'Comment does not belong to this post' });
+      }
+
+      const isCommentAuthor = comment.author_id === userId;
+      const isPostOwner = comment.post?.author_id === userId;
+      if (!isCommentAuthor && !isPostOwner) {
+        return res
+          .status(403)
+          .json({ error: 'You can only delete your own comments or comments on your posts' });
+      }
+
+      // Delete the comment
+      await prisma.comment.delete({ where: { id: commentId } });
+
+      res.json({ message: 'Comment deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting comment:', error);
+      res.status(500).json({ error: 'Failed to delete comment' });
     }
-    
-    if (comment.post_id !== postId) {
-      return res.status(400).json({ error: 'Comment does not belong to this post' });
-    }
-    
-    const isCommentAuthor = comment.author_id === userId;
-    const isPostOwner = comment.post?.author_id === userId;
-    if (!isCommentAuthor && !isPostOwner) {
-      return res.status(403).json({ error: 'You can only delete your own comments or comments on your posts' });
-    }
-    
-    // Delete the comment
-    await prisma.comment.delete({ where: { id: commentId } });
-    
-    res.json({ message: 'Comment deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting comment:', error);
-    res.status(500).json({ error: 'Failed to delete comment' });
   }
-});
+);
 
 // Update comment (author only)
-postsRouter.patch('/:postId/comments/:commentId', requireAuth as any, async (req: AuthedRequest, res) => {
-  const { postId, commentId } = req.params;
-  const userId = req.user!.id;
-  
-  const schema = z.object({
-    content: z.string().min(1).max(1000),
-  });
-  
-  const parsed = schema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
-  }
+postsRouter.patch(
+  '/:postId/comments/:commentId',
+  requireAuth as any,
+  async (req: AuthedRequest, res) => {
+    const { postId, commentId } = req.params;
+    const userId = req.user!.id;
 
-  try {
-    // Check if comment exists and user is the author
-    const comment = await prisma.comment.findUnique({ 
-      where: { id: commentId },
-      select: { id: true, author_id: true, post_id: true }
+    const schema = z.object({
+      content: z.string().min(1).max(1000),
     });
-    
-    if (!comment) {
-      return res.status(404).json({ error: 'Comment not found' });
-    }
-    
-    if (comment.post_id !== postId) {
-      return res.status(400).json({ error: 'Comment does not belong to this post' });
-    }
-    
-    if (comment.author_id !== userId) {
-      return res.status(403).json({ error: 'You can only edit your own comments' });
+
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
     }
 
-    // Content filter
-    const filterResult = validateContent({ content: parsed.data.content });
-    if (!filterResult.valid) {
-      return res.status(400).json({
-        error: filterResult.error,
-        code: filterResult.code,
+    try {
+      // Check if comment exists and user is the author
+      const comment = await prisma.comment.findUnique({
+        where: { id: commentId },
+        select: { id: true, author_id: true, post_id: true },
       });
-    }
-    
-    // Update the comment
-    const updatedComment = await prisma.comment.update({ 
-      where: { id: commentId },
-      data: { content: parsed.data.content },
-      include: {
-        author: { select: { id: true, display_name: true, avatar_url: true } }
+
+      if (!comment) {
+        return res.status(404).json({ error: 'Comment not found' });
       }
-    });
-    
-    res.json(updatedComment);
-  } catch (error) {
-    console.error('Error updating comment:', error);
-    res.status(500).json({ error: 'Failed to update comment' });
+
+      if (comment.post_id !== postId) {
+        return res.status(400).json({ error: 'Comment does not belong to this post' });
+      }
+
+      if (comment.author_id !== userId) {
+        return res.status(403).json({ error: 'You can only edit your own comments' });
+      }
+
+      // Content filter
+      const filterResult = validateContent({ content: parsed.data.content });
+      if (!filterResult.valid) {
+        return res.status(400).json({
+          error: filterResult.error,
+          code: filterResult.code,
+        });
+      }
+
+      // Update the comment
+      const updatedComment = await prisma.comment.update({
+        where: { id: commentId },
+        data: { content: parsed.data.content },
+        include: {
+          author: { select: { id: true, display_name: true, avatar_url: true } },
+        },
+      });
+
+      res.json(updatedComment);
+    } catch (error) {
+      console.error('Error updating comment:', error);
+      res.status(500).json({ error: 'Failed to update comment' });
+    }
   }
-});
+);
 
 // New route handler for creating a collage post
 postsRouter.post('/collage', requireVerified as any, async (req: AuthedRequest, res) => {
@@ -1501,7 +1734,9 @@ postsRouter.post('/collage', requireVerified as any, async (req: AuthedRequest, 
   });
 
   if (posts.length !== postIds.length) {
-    return res.status(403).json({ error: 'You can only create a collage from your own posts that have media.' });
+    return res
+      .status(403)
+      .json({ error: 'You can only create a collage from your own posts that have media.' });
   }
 
   // In a real implementation, we would generate a collage image here.
@@ -1515,7 +1750,7 @@ postsRouter.post('/collage', requireVerified as any, async (req: AuthedRequest, 
       author_id: req.user!.id,
       type: 'collage',
       // In a real app, this would be the URL to the generated collage image
-      media_url: posts[0].media_url, 
+      media_url: posts[0].media_url,
     },
   });
 

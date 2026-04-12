@@ -1,5 +1,5 @@
 import cors from 'cors';
-import 'dotenv/config';
+import './lib/load-env.js';
 import express, { NextFunction, Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
@@ -56,14 +56,55 @@ if (!isTest) {
 app.set('trust proxy', true);
 
 // pino-http ESM interop can require using the default property in some setups
-const pinoMiddleware = (typeof (pinoHttp as any) === 'function' ? (pinoHttp as any) : (pinoHttp as any).default) || pinoHttp;
-app.use(pinoMiddleware(
-  process.env.NODE_ENV === 'production' ? {} : { transport: { target: 'pino-pretty' } }
-));
-// In dev, disable CSP to allow loading media from API when app runs on a different origin
-app.use(helmet({ contentSecurityPolicy: false }));
+const pinoMiddleware =
+  (typeof (pinoHttp as any) === 'function' ? (pinoHttp as any) : (pinoHttp as any).default) ||
+  pinoHttp;
 
+/**
+ * PII redaction: pino replaces these paths with `[Redacted]` before the log
+ * line leaves the process. Adding a path here is cheap; re-indexing logs to
+ * strip a leaked token after the fact is not. Covers common shapes across
+ * auth, billing, and OAuth handlers.
+ */
+const PII_REDACT_PATHS = [
+  'req.headers.authorization',
+  'req.headers.cookie',
+  'req.headers["set-cookie"]',
+  'req.body.password',
+  'req.body.new_password',
+  'req.body.current_password',
+  'req.body.identity_token',
+  'req.body.raw_nonce',
+  'req.body.code',
+  'req.body.token',
+  'req.body.refresh_token',
+  'req.body.access_token',
+  'req.body.id_token',
+  'req.body.email_verification_code',
+  'res.headers["set-cookie"]',
+];
+
+app.use(
+  pinoMiddleware(
+    process.env.NODE_ENV === 'production'
+      ? { redact: { paths: PII_REDACT_PATHS, censor: '[Redacted]' } }
+      : {
+          redact: { paths: PII_REDACT_PATHS, censor: '[Redacted]' },
+          transport: { target: 'pino-pretty' },
+        }
+  )
+);
 const isProd = process.env.NODE_ENV === 'production';
+
+// CSP is on in production (helmet's default) and off in dev (Expo's dev host
+// changes per boot, so the default policy blocks legitimate local requests).
+// HSTS/X-Content-Type-Options/X-Frame-Options are always on via helmet defaults.
+app.use(
+  helmet({
+    contentSecurityPolicy: isProd ? undefined : false,
+    crossOriginEmbedderPolicy: false,
+  })
+);
 const defaultProdOrigins = [
   'https://varsityhub.app',
   'https://app.varsityhub.app',
@@ -78,9 +119,9 @@ const defaultDevOrigins = [
 ];
 const envAllowedOrigins = (process.env.ALLOWED_ORIGINS || '')
   .split(',')
-  .map((s) => s.trim())
+  .map(s => s.trim())
   .filter(Boolean);
-const hasWildcardOrigin = envAllowedOrigins.some((origin) => origin === '*');
+const hasWildcardOrigin = envAllowedOrigins.some(origin => origin === '*');
 if (hasWildcardOrigin) {
   const message = '[cors] ALLOWED_ORIGINS includes "*"; configure explicit origins instead.';
   if (isProd) {
@@ -97,7 +138,7 @@ const allowedOrigins = Array.from(
   new Set([
     ...defaultProdOrigins,
     ...(isProd ? [] : defaultDevOrigins),
-    ...envAllowedOrigins.filter((origin) => origin !== '*'),
+    ...envAllowedOrigins.filter(origin => origin !== '*'),
   ])
 ).filter(Boolean);
 if (isProd && allowedOrigins.length === 0) {
@@ -109,7 +150,7 @@ const isAllowedOrigin = (origin?: string | null) => {
   // Allow exact matches
   if (allowedOrigins.includes(origin)) return true;
   // Allow wildcard pattern matches
-  return wildcardOriginMatchers.some((pattern) => pattern.test(origin));
+  return wildcardOriginMatchers.some(pattern => pattern.test(origin));
 };
 const corsOptions: cors.CorsOptions = {
   origin: (origin, cb) => {
@@ -121,7 +162,14 @@ const corsOptions: cors.CorsOptions = {
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Requested-With',
+    'If-None-Match',
+    'Cache-Control',
+    'Pragma',
+  ],
   exposedHeaders: ['X-Total-Count', 'X-Page-Count'],
 };
 debugLog(`[cors] allowed origins: ${allowedOrigins.join(', ') || '(regex only)'}`);
@@ -141,12 +189,12 @@ const noStore = (_req: Request, res: Response, next: NextFunction) => {
 // Stripe webhook must be registered before body parsing so we can verify signatures
 // Special raw body parser for Stripe webhooks (payments + legacy billing path)
 const rawBodyPaths = ['/payments/webhook', '/billing/webhooks/stripe'];
-rawBodyPaths.forEach((path) => {
+rawBodyPaths.forEach(path => {
   app.use(path, express.raw({ type: 'application/json' }));
 });
 
 app.use((req, res, next) => {
-  if (rawBodyPaths.some((path) => req.originalUrl.startsWith(path))) {
+  if (rawBodyPaths.some(path => req.originalUrl.startsWith(path))) {
     return next();
   }
   return express.json()(req, res, next);
@@ -191,7 +239,7 @@ const apiLimiter = rateLimit({
   max: isDev ? 100000 : 2000, // Increased from 500 to 2000 for normal app usage
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => isDev || req.path === '/health',
+  skip: req => isDev || req.path === '/health',
 });
 
 app.use('/health', healthRouter);
@@ -200,18 +248,30 @@ app.use('/health', healthRouter);
 app.use('/.well-known', wellKnownRouter);
 
 // API Documentation
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
-  swaggerOptions: {
-    persistAuthorization: true,
-  },
-}));
+app.use(
+  '/api-docs',
+  swaggerUi.serve,
+  swaggerUi.setup(swaggerSpec, {
+    swaggerOptions: {
+      persistAuthorization: true,
+    },
+  })
+);
 debugLog('📚 API documentation available at /api-docs');
 
 app.use('/auth', authLimiter, authRouter);
-app.get('/me', noStore, (req, res, next) => (authRouter as any).handle({ ...req, url: '/me' }, res, next));
-app.patch('/me/preferences', noStore, (req, res, next) => (authRouter as any).handle({ ...req, url: '/me/preferences' }, res, next));
-app.patch('/me', noStore, (req, res, next) => (authRouter as any).handle({ ...req, url: '/me' }, res, next));
-app.post('/me/complete-onboarding', noStore, (req, res, next) => (authRouter as any).handle({ ...req, url: '/me/complete-onboarding' }, res, next));
+app.get('/me', noStore, (req, res, next) =>
+  (authRouter as any).handle({ ...req, url: '/me' }, res, next)
+);
+app.patch('/me/preferences', noStore, (req, res, next) =>
+  (authRouter as any).handle({ ...req, url: '/me/preferences' }, res, next)
+);
+app.patch('/me', noStore, (req, res, next) =>
+  (authRouter as any).handle({ ...req, url: '/me' }, res, next)
+);
+app.post('/me/complete-onboarding', noStore, (req, res, next) =>
+  (authRouter as any).handle({ ...req, url: '/me/complete-onboarding' }, res, next)
+);
 app.use('/games', apiLimiter, gamesRouter);
 app.use('/posts', apiLimiter, postsRouter);
 app.use('/notifications', noStore, apiLimiter, notificationsRouter);
@@ -259,9 +319,7 @@ if (!isTest) {
 // Game reminder cron — runs every hour, checks for games starting in 12h and 1h
 if (!isTest) {
   cron.schedule('0 * * * *', () => {
-    void runGameReminders().catch((err) =>
-      console.error('[cron] game-reminders failed:', err)
-    );
+    void runGameReminders().catch(err => console.error('[cron] game-reminders failed:', err));
   });
   debugLog('[cron] Game reminder job scheduled (every hour)');
 }

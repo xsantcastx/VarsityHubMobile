@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { NextFunction, Request, Response, Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import multer from 'multer';
 import fs from 'node:fs';
@@ -41,3 +41,14 @@ uploadRouter.post('/avatar', uploadLimiter, memory.single('file'), async (req: A
   }
 });
 
+uploadRouter.use((err: any, _req: Request, res: Response, next: NextFunction) => {
+  if (!(err instanceof multer.MulterError)) {
+    return next(err);
+  }
+
+  if (err.code === 'LIMIT_FILE_SIZE') {
+    return res.status(413).json({ error: 'File too large. Max 5MB.' });
+  }
+
+  return res.status(400).json({ error: err.message || 'Upload failed' });
+});

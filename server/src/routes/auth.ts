@@ -15,14 +15,15 @@ import { signJwt, signRefreshJwt, verifyRefreshJwt } from '../lib/jwt.js';
 import { prisma } from '../lib/prisma.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { invalidateAuthCache, type AuthedRequest } from '../middleware/auth.js';
-import { passwordResetLimiter } from '../middleware/rateLimiters.js';
+import { authLimiter, passwordResetLimiter } from '../middleware/rateLimiters.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
 
 export const authRouter = Router();
-// Simple in-memory rate limiting for auth endpoints
-const authRate: Map<string, { attempts: number; resetAt: number }> = new Map();
-const MAX_AUTH_ATTEMPTS = 10;
-const AUTH_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+
+// Rate limiting on login/password-reset/OTP lives in `authLimiter`
+// (middleware/rateLimiters.ts), which uses Redis when REDIS_URL is set so
+// the counter survives process restarts and cross-instance brute-force.
+
 const debugLog = (...args: Parameters<typeof console.log>) => {
   if (process.env.ENABLE_SERVER_DEBUG_LOGS === 'true' || process.env.NODE_ENV !== 'production') {
     console.log(...args);
@@ -30,23 +31,6 @@ const debugLog = (...args: Parameters<typeof console.log>) => {
 };
 
 const generateOtpCode = () => String(randomInt(100000, 1000000));
-
-function checkAuthRateLimit(identifier: string): boolean {
-  const now = Date.now();
-  const record = authRate.get(identifier);
-
-  if (!record || now > record.resetAt) {
-    authRate.set(identifier, { attempts: 1, resetAt: now + AUTH_WINDOW_MS });
-    return true;
-  }
-
-  if (record.attempts >= MAX_AUTH_ATTEMPTS) {
-    return false;
-  }
-
-  record.attempts++;
-  return true;
-}
 
 // simple in-memory rate limiting for verification send: 1/30s, 5/hour per user
 const verifyRate: Map<string, { last: number; count: number; hourStart: number }> = new Map();
@@ -253,16 +237,11 @@ authRouter.post(
 
 const loginSchema = z.object({ email: z.string().email(), password: z.string().min(1) });
 
-authRouter.post('/login', async (req, res) => {
+authRouter.post('/login', authLimiter as any, async (req, res) => {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid credentials' });
   const { email, password } = parsed.data;
   const sanitizedEmail = email.trim().toLowerCase();
-
-  // Rate limiting
-  if (!checkAuthRateLimit(sanitizedEmail)) {
-    return res.status(429).json({ error: 'Too many login attempts. Please try again later.' });
-  }
 
   const user = await prisma.user.findUnique({ where: { email: sanitizedEmail } });
   if (!user) return res.status(401).json({ error: 'Invalid credentials' });
@@ -438,13 +417,19 @@ authRouter.post('/google', async (req, res) => {
 
 const appleAuthSchema = z.object({
   identity_token: z.string().min(1),
+  // SHA-256 hex of the nonce the client generated and included in the Sign-in
+  // with Apple request. Apple embeds the raw nonce hashed with SHA-256 into
+  // the `nonce` claim of the identity token. Comparing against what the
+  // client hands us defends against token replay. Optional for now to keep
+  // the flow backward-compatible while the client ships the nonce.
+  raw_nonce: z.string().min(16).max(256).optional(),
 });
 
 authRouter.post('/apple', async (req, res) => {
   const parsed = appleAuthSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
 
-  const { identity_token } = parsed.data;
+  const { identity_token, raw_nonce } = parsed.data;
 
   try {
     // In development/simulator, accept tokens starting with 'sim-' for testing
@@ -455,11 +440,15 @@ authRouter.post('/apple', async (req, res) => {
 
     let appleId: string;
     let email: string | null = null;
+    // Whether Apple asserted this email is real & verified. We only mark our
+    // own `email_verified` column true when Apple says so.
+    let appleEmailVerified = false;
 
     if (isDevelopmentToken) {
       // Extract the simulator user ID
       appleId = identity_token.replace('sim-', '');
       email = `${appleId}@privaterelay.appleid.com`;
+      appleEmailVerified = true;
       // Using development token for simulator
     } else {
       // Production: Verify Apple identity token
@@ -486,8 +475,32 @@ authRouter.post('/apple', async (req, res) => {
           audience: appleClientId,
         }) as JwtPayload;
 
+        // Replay defense: if the client supplied the raw nonce it generated
+        // for the SiwA request, Apple echoes it back hashed. Compare.
+        if (raw_nonce) {
+          const expectedNonce = crypto.createHash('sha256').update(raw_nonce).digest('hex');
+          const claimedNonce =
+            typeof (jwtPayload as any).nonce === 'string'
+              ? String((jwtPayload as any).nonce)
+              : null;
+          if (!claimedNonce || claimedNonce !== expectedNonce) {
+            console.error('[auth/apple] Nonce mismatch — possible replay');
+            return res.status(400).json({ error: 'Invalid Apple nonce' });
+          }
+        } else if (process.env.NODE_ENV === 'production') {
+          // Warn for now; once clients reliably send raw_nonce this becomes a
+          // hard 400. Tracking the transition in server logs lets us tell
+          // when we can flip it.
+          console.warn('[auth/apple] raw_nonce missing — recommend client upgrade');
+        }
+
         appleId = jwtPayload.sub as string;
         email = (jwtPayload.email as string) || null;
+        // Apple only sends `email_verified` when it has confirmed ownership.
+        // Treat missing or false as UNVERIFIED so we never auto-link to an
+        // existing local account by an unverified email claim.
+        const claimedVerified = (jwtPayload as any).email_verified;
+        appleEmailVerified = claimedVerified === true || claimedVerified === 'true';
 
         if (!appleId) {
           return res.status(400).json({ error: 'Missing user identifier in token' });
@@ -510,9 +523,12 @@ authRouter.post('/apple', async (req, res) => {
     let created = false;
 
     if (!user) {
-      // Check if user exists by email (if provided) - use case-insensitive search
+      // Only consider linking by email when Apple asserts the email is real
+      // AND already verified. Otherwise anyone who knows a victim's email
+      // could sign in with Apple against an unverified stub email and take
+      // over the local account.
       let existingByEmail = null;
-      if (email) {
+      if (email && appleEmailVerified) {
         existingByEmail = await prisma.user.findFirst({
           where: { email: { equals: email, mode: 'insensitive' } },
         });
@@ -528,6 +544,7 @@ authRouter.post('/apple', async (req, res) => {
 
         const updates: any = {
           apple_id: appleId,
+          // Safe: we only got here because Apple verified the email claim.
           email_verified: true,
           email_verification_code: null,
           email_verification_expires: null,
@@ -539,7 +556,10 @@ authRouter.post('/apple', async (req, res) => {
 
         user = await prisma.user.update({ where: { id: existingByEmail.id }, data: updates });
       } else {
-        // Create new user
+        // Create new user. If Apple didn't verify the email claim we still
+        // create the account (Apple itself authenticated the user) but we do
+        // NOT mark our email_verified flag — that gate enforces things like
+        // "only verified users can create organizations".
         const randomSecret = crypto.randomBytes(32).toString('hex');
         const password_hash = await bcrypt.hash(randomSecret, 10);
         const userEmail = email || `apple_${appleId.substring(0, 16)}@appleid.local`;
@@ -552,7 +572,7 @@ authRouter.post('/apple', async (req, res) => {
               password_hash,
               apple_id: appleId,
               display_name: displayName,
-              email_verified: true,
+              email_verified: appleEmailVerified,
               preferences: { role: 'fan', onboarding_completed: false },
             },
           });
@@ -766,7 +786,7 @@ authRouter.get('/me', async (req: AuthedRequest, res) => {
   // This ensures admin accounts always have onboarding_completed=true regardless of DB state
   // Non-admin users' preferences are merged without forcing onboarding_completed
   const userPrefs = (user as any).preferences || {};
-  const prefs = mergePreferences(userPrefs, defaults);
+  const prefs = mergePreferences(defaults, userPrefs);
   const moderationPrefs = getModerationPreferences(user.preferences);
   const sanitizedUser = sanitizeUser(user);
   return res.json({
@@ -1127,9 +1147,16 @@ authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
   // 2. Apply current user preferences on top (preserve user's actual values)
   // 3. Apply incoming changes on top (apply this update)
   const merged = mergePreferences(mergePreferences(defaults, currentPrefs), incoming);
+  // Mirror `profile_private` into its own column so the feed's SQL filter
+  // (posts.ts buildPostVisibilityWhere) stays authoritative. The JSON copy
+  // is retained for backward-compat during the transition window.
+  const updateData: any = { preferences: merged };
+  if (incoming.profile_private !== undefined) {
+    updateData.profile_private = incoming.profile_private === true;
+  }
   const updated = await prisma.user.update({
     where: { id: req.user.id },
-    data: { preferences: merged },
+    data: updateData,
   });
   return res.json({ preferences: updated.preferences });
 });
@@ -1385,7 +1412,8 @@ authRouter.post('/verify/confirm', async (req: AuthedRequest, res) => {
     return res.status(400).json({ error: 'Code expired' });
   if (String(code) !== String(user.email_verification_code)) {
     const nextAttempts = confirmRec && now < confirmRec.resetAt ? confirmRec.attempts + 1 : 1;
-    verifyConfirmRate.set(confirmKey, { attempts: nextAttempts, resetAt: now + AUTH_WINDOW_MS });
+    // 15-minute window per attempt cluster — same ceiling as before.
+    verifyConfirmRate.set(confirmKey, { attempts: nextAttempts, resetAt: now + 15 * 60 * 1000 });
     return res.status(400).json({ error: 'Invalid code' });
   }
   verifyConfirmRate.delete(confirmKey);

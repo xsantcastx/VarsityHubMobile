@@ -27,6 +27,25 @@ import { prisma } from './prisma.js';
 import { debugLog } from './debugLog.js';
 
 const expo = new Expo();
+let pushTicketTableReadyCache: boolean | null = null;
+let pushTicketTableReadyCheckedAt = 0;
+
+export async function isPushTicketStorageReady(): Promise<boolean> {
+  const now = Date.now();
+  if (pushTicketTableReadyCache !== null && now - pushTicketTableReadyCheckedAt < 60_000) {
+    return pushTicketTableReadyCache;
+  }
+
+  try {
+    await prisma.pushTicket.count({ where: { id: '__probe__' } });
+    pushTicketTableReadyCache = true;
+  } catch {
+    pushTicketTableReadyCache = false;
+  }
+
+  pushTicketTableReadyCheckedAt = now;
+  return pushTicketTableReadyCache;
+}
 
 /**
  * Remove a user's push_token from their preferences. Called when Expo reports
@@ -60,6 +79,10 @@ async function clearPushTokenForUser(userId: string, expectedToken?: string): Pr
  * Expo reference: https://docs.expo.dev/push-notifications/sending-notifications/#check-push-receipts-for-errors
  */
 export async function verifyPushReceipts(): Promise<{ checked: number; cleared: number }> {
+  if (!(await isPushTicketStorageReady())) {
+    return { checked: 0, cleared: 0 };
+  }
+
   const pending = await prisma.pushTicket.findMany({
     where: { status: 'pending' },
     take: 500,
@@ -198,16 +221,20 @@ export async function sendPushNotification(
         // if the error indicates it's invalid.
         for (const ticket of ticketChunk) {
           if (ticket.status === 'ok' && ticket.id) {
-            await prisma.pushTicket.create({
-              data: {
-                ticket_id: ticket.id,
-                user_id: userId,
-                push_token: pushToken,
-                status: 'pending',
-              },
-            }).catch((err) => {
-              console.error('[push] Failed to persist push ticket:', err);
-            });
+            if (await isPushTicketStorageReady()) {
+              await prisma.pushTicket
+                .create({
+                  data: {
+                    ticket_id: ticket.id,
+                    user_id: userId,
+                    push_token: pushToken,
+                    status: 'pending',
+                  },
+                })
+                .catch((err) => {
+                  console.error('[push] Failed to persist push ticket:', err);
+                });
+            }
           } else if (ticket.status === 'error') {
             const details = (ticket as any).details;
             if (details?.error === 'DeviceNotRegistered') {

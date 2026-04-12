@@ -20,10 +20,7 @@ import {
 import { invalidateAuthCache } from '../middleware/auth.js';
 import { requireAdmin as requireAdminMiddleware } from '../middleware/requireAdmin.js';
 import { requireVerified } from '../middleware/requireVerified.js';
-import {
-  markCoachApprovedForOrganization,
-  markCoachRejectedForOrganization,
-} from './organizations.js';
+import { approveCoachForOrganization, rejectCoachForOrganization } from '../lib/coachApproval.js';
 
 const adminRouter = express.Router();
 
@@ -341,12 +338,12 @@ adminRouter.patch(
 
     if (ownerMembership?.user?.id) {
       if (status === 'active') {
-        await markCoachApprovedForOrganization(
-          ownerMembership.user.id,
-          updated.id,
-          updated.name,
-          req.user!.id
-        );
+        await approveCoachForOrganization({
+          userId: ownerMembership.user.id,
+          organizationId: updated.id,
+          organizationName: updated.name,
+          actorId: req.user!.id,
+        });
       } else if (status === 'rejected') {
         await prisma.organizationMembership.updateMany({
           where: {
@@ -357,13 +354,13 @@ adminRouter.patch(
           data: { status: 'archived' },
         });
 
-        await markCoachRejectedForOrganization(
-          ownerMembership.user.id,
-          updated.id,
-          updated.name,
-          note || undefined,
-          req.user!.id
-        );
+        await rejectCoachForOrganization({
+          userId: ownerMembership.user.id,
+          organizationId: updated.id,
+          organizationName: updated.name,
+          reason: note || undefined,
+          actorId: req.user!.id,
+        });
       }
     }
 
@@ -423,6 +420,12 @@ adminRouter.post(
 
     if (action !== 'clear_suspension' && !reason) {
       return res.status(400).json({ error: 'Reason is required' });
+    }
+    if (action === 'approve_coach' && !organizationId) {
+      return res.status(400).json({
+        error: 'ORG_CONTEXT_REQUIRED',
+        message: 'Approving a coach requires organization context.',
+      });
     }
 
     const target = await prisma.user.findUnique({
@@ -506,21 +509,60 @@ adminRouter.post(
     }
 
     if (action === 'approve_coach' || action === 'reject_coach') {
-      updatedPrefs.role = action === 'approve_coach' ? 'coach' : 'fan';
-      updatedPrefs.approval_status = action === 'approve_coach' ? 'APPROVED' : 'REJECTED';
-      updatedPrefs.approval_reason = reason;
-      updatedPrefs.approval_reviewed_at = new Date().toISOString();
       if (resolvedOrganizationId) {
         const org = await prisma.organization.findUnique({
           where: { id: resolvedOrganizationId },
           select: { id: true, name: true },
         });
+        if (!org && action === 'approve_coach') {
+          return res.status(404).json({ error: 'Organization not found' });
+        }
         if (org) {
-          updatedPrefs.organization_id = org.id;
-          updatedPrefs.organization_name = org.name;
           resolvedOrganizationName = org.name;
         }
       }
+    }
+
+    if (action === 'approve_coach') {
+      const updated = await approveCoachForOrganization({
+        userId,
+        organizationId: resolvedOrganizationId,
+        organizationName: resolvedOrganizationName || undefined,
+        actorId: req.user!.id,
+        forceCoachRole: true,
+      });
+
+      await logAdminActivityFromReq(
+        req,
+        'Moderate User',
+        'user',
+        updated?.id || userId,
+        `Applied moderation action ${action} to ${updated?.email || target.email}`,
+        { action, reason: reason || null, organization_id: organizationId || null }
+      );
+
+      return res.json({ ok: true, user: updated });
+    }
+
+    if (action === 'reject_coach') {
+      const updated = await rejectCoachForOrganization({
+        userId,
+        organizationId: resolvedOrganizationId || null,
+        organizationName: resolvedOrganizationName || null,
+        reason,
+        actorId: req.user!.id,
+      });
+
+      await logAdminActivityFromReq(
+        req,
+        'Moderate User',
+        'user',
+        updated?.id || userId,
+        `Applied moderation action ${action} to ${updated?.email || target.email}`,
+        { action, reason: reason || null, organization_id: organizationId || null }
+      );
+
+      return res.json({ ok: true, user: updated });
     }
 
     const updated = await prisma.user.update({
@@ -538,134 +580,6 @@ adminRouter.post(
 
     if (emailPromise) {
       await emailPromise.catch(() => {});
-    }
-
-    if (action === 'approve_coach' && resolvedOrganizationId) {
-      await prisma.$transaction(async tx => {
-        const pendingJoinRequest = await tx.organizationJoinRequest.findUnique({
-          where: {
-            organization_id_user_id: {
-              organization_id: resolvedOrganizationId,
-              user_id: userId,
-            } as any,
-          },
-        });
-
-        if (pendingJoinRequest?.status === 'pending') {
-          await tx.organizationJoinRequest.update({
-            where: { id: pendingJoinRequest.id },
-            data: {
-              status: 'approved',
-              reviewed_at: new Date(),
-              reviewed_by: req.user!.id,
-            },
-          });
-        }
-
-        await tx.organizationMembership.upsert({
-          where: {
-            organization_id_user_id: {
-              organization_id: resolvedOrganizationId,
-              user_id: userId,
-            } as any,
-          },
-          update: {
-            status: 'active',
-          },
-          create: {
-            organization_id: resolvedOrganizationId,
-            user_id: userId,
-            role: 'member',
-            status: 'active',
-          },
-        });
-      });
-
-      await createInAppNotification({
-        userId: updated.id,
-        actorId: req.user!.id,
-        type: 'COACH_APPROVED',
-        meta: {
-          organization_id: resolvedOrganizationId,
-          organization_name: resolvedOrganizationName || null,
-        },
-      }).catch(() => {});
-
-      await sendPushNotification(
-        updated.id,
-        'Coach account approved',
-        resolvedOrganizationName
-          ? `Your coach access for ${resolvedOrganizationName} is now active.`
-          : 'Your coach access is now active.',
-        {
-          type: 'coach_approved',
-          organization_id: resolvedOrganizationId,
-          organization_name: resolvedOrganizationName || null,
-          screen: 'organization',
-        }
-      ).catch(() => {});
-    }
-
-    if (action === 'reject_coach') {
-      if (resolvedOrganizationId) {
-        await prisma.$transaction(async tx => {
-          const pendingJoinRequest = await tx.organizationJoinRequest.findUnique({
-            where: {
-              organization_id_user_id: {
-                organization_id: resolvedOrganizationId,
-                user_id: userId,
-              } as any,
-            },
-          });
-
-          if (pendingJoinRequest?.status === 'pending') {
-            await tx.organizationJoinRequest.update({
-              where: { id: pendingJoinRequest.id },
-              data: {
-                status: 'denied',
-                reviewed_at: new Date(),
-                reviewed_by: req.user!.id,
-                message: reason || pendingJoinRequest.message,
-              },
-            });
-          }
-
-          await tx.organizationMembership.updateMany({
-            where: {
-              organization_id: resolvedOrganizationId,
-              user_id: userId,
-              NOT: { status: 'archived' },
-            },
-            data: {
-              status: 'archived',
-            },
-          });
-        });
-      }
-
-      await createInAppNotification({
-        userId: updated.id,
-        actorId: req.user!.id,
-        type: 'COACH_REJECTED',
-        meta: {
-          organization_id: resolvedOrganizationId || null,
-          organization_name: resolvedOrganizationName || null,
-          reason: reason || null,
-        },
-      }).catch(() => {});
-
-      await sendPushNotification(
-        updated.id,
-        'Coach application update',
-        reason || 'Your coach application was not approved.',
-        {
-          type: 'coach_rejected',
-          organization_id: resolvedOrganizationId || null,
-          organization_name: resolvedOrganizationName || null,
-          reason: reason || null,
-          screen: 'profile',
-        }
-      ).catch(() => {});
     }
 
     await logAdminActivityFromReq(

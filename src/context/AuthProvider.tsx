@@ -14,7 +14,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import { useRouter, useSegments } from 'expo-router';
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 // @ts-ignore JS exports
 import auth from '@/api/auth';
 import { User } from '@/api/entities';
@@ -475,19 +475,37 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     }
   }, [user, pendingVerificationEmail, initializing, healthOk, router, hasCompletedOnboarding]);
 
-  const value: AuthContextType = {
-    user,
-    pendingVerificationEmail,
-    loading,
-    healthOk,
-    healthError,
-    isAdmin,
-    checkAuth,
-    signOut,
-    registerPushToken,
-    markOnboardingCompleteLocally,
-    markOnboardingIncompleteLocally,
-  };
+  // Memoize so downstream `useAuth()` consumers don't re-render on every
+  // parent state change. Every callback returned here is already wrapped in
+  // `useCallback` above, so their identities are stable.
+  const value: AuthContextType = useMemo(
+    () => ({
+      user,
+      pendingVerificationEmail,
+      loading,
+      healthOk,
+      healthError,
+      isAdmin,
+      checkAuth,
+      signOut,
+      registerPushToken,
+      markOnboardingCompleteLocally,
+      markOnboardingIncompleteLocally,
+    }),
+    [
+      user,
+      pendingVerificationEmail,
+      loading,
+      healthOk,
+      healthError,
+      isAdmin,
+      checkAuth,
+      signOut,
+      registerPushToken,
+      markOnboardingCompleteLocally,
+      markOnboardingIncompleteLocally,
+    ]
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

@@ -1080,12 +1080,15 @@ usersRouter.get('/:id', async (req: AuthedRequest, res) => {
       bio: true,
       created_at: true,
       preferences: true,
+      profile_private: true,
     },
   });
   if (!user) return res.status(404).json({ error: 'Not found' });
 
   const prefs = (user.preferences || {}) as any;
-  const profile_private = prefs?.profile_private === true;
+  // Prefer the column; fall back to legacy JSON for rows that haven't been
+  // re-saved since the migration.
+  const profile_private = user.profile_private === true || prefs?.profile_private === true;
   const is_parent = prefs?.is_parent === true;
 
   // Check if viewer is the profile owner or a follower

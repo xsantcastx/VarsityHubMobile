@@ -1,5 +1,4 @@
 import type { Twilio } from 'twilio';
-import twilio from 'twilio';
 import { debugLog } from './debugLog.js';
 
 // Initialize Twilio client
@@ -13,32 +12,46 @@ export const isTwilioConfigured = (): boolean => {
 
 // Initialize Twilio client if configured
 let twilioClient: Twilio | null = null;
+let twilioInitLogged = false;
 
-if (isTwilioConfigured()) {
-  twilioClient = twilio(accountSid, authToken);
-  debugLog('✅ Twilio configured - SMS verification enabled');
-} else {
-  debugLog('⚠️ Twilio not configured - SMS verification disabled (email only)');
+async function getTwilioClient(): Promise<Twilio | null> {
+  if (!isTwilioConfigured()) {
+    if (!twilioInitLogged) {
+      debugLog('⚠️ Twilio not configured - SMS verification disabled (email only)');
+      twilioInitLogged = true;
+    }
+    return null;
+  }
+
+  if (twilioClient) {
+    return twilioClient;
+  }
+
+  const { default: twilio } = await import('twilio');
+  twilioClient = twilio(accountSid!, authToken!);
+
+  if (!twilioInitLogged) {
+    debugLog('✅ Twilio configured - SMS verification enabled');
+    twilioInitLogged = true;
+  }
+
+  return twilioClient;
 }
 
 /**
  * Send SMS verification code to phone number
  */
 export async function sendSmsVerificationCode(phoneNumber: string, code: string): Promise<boolean> {
-  if (!isTwilioConfigured()) {
+  const client = await getTwilioClient();
+  if (!client) {
     debugLog('[twilio] Twilio not configured - skipping SMS');
-    return false;
-  }
-
-  if (!twilioClient) {
-    console.error('[twilio] Twilio client not initialized');
     return false;
   }
 
   try {
     const message = `Your VarsityHub verification code is: ${code}. This code expires in 30 minutes.`;
-    
-    await twilioClient.messages.create({
+
+    await client.messages.create({
       body: message,
       from: fromPhoneNumber,
       to: phoneNumber,
@@ -56,15 +69,16 @@ export async function sendSmsVerificationCode(phoneNumber: string, code: string)
  * Send SMS password reset code
  */
 export async function sendSmsPasswordReset(phoneNumber: string, code: string): Promise<boolean> {
-  if (!isTwilioConfigured() || !twilioClient) {
+  const client = await getTwilioClient();
+  if (!client) {
     debugLog('[twilio] Twilio not configured - skipping SMS');
     return false;
   }
 
   try {
     const message = `Your VarsityHub password reset code is: ${code}. This code expires in 30 minutes.`;
-    
-    await twilioClient.messages.create({
+
+    await client.messages.create({
       body: message,
       from: fromPhoneNumber,
       to: phoneNumber,
@@ -73,7 +87,10 @@ export async function sendSmsPasswordReset(phoneNumber: string, code: string): P
     debugLog(`[twilio] ✅ Password reset SMS sent successfully to ${phoneNumber}`);
     return true;
   } catch (error: any) {
-    console.error(`[twilio] ❌ Failed to send password reset SMS to ${phoneNumber}:`, error?.message || error);
+    console.error(
+      `[twilio] ❌ Failed to send password reset SMS to ${phoneNumber}:`,
+      error?.message || error
+    );
     return false;
   }
 }
@@ -82,13 +99,14 @@ export async function sendSmsPasswordReset(phoneNumber: string, code: string): P
  * Send SMS notification (generic)
  */
 export async function sendSmsNotification(phoneNumber: string, message: string): Promise<boolean> {
-  if (!isTwilioConfigured() || !twilioClient) {
+  const client = await getTwilioClient();
+  if (!client) {
     debugLog('[twilio] Twilio not configured - skipping SMS');
     return false;
   }
 
   try {
-    await twilioClient.messages.create({
+    await client.messages.create({
       body: message,
       from: fromPhoneNumber,
       to: phoneNumber,
@@ -97,7 +115,10 @@ export async function sendSmsNotification(phoneNumber: string, message: string):
     debugLog(`[twilio] ✅ SMS notification sent successfully to ${phoneNumber}`);
     return true;
   } catch (error: any) {
-    console.error(`[twilio] ❌ Failed to send SMS notification to ${phoneNumber}:`, error?.message || error);
+    console.error(
+      `[twilio] ❌ Failed to send SMS notification to ${phoneNumber}:`,
+      error?.message || error
+    );
     return false;
   }
 }

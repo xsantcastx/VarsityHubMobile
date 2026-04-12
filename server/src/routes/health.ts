@@ -1,7 +1,9 @@
 import { Router } from 'express';
 import { isCloudinaryConfigured } from '../lib/cloudinary.js';
 import { getMissingEmailTemplates, isSendGridConfigured } from '../lib/email.js';
+import { isPushTicketStorageReady } from '../lib/notifications.js';
 import { getAllPlanDefinitions } from '../lib/planLimits.js';
+import { captureException } from '../lib/sentry.js';
 import { getEmailService } from '../services/email/service.js';
 import { isTwilioConfigured } from '../lib/twilio.js';
 
@@ -16,7 +18,8 @@ healthRouter.get('/', async (req, res) => {
   const missingEmailTemplates = getMissingEmailTemplates();
   const emailService = getEmailService();
   const emailServiceReady = emailService.isConfigured() && emailService.validateConfig().valid;
-  const sendgridReady = isSendGridConfigured() && missingEmailTemplates.length === 0 && emailServiceReady;
+  const sendgridReady =
+    isSendGridConfigured() && missingEmailTemplates.length === 0 && emailServiceReady;
 
   // Check Redis/Queue connectivity
   let redisConnected = false;
@@ -29,8 +32,14 @@ healthRouter.get('/', async (req, res) => {
     redisConnected = false;
   }
 
+  // Prove required migrations have been applied. Without `PushTicket`, push
+  // delivery still works, but receipt verification and dead-token cleanup are
+  // degraded until `prisma migrate deploy` runs.
+  const pushTicketTableReady = await isPushTicketStorageReady();
+
   const integrations = {
     database: !!process.env.DATABASE_URL,
+    pushTicketMigration: pushTicketTableReady,
     jwt: !!process.env.JWT_SECRET,
     cloudinary: isCloudinaryConfigured(),
     twilio: isTwilioConfigured(),
@@ -47,9 +56,7 @@ healthRouter.get('/', async (req, res) => {
     .every(([, value]) => value);
 
   const stripePublishableKey =
-    process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ||
-    process.env.STRIPE_PUBLISHABLE_KEY ||
-    '';
+    process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || process.env.STRIPE_PUBLISHABLE_KEY || '';
   const includePayments = req.query.include === 'payments';
   const body: Record<string, unknown> = {
     status: 'ok',
@@ -67,7 +74,14 @@ healthRouter.get('/', async (req, res) => {
           ]
         : []),
       ...(!integrations.sentry ? ['Sentry not configured - error tracking disabled'] : []),
-      ...(!integrations.redis ? ['Redis not configured - background jobs will use fallback mode'] : []),
+      ...(!integrations.redis
+        ? ['Redis not configured - background jobs will use fallback mode']
+        : []),
+      ...(!integrations.pushTicketMigration
+        ? [
+            'PushTicket migration missing - push receipt verification and dead-token cleanup are disabled; run `npx prisma migrate deploy`',
+          ]
+        : []),
     ],
     metadata: {
       missingEmailTemplates,
@@ -83,4 +97,34 @@ healthRouter.get('/', async (req, res) => {
     };
   }
   res.json(body);
+});
+
+/**
+ * Sentry canary. Deliberately captures an exception so operators can confirm
+ * the deployed DSN is wired correctly end-to-end. Protected by a shared token
+ * in `SENTRY_CANARY_TOKEN` (set it in Railway env). Returns 404 when the
+ * token is absent so the endpoint is invisible to unprivileged scanners.
+ *
+ * Usage:
+ *   curl -s -H "X-Canary-Token: $SENTRY_CANARY_TOKEN" https://<api>/health/sentry-canary
+ *
+ * The response includes the event id echoed from Sentry so you can match it
+ * in the Sentry issue detail URL — proves the right project received it.
+ */
+healthRouter.post('/sentry-canary', async (req, res) => {
+  const expected = process.env.SENTRY_CANARY_TOKEN;
+  if (!expected) return res.status(404).json({ error: 'Not found' });
+  const supplied = req.header('X-Canary-Token');
+  if (!supplied || supplied !== expected) {
+    return res.status(404).json({ error: 'Not found' });
+  }
+  const marker = `release-pass-canary-${new Date().toISOString()}-${Math.random().toString(36).slice(2, 8)}`;
+  const error = new Error(`Sentry canary fired: ${marker}`);
+  (error as any).canary = true;
+  captureException(error, { context: 'health_sentry_canary', marker });
+  return res.json({
+    ok: true,
+    marker,
+    message: 'Captured. Check Sentry for an event tagged `health_sentry_canary` with this marker in its context.',
+  });
 });

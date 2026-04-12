@@ -39,6 +39,29 @@ async function hasEventModerationAccess(userId: string): Promise<boolean> {
 }
 
 async function getEventModerationScope(userId: string) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { preferences: true },
+  });
+
+  const prefs =
+    user?.preferences && typeof user.preferences === 'object' && !Array.isArray(user.preferences)
+      ? (user.preferences as Record<string, unknown>)
+      : {};
+  const role = typeof prefs.role === 'string' ? prefs.role.toLowerCase() : 'fan';
+  const approvalStatus =
+    typeof prefs.approval_status === 'string' ? prefs.approval_status.toUpperCase() : '';
+
+  // Event moderation privileges are coach privileges.
+  // Team/org memberships alone are not enough if the account is still pending or rejected.
+  if (role !== 'coach' || approvalStatus !== 'APPROVED') {
+    return {
+      teamIds: [],
+      organizationIds: [],
+      organizationNames: [],
+    };
+  }
+
   const [teamMemberships, organizationMemberships] = await Promise.all([
     prisma.teamMembership.findMany({
       where: {

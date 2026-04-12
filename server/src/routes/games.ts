@@ -3,7 +3,7 @@ import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
-import { getIsAdmin, isEmailAdmin } from '../middleware/requireAdmin.js';
+import { getIsAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { makeCreateStoryHandler, makeListMediaHandler, serializeMedia } from './gameStories.js';
@@ -336,12 +336,12 @@ gamesRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
     // Approval workflow: only approved coaches/managers or admins can create games.
     let isCoach = false;
 
-    // Check if user is super admin (can create events for ANY team)
+    // Check if user is super admin (can create games for any team)
     const currentUser = await prisma.user.findUnique({
       where: { id: req.user.id },
       select: { email: true, preferences: true },
     });
-    const isAdmin = isEmailAdmin(currentUser?.email);
+    const isAdmin = await getIsAdmin(req as any);
     const approvalStatus =
       typeof (currentUser?.preferences as any)?.approval_status === 'string'
         ? String((currentUser?.preferences as any)?.approval_status).toUpperCase()
@@ -367,12 +367,13 @@ gamesRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
     }
 
     if (parsed.data.home_team_id && !isAdmin) {
-      // Regular users must be a coach/manager of the team
+      // Regular users must be an active coach/manager of the team.
       const membership = await prisma.teamMembership.findFirst({
         where: {
           team_id: parsed.data.home_team_id,
           user_id: req.user.id,
           role: { in: [...TEAM_MANAGEMENT_ROLES] },
+          status: 'active',
         },
       });
       isCoach = !!membership;
@@ -1029,11 +1030,7 @@ gamesRouter.put('/:id', requireAuth as any, async (req: AuthedRequest, res) => {
 
     const isCreator = game.created_by_id === req.user.id;
 
-    const currentUser = await prisma.user.findUnique({
-      where: { id: req.user.id },
-      select: { email: true },
-    });
-    const isAdmin = isEmailAdmin(currentUser?.email);
+    const isAdmin = await getIsAdmin(req as any);
 
     let isCoach = false;
     if (game.home_team_id) {

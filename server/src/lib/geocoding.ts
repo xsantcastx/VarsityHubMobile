@@ -16,29 +16,26 @@ dotenv.config();
 
 import { prisma } from './prisma.js';
 import { debugLog } from './debugLog.js';
+import { LruCache } from './lruCache.js';
 
-// In-memory cache for geocoded locations (location string -> coordinates)
-// Uses LRU-style eviction to prevent unbounded memory growth
-const geocodeCache = new Map<string, { lat: number; lng: number; timestamp: number }>();
+// In-memory cache for geocoded locations. Delegates to the shared LRU helper
+// so there's exactly one eviction/TTL implementation in the codebase.
 const CACHE_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
-const MAX_CACHE_SIZE = 10000; // Max entries to prevent memory leaks
+const MAX_CACHE_SIZE = 10_000;
 
-/**
- * Evict oldest entries if cache exceeds max size
- * Simple LRU: removes entries until we're at 80% capacity
- */
-function evictOldEntries(): void {
-  if (geocodeCache.size <= MAX_CACHE_SIZE) return;
+interface CachedCoord {
+  lat: number;
+  lng: number;
+}
 
-  const targetSize = Math.floor(MAX_CACHE_SIZE * 0.8);
-  const entries = Array.from(geocodeCache.entries())
-    .sort((a, b) => a[1].timestamp - b[1].timestamp);
+const geocodeCache = new LruCache<string, CachedCoord>(MAX_CACHE_SIZE);
 
-  const toRemove = entries.slice(0, geocodeCache.size - targetSize);
-  for (const [key] of toRemove) {
-    geocodeCache.delete(key);
-  }
-  debugLog(`[geocoding] Evicted ${toRemove.length} old cache entries, size now: ${geocodeCache.size}`);
+function cacheGet(key: string): CachedCoord | undefined {
+  return geocodeCache.get(key);
+}
+
+function cacheSet(key: string, value: CachedCoord): void {
+  geocodeCache.set(key, value, CACHE_DURATION_MS);
 }
 
 /**
@@ -49,19 +46,15 @@ export function clearGeocodeCache(): void {
 }
 
 /**
- * Get cache statistics
+ * Get cache statistics. `oldestEntry` is no longer tracked because the LRU
+ * doesn't expose per-entry timestamps; keep the key so existing callers don't
+ * break, return `null`.
  */
 export function getCacheStats(): { size: number; maxSize: number; oldestEntry: number | null } {
-  let oldestTimestamp: number | null = null;
-  for (const entry of geocodeCache.values()) {
-    if (oldestTimestamp === null || entry.timestamp < oldestTimestamp) {
-      oldestTimestamp = entry.timestamp;
-    }
-  }
   return {
     size: geocodeCache.size,
     maxSize: MAX_CACHE_SIZE,
-    oldestEntry: oldestTimestamp,
+    oldestEntry: null,
   };
 }
 
@@ -84,9 +77,9 @@ export async function geocodeLocation(location: string): Promise<GeocodingResult
 
   const normalizedLocation = location.trim().toLowerCase();
 
-  // Check in-memory cache first
-  const cached = geocodeCache.get(normalizedLocation);
-  if (cached && Date.now() - cached.timestamp < CACHE_DURATION_MS) {
+  // Check in-memory cache first. LruCache handles TTL internally.
+  const cached = cacheGet(normalizedLocation);
+  if (cached) {
     return { latitude: cached.lat, longitude: cached.lng };
   }
 
@@ -125,12 +118,7 @@ export async function geocodeLocation(location: string): Promise<GeocodingResult
       };
 
       // Update in-memory cache (use original location for cache key)
-      geocodeCache.set(normalizedLocation, {
-        lat: coords.latitude,
-        lng: coords.longitude,
-        timestamp: Date.now(),
-      });
-      evictOldEntries(); // Prevent unbounded memory growth
+      cacheSet(normalizedLocation, { lat: coords.latitude, lng: coords.longitude });
 
       return coords;
     } else {
@@ -148,12 +136,7 @@ export async function geocodeLocation(location: string): Promise<GeocodingResult
             formatted_address: result.formatted_address,
           };
           
-          geocodeCache.set(normalizedLocation, {
-            lat: coords.latitude,
-            lng: coords.longitude,
-            timestamp: Date.now(),
-          });
-          evictOldEntries(); // Prevent unbounded memory growth
+          cacheSet(normalizedLocation, { lat: coords.latitude, lng: coords.longitude });
 
           return coords;
         }

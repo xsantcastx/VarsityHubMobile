@@ -62,7 +62,9 @@ const ROUTE_MAP: Record<string, string> = {
   verify: '/verify',
 };
 
-function extractStringParams(queryParams?: Linking.ParsedURL['queryParams']): Record<string, string> {
+function extractStringParams(
+  queryParams?: Linking.ParsedURL['queryParams']
+): Record<string, string> {
   const params: Record<string, string> = {};
   if (!queryParams) return params;
 
@@ -80,24 +82,26 @@ export function parseDeepLink(url: string): ParsedDeepLink | null {
   try {
     const parsed = Linking.parse(url);
 
-    // Handle app scheme links (varsityhub://post/123)
+    // App scheme: varsityhubmobile://post/123
     if (parsed.scheme === APP_SCHEME) {
       return parseSchemeLink(parsed);
     }
 
-    // Handle universal links (https://varsityhub.com/share?...)
+    // Universal link on one of our domains: https://varsityhub.app/...
     if (parsed.scheme === 'https' || parsed.scheme === 'http') {
-      if (parsed.hostname && WEB_DOMAINS.includes(parsed.hostname)) {
-        return parseUniversalLink(parsed);
+      if (!parsed.hostname || !WEB_DOMAINS.includes(parsed.hostname)) {
+        console.warn('[DeepLinks] Rejected link from untrusted host:', parsed.hostname);
+        return null;
       }
+      return parseUniversalLink(parsed);
     }
 
-    // Try parsing as relative path
-    if (parsed.path) {
-      return parsePathLink(parsed);
-    }
-
-    console.warn('[DeepLinks] Unable to parse URL:', url);
+    // Anything else — including schemeless paths or exotic schemes like
+    // `javascript:` / `data:` — is rejected. The previous fall-through to
+    // parsePathLink was a phishing vector: a malicious page could hand the
+    // app a URL that pattern-matched a known route and bypass every other
+    // check. Fail closed.
+    console.warn('[DeepLinks] Rejected link with untrusted scheme:', parsed.scheme);
     return null;
   } catch (error) {
     console.error('[DeepLinks] Parse error:', error);

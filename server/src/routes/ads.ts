@@ -10,13 +10,18 @@ import { getIsAdmin } from '../middleware/requireAdmin.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { adCreationLimiter } from '../middleware/rateLimiters.js';
 import { debugLog } from '../lib/debugLog.js';
+import { canReviewAd, getAdStatusAfterApproval } from '../lib/adLifecycle.js';
+import { isPublicHttpUrl } from '../lib/publicUrl.js';
 import { calculateAdPriceDollars } from '../utils/adPricing.js';
+import { getMaxConcurrentAdsForPlan } from '../lib/planLimits.js';
 
 /**
  * Get coordinates for a ZIP code with fallback to Google Geocoding API
  * First tries the static lookup table, then falls back to API if not found
  */
-async function getZipCoordinatesWithFallback(zipCode: string): Promise<{ lat: number; lon: number } | null> {
+async function getZipCoordinatesWithFallback(
+  zipCode: string
+): Promise<{ lat: number; lon: number } | null> {
   // Try static lookup first (faster, no API call)
   const staticResult = getZipCoordinates(zipCode);
   if (staticResult) {
@@ -35,15 +40,38 @@ async function getZipCoordinatesWithFallback(zipCode: string): Promise<{ lat: nu
 
 export const adsRouter = Router();
 
+/**
+ * Constrain ad URLs to public http(s). Rejects bad schemes and private /
+ * internal targets without requiring a curated advertiser allowlist.
+ */
+const SAFE_TARGET_URL = z
+  .string()
+  .url()
+  .refine(isPublicHttpUrl, 'URL must be an http(s) URL with a public hostname');
+
 const updateAdSchema = z
   .object({
     contact_name: z.string().min(1).max(255).optional(),
     contact_email: z.string().email().optional(),
     business_name: z.string().min(1).max(255).optional(),
-    banner_url: z.string().url().nullable().optional(),
+    banner_url: SAFE_TARGET_URL.nullable().optional(),
     banner_fit_mode: z.enum(['contain', 'cover']).nullable().optional(),
-    target_url: z.string().url().nullable().optional(),
+    target_url: SAFE_TARGET_URL.nullable().optional(),
     target_zip_code: z.string().min(1).max(32).optional(),
+    radius: z.number().int().min(1).max(500).optional(),
+    description: z.string().max(5000).nullable().optional(),
+  })
+  .strict();
+
+const createAdSchema = z
+  .object({
+    contact_name: z.string().min(1).max(255),
+    contact_email: z.string().email(),
+    business_name: z.string().min(1).max(255),
+    banner_url: SAFE_TARGET_URL.nullable().optional(),
+    banner_fit_mode: z.enum(['contain', 'cover']).nullable().optional(),
+    target_url: SAFE_TARGET_URL.nullable().optional(),
+    target_zip_code: z.string().min(1).max(32),
     radius: z.number().int().min(1).max(500).optional(),
     description: z.string().max(5000).nullable().optional(),
   })
@@ -51,6 +79,13 @@ const updateAdSchema = z
 
 // Create an Ad (optionally associated to the authenticated user)
 adsRouter.post('/', adCreationLimiter, requireVerified as any, async (req: AuthedRequest, res) => {
+  const parsed = createAdSchema.safeParse(req.body || {});
+  if (!parsed.success) {
+    return res.status(400).json({
+      error: 'INVALID_AD_PAYLOAD',
+      details: parsed.error.issues.map(i => ({ path: i.path, message: i.message })),
+    });
+  }
   const {
     contact_name,
     contact_email,
@@ -61,10 +96,39 @@ adsRouter.post('/', adCreationLimiter, requireVerified as any, async (req: Authe
     target_zip_code,
     radius,
     description,
-  } = req.body || {};
-  if (!contact_name || !contact_email || !business_name || !target_zip_code) {
-    return res.status(400).json({ error: 'Missing required fields' });
+  } = parsed.data;
+
+  // Enforce per-plan concurrent-ad cap. Blocks spam from rookie accounts
+  // creating dozens of draft ads. Counts anything not explicitly rejected or
+  // expired so unpaid drafts also count against the quota.
+  if (req.user?.id) {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { preferences: true },
+    });
+    const plan = (user?.preferences as any)?.plan as string | undefined;
+    const maxAds = getMaxConcurrentAdsForPlan(plan);
+    if (maxAds !== null) {
+      // Counts anything except rejected/archived so unpaid drafts still count
+      // against the quota (otherwise a user could draft thousands).
+      const activeAdCount = await prisma.ad.count({
+        where: {
+          user_id: req.user.id,
+          status: { notIn: ['rejected', 'archived'] },
+        },
+      });
+      if (activeAdCount >= maxAds) {
+        return res.status(403).json({
+          error: 'AD_QUOTA_EXCEEDED',
+          code: 'AD_QUOTA_EXCEEDED',
+          message: `Your plan allows up to ${maxAds} concurrent ad${maxAds === 1 ? '' : 's'}. Upgrade your plan or remove an existing ad.`,
+          max_ads: maxAds,
+          current_ads: activeAdCount,
+        });
+      }
+    }
   }
+
   const ad = await prisma.ad.create({
     data: {
       user_id: req.user?.id,
@@ -90,15 +154,15 @@ adsRouter.get('/', async (req: AuthedRequest, res) => {
   const contactEmail = req.query.contact_email ? String(req.query.contact_email) : undefined;
   const all = String(req.query.all || '') === '1';
   const where: any = {};
-  
-  debugLog('[ads] GET / query params:', { 
-    mine, 
-    contactEmail, 
-    all, 
+
+  debugLog('[ads] GET / query params:', {
+    mine,
+    contactEmail,
+    all,
     userId: req.user?.id,
-    queryMine: req.query.mine 
+    queryMine: req.query.mine,
   });
-  
+
   if (mine) {
     if (!req.user?.id) {
       console.warn('[ads] GET / mine=1 but no user authenticated');
@@ -125,13 +189,13 @@ adsRouter.get('/', async (req: AuthedRequest, res) => {
     // Default to showing only the authenticated user's ads
     where.user_id = req.user.id;
   }
-  
+
   const list = await prisma.ad.findMany({ where, orderBy: { created_at: 'desc' } });
-  debugLog('[ads] GET / returning ads:', { 
-    count: list.length, 
+  debugLog('[ads] GET / returning ads:', {
+    count: list.length,
     where,
     adIds: list.map(a => a.id),
-    userIds: list.map(a => a.user_id) 
+    userIds: list.map(a => a.user_id),
   });
   return res.json(list);
 });
@@ -171,14 +235,18 @@ adsRouter.get('/for-feed', async (req, res) => {
     },
   });
 
-  debugLog('[ads] for-feed found ads:', { 
-    count: ads.length, 
+  debugLog('[ads] for-feed found ads:', {
+    count: ads.length,
     ads: ads.map(ad => ({
       id: ad.id,
       payment_status: ad.payment_status,
       banner_url: !!ad.banner_url,
-      reservations: ad.reservations.map(r => ({ id: r.id, date: r.date, dateISO: r.date.toISOString() }))
-    }))
+      reservations: ad.reservations.map(r => ({
+        id: r.id,
+        date: r.date,
+        dateISO: r.date.toISOString(),
+      })),
+    })),
   });
 
   return res.json({ date: dateISO, ads: ads.map(ad => ({ ...ad, reservations: undefined })) }); // Remove reservations from response
@@ -189,8 +257,11 @@ adsRouter.get('/:id', async (req, res) => {
   const id = String(req.params.id);
   const ad = await prisma.ad.findUnique({ where: { id } });
   if (!ad) return res.status(404).json({ error: 'Not found' });
-  const dates = await prisma.adReservation.findMany({ where: { ad_id: id }, orderBy: { date: 'asc' } });
-  return res.json({ ...ad, dates: dates.map((r) => r.date.toISOString().slice(0, 10)) });
+  const dates = await prisma.adReservation.findMany({
+    where: { ad_id: id },
+    orderBy: { date: 'asc' },
+  });
+  return res.json({ ...ad, dates: dates.map(r => r.date.toISOString().slice(0, 10)) });
 });
 
 // Update an Ad (owner-only unless admin)
@@ -218,32 +289,32 @@ adsRouter.put('/:id', requireVerified as any, async (req: AuthedRequest, res) =>
 adsRouter.delete('/:id', requireVerified as any, async (req: AuthedRequest, res) => {
   const id = String(req.params.id);
   debugLog('[ads] DELETE /:id request', { id, userId: req.user?.id });
-  
+
   const existing = await prisma.ad.findUnique({ where: { id } });
   if (!existing) {
     console.warn('[ads] DELETE /:id - Ad not found', { id });
     return res.status(404).json({ error: 'Not found' });
   }
-  
+
   // Check ownership
   if (existing.user_id && req.user?.id && existing.user_id !== req.user.id) {
-    console.warn('[ads] DELETE /:id - Forbidden (user does not own ad)', { 
-      id, 
-      adUserId: existing.user_id, 
-      requestUserId: req.user.id 
+    console.warn('[ads] DELETE /:id - Forbidden (user does not own ad)', {
+      id,
+      adUserId: existing.user_id,
+      requestUserId: req.user.id,
     });
     return res.status(403).json({ error: 'Forbidden' });
   }
-  
+
   try {
     // First delete all reservations for this ad
     await prisma.adReservation.deleteMany({ where: { ad_id: id } });
     debugLog('[ads] DELETE /:id - Deleted reservations', { id });
-    
+
     // Then delete the ad itself
     await prisma.ad.delete({ where: { id } });
     debugLog('[ads] DELETE /:id - Ad deleted successfully', { id });
-    
+
     return res.json({ ok: true, message: 'Ad deleted successfully' });
   } catch (error) {
     console.error('[ads] DELETE /:id - Error deleting ad', { id, error });
@@ -264,26 +335,35 @@ adsRouter.post('/:id/review', requireVerified as any, async (req: AuthedRequest,
 
   const ad = await prisma.ad.findUnique({ where: { id } });
   if (!ad) return res.status(404).json({ error: 'Ad not found' });
+  if (!canReviewAd(ad.status)) {
+    return res.status(409).json({
+      error: 'AD_NOT_REVIEWABLE',
+      message: 'Only pending or approved ads can be reviewed.',
+    });
+  }
 
   if (action === 'approve') {
-    if (ad.payment_status !== 'paid') {
-      return res.status(400).json({ error: 'Ad must be paid before it can be approved' });
-    }
-
     const updated = await prisma.ad.update({
       where: { id },
       data: {
-        status: 'active',
+        status: getAdStatusAfterApproval(ad.payment_status),
         admin_note: note || null,
       },
     });
 
     // Notify ad owner
-    const emailTo = ad.contact_email || (ad.user_id
-      ? (await prisma.user.findUnique({ where: { id: ad.user_id }, select: { email: true } }))?.email
-      : null);
+    const emailTo =
+      ad.contact_email ||
+      (ad.user_id
+        ? (await prisma.user.findUnique({ where: { id: ad.user_id }, select: { email: true } }))
+            ?.email
+        : null);
     if (emailTo) {
-      await sendAdApprovedEmail({ to: emailTo, businessName: ad.business_name || 'your ad', adminNote: note });
+      await sendAdApprovedEmail({
+        to: emailTo,
+        businessName: ad.business_name || 'your ad',
+        adminNote: note,
+      });
     }
 
     await logAdminActivityFromReq(
@@ -316,11 +396,18 @@ adsRouter.post('/:id/review', requireVerified as any, async (req: AuthedRequest,
 
     await prisma.adReservation.deleteMany({ where: { ad_id: id } });
 
-    const emailTo = ad.contact_email || (ad.user_id
-      ? (await prisma.user.findUnique({ where: { id: ad.user_id }, select: { email: true } }))?.email
-      : null);
+    const emailTo =
+      ad.contact_email ||
+      (ad.user_id
+        ? (await prisma.user.findUnique({ where: { id: ad.user_id }, select: { email: true } }))
+            ?.email
+        : null);
     if (emailTo) {
-      await sendAdRejectedEmail({ to: emailTo, businessName: ad.business_name || 'your ad', adminNote: note });
+      await sendAdRejectedEmail({
+        to: emailTo,
+        businessName: ad.business_name || 'your ad',
+        adminNote: note,
+      });
     }
 
     await logAdminActivityFromReq(
@@ -349,26 +436,26 @@ adsRouter.get('/reservations', async (req, res) => {
   if (from) where.date.gte = from;
   if (to) where.date.lte = to;
   if (adId) where.ad_id = adId;
-  
+
   debugLog('[ads] GET /reservations query:', { from, to, adId, where });
-  
+
   const list = await prisma.adReservation.findMany({ where, orderBy: { date: 'asc' } });
-  const dates = list.map((r) => r.date.toISOString().slice(0, 10));
-  
-  debugLog('[ads] Found reservations:', { 
-    adId, 
-    count: list.length, 
+  const dates = list.map(r => r.date.toISOString().slice(0, 10));
+
+  debugLog('[ads] Found reservations:', {
+    adId,
+    count: list.length,
     rawDates: list.map(r => ({ id: r.id, date: r.date, dateISO: r.date.toISOString() })),
-    formattedDates: dates 
+    formattedDates: dates,
   });
-  
+
   if (adId) return res.json({ ad_id: adId, dates });
   return res.json({ dates });
 });
 
 /**
  * GET /ads/availability?zip=12345&from=2025-01-15&to=2025-01-31
- * 
+ *
  * Returns availability status for each date in the range.
  * Each date can have up to 3 ads (slots). If 3+ ads already exist, date is full.
  */
@@ -419,27 +506,30 @@ adsRouter.get('/availability', async (req, res) => {
 
   // Count ads per date
   const adCountByDate: Record<string, number> = {};
-  
+
   reservations.forEach(r => {
     const dateISO = r.date.toISOString().slice(0, 10);
     adCountByDate[dateISO] = (adCountByDate[dateISO] || 0) + 1;
   });
 
   // Generate all dates in range and check availability
-  const availability: Record<string, { available: boolean; slotsUsed: number; slotsRemaining: number }> = {};
-  
+  const availability: Record<
+    string,
+    { available: boolean; slotsUsed: number; slotsRemaining: number }
+  > = {};
+
   let currentDate = new Date(fromDate);
   while (currentDate <= toDate) {
     const dateISO = currentDate.toISOString().slice(0, 10);
     const slotsUsed = adCountByDate[dateISO] || 0;
     const slotsRemaining = MAX_ADS_PER_DATE - slotsUsed;
-    
+
     availability[dateISO] = {
       available: slotsRemaining > 0,
       slotsUsed,
       slotsRemaining: Math.max(0, slotsRemaining),
     };
-    
+
     currentDate.setUTCDate(currentDate.getUTCDate() + 1);
   }
 
@@ -466,81 +556,91 @@ adsRouter.post('/reservations', requireVerified as any, async (req: AuthedReques
   if (ad.payment_status !== 'paid') return res.status(403).json({ error: 'Ad is not paid' });
 
   const isoDates: string[] = Array.from(new Set(dates.map((d: any) => String(d))));
-  const dateObjects = isoDates.map((value) => new Date(`${value}T00:00:00.000Z`));
+  const dateObjects = isoDates.map(value => new Date(`${value}T00:00:00.000Z`));
   const MAX_AD_SLOTS = 3;
 
   try {
-    const createdCount = await prisma.$transaction(async (tx) => {
-      const currentAd = await tx.ad.findUnique({
-        where: { id: String(ad_id) },
-        select: { id: true, user_id: true, payment_status: true, target_zip_code: true },
-      });
-
-      if (!currentAd) {
-        const err = new Error('AD_NOT_FOUND');
-        throw err;
-      }
-      if (currentAd.user_id !== req.user?.id) {
-        const err = new Error('FORBIDDEN');
-        throw err;
-      }
-      if (currentAd.payment_status !== 'paid') {
-        const err = new Error('AD_NOT_PAID');
-        throw err;
-      }
-
-      const existingReservations = await tx.adReservation.findMany({
-        where: { ad_id: String(ad_id), date: { in: dateObjects } },
-        select: { date: true },
-      });
-      const existingDates = new Set(existingReservations.map((reservation) => reservation.date.toISOString().slice(0, 10)));
-      const newDates = isoDates.filter((value) => !existingDates.has(value));
-
-      if (newDates.length > 0 && currentAd.target_zip_code) {
-        const otherPaidAds = await tx.ad.findMany({
-          where: {
-            target_zip_code: currentAd.target_zip_code,
-            payment_status: 'paid',
-            NOT: { id: String(ad_id) },
-          },
-          select: { id: true },
+    const createdCount = await prisma.$transaction(
+      async tx => {
+        const currentAd = await tx.ad.findUnique({
+          where: { id: String(ad_id) },
+          select: { id: true, user_id: true, payment_status: true, target_zip_code: true },
         });
 
-        if (otherPaidAds.length > 0) {
-          const bookedSlots = await tx.adReservation.groupBy({
-            by: ['date'],
-            where: {
-              ad_id: { in: otherPaidAds.map((otherAd) => otherAd.id) },
-              date: { in: newDates.map((value) => new Date(`${value}T00:00:00.000Z`)) },
-            },
-            _count: { date: true },
-          });
-          const fullDates = bookedSlots
-            .filter((slot) => slot._count.date >= MAX_AD_SLOTS)
-            .map((slot) => slot.date.toISOString().slice(0, 10));
+        if (!currentAd) {
+          const err = new Error('AD_NOT_FOUND');
+          throw err;
+        }
+        if (currentAd.user_id !== req.user?.id) {
+          const err = new Error('FORBIDDEN');
+          throw err;
+        }
+        if (currentAd.payment_status !== 'paid') {
+          const err = new Error('AD_NOT_PAID');
+          throw err;
+        }
 
-          if (fullDates.length > 0) {
-            const err = new Error('SLOT_FULL') as Error & { dates?: string[] };
-            err.dates = fullDates;
-            throw err;
+        const existingReservations = await tx.adReservation.findMany({
+          where: { ad_id: String(ad_id), date: { in: dateObjects } },
+          select: { date: true },
+        });
+        const existingDates = new Set(
+          existingReservations.map(reservation => reservation.date.toISOString().slice(0, 10))
+        );
+        const newDates = isoDates.filter(value => !existingDates.has(value));
+
+        if (newDates.length > 0 && currentAd.target_zip_code) {
+          const otherPaidAds = await tx.ad.findMany({
+            where: {
+              target_zip_code: currentAd.target_zip_code,
+              payment_status: 'paid',
+              NOT: { id: String(ad_id) },
+            },
+            select: { id: true },
+          });
+
+          if (otherPaidAds.length > 0) {
+            const bookedSlots = await tx.adReservation.groupBy({
+              by: ['date'],
+              where: {
+                ad_id: { in: otherPaidAds.map(otherAd => otherAd.id) },
+                date: { in: newDates.map(value => new Date(`${value}T00:00:00.000Z`)) },
+              },
+              _count: { date: true },
+            });
+            const fullDates = bookedSlots
+              .filter(slot => slot._count.date >= MAX_AD_SLOTS)
+              .map(slot => slot.date.toISOString().slice(0, 10));
+
+            if (fullDates.length > 0) {
+              const err = new Error('SLOT_FULL') as Error & { dates?: string[] };
+              err.dates = fullDates;
+              throw err;
+            }
           }
         }
-      }
 
-      const createdMany = await tx.adReservation.createMany({
-        data: isoDates.map((value) => ({ ad_id: String(ad_id), date: new Date(`${value}T00:00:00.000Z`) })),
-        skipDuplicates: true,
-      });
+        const createdMany = await tx.adReservation.createMany({
+          data: isoDates.map(value => ({
+            ad_id: String(ad_id),
+            date: new Date(`${value}T00:00:00.000Z`),
+          })),
+          skipDuplicates: true,
+        });
 
-      return createdMany.count;
-    }, { isolationLevel: 'Serializable' });
+        return createdMany.count;
+      },
+      { isolationLevel: 'Serializable' }
+    );
 
     // Use shared ad pricing helper for consistent calculation.
     // Mon-Thu = $4.99 per week block, Fri-Sun = $7.99 per week block.
     // Properly groups dates into week blocks (multiple dates in same week = single charge).
     const totalPrice = calculateAdPriceDollars(isoDates);
 
-    return res.status(201).json({ ok: true, reserved: createdCount, dates: isoDates, price: totalPrice });
+    return res
+      .status(201)
+      .json({ ok: true, reserved: createdCount, dates: isoDates, price: totalPrice });
   } catch (error: any) {
     if (error?.message === 'AD_NOT_FOUND') return res.status(404).json({ error: 'Ad not found' });
     if (error?.message === 'FORBIDDEN') return res.status(403).json({ error: 'Forbidden' });
@@ -558,31 +658,35 @@ adsRouter.post('/reservations', requireVerified as any, async (req: AuthedReques
 
 /**
  * GET /ads/alternative-zips?zip=12345&dates=2025-01-15,2025-01-16
- * 
+ *
  * Find alternative zip codes within 50 miles when the requested zip is fully booked.
  * Returns nearby zips with availability for the requested dates, sorted by distance.
  */
 adsRouter.get('/alternative-zips', async (req: AuthedRequest, res) => {
   const { zip, dates } = req.query;
-  
+
   if (!zip || !dates) {
     return res.status(400).json({ error: 'Missing required params: zip, dates' });
   }
-  
+
   const zipCode = String(zip);
-  const dateList = String(dates).split(',').map(d => d.trim());
+  const dateList = String(dates)
+    .split(',')
+    .map(d => d.trim());
 
   // Get coordinates for the requested zip (with Google Geocoding fallback)
   const originCoords = await getZipCoordinatesWithFallback(zipCode);
   if (!originCoords) {
-    return res.status(400).json({ error: 'Could not find coordinates for ZIP code. Please verify the ZIP code is valid.' });
+    return res.status(400).json({
+      error: 'Could not find coordinates for ZIP code. Please verify the ZIP code is valid.',
+    });
   }
 
   // Get all ads within approximate range (we'll use all ads for simplicity,
   // but in production you'd want to filter by geographic bounds first)
   const allAds = await prisma.ad.findMany({
     where: {
-      status: { in: ['draft', 'active'] },
+      status: { notIn: ['rejected', 'archived'] },
     },
     select: {
       id: true,
@@ -601,29 +705,29 @@ adsRouter.get('/alternative-zips', async (req: AuthedRequest, res) => {
     // Use sync lookup for iteration (to avoid too many API calls)
     const adCoords = getZipCoordinates(ad.target_zip_code);
     if (!adCoords) continue;
-    
+
     const distance = haversineDistance(
       originCoords.lat,
       originCoords.lon,
       adCoords.lat,
       adCoords.lon
     );
-    
+
     // Only consider zips within 50 miles
     if (distance <= 50) {
       zipDistances.set(ad.target_zip_code, distance);
     }
   }
-  
+
   // Check availability for each nearby zip
   const alternatives: Array<{ zip: string; distance: number; available: boolean }> = [];
-  
+
   for (const [nearbyZip, distance] of zipDistances.entries()) {
     // Find ads in this zip code
     const adsInZip = await prisma.ad.findMany({
       where: {
         target_zip_code: nearbyZip,
-        status: { in: ['draft', 'active'] },
+        status: { notIn: ['rejected', 'archived'] },
       },
       include: {
         reservations: {
@@ -635,38 +739,38 @@ adsRouter.get('/alternative-zips', async (req: AuthedRequest, res) => {
         },
       },
     });
-    
+
     // Check if ALL requested dates are available (no ads fully booked for all dates)
     let hasAvailability = false;
-    
+
     for (const ad of adsInZip) {
       const bookedDates = new Set(ad.reservations.map(r => r.date.toISOString().split('T')[0]));
       const allDatesBooked = dateList.every(date => bookedDates.has(date));
-      
+
       if (!allDatesBooked) {
         hasAvailability = true;
         break;
       }
     }
-    
+
     // If no ads exist in this zip, it's available
     if (adsInZip.length === 0) {
       hasAvailability = true;
     }
-    
+
     alternatives.push({
       zip: nearbyZip,
       distance: Math.round(distance * 10) / 10, // Round to 1 decimal
       available: hasAvailability,
     });
   }
-  
+
   // Sort by distance and filter to available only
   const availableAlternatives = alternatives
     .filter(a => a.available)
     .sort((a, b) => a.distance - b.distance)
     .slice(0, 5); // Return top 5 closest alternatives
-  
+
   return res.json({
     requested_zip: zipCode,
     alternatives: availableAlternatives,

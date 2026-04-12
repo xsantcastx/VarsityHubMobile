@@ -28,6 +28,10 @@ model User {
   password_reset_code        String?
   password_reset_expires     DateTime?
   banned                     Boolean   @default(false)
+  // Profile-visibility gate. Lives in a proper column (not JSON) so the
+  // feed query can filter in SQL without the JSON-path `NOT` quirks that
+  // previously forced the check into JS.
+  profile_private            Boolean   @default(false)
   preferences                Json      @default("{}")
   
   // Subscription/Premium fields
@@ -270,6 +274,7 @@ model Event {
   @@index([latitude, longitude])
   @@index([creator_id])
   @@index([approval_status])
+  @@index([approval_status, date])
   @@index([event_type])
   @@index([status])
 }
@@ -293,6 +298,7 @@ model Message {
   @@index([sender_id, created_at])
   @@index([recipient_id, created_at])
   @@index([recipient_id, read])
+  @@index([recipient_id, read, created_at])
 }
 
 model BlockedUser {
@@ -640,6 +646,7 @@ model Notification {
 
   @@index([user_id, created_at])
   @@index([user_id, read_at])
+  @@index([user_id, read_at, created_at])
   @@index([type, created_at])
 }
 
@@ -715,6 +722,7 @@ model Organization {
   @@unique([name, zip_code])
   @@index([name])
   @@index([zip_code])
+  @@index([zip_code, status])
   @@index([location])
 }
 

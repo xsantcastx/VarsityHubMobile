@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 import { verifyJwt } from '../lib/jwt.js';
+import { LruCache } from '../lib/lruCache.js';
 import { prisma } from '../lib/prisma.js';
 import { setUserContext, clearUserContext } from '../lib/sentry.js';
 
@@ -9,43 +10,29 @@ export interface AuthedRequest extends Request {
 }
 
 /**
- * In-memory cache for user ban/session state.
+ * In-memory auth-state cache.
  *
- * Auth middleware runs on every authenticated request. Without a cache this
- * caused 1 DB lookup per request before any route handler ran — the single
- * biggest source of request latency under load. 60 s TTL means a banned user
- * or session_version bump takes up to a minute to propagate, which is an
- * acceptable tradeoff for the throughput win.
+ * Hot path: avoids 1 DB lookup per request. Cold path: banned/suspended
+ * entries get a shorter TTL so a moderation decision can't leave an abuser
+ * operating for a full minute. Eviction is true LRU — under heavy traffic we
+ * evict genuinely cold entries rather than whatever map inserted first.
  */
 type CachedUser = {
   banned: boolean;
   sessionVersion: number;
   suspendedUntilMs: number | null;
-  expiresAt: number;
 };
-const USER_CACHE_TTL_MS = 60_000;
-const userCache = new Map<string, CachedUser>();
+const AUTH_CACHE_TTL_MS = 60_000;
+const AUTH_CACHE_NEGATIVE_TTL_MS = 10_000;
+const AUTH_CACHE_MAX_ENTRIES = 10_000;
+const userCache = new LruCache<string, CachedUser>(AUTH_CACHE_MAX_ENTRIES);
 
-function readCache(userId: string): CachedUser | null {
-  const hit = userCache.get(userId);
-  if (!hit) return null;
-  if (hit.expiresAt < Date.now()) {
-    userCache.delete(userId);
-    return null;
+function ttlFor(entry: CachedUser): number {
+  if (entry.banned) return AUTH_CACHE_NEGATIVE_TTL_MS;
+  if (entry.suspendedUntilMs !== null && entry.suspendedUntilMs > Date.now()) {
+    return AUTH_CACHE_NEGATIVE_TTL_MS;
   }
-  return hit;
-}
-
-function writeCache(
-  userId: string,
-  data: Omit<CachedUser, 'expiresAt'>,
-): void {
-  // Opportunistic size cap — prevent unbounded growth under heavy traffic.
-  if (userCache.size > 10_000) {
-    const firstKey = userCache.keys().next().value;
-    if (firstKey) userCache.delete(firstKey);
-  }
-  userCache.set(userId, { ...data, expiresAt: Date.now() + USER_CACHE_TTL_MS });
+  return AUTH_CACHE_TTL_MS;
 }
 
 /** Called by admin ban/unban and session-bump paths to force cache invalidation. */
@@ -67,7 +54,7 @@ export async function authMiddleware(req: AuthedRequest, _res: Response, next: N
   }
 
   // Fast path: serve from cache
-  let cached = readCache(payload.id);
+  let cached = userCache.get(payload.id);
   if (!cached) {
     const user = await prisma.user.findUnique({
       where: { id: payload.id },
@@ -95,9 +82,8 @@ export async function authMiddleware(req: AuthedRequest, _res: Response, next: N
       banned: !!user.banned,
       sessionVersion,
       suspendedUntilMs,
-      expiresAt: Date.now() + USER_CACHE_TTL_MS,
     };
-    writeCache(payload.id, cached);
+    userCache.set(payload.id, cached, ttlFor(cached));
   }
 
   if (cached.banned) {

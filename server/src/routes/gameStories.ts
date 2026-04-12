@@ -134,11 +134,22 @@ export const makeCreateStoryHandler = ({ prisma }: StoryDeps) => async (req: Aut
   const id = String(req.params.id);
   const parsed = storySchema.safeParse(req.body || {});
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
-  
-  // Skip geofencing for sample games (IDs starting with "sample-")
+
+  // Sample games are onboarding placeholders with synthetic IDs (`sample-…`).
+  // They are not real Game rows, so Story's game_id foreign key cannot point
+  // at them — previously the insert here raised an FK violation that
+  // surfaced as an opaque 500. Reject explicitly so the client can show a
+  // useful message and the smoke suite can lock the behaviour.
   const isSampleGame = /^sample-/i.test(id);
-  
-  if (!isSampleGame) {
+  if (isSampleGame) {
+    return res.status(400).json({
+      error: 'SAMPLE_GAME_STORY_UNSUPPORTED',
+      code: 'SAMPLE_GAME_STORY_UNSUPPORTED',
+      message: 'Stories cannot be posted to sample games. Join or create a real game first.',
+    });
+  }
+
+  {
     // Fetch game with team IDs so we can check team membership for bypass
     const game = await prisma.game.findUnique({
       where: { id },
