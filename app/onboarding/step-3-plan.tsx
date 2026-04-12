@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Modal, Pressable, StyleSheet, Text, TextInput, View, useColorScheme } from 'react-native';
+import { ActivityIndicator, Alert, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View, useColorScheme } from 'react-native';
 // @ts-ignore
 import { Payments, Subscriptions, User } from '@/api/entities';
 import { PLAN_DEFINITIONS, Plan } from '@/constants/plans';
@@ -144,12 +144,18 @@ export default function Step3Plan() {
   const [paymentsStatus, setPaymentsStatus] = useState<{ stripe_configured?: boolean; has_webhook_secret?: boolean } | null>(null);
   const [paymentsStatusLoading, setPaymentsStatusLoading] = useState(true);
   const [paymentsStatusError, setPaymentsStatusError] = useState<string | null>(null);
-  const displayedPlanOptions = PLAN_OPTIONS;
+  const iosPaidPlansBlocked = Platform.OS === 'ios';
+  const displayedPlanOptions = iosPaidPlansBlocked
+    ? PLAN_OPTIONS.filter((option) => option.id === 'rookie')
+    : PLAN_OPTIONS;
   const paymentsTemporarilyDisabled = paymentsStatus?.stripe_configured === false;
   const showPaymentsWarning =
+    iosPaidPlansBlocked ||
     (!paymentsStatusLoading && paymentsTemporarilyDisabled) ||
     (!!paymentsStatusError && !paymentsTemporarilyDisabled);
-  const paymentsWarningMessage = paymentsTemporarilyDisabled
+  const paymentsWarningMessage = iosPaidPlansBlocked
+    ? 'Paid coach plans are not currently purchasable inside the iOS app. Use Rookie on iPhone for now, or upgrade from Android/web until Apple in-app purchase support ships.'
+    : paymentsTemporarilyDisabled
     ? 'Coach plan checkout is temporarily unavailable while payments are being configured. You can continue with the Rookie plan or try again later.'
     : paymentsStatusError;
 
@@ -256,6 +262,13 @@ export default function Step3Plan() {
 
   const onContinue = async () => {
     if (!plan) return;
+    if (Platform.OS === 'ios' && plan !== 'rookie') {
+      Alert.alert(
+        'Not available on iOS',
+        'Paid coach plans are not currently purchasable inside the iOS app. Continue with Rookie here, or upgrade from Android/web until Apple in-app purchase support ships.'
+      );
+      return;
+    }
     if (plan !== 'rookie' && paymentsTemporarilyDisabled) {
       Alert.alert(
         'Payments unavailable',

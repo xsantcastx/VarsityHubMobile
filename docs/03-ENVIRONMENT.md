@@ -391,7 +391,7 @@ GOOGLE_MAPS_DEFAULT_COUNTRY=US
 
 **server/.env (Development):**
 ```properties
-STRIPE_SECRET_KEY=sk_test_51S5t0W2O6zyPvnQXG5RfQuafxC2kwQ1wVQG9smMbcBVSaDnMT10CKE7sUMsQwqNvAVqXSu6ij4VHXZsl34mikiuk00eMEk2X3q
+STRIPE_SECRET_KEY=sk_test_your_development_secret_key
 ```
 
 **Railway (Production):**
@@ -407,7 +407,7 @@ STRIPE_SECRET_KEY=sk_live_YOUR_LIVE_SECRET_KEY
 **Veteran Tier:**
 - Name: `Veteran Membership`
 - Description: `Access to advanced features`
-- Pricing: `$1.50/month per team` recurring
+- Pricing: `$1.00/month per additional team` recurring
 - Copy **Price ID**: `price_...` → `STRIPE_PRICE_VETERAN`
 
 **Legend Tier:**

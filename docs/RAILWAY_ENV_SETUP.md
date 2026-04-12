@@ -22,8 +22,8 @@ See `server/src/lib/env.ts` for the full Zod schema.
 | JWT_SECRET | ✅ Set | Auth tokens work |
 | SMTP_HOST/USER/PASS | ✅ Set | Email verification & password reset work |
 | SENTRY_DSN | ✅ Set | Server error tracking active |
-| **STRIPE_SECRET_KEY** | ✅ Set | `sk_test_51S5t0k...` configured |
-| **STRIPE_WEBHOOK_SECRET** | ✅ Set | `whsec_8f60823f...` configured |
+| **STRIPE_SECRET_KEY** | ✅ Set | Configured in Railway |
+| **STRIPE_WEBHOOK_SECRET** | ✅ Set | Configured in Railway |
 | **STRIPE_PRICE_VETERAN** | ✅ Set | `price_1SCd6HRuB2a0vFjp1QlboTEv` |
 | **STRIPE_PRICE_LEGEND** | ✅ Set | `price_1SCd6IRuB2a0vFjpQOSdctN4` |
 | **CLOUDINARY_CLOUD_NAME** | ✅ Set | `varsityhub` |
@@ -54,8 +54,8 @@ Get from: https://dashboard.stripe.com/apikeys
 ```bash
 STRIPE_SECRET_KEY=sk_live_...      # or sk_test_... for testing
 STRIPE_WEBHOOK_SECRET=whsec_...    # from webhook setup (step below)
-STRIPE_PRICE_VETERAN=price_...     # Veteran tier: $2.50/month per additional team
-STRIPE_PRICE_LEGEND=price_...      # Legend tier: $19.99/year unlimited
+STRIPE_PRICE_VETERAN=price_...     # Veteran tier: $1.00/month per additional team
+STRIPE_PRICE_LEGEND=price_...      # Legend tier: $29.99/year unlimited
 ```
 
 **Ad Pricing (Hardcoded in server/src/routes/payments.ts):**
@@ -66,10 +66,10 @@ STRIPE_PRICE_LEGEND=price_...      # Legend tier: $19.99/year unlimited
 **Create Stripe Products:**
 1. Go to Stripe Dashboard → Products
 2. Create "Veteran" product:
-   - Price: $2.50/month recurring (per-unit billing)
+   - Price: $1.00/month recurring (per-unit billing)
    - Copy `price_...` ID → `STRIPE_PRICE_VETERAN`
 3. Create "Legend" product:
-   - Price: $19.99/year recurring
+   - Price: $29.99/year recurring
    - Copy `price_...` ID → `STRIPE_PRICE_LEGEND`
 
 ### 2. Cloudinary (Image/Video Uploads)

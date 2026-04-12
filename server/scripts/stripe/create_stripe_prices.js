@@ -1,27 +1,33 @@
 import Stripe from 'stripe';
 
-// Initialize Stripe with the test secret key
-const stripe = new Stripe('sk_test_51S5t0kRuB2a0vFjp0bdj2NbzkDp6ACVhtWU48TXtNuviL0wnJxxIx0eBgg6whwiM9gJkNiqnINPbSQHqV9qRIxfe00KEwuxjwZ');
+const stripeSecretKey = process.env.STRIPE_SECRET_KEY || '';
+
+if (!stripeSecretKey) {
+  console.error('Missing STRIPE_SECRET_KEY. Export it before running this script.');
+  process.exit(1);
+}
+
+const stripe = new Stripe(stripeSecretKey);
 
 async function createTestPrices() {
   try {
     console.log('Creating test prices for subscription plans...');
 
-    // Create Veteran plan price (monthly: $2.50 per team)
+    // Create Veteran plan price (monthly: $1.00 per additional team)
     const veteranPrice = await stripe.prices.create({
-      unit_amount: 250, // $2.50 in cents
+      unit_amount: 100, // $1.00 in cents
       currency: 'usd',
       recurring: { interval: 'month' },
       product_data: {
-        name: 'VarsityHub Veteran Plan (Per Team)'
+        name: 'VarsityHub Veteran Plan (Per Additional Team)'
       }
     });
 
     console.log('✅ Veteran plan price created:', veteranPrice.id);
 
-    // Create Legend plan price (annual: $19.99)
+    // Create Legend plan price (annual: $29.99)
     const legendPrice = await stripe.prices.create({
-      unit_amount: 1999, // $19.99 in cents
+      unit_amount: 2999, // $29.99 in cents
       currency: 'usd',
       recurring: { interval: 'year' },
       product_data: {

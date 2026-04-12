@@ -243,6 +243,34 @@ async function main() {
       max_redemptions: 500, per_user_limit: 1,
     },
   });
+  await prisma.promoCode.upsert({
+    where: { code: 'FIRST100' },
+    update: {},
+    create: {
+      code: 'FIRST100',
+      type: 'PERCENT_OFF',
+      percent_off: 100,
+      enabled: true,
+      start_at: new Date(),
+      max_redemptions: 100,
+      per_user_limit: 1,
+      applies_to_service: 'membership',
+    },
+  });
+  await prisma.promoCode.upsert({
+    where: { code: 'FIRST100LEGENDS' },
+    update: {},
+    create: {
+      code: 'FIRST100LEGENDS',
+      type: 'PERCENT_OFF',
+      percent_off: 100,
+      enabled: true,
+      start_at: new Date(),
+      max_redemptions: 100,
+      per_user_limit: 1,
+      applies_to_service: 'membership',
+    },
+  });
 
   console.log('Seed complete');
 }
@@ -256,5 +284,4 @@ main()
     await prisma.$disconnect();
     process.exit(1);
   });
-
 

@@ -828,7 +828,7 @@ paymentsRouter.get('/subscription/summary', requireVerified as any, async (req: 
         if (sub.current_period_end) current_period_end = new Date(sub.current_period_end * 1000).toISOString();
         const item = sub.items.data[0];
         quantity = item?.quantity ?? null;
-        if (typeof quantity === 'number') monthly_cost = Number((quantity * 2.5).toFixed(2));
+        if (typeof quantity === 'number') monthly_cost = Number((quantity * 1.0).toFixed(2));
       } catch (err) {
         console.warn('[payments] Failed to retrieve summary subscription:', (err as any)?.message || err);
       }

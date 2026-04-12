@@ -59,7 +59,7 @@ export default function BillingScreen() {
       setSummary(s);
       setShowQtyEditor(false);
       const billable = Math.max(0, n - 2);
-      Alert.alert('Updated', `Subscription updated to ${n} total teams (${billable} billed at $1.50 each = $${(billable * 1.5).toFixed(2)}/month).`);
+      Alert.alert('Updated', `Subscription updated to ${n} total teams (${billable} billed at $1.00 each = $${(billable * 1.0).toFixed(2)}/month).`);
     } catch (e: any) {
       Alert.alert('Update failed', e?.message || 'Unable to update quantity.');
     } finally {
@@ -157,7 +157,7 @@ export default function BillingScreen() {
         <View style={[styles.banner, styles.bannerLegend]}>
           <Text style={[styles.bannerTitle, styles.bannerTitleLegend]}>Legend Plan</Text>
           <Text style={styles.bannerDescription}>{getPlanDescription('legend')}</Text>
-          <Text style={styles.bannerLine}>Annual: <Text style={styles.bold}>$20/year</Text></Text>
+          <Text style={styles.bannerLine}>Annual: <Text style={styles.bold}>$29.99/year</Text></Text>
           {!!summary.current_period_end && (
             <Text style={styles.bannerHint}>Renews: {new Date(summary.current_period_end).toLocaleDateString()}</Text>
           )}

@@ -26,16 +26,16 @@ Write-Host "JWT_SECRET=your-super-secure-jwt-secret-minimum-32-characters-long" 
 Write-Host "NODE_ENV=production" -ForegroundColor Gray
 Write-Host "SMTP_HOST=smtp.gmail.com" -ForegroundColor Gray
 Write-Host "SMTP_PORT=587" -ForegroundColor Gray
-Write-Host "SMTP_USER=its.sc05@gmail.com" -ForegroundColor Gray
-Write-Host "SMTP_PASS=oqjwfyovgmxuwobg" -ForegroundColor Gray
-Write-Host "FROM_EMAIL=its.sc05@gmail.com" -ForegroundColor Gray
-Write-Host "ADMIN_EMAILS=xsancastrillonx@hotmail.com" -ForegroundColor Gray
+Write-Host "SMTP_USER=your-smtp-user" -ForegroundColor Gray
+Write-Host "SMTP_PASS=your-smtp-password" -ForegroundColor Gray
+Write-Host "FROM_EMAIL=your-from-email@example.com" -ForegroundColor Gray
+Write-Host "ADMIN_EMAILS=admin@example.com" -ForegroundColor Gray
 Write-Host "ALLOWED_ORIGINS=*" -ForegroundColor Gray
 Write-Host "APP_SCHEME=varsityhubmobile" -ForegroundColor Gray
-Write-Host "STRIPE_SECRET_KEY=sk_test_51S5t0kRuB2a0vFjp0bdj2NbzkDp6ACVhtWU48TXtNuviL0wnJxxIx0eBgg6whwiM9gJkNiqnINPbSQHqV9qRIxfe00KEwuxjwZ" -ForegroundColor Gray
-Write-Host "STRIPE_WEBHOOK_SECRET=whsec_8f60823f31adfb85a3616a110e6a3d97fcfb529f8c0868a67a83b1d69edc833a" -ForegroundColor Gray
-Write-Host "STRIPE_PRICE_VETERAN=price_1SCd6HRuB2a0vFjp1QlboTEv" -ForegroundColor Gray
-Write-Host "STRIPE_PRICE_LEGEND=price_1SCd6IRuB2a0vFjpQOSdctN4" -ForegroundColor Gray
+Write-Host "STRIPE_SECRET_KEY=sk_live_or_test_your_secret_key" -ForegroundColor Gray
+Write-Host "STRIPE_WEBHOOK_SECRET=whsec_your_webhook_secret" -ForegroundColor Gray
+Write-Host "STRIPE_PRICE_VETERAN=price_your_veteran_price_id" -ForegroundColor Gray
+Write-Host "STRIPE_PRICE_LEGEND=price_your_legend_price_id" -ForegroundColor Gray
 Write-Host ""
 
 Write-Host "3. 🔧 Railway Service Settings:" -ForegroundColor Yellow

@@ -21,9 +21,9 @@ Scripts for managing user data, subscriptions, and database operations.
 Scripts for managing Stripe payment integration.
 
 - **`create_stripe_prices.js`** - Creates Stripe price IDs for subscription plans
-  - Sets up Veteran ($70/year) and Legend ($150/year) pricing
+  - Sets up Veteran ($1.00/month per additional team) and Legend ($29.99/year) pricing
   - Outputs price IDs for environment variables
-  - ⚠️  Contains actual Stripe keys - keep secure
+  - Requires `STRIPE_SECRET_KEY` in the environment before running
   - Usage: `node create_stripe_prices.js`
 
 ## Usage
@@ -39,6 +39,6 @@ node scripts/stripe/create_stripe_prices.js
 
 ## Security Notes
 
-- Stripe scripts contain live API keys
+- Never commit real Stripe keys or webhook secrets into scripts or docs
 - Database scripts modify user data - always test first
 - Use these scripts with caution in production

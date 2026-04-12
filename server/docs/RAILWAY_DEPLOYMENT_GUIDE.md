@@ -46,10 +46,10 @@ NODE_ENV=production
 # Email Configuration
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
-SMTP_USER=its.sc05@gmail.com
-SMTP_PASS=oqjwfyovgmxuwobg
-FROM_EMAIL=its.sc05@gmail.com
-ADMIN_EMAILS=xsancastrillonx@hotmail.com
+SMTP_USER=your-smtp-user
+SMTP_PASS=your-smtp-password
+FROM_EMAIL=your-from-email@example.com
+ADMIN_EMAILS=admin@example.com
 
 # CORS
 ALLOWED_ORIGINS=*
@@ -58,10 +58,10 @@ ALLOWED_ORIGINS=*
 APP_SCHEME=varsityhubmobile
 
 # Stripe
-STRIPE_SECRET_KEY=sk_test_51S5t0kRuB2a0vFjp0bdj2NbzkDp6ACVhtWU48TXtNuviL0wnJxxIx0eBgg6whwiM9gJkNiqnINPbSQHqV9qRIxfe00KEwuxjwZ
-STRIPE_WEBHOOK_SECRET=whsec_8f60823f31adfb85a3616a110e6a3d97fcfb529f8c0868a67a83b1d69edc833a
-STRIPE_PRICE_VETERAN=price_1SCd6HRuB2a0vFjp1QlboTEv
-STRIPE_PRICE_LEGEND=price_1SCd6IRuB2a0vFjpQOSdctN4
+STRIPE_SECRET_KEY=sk_live_or_test_your_secret_key
+STRIPE_WEBHOOK_SECRET=whsec_your_webhook_secret
+STRIPE_PRICE_VETERAN=price_your_veteran_price_id
+STRIPE_PRICE_LEGEND=price_your_legend_price_id
 
 # Cloudinary (REQUIRED - Sign up at https://cloudinary.com)
 CLOUDINARY_CLOUD_NAME=your-cloudinary-cloud-name

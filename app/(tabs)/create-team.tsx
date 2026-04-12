@@ -6,7 +6,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Pressable, ScrollView as RNScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Platform, Pressable, ScrollView as RNScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Subscriptions, Team, User } from '@/api/entities';
@@ -289,6 +289,15 @@ export default function CreateTeamScreen() {
         }
 
         if (userPlan === 'rookie' && teamCount >= 2) {
+          if (Platform.OS === 'ios') {
+            Alert.alert(
+              'Upgrade Required',
+              'Adding a third team requires a paid coach plan. Paid upgrades are not currently purchasable inside the iOS app. Upgrade from Android/web, then return to create the team.'
+            );
+            setSubmitting(false);
+            return;
+          }
+
           const newTeamCount = teamCount + 1;
           const billableTeamCount = Math.max(0, newTeamCount - 2);
           Alert.alert(
@@ -336,6 +345,15 @@ export default function CreateTeamScreen() {
         }
         
         if (userPlan === 'veteran') {
+          if (Platform.OS === 'ios') {
+            Alert.alert(
+              'Manage Billing Elsewhere',
+              'Adding another Veteran team updates your paid subscription. Subscription changes are not currently available inside the iOS app. Use Android/web to update billing, then return to create the team.'
+            );
+            setSubmitting(false);
+            return;
+          }
+
           // Veteran plan: Per-team monthly charge - update subscription quantity
           const newTeamCount = teamCount + 1;
           const billableTeamCount = Math.max(0, newTeamCount - 2);
