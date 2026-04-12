@@ -833,8 +833,8 @@ paymentsRouter.get('/subscription/summary', requireVerified as any, async (req: 
         console.warn('[payments] Failed to retrieve summary subscription:', (err as any)?.message || err);
       }
     } else if (plan === 'legend') {
-      // Annual cost fixed at $19.99
-      annual_cost = 19.99;
+      // Annual cost fixed at $29.99
+      annual_cost = 29.99;
       // status can be determined if subscription id exists
       if (subscriptionId && process.env.STRIPE_SECRET_KEY) {
         try {

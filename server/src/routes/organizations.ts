@@ -9,6 +9,7 @@ import {
 } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
 import { invalidateAuthCache, type AuthedRequest } from '../middleware/auth.js';
+import { getIsAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { debugLog } from '../lib/debugLog.js';
 import { getAuthorizedUsersOrgLimit } from '../lib/planLimits.js';
@@ -45,6 +46,34 @@ function getPreferenceObject(preferences: unknown): Record<string, any> {
   return preferences && typeof preferences === 'object' && !Array.isArray(preferences)
     ? ({ ...(preferences as Record<string, any>) } as Record<string, any>)
     : {};
+}
+
+async function assertCoachRoleOrAdmin(req: AuthedRequest): Promise<void> {
+  if (!req.user) {
+    const error: any = new Error('Unauthorized');
+    error.status = 401;
+    throw error;
+  }
+
+  if (await getIsAdmin(req)) return;
+
+  const me = await prisma.user.findUnique({
+    where: { id: req.user.id },
+    select: { preferences: true },
+  });
+  const prefs = getPreferenceObject(me?.preferences);
+  const role = typeof prefs.role === 'string' ? prefs.role.toLowerCase() : 'fan';
+
+  if (role !== 'coach') {
+    const error: any = new Error('Only coach accounts can create organizations.');
+    error.status = 403;
+    error.payload = {
+      error: 'COACH_ROLE_REQUIRED',
+      message: 'Only coach accounts can create organizations.',
+      code: 'COACH_ROLE_REQUIRED',
+    };
+    throw error;
+  }
 }
 
 async function markCoachApprovalPending(
@@ -308,6 +337,14 @@ const createOrganizationSchema = z.object({
 
 // Create organization
 organizationsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
+  try {
+    await assertCoachRoleOrAdmin(req);
+  } catch (error: any) {
+    return res
+      .status(error?.status || 403)
+      .json(error?.payload || { error: 'COACH_ROLE_REQUIRED', message: error?.message || 'Forbidden' });
+  }
+
   const parsed = createOrganizationSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
   
@@ -378,6 +415,14 @@ const createOrganizationWithTeamsSchema = z.object({
 
 // Enhanced create organization for onboarding
 organizationsRouter.post('/create', requireAuth as any, async (req: AuthedRequest, res) => {
+  try {
+    await assertCoachRoleOrAdmin(req);
+  } catch (error: any) {
+    return res
+      .status(error?.status || 403)
+      .json(error?.payload || { error: 'COACH_ROLE_REQUIRED', message: error?.message || 'Forbidden' });
+  }
+
   const parsed = createOrganizationWithTeamsSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
   
