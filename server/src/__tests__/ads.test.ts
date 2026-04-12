@@ -1,128 +1,40 @@
-describe('Advertisements', () => {
-  describe('Ad Creation', () => {
-    it('should require contact name', () => {
-      const ad = {
-        contact_name: 'John Doe',
-        contact_email: 'john@example.com',
-        business_name: 'Business Inc',
-        target_zip_code: '10001',
-      };
+import { describe, expect, it } from '@jest/globals';
+import {
+  canReviewAd,
+  getAdStatusAfterApproval,
+  getAdStatusAfterSuccessfulPayment,
+  getAdStatusForCheckoutSubmission,
+  normalizeAdStatus,
+} from '../lib/adLifecycle.js';
 
-      expect(ad.contact_name).toBeDefined();
-      expect(ad.contact_name).toBeTruthy();
-    });
-
-    it('should require valid email', () => {
-      const email = 'invalid-email';
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-      expect(email).not.toMatch(emailRegex);
-    });
-
-    it('should require target zip code', () => {
-      const ad = {
-        target_zip_code: '10001',
-      };
-
-      expect(ad.target_zip_code).toBeDefined();
-      expect(ad.target_zip_code).toMatch(/^\d{5}$/);
-    });
-
-    it('should have default radius of 10', () => {
-      const defaultRadius = 10;
-      expect(defaultRadius).toBe(10);
-    });
+describe('Ad lifecycle', () => {
+  it('submitting checkout moves drafts into pending review', () => {
+    expect(getAdStatusForCheckoutSubmission('draft')).toBe('pending');
+    expect(getAdStatusForCheckoutSubmission('pending')).toBe('pending');
+    expect(getAdStatusForCheckoutSubmission('approved')).toBe('approved');
   });
 
-  describe('Ad Status', () => {
-    const validStatuses = ['draft', 'pending', 'approved', 'active', 'paused', 'archived'];
-
-    validStatuses.forEach((status) => {
-      it(`should accept valid status: ${status}`, () => {
-        expect(validStatuses).toContain(status);
-      });
-    });
+  it('admin approval keeps unpaid ads approved and activates paid ads', () => {
+    expect(getAdStatusAfterApproval('unpaid')).toBe('approved');
+    expect(getAdStatusAfterApproval('paid')).toBe('active');
   });
 
-  describe('Payment Status', () => {
-    const validPaymentStatuses = ['unpaid', 'pending', 'paid', 'failed', 'refunded'];
-
-    validPaymentStatuses.forEach((status) => {
-      it(`should accept valid payment status: ${status}`, () => {
-        expect(validPaymentStatuses).toContain(status);
-      });
-    });
-
-    it('should default to unpaid', () => {
-      const defaultStatus = 'unpaid';
-      expect(defaultStatus).toBe('unpaid');
-    });
+  it('successful payment only activates already-approved ads', () => {
+    expect(getAdStatusAfterSuccessfulPayment('approved')).toBe('active');
+    expect(getAdStatusAfterSuccessfulPayment('pending')).toBe('pending');
+    expect(getAdStatusAfterSuccessfulPayment('draft')).toBe('pending');
   });
 
-  describe('Geographic Validation', () => {
-    it('should accept valid US zip codes', () => {
-      const validZips = ['10001', '90210', '75201', '98101'];
-
-      validZips.forEach((zip) => {
-        expect(zip).toMatch(/^\d{5}$/);
-      });
-    });
-
-    it('should reject invalid zip codes', () => {
-      const invalidZips = ['1001', '900210', '9021a'];
-
-      invalidZips.forEach((zip) => {
-        expect(zip).not.toMatch(/^\d{5}$/);
-      });
-    });
-
-    it('should validate radius values', () => {
-      const radius = 10;
-      expect(radius).toBeGreaterThan(0);
-      expect(radius).toBeLessThanOrEqual(250);
-    });
+  it('only pending or approved ads are reviewable', () => {
+    expect(canReviewAd('pending')).toBe(true);
+    expect(canReviewAd('approved')).toBe(true);
+    expect(canReviewAd('draft')).toBe(false);
+    expect(canReviewAd('active')).toBe(false);
+    expect(canReviewAd('rejected')).toBe(false);
   });
 
-  describe('Ad Visibility', () => {
-    it('should only show paid ads in feed', () => {
-      const ad = {
-        id: 'ad_123',
-        payment_status: 'paid',
-      };
-
-      const shouldShowInFeed = ad.payment_status === 'paid';
-      expect(shouldShowInFeed).toBe(true);
-    });
-
-    it('should not show unpaid ads in feed', () => {
-      const ad = {
-        id: 'ad_123',
-        payment_status: 'unpaid',
-      };
-
-      const shouldShowInFeed = ad.payment_status === 'paid';
-      expect(shouldShowInFeed).toBe(false);
-    });
-  });
-
-  describe('Banner Validation', () => {
-    it('should accept valid image URLs', () => {
-      const validUrls = [
-        'https://example.com/image.jpg',
-        'https://res.cloudinary.com/mycloud/image.jpg',
-      ];
-
-      validUrls.forEach((url) => {
-        expect(url).toMatch(/^https?:\/\/.+\.(jpg|jpeg|png|gif|webp)$/i);
-      });
-    });
-
-    it('should allow ads without banner', () => {
-      const ad = {
-        banner_url: null,
-      };
-
-      expect(ad.banner_url).toBeNull();
-    });
+  it('normalizes unknown statuses back to draft', () => {
+    expect(normalizeAdStatus(undefined)).toBe('draft');
+    expect(normalizeAdStatus('something-else')).toBe('draft');
   });
 });

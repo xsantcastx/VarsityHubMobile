@@ -28,30 +28,19 @@ test.describe('Critical User Flows', () => {
   test('Complete signup and email verification flow', async ({ page, request }) => {
     const testData = generateTestData();
 
-    // Navigate to app
-    await page.goto(APP_URL);
-    await page.waitForLoadState('networkidle');
-
-    // Find and click sign up
-    const signUpButton = page.locator('text=/sign up/i, button:has-text("Sign Up"), a:has-text("Sign Up")').first();
-    await signUpButton.click();
-    await page.waitForTimeout(1000);
+    // Navigate directly to the sign-up route instead of relying on a brittle landing-page selector.
+    await page.goto(`${APP_URL}/sign-up`, { waitUntil: 'domcontentloaded' });
+    await page.waitForLoadState('domcontentloaded');
+    await expect(page.getByRole('heading', { name: 'Create Account' })).toBeVisible();
+    await page.getByText('Sign up with Email', { exact: true }).click();
+    await page.waitForTimeout(500);
 
     // Fill registration form
-    const emailInput = page.locator('input[type="email"], input[name="email"], input[placeholder*="email" i]').first();
-    const passwordInput = page.locator('input[type="password"], input[name="password"]').first();
-    const displayNameInput = page.locator('input[name="display_name"], input[name="displayName"], input[placeholder*="name" i]').first();
-
-    await emailInput.fill(testData.email);
-    await passwordInput.fill(testData.password);
-    
-    if (await displayNameInput.isVisible().catch(() => false)) {
-      await displayNameInput.fill(testData.displayName);
-    }
+    await page.getByPlaceholder('Email').fill(testData.email);
+    await page.getByPlaceholder('Password').fill(testData.password);
 
     // Submit registration
-    const submitButton = page.locator('button:has-text("Create Account"), button:has-text("Sign Up"), button[type="submit"]').first();
-    await submitButton.click();
+    await page.getByText('Create Account', { exact: true }).last().click();
 
     // Wait for navigation to verification screen
     await page.waitForTimeout(2000);
@@ -102,25 +91,13 @@ test.describe('Critical User Flows', () => {
     expect(registerResponse.ok()).toBeTruthy();
     const { access_token } = await registerResponse.json();
 
-    // Navigate to app
-    await page.goto(APP_URL);
-    await page.waitForLoadState('networkidle');
+    await page.goto(`${APP_URL}/sign-in`, { waitUntil: 'domcontentloaded' });
+    await page.waitForLoadState('domcontentloaded');
+    await expect(page.getByText('Welcome back')).toBeVisible();
 
-    // Find and click sign in
-    const signInButton = page.locator('text=/sign in/i, button:has-text("Sign In"), a:has-text("Sign In")').first();
-    await signInButton.click();
-    await page.waitForTimeout(1000);
-
-    // Fill login form
-    const emailInput = page.locator('input[type="email"], input[name="email"]').first();
-    const passwordInput = page.locator('input[type="password"], input[name="password"]').first();
-
-    await emailInput.fill(testData.email);
-    await passwordInput.fill(testData.password);
-
-    // Submit login
-    const submitButton = page.locator('button:has-text("Sign In"), button[type="submit"]').first();
-    await submitButton.click();
+    await page.getByPlaceholder('name@school.edu').fill(testData.email);
+    await page.getByPlaceholder('Enter your password').fill(testData.password);
+    await page.getByText('Sign In', { exact: true }).last().click();
 
     // Wait for navigation
     await page.waitForTimeout(3000);

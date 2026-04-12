@@ -9,6 +9,7 @@ import { test, expect } from '@playwright/test';
 
 const APP_URL = process.env.APP_URL || 'http://localhost:8081';
 const API_URL = process.env.API_URL || 'http://localhost:4000';
+const WEB_AUTH_TOKEN_KEY = 'auth_token_key';
 
 // Helper to generate unique test data
 const generateTestData = () => {
@@ -37,6 +38,23 @@ async function createUser(request: any, email: string, password: string, display
   }
   
   const data = await response.json();
+
+  if (data.dev_verification_code) {
+    const verifyResponse = await request.post(`${API_URL}/auth/verify/confirm`, {
+      headers: {
+        Authorization: `Bearer ${data.access_token}`,
+      },
+      data: {
+        code: String(data.dev_verification_code),
+      },
+    });
+
+    if (verifyResponse.status() !== 200) {
+      const body = await verifyResponse.text();
+      throw new Error(`Failed to verify user: ${verifyResponse.status()} - ${body}`);
+    }
+  }
+
   return {
     accessToken: data.access_token,
     user: data.user,
@@ -44,6 +62,22 @@ async function createUser(request: any, email: string, password: string, display
 }
 
 // Helper to login via API
+async function completeOnboarding(request: any, accessToken: string) {
+  const response = await request.patch(`${API_URL}/me/preferences`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+    data: {
+      onboarding_completed: true,
+    },
+  });
+
+  if (response.status() !== 200) {
+    const body = await response.text();
+    throw new Error(`Failed to complete onboarding: ${response.status()} - ${body}`);
+  }
+}
+
 async function loginUser(request: any, email: string, password: string) {
   const response = await request.post(`${API_URL}/auth/login`, {
     data: { email, password },
@@ -55,6 +89,7 @@ async function loginUser(request: any, email: string, password: string) {
   }
   
   const data = await response.json();
+  await completeOnboarding(request, data.access_token);
   return {
     accessToken: data.access_token,
     user: data.user,
@@ -100,6 +135,7 @@ async function fetchHighlights(request: any, accessToken: string | null, country
   const params = new URLSearchParams({
     country,
     limit: '50',
+    v2: '1',
   });
   if (lat != null && lng != null) {
     params.append('lat', String(lat));
@@ -123,8 +159,31 @@ async function fetchHighlights(request: any, accessToken: string | null, country
   return await response.json();
 }
 
+async function setWebAuthToken(page: any, accessToken: string) {
+  await page.evaluate(
+    ({ storageKey, token }) => {
+      localStorage.setItem(storageKey, token);
+    },
+    { storageKey: WEB_AUTH_TOKEN_KEY, token: accessToken }
+  );
+}
+
+async function gotoAppRoute(page: any, urlOrPath: string = APP_URL) {
+  const target = typeof urlOrPath === 'string' && urlOrPath.startsWith('http')
+    ? urlOrPath
+    : `${APP_URL}${urlOrPath}`;
+  await page.goto(target, { waitUntil: 'domcontentloaded' });
+  await page.waitForLoadState('domcontentloaded');
+}
+
+async function reloadAppPage(page: any) {
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForLoadState('domcontentloaded');
+}
+
 test.describe('Highlights Page Tests', () => {
   test.describe.configure({ mode: 'serial' });
+  test.setTimeout(90000);
 
   test('Highlights page loads and displays content', async ({ page, request }) => {
     const testData = generateTestData();
@@ -137,14 +196,12 @@ test.describe('Highlights Page Tests', () => {
     await createHighlight(request, accessToken, 'Test highlight for E2E test');
     
     // Navigate to app and set auth token
-    await page.goto(APP_URL);
-    await page.evaluate((token) => {
-      localStorage.setItem('access_token', token);
-    }, accessToken);
+    await gotoAppRoute(page, APP_URL);
+    await setWebAuthToken(page, accessToken);
     
     // Reload to apply auth
-    await page.reload();
-    await page.waitForLoadState('networkidle');
+    await reloadAppPage(page);
+    await page.waitForLoadState('domcontentloaded');
     
     // Navigate to highlights page
     const highlightsLink = page.locator('a[href*="highlight"], button:has-text("Highlight"), [data-testid="highlights-tab"]').first();
@@ -152,10 +209,10 @@ test.describe('Highlights Page Tests', () => {
       await highlightsLink.click();
     } else {
       // Try navigating directly
-      await page.goto(`${APP_URL}/highlights`);
+      await gotoAppRoute(page, `${APP_URL}/highlights`);
     }
     
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(3000); // Wait for highlights to load
     
     // Check if highlights content is visible
@@ -176,24 +233,22 @@ test.describe('Highlights Page Tests', () => {
     await createHighlight(request, accessToken, 'Highlight 3');
     
     // Navigate to app and set auth token
-    await page.goto(APP_URL);
-    await page.evaluate((token) => {
-      localStorage.setItem('access_token', token);
-    }, accessToken);
+    await gotoAppRoute(page, APP_URL);
+    await setWebAuthToken(page, accessToken);
     
     // Reload to apply auth
-    await page.reload();
-    await page.waitForLoadState('networkidle');
+    await reloadAppPage(page);
+    await page.waitForLoadState('domcontentloaded');
     
     // Navigate to highlights
-    await page.goto(`${APP_URL}/highlights`);
-    await page.waitForLoadState('networkidle');
+    await gotoAppRoute(page, `${APP_URL}/highlights`);
+    await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(3000);
     
     // Check for tab buttons
-    const trendingTab = page.locator('button:has-text("Trending"), text=/trending/i').first();
-    const recentTab = page.locator('button:has-text("Recent"), text=/recent/i').first();
-    const topTab = page.locator('button:has-text("Top"), text=/top/i').first();
+    const trendingTab = page.getByText(/Trending/i).first();
+    const recentTab = page.getByText(/Recent/i).first();
+    const topTab = page.getByText(/Top/i).first();
     
     // At least one tab should be visible
     const hasTabs = await trendingTab.isVisible().catch(() => false) ||
@@ -230,18 +285,16 @@ test.describe('Highlights Page Tests', () => {
     const { accessToken } = await loginUser(request, testData.email, testData.password);
     
     // Navigate to app and set auth token
-    await page.goto(APP_URL);
-    await page.evaluate((token) => {
-      localStorage.setItem('access_token', token);
-    }, accessToken);
+    await gotoAppRoute(page, APP_URL);
+    await setWebAuthToken(page, accessToken);
     
     // Reload to apply auth
-    await page.reload();
-    await page.waitForLoadState('networkidle');
+    await reloadAppPage(page);
+    await page.waitForLoadState('domcontentloaded');
     
     // Navigate to highlights
-    await page.goto(`${APP_URL}/highlights`);
-    await page.waitForLoadState('networkidle');
+    await gotoAppRoute(page, `${APP_URL}/highlights`);
+    await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2000);
     
     // Try to trigger refresh (scroll to top)
@@ -268,18 +321,16 @@ test.describe('Highlights Page Tests', () => {
     const { accessToken } = await loginUser(request, testData.email, testData.password);
     
     // Navigate to app and set auth token
-    await page.goto(APP_URL);
-    await page.evaluate((token) => {
-      localStorage.setItem('access_token', token);
-    }, accessToken);
+    await gotoAppRoute(page, APP_URL);
+    await setWebAuthToken(page, accessToken);
     
     // Reload to apply auth
-    await page.reload();
-    await page.waitForLoadState('networkidle');
+    await reloadAppPage(page);
+    await page.waitForLoadState('domcontentloaded');
     
     // Navigate to highlights
-    await page.goto(`${APP_URL}/highlights`);
-    await page.waitForLoadState('networkidle');
+    await gotoAppRoute(page, `${APP_URL}/highlights`);
+    await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2000);
     
     // Check for empty state or that page loads without errors
@@ -301,18 +352,16 @@ test.describe('Highlights Page Tests', () => {
     await createHighlight(request, accessToken, 'Searchable highlight content', undefined, 'Search Test Title');
     
     // Navigate to app and set auth token
-    await page.goto(APP_URL);
-    await page.evaluate((token) => {
-      localStorage.setItem('access_token', token);
-    }, accessToken);
+    await gotoAppRoute(page, APP_URL);
+    await setWebAuthToken(page, accessToken);
     
     // Reload to apply auth
-    await page.reload();
-    await page.waitForLoadState('networkidle');
+    await reloadAppPage(page);
+    await page.waitForLoadState('domcontentloaded');
     
     // Navigate to highlights
-    await page.goto(`${APP_URL}/highlights`);
-    await page.waitForLoadState('networkidle');
+    await gotoAppRoute(page, `${APP_URL}/highlights`);
+    await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2000);
     
     // Try to find search input
@@ -323,9 +372,8 @@ test.describe('Highlights Page Tests', () => {
       await page.waitForTimeout(1000);
       
       // Check if search results appear
-      const searchResults = page.locator('text=/Search Test|searchable/i').first();
-      // Search might show results or filter highlights
-      await expect(searchResults.or(page.locator('body'))).toBeVisible({ timeout: 5000 });
+      const searchResults = page.getByText(/Search Test|searchable/i).first();
+      await expect(searchResults).toBeVisible({ timeout: 5000 });
     } else {
       // Search might not be available, but page should still work
       await expect(page.locator('body')).toBeVisible();
@@ -343,18 +391,16 @@ test.describe('Highlights Page Tests', () => {
     const highlight = await createHighlight(request, accessToken, 'Highlight to view in detail', undefined, 'Detail Test');
     
     // Navigate to app and set auth token
-    await page.goto(APP_URL);
-    await page.evaluate((token) => {
-      localStorage.setItem('access_token', token);
-    }, accessToken);
+    await gotoAppRoute(page, APP_URL);
+    await setWebAuthToken(page, accessToken);
     
     // Reload to apply auth
-    await page.reload();
-    await page.waitForLoadState('networkidle');
+    await reloadAppPage(page);
+    await page.waitForLoadState('domcontentloaded');
     
     // Navigate to highlights
-    await page.goto(`${APP_URL}/highlights`);
-    await page.waitForLoadState('networkidle');
+    await gotoAppRoute(page, `${APP_URL}/highlights`);
+    await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2000);
     
     // Try to find and click on the highlight
@@ -368,8 +414,8 @@ test.describe('Highlights Page Tests', () => {
       await expect(page).toHaveURL(/.*post-detail|.*highlight/i, { timeout: 5000 });
     } else {
       // Try navigating directly to post detail
-      await page.goto(`${APP_URL}/post-detail?id=${highlight.id}`);
-      await page.waitForLoadState('networkidle');
+      await gotoAppRoute(page, `${APP_URL}/post-detail?id=${highlight.id}`);
+      await page.waitForLoadState('domcontentloaded');
       await page.waitForTimeout(2000);
       
       // Check if highlight content is visible
@@ -389,18 +435,16 @@ test.describe('Highlights Page Tests', () => {
     const highlight = await createHighlight(request, accessToken, 'Highlight to upvote');
     
     // Navigate to app and set auth token
-    await page.goto(APP_URL);
-    await page.evaluate((token) => {
-      localStorage.setItem('access_token', token);
-    }, accessToken);
+    await gotoAppRoute(page, APP_URL);
+    await setWebAuthToken(page, accessToken);
     
     // Reload to apply auth
-    await page.reload();
-    await page.waitForLoadState('networkidle');
+    await reloadAppPage(page);
+    await page.waitForLoadState('domcontentloaded');
     
     // Navigate to highlights
-    await page.goto(`${APP_URL}/highlights`);
-    await page.waitForLoadState('networkidle');
+    await gotoAppRoute(page, `${APP_URL}/highlights`);
+    await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2000);
     
     // Try to find upvote button
@@ -419,8 +463,8 @@ test.describe('Highlights Page Tests', () => {
       expect(upvoteButton).toBeVisible();
     } else {
       // Upvote might be on detail page, navigate there
-      await page.goto(`${APP_URL}/post-detail?id=${highlight.id}`);
-      await page.waitForLoadState('networkidle');
+      await gotoAppRoute(page, `${APP_URL}/post-detail?id=${highlight.id}`);
+      await page.waitForLoadState('domcontentloaded');
       await page.waitForTimeout(2000);
       
       const detailUpvoteButton = page.locator('button[aria-label*="upvote" i], button[aria-label*="like" i]').first();
@@ -475,24 +519,22 @@ test.describe('Highlights Page Tests', () => {
     await upvotePost(request, accessToken, highlight1.id);
     
     // Navigate to app and set auth token
-    await page.goto(APP_URL);
-    await page.evaluate((token) => {
-      localStorage.setItem('access_token', token);
-    }, accessToken);
+    await gotoAppRoute(page, APP_URL);
+    await setWebAuthToken(page, accessToken);
     
     // Reload to apply auth
-    await page.reload();
-    await page.waitForLoadState('networkidle');
+    await reloadAppPage(page);
+    await page.waitForLoadState('domcontentloaded');
     
     // Navigate to highlights
-    await page.goto(`${APP_URL}/highlights`);
-    await page.waitForLoadState('networkidle');
+    await gotoAppRoute(page, `${APP_URL}/highlights`);
+    await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(3000);
     
     // Try switching between tabs
-    const trendingTab = page.locator('button:has-text("Trending"), text=/trending/i').first();
-    const recentTab = page.locator('button:has-text("Recent"), text=/recent/i').first();
-    const topTab = page.locator('button:has-text("Top"), text=/top/i').first();
+    const trendingTab = page.getByText(/Trending/i).first();
+    const recentTab = page.getByText(/Recent/i).first();
+    const topTab = page.getByText(/Top/i).first();
     
     // Switch to trending
     if (await trendingTab.isVisible().catch(() => false)) {
@@ -538,18 +580,16 @@ test.describe('Highlights Page Tests', () => {
     await createHighlight(request, accessToken, 'Location-based highlight');
     
     // Navigate to app and set auth token
-    await page.goto(APP_URL);
-    await page.evaluate((token) => {
-      localStorage.setItem('access_token', token);
-    }, accessToken);
+    await gotoAppRoute(page, APP_URL);
+    await setWebAuthToken(page, accessToken);
     
     // Reload to apply auth
-    await page.reload();
-    await page.waitForLoadState('networkidle');
+    await reloadAppPage(page);
+    await page.waitForLoadState('domcontentloaded');
     
     // Navigate to highlights
-    await page.goto(`${APP_URL}/highlights`);
-    await page.waitForLoadState('networkidle');
+    await gotoAppRoute(page, `${APP_URL}/highlights`);
+    await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(3000);
     
     // Highlights should load (location-based ranking is handled server-side)

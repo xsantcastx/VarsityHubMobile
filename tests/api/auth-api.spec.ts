@@ -38,9 +38,11 @@ test.describe('Authentication API', () => {
     
     const body = await response.json();
     expect(body.access_token).toBeDefined();
+    expect(body.refresh_token).toBeDefined();
     expect(body.user).toBeDefined();
     expect(body.user.email).toBe(testEmail.toLowerCase());
-    expect(body.needs_verification).toBe(true);
+    expect(body.dev_verification_code).toBeDefined();
+    expect(body.user.email_verified).toBe(false);
   });
 
   test('POST /auth/register should reject duplicate email', async ({ request }) => {
@@ -109,6 +111,7 @@ test.describe('Authentication API', () => {
     const body = await response.json();
     expect(body.access_token).toBeDefined();
     expect(body.user).toBeDefined();
+    expect(body.needs_verification).toBe(true);
   });
 
   test('POST /auth/login should reject invalid credentials', async ({ request }) => {

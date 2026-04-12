@@ -79,7 +79,7 @@ describe('Username Update Validation', () => {
 
     it('should reject too long usernames', () => {
       expect(isValidUsername('a'.repeat(26))).toBe(false);
-      expect(isValidUsername('test_user_name_1234567890')).toBe(false);
+      expect(isValidUsername('test_user_name_12345678901')).toBe(false);
     });
 
     it('should reject usernames with spaces', () => {

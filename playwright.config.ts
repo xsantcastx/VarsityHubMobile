@@ -1,14 +1,28 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const skipEmbeddedServer = process.env.PLAYWRIGHT_SKIP_SERVER === '1';
+const apiUrl = process.env.API_URL || 'http://127.0.0.1:4100';
+const expoApiUrl = process.env.EXPO_PUBLIC_API_URL || apiUrl;
+
+process.env.API_URL = apiUrl;
+process.env.EXPO_PUBLIC_API_URL = expoApiUrl;
+
 const webServerConfig = skipEmbeddedServer
   ? undefined
-  : {
-      command: 'npm run web:playwright',
-      url: 'http://localhost:8081',
-      reuseExistingServer: !process.env.CI,
-      timeout: 120 * 1000,
-    };
+  : [
+      {
+        command: 'bash scripts/start-smoke-api.sh',
+        url: `${apiUrl}/health`,
+        reuseExistingServer: false,
+        timeout: 120 * 1000,
+      },
+      {
+        command: `EXPO_PUBLIC_API_URL=${expoApiUrl} npm run web:playwright`,
+        url: 'http://localhost:8081',
+        reuseExistingServer: !process.env.CI,
+        timeout: 300 * 1000,
+      },
+    ];
 
 export default defineConfig({
   testDir: './tests',

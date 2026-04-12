@@ -1,6 +1,6 @@
 /**
  * API Integration Tests - Team Endpoints
- * 
+ *
  * Tests actual HTTP endpoints for team management:
  * - POST /teams (create team with role validation)
  * - GET /teams/limits (check team creation limits)
@@ -16,12 +16,15 @@ let prisma: any;
 let signJwt: any;
 
 const TEST_COACH_EMAIL = `test-api-coach-${Date.now()}@example.com`;
+const TEST_PENDING_COACH_EMAIL = `test-api-pending-coach-${Date.now()}@example.com`;
 const TEST_FAN_EMAIL = `test-api-fan-${Date.now()}@example.com`;
 const TEST_PASSWORD = 'TestPassword123!';
 
 describe('API Team Endpoints', () => {
   let coachUserId: string;
   let coachToken: string;
+  let pendingCoachUserId: string;
+  let pendingCoachToken: string;
   let fanUserId: string;
   let fanToken: string;
 
@@ -44,6 +47,21 @@ describe('API Team Endpoints', () => {
     });
     coachUserId = coach.id;
     coachToken = signJwt({ id: coachUserId });
+
+    const pendingCoach = await prisma.user.create({
+      data: {
+        email: TEST_PENDING_COACH_EMAIL,
+        password_hash: coachPasswordHash,
+        display_name: 'Pending Coach',
+        email_verified: true,
+        preferences: {
+          role: 'coach',
+          approval_status: 'PENDING',
+        },
+      },
+    });
+    pendingCoachUserId = pendingCoach.id;
+    pendingCoachToken = signJwt({ id: pendingCoachUserId });
 
     // Create fan user
     const fanPasswordHash = await bcrypt.hash(TEST_PASSWORD, 10);
@@ -70,7 +88,7 @@ describe('API Team Endpoints', () => {
           memberships: {
             some: {
               user_id: {
-                in: [coachUserId, fanUserId],
+                in: [coachUserId, pendingCoachUserId, fanUserId],
               },
             },
           },
@@ -81,7 +99,7 @@ describe('API Team Endpoints', () => {
       await prisma.user.deleteMany({
         where: {
           id: {
-            in: [coachUserId, fanUserId],
+            in: [coachUserId, pendingCoachUserId, fanUserId],
           },
         },
       });
@@ -119,6 +137,20 @@ describe('API Team Endpoints', () => {
       expect(response.body).toHaveProperty('error');
       expect(response.body.error).toBe('COACH_ROLE_REQUIRED');
       expect(response.body.message).toContain('Only coach accounts');
+    });
+
+    it('should reject team creation from pending coach user', async () => {
+      const response = await request(app)
+        .post('/teams')
+        .set('Authorization', `Bearer ${pendingCoachToken}`)
+        .send({
+          name: 'Pending Coach Team',
+          description: 'Should not be allowed until approved',
+        })
+        .expect(403);
+
+      expect(response.body.error).toBe('COACH_APPROVAL_REQUIRED');
+      expect(response.body.message).toContain('approved');
     });
 
     it('should require authentication', async () => {
@@ -206,9 +238,7 @@ describe('API Team Endpoints', () => {
     });
 
     it('should require authentication', async () => {
-      const response = await request(app)
-        .get('/teams/limits')
-        .expect(401);
+      const response = await request(app).get('/teams/limits').expect(401);
 
       expect(response.body).toHaveProperty('error');
     });
@@ -225,9 +255,7 @@ describe('API Team Endpoints', () => {
     });
 
     it('should require authentication', async () => {
-      const response = await request(app)
-        .get('/teams/managed')
-        .expect(401);
+      const response = await request(app).get('/teams/managed').expect(401);
 
       expect(response.body).toHaveProperty('error');
     });

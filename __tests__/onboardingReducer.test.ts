@@ -82,7 +82,7 @@ describe('nextIncompleteStep', () => {
       zip: '12345',
     };
     const result = nextIncompleteStep(state, 'fan');
-    expect(result).toBe(8); // STEP_10_CONFIRMATION.index (step 7 is already satisfied by username)
+    expect(result).toBe(5); // STEP_7_PROFILE.index (fans skip coach-only steps 3-6)
   });
 
   it('should enforce step order for coaches - never jump ahead', () => {

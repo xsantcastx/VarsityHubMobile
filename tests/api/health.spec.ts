@@ -44,7 +44,7 @@ test.describe('API Health Checks', () => {
     
     // If not configured, should have warning
     if (!body.integrations.sendgrid) {
-      expect(body.warnings).toContain(expect.stringContaining('SendGrid'));
+      expect(body.warnings).toContainEqual(expect.stringContaining('SendGrid'));
     }
   });
 

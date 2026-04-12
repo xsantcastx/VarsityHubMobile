@@ -1,18 +1,19 @@
 export default {
   preset: 'ts-jest',
   testEnvironment: 'node',
-  extensionsToTreatAsEsm: ['.ts'],
   transform: {
-    '^.+\\.(ts|tsx)$': ['ts-jest', {
-      useESM: true,
-      tsconfig: {
-        isolatedModules: true,
-        module: 'ESNext',
-        moduleResolution: 'node',
-        esModuleInterop: true,
-        allowSyntheticDefaultImports: true,
+    '^.+\\.(ts|tsx)$': [
+      'ts-jest',
+      {
+        tsconfig: {
+          isolatedModules: true,
+          module: 'CommonJS',
+          moduleResolution: 'node',
+          esModuleInterop: true,
+          allowSyntheticDefaultImports: true,
+        },
       },
-    }],
+    ],
   },
   roots: ['<rootDir>/src'],
   maxWorkers: 1,
@@ -32,6 +33,7 @@ export default {
       statements: 50,
     },
   },
+  globalSetup: '<rootDir>/src/__tests__/globalSetup.cjs',
   setupFilesAfterEnv: ['<rootDir>/src/__tests__/setup.cjs'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',

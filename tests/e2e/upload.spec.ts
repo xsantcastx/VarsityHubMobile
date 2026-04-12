@@ -219,8 +219,8 @@ test.describe('Upload Page Tests', () => {
     await createUser(request, testData.email, testData.password, testData.displayName);
     const { accessToken } = await loginUser(request, testData.email, testData.password);
     
-    // Create a file larger than 25MB limit
-    const largeBuffer = Buffer.alloc(26 * 1024 * 1024); // 26MB
+    // /uploads currently enforces the server-side 100MB media cap.
+    const largeBuffer = Buffer.alloc(101 * 1024 * 1024); // 101MB
     largeBuffer.fill(0xFF);
     
     const response = await request.post(`${API_URL}/uploads`, {

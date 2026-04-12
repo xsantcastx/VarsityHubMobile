@@ -1,10 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import bcrypt from 'bcrypt';
 import request from 'supertest';
+import { signJwt } from '../lib/jwt.js';
+import { prisma } from '../lib/prisma.js';
 import { app } from '../testApp.js';
-
-let prisma: any;
-let signJwt: any;
 
 const RUN_ID = Date.now();
 const ADMIN_EMAIL = `admin-org-approval-${RUN_ID}@example.com`;
@@ -26,9 +25,6 @@ describe('Organization approval sync', () => {
 
   beforeAll(async () => {
     process.env.ADMIN_EMAILS = ADMIN_EMAIL;
-
-    ({ prisma } = await import('../lib/prisma.js'));
-    ({ signJwt } = await import('../lib/jwt.js'));
 
     const passwordHash = await bcrypt.hash(TEST_PASSWORD, 10);
 
@@ -178,6 +174,24 @@ describe('Organization approval sync', () => {
     expect(prefs.approval_status).toBe('APPROVED');
     expect(prefs.organization_id).toBe(pendingOrgId);
     expect(prefs.organization_name).toBe(`Pending Approval Org ${RUN_ID}`);
+  });
+
+  it('rejects admin coach approval without organization context', async () => {
+    const response = await request(app)
+      .post(`/admin/users/${requesterId}/moderation`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ action: 'approve_coach', reason: 'Approved without org should fail' })
+      .expect(400);
+
+    expect(response.body?.error).toBe('ORG_CONTEXT_REQUIRED');
+
+    const requester = await prisma.user.findUnique({
+      where: { id: requesterId },
+      select: { preferences: true },
+    });
+    const prefs = (requester?.preferences || {}) as any;
+    expect(prefs.approval_status).toBe('PENDING');
+    expect(prefs.organization_id || null).toBeNull();
   });
 
   it('organization join request rejection works on /reject and returns rejected status', async () => {

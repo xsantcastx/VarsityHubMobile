@@ -74,4 +74,21 @@ describeDb('Uploads API Endpoints', () => {
       expect(res.statusCode).toEqual(400);
     });
   });
+
+  describe('POST /upload/avatar', () => {
+    it('should return 413 for oversized avatar uploads', async () => {
+      const oversizedBuffer = Buffer.alloc(6 * 1024 * 1024, 0xff);
+
+      const res = await request(app)
+        .post('/upload/avatar')
+        .set('Authorization', `Bearer ${testUserToken}`)
+        .attach('file', oversizedBuffer, {
+          filename: 'too-large-avatar.jpg',
+          contentType: 'image/jpeg',
+        });
+
+      expect(res.statusCode).toEqual(413);
+      expect(res.body.error).toContain('Max 5MB');
+    });
+  });
 });

@@ -16,15 +16,19 @@ let prisma: any;
 let signJwt: any;
 
 const TEST_COACH_EMAIL = `test-api-event-coach-${Date.now()}@example.com`;
+const TEST_PENDING_COACH_EMAIL = `test-api-event-pending-coach-${Date.now()}@example.com`;
 const TEST_FAN_EMAIL = `test-api-event-fan-${Date.now()}@example.com`;
 const TEST_PASSWORD = 'TestPassword123!';
 
 describe('API Event Endpoints', () => {
   let coachUserId: string;
   let coachToken: string;
+  let pendingCoachUserId: string;
+  let pendingCoachToken: string;
   let fanUserId: string;
   let fanToken: string;
   let coachManagedTeamId: string;
+  let moderatedGameId: string;
 
   beforeAll(async () => {
     ({ prisma } = await import('../lib/prisma.js'));
@@ -46,6 +50,21 @@ describe('API Event Endpoints', () => {
     coachUserId = coach.id;
     coachToken = signJwt({ id: coachUserId });
 
+    const pendingCoach = await prisma.user.create({
+      data: {
+        email: TEST_PENDING_COACH_EMAIL,
+        password_hash: coachPasswordHash,
+        display_name: 'Pending Event Coach',
+        email_verified: true,
+        preferences: {
+          role: 'coach',
+          approval_status: 'PENDING',
+        },
+      },
+    });
+    pendingCoachUserId = pendingCoach.id;
+    pendingCoachToken = signJwt({ id: pendingCoachUserId });
+
     const coachTeam = await prisma.team.create({
       data: {
         name: `Coach Managed Team ${Date.now()}`,
@@ -62,6 +81,28 @@ describe('API Event Endpoints', () => {
         status: 'active',
       },
     });
+    await prisma.teamMembership.create({
+      data: {
+        team_id: coachManagedTeamId,
+        user_id: pendingCoachUserId,
+        role: 'owner',
+        status: 'active',
+      },
+    });
+
+    const moderatedGame = await prisma.game.create({
+      data: {
+        title: `Moderated Game ${Date.now()}`,
+        home_team_id: coachManagedTeamId,
+        date: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000),
+        location: 'Test Stadium',
+        approval_status: 'approved',
+        created_by_id: coachUserId,
+        approved_by_id: coachUserId,
+        approved_at: new Date(),
+      },
+    });
+    moderatedGameId = moderatedGame.id;
 
     // Create fan user
     const fanPasswordHash = await bcrypt.hash(TEST_PASSWORD, 10);
@@ -86,10 +127,16 @@ describe('API Event Endpoints', () => {
       await prisma.event.deleteMany({
         where: {
           creator_id: {
-            in: [coachUserId, fanUserId],
+            in: [coachUserId, pendingCoachUserId, fanUserId],
           },
         },
       });
+
+      if (moderatedGameId) {
+        await prisma.game.deleteMany({
+          where: { id: moderatedGameId },
+        });
+      }
 
       if (coachManagedTeamId) {
         await prisma.teamMembership.deleteMany({
@@ -104,7 +151,7 @@ describe('API Event Endpoints', () => {
       await prisma.user.deleteMany({
         where: {
           id: {
-            in: [coachUserId, fanUserId],
+            in: [coachUserId, pendingCoachUserId, fanUserId],
           },
         },
       });
@@ -152,6 +199,25 @@ describe('API Event Endpoints', () => {
       expect(response.body.status).toBe('draft');
       expect(response.body.approval_status).toBe('pending');
       expect(response.body.creator_id).toBe(fanUserId);
+    });
+
+    it('should not auto-approve events created by pending coaches even with active team access', async () => {
+      const futureDate = new Date(Date.now() + 8 * 24 * 60 * 60 * 1000);
+
+      const response = await request(app)
+        .post('/events')
+        .set('Authorization', `Bearer ${pendingCoachToken}`)
+        .send({
+          title: 'Pending Coach Event',
+          date: futureDate.toISOString(),
+          location: 'Pending Stadium',
+          event_type: 'game',
+        })
+        .expect(201);
+
+      expect(response.body.status).toBe('draft');
+      expect(response.body.approval_status).toBe('pending');
+      expect(response.body.creator_id).toBe(pendingCoachUserId);
     });
 
     it('should require authentication', async () => {
@@ -272,6 +338,30 @@ describe('API Event Endpoints', () => {
 
       expect(Array.isArray(response.body)).toBe(true);
       expect(response.body.length).toBeLessThanOrEqual(10);
+    });
+  });
+
+  describe('PUT /events/:id/approve', () => {
+    it('should reject pending coaches from approving scoped events', async () => {
+      const futureDate = new Date(Date.now() + 9 * 24 * 60 * 60 * 1000);
+
+      const createResponse = await request(app)
+        .post('/events')
+        .set('Authorization', `Bearer ${fanToken}`)
+        .send({
+          title: 'Fan Pending Event',
+          date: futureDate.toISOString(),
+          location: 'Fan Stadium',
+          event_type: 'game',
+          game_id: moderatedGameId,
+        })
+        .expect(201);
+
+      await request(app)
+        .put(`/events/${createResponse.body.id}/approve`)
+        .set('Authorization', `Bearer ${pendingCoachToken}`)
+        .send({})
+        .expect(403);
     });
   });
 });

@@ -265,20 +265,22 @@ test.describe('Real-World Functionality Tests', () => {
 
   test('4. View Posts Feed', async ({ request }) => {
     const testName = 'Posts Feed Retrieval';
-    
+
     try {
       const user = await createVerifiedUser(request);
-      
-      // Fetch posts feed
+
+      // GET /posts now returns a paginated envelope `{ items, nextCursor }`.
+      // Assert on the envelope shape, not a bare array.
       const feedResponse = await authRequest(request, user.token, 'get', '/posts');
       const status = feedResponse.status();
-      const body = await feedResponse.json().catch(() => []);
+      const body = await feedResponse.json().catch(() => ({}));
 
       if (status === 200) {
-        expect(Array.isArray(body)).toBe(true);
-        
-        logResult(testName, true, `Feed retrieved with ${body.length} posts`, status);
-        expect(true).toBeTruthy();
+        expect(body).toBeDefined();
+        expect(Array.isArray(body.items)).toBe(true);
+        expect(body).toHaveProperty('nextCursor');
+
+        logResult(testName, true, `Feed retrieved with ${body.items.length} posts`, status);
       } else {
         logResult(testName, false, `Feed retrieval failed: ${status}`, status);
         throw new Error(`Feed returned ${status}`);
@@ -501,12 +503,13 @@ test.describe('Real-World Functionality Tests', () => {
 
   test('11. User Profile Retrieval', async ({ request }) => {
     const testName = 'User Profile (Me)';
-    
+
     try {
       const user = await createVerifiedUser(request);
-      
-      // Get user profile
-      const profileResponse = await authRequest(request, user.token, 'get', '/users/me');
+
+      // `/me` is mounted at the app root (see server/src/app.ts); `/users/me`
+      // was a stale path that 404'd.
+      const profileResponse = await authRequest(request, user.token, 'get', '/me');
       const status = profileResponse.status();
       const body = await profileResponse.json().catch(() => ({}));
 

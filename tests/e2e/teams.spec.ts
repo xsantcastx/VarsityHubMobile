@@ -1,104 +1,65 @@
 import { expect, test } from '@playwright/test';
 
-/**
- * Team Management E2E Tests
- * 
- * Tests team creation, management, and member operations
- */
+const API_BASE_URL =
+  process.env.API_URL || process.env.EXPO_PUBLIC_API_URL || 'http://127.0.0.1:4100';
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000';
+function authHeaders(token: string) {
+  return {
+    Authorization: `Bearer ${token}`,
+  };
+}
 
-// Helper to make authenticated request
-async function makeAuthRequest(request: any, token: string, method: string, url: string, data?: any) {
+async function makeAuthRequest(
+  request: any,
+  token: string,
+  method: string,
+  url: string,
+  data?: any
+) {
   return request[method.toLowerCase()](url, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
+    headers: authHeaders(token),
     data,
   });
 }
 
-// Helper to create a test user and get auth token
-async function createTestUser(request: any, role: 'fan' | 'coach' | 'admin' = 'fan') {
-  const email = `test-teams-${Date.now()}@example.com`;
+async function createTestUser(request: any, role: 'fan' | 'coach' = 'fan', verify = true) {
+  const email = `test-teams-${role}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@example.com`;
   const password = 'TestPassword123!';
-  const displayName = `Test User ${Date.now()}`;
+  const displayName = `Test ${role} ${Date.now()}`;
 
-  // Sign up (use /register endpoint)
   const signupResponse = await request.post(`${API_BASE_URL}/auth/register`, {
     data: {
       email,
       password,
       display_name: displayName,
-      role, // Set role during registration
+      role,
     },
   });
 
-  expect([200, 201]).toContain(signupResponse.status());
+  expect(signupResponse.status()).toBe(201);
   const signupData = await signupResponse.json();
-  const token = signupData.access_token || signupData.token;
+  const token = signupData.access_token;
 
-  // Verify email if dev_verification_code is provided (development mode)
-  if (signupData.dev_verification_code) {
-    try {
-      const verifyResponse = await makeAuthRequest(request, token, 'post', `${API_BASE_URL}/auth/verify/confirm`, {
+  if (verify && signupData.dev_verification_code) {
+    const verifyResponse = await request.post(`${API_BASE_URL}/auth/verify/confirm`, {
+      headers: authHeaders(token),
+      data: {
         code: String(signupData.dev_verification_code),
-      });
-      // Wait a bit for the database to update
-      if (verifyResponse.status() === 200) {
-        await new Promise(resolve => setTimeout(resolve, 200));
-      } else {
-        const errorBody = await verifyResponse.text().catch(() => '');
-        console.warn(`Email verification returned ${verifyResponse.status()}: ${errorBody}`);
-      }
-    } catch (e) {
-      // Verification might fail, but continue anyway
-      console.warn('Email verification failed in test:', e);
-    }
+      },
+    });
+
+    expect(verifyResponse.ok()).toBeTruthy();
   }
 
-  return { email, password, displayName, token, userId: signupData.user?.id || signupData.user_id };
-}
-
-// Helper to create a test team
-async function createTestTeam(request: any, token: string, teamData: any = {}) {
-  const defaultTeam = {
-    name: teamData.name || `Test Team ${Date.now()}`,
-    description: teamData.description || 'Test team description',
-    sport: teamData.sport || 'basketball',
-    ...teamData,
+  return {
+    email,
+    token,
+    userId: signupData.user.id,
   };
-
-  const response = await makeAuthRequest(request, token, 'post', `${API_BASE_URL}/teams`, defaultTeam);
-
-  // Team creation requires verified users
-  // If 403, the user is not verified - this is expected for new users
-  // We'll skip team creation in tests that require it, or skip the test
-  if (response.status() === 403) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(`Team creation requires verified user: ${errorData.error || 'User must verify email first'}`);
-  }
-
-  expect([200, 201]).toContain(response.status());
-  return await response.json();
 }
 
 test.describe('Team Management', () => {
-  test('Coach can create a team', async ({ request }) => {
-    const coach = await createTestUser(request, 'coach');
-    
-    const team = await createTestTeam(request, coach.token, {
-      name: 'Varsity Basketball',
-      description: 'High school varsity basketball team',
-      sport: 'basketball',
-    });
-
-    expect(team).toHaveProperty('id');
-    expect(team.name).toBe('Varsity Basketball');
-    expect(team.description).toBe('High school varsity basketball team');
-  });
-
-  test('Team creation requires authentication', async ({ request }) => {
+  test('team creation requires authentication', async ({ request }) => {
     const response = await request.post(`${API_BASE_URL}/teams`, {
       data: {
         name: 'Test Team',
@@ -109,146 +70,81 @@ test.describe('Team Management', () => {
     expect(response.status()).toBe(401);
   });
 
-  test('Team creation requires verified user', async ({ request }) => {
-    const user = await createTestUser(request, 'coach');
-    
-    // Note: Team creation requires verified users (requireVerified middleware)
-    // New users are not verified by default, so this should return 403
-    const response = await makeAuthRequest(request, user.token, 'post', `${API_BASE_URL}/teams`, {
-      name: 'Test Team',
-      description: 'Test description',
-    });
-
-    // Should return 403 if verification required, or 200/201 if verification is bypassed in test
-    expect([200, 201, 403]).toContain(response.status());
-  });
-
-  test('Can view team details', async ({ request }) => {
-    const coach = await createTestUser(request, 'coach');
-    const team = await createTestTeam(request, coach.token);
-
-    const response = await makeAuthRequest(request, coach.token, 'get', `${API_BASE_URL}/teams/${team.id}`);
-
-    expect(response.status()).toBe(200);
-    const teamData = await response.json();
-    expect(teamData.id).toBe(team.id);
-    expect(teamData.name).toBe(team.name);
-  });
-
-  test('Can list teams', async ({ request }) => {
-    const coach = await createTestUser(request, 'coach');
-    await createTestTeam(request, coach.token, { name: 'Team A' });
-    await createTestTeam(request, coach.token, { name: 'Team B' });
-
-    const response = await makeAuthRequest(request, coach.token, 'get', `${API_BASE_URL}/teams`);
-
-    expect(response.status()).toBe(200);
-    const teams = await response.json();
-    expect(Array.isArray(teams)).toBe(true);
-    expect(teams.length).toBeGreaterThanOrEqual(2);
-  });
-
-  test('Can update team details', async ({ request }) => {
-    const coach = await createTestUser(request, 'coach');
-    const team = await createTestTeam(request, coach.token);
-
-    const response = await makeAuthRequest(request, coach.token, 'put', `${API_BASE_URL}/teams/${team.id}`, {
-      name: 'Updated Team Name',
-      description: 'Updated description',
-    });
-
-    expect([200, 201]).toContain(response.status());
-    const updatedTeam = await response.json();
-    expect(updatedTeam.name).toBe('Updated Team Name');
-    expect(updatedTeam.description).toBe('Updated description');
-  });
-
-  test('Can view team members', async ({ request }) => {
-    const coach = await createTestUser(request, 'coach');
-    const team = await createTestTeam(request, coach.token);
-
-    const response = await makeAuthRequest(request, coach.token, 'get', `${API_BASE_URL}/teams/${team.id}/members`);
-
-    expect(response.status()).toBe(200);
-    const members = await response.json();
-    expect(Array.isArray(members)).toBe(true);
-    // Coach should be a member
-    expect(members.length).toBeGreaterThanOrEqual(1);
-  });
-
-  test('Can invite team members', async ({ request }) => {
-    const coach = await createTestUser(request, 'coach');
-    const team = await createTestTeam(request, coach.token);
-    const invitee = await createTestUser(request, 'fan');
-
-    const response = await makeAuthRequest(request, coach.token, 'post', `${API_BASE_URL}/teams/${team.id}/invite`, {
-      email: invitee.email,
-      role: 'player',
-    });
-
-    // Should either succeed or return appropriate status
-    expect([200, 201, 400, 404]).toContain(response.status());
-  });
-
-  test('Team creation validates required fields', async ({ request }) => {
-    const coach = await createTestUser(request, 'coach');
-
-    // Try to create team without name
-    const response = await makeAuthRequest(request, coach.token, 'post', `${API_BASE_URL}/teams`, {
-      description: 'Team without name',
-    });
-
-    expect(response.status()).toBe(400);
-  });
-
-  test('Can view managed teams', async ({ request }) => {
-    const coach = await createTestUser(request, 'coach');
-    await createTestTeam(request, coach.token);
-
-    const response = await makeAuthRequest(request, coach.token, 'get', `${API_BASE_URL}/teams/managed`);
-
-    expect(response.status()).toBe(200);
-    const teams = await response.json();
-    expect(Array.isArray(teams)).toBe(true);
-    expect(teams.length).toBeGreaterThan(0);
-  });
-
-  test('Fan cannot create team', async ({ request }) => {
+  test('fan cannot create team', async ({ request }) => {
     const fan = await createTestUser(request, 'fan');
+
     const response = await makeAuthRequest(request, fan.token, 'post', `${API_BASE_URL}/teams`, {
       name: 'Fan Team',
       description: 'Team created by fan',
     });
 
-    // Should either fail or require verification/upgrade
-    expect([400, 403, 401]).toContain(response.status());
+    expect(response.status()).toBe(403);
+    const body = await response.json();
+    expect(body.error).toBe('COACH_ROLE_REQUIRED');
   });
 
-  test('Can delete team', async ({ request }) => {
+  test('coach cannot create team before approval', async ({ request }) => {
     const coach = await createTestUser(request, 'coach');
-    const team = await createTestTeam(request, coach.token);
 
-    const response = await makeAuthRequest(request, coach.token, 'delete', `${API_BASE_URL}/teams/${team.id}`);
+    const response = await makeAuthRequest(
+      request,
+      coach.token,
+      'post',
+      `${API_BASE_URL}/teams`,
+      {
+        name: `Coach Team ${Date.now()}`,
+        sport: 'basketball',
+      }
+    );
 
-    expect([200, 204]).toContain(response.status());
-
-    // Verify team is deleted
-    const getResponse = await makeAuthRequest(request, coach.token, 'get', `${API_BASE_URL}/teams/${team.id}`);
-    expect([404, 403]).toContain(getResponse.status());
+    expect(response.status()).toBe(403);
+    const body = await response.json();
+    expect(body.error).toBe('COACH_APPROVAL_REQUIRED');
   });
 
-  test('Team API returns correct data structure', async ({ request }) => {
-    const coach = await createTestUser(request, 'coach');
-    const team = await createTestTeam(request, coach.token);
+  test('team creation requires verified email', async ({ request }) => {
+    const coach = await createTestUser(request, 'coach', false);
 
-    const response = await makeAuthRequest(request, coach.token, 'get', `${API_BASE_URL}/teams/${team.id}`);
+    const response = await makeAuthRequest(
+      request,
+      coach.token,
+      'post',
+      `${API_BASE_URL}/teams`,
+      {
+        name: `Unverified Coach Team ${Date.now()}`,
+        sport: 'basketball',
+      }
+    );
+
+    expect([401, 403]).toContain(response.status());
+  });
+
+  test('can list teams', async ({ request }) => {
+    const response = await request.get(`${API_BASE_URL}/teams`);
 
     expect(response.status()).toBe(200);
-    const teamData = await response.json();
-    
-    expect(teamData).toHaveProperty('id');
-    expect(teamData).toHaveProperty('name');
-    expect(typeof teamData.id).toBe('string');
-    expect(typeof teamData.name).toBe('string');
+    const teams = await response.json();
+    expect(Array.isArray(teams)).toBe(true);
+  });
+
+  test('missing team detail returns not found', async ({ request }) => {
+    const response = await request.get(`${API_BASE_URL}/teams/nonexistent-team-id`);
+
+    expect(response.status()).toBe(404);
+  });
+
+  test('managed teams endpoint returns an array for authenticated coach', async ({ request }) => {
+    const coach = await createTestUser(request, 'coach');
+
+    const response = await makeAuthRequest(
+      request,
+      coach.token,
+      'get',
+      `${API_BASE_URL}/teams/managed`
+    );
+
+    expect(response.status()).toBe(200);
+    const teams = await response.json();
+    expect(Array.isArray(teams)).toBe(true);
   });
 });

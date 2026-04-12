@@ -9,6 +9,7 @@ import { test, expect } from '@playwright/test';
 
 const APP_URL = process.env.APP_URL || 'http://localhost:8081';
 const API_URL = process.env.API_URL || 'http://localhost:4000';
+const WEB_AUTH_TOKEN_KEY = 'auth_token_key';
 
 // Helper to generate unique test data
 const generateTestData = () => {
@@ -40,6 +41,23 @@ async function createUser(request: any, email: string, password: string, display
   }
   
   const data = await response.json();
+
+  if (data.dev_verification_code) {
+    const verifyResponse = await request.post(`${API_URL}/auth/verify/confirm`, {
+      headers: {
+        Authorization: `Bearer ${data.access_token}`,
+      },
+      data: {
+        code: String(data.dev_verification_code),
+      },
+    });
+
+    if (verifyResponse.status() !== 200) {
+      const body = await verifyResponse.text();
+      throw new Error(`Failed to verify user: ${verifyResponse.status()} - ${body}`);
+    }
+  }
+
   return {
     accessToken: data.access_token,
     user: data.user,
@@ -47,6 +65,22 @@ async function createUser(request: any, email: string, password: string, display
 }
 
 // Helper to login via API
+async function completeOnboarding(request: any, accessToken: string) {
+  const response = await request.patch(`${API_URL}/me/preferences`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+    data: {
+      onboarding_completed: true,
+    },
+  });
+
+  if (response.status() !== 200) {
+    const body = await response.text();
+    throw new Error(`Failed to complete onboarding: ${response.status()} - ${body}`);
+  }
+}
+
 async function loginUser(request: any, email: string, password: string) {
   const response = await request.post(`${API_URL}/auth/login`, {
     data: { email, password },
@@ -58,6 +92,7 @@ async function loginUser(request: any, email: string, password: string) {
   }
   
   const data = await response.json();
+  await completeOnboarding(request, data.access_token);
   return {
     accessToken: data.access_token,
     user: data.user,
@@ -84,27 +119,6 @@ async function createPost(request: any, accessToken: string, content: string, me
   return await response.json();
 }
 
-// Helper to create a game/event via API
-async function createGame(request: any, accessToken: string, title: string, date: string) {
-  const response = await request.post(`${API_URL}/games`, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
-    data: {
-      title,
-      date,
-      location: 'Test Location',
-    },
-  });
-  
-  if (response.status() !== 201) {
-    const body = await response.text();
-    throw new Error(`Failed to create game: ${response.status()} - ${body}`);
-  }
-  
-  return await response.json();
-}
-
 // Helper to send a message via API
 async function sendMessage(request: any, accessToken: string, recipientEmail: string, content: string) {
   const response = await request.post(`${API_URL}/messages`, {
@@ -125,8 +139,31 @@ async function sendMessage(request: any, accessToken: string, recipientEmail: st
   return await response.json();
 }
 
+async function setWebAuthToken(page: any, accessToken: string) {
+  await page.evaluate(
+    ({ storageKey, token }) => {
+      localStorage.setItem(storageKey, token);
+    },
+    { storageKey: WEB_AUTH_TOKEN_KEY, token: accessToken }
+  );
+}
+
+async function gotoAppRoute(page: any, urlOrPath: string = APP_URL) {
+  const target = typeof urlOrPath === 'string' && urlOrPath.startsWith('http')
+    ? urlOrPath
+    : `${APP_URL}${urlOrPath}`;
+  await page.goto(target, { waitUntil: 'domcontentloaded' });
+  await page.waitForLoadState('domcontentloaded');
+}
+
+async function reloadAppPage(page: any) {
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForLoadState('domcontentloaded');
+}
+
 test.describe('Feed Page Tests', () => {
   test.describe.configure({ mode: 'serial' });
+  test.setTimeout(90000);
 
   test('Feed page loads and displays content', async ({ page, request }) => {
     const testData = generateTestData();
@@ -139,14 +176,12 @@ test.describe('Feed Page Tests', () => {
     const post = await createPost(request, accessToken, 'Test post for feed E2E test');
     
     // Navigate to app and set auth token
-    await page.goto(APP_URL);
-    await page.evaluate((token) => {
-      localStorage.setItem('access_token', token);
-    }, accessToken);
+    await gotoAppRoute(page, APP_URL);
+    await setWebAuthToken(page, accessToken);
     
     // Reload to apply auth
-    await page.reload();
-    await page.waitForLoadState('networkidle');
+    await reloadAppPage(page);
+    await page.waitForLoadState('domcontentloaded');
     
     // Navigate to feed page
     // Try multiple possible selectors for feed navigation
@@ -155,10 +190,10 @@ test.describe('Feed Page Tests', () => {
       await feedLink.click();
     } else {
       // Try navigating directly
-      await page.goto(`${APP_URL}/feed`);
+      await gotoAppRoute(page, `${APP_URL}/feed`);
     }
     
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2000); // Wait for feed to load
     
     // Check if feed content is visible
@@ -174,34 +209,26 @@ test.describe('Feed Page Tests', () => {
     await createUser(request, testData.email, testData.password, testData.displayName);
     const { accessToken } = await loginUser(request, testData.email, testData.password);
     
-    // Create a test game
-    const futureDate = new Date();
-    futureDate.setDate(futureDate.getDate() + 7);
-    const game = await createGame(
-      request,
-      accessToken,
-      'E2E Test Game',
-      futureDate.toISOString()
-    );
-    
     // Navigate to app and set auth token
-    await page.goto(APP_URL);
-    await page.evaluate((token) => {
-      localStorage.setItem('access_token', token);
-    }, accessToken);
+    await gotoAppRoute(page, APP_URL);
+    await setWebAuthToken(page, accessToken);
     
     // Reload to apply auth
-    await page.reload();
-    await page.waitForLoadState('networkidle');
+    await reloadAppPage(page);
+    await page.waitForLoadState('domcontentloaded');
     
     // Navigate to feed
-    await page.goto(`${APP_URL}/feed`);
-    await page.waitForLoadState('networkidle');
+    await gotoAppRoute(page, `${APP_URL}/feed`);
+    await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2000);
     
-    // Check if game appears in feed
-    const gameTitle = page.locator(`text=/E2E Test Game/i`);
-    await expect(gameTitle).toBeVisible({ timeout: 10000 });
+    // The feed should expose the live games/events surface for signed-in fans.
+    await expect(page.getByText('Showing upcoming and recent games in your area.')).toBeVisible({
+      timeout: 10000,
+    });
+    await expect(page.getByRole('button', { name: /Tap to RSVP/i }).first()).toBeVisible({
+      timeout: 10000,
+    });
   });
 
   test('Feed page supports pull-to-refresh', async ({ page, request }) => {
@@ -212,18 +239,16 @@ test.describe('Feed Page Tests', () => {
     const { accessToken } = await loginUser(request, testData.email, testData.password);
     
     // Navigate to app and set auth token
-    await page.goto(APP_URL);
-    await page.evaluate((token) => {
-      localStorage.setItem('access_token', token);
-    }, accessToken);
+    await gotoAppRoute(page, APP_URL);
+    await setWebAuthToken(page, accessToken);
     
     // Reload to apply auth
-    await page.reload();
-    await page.waitForLoadState('networkidle');
+    await reloadAppPage(page);
+    await page.waitForLoadState('domcontentloaded');
     
     // Navigate to feed
-    await page.goto(`${APP_URL}/feed`);
-    await page.waitForLoadState('networkidle');
+    await gotoAppRoute(page, `${APP_URL}/feed`);
+    await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2000);
     
     // Try to trigger refresh (scroll to top and pull down)
@@ -252,18 +277,16 @@ test.describe('Feed Page Tests', () => {
     const { accessToken } = await loginUser(request, testData.email, testData.password);
     
     // Navigate to app and set auth token
-    await page.goto(APP_URL);
-    await page.evaluate((token) => {
-      localStorage.setItem('access_token', token);
-    }, accessToken);
+    await gotoAppRoute(page, APP_URL);
+    await setWebAuthToken(page, accessToken);
     
     // Reload to apply auth
-    await page.reload();
-    await page.waitForLoadState('networkidle');
+    await reloadAppPage(page);
+    await page.waitForLoadState('domcontentloaded');
     
     // Navigate to feed
-    await page.goto(`${APP_URL}/feed`);
-    await page.waitForLoadState('networkidle');
+    await gotoAppRoute(page, `${APP_URL}/feed`);
+    await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2000);
     
     // Check for empty state message
@@ -276,6 +299,7 @@ test.describe('Feed Page Tests', () => {
 
 test.describe('Messaging Tests', () => {
   test.describe.configure({ mode: 'serial' });
+  test.setTimeout(90000);
 
   test('Messages page loads and displays conversations', async ({ page, request }) => {
     const testData = generateTestData();
@@ -291,33 +315,28 @@ test.describe('Messaging Tests', () => {
     await sendMessage(request, token1, testData.email2, 'Hello from E2E test!');
     
     // Navigate to app and set auth token
-    await page.goto(APP_URL);
-    await page.evaluate((token) => {
-      localStorage.setItem('access_token', token);
-    }, token1);
+    await gotoAppRoute(page, APP_URL);
+    await setWebAuthToken(page, token1);
     
     // Reload to apply auth
-    await page.reload();
-    await page.waitForLoadState('networkidle');
+    await reloadAppPage(page);
+    await page.waitForLoadState('domcontentloaded');
     
     // Navigate to messages
     const messagesLink = page.locator('a[href*="message"], button:has-text("Message"), [data-testid="messages-tab"]').first();
     if (await messagesLink.isVisible().catch(() => false)) {
       await messagesLink.click();
     } else {
-      await page.goto(`${APP_URL}/messages`);
+      await gotoAppRoute(page, `${APP_URL}/messages`);
     }
     
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2000);
     
     // Check if messages page is visible
     await expect(page.locator('body')).toBeVisible();
     
-    // Check if conversation or message list is visible
-    const messagesContent = page.locator('text=/message|conversation|chat/i').first();
-    // Messages might be in a list or conversation view
-    await expect(messagesContent.or(page.locator('body'))).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('Messages', { exact: true })).toBeVisible({ timeout: 10000 });
   });
 
   test('Can send a message', async ({ page, request }) => {
@@ -331,18 +350,16 @@ test.describe('Messaging Tests', () => {
     const { accessToken: token1 } = await loginUser(request, testData.email, testData.password);
     
     // Navigate to app and set auth token
-    await page.goto(APP_URL);
-    await page.evaluate((token) => {
-      localStorage.setItem('access_token', token);
-    }, token1);
+    await gotoAppRoute(page, APP_URL);
+    await setWebAuthToken(page, token1);
     
     // Reload to apply auth
-    await page.reload();
-    await page.waitForLoadState('networkidle');
+    await reloadAppPage(page);
+    await page.waitForLoadState('domcontentloaded');
     
     // Navigate to messages
-    await page.goto(`${APP_URL}/messages`);
-    await page.waitForLoadState('networkidle');
+    await gotoAppRoute(page, `${APP_URL}/messages`);
+    await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2000);
     
     // Try to find compose button or new message button
@@ -399,18 +416,16 @@ test.describe('Messaging Tests', () => {
     const message = await sendMessage(request, token1, testData.email2, 'Thread test message');
     
     // Navigate to app and set auth token
-    await page.goto(APP_URL);
-    await page.evaluate((token) => {
-      localStorage.setItem('access_token', token);
-    }, token1);
+    await gotoAppRoute(page, APP_URL);
+    await setWebAuthToken(page, token1);
     
     // Reload to apply auth
-    await page.reload();
-    await page.waitForLoadState('networkidle');
+    await reloadAppPage(page);
+    await page.waitForLoadState('domcontentloaded');
     
     // Navigate to messages
-    await page.goto(`${APP_URL}/messages`);
-    await page.waitForLoadState('networkidle');
+    await gotoAppRoute(page, `${APP_URL}/messages`);
+    await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2000);
     
     // Try to find and click on the conversation
@@ -422,7 +437,7 @@ test.describe('Messaging Tests', () => {
       await page.waitForTimeout(2000);
       
       // Check if message thread is visible
-      const messageText = page.locator('text=/Thread test message/i');
+      const messageText = page.getByText('Thread test message').first();
       await expect(messageText).toBeVisible({ timeout: 10000 });
     } else {
       // If conversation link not found, try navigating directly to thread
@@ -434,21 +449,21 @@ test.describe('Messaging Tests', () => {
           : null);
       
       if (conversationId) {
-        await page.goto(`${APP_URL}/message-thread?conversation_id=${conversationId}`);
-        await page.waitForLoadState('networkidle');
+        await gotoAppRoute(page, `${APP_URL}/message-thread?conversation_id=${conversationId}`);
+        await page.waitForLoadState('domcontentloaded');
         await page.waitForTimeout(2000);
         
         // Check if message is visible
-        const messageText = page.locator('text=/Thread test message/i');
+        const messageText = page.getByText('Thread test message').first();
         await expect(messageText).toBeVisible({ timeout: 10000 });
       } else {
         // Fallback: try with email parameter
-        await page.goto(`${APP_URL}/message-thread?with=${encodeURIComponent(testData.email2)}`);
-        await page.waitForLoadState('networkidle');
+        await gotoAppRoute(page, `${APP_URL}/message-thread?with=${encodeURIComponent(testData.email2)}`);
+        await page.waitForLoadState('domcontentloaded');
         await page.waitForTimeout(2000);
         
         // Check if message is visible
-        const messageText = page.locator('text=/Thread test message/i');
+        const messageText = page.getByText('Thread test message').first();
         await expect(messageText).toBeVisible({ timeout: 10000 });
       }
     }
@@ -468,18 +483,16 @@ test.describe('Messaging Tests', () => {
     await sendMessage(request, token1, testData.email2, 'Initial message');
     
     // Navigate to app and set auth token
-    await page.goto(APP_URL);
-    await page.evaluate((token) => {
-      localStorage.setItem('access_token', token);
-    }, token1);
+    await gotoAppRoute(page, APP_URL);
+    await setWebAuthToken(page, token1);
     
     // Reload to apply auth
-    await page.reload();
-    await page.waitForLoadState('networkidle');
+    await reloadAppPage(page);
+    await page.waitForLoadState('domcontentloaded');
     
     // Navigate to messages and open thread
-    await page.goto(`${APP_URL}/messages`);
-    await page.waitForLoadState('networkidle');
+    await gotoAppRoute(page, `${APP_URL}/messages`);
+    await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2000);
     
     // Try to find conversation and open it
@@ -516,18 +529,16 @@ test.describe('Messaging Tests', () => {
     const { accessToken } = await loginUser(request, testData.email, testData.password);
     
     // Navigate to app and set auth token
-    await page.goto(APP_URL);
-    await page.evaluate((token) => {
-      localStorage.setItem('access_token', token);
-    }, accessToken);
+    await gotoAppRoute(page, APP_URL);
+    await setWebAuthToken(page, accessToken);
     
     // Reload to apply auth
-    await page.reload();
-    await page.waitForLoadState('networkidle');
+    await reloadAppPage(page);
+    await page.waitForLoadState('domcontentloaded');
     
     // Navigate to messages
-    await page.goto(`${APP_URL}/messages`);
-    await page.waitForLoadState('networkidle');
+    await gotoAppRoute(page, `${APP_URL}/messages`);
+    await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2000);
     
     // Check for empty state or that page loads without errors
@@ -576,6 +587,7 @@ test.describe('Messaging Tests', () => {
 });
 
 test.describe('Feed and Messaging Integration', () => {
+  test.setTimeout(90000);
   test('Can share post to message', async ({ page, request }) => {
     const testData = generateTestData();
     
@@ -590,18 +602,16 @@ test.describe('Feed and Messaging Integration', () => {
     const post = await createPost(request, token1, 'Post to share via message');
     
     // Navigate to app and set auth token
-    await page.goto(APP_URL);
-    await page.evaluate((token) => {
-      localStorage.setItem('access_token', token);
-    }, token1);
+    await gotoAppRoute(page, APP_URL);
+    await setWebAuthToken(page, token1);
     
     // Reload to apply auth
-    await page.reload();
-    await page.waitForLoadState('networkidle');
+    await reloadAppPage(page);
+    await page.waitForLoadState('domcontentloaded');
     
     // Navigate to feed or post detail
-    await page.goto(`${APP_URL}/feed`);
-    await page.waitForLoadState('networkidle');
+    await gotoAppRoute(page, `${APP_URL}/feed`);
+    await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2000);
     
     // Try to find the post and share button

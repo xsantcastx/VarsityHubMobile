@@ -10,7 +10,7 @@ const API_BASE_URL = process.env.API_URL || 'http://localhost:4000';
 
 // Helper to create authenticated user
 async function createTestUser(request: any) {
-  const testEmail = `posts-test-${Date.now()}@varsityhub-test.app`;
+  const testEmail = `posts-test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@varsityhub-test.app`;
   const testPassword = 'TestPassword123!';
 
   const response = await request.post(`${API_BASE_URL}/auth/register`, {
@@ -22,7 +22,20 @@ async function createTestUser(request: any) {
   });
 
   expect(response.ok()).toBeTruthy();
-  const { access_token, user } = await response.json();
+  const { access_token, user, dev_verification_code } = await response.json();
+
+  if (dev_verification_code) {
+    const verifyResponse = await request.post(`${API_BASE_URL}/auth/verify/confirm`, {
+      headers: {
+        Authorization: `Bearer ${access_token}`,
+      },
+      data: {
+        code: String(dev_verification_code),
+      },
+    });
+
+    expect(verifyResponse.ok()).toBeTruthy();
+  }
   
   return { access_token, user, email: testEmail, password: testPassword };
 }
@@ -46,7 +59,8 @@ test.describe('Posts API', () => {
 
     expect(response.ok()).toBeTruthy();
     const body = await response.json();
-    expect(Array.isArray(body)).toBeTruthy();
+    expect(Array.isArray(body.items)).toBeTruthy();
+    expect(body).toHaveProperty('nextCursor');
   });
 
   test('POST /posts should create a new post with content', async ({ request }) => {
@@ -63,7 +77,7 @@ test.describe('Posts API', () => {
     const body = await response.json();
     expect(body.id).toBeDefined();
     expect(body.content).toContain('test post');
-    expect(body.user_id).toBe(userId);
+    expect(body.author_id).toBe(userId);
   });
 
   test('POST /posts should create a post with media URL', async ({ request }) => {
@@ -129,7 +143,7 @@ test.describe('Posts API', () => {
 
   test('POST /posts should require verified email', async ({ request }) => {
     // Create unverified user
-    const testEmail = `unverified-${Date.now()}@varsityhub-test.app`;
+    const testEmail = `unverified-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@varsityhub-test.app`;
     const registerResponse = await request.post(`${API_BASE_URL}/auth/register`, {
       data: {
         email: testEmail,
