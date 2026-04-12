@@ -3,15 +3,27 @@
 # Overnight Real-World Functionality Test Runner
 # Runs end-to-end tests of actual app functionality (auth, posts, teams, messaging, etc.)
 #
+# SAFETY: These tests CREATE real data (users, posts, teams, events, messages).
+# By default, this script refuses to run against production. To force it (NOT recommended
+# unless you have a cleanup plan), set ALLOW_PROD_TESTS=1 explicitly.
+#
 # Usage:
-#   ./scripts/overnight-functionality.sh
-#   API_URL=http://localhost:4000 ./scripts/overnight-functionality.sh
+#   ./scripts/overnight-functionality.sh                                 # local API
+#   API_URL=http://localhost:4000 ./scripts/overnight-functionality.sh   # explicit
+#   API_URL=https://staging.varsityhub.app ./scripts/overnight-functionality.sh
+#
+# Required dedicated staging target:
+#   API_URL=https://staging-api.varsityhub.app ALLOW_PROD_TESTS=0 ./scripts/overnight-functionality.sh
 
 set -euo pipefail
 
-cd /Users/varsityhub/VarsityHubMobile
+# Resolve repo root from the script's own location so this works from any cwd
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+cd "${REPO_ROOT}"
 
 API_URL="${API_URL:-${EXPO_PUBLIC_API_URL:-http://localhost:4000}}"
+ALLOW_PROD_TESTS="${ALLOW_PROD_TESTS:-0}"
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 LOG_DIR="overnight-results"
 LOG_FILE="${LOG_DIR}/functionality-${TIMESTAMP}.log"
@@ -21,6 +33,25 @@ mkdir -p "${LOG_DIR}"
 log() {
   printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" | tee -a "${LOG_FILE}"
 }
+
+# ─── Production guard ──────────────────────────────────────────────────────
+# These tests create real users, posts, teams, events, and messages.
+# Refuse to run against anything that looks like production unless explicitly overridden.
+PROD_PATTERNS="(^https?://(api\\.)?varsityhub\\.app|railway\\.app|render\\.com|herokuapp\\.com|fly\\.dev|vercel\\.app|onrender\\.com)"
+
+if echo "${API_URL}" | grep -iE "${PROD_PATTERNS}" > /dev/null 2>&1; then
+  if [ "${ALLOW_PROD_TESTS}" != "1" ]; then
+    log "✗ REFUSING TO RUN against what looks like production: ${API_URL}"
+    log ""
+    log "These tests create REAL users, posts, teams, events, and messages."
+    log "If this is genuinely a staging host, set ALLOW_PROD_TESTS=1:"
+    log "  ALLOW_PROD_TESTS=1 API_URL=${API_URL} ./scripts/overnight-functionality.sh"
+    log ""
+    log "Recommended: point at a scratch staging DB you can wipe freely."
+    exit 2
+  fi
+  log "⚠️  ALLOW_PROD_TESTS=1 — proceeding against ${API_URL}. You own the cleanup."
+fi
 
 log "========================================"
 log "Real-World Functionality Overnight Tests"
