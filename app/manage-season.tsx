@@ -115,7 +115,9 @@ export default function ManageSeasonScreen() {
         if (me?.preferences?.role !== 'coach') {
           router.replace('/(tabs)');
         }
-      } catch {}
+      } catch (error) {
+        if (__DEV__) console.warn('[manage-season] Failed to verify coach role:', error);
+      }
     })().catch(() => {});
   }, [router]);
 

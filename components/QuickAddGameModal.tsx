@@ -391,6 +391,15 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
     }
   }, [currentTeam, visible, teams]);
 
+  useEffect(() => {
+    return () => {
+      if (opponentSearchTimerRef.current) {
+        clearTimeout(opponentSearchTimerRef.current);
+        opponentSearchTimerRef.current = null;
+      }
+    };
+  }, []);
+
   // Debounced search: queries the API for teams matching the typed text
   const handleOpponentSearchChange = (text: string) => {
     setOpponentSearchText(text);

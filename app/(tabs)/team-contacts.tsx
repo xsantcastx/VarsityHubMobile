@@ -121,6 +121,9 @@ export default function TeamChatScreen() {
   const flatListRef = useRef<FlatList>(null);
   const typingTimeoutRef = useRef<any>(null);
   const textInputRef = useRef<TextInput>(null);
+  const typingAnimationRefs = useRef<Animated.CompositeAnimation[]>([]);
+  const typingAnimationTimeoutRefs = useRef<Array<ReturnType<typeof setTimeout>>>([]);
+  const mockTypingTimeoutRefs = useRef<Array<ReturnType<typeof setTimeout>>>([]);
   
   // Animated values for typing dots
   const dot1Anim = useRef(new Animated.Value(0.4)).current;
@@ -185,8 +188,13 @@ export default function TeamChatScreen() {
 
   // Animated typing dots
   const startTypingAnimation = useCallback(() => {
+    typingAnimationTimeoutRefs.current.forEach(clearTimeout);
+    typingAnimationTimeoutRefs.current = [];
+    typingAnimationRefs.current.forEach((animation) => animation.stop());
+    typingAnimationRefs.current = [];
+
     const animateDot = (animValue: Animated.Value) => {
-      Animated.loop(
+      const animation = Animated.loop(
         Animated.sequence([
           Animated.timing(animValue, {
             toValue: 1,
@@ -200,16 +208,22 @@ export default function TeamChatScreen() {
           }),
         ]),
         { iterations: -1 }
-      ).start();
+      );
+      typingAnimationRefs.current.push(animation);
+      animation.start();
     };
 
     // Start animations with staggered delays
-    setTimeout(() => animateDot(dot1Anim), 0);
-    setTimeout(() => animateDot(dot2Anim), 200);
-    setTimeout(() => animateDot(dot3Anim), 400);
+    typingAnimationTimeoutRefs.current.push(setTimeout(() => animateDot(dot1Anim), 0));
+    typingAnimationTimeoutRefs.current.push(setTimeout(() => animateDot(dot2Anim), 200));
+    typingAnimationTimeoutRefs.current.push(setTimeout(() => animateDot(dot3Anim), 400));
   }, [dot1Anim, dot2Anim, dot3Anim]);
 
   const stopTypingAnimation = useCallback(() => {
+    typingAnimationTimeoutRefs.current.forEach(clearTimeout);
+    typingAnimationTimeoutRefs.current = [];
+    typingAnimationRefs.current.forEach((animation) => animation.stop());
+    typingAnimationRefs.current = [];
     dot1Anim.stopAnimation();
     dot2Anim.stopAnimation();
     dot3Anim.stopAnimation();
@@ -338,10 +352,12 @@ export default function TeamChatScreen() {
         // Initialize with empty files list - files will be added as they're uploaded
         
         // Mock typing users for demo
-        setTimeout(() => {
+        const startTimeout = setTimeout(() => {
           setTypingUsers(['Mike Davis']);
-          setTimeout(() => setTypingUsers([]), 3000);
+          const stopTimeout = setTimeout(() => setTypingUsers([]), 3000);
+          mockTypingTimeoutRefs.current.push(stopTimeout);
         }, 2000);
+        mockTypingTimeoutRefs.current.push(startTimeout);
       } catch {
         if (!mounted) return; 
         setError('Failed to load team chat');
@@ -349,7 +365,12 @@ export default function TeamChatScreen() {
         if (mounted) setLoading(false); 
       }
     })();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+      mockTypingTimeoutRefs.current.forEach(clearTimeout);
+      mockTypingTimeoutRefs.current = [];
+      stopTypingAnimation();
+    };
   }, [id, loadFiles, loadMessages, mockMessages, saveMessages]);
 
   // Start/stop typing animations based on typing users
@@ -359,6 +380,9 @@ export default function TeamChatScreen() {
     } else {
       stopTypingAnimation();
     }
+    return () => {
+      stopTypingAnimation();
+    };
   }, [typingUsers.length, startTypingAnimation, stopTypingAnimation]);
 
   const sendMessage = useCallback(async () => {
