@@ -67,10 +67,9 @@ echo ""
 echo -e "${BLUE}🔍 Linting${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-LINT_OUTPUT=$(npm run lint 2>&1)
-if echo "$LINT_OUTPUT" | grep -q "✖.*error"; then
+if ! LINT_OUTPUT=$(npm run lint 2>&1); then
     echo -e "${RED}❌ Linting errors found!${NC}"
-    echo "$LINT_OUTPUT" | grep "error" | head -10
+    echo "$LINT_OUTPUT" | tail -20
     ERRORS=$((ERRORS + 1))
 else
     WARN_COUNT=$(echo "$LINT_OUTPUT" | grep -c "warning" 2>/dev/null || echo "0")
