@@ -29,10 +29,10 @@ You need these (CORRECT):
 
 ### Step 2: Verify Your API Key
 
-Your API key in `app.json` is: `AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY`
+Your API key in `app.json` is: `<REDACTED_GOOGLE_MAPS_KEY>`
 
 1. Go to: https://console.cloud.google.com/apis/credentials
-2. Find your API key: `AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY`
+2. Find your API key: `<REDACTED_GOOGLE_MAPS_KEY>`
 3. Click on it to edit
 4. Under "API restrictions":
    - Select "Restrict key"
@@ -93,7 +93,7 @@ In Xcode:
 
 Test if your API key works:
 ```bash
-curl "https://maps.googleapis.com/maps/api/geocode/json?address=New+York&key=AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY"
+curl "https://maps.googleapis.com/maps/api/geocode/json?address=New+York&key=<REDACTED_GOOGLE_MAPS_KEY>"
 ```
 
 If you get an error, the API key or restrictions are wrong.
@@ -119,7 +119,7 @@ If you get an error, the API key or restrictions are wrong.
 
 ## 📝 QUICK REFERENCE
 
-**Your API Key**: `AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY`
+**Your API Key**: `<REDACTED_GOOGLE_MAPS_KEY>`
 
 **Required APIs**:
 - Maps SDK for Android ✅

@@ -358,7 +358,7 @@ Add to `app.json`:
 
 **server/.env:**
 ```properties
-GOOGLE_MAPS_API_KEY=AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY
+GOOGLE_MAPS_API_KEY=<REDACTED_GOOGLE_MAPS_KEY>
 GOOGLE_MAPS_DEFAULT_COUNTRY=US
 ```
 

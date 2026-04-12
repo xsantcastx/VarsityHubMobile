@@ -1,5 +1,6 @@
 import { NextFunction, Request, Response, Router } from 'express';
 import multer from 'multer';
+import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { isCloudinaryConfigured, uploadBufferToCloudinary } from '../lib/cloudinary.js';
@@ -60,7 +61,7 @@ const diskStorage = multer.diskStorage({
   destination: (_req: Request, _file: Express.Multer.File, cb: (error: Error | null, destination: string) => void) => cb(null, UPLOAD_DIR),
   filename: (_req: Request, file: Express.Multer.File, cb: (error: Error | null, filename: string) => void) => {
     const ext = path.extname(file.originalname) || '';
-    const name = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
+    const name = `${Date.now()}-${randomUUID()}${ext}`;
     cb(null, name);
   },
 });

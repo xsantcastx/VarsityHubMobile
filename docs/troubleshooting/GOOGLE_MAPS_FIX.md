@@ -18,7 +18,7 @@
 ```json
 "ios": {
   "config": {
-    "googleMapsApiKey": "AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY"
+    "googleMapsApiKey": "<REDACTED_GOOGLE_MAPS_KEY>"
   }
 }
 ```
@@ -28,7 +28,7 @@
 "android": {
   "config": {
     "googleMaps": {
-      "apiKey": "AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY"
+      "apiKey": "<REDACTED_GOOGLE_MAPS_KEY>"
     }
   }
 }

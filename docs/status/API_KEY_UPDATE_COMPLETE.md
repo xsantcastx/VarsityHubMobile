@@ -1,7 +1,7 @@
 # ✅ API Key Updated Successfully
 
 ## Updated API Key
-**New Key**: `AIzaSyCWTjN0GPyMnzwz06JKQ1ndqqu10DvNkZA`
+**New Key**: `<REDACTED_GOOGLE_MAPS_KEY>`
 
 ## Files Updated
 

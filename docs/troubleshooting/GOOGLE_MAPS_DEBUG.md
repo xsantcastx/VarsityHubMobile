@@ -13,7 +13,7 @@ This indicates the API key is being read but **rejected by Google**.
 ### Step 1: Check API Key Restrictions (MOST COMMON ISSUE)
 
 1. Go to: https://console.cloud.google.com/apis/credentials
-2. Click on your API key: `AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY`
+2. Click on your API key: `<REDACTED_GOOGLE_MAPS_KEY>`
 3. Check **"API restrictions"**:
    - Must include: **Maps SDK for iOS** ✅
    - Must include: **Maps SDK for Android** ✅
@@ -48,7 +48,7 @@ In Xcode:
 Run this command to test if your API key works:
 
 ```bash
-curl "https://maps.googleapis.com/maps/api/geocode/json?address=New+York&key=AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY"
+curl "https://maps.googleapis.com/maps/api/geocode/json?address=New+York&key=<REDACTED_GOOGLE_MAPS_KEY>"
 ```
 
 **Expected**: JSON response with geocoding data

@@ -12,7 +12,7 @@
 - Maps component couldn't load without valid API key
 
 **Solution:**
-- Set both iOS and Android to real Google Maps API key: `AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY`
+- Set both iOS and Android to real Google Maps API key: `<REDACTED_GOOGLE_MAPS_KEY>`
 
 **Changes:**
 ```json
@@ -33,13 +33,13 @@
 // AFTER
 "ios": {
   "config": {
-    "googleMapsApiKey": "AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY"
+    "googleMapsApiKey": "<REDACTED_GOOGLE_MAPS_KEY>"
   }
 }
 "android": {
   "config": {
     "googleMaps": {
-      "apiKey": "AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY"
+      "apiKey": "<REDACTED_GOOGLE_MAPS_KEY>"
     }
   }
 }

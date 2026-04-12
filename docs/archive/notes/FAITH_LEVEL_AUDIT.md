@@ -292,7 +292,7 @@ Expo:      npm run doctor     → ✅ SDK dependencies aligned
 **Status**: ✅ **Real API Key Configured**
 
 **What's Configured**:
-- Real Google Maps API key: `AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY` ✅
+- Real Google Maps API key: `<REDACTED_GOOGLE_MAPS_KEY>` ✅
 - Configured in `app.json` for iOS and Android ✅
 - Maps component can load ✅
 

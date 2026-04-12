@@ -1,32 +1,66 @@
 /**
  * Expo Config Plugin - Google Maps API Key Injection
- * 
- * Ensures Google Maps API key is properly injected into iOS Info.plist
- * for react-native-maps to work correctly.
- * 
- * Note: react-native-maps handles Google Maps SDK initialization automatically
- * when GMSApiKey is present in Info.plist, so we don't need to modify AppDelegate.
+ *
+ * Injects the Google Maps API key (sourced from env via app.config.js) into:
+ *   - iOS Info.plist (GMSApiKey) for react-native-maps
+ *   - Android AndroidManifest.xml (com.google.android.geo.API_KEY)
+ *
+ * Keeping both platforms in one plugin means there is exactly one place in
+ * the repo that holds the key at build time: the env var. The committed
+ * native artifacts are blanked so an accidental commit can never leak it.
  */
 
-const { withInfoPlist } = require('expo/config-plugins');
+const { withInfoPlist, withAndroidManifest } = require('expo/config-plugins');
 
-function withGoogleMaps(config) {
+function withGoogleMapsIos(config) {
   return withInfoPlist(config, (config) => {
-    // Get API key from ios.config.googleMapsApiKey in app.json
     const apiKey = config.ios?.config?.googleMapsApiKey;
-    
     if (apiKey) {
-      // Add GMSApiKey to Info.plist for react-native-maps
-      // This is required for Google Maps SDK to initialize
-      // react-native-maps will automatically use this key
       config.modResults.GMSApiKey = apiKey;
       console.log('[withGoogleMaps] ✅ Injected Google Maps API key into Info.plist');
     } else {
-      console.warn('[withGoogleMaps] ⚠️  Google Maps API key not found in config');
+      console.warn('[withGoogleMaps] ⚠️  iOS Google Maps API key not found in config');
     }
-    
     return config;
   });
+}
+
+function withGoogleMapsAndroid(config) {
+  return withAndroidManifest(config, (config) => {
+    const apiKey = config.android?.config?.googleMaps?.apiKey;
+    const manifest = config.modResults;
+    const application = manifest.manifest.application?.[0];
+    if (!application) {
+      console.warn('[withGoogleMaps] ⚠️  AndroidManifest has no <application> tag; skipping');
+      return config;
+    }
+    application['meta-data'] = application['meta-data'] || [];
+
+    const existing = application['meta-data'].find(
+      (md) => md.$?.['android:name'] === 'com.google.android.geo.API_KEY'
+    );
+    const value = apiKey || '';
+    if (existing) {
+      existing.$['android:value'] = value;
+    } else {
+      application['meta-data'].push({
+        $: {
+          'android:name': 'com.google.android.geo.API_KEY',
+          'android:value': value,
+        },
+      });
+    }
+    if (apiKey) {
+      console.log('[withGoogleMaps] ✅ Injected Google Maps API key into AndroidManifest');
+    } else {
+      console.warn('[withGoogleMaps] ⚠️  Android Google Maps API key not found in config');
+    }
+    return config;
+  });
+}
+
+function withGoogleMaps(config) {
+  return withGoogleMapsAndroid(withGoogleMapsIos(config));
 }
 
 module.exports = withGoogleMaps;

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { Router } from 'express';
 import { Prisma } from '@prisma/client';
 import { logAdminActivityFromReq } from '../lib/adminActivityLogger.js';
@@ -626,7 +627,7 @@ usersRouter.delete('/me', requireAuth as any, async (req: AuthedRequest, res) =>
         data: {
           banned: true,
           email: deletedEmail,
-          password_hash: `deleted:${ts}:${Math.random().toString(36).slice(2)}`,
+          password_hash: `deleted:${ts}:${randomUUID()}`,
           display_name: null,
           username: null,
           avatar_url: null,

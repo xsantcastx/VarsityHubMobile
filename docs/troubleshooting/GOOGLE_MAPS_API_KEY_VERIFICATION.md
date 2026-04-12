@@ -1,7 +1,7 @@
 # ✅ Google Maps API Key Verification
 
 ## API Key
-**Key**: `AIzaSyCWTjN0GPyMnzwz06JKQ1ndqqu10DvNkZA`
+**Key**: `<REDACTED_GOOGLE_MAPS_KEY>`
 
 ## ✅ Verified Locations
 

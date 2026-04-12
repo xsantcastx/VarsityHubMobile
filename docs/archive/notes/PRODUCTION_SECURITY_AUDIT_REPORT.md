@@ -31,7 +31,7 @@ This audit examined the VarsityHub mobile application (React Native/Expo) and ba
 **Severity:** CRITICAL
 
 ```138:138:app.json
-"EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY",
+"EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "<REDACTED_GOOGLE_MAPS_KEY>",
 ```
 
 **Issue:**

@@ -3,12 +3,12 @@
 ## Configuration Status
 
 ### ✅ 1. API Key in app.json
-- **iOS**: `ios.config.googleMapsApiKey` = `AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY` ✅
-- **Android**: `android.config.googleMaps.apiKey` = `AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY` ✅
+- **iOS**: `ios.config.googleMapsApiKey` = `<REDACTED_GOOGLE_MAPS_KEY>` ✅
+- **Android**: `android.config.googleMaps.apiKey` = `<REDACTED_GOOGLE_MAPS_KEY>` ✅
 
 ### ✅ 2. API Key in Native Files
-- **iOS Info.plist**: `GMSApiKey` = `AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY` ✅
-- **Android Manifest**: `com.google.android.geo.API_KEY` = `AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY` ✅
+- **iOS Info.plist**: `GMSApiKey` = `<REDACTED_GOOGLE_MAPS_KEY>` ✅
+- **Android Manifest**: `com.google.android.geo.API_KEY` = `<REDACTED_GOOGLE_MAPS_KEY>` ✅
 
 ### ✅ 3. Map Provider Configuration
 - **utils/maps.ts**: Returns `PROVIDER_GOOGLE` ✅
@@ -68,7 +68,7 @@ Google Maps requires a billing account (but has free tier). Verify billing is en
 
 4. **Test API Key Directly**:
    ```bash
-   curl "https://maps.googleapis.com/maps/api/geocode/json?address=New+York&key=AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY"
+   curl "https://maps.googleapis.com/maps/api/geocode/json?address=New+York&key=<REDACTED_GOOGLE_MAPS_KEY>"
    ```
    Should return JSON with results, not an error.
 
@@ -76,7 +76,7 @@ Google Maps requires a billing account (but has free tier). Verify billing is en
 
 ### Check API Key Restrictions
 1. Go to: https://console.cloud.google.com/apis/credentials
-2. Click on your API key: `AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY`
+2. Click on your API key: `<REDACTED_GOOGLE_MAPS_KEY>`
 3. Check "API restrictions":
    - Should include: Maps SDK for iOS, Maps SDK for Android
 4. Check "Application restrictions":

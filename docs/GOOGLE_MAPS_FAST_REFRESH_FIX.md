@@ -59,7 +59,7 @@ npx expo start --dev-client --clear
    ```bash
    cat ios/VarsityHub/Info.plist | grep GMSApiKey
    ```
-   Should show: `<key>GMSApiKey</key><string>AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY</string>`
+   Should show: `<key>GMSApiKey</key><string><REDACTED_GOOGLE_MAPS_KEY></string>`
 
 2. **Verify API key is valid**:
    - Go to Google Cloud Console

@@ -3,8 +3,8 @@
 ## Current Status
 
 ✅ **API Key Configured** in `app.json`:
-- iOS: `AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY`
-- Android: `AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY`
+- iOS: `<REDACTED_GOOGLE_MAPS_KEY>`
+- Android: `<REDACTED_GOOGLE_MAPS_KEY>`
 
 ✅ **Plugin Created** to inject API key into Info.plist
 
@@ -38,7 +38,7 @@ After the build completes, you need to:
    ```bash
    cat ios/VarsityHub/Info.plist | grep GMSApiKey
    ```
-   Should show: `<key>GMSApiKey</key><string>AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY</string>`
+   Should show: `<key>GMSApiKey</key><string><REDACTED_GOOGLE_MAPS_KEY></string>`
 
 3. **Test the map**:
    - Navigate to "Nearby Games" screen
@@ -55,7 +55,7 @@ After the build completes, you need to:
 2. **Verify API key is valid**:
    ```bash
    # Test the API key (replace with your key)
-   curl "https://maps.googleapis.com/maps/api/geocode/json?address=1600+Amphitheatre+Parkway,+Mountain+View,+CA&key=AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY"
+   curl "https://maps.googleapis.com/maps/api/geocode/json?address=1600+Amphitheatre+Parkway,+Mountain+View,+CA&key=<REDACTED_GOOGLE_MAPS_KEY>"
    ```
 
 3. **Check simulator/device**:

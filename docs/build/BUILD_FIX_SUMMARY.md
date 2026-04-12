@@ -8,7 +8,7 @@
    - RCTAppDependencyProvider.mm created
 
 2. **API Key Updated** ✅
-   - New key: `AIzaSyCWTjN0GPyMnzwz06JKQ1ndqqu10DvNkZA`
+   - New key: `<REDACTED_GOOGLE_MAPS_KEY>`
    - Updated in all files (app.json, Info.plist, AppDelegate.swift, AndroidManifest.xml)
 
 3. **Google Maps Plugin** ✅
@@ -38,7 +38,7 @@ npx expo run:ios
 
 ## Google Maps Configuration
 
-- ✅ API key: `AIzaSyCWTjN0GPyMnzwz06JKQ1ndqqu10DvNkZA`
+- ✅ API key: `<REDACTED_GOOGLE_MAPS_KEY>`
 - ✅ Application restrictions: None
 - ✅ API restrictions: Maps SDK for iOS & Android enabled
 - ✅ All native files updated
