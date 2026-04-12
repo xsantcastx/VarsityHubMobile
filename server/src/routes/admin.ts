@@ -20,6 +20,10 @@ import {
 import { invalidateAuthCache } from '../middleware/auth.js';
 import { requireAdmin as requireAdminMiddleware } from '../middleware/requireAdmin.js';
 import { requireVerified } from '../middleware/requireVerified.js';
+import {
+  markCoachApprovedForOrganization,
+  markCoachRejectedForOrganization,
+} from './organizations.js';
 
 const adminRouter = express.Router();
 
@@ -323,10 +327,45 @@ adminRouter.patch(
     });
 
     const ownerMembership = await prisma.organizationMembership.findFirst({
-      where: { organization_id: id, role: 'owner', status: 'active' },
-      include: { user: { select: { email: true } } },
+      where: { organization_id: id, role: 'owner', NOT: { status: 'archived' } },
+      include: { user: { select: { id: true, email: true } } },
       orderBy: { created_at: 'asc' },
     });
+
+    if (status === 'active' && ownerMembership && ownerMembership.status !== 'active') {
+      await prisma.organizationMembership.update({
+        where: { id: ownerMembership.id },
+        data: { status: 'active' },
+      });
+    }
+
+    if (ownerMembership?.user?.id) {
+      if (status === 'active') {
+        await markCoachApprovedForOrganization(
+          ownerMembership.user.id,
+          updated.id,
+          updated.name,
+          req.user!.id
+        );
+      } else if (status === 'rejected') {
+        await prisma.organizationMembership.updateMany({
+          where: {
+            organization_id: id,
+            user_id: ownerMembership.user.id,
+            NOT: { status: 'archived' },
+          },
+          data: { status: 'archived' },
+        });
+
+        await markCoachRejectedForOrganization(
+          ownerMembership.user.id,
+          updated.id,
+          updated.name,
+          note || undefined,
+          req.user!.id
+        );
+      }
+    }
 
     const ownerEmail = ownerMembership?.user?.email;
     if (ownerEmail) {
