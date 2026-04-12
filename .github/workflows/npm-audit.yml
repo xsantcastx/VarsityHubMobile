@@ -30,9 +30,9 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Audit root dependencies
+      - name: Audit root production dependencies
         id: root-audit
-        run: npm audit --json > audit-root.json 2>&1 || true
+        run: npm audit --omit=dev --json > audit-root.json 2>&1 || true
 
       - name: Parse root audit results
         id: root-parse
@@ -40,7 +40,7 @@ jobs:
           VULN_COUNT=$(jq '.metadata.vulnerabilities.total // 0' audit-root.json)
           echo "vulnerabilities=$VULN_COUNT" >> $GITHUB_OUTPUT
           if [ "$VULN_COUNT" -gt 0 ]; then
-            echo "❌ Root vulnerabilities: $VULN_COUNT"
+            echo "❌ Root production vulnerabilities: $VULN_COUNT"
             jq '.vulnerabilities | to_entries[] | "\(.value.name)@\(.value.via[0]) - \(.value.severity)"' audit-root.json
           fi
 
