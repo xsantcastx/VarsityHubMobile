@@ -18,7 +18,7 @@ export default function PaymentSuccessScreen() {
   const [verificationAttempt, setVerificationAttempt] = useState(0);
   const [lastVerificationAt, setLastVerificationAt] = useState<Date | null>(null);
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  
+
   // Check if this is an ad payment (type=ad) or subscription payment
   const isAdPayment = params.type === 'ad';
   const isSubscription = params.type === 'subscription';
@@ -35,7 +35,7 @@ export default function PaymentSuccessScreen() {
     const verifyPayment = async () => {
       try {
         setLastVerificationAt(new Date());
-        
+
         // Validate session_id format (Stripe session IDs start with 'cs_' or 'sess_')
         if (params.session_id) {
           const sessionId = params.session_id.trim();
@@ -46,11 +46,13 @@ export default function PaymentSuccessScreen() {
           }
         } else {
           // Missing session_id - show error with recovery options
-          setError('Payment session information is missing. If you completed payment, please contact support.');
+          setError(
+            'Payment session information is missing. If you completed payment, please contact support.'
+          );
           setLoading(false);
           return;
         }
-        
+
         if (params.session_id) {
           // For ad payments, manually finalize the session
           if (isAdPayment) {
@@ -60,7 +62,7 @@ export default function PaymentSuccessScreen() {
               console.warn('[payment-success] Failed to finalize session:', finalizeErr);
               // Continue anyway - webhook might have already processed it
             }
-            
+
             setSessionVerified(true);
             // Auto-redirect immediately — my-ads shows the gold checkmark animation
             setTimeout(() => {
@@ -73,7 +75,7 @@ export default function PaymentSuccessScreen() {
               const me = await User.me();
               const plan = me?.preferences?.plan;
               const pending = me?.preferences?.payment_pending;
-              
+
               if ((plan === 'veteran' || plan === 'legend') && pending === false) {
                 setSessionVerified(true);
                 setLoading(false);
@@ -81,29 +83,39 @@ export default function PaymentSuccessScreen() {
                 // Webhook might still be processing, retry after 2 seconds
                 if (__DEV__) {
                   // eslint-disable-next-line no-console
-                  if (__DEV__) console.log(
-                    `[payment-success] Retrying verification (attempt ${verificationAttempt + 1}/${maxVerificationAttempts})...`
-                  );
+                  if (__DEV__)
+                    console.log(
+                      `[payment-success] Retrying verification (attempt ${verificationAttempt + 1}/${maxVerificationAttempts})...`
+                    );
                 }
                 clearRetryTimeout();
                 retryTimeoutRef.current = setTimeout(() => {
-                  setVerificationAttempt((attempt) => attempt + 1);
+                  setVerificationAttempt(attempt => attempt + 1);
                 }, 2000);
               } else {
                 // Max retries reached - try finalize-session before showing error (webhook may have failed)
                 try {
                   await httpPost('/payments/finalize-session', { session_id: params.session_id });
                   const meAfter = await User.me();
-                  if ((meAfter?.preferences?.plan === 'veteran' || meAfter?.preferences?.plan === 'legend') && meAfter?.preferences?.payment_pending === false) {
+                  if (
+                    (meAfter?.preferences?.plan === 'veteran' ||
+                      meAfter?.preferences?.plan === 'legend') &&
+                    meAfter?.preferences?.payment_pending === false
+                  ) {
                     setSessionVerified(true);
                     setLoading(false);
                     return;
                   }
                 } catch (finalizeErr) {
-                  console.warn('[payment-success] finalize-session before error failed:', finalizeErr);
+                  console.warn(
+                    '[payment-success] finalize-session before error failed:',
+                    finalizeErr
+                  );
                 }
                 console.warn('[payment-success] Payment verification timed out after retries');
-                setError('Payment verification timed out. Your payment may still be processing. Please try again or contact support.');
+                setError(
+                  'Payment verification timed out. Your payment may still be processing. Please try again or contact support.'
+                );
                 setLoading(false);
               }
             } catch (error) {
@@ -117,7 +129,7 @@ export default function PaymentSuccessScreen() {
                 console.warn('[payment-success] User.me() failed, retrying...', error);
                 clearRetryTimeout();
                 retryTimeoutRef.current = setTimeout(() => {
-                  setVerificationAttempt((attempt) => attempt + 1);
+                  setVerificationAttempt(attempt => attempt + 1);
                 }, 2000);
               }
             }
@@ -191,12 +203,14 @@ export default function PaymentSuccessScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ 
-        title: 'Payment Successful',
-        headerShown: true,
-        gestureEnabled: false,
-        headerLeft: () => null
-      }} />
+      <Stack.Screen
+        options={{
+          title: 'Payment Successful',
+          headerShown: true,
+          gestureEnabled: false,
+          headerLeft: () => null,
+        }}
+      />
       <SafeAreaView style={styles.container}>
         <View style={styles.content}>
           {loading ? (
@@ -214,16 +228,10 @@ export default function PaymentSuccessScreen() {
               <Text style={styles.errorTitle}>Verification Issue</Text>
               <Text style={styles.errorText}>{error}</Text>
               <View style={styles.buttonContainer}>
-                <PrimaryButton 
-                  label="Try Again" 
-                  onPress={handleRetryVerification}
-                />
+                <PrimaryButton label="Try Again" onPress={handleRetryVerification} />
               </View>
               <View style={styles.buttonContainer}>
-                <Pressable 
-                  onPress={handleContinue}
-                  style={styles.secondaryButton}
-                >
+                <Pressable onPress={handleContinue} style={styles.secondaryButton}>
                   <Text style={styles.secondaryButtonText}>Continue to App</Text>
                 </Pressable>
               </View>
@@ -233,15 +241,15 @@ export default function PaymentSuccessScreen() {
               <Ionicons name="checkmark-circle" size={64} color="#16A34A" />
               <Text style={styles.successTitle}>Payment Successful!</Text>
               <Text style={styles.successText}>
-                {isAdPayment 
-                  ? 'Your ad payment has been processed successfully. Your ad reservation is now confirmed and will appear in "My Ads"!'
+                {isAdPayment
+                  ? 'Your ad payment has been processed successfully. Your reservation is confirmed and your ad is now waiting for admin review before it can go live.'
                   : 'Your subscription has been activated. You can now create additional teams and access premium features.'}
               </Text>
               {isAdPayment && (
                 <View style={styles.infoBox}>
                   <Text style={styles.infoText}>✅ Ad reservation confirmed</Text>
                   <Text style={styles.infoText}>📅 Dates are now reserved</Text>
-                  <Text style={styles.infoText}>🚀 Your ad is being prepared</Text>
+                  <Text style={styles.infoText}>🕒 Status: pending admin review</Text>
                 </View>
               )}
               {isSubscription && (
@@ -252,17 +260,14 @@ export default function PaymentSuccessScreen() {
                 </View>
               )}
               <View style={styles.buttonContainer}>
-                <PrimaryButton 
-                  label={isAdPayment ? "View My Ads" : "Continue to App"}
+                <PrimaryButton
+                  label={isAdPayment ? 'View My Ads' : 'Continue to App'}
                   onPress={handleContinue}
                 />
               </View>
               {isSubscription && (
                 <View style={styles.buttonContainer}>
-                  <Pressable 
-                    onPress={handleCreateTeam}
-                    style={styles.secondaryButton}
-                  >
+                  <Pressable onPress={handleCreateTeam} style={styles.secondaryButton}>
                     <Text style={styles.secondaryButtonText}>Create a Team Now</Text>
                   </Pressable>
                 </View>
@@ -280,16 +285,10 @@ export default function PaymentSuccessScreen() {
                 {lastCheckedLabel ? ` • Last checked ${lastCheckedLabel}` : ''}
               </Text>
               <View style={styles.buttonContainer}>
-                <PrimaryButton 
-                  label="Check Status" 
-                  onPress={handleRetryVerification}
-                />
+                <PrimaryButton label="Check Status" onPress={handleRetryVerification} />
               </View>
               <View style={styles.buttonContainer}>
-                <Pressable 
-                  onPress={handleContinue}
-                  style={styles.secondaryButton}
-                >
+                <Pressable onPress={handleContinue} style={styles.secondaryButton}>
                   <Text style={styles.secondaryButtonText}>Continue to App</Text>
                 </Pressable>
               </View>

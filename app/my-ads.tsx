@@ -4,7 +4,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, FlatList, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Animated,
+  FlatList,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Advertisement as AdsApi, User } from '@/api/entities';
@@ -69,13 +79,15 @@ export default function MyAdsScreen() {
       try {
         const s = await AdsApi.listMine();
         serverAds = Array.isArray(s) ? s : [];
-      } catch { serverAds = null; }
+      } catch {
+        serverAds = null;
+      }
 
       const localAds = await settings.getJson<ManagedAd[]>(getLocalAdsKey(), []);
       const combined: ManagedAd[] = [];
       const add = (a: any) => {
         const id = String(a.id);
-        if (combined.find((x) => x.id === id)) return;
+        if (combined.find(x => x.id === id)) return;
         combined.push({
           id,
           business_name: String(a.business_name || a.name || ''),
@@ -95,17 +107,21 @@ export default function MyAdsScreen() {
       setAds(combined);
 
       const entries = await Promise.all(
-        combined.map(async (ad) => {
+        combined.map(async ad => {
           try {
             const r: any = await AdsApi.reservationsForAd(ad.id);
             return [ad.id, Array.isArray(r?.dates) ? r.dates : []] as const;
-          } catch { return [ad.id, []] as const; }
+          } catch {
+            return [ad.id, []] as const;
+          }
         })
       );
       const map: Record<string, string[]> = {};
       for (const [id, dates] of entries) map[id] = dates;
       setDatesByAd(map);
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   }, [getLocalAdsKey]);
 
   useEffect(() => {
@@ -128,35 +144,38 @@ export default function MyAdsScreen() {
 
   const remove = async (id: string) => {
     Alert.alert(
-      'Delete Ad', 
-      'This will permanently delete the ad and all its scheduled dates. This action cannot be undone.', 
+      'Delete Ad',
+      'This will permanently delete the ad and all its scheduled dates. This action cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Delete', 
-          style: 'destructive', 
+        {
+          text: 'Delete',
+          style: 'destructive',
           onPress: () => {
             void (async () => {
               try {
                 // Delete from server
                 await AdsApi.delete(id);
-                
+
                 // Also remove from local storage
-                const list = await settings.getJson<ManagedAd[]>(settings.SETTINGS_KEYS.LOCAL_ADS, []);
-                const next = list.filter((a) => a.id !== id);
+                const list = await settings.getJson<ManagedAd[]>(
+                  settings.SETTINGS_KEYS.LOCAL_ADS,
+                  []
+                );
+                const next = list.filter(a => a.id !== id);
                 await settings.setJson(settings.SETTINGS_KEYS.LOCAL_ADS, next);
-                
+
                 // Reload the list
                 await load();
-                
+
                 Alert.alert('Success', 'Ad deleted successfully');
               } catch (error) {
                 console.error('[my-ads2] Error deleting ad:', error);
                 Alert.alert('Error', 'Failed to delete ad. Please try again.');
               }
             })();
-          }
-        }
+          },
+        },
       ]
     );
   };
@@ -164,10 +183,10 @@ export default function MyAdsScreen() {
   const categorizeAdDates = (dates: string[]) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
+
     const past: string[] = [];
     const future: string[] = [];
-    
+
     dates.forEach(dateStr => {
       try {
         const date = new Date(dateStr + 'T00:00:00');
@@ -181,16 +200,16 @@ export default function MyAdsScreen() {
         future.push(dateStr);
       }
     });
-    
+
     return { past, future };
   };
 
   const formatDate = (d: string) => {
     try {
-      return new Date(d + 'T00:00:00').toLocaleDateString(undefined, { 
-        month: 'short', 
-        day: 'numeric', 
-        year: 'numeric' 
+      return new Date(d + 'T00:00:00').toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
       });
     } catch {
       return d;
@@ -204,38 +223,61 @@ export default function MyAdsScreen() {
     const hasUpcoming = future.length > 0;
     const hasDates = dates.length > 0;
     const isPaid = item.payment_status === 'paid';
-    
+
     return (
-      <View style={[styles.card, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
+      <View
+        style={[
+          styles.card,
+          { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border },
+        ]}
+      >
         {/* Banner Section */}
         <View style={styles.bannerContainer}>
           {item.banner_url ? (
             <Image source={{ uri: item.banner_url }} style={styles.banner} contentFit="cover" />
           ) : (
-            <View style={[styles.banner, styles.bannerPlaceholder, { backgroundColor: Colors[colorScheme].surface }]}>
+            <View
+              style={[
+                styles.banner,
+                styles.bannerPlaceholder,
+                { backgroundColor: Colors[colorScheme].surface },
+              ]}
+            >
               <Ionicons name="image-outline" size={40} color={Colors[colorScheme].mutedText} />
-              <Text style={[styles.bannerPlaceholderText, { color: Colors[colorScheme].mutedText }]}>No banner</Text>
+              <Text
+                style={[styles.bannerPlaceholderText, { color: Colors[colorScheme].mutedText }]}
+              >
+                No banner
+              </Text>
             </View>
           )}
         </View>
 
         {/* Info Section */}
         <View style={styles.infoContainer}>
-          <Text style={[styles.businessName, { color: Colors[colorScheme].text }]}>{item.business_name}</Text>
-          
+          <Text style={[styles.businessName, { color: Colors[colorScheme].text }]}>
+            {item.business_name}
+          </Text>
+
           <View style={styles.metaRow}>
             <Ionicons name="person-outline" size={14} color={Colors[colorScheme].mutedText} />
-            <Text style={[styles.metaText, { color: Colors[colorScheme].mutedText }]}>{item.contact_name}</Text>
+            <Text style={[styles.metaText, { color: Colors[colorScheme].mutedText }]}>
+              {item.contact_name}
+            </Text>
           </View>
-          
+
           <View style={styles.metaRow}>
             <Ionicons name="mail-outline" size={14} color={Colors[colorScheme].mutedText} />
-            <Text style={[styles.metaText, { color: Colors[colorScheme].mutedText }]}>{item.contact_email}</Text>
+            <Text style={[styles.metaText, { color: Colors[colorScheme].mutedText }]}>
+              {item.contact_email}
+            </Text>
           </View>
-          
+
           <View style={styles.metaRow}>
             <Ionicons name="location-outline" size={14} color={Colors[colorScheme].mutedText} />
-            <Text style={[styles.metaText, { color: Colors[colorScheme].mutedText }]}>Zip {item.zip_code}</Text>
+            <Text style={[styles.metaText, { color: Colors[colorScheme].mutedText }]}>
+              Zip {item.zip_code}
+            </Text>
           </View>
 
           {/* Status Badges */}
@@ -264,14 +306,14 @@ export default function MyAdsScreen() {
                 </Text>
               </View>
               <View style={styles.datesBadgeWrap}>
-                {past.slice(0, 5).map((d) => (
-                  <View 
-                    key={d} 
+                {past.slice(0, 5).map(d => (
+                  <View
+                    key={d}
                     style={[
-                      styles.dateBadge, 
+                      styles.dateBadge,
                       styles.dateBadgeCompleted,
                       colorScheme === 'dark' && styles.dateBadgeCompletedDark,
-                      { borderColor: Colors[colorScheme].border }
+                      { borderColor: Colors[colorScheme].border },
                     ]}
                   >
                     <Text style={[styles.dateBadgeText, styles.dateBadgeTextCompleted]}>
@@ -280,15 +322,23 @@ export default function MyAdsScreen() {
                   </View>
                 ))}
                 {past.length > 5 && (
-                  <View style={[styles.dateBadge, styles.dateBadgeCompleted, colorScheme === 'dark' && styles.dateBadgeCompletedDark]}>
-                    <Text style={[styles.dateBadgeText, styles.dateBadgeTextCompleted]}>+{past.length - 5}</Text>
+                  <View
+                    style={[
+                      styles.dateBadge,
+                      styles.dateBadgeCompleted,
+                      colorScheme === 'dark' && styles.dateBadgeCompletedDark,
+                    ]}
+                  >
+                    <Text style={[styles.dateBadgeText, styles.dateBadgeTextCompleted]}>
+                      +{past.length - 5}
+                    </Text>
                   </View>
                 )}
               </View>
               <View style={{ height: 10 }} />
             </>
           )}
-          
+
           {/* Upcoming Dates */}
           {hasUpcoming && (
             <>
@@ -298,14 +348,14 @@ export default function MyAdsScreen() {
                 </Text>
               </View>
               <View style={styles.datesBadgeWrap}>
-                {future.slice(0, 5).map((d) => (
-                  <View 
-                    key={d} 
+                {future.slice(0, 5).map(d => (
+                  <View
+                    key={d}
                     style={[
-                      styles.dateBadge, 
+                      styles.dateBadge,
                       styles.dateBadgeUpcoming,
                       colorScheme === 'dark' && styles.dateBadgeUpcomingDark,
-                      { borderColor: Colors[colorScheme].border }
+                      { borderColor: Colors[colorScheme].border },
                     ]}
                   >
                     <Text style={[styles.dateBadgeText, styles.dateBadgeTextUpcoming]}>
@@ -314,58 +364,97 @@ export default function MyAdsScreen() {
                   </View>
                 ))}
                 {future.length > 5 && (
-                  <View style={[styles.dateBadge, styles.dateBadgeUpcoming, colorScheme === 'dark' && styles.dateBadgeUpcomingDark]}>
-                    <Text style={[styles.dateBadgeText, styles.dateBadgeTextUpcoming]}>+{future.length - 5}</Text>
+                  <View
+                    style={[
+                      styles.dateBadge,
+                      styles.dateBadgeUpcoming,
+                      colorScheme === 'dark' && styles.dateBadgeUpcomingDark,
+                    ]}
+                  >
+                    <Text style={[styles.dateBadgeText, styles.dateBadgeTextUpcoming]}>
+                      +{future.length - 5}
+                    </Text>
                   </View>
                 )}
               </View>
               <View style={{ height: 10 }} />
             </>
           )}
-          
+
           {/* No Dates */}
           {!hasDates && (
             <>
               <View style={styles.datesSectionHeader}>
                 <Ionicons name="calendar-outline" size={16} color={Colors[colorScheme].text} />
-                <Text style={[styles.datesSectionTitle, { color: Colors[colorScheme].text }]}>Scheduled Dates</Text>
+                <Text style={[styles.datesSectionTitle, { color: Colors[colorScheme].text }]}>
+                  Scheduled Dates
+                </Text>
                 <View style={[styles.datesCount, { backgroundColor: Colors[colorScheme].surface }]}>
-                  <Text style={[styles.datesCountText, { color: Colors[colorScheme].text }]}>0</Text>
+                  <Text style={[styles.datesCountText, { color: Colors[colorScheme].text }]}>
+                    0
+                  </Text>
                 </View>
               </View>
-              <Text style={[styles.noDatesText, { color: Colors[colorScheme].mutedText }]}>No dates scheduled yet</Text>
+              <Text style={[styles.noDatesText, { color: Colors[colorScheme].mutedText }]}>
+                No dates scheduled yet
+              </Text>
             </>
           )}
         </View>
 
         {/* Actions Section */}
         <View style={styles.actionsContainer}>
-          <Pressable 
-            style={[styles.actionButton, styles.actionButtonPrimary, { backgroundColor: Colors[colorScheme].tint }]} 
-            onPress={() => { void router.push({ pathname: '/ad-calendar', params: { adId: item.id, isPaid: String(isPaid) } }); }}
+          <Pressable
+            style={[
+              styles.actionButton,
+              styles.actionButtonPrimary,
+              { backgroundColor: Colors[colorScheme].tint },
+            ]}
+            onPress={() => {
+              void router.push({
+                pathname: '/ad-calendar',
+                params: { adId: item.id, isPaid: String(isPaid) },
+              });
+            }}
           >
             <Ionicons name="calendar" size={18} color="#FFFFFF" />
             <Text style={styles.actionButtonTextPrimary}>
-              {isPaid && hasDates ? '✓ Paid - Schedule More' : hasDates ? 'Schedule More' : 'Schedule Dates'}
+              {isPaid && hasDates
+                ? '✓ Paid - Schedule More'
+                : hasDates
+                  ? 'Schedule More'
+                  : 'Schedule Dates'}
             </Text>
           </Pressable>
-          
-          <Pressable 
-            style={[styles.actionButton, styles.actionButtonSecondary, { 
-              backgroundColor: Colors[colorScheme].surface,
-              borderColor: Colors[colorScheme].border
-            }]} 
-            onPress={() => { void router.push({ pathname: '/edit-ad', params: { id: item.id } }); }}
+
+          <Pressable
+            style={[
+              styles.actionButton,
+              styles.actionButtonSecondary,
+              {
+                backgroundColor: Colors[colorScheme].surface,
+                borderColor: Colors[colorScheme].border,
+              },
+            ]}
+            onPress={() => {
+              void router.push({ pathname: '/edit-ad', params: { id: item.id } });
+            }}
           >
             <Ionicons name="create-outline" size={18} color={Colors[colorScheme].text} />
-            <Text style={[styles.actionButtonTextSecondary, { color: Colors[colorScheme].text }]}>Edit</Text>
+            <Text style={[styles.actionButtonTextSecondary, { color: Colors[colorScheme].text }]}>
+              Edit
+            </Text>
           </Pressable>
-          
-          <Pressable 
-            style={[styles.actionButton, styles.actionButtonSecondary, { 
-              backgroundColor: Colors[colorScheme].surface,
-              borderColor: Colors[colorScheme].border
-            }]} 
+
+          <Pressable
+            style={[
+              styles.actionButton,
+              styles.actionButtonSecondary,
+              {
+                backgroundColor: Colors[colorScheme].surface,
+                borderColor: Colors[colorScheme].border,
+              },
+            ]}
             onPress={() => remove(item.id)}
           >
             <Ionicons name="trash-outline" size={18} color="#EF4444" />
@@ -377,27 +466,39 @@ export default function MyAdsScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'left', 'right']}>
-      <Stack.Screen options={{ 
-        title: 'My Ads',
-        headerShown: false // Use custom header
-      }} />
-      <BackHeader 
+    <SafeAreaView
+      style={[styles.safeArea, { backgroundColor: Colors[colorScheme].background }]}
+      edges={['top', 'left', 'right']}
+    >
+      <Stack.Screen
+        options={{
+          title: 'My Ads',
+          headerShown: false, // Use custom header
+        }}
+      />
+      <BackHeader
         title="My Ads"
         backgroundColor={Colors[colorScheme].background}
         textColor={Colors[colorScheme].text}
         borderColor={Colors[colorScheme].border}
       />
-      
+
       {/* Custom Header */}
-      <View style={[styles.header, { 
-        backgroundColor: Colors[colorScheme].card,
-        borderBottomColor: Colors[colorScheme].border 
-      }]}>
+      <View
+        style={[
+          styles.header,
+          {
+            backgroundColor: Colors[colorScheme].card,
+            borderBottomColor: Colors[colorScheme].border,
+          },
+        ]}
+      >
         <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>My Ads</Text>
-        <Pressable 
+        <Pressable
           style={[styles.addButton, { backgroundColor: Colors[colorScheme].tint }]}
-          onPress={() => { void router.push('/submit-ad'); }}
+          onPress={() => {
+            void router.push('/submit-ad');
+          }}
         >
           <Ionicons name="add" size={24} color="#FFFFFF" />
         </Pressable>
@@ -407,36 +508,41 @@ export default function MyAdsScreen() {
         {loading && (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
-            <Text style={[styles.loadingText, { color: Colors[colorScheme].mutedText }]}>Loading your ads...</Text>
+            <Text style={[styles.loadingText, { color: Colors[colorScheme].mutedText }]}>
+              Loading your ads...
+            </Text>
           </View>
         )}
-        
+
         {!loading && ads.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Ionicons name="megaphone-outline" size={80} color={Colors[colorScheme].mutedText} />
             <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text }]}>No Ads Yet</Text>
             <Text style={[styles.emptyText, { color: Colors[colorScheme].mutedText }]}>
-              Create your first advertisement to start promoting your business to local teams and families.
+              Create your first advertisement to start promoting your business to local teams and
+              families.
             </Text>
-            <Pressable 
-              style={[styles.emptyButton, { backgroundColor: Colors[colorScheme].tint }]} 
-              onPress={() => { void router.push('/submit-ad'); }}
+            <Pressable
+              style={[styles.emptyButton, { backgroundColor: Colors[colorScheme].tint }]}
+              onPress={() => {
+                void router.push('/submit-ad');
+              }}
             >
               <Ionicons name="add-circle-outline" size={20} color="#FFFFFF" />
               <Text style={styles.emptyButtonText}>Create Your First Ad</Text>
             </Pressable>
           </View>
         ) : null}
-        
+
         {!loading && ads.length > 0 && (
           <FlatList
             data={ads}
-            keyExtractor={(a) => a.id}
+            keyExtractor={a => a.id}
             renderItem={renderAd}
             ItemSeparatorComponent={() => <View style={{ height: 16 }} />}
-            contentContainerStyle={{ 
-              padding: 16, 
-              paddingBottom: Platform.OS === 'ios' ? 34 : 24 
+            contentContainerStyle={{
+              padding: 16,
+              paddingBottom: Platform.OS === 'ios' ? 34 : 24,
             }}
             showsVerticalScrollIndicator={false}
           />
@@ -444,7 +550,10 @@ export default function MyAdsScreen() {
       </View>
 
       {showSuccess && (
-        <Animated.View style={[styles.successOverlay, { opacity: successOpacity }]} pointerEvents="none">
+        <Animated.View
+          style={[styles.successOverlay, { opacity: successOpacity }]}
+          pointerEvents="none"
+        >
           <View style={styles.successBadge}>
             <Text style={styles.successCheck}>✓</Text>
             <Text style={styles.successLabel}>Payment Successful</Text>
@@ -457,25 +566,63 @@ export default function MyAdsScreen() {
 
 function badgeStyleForStatus(status?: string, colorScheme: 'light' | 'dark' = 'light') {
   const s = String(status || 'draft');
-  if (s === 'active') return { backgroundColor: colorScheme === 'dark' ? '#065F46' : '#DCFCE7', borderColor: colorScheme === 'dark' ? '#10B981' : '#86EFAC' };
-  if (s === 'pending') return { backgroundColor: colorScheme === 'dark' ? '#92400E' : '#FEF9C3', borderColor: colorScheme === 'dark' ? '#FBBF24' : '#FDE68A' };
-  if (s === 'archived') return { backgroundColor: colorScheme === 'dark' ? '#374151' : '#F3F4F6', borderColor: colorScheme === 'dark' ? '#6B7280' : '#E5E7EB' };
-  return { backgroundColor: colorScheme === 'dark' ? '#1E3A8A' : '#E0E7FF', borderColor: colorScheme === 'dark' ? '#3B82F6' : '#C7D2FE' }; // draft
+  if (s === 'active')
+    return {
+      backgroundColor: colorScheme === 'dark' ? '#065F46' : '#DCFCE7',
+      borderColor: colorScheme === 'dark' ? '#10B981' : '#86EFAC',
+    };
+  if (s === 'approved')
+    return {
+      backgroundColor: colorScheme === 'dark' ? '#14532D' : '#DCFCE7',
+      borderColor: colorScheme === 'dark' ? '#22C55E' : '#86EFAC',
+    };
+  if (s === 'pending')
+    return {
+      backgroundColor: colorScheme === 'dark' ? '#92400E' : '#FEF9C3',
+      borderColor: colorScheme === 'dark' ? '#FBBF24' : '#FDE68A',
+    };
+  if (s === 'rejected')
+    return {
+      backgroundColor: colorScheme === 'dark' ? '#7F1D1D' : '#FEE2E2',
+      borderColor: colorScheme === 'dark' ? '#EF4444' : '#FCA5A5',
+    };
+  if (s === 'archived')
+    return {
+      backgroundColor: colorScheme === 'dark' ? '#374151' : '#F3F4F6',
+      borderColor: colorScheme === 'dark' ? '#6B7280' : '#E5E7EB',
+    };
+  return {
+    backgroundColor: colorScheme === 'dark' ? '#1E3A8A' : '#E0E7FF',
+    borderColor: colorScheme === 'dark' ? '#3B82F6' : '#C7D2FE',
+  }; // draft
 }
 function badgeTextStyleForStatus(status?: string) {
   const s = String(status || 'draft');
   if (s === 'active') return { color: '#10B981' };
+  if (s === 'approved') return { color: '#22C55E' };
   if (s === 'pending') return { color: '#F59E0B' };
+  if (s === 'rejected') return { color: '#EF4444' };
   if (s === 'archived') return { color: '#6B7280' };
   return { color: '#3B82F6' };
 }
 function badgeStyleForPayment(p?: string, colorScheme: 'light' | 'dark' = 'light') {
   const s = String(p || 'unpaid');
-  if (s === 'paid') return { backgroundColor: colorScheme === 'dark' ? '#1E3A8A' : '#DBEAFE', borderColor: colorScheme === 'dark' ? '#3B82F6' : '#BFDBFE' };
-  if (s === 'refunded') return { backgroundColor: colorScheme === 'dark' ? '#7F1D1D' : '#FFE4E6', borderColor: colorScheme === 'dark' ? '#EF4444' : '#FECDD3' };
-  return { backgroundColor: colorScheme === 'dark' ? '#7F1D1D' : '#FEE2E2', borderColor: colorScheme === 'dark' ? '#EF4444' : '#FCA5A5' }; // unpaid
+  if (s === 'paid')
+    return {
+      backgroundColor: colorScheme === 'dark' ? '#1E3A8A' : '#DBEAFE',
+      borderColor: colorScheme === 'dark' ? '#3B82F6' : '#BFDBFE',
+    };
+  if (s === 'refunded')
+    return {
+      backgroundColor: colorScheme === 'dark' ? '#7F1D1D' : '#FFE4E6',
+      borderColor: colorScheme === 'dark' ? '#EF4444' : '#FECDD3',
+    };
+  return {
+    backgroundColor: colorScheme === 'dark' ? '#7F1D1D' : '#FEE2E2',
+    borderColor: colorScheme === 'dark' ? '#EF4444' : '#FCA5A5',
+  }; // unpaid
 }
-function badgeTextStyleForPayment(p?: string) { 
+function badgeTextStyleForPayment(p?: string) {
   const s = String(p || 'unpaid');
   if (s === 'paid') return { color: '#3B82F6' };
   if (s === 'refunded') return { color: '#EF4444' };
