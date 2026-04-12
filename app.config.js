@@ -33,8 +33,17 @@ if (isProductionBuild && !mapsKey) {
       'Provision via EAS secrets: `eas secret:create --scope project --name GOOGLE_MAPS_API_KEY --value <key>`.'
   );
 }
+if (isProductionBuild && !stripeKey) {
+  throw new Error(
+    '[app.config] EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY must be set for production builds. ' +
+      'Provision it via EAS env/secrets before shipping checkout flows.'
+  );
+}
 if (!mapsKey && !isProductionBuild) {
   console.warn('[app.config] GOOGLE_MAPS_API_KEY is not set — map surfaces will be blank in this build.');
+}
+if (!sentryDsn) {
+  console.warn('[app.config] EXPO_PUBLIC_SENTRY_DSN is not set — client crash reporting is disabled.');
 }
 
 module.exports = () => {
