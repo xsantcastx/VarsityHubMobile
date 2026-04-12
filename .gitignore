@@ -128,3 +128,11 @@ overnight-logs-*/
 builds/
 credentials.json
 dist-verify/
+
+# iCloud sync collision artifacts
+*.nosync
+*.nosync/
+* 2
+* 2/
+.git 2
+.git.nosync

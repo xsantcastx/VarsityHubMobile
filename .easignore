@@ -99,3 +99,11 @@ overnight-audit.sh
 # Backup config files that might confuse EAS
 app.config.js.backup
 app.config.*.backup
+
+# iCloud sync collision artifacts
+*.nosync
+*.nosync/
+* 2
+* 2/
+.git 2
+.git.nosync
