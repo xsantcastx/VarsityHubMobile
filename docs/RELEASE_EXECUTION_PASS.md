@@ -131,9 +131,9 @@ Test from iMessage / Safari / Notes — NOT from inside the app.
 |---|---|---|---|---|
 | 7.1 | Server deployed first | Confirm Railway on target commit. `curl .../health` with secret returns expected SHA. | Matches intended commit | ☐ |
 | 7.2 | Migrations applied | Same `/health` response | `pushTicketMigration=true`, `ready=true` | ☐ |
-| 7.3 | OTA pipeline reachable | `bash scripts/release-checks/ota-check.sh` | Both iOS + Android return 200 manifest or 204 | ☐ |
+| 7.3 | OTA pipeline reachable | `eas update:list --branch production --limit 1` | Command succeeds and shows the latest production update group | ☐ |
 | 7.4 | OTA push | `eas update --branch production --platform all --message "..."` | Update ID returned for both platforms | ☐ |
-| 7.5 | OTA post-verify | Re-run `ota-check.sh` | Fresh `createdAt` matching the update just pushed | ☐ |
+| 7.5 | OTA post-verify | Re-run `eas update:list --branch production --limit 1` | Top entry `createdAt` and message match the update just pushed | ☐ |
 | 7.6 | Client pulls on cold start | Existing installed app: kill + reopen | App starts on new JS bundle. Check for any visual marker in the update. | ☐ |
 | 7.7 | Auth flow still works post-OTA | Sign out, sign back in | Clean | ☐ |
 
