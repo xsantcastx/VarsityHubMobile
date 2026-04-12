@@ -334,4 +334,49 @@ describe('API Authentication Endpoints', () => {
       expect(response.body).toHaveProperty('ok');
     });
   });
+
+  describe('POST /auth/password/reset', () => {
+    it('consumes a reset code so it cannot be reused', async () => {
+      const email = `test-api-reset-${Date.now()}@example.com`;
+      const originalHash = await bcrypt.hash(TEST_PASSWORD, 10);
+      const resetCode = '654321';
+      await prisma.user.create({
+        data: {
+          email,
+          password_hash: originalHash,
+          email_verified: true,
+          password_reset_code: resetCode,
+          password_reset_expires: new Date(Date.now() + 30 * 60 * 1000),
+          preferences: {},
+        },
+      });
+
+      const firstResponse = await request(app)
+        .post('/auth/password/reset')
+        .send({
+          email,
+          code: resetCode,
+          password: 'UpdatedPassword123!',
+        })
+        .expect(200);
+
+      expect(firstResponse.body).toHaveProperty('ok', true);
+
+      await request(app)
+        .post('/auth/password/reset')
+        .send({
+          email,
+          code: resetCode,
+          password: 'AnotherPassword123!',
+        })
+        .expect(400);
+
+      const updatedUser = await prisma.user.findUnique({
+        where: { email },
+      });
+      expect(updatedUser?.password_reset_code).toBeNull();
+      expect(updatedUser?.password_reset_expires).toBeNull();
+      expect(await bcrypt.compare('UpdatedPassword123!', updatedUser!.password_hash)).toBe(true);
+    });
+  });
 });

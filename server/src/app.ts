@@ -301,10 +301,12 @@ app.use('/promos', noStore, apiLimiter, promosRouter);
 
 // Test endpoints (consider removing in production or adding auth)
 if (process.env.NODE_ENV !== 'production') {
+if (!isProd) {
   app.use('/test-notifications', testNotificationsRouter);
   app.use('/test-emails', testEmailsRouter);
   debugLog('📱 Test notification endpoints available at /test-notifications/*');
   debugLog('📧 Test email endpoints available at /test-emails/*');
+}
 }
 
 // Add centralized error handler (must be before Sentry)

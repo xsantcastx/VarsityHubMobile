@@ -19,6 +19,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import auth from '@/api/auth';
 import { User } from '@/api/entities';
 import { httpGet } from '@/api/http';
+import { usePostCache } from '@/context/PostCacheContext';
 
 // Conditionally import notifications only if not in Expo Go
 const isExpoGo = Constants.executionEnvironment === 'storeClient';
@@ -80,6 +81,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
 
   const router = useRouter();
   const segments = useSegments();
+  const postCache = usePostCache();
 
   const lastRedirectRef = React.useRef<string | null>(null);
   const segmentsRef = React.useRef(segments);
@@ -240,6 +242,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     } catch (error) {
       console.warn('[auth] Failed to clear persisted session during sign out:', error);
     } finally {
+      postCache.clear();
       setUser(null);
       setPendingVerificationEmail(null);
       setHasCompletedOnboarding(false);
@@ -247,7 +250,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       lastPushRegistrationRef.current = null;
       router.replace('/sign-in');
     }
-  }, [router]);
+  }, [postCache, router]);
 
   const registerPushToken = useCallback(async () => {
     if (!user?.id) return false;

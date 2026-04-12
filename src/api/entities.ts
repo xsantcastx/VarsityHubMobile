@@ -245,9 +245,19 @@ const normalizePostItems = (input: any) => {
 };
 
 const normalizePostPage = (input: any) => {
-  if (!input) return { items: [] as any[], nextCursor: null, followed_feed_meta: undefined };
+  if (!input) {
+    const error: any = new Error('Malformed posts response');
+    error.code = 'MALFORMED_POST_PAGE_RESPONSE';
+    throw error;
+  }
   if (Array.isArray(input))
     return { items: input, nextCursor: null, followed_feed_meta: undefined };
+  if (!('items' in input)) {
+    const error: any = new Error('Malformed posts response');
+    error.code = 'MALFORMED_POST_PAGE_RESPONSE';
+    error.data = input;
+    throw error;
+  }
   return {
     items: Array.isArray(input.items) ? input.items : [],
     nextCursor: typeof input.nextCursor === 'string' ? input.nextCursor : null,

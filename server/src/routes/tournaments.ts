@@ -1,9 +1,13 @@
 import { Router, type Request, type Response } from 'express';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
+import { getIsAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 
 export const tournamentsRouter = Router();
+
+const TOURNAMENT_ADMIN_ROLES = new Set(['owner', 'manager']);
 
 const toOptionalNumber = (value: unknown) => {
   if (value === null || value === undefined || value === '') return undefined;
@@ -15,7 +19,7 @@ const toOptionalNumber = (value: unknown) => {
  * POST /tournaments
  * Create a new tournament organization
  */
-tournamentsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res: Response) => {
+tournamentsRouter.post('/', requireAuth as any, asyncHandler(async (req: AuthedRequest, res: Response) => {
   try {
     const {
       name,
@@ -36,15 +40,29 @@ tournamentsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res: 
       return res.status(400).json({ error: 'name is required' });
     }
 
-    const tournament = await prisma.organization.create({
-      data: {
-        name,
-        description: description || `${season ? `${season} ` : ''}${sport ?? ''} Tournament`.trim() || undefined,
-        org_type: 'tournament',
-        sport,
-        location,
-        updated_at: new Date(),
-      },
+    const tournament = await prisma.$transaction(async tx => {
+      const createdTournament = await tx.organization.create({
+        data: {
+          name,
+          description:
+            description || `${season ? `${season} ` : ''}${sport ?? ''} Tournament`.trim() || undefined,
+          org_type: 'tournament',
+          sport,
+          location,
+          updated_at: new Date(),
+        },
+      });
+
+      await tx.organizationMembership.create({
+        data: {
+          organization_id: createdTournament.id,
+          user_id: req.user!.id,
+          role: 'owner',
+          status: 'active',
+        },
+      });
+
+      return createdTournament;
     });
 
     return res.status(201).json(tournament);
@@ -52,7 +70,32 @@ tournamentsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res: 
     console.error('Failed to create tournament:', error);
     return res.status(500).json({ error: error.message || 'Failed to create tournament' });
   }
-});
+}));
+
+async function assertCanManageTournament(req: AuthedRequest, tournamentId: string) {
+  if (!req.user) return { ok: false as const, status: 401, body: { error: 'Unauthorized' } };
+  if (await getIsAdmin(req)) return { ok: true as const };
+
+  const membership = await prisma.organizationMembership.findUnique({
+    where: {
+      organization_id_user_id: {
+        organization_id: tournamentId,
+        user_id: req.user.id,
+      },
+    } as any,
+    select: { role: true, status: true },
+  });
+
+  if (!membership || membership.status === 'archived' || !TOURNAMENT_ADMIN_ROLES.has(membership.role)) {
+    return {
+      ok: false as const,
+      status: 403,
+      body: { error: 'Forbidden' },
+    };
+  }
+
+  return { ok: true as const };
+}
 
 /**
  * GET /tournaments
@@ -120,7 +163,7 @@ tournamentsRouter.get('/:id', async (req: Request, res: Response) => {
  * PATCH /tournaments/:id
  * Update tournament
  */
-tournamentsRouter.patch('/:id', requireAuth as any, async (req: AuthedRequest, res: Response) => {
+tournamentsRouter.patch('/:id', requireAuth as any, asyncHandler(async (req: AuthedRequest, res: Response) => {
   try {
     const { id } = req.params;
     const {
@@ -132,6 +175,9 @@ tournamentsRouter.patch('/:id', requireAuth as any, async (req: AuthedRequest, r
       capacity,
       opened_year,
     } = req.body;
+
+    const authz = await assertCanManageTournament(req, id);
+    if (!authz.ok) return res.status(authz.status).json(authz.body);
 
     const data: Record<string, unknown> = {};
     if (typeof name === 'string') data.name = name;
@@ -148,13 +194,13 @@ tournamentsRouter.patch('/:id', requireAuth as any, async (req: AuthedRequest, r
     console.error('Failed to update tournament:', error);
     return res.status(500).json({ error: error.message || 'Failed to update tournament' });
   }
-});
+}));
 
 /**
  * POST /tournaments/:id/teams
  * Add team to tournament
  */
-tournamentsRouter.post('/:id/teams', requireAuth as any, async (req: AuthedRequest, res: Response) => {
+tournamentsRouter.post('/:id/teams', requireAuth as any, asyncHandler(async (req: AuthedRequest, res: Response) => {
   try {
     const { id } = req.params;
     const { team_id } = req.body;
@@ -162,6 +208,9 @@ tournamentsRouter.post('/:id/teams', requireAuth as any, async (req: AuthedReque
     if (!team_id) {
       return res.status(400).json({ error: 'team_id is required' });
     }
+
+    const authz = await assertCanManageTournament(req, id);
+    if (!authz.ok) return res.status(authz.status).json(authz.body);
 
     const team = await prisma.team.update({
       where: { id: team_id },
@@ -173,13 +222,13 @@ tournamentsRouter.post('/:id/teams', requireAuth as any, async (req: AuthedReque
     console.error('Failed to add team to tournament:', error);
     return res.status(500).json({ error: error.message || 'Failed to add team' });
   }
-});
+}));
 
 /**
  * POST /tournaments/:id/games
  * Create a tournament game/match
  */
-tournamentsRouter.post('/:id/games', requireAuth as any, async (req: AuthedRequest, res: Response) => {
+tournamentsRouter.post('/:id/games', requireAuth as any, asyncHandler(async (req: AuthedRequest, res: Response) => {
   try {
     const { id } = req.params;
     const {
@@ -191,6 +240,9 @@ tournamentsRouter.post('/:id/games', requireAuth as any, async (req: AuthedReque
       latitude,
       longitude,
     } = req.body;
+
+    const authz = await assertCanManageTournament(req, id);
+    if (!authz.ok) return res.status(authz.status).json(authz.body);
 
     if (!home_team || !away_team || !date) {
       return res.status(400).json({ error: 'home_team, away_team, and date are required' });
@@ -219,4 +271,4 @@ tournamentsRouter.post('/:id/games', requireAuth as any, async (req: AuthedReque
     console.error('Failed to create tournament game:', error);
     return res.status(500).json({ error: error.message || 'Failed to create game' });
   }
-});
+}));

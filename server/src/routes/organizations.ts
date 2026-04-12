@@ -10,6 +10,7 @@ import {
 import { sendOrganizationApprovalEmail } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
@@ -340,7 +341,7 @@ organizationsRouter.post(
   '/',
   requireAuth as any,
   requireVerified as any,
-  async (req: AuthedRequest, res) => {
+  asyncHandler(async (req: AuthedRequest, res) => {
     try {
       await assertCoachRoleOrAdmin(req);
     } catch (error: any) {
@@ -368,32 +369,39 @@ organizationsRouter.post(
     if (!filterResult.valid) {
       return res.status(400).json({ error: filterResult.error, code: filterResult.code });
     }
-    const organization = await prisma.organization.create({
-      data: {
-        ...data,
-        season_start: data.season_start ? new Date(data.season_start) : null,
-        season_end: data.season_end ? new Date(data.season_end) : null,
-        updated_at: new Date(),
-      },
-    });
+    const organization = await prisma.$transaction(async tx => {
+      const createdOrganization = await tx.organization.create({
+        data: {
+          ...data,
+          season_start: data.season_start ? new Date(data.season_start) : null,
+          season_end: data.season_end ? new Date(data.season_end) : null,
+          updated_at: new Date(),
+        },
+      });
 
-    // Add creator as owner
-    await prisma.organizationMembership.create({
-      data: {
-        organization_id: organization.id,
-        user_id: req.user!.id,
-        role: 'owner',
-        status: 'invited',
-      },
-    });
+      await tx.organizationMembership.create({
+        data: {
+          organization_id: createdOrganization.id,
+          user_id: req.user!.id,
+          role: 'owner',
+          status: 'invited',
+        },
+      });
 
-    await markCoachApprovalPending(req.user!.id, {
-      organization_id: organization.id,
-      organization_name: organization.name,
+      await markCoachApprovalPending(
+        req.user!.id,
+        {
+          organization_id: createdOrganization.id,
+          organization_name: createdOrganization.name,
+        },
+        tx
+      );
+
+      return createdOrganization;
     });
 
     return res.status(201).json(organization);
-  }
+  })
 );
 
 const createOrganizationWithTeamsSchema = z.object({
@@ -422,7 +430,7 @@ organizationsRouter.post(
   '/create',
   requireAuth as any,
   requireVerified as any,
-  async (req: AuthedRequest, res) => {
+  asyncHandler(async (req: AuthedRequest, res) => {
     try {
       await assertCoachRoleOrAdmin(req);
     } catch (error: any) {
@@ -451,76 +459,84 @@ organizationsRouter.post(
       return res.status(400).json({ error: filterResult.error, code: filterResult.code });
     }
 
-    // Create organization
-    const organization = await prisma.organization.create({
-      data: {
-        name: data.name,
-        description: data.description,
-        sport: data.sport,
-        org_type: data.org_type,
-        location: data.location,
-        zip_code: data.zip_code,
-        season_start: data.season_start ? new Date(data.season_start) : null,
-        season_end: data.season_end ? new Date(data.season_end) : null,
-        updated_at: new Date(),
-      },
-    });
+    const inviteRows = (data.authorized_users || [])
+      .filter(user => user.email)
+      .map(user => ({
+        email: user.email!,
+        role: user.role || 'member',
+      }));
 
-    // Add creator as owner
-    await prisma.organizationMembership.create({
-      data: {
-        organization_id: organization.id,
-        user_id: req.user!.id,
-        role: 'owner',
-        status: 'invited',
-      },
-    });
+    const organization = await prisma.$transaction(async tx => {
+      const createdOrganization = await tx.organization.create({
+        data: {
+          name: data.name,
+          description: data.description,
+          sport: data.sport,
+          org_type: data.org_type,
+          location: data.location,
+          zip_code: data.zip_code,
+          season_start: data.season_start ? new Date(data.season_start) : null,
+          season_end: data.season_end ? new Date(data.season_end) : null,
+          updated_at: new Date(),
+        },
+      });
 
-    await markCoachApprovalPending(req.user!.id, {
-      organization_id: organization.id,
-      organization_name: organization.name,
-    });
+      await tx.organizationMembership.create({
+        data: {
+          organization_id: createdOrganization.id,
+          user_id: req.user!.id,
+          role: 'owner',
+          status: 'invited',
+        },
+      });
 
-    // Send invites to authorized users
-    if (data.authorized_users && data.authorized_users.length > 0) {
-      const invites = data.authorized_users
-        .filter(user => user.email)
-        .map(user => ({
-          organization_id: organization.id,
-          email: user.email!,
-          role: user.role || 'member',
-        }));
+      await markCoachApprovalPending(
+        req.user!.id,
+        {
+          organization_id: createdOrganization.id,
+          organization_name: createdOrganization.name,
+        },
+        tx
+      );
 
-      if (invites.length > 0) {
-        await prisma.organizationInvite.createMany({
-          data: invites,
+      if (inviteRows.length > 0) {
+        await tx.organizationInvite.createMany({
+          data: inviteRows.map(invite => ({
+            organization_id: createdOrganization.id,
+            email: invite.email,
+            role: invite.role,
+          })),
           skipDuplicates: true,
         });
-        // Send invite emails (best effort)
-        const [inviter, createdInvites] = await Promise.all([
-          prisma.user.findUnique({ where: { id: req.user!.id }, select: { display_name: true } }),
-          prisma.organizationInvite.findMany({
-            where: { organization_id: organization.id, email: { in: invites.map(i => i.email) } },
-            select: { id: true, email: true },
-          }),
-        ]);
-        const tokenByEmail = Object.fromEntries(createdInvites.map(i => [i.email, i.id]));
-        await Promise.all(
-          invites.map(inv =>
-            sendOrganizationInviteEmail({
-              to: inv.email,
-              organizationName: organization.name,
-              role: inv.role,
-              inviterName: inviter?.display_name || 'An organizer',
-              inviteToken: tokenByEmail[inv.email],
-            }).catch(() => false)
-          )
-        );
       }
+
+      return createdOrganization;
+    });
+
+    if (inviteRows.length > 0) {
+      const [inviter, createdInvites] = await Promise.all([
+        prisma.user.findUnique({ where: { id: req.user!.id }, select: { display_name: true } }),
+        prisma.organizationInvite.findMany({
+          where: { organization_id: organization.id, email: { in: inviteRows.map(i => i.email) } },
+          select: { id: true, email: true },
+        }),
+      ]);
+      const tokenByEmail = Object.fromEntries(createdInvites.map(i => [i.email, i.id]));
+      await Promise.all(
+        inviteRows.map(inv =>
+          sendOrganizationInviteEmail({
+            to: inv.email,
+            organizationName: organization.name,
+            role: inv.role,
+            inviterName: inviter?.display_name || 'An organizer',
+            inviteToken: tokenByEmail[inv.email],
+          }).catch(() => false)
+        )
+      );
     }
 
     return res.status(201).json(organization);
-  }
+  })
 );
 
 const inviteUserSchema = z.object({

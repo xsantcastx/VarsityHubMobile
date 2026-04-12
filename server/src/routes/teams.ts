@@ -7,6 +7,7 @@ import { validateContent } from '../lib/contentFilter.js';
 import { sendPushNotification } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
@@ -508,7 +509,7 @@ const createSchema = z.object({
   name: z.string().trim().min(2).max(100),
   description: z.string().trim().optional(),
 });
-teamsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) => {
+teamsRouter.post('/', requireVerified as any, asyncHandler(async (req: AuthedRequest, res) => {
   // req.user is guaranteed by requireVerified middleware
   const parsed = createSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -660,7 +661,7 @@ teamsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
     }
     throw error;
   }
-});
+}));
 
 // Update team (auth required). Only owners/admins can update.
 // Accept full URLs or relative paths (uploads return .path) or empty string to clear
@@ -902,7 +903,7 @@ const createTeamSchema = z.object({
     .optional(),
 });
 
-teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, res) => {
+teamsRouter.post('/create', requireVerified as any, asyncHandler(async (req: AuthedRequest, res) => {
   // req.user is guaranteed by requireVerified middleware
   const parsed = createTeamSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -1032,85 +1033,8 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
     }
   }
 
-  // If organization_id not provided, try organization_name first, then team name.
-  // This is non-fatal: organization_id is optional in the Team schema (String?).
-  let organizationId = data.organization_id;
   const requestedOrganizationName = String(data.organization_name || '').trim();
-
-  if (!organizationId) {
-    let normalizedOrgName = ''; // hoisted so the catch block can reference it
-    try {
-      normalizedOrgName = (requestedOrganizationName || data.name.trim()).trim();
-
-      // Reuse an existing active org with the same name if one exists
-      const possibleDuplicates = await prisma.organization.findMany({
-        where: {
-          name: { equals: normalizedOrgName, mode: 'insensitive' },
-          status: 'active',
-        },
-        select: { id: true, name: true },
-      });
-
-      if (possibleDuplicates.length > 0) {
-        organizationId = possibleDuplicates[0].id;
-      } else {
-        const newOrg = await prisma.organization.create({
-          data: {
-            name: normalizedOrgName,
-            description: data.description || undefined,
-            sport: data.sport || undefined,
-            org_type: 'club',
-            location: data.city || data.venue_address || undefined,
-            updated_at: new Date(),
-          },
-        });
-        organizationId = newOrg.id;
-
-        await prisma.organizationMembership.create({
-          data: { organization_id: newOrg.id, user_id: me.id, role: 'owner' },
-        });
-      }
-    } catch (orgError: any) {
-      console.error('[Teams] Failed to create/associate organization:', orgError);
-      // P2002 = unique constraint — a concurrent/prior attempt already created this org; find & reuse it
-      if (orgError?.code === 'P2002' && normalizedOrgName) {
-        try {
-          const existingOrg = await prisma.organization.findFirst({
-            where: { name: { equals: normalizedOrgName, mode: 'insensitive' } },
-            select: { id: true },
-          });
-          if (existingOrg) organizationId = existingOrg.id;
-        } catch {
-          /* ignore — continue without org */
-        }
-      }
-      // For any unrecoverable error: continue team creation without an org
-      // (organization_id is optional — the user can link one later)
-    }
-  } else {
-    // Validate organization_id if provided (fail fast if invalid)
-    try {
-      const orgExists = await prisma.organization.findUnique({
-        where: { id: organizationId },
-        select: { id: true, status: true },
-      });
-
-      if (!orgExists || orgExists.status !== 'active') {
-        return res.status(404).json({
-          error: 'Organization not found',
-          message: 'The specified organization does not exist or is not active.',
-          code: 'ORGANIZATION_NOT_FOUND',
-        });
-      }
-    } catch (orgError: any) {
-      console.error('[Teams] Failed to validate organization:', orgError);
-      return res.status(500).json({
-        error: 'Failed to validate organization',
-        message: 'Unable to verify organization. Please try again.',
-        detail: orgError?.message || String(orgError),
-      });
-    }
-  }
+  const normalizedOrgName = (requestedOrganizationName || data.name.trim()).trim();
 
   // Now create team with guaranteed organization_id
   // CRITICAL: Use transaction to prevent race condition bypassing team limits
@@ -1128,6 +1052,46 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
 
         if (ownedTeamsCount >= 2) {
           throw new Error('TEAM_LIMIT_EXCEEDED:Rookie plan allows maximum 2 teams');
+        }
+      }
+
+      let organizationId = data.organization_id;
+      if (organizationId) {
+        const orgExists = await tx.organization.findUnique({
+          where: { id: organizationId },
+          select: { id: true, status: true },
+        });
+
+        if (!orgExists || orgExists.status !== 'active') {
+          throw new Error('ORGANIZATION_NOT_FOUND');
+        }
+      } else {
+        const existingOrg = await tx.organization.findFirst({
+          where: {
+            name: { equals: normalizedOrgName, mode: 'insensitive' },
+            status: 'active',
+          },
+          select: { id: true },
+        });
+
+        if (existingOrg) {
+          organizationId = existingOrg.id;
+        } else {
+          const newOrg = await tx.organization.create({
+            data: {
+              name: normalizedOrgName,
+              description: data.description || undefined,
+              sport: data.sport || undefined,
+              org_type: 'club',
+              location: data.city || data.venue_address || undefined,
+              updated_at: new Date(),
+            },
+          });
+          organizationId = newOrg.id;
+
+          await tx.organizationMembership.create({
+            data: { organization_id: newOrg.id, user_id: me.id, role: 'owner' },
+          });
         }
       }
 
@@ -1246,6 +1210,13 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
         limit: 2,
       });
     }
+    if (teamError?.message === 'ORGANIZATION_NOT_FOUND') {
+      return res.status(404).json({
+        error: 'Organization not found',
+        message: 'The specified organization does not exist or is not active.',
+        code: 'ORGANIZATION_NOT_FOUND',
+      });
+    }
 
     return res.status(500).json({
       error: 'Failed to create team',
@@ -1253,7 +1224,7 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
       detail: teamError?.message || String(teamError),
     });
   }
-});
+}));
 
 // Invite user by email to a team
 const inviteSchema = z.object({ email: z.string().email(), role: z.string().optional() });

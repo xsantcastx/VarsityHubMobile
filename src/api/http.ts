@@ -347,12 +347,10 @@ export function httpGet(
     typeof retriesOverride === 'number' ? Math.max(0, retriesOverride) : defaultRetries;
   return request(path, { ...options, method: 'GET' }, timeoutMs || 30000, retries);
 }
-// Default POST with moderate timeout - increased retries for reliability
+// POST is not safe to retry automatically. Callers can opt in via
+// httpPostWithOptions only when the endpoint is explicitly idempotent.
 export function httpPost(path: string, body?: any) {
-  const isCriticalEndpoint =
-    path.includes('/payments/') || path.includes('/auth/') || path.includes('/notifications');
-  const retries = isCriticalEndpoint ? 5 : 3; // More retries for critical endpoints (especially for Railway infra errors)
-  return request(path, { method: 'POST', body: JSON.stringify(body || {}) }, 15000, retries);
+  return request(path, { method: 'POST', body: JSON.stringify(body || {}) }, 15000, 0);
 }
 // POST with explicit timeout/retry controls for endpoint-specific tuning.
 export function httpPostWithOptions(

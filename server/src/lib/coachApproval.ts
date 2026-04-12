@@ -2,6 +2,8 @@ import { prisma } from './prisma.js';
 import { createInAppNotification, sendPushNotification } from './notifications.js';
 import { invalidateAuthCache } from '../middleware/auth.js';
 
+type CoachApprovalDb = Pick<typeof prisma, 'user'>;
+
 function getPreferenceObject(preferences: unknown): Record<string, any> {
   return preferences && typeof preferences === 'object' && !Array.isArray(preferences)
     ? ({ ...(preferences as Record<string, any>) } as Record<string, any>)
@@ -10,16 +12,17 @@ function getPreferenceObject(preferences: unknown): Record<string, any> {
 
 export async function markCoachApprovalPending(
   userId: string,
-  updates: { organization_id?: string; organization_name?: string }
+  updates: { organization_id?: string; organization_name?: string },
+  db: CoachApprovalDb = prisma
 ) {
-  const user = await prisma.user.findUnique({
+  const user = await db.user.findUnique({
     where: { id: userId },
     select: { preferences: true },
   });
   const prefs = getPreferenceObject(user?.preferences);
   if (prefs.role !== 'coach') return;
 
-  await prisma.user.update({
+  await db.user.update({
     where: { id: userId },
     data: {
       preferences: {

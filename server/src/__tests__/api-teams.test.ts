@@ -27,6 +27,8 @@ describe('API Team Endpoints', () => {
   let pendingCoachToken: string;
   let fanUserId: string;
   let fanToken: string;
+  const createdUserIds: string[] = [];
+  const createdOrganizationIds: string[] = [];
 
   beforeAll(async () => {
     ({ prisma } = await import('../lib/prisma.js'));
@@ -95,11 +97,19 @@ describe('API Team Endpoints', () => {
         },
       });
 
+      await prisma.organization.deleteMany({
+        where: {
+          id: {
+            in: createdOrganizationIds,
+          },
+        },
+      });
+
       // Clean up users
       await prisma.user.deleteMany({
         where: {
           id: {
-            in: [coachUserId, pendingCoachUserId, fanUserId],
+            in: [coachUserId, pendingCoachUserId, fanUserId, ...createdUserIds],
           },
         },
       });
@@ -122,6 +132,66 @@ describe('API Team Endpoints', () => {
       expect(response.body).toHaveProperty('id');
       expect(response.body.name).toBe('Test Team');
       expect(response.body.description).toBe('A test team created via API');
+    });
+
+    it('creates a fallback organization and owner membership in the same flow', async () => {
+      const passwordHash = await bcrypt.hash(TEST_PASSWORD, 10);
+      const isolatedCoach = await prisma.user.create({
+        data: {
+          email: `isolated-team-coach-${Date.now()}@example.com`,
+          password_hash: passwordHash,
+          display_name: 'Isolated Team Coach',
+          email_verified: true,
+          preferences: {
+            role: 'coach',
+            approval_status: 'APPROVED',
+          },
+        },
+      });
+      createdUserIds.push(isolatedCoach.id);
+      const isolatedCoachToken = signJwt({ id: isolatedCoach.id });
+
+      const teamName = `Team Org Sync ${Date.now()}`;
+      const response = await request(app)
+        .post('/teams/create')
+        .set('Authorization', `Bearer ${isolatedCoachToken}`)
+        .send({
+          name: teamName,
+          description: 'Creates a fallback organization when none is provided',
+          sport: 'basketball',
+          city: 'Atlanta',
+        })
+        .expect(201);
+
+      expect(response.body.ok).toBe(true);
+      expect(response.body.team?.organization_id).toBeTruthy();
+      createdOrganizationIds.push(response.body.team.organization_id);
+
+      const [organization, membership] = await Promise.all([
+        prisma.organization.findUnique({
+          where: { id: response.body.team.organization_id },
+        }),
+        prisma.organizationMembership.findUnique({
+          where: {
+            organization_id_user_id: {
+              organization_id: response.body.team.organization_id,
+              user_id: isolatedCoach.id,
+            },
+          } as any,
+        }),
+      ]);
+
+      expect(organization).toMatchObject({
+        id: response.body.team.organization_id,
+        name: teamName,
+        sport: 'basketball',
+        location: 'Atlanta',
+      });
+      expect(membership).toMatchObject({
+        organization_id: response.body.team.organization_id,
+        user_id: isolatedCoach.id,
+        role: 'owner',
+      });
     });
 
     it('should reject team creation from fan user', async () => {

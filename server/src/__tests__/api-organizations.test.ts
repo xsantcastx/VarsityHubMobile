@@ -141,6 +141,29 @@ describe('API Organization Endpoints — coach role enforcement', () => {
       expect(response.body).toHaveProperty('id');
       expect(response.body.name).toBe(`Coach Org ${RUN_ID}`);
       createdOrgIds.push(response.body.id);
+
+      const [membership, refreshedCoach] = await Promise.all([
+        prisma.organizationMembership.findUnique({
+          where: {
+            organization_id_user_id: {
+              organization_id: response.body.id,
+              user_id: coachUserId,
+            },
+          } as any,
+        }),
+        prisma.user.findUnique({
+          where: { id: coachUserId },
+          select: { preferences: true },
+        }),
+      ]);
+
+      expect(membership).toMatchObject({
+        organization_id: response.body.id,
+        user_id: coachUserId,
+        role: 'owner',
+      });
+      expect((refreshedCoach?.preferences as any)?.organization_id).toBe(response.body.id);
+      expect((refreshedCoach?.preferences as any)?.approval_status).toBe('PENDING');
     });
   });
 

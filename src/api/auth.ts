@@ -17,6 +17,23 @@ const REFRESH_TOKEN_KEY = 'auth_refresh_token_key';
 let isRefreshing = false;
 let refreshPromise: Promise<any> | null = null;
 
+type AuthTokenResponse = {
+  access_token?: string;
+  refresh_token?: string;
+};
+
+function parseAuthTokenResponse(value: unknown): AuthTokenResponse {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('Invalid auth response');
+  }
+
+  const response = value as Record<string, unknown>;
+  const parsed: AuthTokenResponse = {};
+  if (typeof response.access_token === 'string') parsed.access_token = response.access_token;
+  if (typeof response.refresh_token === 'string') parsed.refresh_token = response.refresh_token;
+  return parsed;
+}
+
 async function saveToken(token: string | null) {
   setAuthToken(token);
   try {
@@ -97,7 +114,9 @@ async function refreshAccessToken(): Promise<string | null> {
       if (__DEV__) console.log('[auth] Attempting to refresh access token...');
 
       // Call refresh endpoint without auth header (uses refresh token in body)
-      const res = await httpPost('/auth/refresh', { refresh_token: refreshToken });
+      const res = parseAuthTokenResponse(
+        await httpPost('/auth/refresh', { refresh_token: refreshToken })
+      );
 
       if (res?.access_token) {
         await saveToken(res.access_token);
@@ -142,26 +161,30 @@ export async function loadToken(): Promise<string | null> {
 
 export const auth = {
   async register(email: string, password: string, display_name?: string) {
-    const res = await httpPostLongTimeout('/auth/register', { email, password, display_name });
-    if ((res as any)?.access_token) await saveToken((res as any).access_token);
-    if ((res as any)?.refresh_token) await saveRefreshToken((res as any).refresh_token);
+    const res = parseAuthTokenResponse(
+      await httpPostLongTimeout('/auth/register', { email, password, display_name })
+    );
+    if (res.access_token) await saveToken(res.access_token);
+    if (res.refresh_token) await saveRefreshToken(res.refresh_token);
     return res;
   },
   async login(email: string, password: string) {
-    const res = await httpPost('/auth/login', { email, password });
+    const res = parseAuthTokenResponse(await httpPost('/auth/login', { email, password }));
     if (res?.access_token) await saveToken(res.access_token);
     if (res?.refresh_token) await saveRefreshToken(res.refresh_token);
     return res;
   },
   async loginWithGoogle(idToken: string) {
-    const res = await httpPost('/auth/google', { id_token: idToken });
+    const res = parseAuthTokenResponse(await httpPost('/auth/google', { id_token: idToken }));
     if (res?.access_token) await saveToken(res.access_token);
     if (res?.refresh_token) await saveRefreshToken(res.refresh_token);
     return res;
   },
   async loginWithApple(identityToken: string) {
     // Apple auth can be slow on real devices; allow longer timeout
-    const res = await httpPostLongTimeout('/auth/apple', { identity_token: identityToken });
+    const res = parseAuthTokenResponse(
+      await httpPostLongTimeout('/auth/apple', { identity_token: identityToken })
+    );
     if (res?.access_token) await saveToken(res.access_token);
     if (res?.refresh_token) await saveRefreshToken(res.refresh_token);
     return res;

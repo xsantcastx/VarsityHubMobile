@@ -677,6 +677,7 @@ authRouter.post('/password/reset', passwordResetLimiter, async (req, res) => {
   const parsed = passwordResetSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
   const { email, code, password } = parsed.data;
+  const normalizedCode = String(code).trim();
   const user = await prisma.user.findFirst({
     where: { email: { equals: email.trim(), mode: 'insensitive' } },
   });
@@ -686,13 +687,17 @@ authRouter.post('/password/reset', passwordResetLimiter, async (req, res) => {
   if (new Date() > user.password_reset_expires) {
     return res.status(400).json({ error: 'Invalid or expired reset code' });
   }
-  if (String(code).trim() !== String(user.password_reset_code)) {
+  if (normalizedCode !== String(user.password_reset_code)) {
     return res.status(400).json({ error: 'Invalid or expired reset code' });
   }
 
   const password_hash = await bcrypt.hash(password, 10);
-  await prisma.user.update({
-    where: { id: user.id },
+  const updated = await prisma.user.updateMany({
+    where: {
+      id: user.id,
+      password_reset_code: normalizedCode,
+      password_reset_expires: { gt: new Date() },
+    },
     data: {
       password_hash,
       password_reset_code: null,
@@ -700,6 +705,9 @@ authRouter.post('/password/reset', passwordResetLimiter, async (req, res) => {
       preferences: bumpSessionVersion(user.preferences),
     },
   });
+  if (updated.count !== 1) {
+    return res.status(400).json({ error: 'Invalid or expired reset code' });
+  }
   invalidateAuthCache(user.id);
 
   return res.json({ ok: true });

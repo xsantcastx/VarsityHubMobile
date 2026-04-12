@@ -138,6 +138,28 @@ const membershipPriceIds: Record<MembershipPlan, string | undefined> = {
   legend: process.env.STRIPE_PRICE_LEGEND,
 };
 
+function getConfiguredMembershipPriceId(plan: MembershipPlan): string | null {
+  const raw = membershipPriceIds[plan];
+  const normalized = typeof raw === 'string' ? raw.trim() : '';
+  return /^price_/i.test(normalized) ? normalized : null;
+}
+
+function subscriptionMatchesPlan(sub: Stripe.Subscription, plan: MembershipPlan): boolean {
+  const items = Array.isArray(sub.items?.data) ? sub.items.data : [];
+  const expectedPriceId = getConfiguredMembershipPriceId(plan);
+  if (expectedPriceId) {
+    return items.some(item => item.price?.id === expectedPriceId);
+  }
+
+  return items.some(item => {
+    const recurringInterval = item.price?.recurring?.interval;
+    const unitAmount = item.price?.unit_amount;
+    if (plan === 'veteran') return recurringInterval === 'month' && unitAmount === 100;
+    if (plan === 'legend') return recurringInterval === 'year' && unitAmount === 2999;
+    return false;
+  });
+}
+
 function membershipError(status: number, message: string) {
   const error = new Error(message);
   (error as any).statusCode = status;
@@ -435,37 +457,42 @@ paymentsRouter.post(
     const total = Math.max(0, subtotal - discount + taxCents);
     // If free after discount, finalize immediately without Stripe Checkout
     if (total === 0) {
-      // Record redemption and create reservations
-      if (appliedCode) {
-        await redeemPromo({
-          code: appliedCode,
-          subtotalCents: subtotal,
-          userId: req.user!.id,
-          service: 'booking',
-          orderId: `FREE-${Date.now()}`,
-        });
-      }
       try {
-        await prisma.$transaction([
-          prisma.ad.update({
+        await prisma.$transaction(async tx => {
+          if (appliedCode) {
+            const redemption = await redeemPromo(
+              {
+                code: appliedCode,
+                subtotalCents: subtotal,
+                userId: req.user!.id,
+                service: 'booking',
+                orderId: `FREE-${Date.now()}`,
+              },
+              tx
+            );
+            if (!redemption.ok) {
+              throw new Error(`PROMO_REDEEM_FAILED:${redemption.error}`);
+            }
+          }
+
+          await tx.ad.update({
             where: { id: String(ad_id) },
             data: {
               payment_status: 'paid',
               status: getAdStatusAfterSuccessfulPayment(ad.status),
             },
-          }),
-          prisma.adReservation.createMany({
+          });
+          await tx.adReservation.createMany({
             data: isoDates.map(s => ({
               ad_id: String(ad_id),
               date: new Date(s + 'T00:00:00.000Z'),
             })),
             skipDuplicates: true,
-          }),
-        ]);
+          });
+        });
       } catch (e) {
         // Ad-finalize transaction failures are billing-critical: a promo code
-        // was already redeemed above, so a silent skip means the user paid
-        // "nothing" and the ad never went active. Tell Sentry so we can fix.
+        // must not be burned if the ad finalize fails. Tell Sentry so we can fix.
         captureException(e as Error, {
           context: 'ad_free_finalize_error',
           user_id: req.user?.id,
@@ -1415,6 +1442,9 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
         if (session.subscription) {
           try {
             const sub = await stripe.subscriptions.retrieve(String(session.subscription));
+            if (!subscriptionMatchesPlan(sub, plan as MembershipPlan)) {
+              throw new Error(`SUBSCRIPTION_PLAN_MISMATCH:${plan}`);
+            }
             if (sub && sub.id) {
               prefs.subscription_id = String(sub.id);
               if (sub.current_period_end) {
@@ -1425,7 +1455,10 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
             }
           } catch (err) {
             console.warn('Failed to retrieve subscription details:', (err as any)?.message || err);
+            throw err;
           }
+        } else {
+          throw new Error('SUBSCRIPTION_MISSING');
         }
         if (session.customer) {
           prefs.stripe_customer_id = String(session.customer);
