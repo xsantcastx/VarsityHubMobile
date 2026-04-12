@@ -21,49 +21,100 @@ export default function ManageUsersScreen() {
   useEffect(() => {
     let mounted = true;
     void (async () => {
-      setLoading(true); setError(null);
+      setLoading(true);
+      setError(null);
       try {
-        const list: any[] = await TeamApi.allMembers();
+        const result: any = await TeamApi.allMembers();
         if (!mounted) return;
-        setRows(list);
+        setRows(Array.isArray(result) ? result : Array.isArray(result?.items) ? result.items : []);
       } catch {
-        if (!mounted) return; setError('Failed to load users');
-      } finally { if (mounted) setLoading(false); }
+        if (!mounted) return;
+        setError('Failed to load users');
+      } finally {
+        if (mounted) setLoading(false);
+      }
     })();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   const filtered = useMemo(() => {
     const s = q.toLowerCase();
-    return rows.filter((u: any) => (u.user?.display_name || '').toLowerCase().includes(s) || (u.user?.email || '').toLowerCase().includes(s) || (u.team?.name || '').toLowerCase().includes(s));
+    return rows.filter(
+      (u: any) =>
+        (u.user?.display_name || '').toLowerCase().includes(s) ||
+        (u.user?.email || '').toLowerCase().includes(s) ||
+        (u.team?.name || '').toLowerCase().includes(s)
+    );
   }, [q, rows]);
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
-      <Stack.Screen options={{ 
-        title: 'Manage Users',
-        headerLeft: () => (
-          <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={{ paddingLeft: 8 }}>
-            <Ionicons name="chevron-back" size={24} color="#3B82F6" />
-          </Pressable>
-        ),
-      }} />
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}
+      edges={['top', 'bottom']}
+    >
+      <Stack.Screen
+        options={{
+          title: 'Manage Users',
+          headerLeft: () => (
+            <Pressable
+              onPress={() =>
+                router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)
+              }
+              style={{ paddingLeft: 8 }}
+            >
+              <Ionicons name="chevron-back" size={24} color="#3B82F6" />
+            </Pressable>
+          ),
+        }}
+      />
       <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Users</Text>
-      <Input placeholder="Search name, email, or team" value={q} onChangeText={setQ} style={{ marginBottom: 10 }} />
-      {loading && <View style={{ paddingVertical: 16 }}><ActivityIndicator /></View>}
+      <Input
+        placeholder="Search name, email, or team"
+        value={q}
+        onChangeText={setQ}
+        style={{ marginBottom: 10 }}
+      />
+      {loading && (
+        <View style={{ paddingVertical: 16 }}>
+          <ActivityIndicator />
+        </View>
+      )}
       {error && !loading && <Text style={{ color: '#b91c1c' }}>{error}</Text>}
       <FlatList
         data={filtered}
-        keyExtractor={(u) => String(u.id)}
+        keyExtractor={u => String(u.id)}
         renderItem={({ item }) => (
-          <View style={[styles.row, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
+          <View
+            style={[
+              styles.row,
+              {
+                backgroundColor: Colors[colorScheme].card,
+                borderColor: Colors[colorScheme].border,
+              },
+            ]}
+          >
             <View style={{ flex: 1 }}>
-              <Text style={[styles.name, { color: Colors[colorScheme].text }]}>{item.user?.display_name || item.user?.email || 'User'}</Text>
-              <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>{item.user?.email || ''}</Text>
+              <Text style={[styles.name, { color: Colors[colorScheme].text }]}>
+                {item.user?.display_name || item.user?.email || 'User'}
+              </Text>
+              <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>
+                {item.user?.email || ''}
+              </Text>
             </View>
             <Badge>{item.role}</Badge>
-            <Text style={[styles.team, { color: Colors[colorScheme].text }]}>{item.team?.name || ''}</Text>
-            <Text style={[styles.status, (item.status || 'active') === 'active' ? styles.ok : styles.invited]}>{item.status}</Text>
+            <Text style={[styles.team, { color: Colors[colorScheme].text }]}>
+              {item.team?.name || ''}
+            </Text>
+            <Text
+              style={[
+                styles.status,
+                (item.status || 'active') === 'active' ? styles.ok : styles.invited,
+              ]}
+            >
+              {item.status}
+            </Text>
           </View>
         )}
         ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
@@ -76,7 +127,14 @@ export default function ManageUsersScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16 },
   title: { fontSize: 20, fontWeight: '800', marginBottom: 8 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
   name: { fontWeight: '700' },
   muted: {},
   team: { minWidth: 120, textAlign: 'right', fontWeight: '600' },

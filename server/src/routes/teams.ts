@@ -27,7 +27,10 @@ function getCoachApprovalStatus(preferences: unknown): string {
   return typeof prefs.approval_status === 'string' ? prefs.approval_status.toUpperCase() : '';
 }
 
-async function assertApprovedCoachOrAdmin(req: AuthedRequest, preferences: unknown): Promise<{ isAdmin: boolean }> {
+async function assertApprovedCoachOrAdmin(
+  req: AuthedRequest,
+  preferences: unknown
+): Promise<{ isAdmin: boolean }> {
   const isAdmin = await getIsAdmin(req as any);
   if (isAdmin) return { isAdmin: true };
 
@@ -78,49 +81,48 @@ async function canManageTeamMembers(teamId: string, userId: string): Promise<boo
 // Get teams managed by current user (requires authentication)
 teamsRouter.get('/managed', authMiddleware as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Authentication required' });
-  
-  const q = String((req.query as any).q || '').trim().toLowerCase();
+
+  const q = String((req.query as any).q || '')
+    .trim()
+    .toLowerCase();
   const userId = req.user.id;
   const managementRoles = ['owner', 'manager', 'coach', 'assistant_coach'];
-  
+
   let where: any = {
     memberships: {
       some: {
         user_id: userId,
         role: { in: managementRoles },
-        status: 'active'
-      }
-    }
+        status: 'active',
+      },
+    },
   };
-  
+
   if (q) {
     where.name = { contains: q, mode: 'insensitive' };
   }
-  
+
   const rows = await prisma.team.findMany({
     where,
-    orderBy: [
-      { organization: { name: 'asc' } },
-      { name: 'asc' }
-    ],
-    include: { 
+    orderBy: [{ organization: { name: 'asc' } }, { name: 'asc' }],
+    include: {
       _count: { select: { memberships: true } },
       memberships: {
         where: { user_id: userId, status: 'active' },
-        select: { role: true }
+        select: { role: true },
       },
       organization: {
         select: {
           id: true,
           name: true,
           description: true,
-          sport: true
-        }
-      }
+          sport: true,
+        },
+      },
     },
   });
-  
-  const list = rows.map((t) => ({
+
+  const list = rows.map(t => ({
     id: t.id,
     name: t.name,
     description: t.description,
@@ -131,74 +133,79 @@ teamsRouter.get('/managed', authMiddleware as any, async (req: AuthedRequest, re
     logo_url: (t as any).logo_url || null,
     avatar_url: (t as any).avatar_url || null,
     my_role: (t as any).memberships?.[0]?.role || null,
-    organization: (t as any).organization ? {
-      id: (t as any).organization.id,
-      name: (t as any).organization.name,
-      description: (t as any).organization.description,
-      sport: (t as any).organization.sport
-    } : null
+    organization: (t as any).organization
+      ? {
+          id: (t as any).organization.id,
+          name: (t as any).organization.name,
+          description: (t as any).organization.description,
+          sport: (t as any).organization.sport,
+        }
+      : null,
   }));
-  
+
   return res.json(list);
 });
 
 // Check team creation limits for current user
 teamsRouter.get('/limits', authMiddleware as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Authentication required' });
-  
+
   const user = await prisma.user.findUnique({ where: { id: req.user.id } });
   if (!user) return res.status(401).json({ error: 'User not found' });
-  
+
   const ownedTeamsCount = await prisma.teamMembership.count({
     where: {
       user_id: req.user.id,
       role: 'owner',
-      status: 'active'
-    }
+      status: 'active',
+    },
   });
-  
+
   // Get plan from preferences, fallback to subscription_tier
-  const prefs = (user.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
+  const prefs =
+    user.preferences && typeof user.preferences === 'object' ? (user.preferences as any) : {};
   const plan = prefs.plan || user.subscription_tier || 'rookie';
-  
+
   // Get max teams from plan definitions (source of truth)
   const maxTeamsFromPlan = getMaxTeamsForPlan(plan);
   // Use plan-based limit if available, otherwise fallback to database column, then default to 2
   const maxTeams = maxTeamsFromPlan ?? (user as any).max_teams ?? 2;
-  
+
   // For unlimited plans (null), set to a high number for UI display
   const maxTeamsDisplay = maxTeamsFromPlan === null ? 999 : maxTeams;
-  
+
   const canCreateMore = maxTeamsFromPlan === null || ownedTeamsCount < maxTeams;
   const subscriptionTier = (user as any).subscription_tier ?? 'free';
-  
+
   return res.json({
     owned_teams: ownedTeamsCount,
     max_teams: maxTeamsDisplay,
     can_create_more: canCreateMore,
     remaining: maxTeamsFromPlan === null ? 999 : Math.max(0, maxTeams - ownedTeamsCount),
     subscription_tier: subscriptionTier,
-    upgrade_required: !canCreateMore
+    upgrade_required: !canCreateMore,
   });
 });
 
 // List teams with member counts; optional search q
 teamsRouter.get('/', async (req, res) => {
-  const q = String((req.query as any).q || '').trim().toLowerCase();
+  const q = String((req.query as any).q || '')
+    .trim()
+    .toLowerCase();
   const all = String((req.query as any).all || '') === '1';
   const mine = String((req.query as any).mine || '') === '1';
   const directory = String((req.query as any).directory || '') === '1'; // Team directory search
   const limitRaw = Number.parseInt(String((req.query as any).limit ?? ''), 10);
   const take = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 100) : undefined;
-  
+
   if (all) {
     // Admin-only view flag; otherwise fall back to normal list
     const isAdmin = await getIsAdmin(req as any);
     if (!isAdmin) return res.status(403).json({ error: 'Admin only' });
   }
-  
+
   let where: any = {};
-  
+
   // Directory search: search across name, city, league, sport
   if (directory && q) {
     where.OR = [
@@ -211,40 +218,40 @@ teamsRouter.get('/', async (req, res) => {
   } else if (q) {
     where.name = { contains: q, mode: 'insensitive' };
   }
-  
+
   // Filter to only teams where the current user has management roles
   if (mine) {
     const authReq = req as AuthedRequest;
     if (!authReq.user) {
       return res.status(401).json({ error: 'Authentication required to view managed teams' });
     }
-    
+
     const userId = authReq.user.id;
     const managementRoles = ['owner', 'manager', 'coach', 'assistant_coach'];
-    
+
     where.memberships = {
       some: {
         user_id: userId,
         role: { in: managementRoles },
-        status: 'active'
-      }
+        status: 'active',
+      },
     };
   }
-  
+
   const rows = await prisma.team.findMany({
     where,
     orderBy: { created_at: 'desc' },
     take,
     include: { _count: { select: { memberships: true } } },
   });
-  
-  const list = rows.map((t) => ({ 
-    id: t.id, 
-    name: t.name, 
-    description: t.description, 
-    status: t.status, 
-    members: (t as any)._count.memberships, 
-    logo_url: (t as any).logo_url || null, 
+
+  const list = rows.map(t => ({
+    id: t.id,
+    name: t.name,
+    description: t.description,
+    status: t.status,
+    members: (t as any)._count.memberships,
+    logo_url: (t as any).logo_url || null,
     avatar_url: (t as any).avatar_url || null,
     city: (t as any).city || null,
     state: (t as any).state || null,
@@ -333,13 +340,12 @@ teamsRouter.get('/:id', async (req, res) => {
 teamsRouter.get('/:id/members', requireAuth as any, async (req: AuthedRequest, res) => {
   const id = String(req.params.id);
   const canViewMemberEmails =
-    (await getIsAdmin(req as any)) ||
-    (await canManageTeamMembers(id, req.user!.id));
+    (await getIsAdmin(req as any)) || (await canManageTeamMembers(id, req.user!.id));
 
   const mems = await prisma.teamMembership.findMany({
     where: { team_id: id },
     orderBy: { created_at: 'asc' },
-    include: { 
+    include: {
       user: {
         select: {
           id: true,
@@ -348,11 +354,11 @@ teamsRouter.get('/:id/members', requireAuth as any, async (req: AuthedRequest, r
           avatar_url: true,
           username: true,
           preferences: true,
-        }
-      }
+        },
+      },
     },
   });
-  const list = mems.map((m) => {
+  const list = mems.map(m => {
     const user = (m as any).user;
     const prefs = (user?.preferences || {}) as any;
     return {
@@ -368,7 +374,7 @@ teamsRouter.get('/:id/members', requireAuth as any, async (req: AuthedRequest, r
         avatar_url: user?.avatar_url || null,
         username: user?.username || null,
         is_parent: prefs?.is_parent === true,
-      }
+      },
     };
   });
   return res.json(list);
@@ -426,26 +432,57 @@ teamsRouter.delete('/:id/members/:userId', requireAuth as any, async (req: Authe
 teamsRouter.get('/members/all', requireAuth as any, async (req, res) => {
   const isAdmin = await getIsAdmin(req as any);
   if (!isAdmin) return res.status(403).json({ error: 'Admin only' });
-  const q = String((req.query as any).q || '').trim().toLowerCase();
+  const q = String((req.query as any).q || '')
+    .trim()
+    .toLowerCase();
+  const limitRaw = Number.parseInt(String((req.query as any).limit || '50'), 10);
+  const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 100) : 50;
+  const cursor =
+    typeof (req.query as any).cursor === 'string' ? String((req.query as any).cursor) : null;
   const mems = await prisma.teamMembership.findMany({
-    orderBy: { created_at: 'desc' },
-    include: { user: true, team: true },
+    where: q
+      ? {
+          OR: [
+            { user: { display_name: { contains: q, mode: 'insensitive' } } },
+            { user: { email: { contains: q, mode: 'insensitive' } } },
+            { team: { name: { contains: q, mode: 'insensitive' } } },
+          ],
+        }
+      : undefined,
+    orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+    take: limit + 1,
+    ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    select: {
+      id: true,
+      role: true,
+      status: true,
+      user_id: true,
+      team_id: true,
+      user: {
+        select: {
+          id: true,
+          email: true,
+          display_name: true,
+        },
+      },
+      team: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    },
   });
-  const list = mems.map((m) => ({
+  const items = mems.slice(0, limit);
+  const nextCursor = mems.length > limit ? mems[limit].id : null;
+  const list = items.map(m => ({
     id: m.id,
     role: m.role,
     status: m.status,
-    user: { id: m.user_id, email: (m as any).user?.email || '', display_name: (m as any).user?.display_name || '' },
-    team: { id: m.team_id, name: (m as any).team?.name || '' },
+    user: { id: m.user_id, email: m.user?.email || '', display_name: m.user?.display_name || '' },
+    team: { id: m.team_id, name: m.team?.name || '' },
   }));
-  const filtered = q
-    ? list.filter((r) =>
-        r.user.display_name.toLowerCase().includes(q) ||
-        r.user.email.toLowerCase().includes(q) ||
-        r.team.name.toLowerCase().includes(q)
-      )
-    : list;
-  return res.json(filtered);
+  return res.json({ items: list, nextCursor });
 });
 
 // Create team (auth required). Creator becomes owner.
@@ -459,7 +496,7 @@ teamsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
   if (!parsed.success) {
     return res.status(400).json({
       error: 'Invalid payload',
-      issues: parsed.error.issues.map((i) => ({ path: i.path, message: i.message })),
+      issues: parsed.error.issues.map(i => ({ path: i.path, message: i.message })),
     });
   }
   const me = await prisma.user.findUnique({
@@ -467,28 +504,33 @@ teamsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
     select: { id: true, preferences: true, subscription_tier: true },
   });
   if (!me) return res.status(401).json({ error: 'Unauthorized' });
-  
+
   // SECURITY: Enforce coach role requirement
-  const prefs = (me.preferences && typeof me.preferences === 'object') ? (me.preferences as any) : {};
+  const prefs = me.preferences && typeof me.preferences === 'object' ? (me.preferences as any) : {};
   const userRole = prefs.role || 'fan';
   const plan = prefs.plan || me.subscription_tier || 'rookie';
   try {
     await assertApprovedCoachOrAdmin(req, me.preferences);
   } catch (error: any) {
-    return res.status(error?.status || 403).json(
-      error?.payload || { error: 'COACH_APPROVAL_REQUIRED', message: error?.message || 'Forbidden' }
-    );
+    return res
+      .status(error?.status || 403)
+      .json(
+        error?.payload || {
+          error: 'COACH_APPROVAL_REQUIRED',
+          message: error?.message || 'Forbidden',
+        }
+      );
   }
-  
+
   // Check team ownership limit
   const ownedTeamsCount = await prisma.teamMembership.count({
     where: {
       user_id: me.id,
       role: 'owner',
-      status: 'active'
-    }
+      status: 'active',
+    },
   });
-  
+
   const maxTeams = getMaxTeamsForPlan(plan);
 
   if (plan === 'veteran') {
@@ -496,7 +538,8 @@ teamsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
     if (!subscriptionId) {
       return res.status(403).json({
         error: 'No active subscription',
-        message: 'Veteran plan requires an active subscription. Please update your billing settings.',
+        message:
+          'Veteran plan requires an active subscription. Please update your billing settings.',
         code: 'NO_ACTIVE_SUBSCRIPTION',
       });
     }
@@ -538,24 +581,27 @@ teamsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
       });
     }
   }
-  
+
   if (maxTeams !== null && ownedTeamsCount >= maxTeams) {
-    return res.status(403).json({ 
+    return res.status(403).json({
       error: 'Team limit reached',
       message: `You've reached your limit of ${maxTeams} team${maxTeams > 1 ? 's' : ''}. Upgrade to create more teams.`,
       owned_teams: ownedTeamsCount,
       max_teams: maxTeams,
-      upgrade_required: true
+      upgrade_required: true,
     });
   }
 
-  const filterResult = validateContent({ title: parsed.data.name, content: parsed.data.description ?? undefined });
+  const filterResult = validateContent({
+    title: parsed.data.name,
+    content: parsed.data.description ?? undefined,
+  });
   if (!filterResult.valid) {
     return res.status(400).json({ error: filterResult.error, code: filterResult.code });
   }
-  
+
   try {
-    const team = await prisma.$transaction(async (tx) => {
+    const team = await prisma.$transaction(async tx => {
       if (maxTeams !== null) {
         const currentOwnedTeams = await tx.teamMembership.count({
           where: {
@@ -584,7 +630,8 @@ teamsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
     return res.status(201).json(team);
   } catch (error: any) {
     if (error?.message?.startsWith('TEAM_LIMIT_EXCEEDED:')) {
-      const limit = Number.parseInt(String(error.message).split(':')[1] || '0', 10) || maxTeams || 0;
+      const limit =
+        Number.parseInt(String(error.message).split(':')[1] || '0', 10) || maxTeams || 0;
       return res.status(403).json({
         error: 'Team limit reached',
         message: `You've reached your limit of ${limit} team${limit === 1 ? '' : 's'}. Upgrade to create more teams.`,
@@ -599,7 +646,15 @@ teamsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
 
 // Update team (auth required). Only owners/admins can update.
 // Accept full URLs or relative paths (uploads return .path) or empty string to clear
-const logoUrlString = z.union([z.string().url(), z.string().regex(/^\/uploads\//).optional().or(z.string()), z.literal('')]);
+const logoUrlString = z.union([
+  z.string().url(),
+  z
+    .string()
+    .regex(/^\/uploads\//)
+    .optional()
+    .or(z.string()),
+  z.literal(''),
+]);
 const updateSchema = z.object({
   name: z.string().trim().min(2).max(100).optional(),
   description: z.string().trim().optional(),
@@ -623,27 +678,30 @@ teamsRouter.put('/:id', requireVerified as any, async (req: AuthedRequest, res) 
     console.error('[Teams PUT] Validation failed:', JSON.stringify(parsed.error));
     return res.status(400).json({
       error: 'Invalid payload',
-      issues: parsed.error.issues.map((i) => ({ path: i.path, message: i.message })),
+      issues: parsed.error.issues.map(i => ({ path: i.path, message: i.message })),
     });
   }
-  
+
   const teamId = String(req.params.id);
   const team = await prisma.team.findUnique({ where: { id: teamId } });
   if (!team) return res.status(404).json({ error: 'Team not found' });
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  
+
   // Check if user is owner or admin
   const membership = await prisma.teamMembership.findUnique({
-    where: { team_id_user_id: { team_id: teamId, user_id: req.user.id } }
+    where: { team_id_user_id: { team_id: teamId, user_id: req.user.id } },
   });
   const isAdmin = await getIsAdmin(req as any);
   if (!isAdmin && (!membership || membership.role !== 'owner')) {
     return res.status(403).json({ error: 'Only team owners can update team information' });
   }
-  
+
   const updateData: any = {};
   if (parsed.data.name !== undefined) {
-    const filterResult = validateContent({ title: parsed.data.name, content: parsed.data.description ?? undefined });
+    const filterResult = validateContent({
+      title: parsed.data.name,
+      content: parsed.data.description ?? undefined,
+    });
     if (!filterResult.valid) {
       return res.status(400).json({ error: filterResult.error, code: filterResult.code });
     }
@@ -659,10 +717,12 @@ teamsRouter.put('/:id', requireVerified as any, async (req: AuthedRequest, res) 
   if (parsed.data.sport !== undefined) updateData.sport = parsed.data.sport;
   if (parsed.data.season !== undefined) updateData.season = parsed.data.season;
   if (parsed.data.organization_id !== undefined) {
-    updateData.organization_id = parsed.data.organization_id === null ? null : parsed.data.organization_id;
+    updateData.organization_id =
+      parsed.data.organization_id === null ? null : parsed.data.organization_id;
   }
-  if (parsed.data.logo_url !== undefined) updateData.logo_url = parsed.data.logo_url === '' ? null : parsed.data.logo_url;
-  
+  if (parsed.data.logo_url !== undefined)
+    updateData.logo_url = parsed.data.logo_url === '' ? null : parsed.data.logo_url;
+
   // Venue fields
   if (parsed.data.city !== undefined) updateData.city = parsed.data.city;
   if (parsed.data.state !== undefined) updateData.state = parsed.data.state;
@@ -674,9 +734,9 @@ teamsRouter.put('/:id', requireVerified as any, async (req: AuthedRequest, res) 
   if (parsed.data.venue_lat !== undefined) updateData.venue_lat = parsed.data.venue_lat;
   if (parsed.data.venue_lng !== undefined) updateData.venue_lng = parsed.data.venue_lng;
   if (parsed.data.venue_address !== undefined) updateData.venue_address = parsed.data.venue_address;
-  
+
   debugLog('[Teams PUT] Prepared update data:', JSON.stringify(updateData));
-  
+
   try {
     const updatedTeam = await prisma.team.update({
       where: { id: teamId },
@@ -718,28 +778,30 @@ teamsRouter.put('/:id', requireVerified as any, async (req: AuthedRequest, res) 
   } catch (err: any) {
     console.error('Failed to update team', err?.message || err);
     // Handle common Prisma client runtime errors gracefully
-    return res.status(500).json({ error: 'Failed to update team', detail: err?.message || String(err) });
+    return res
+      .status(500)
+      .json({ error: 'Failed to update team', detail: err?.message || String(err) });
   }
 });
 
 // Delete team (auth required). Only owners/admins can delete.
 teamsRouter.delete('/:id', requireVerified as any, async (req: AuthedRequest, res) => {
   // req.user is guaranteed by requireVerified middleware
-  
+
   const teamId = String(req.params.id);
   const team = await prisma.team.findUnique({ where: { id: teamId } });
   if (!team) return res.status(404).json({ error: 'Team not found' });
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  
+
   // Check if user is owner or admin
   const membership = await prisma.teamMembership.findUnique({
-    where: { team_id_user_id: { team_id: teamId, user_id: req.user.id } }
+    where: { team_id_user_id: { team_id: teamId, user_id: req.user.id } },
   });
   const isAdmin = await getIsAdmin(req as any);
   if (!isAdmin && (!membership || membership.role !== 'owner')) {
     return res.status(403).json({ error: 'Only team owners can delete teams' });
   }
-  
+
   try {
     // Delete all related data first (cascade delete)
     await prisma.$transaction([
@@ -761,11 +823,13 @@ teamsRouter.delete('/:id', requireVerified as any, async (req: AuthedRequest, re
         { team_name: team.name }
       );
     }
-    
+
     return res.json({ ok: true, message: 'Team deleted successfully' });
   } catch (err: any) {
     console.error('Failed to delete team', err?.message || err);
-    return res.status(500).json({ error: 'Failed to delete team', detail: err?.message || String(err) });
+    return res
+      .status(500)
+      .json({ error: 'Failed to delete team', detail: err?.message || String(err) });
   }
 });
 
@@ -775,11 +839,16 @@ if (process.env.NODE_ENV !== 'production') {
     const id = String(req.params.id);
     const { logo_url } = req.body || {};
     try {
-  const t = await prisma.team.update({ where: { id }, data: ({ logo_url: logo_url === '' ? null : logo_url } as any) });
-  return res.json({ ok: true, team: { id: t.id, logo_url: (t as any).logo_url } });
+      const t = await prisma.team.update({
+        where: { id },
+        data: { logo_url: logo_url === '' ? null : logo_url } as any,
+      });
+      return res.json({ ok: true, team: { id: t.id, logo_url: (t as any).logo_url } });
     } catch (e: any) {
       console.error('dev-set-logo failed', e?.message || e);
-      return res.status(500).json({ error: 'dev-set-logo failed', detail: e?.message || String(e) });
+      return res
+        .status(500)
+        .json({ error: 'dev-set-logo failed', detail: e?.message || String(e) });
     }
   });
 }
@@ -803,12 +872,16 @@ const createTeamSchema = z.object({
   venue_lat: z.number().optional(),
   venue_lng: z.number().optional(),
   venue_address: z.string().optional(),
-  authorized_users: z.array(z.object({
-    email: z.string().email().optional(),
-    user_id: z.string().optional(),
-    role: z.string().optional(),
-    assign_team: z.string().optional(),
-  })).optional(),
+  authorized_users: z
+    .array(
+      z.object({
+        email: z.string().email().optional(),
+        user_id: z.string().optional(),
+        role: z.string().optional(),
+        assign_team: z.string().optional(),
+      })
+    )
+    .optional(),
 });
 
 teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, res) => {
@@ -817,36 +890,45 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
   if (!parsed.success) {
     return res.status(400).json({
       error: 'Invalid payload',
-      issues: parsed.error.issues.map((i) => ({ path: i.path, message: i.message })),
+      issues: parsed.error.issues.map(i => ({ path: i.path, message: i.message })),
     });
   }
-  
+
   const data = parsed.data;
-  const me = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { id: true, preferences: true } });
+  const me = await prisma.user.findUnique({
+    where: { id: req.user!.id },
+    select: { id: true, preferences: true },
+  });
   if (!me) return res.status(401).json({ error: 'Unauthorized' });
-  
+
   // Check team limit for free tier (Rookie plan)
-  const prefs = (me.preferences && typeof me.preferences === 'object') ? (me.preferences as any) : {};
+  const prefs = me.preferences && typeof me.preferences === 'object' ? (me.preferences as any) : {};
   const userPlan = prefs.plan || 'rookie';
   try {
     await assertApprovedCoachOrAdmin(req, me.preferences);
   } catch (error: any) {
-    return res.status(error?.status || 403).json(
-      error?.payload || { error: 'COACH_APPROVAL_REQUIRED', message: error?.message || 'Forbidden' }
-    );
+    return res
+      .status(error?.status || 403)
+      .json(
+        error?.payload || {
+          error: 'COACH_APPROVAL_REQUIRED',
+          message: error?.message || 'Forbidden',
+        }
+      );
   }
-  
+
   // Legend tier restriction: Only Legend users can create extracurricular clubs
   const clubType = data.club_type || 'sport';
   if (clubType === 'extracurricular' && userPlan !== 'legend') {
     return res.status(403).json({
       error: 'Extracurricular clubs require Legend tier',
-      message: 'Upgrade to Legend ($29.99/year) to create extracurricular clubs like Theater, Chess, Debate, etc.',
+      message:
+        'Upgrade to Legend ($29.99/year) to create extracurricular clubs like Theater, Chess, Debate, etc.',
       code: 'LEGEND_TIER_REQUIRED',
       feature: 'extracurricular_clubs',
     });
   }
-  
+
   // Rookie plan: max 2 teams as owner
   // NOTE: This check is duplicated inside the transaction below for race condition protection
   if (userPlan === 'rookie' || !userPlan || userPlan === 'free') {
@@ -868,7 +950,7 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
       });
     }
   }
-  
+
   // Veteran plan: verify subscription quantity matches team count
   if (userPlan === 'veteran') {
     const ownedTeamsCount = await prisma.teamMembership.count({
@@ -878,22 +960,25 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
         status: 'active',
       },
     });
-    
+
     const subscriptionId = prefs.subscription_id;
     if (!subscriptionId) {
       return res.status(403).json({
         error: 'No active subscription',
-        message: 'Veteran plan requires an active subscription. Please update your billing settings.',
+        message:
+          'Veteran plan requires an active subscription. Please update your billing settings.',
         code: 'NO_ACTIVE_SUBSCRIPTION',
       });
     }
-    
+
     // Check Stripe subscription quantity
     try {
       const stripe = await import('stripe');
-      const stripeClient = new stripe.default(process.env.STRIPE_SECRET_KEY || '', { apiVersion: '2024-06-20' });
+      const stripeClient = new stripe.default(process.env.STRIPE_SECRET_KEY || '', {
+        apiVersion: '2024-06-20',
+      });
       const subscription = await stripeClient.subscriptions.retrieve(subscriptionId);
-      
+
       if (subscription.status !== 'active' && subscription.status !== 'trialing') {
         return res.status(403).json({
           error: 'Subscription not active',
@@ -901,10 +986,10 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
           code: 'SUBSCRIPTION_NOT_ACTIVE',
         });
       }
-      
+
       const subscriptionItem = subscription.items.data[0];
       const paidQuantity = subscriptionItem?.quantity || 0;
-      
+
       const includedTotalTeams = paidQuantity + 2;
       const requestedTeamNumber = ownedTeamsCount + 1;
 
@@ -977,7 +1062,9 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
             select: { id: true },
           });
           if (existingOrg) organizationId = existingOrg.id;
-        } catch { /* ignore — continue without org */ }
+        } catch {
+          /* ignore — continue without org */
+        }
       }
       // For any unrecoverable error: continue team creation without an org
       // (organization_id is optional — the user can link one later)
@@ -987,14 +1074,14 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
     try {
       const orgExists = await prisma.organization.findUnique({
         where: { id: organizationId },
-        select: { id: true, status: true }
+        select: { id: true, status: true },
       });
-      
+
       if (!orgExists || orgExists.status !== 'active') {
         return res.status(404).json({
           error: 'Organization not found',
           message: 'The specified organization does not exist or is not active.',
-          code: 'ORGANIZATION_NOT_FOUND'
+          code: 'ORGANIZATION_NOT_FOUND',
         });
       }
     } catch (orgError: any) {
@@ -1002,15 +1089,15 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
       return res.status(500).json({
         error: 'Failed to validate organization',
         message: 'Unable to verify organization. Please try again.',
-        detail: orgError?.message || String(orgError)
+        detail: orgError?.message || String(orgError),
       });
     }
   }
-  
+
   // Now create team with guaranteed organization_id
   // CRITICAL: Use transaction to prevent race condition bypassing team limits
   try {
-    const team = await prisma.$transaction(async (tx) => {
+    const team = await prisma.$transaction(async tx => {
       // Re-check team limit atomically within transaction to prevent race conditions
       if (userPlan === 'rookie' || !userPlan || userPlan === 'free') {
         const ownedTeamsCount = await tx.teamMembership.count({
@@ -1045,7 +1132,7 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
           venue_lat: data.venue_lat || null,
           venue_lng: data.venue_lng || null,
           venue_address: data.venue_address?.trim() || null,
-        }
+        },
       });
 
       // Create team membership (owner) in same transaction
@@ -1054,15 +1141,19 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
           team_id: newTeam.id,
           user_id: me.id,
           role: 'owner',
-          status: 'active'
-        }
+          status: 'active',
+        },
       });
 
       return newTeam;
     });
-    
+
     // Handle authorized users if provided
-    if (data.authorized_users && Array.isArray(data.authorized_users) && data.authorized_users.length > 0) {
+    if (
+      data.authorized_users &&
+      Array.isArray(data.authorized_users) &&
+      data.authorized_users.length > 0
+    ) {
       try {
         const invites = data.authorized_users
           .filter(user => user.email)
@@ -1072,7 +1163,7 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
             role: (user.role || 'member') as any,
             invited_by: me.id,
           }));
-        
+
         if (invites.length > 0) {
           await prisma.teamInvite.createMany({
             data: invites,
@@ -1089,22 +1180,24 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
               }),
             ]);
             const tokenByEmail = Object.fromEntries(createdInvites.map(i => [i.email, i.id]));
-            await Promise.all(invites.map(async (inv) => {
-              try {
-                await sendTeamInviteEmail({
-                  to: inv.email,
-                  teamName: team.name,
-                  organizationName: null,
-                  role: inv.role,
-                  inviterName: inviter?.display_name || 'Team Owner',
-                  teamHeroUrl: team.logo_url || undefined,
-                  teamLogoUrl: team.avatar_url || undefined,
-                  inviteToken: tokenByEmail[inv.email],
-                });
-              } catch (error) {
-                console.warn('[Teams] Failed to send team invite email:', error);
-              }
-            }));
+            await Promise.all(
+              invites.map(async inv => {
+                try {
+                  await sendTeamInviteEmail({
+                    to: inv.email,
+                    teamName: team.name,
+                    organizationName: null,
+                    role: inv.role,
+                    inviterName: inviter?.display_name || 'Team Owner',
+                    teamHeroUrl: team.logo_url || undefined,
+                    teamLogoUrl: team.avatar_url || undefined,
+                    inviteToken: tokenByEmail[inv.email],
+                  });
+                } catch (error) {
+                  console.warn('[Teams] Failed to send team invite email:', error);
+                }
+              })
+            );
           } catch (emailError) {
             console.warn('[Teams] Failed to send invite emails (non-blocking):', emailError);
           }
@@ -1114,14 +1207,14 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
         // Non-blocking - team is already created
       }
     }
-    
+
     return res.status(201).json({
       ok: true,
       team: {
         id: team.id,
         name: team.name,
         organization_id: team.organization_id,
-      }
+      },
     });
   } catch (teamError: any) {
     console.error('[Teams] Failed to create team:', teamError);
@@ -1132,14 +1225,14 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
         error: 'Team limit reached',
         message: "You've reached your free limit (2 teams). Upgrade to add more.",
         code: 'TEAM_LIMIT_EXCEEDED',
-        limit: 2
+        limit: 2,
       });
     }
 
     return res.status(500).json({
       error: 'Failed to create team',
       message: 'Unable to create team. Please try again.',
-      detail: teamError?.message || String(teamError)
+      detail: teamError?.message || String(teamError),
     });
   }
 });
@@ -1153,31 +1246,31 @@ teamsRouter.post('/:id/invite', async (req: AuthedRequest, res) => {
   if (!parsed.success) {
     return res.status(400).json({
       error: 'Invalid payload',
-      issues: parsed.error.issues.map((i) => ({ path: i.path, message: i.message })),
+      issues: parsed.error.issues.map(i => ({ path: i.path, message: i.message })),
     });
   }
   const { email, role } = parsed.data;
   const team = await prisma.team.findUnique({ where: { id } });
   if (!team) return res.status(404).json({ error: 'Team not found' });
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  
+
   // CRITICAL: Verify requester is team owner/manager/coach (can invite members)
   const requesterMembership = await prisma.teamMembership.findFirst({
     where: {
       team_id: id,
       user_id: req.user.id,
       role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
-      status: 'active'
-    }
+      status: 'active',
+    },
   });
-  
+
   if (!requesterMembership) {
     return res.status(403).json({
       error: 'PERMISSION_DENIED',
-      message: 'Only team owners, managers, or coaches can invite members to teams.'
+      message: 'Only team owners, managers, or coaches can invite members to teams.',
     });
   }
-  
+
   // PLAN LIMITS: Enforce authorized user caps (per-team limits)
   // CRITICAL: Use transaction to prevent race condition bypassing user limits
   let invite;
@@ -1190,15 +1283,24 @@ teamsRouter.post('/:id/invite', async (req: AuthedRequest, res) => {
     const limit = getAuthorizedUsersPerTeam(plan);
 
     // Create invite within transaction to prevent race conditions
-    invite = await prisma.$transaction(async (tx) => {
+    invite = await prisma.$transaction(async tx => {
       if (limit !== null) {
         // Count atomically within transaction
-        const inviteCount = await tx.teamInvite.count({ where: { team_id: id, status: 'pending' } });
-        const memberCount = await tx.teamMembership.count({ where: { team_id: id, role: { in: ['manager','coach','assistant_coach','equipment','health_wellness'] } } });
+        const inviteCount = await tx.teamInvite.count({
+          where: { team_id: id, status: 'pending' },
+        });
+        const memberCount = await tx.teamMembership.count({
+          where: {
+            team_id: id,
+            role: { in: ['manager', 'coach', 'assistant_coach', 'equipment', 'health_wellness'] },
+          },
+        });
         const totalAuthorized = inviteCount + memberCount;
 
         if (totalAuthorized >= limit) {
-          throw new Error(`USER_LIMIT_REACHED:${plan} plan allows ${limit} authorized user${limit === 1 ? '' : 's'} per team`);
+          throw new Error(
+            `USER_LIMIT_REACHED:${plan} plan allows ${limit} authorized user${limit === 1 ? '' : 's'} per team`
+          );
         }
       }
 
@@ -1211,18 +1313,21 @@ teamsRouter.post('/:id/invite', async (req: AuthedRequest, res) => {
       const [, message] = e.message.split(':');
       return res.status(403).json({
         error: 'USER_LIMIT_REACHED',
-        message: message || 'Plan limit reached for authorized users.'
+        message: message || 'Plan limit reached for authorized users.',
       });
     }
 
     console.warn('[teams][invite-limit] check failed', e);
     return res.status(500).json({
       error: 'Failed to create invite',
-      message: 'Unable to create team invite. Please try again.'
+      message: 'Unable to create team invite. Please try again.',
     });
   }
   // Send invite email (best effort)
-  const inviter = await prisma.user.findUnique({ where: { id: req.user.id }, select: { display_name: true } });
+  const inviter = await prisma.user.findUnique({
+    where: { id: req.user.id },
+    select: { display_name: true },
+  });
   try {
     await sendTeamInviteEmail({
       to: email,
@@ -1235,7 +1340,7 @@ teamsRouter.post('/:id/invite', async (req: AuthedRequest, res) => {
       inviteToken: invite.id,
     });
   } catch (_error) {}
-  
+
   // Find the invited user by email and create notification if they exist
   const invitedUser = await prisma.user.findUnique({
     where: { email },
@@ -1252,9 +1357,9 @@ teamsRouter.post('/:id/invite', async (req: AuthedRequest, res) => {
             team_id: team.id,
             team_name: team.name,
             invite_id: invite.id,
-            role: role || 'member'
-          }
-        }
+            role: role || 'member',
+          },
+        },
       });
       // Push notification (respect team_updates preference)
       const prefs = (invitedUser.preferences || {}) as any;
@@ -1278,7 +1383,7 @@ teamsRouter.post('/:id/invite', async (req: AuthedRequest, res) => {
       // Continue even if notification fails
     }
   }
-  
+
   return res.status(201).json(invite);
 });
 
@@ -1287,8 +1392,17 @@ teamsRouter.get('/invites/me', async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const user = await prisma.user.findUnique({ where: { id: req.user.id } });
   if (!user?.email) return res.status(400).json({ error: 'User email not found' });
-  const invites = await prisma.teamInvite.findMany({ where: { email: user.email, status: 'pending' }, include: { team: true }, orderBy: { created_at: 'desc' } });
-  const list = invites.map((i) => ({ id: i.id, role: i.role, created_at: i.created_at, team: { id: i.team_id, name: (i as any).team?.name || '' } }));
+  const invites = await prisma.teamInvite.findMany({
+    where: { email: user.email, status: 'pending' },
+    include: { team: true },
+    orderBy: { created_at: 'desc' },
+  });
+  const list = invites.map(i => ({
+    id: i.id,
+    role: i.role,
+    created_at: i.created_at,
+    team: { id: i.team_id, name: (i as any).team?.name || '' },
+  }));
   return res.json(list);
 });
 
@@ -1297,9 +1411,11 @@ teamsRouter.post('/invites/:inviteId/accept', async (req: AuthedRequest, res) =>
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const inviteId = String(req.params.inviteId);
   const invite = await prisma.teamInvite.findUnique({ where: { id: inviteId } });
-  if (!invite || invite.status !== 'pending') return res.status(404).json({ error: 'Invite not found' });
+  if (!invite || invite.status !== 'pending')
+    return res.status(404).json({ error: 'Invite not found' });
   const user = await prisma.user.findUnique({ where: { id: req.user.id } });
-  if (!user?.email || user.email.toLowerCase() !== invite.email.toLowerCase()) return res.status(403).json({ error: 'Invite not for this user' });
+  if (!user?.email || user.email.toLowerCase() !== invite.email.toLowerCase())
+    return res.status(403).json({ error: 'Invite not for this user' });
   const existingMembership = await prisma.teamMembership.findUnique({
     where: {
       team_id_user_id: {
@@ -1310,7 +1426,7 @@ teamsRouter.post('/invites/:inviteId/accept', async (req: AuthedRequest, res) =>
   });
   const roleToApply = existingMembership?.role || invite.role;
   try {
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async tx => {
       const claim = await tx.teamInvite.updateMany({
         where: { id: invite.id, status: 'pending' },
         data: { status: 'accepted' },
@@ -1342,12 +1458,12 @@ teamsRouter.post('/invites/:inviteId/accept', async (req: AuthedRequest, res) =>
     if (!groupChat) {
       // Get team info
       const team = await prisma.team.findUnique({ where: { id: invite.team_id } });
-      
+
       // Get all active team members
       const allMembers = await prisma.teamMembership.findMany({
-        where: { 
+        where: {
           team_id: invite.team_id,
-          status: 'active'
+          status: 'active',
         },
         select: { user_id: true },
       });
@@ -1394,9 +1510,11 @@ teamsRouter.post('/invites/:inviteId/decline', async (req: AuthedRequest, res) =
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const inviteId = String(req.params.inviteId);
   const invite = await prisma.teamInvite.findUnique({ where: { id: inviteId } });
-  if (!invite || invite.status !== 'pending') return res.status(404).json({ error: 'Invite not found' });
+  if (!invite || invite.status !== 'pending')
+    return res.status(404).json({ error: 'Invite not found' });
   const user = await prisma.user.findUnique({ where: { id: req.user.id } });
-  if (!user?.email || user.email.toLowerCase() !== invite.email.toLowerCase()) return res.status(403).json({ error: 'Invite not for this user' });
+  if (!user?.email || user.email.toLowerCase() !== invite.email.toLowerCase())
+    return res.status(403).json({ error: 'Invite not for this user' });
   await prisma.teamInvite.update({ where: { id: invite.id }, data: { status: 'declined' } });
   return res.json({ ok: true });
 });

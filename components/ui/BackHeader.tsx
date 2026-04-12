@@ -13,10 +13,10 @@ interface BackHeaderProps {
   showDivider?: boolean;
 }
 
-export function BackHeader({ 
-  title, 
-  onBack, 
-  rightElement, 
+export function BackHeader({
+  title,
+  onBack,
+  rightElement,
   backgroundColor = '#ffffff',
   textColor = '#1F2937',
   borderColor = '#E5E7EB',
@@ -31,7 +31,7 @@ export function BackHeader({
     } else if (router.canGoBack()) {
       router.back();
     } else {
-      router.push('/(tabs)' as any);
+      router.replace('/(tabs)' as any);
     }
   };
 
@@ -57,24 +57,21 @@ export function BackHeader({
         >
           <Ionicons name="chevron-back" size={24} color={textColor} />
         </Pressable>
-        
+
         {title && (
           <Text style={[styles.title, { color: textColor }]} numberOfLines={1}>
             {title}
           </Text>
         )}
-        
-        <View style={styles.rightContainer}>
-          {rightElement}
-        </View>
+
+        <View style={styles.rightContainer}>{rightElement}</View>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-  },
+  container: {},
   content: {
     flexDirection: 'row',
     alignItems: 'center',
