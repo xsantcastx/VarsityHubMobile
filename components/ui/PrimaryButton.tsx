@@ -7,6 +7,7 @@ interface PrimaryButtonProps extends Pick<AccessibilityProps, 'accessibilityLabe
   disabled?: boolean;
   loading?: boolean;
   style?: ViewStyle;
+  testID?: string;
 }
 
 export default function PrimaryButton({ 
@@ -16,6 +17,7 @@ export default function PrimaryButton({
   loading,
   style,
   accessibilityLabel,
+  testID,
 }: PrimaryButtonProps) {
   return (
     <Button 
@@ -24,6 +26,7 @@ export default function PrimaryButton({
       size="lg"
       style={{ width: '100%', maxWidth: 400, alignSelf: 'center', ...style }}
       accessibilityLabel={accessibilityLabel}
+      testID={testID}
     >
       {loading ? <ActivityIndicator color="white" /> : label}
     </Button>

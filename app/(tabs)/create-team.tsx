@@ -748,7 +748,7 @@ function CreateTeamScreen() {
                   if (userPlan !== 'legend') {
                     Alert.alert(
                       'Legend Plan Required',
-                      'Extracurricular clubs (Theater, Chess, Debate, etc.) require the Legend plan ($20/year). Upgrade to create clubs beyond sports teams.',
+                      'Extracurricular clubs (Theater, Chess, Debate, etc.) require the Legend plan ($29.99/year). Upgrade to create clubs beyond sports teams.',
                       [
                         { text: 'Cancel', style: 'cancel' },
                         {

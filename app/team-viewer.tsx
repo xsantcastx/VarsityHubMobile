@@ -35,7 +35,7 @@ interface Game {
   time: string;
   location: string;
   type: 'home' | 'away' | 'neutral';
-  status: 'upcoming' | 'completed' | 'cancelled';
+  status: 'upcoming' | 'completed' | 'cancelled' | 'live' | 'in-progress' | 'pending';
   score?: {
     team: number;
     opponent: number;
@@ -52,6 +52,28 @@ interface Team {
   created_at: string;
   status: string;
 }
+
+const getGameTeamName = (team: unknown): string | null => {
+  if (!team) return null;
+  if (typeof team === 'string') return team.trim() || null;
+  if (typeof team === 'object' && team && 'name' in team && typeof (team as { name?: unknown }).name === 'string') {
+    const name = (team as { name: string }).name.trim();
+    return name || null;
+  }
+  return null;
+};
+
+const normalizeGameStatus = (rawGame: any): Game['status'] => {
+  if (rawGame?.winner) return 'completed';
+  const rawStatus = typeof rawGame?.status === 'string' ? rawGame.status.toLowerCase() : '';
+  if (rawStatus === 'completed' || rawStatus === 'cancelled' || rawStatus === 'live' || rawStatus === 'in-progress' || rawStatus === 'pending') {
+    return rawStatus;
+  }
+  return 'upcoming';
+};
+
+const isUpcomingLikeStatus = (status: Game['status']) =>
+  status === 'upcoming' || status === 'live' || status === 'in-progress' || status === 'pending';
 
 function TeamViewerScreen() {
   const router = useRouter();
@@ -102,21 +124,44 @@ function TeamViewerScreen() {
       
       // Games are already filtered server-side by team_id
       const normalizedGames = Array.isArray(gamesData?.games) ? gamesData.games : Array.isArray(gamesData) ? gamesData : [];
-      const teamGames: Game[] = normalizedGames.map((game: any) => ({
-        id: game.id,
-        homeTeam: game.home_team,
-        awayTeam: game.away_team,
-        opponent: game.away_team || game.home_team || 'TBD',
-        date: game.date ? new Date(game.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-        time: game.date ? new Date(game.date).toLocaleTimeString('en-US', {
-          hour: 'numeric',
-          minute: '2-digit',
-          hour12: true
-        }) : '7:00 PM',
-        location: game.location || 'TBD',
-        type: game.home_team ? 'home' : 'away',
-        status: 'upcoming',
-      }));
+      const teamGames: Game[] = normalizedGames.map((game: any) => {
+        const homeTeamName = getGameTeamName(game.home_team);
+        const awayTeamName = getGameTeamName(game.away_team) || (typeof game.away_team_name === 'string' ? game.away_team_name : null);
+        const teamId = String(params.id);
+        const isHome = game.home_team_id ? String(game.home_team_id) === teamId : false;
+        const isAway = game.away_team_id ? String(game.away_team_id) === teamId : false;
+        const teamName = teamData?.name?.trim() || null;
+        const fallbackIsHome = !isHome && !isAway && !!teamName && homeTeamName === teamName && awayTeamName !== teamName;
+        const fallbackIsAway = !isHome && !isAway && !!teamName && awayTeamName === teamName && homeTeamName !== teamName;
+        const normalizedIsHome = isHome || fallbackIsHome;
+        const normalizedIsAway = isAway || fallbackIsAway;
+        const normalizedStatus = normalizeGameStatus(game);
+        const teamScore = normalizedIsHome ? game.home_score : normalizedIsAway ? game.away_score : null;
+        const opponentScore = normalizedIsHome ? game.away_score : normalizedIsAway ? game.home_score : null;
+
+        return {
+          id: game.id,
+          homeTeam: homeTeamName || undefined,
+          awayTeam: awayTeamName || undefined,
+          opponent: normalizedIsHome
+            ? awayTeamName || 'TBD'
+            : normalizedIsAway
+              ? homeTeamName || 'TBD'
+              : awayTeamName || homeTeamName || 'TBD',
+          date: game.date ? new Date(game.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+          time: game.date ? new Date(game.date).toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true
+          }) : '7:00 PM',
+          location: game.location || 'TBD',
+          type: game.is_neutral ? 'neutral' : normalizedIsHome ? 'home' : normalizedIsAway ? 'away' : 'neutral',
+          status: normalizedStatus,
+          score: typeof teamScore === 'number' && typeof opponentScore === 'number'
+            ? { team: teamScore, opponent: opponentScore }
+            : undefined,
+        };
+      });
       
       setGames(teamGames);
     } catch (error: any) {
@@ -159,7 +204,7 @@ function TeamViewerScreen() {
     today.setHours(0, 0, 0, 0);
     return games.filter(game => {
       const gameDate = new Date(game.date);
-      return gameDate >= today && game.status === 'upcoming';
+      return gameDate >= today && isUpcomingLikeStatus(game.status);
     }).slice(0, 3); // Show next 3 games
   };
 
@@ -168,7 +213,7 @@ function TeamViewerScreen() {
     today.setHours(0, 0, 0, 0);
     return games.filter(game => {
       const gameDate = new Date(game.date);
-      return gameDate < today || game.status === 'completed';
+      return (gameDate < today && !isUpcomingLikeStatus(game.status)) || game.status === 'completed' || game.status === 'cancelled';
     }).slice(0, 3); // Show last 3 games
   };
 

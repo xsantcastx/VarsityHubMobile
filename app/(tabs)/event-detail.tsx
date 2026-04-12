@@ -337,7 +337,7 @@ export default function EventDetailScreen() {
               {(event as any).can_cancel && (event as EventItem).status !== 'cancelled' && !eventHasPassed && (
                 <Pressable
                   style={[styles.outlineBtn, { borderColor: Colors[colorScheme ?? 'light'].border }]}
-                  onPress={() => router.push({ pathname: '/(tabs)/edit-event', params: { id: String(event.id) } })}
+                  onPress={() => router.push({ pathname: './edit-event', params: { id: String(event.id) } })}
                 >
                   <Text style={[styles.outlineBtnText, { color: Colors[colorScheme ?? 'light'].text }]}>Edit</Text>
                 </Pressable>

@@ -520,7 +520,7 @@ export default function SettingsScreen() {
                     <SectionCard title="Legal">
                       <NavRow title="Privacy Policy" onPress={() => void router.push('/settings/privacy-policy')} />
                       <NavRow title="Terms of Service" onPress={() => void router.push('/settings/terms-of-service')} />
-                      <NavRow title="DMCA Policy" onPress={() => void router.push('/settings/dmca')} />
+                      <NavRow title="DMCA Policy" onPress={() => void router.push('./dmca')} />
                       <NavRow title="Contact Us" isLast onPress={() => void router.push('/settings/contact')} />
                     </SectionCard>
 
