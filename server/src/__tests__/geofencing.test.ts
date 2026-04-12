@@ -5,7 +5,16 @@
  */
 
 import { describe, expect, it, jest } from '@jest/globals';
-import { calculateDistance, isWithinGeofence, isPostingWindowOpen } from '../lib/geofencing.js';
+import { prisma } from '../lib/prisma.js';
+import {
+  calculateDistance,
+  getEventPostWindowBounds,
+  isPostPostingWindowOpen,
+  isPostingWindowOpen,
+  isWithinGeofence,
+  requiresPriorLiveEventContribution,
+  verifyEventPostingPermission,
+} from '../lib/geofencing.js';
 
 describe('Geofencing Utilities', () => {
   describe('calculateDistance', () => {
@@ -145,6 +154,73 @@ describe('Geofencing Utilities', () => {
       
       // Past events: windowOpenTime was in the past, so now >= past = true
       expect(isOpen).toBe(true);
+    });
+  });
+
+  describe('regular event posting rules', () => {
+    it('keeps the regular post window open until 2 days after event start', () => {
+      const now = new Date();
+      const eventDate = new Date(now.getTime() - (36 * 60 * 60 * 1000)); // 36 hours ago
+
+      const { windowStart, windowEnd } = getEventPostWindowBounds(eventDate);
+
+      expect(windowStart.getTime()).toBe(eventDate.getTime() - 2 * 24 * 60 * 60 * 1000);
+      expect(windowEnd.getTime()).toBe(eventDate.getTime() + 2 * 24 * 60 * 60 * 1000);
+      expect(isPostPostingWindowOpen(eventDate)).toBe(true);
+    });
+
+    it('requires prior live contribution only after the live game window ends', () => {
+      const eventDate = new Date('2026-04-10T18:00:00.000Z');
+      const duringLiveWindow = new Date('2026-04-10T19:00:00.000Z');
+      const afterLiveWindow = new Date('2026-04-10T21:30:00.000Z');
+
+      expect(requiresPriorLiveEventContribution(eventDate, duringLiveWindow)).toBe(false);
+      expect(requiresPriorLiveEventContribution(eventDate, afterLiveWindow)).toBe(true);
+    });
+
+    it('allows post-event uploads for prior live contributors without a current location check', async () => {
+      const eventDate = new Date('2026-04-10T18:00:00.000Z');
+      const now = new Date('2026-04-10T21:30:00.000Z');
+      const eventSpy = jest.spyOn(prisma.event, 'findUnique').mockResolvedValue({
+        id: 'event-1',
+        title: 'Championship',
+        date: eventDate,
+        latitude: 41,
+        longitude: -72,
+        location: 'Gym',
+        game_id: 'game-1',
+      } as any);
+      const postSpy = jest.spyOn(prisma.post, 'findFirst').mockResolvedValue({ id: 'post-1' } as any);
+
+      const result = await verifyEventPostingPermission('event-1', 'user-1', null, null, now);
+
+      expect(result.allowed).toBe(true);
+      expect(postSpy).toHaveBeenCalled();
+      eventSpy.mockRestore();
+      postSpy.mockRestore();
+    });
+
+    it('blocks post-event uploads for users who did not post while the event was live', async () => {
+      const eventDate = new Date('2026-04-10T18:00:00.000Z');
+      const now = new Date('2026-04-10T21:30:00.000Z');
+      const eventSpy = jest.spyOn(prisma.event, 'findUnique').mockResolvedValue({
+        id: 'event-1',
+        title: 'Championship',
+        date: eventDate,
+        latitude: 41,
+        longitude: -72,
+        location: 'Gym',
+        game_id: 'game-1',
+      } as any);
+      const postSpy = jest.spyOn(prisma.post, 'findFirst').mockResolvedValue(null);
+
+      const result = await verifyEventPostingPermission('event-1', 'user-1', null, null, now);
+
+      expect(result.allowed).toBe(false);
+      expect(result.code).toBe('POSTING_WINDOW_CLOSED');
+      expect(result.reason).toContain('already posted from this event while it was live');
+      eventSpy.mockRestore();
+      postSpy.mockRestore();
     });
   });
 });

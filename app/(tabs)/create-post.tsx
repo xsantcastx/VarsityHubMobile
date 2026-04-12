@@ -556,16 +556,23 @@ function CreatePostScreen() {
     const eventDate = suggestedGame.date ? new Date(suggestedGame.date) : null;
     if (!eventDate || isNaN(eventDate.getTime())) return null;
 
-    // Check posting window (2 days before → ~32h after to match server's midnight UTC + 8h Pacific buffer)
+    // Check posting window (2 days before to 2 days after event start).
+    // The "already posted while it was live" cutoff is event start + 2 hours,
+    // matching the server rule in server/src/lib/geofencing.ts.
     const now = Date.now();
     const windowStart = eventDate.getTime() - 2 * 24 * 60 * 60 * 1000;
-    const windowEnd = eventDate.getTime() + 32 * 60 * 60 * 1000;
+    const liveCutoff = eventDate.getTime() + 2 * 60 * 60 * 1000;
+    const windowEnd = eventDate.getTime() + 2 * 24 * 60 * 60 * 1000;
     if (now < windowStart) {
       const openDate = new Date(windowStart);
       return `Posting opens ${openDate.toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${openDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. You can still draft your post now.`;
     }
     if (now > windowEnd) {
       return 'The posting window for this event has closed.';
+    }
+    if (now > liveCutoff) {
+      const closeDate = new Date(windowEnd);
+      return `Post-event uploads stay open until ${closeDate.toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${closeDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}, but only for people who already posted from this event while it was live.`;
     }
 
     // Check distance (3km = ~1.86 miles) if both user and venue coords are available

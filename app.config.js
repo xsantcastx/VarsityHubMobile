@@ -10,6 +10,7 @@
 //   EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID
 //   EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID
 //   EXPO_PUBLIC_SENTRY_DSN
+//   EXPO_PUBLIC_COMMIT_SHA
 //   EAS_PROJECT_ID
 
 module.exports = ({ config }) => {
@@ -211,6 +212,11 @@ module.exports = ({ config }) => {
 
       // Sensitive values — loaded from environment variables
       EXPO_PUBLIC_SENTRY_DSN: process.env.EXPO_PUBLIC_SENTRY_DSN || '',
+      EXPO_PUBLIC_COMMIT_SHA:
+        process.env.EXPO_PUBLIC_COMMIT_SHA ||
+        process.env.EAS_BUILD_GIT_COMMIT_HASH ||
+        process.env.COMMIT_SHA ||
+        '',
       EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY:
         process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || '',
       EXPO_PUBLIC_GOOGLE_MAPS_API_KEY:

@@ -12,6 +12,7 @@ import { verifyMediaSignature } from './lib/mediaAccess.js';
 import { addSentryErrorHandler, initSentry } from './lib/sentry.js';
 import { swaggerSpec } from './lib/swagger.js';
 import { authMiddleware } from './middleware/auth.js';
+import { requestContextMiddleware, resolveIncomingRequestId } from './middleware/requestContext.js';
 import { requireAdmin } from './middleware/requireAdmin.js';
 import { requireAuth } from './middleware/requireAuth.js';
 import { requireVerified } from './middleware/requireVerified.js';
@@ -59,7 +60,16 @@ app.set('trust proxy', 1);
 
 // pino-http ESM interop can require using the default property in some setups
 const pinoMiddleware = (typeof (pinoHttp as any) === 'function' ? (pinoHttp as any) : (pinoHttp as any).default) || pinoHttp;
-app.use(pinoMiddleware(process.env.NODE_ENV !== 'production' ? { transport: { target: 'pino-pretty' } } : {}));
+app.use(
+  pinoMiddleware({
+    ...(process.env.NODE_ENV !== 'production' ? { transport: { target: 'pino-pretty' } } : {}),
+    genReqId: (req: Request) => {
+      const requestId = resolveIncomingRequestId(req.headers['x-request-id']);
+      return requestId;
+    },
+  })
+);
+app.use(requestContextMiddleware);
 // In dev, disable CSP to allow loading media from API when app runs on a different origin.
 // In prod, enable CSP with sensible defaults for a mobile API backend.
 app.use(helmet({
@@ -135,8 +145,8 @@ const corsOptions: cors.CorsOptions = {
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  exposedHeaders: ['X-Total-Count', 'X-Page-Count'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Request-Id', 'X-Health-Check-Secret'],
+  exposedHeaders: ['X-Total-Count', 'X-Page-Count', 'X-Request-Id'],
 };
 debugLog(`[cors] allowed origins: ${allowedOrigins.join(', ') || '(regex only)'}`);
 app.use(cors(corsOptions));
@@ -167,9 +177,14 @@ app.use((req, res, next) => {
 });
 
 // Handle malformed JSON body (returns 400 instead of 500)
-app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   if (err.type === 'entity.parse.failed' || (err instanceof SyntaxError && 'body' in err)) {
-    return res.status(400).json({ error: 'Invalid JSON in request body' });
+    const requestId = (req as any).id;
+    (req as any).log?.warn?.(
+      { err, requestId, route: req.originalUrl || req.url },
+      'Rejected malformed JSON request'
+    );
+    return res.status(400).json({ error: 'Invalid JSON in request body', requestId });
   }
   next(err);
 });

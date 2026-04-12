@@ -6,6 +6,7 @@ import { setUserContext, clearUserContext } from '../lib/sentry.js';
 export interface AuthedRequest extends Request {
   user?: { id: string };
   file?: Express.Multer.File;
+  requestId?: string;
 }
 
 // Routes that never need auth — skip DB lookup entirely
@@ -35,9 +36,19 @@ export async function authMiddleware(req: AuthedRequest, _res: Response, next: N
       });
     } catch (dbErr) {
       // DB error — return 503 instead of silently degrading to anonymous access
-      console.error('[auth] Database error during auth check:', (dbErr as any)?.message || dbErr);
+      req.log?.error?.(
+        {
+          err: dbErr,
+          requestId: req.id != null ? String(req.id) : undefined,
+          route: req.originalUrl || req.path,
+        },
+        'Database error during auth check'
+      );
       clearUserContext();
-      return _res.status(503).json({ error: 'Service temporarily unavailable. Please try again.' });
+      return _res.status(503).json({
+        error: 'Service temporarily unavailable. Please try again.',
+        requestId: req.id != null ? String(req.id) : undefined,
+      });
     }
 
     // Reject deleted users silently
@@ -62,6 +73,9 @@ export async function authMiddleware(req: AuthedRequest, _res: Response, next: N
     }
 
     req.user = { id: payload.id };
+    if (req.log?.child) {
+      req.log = req.log.child({ userId: payload.id });
+    }
     // Set Sentry user context for better error tracking
     setUserContext(payload.id);
   } else {
@@ -69,4 +83,3 @@ export async function authMiddleware(req: AuthedRequest, _res: Response, next: N
   }
   next();
 }
-

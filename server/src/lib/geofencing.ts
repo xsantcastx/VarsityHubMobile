@@ -3,7 +3,9 @@
  * 
  * BUSINESS RULES:
  * - Story Posts: 24-hour window (12h before to 12h after game), within 1km of venue
- * - Regular Posts: 4-day window (2 days before to 1 day after game), within 3km of venue
+ * - Regular Posts: open 2 days before game start and remain open for 2 days after
+ *   game start. Once the live game window ends, only users who already posted from
+ *   that event while it was live may continue uploading to the event page.
  * - Sample events/games (IDs starting with "sample-") bypass all geofencing checks
  * 
  * This maintains authenticity and prevents users from different states from trolling games.
@@ -13,6 +15,11 @@ import { prisma } from './prisma.js';
 
 const EARTH_RADIUS_KM = 6371;
 const EARTH_RADIUS_MILES = 3959;
+const EVENT_POST_PRE_WINDOW_MS = 2 * 24 * 60 * 60 * 1000;
+// "Real-time contributor" is intentionally defined as within 2 hours after event start.
+// Keep this aligned with the live-game window in app/game-details/GameDetailsScreen.tsx.
+const EVENT_POST_REALTIME_GRACE_MS = 2 * 60 * 60 * 1000;
+const EVENT_POST_EXTENSION_MS = 2 * 24 * 60 * 60 * 1000;
 
 export type PostingPermissionErrorCode =
   | 'EVENT_NOT_FOUND'
@@ -35,6 +42,15 @@ const formatWindowDateTime = (date: Date) =>
     hour: 'numeric',
     minute: '2-digit',
   });
+
+export function getEventPostWindowBounds(eventDate: Date) {
+  const eventTime = new Date(eventDate);
+  return {
+    windowStart: new Date(eventTime.getTime() - EVENT_POST_PRE_WINDOW_MS),
+    liveCutoff: new Date(eventTime.getTime() + EVENT_POST_REALTIME_GRACE_MS),
+    windowEnd: new Date(eventTime.getTime() + EVENT_POST_EXTENSION_MS),
+  };
+}
 
 /**
  * Calculate distance between two coordinates using Haversine formula
@@ -106,17 +122,13 @@ export function isStoryPostingWindowOpen(eventDate: Date): boolean {
  */
 export function isPostPostingWindowOpen(eventDate: Date): boolean {
   const now = new Date();
-  const eventTime = new Date(eventDate);
-  const windowStart = new Date(eventTime.getTime() - 2 * 24 * 60 * 60 * 1000); // 2 days before
-  // End: midnight UTC the day after event day + 8h buffer for US westernmost timezone (UTC-8)
-  const endOfEventDay = new Date(Date.UTC(
-    eventTime.getUTCFullYear(),
-    eventTime.getUTCMonth(),
-    eventTime.getUTCDate() + 1,
-  ));
-  const windowEnd = new Date(endOfEventDay.getTime() + 8 * 60 * 60 * 1000);
-
+  const { windowStart, windowEnd } = getEventPostWindowBounds(eventDate);
   return now >= windowStart && now <= windowEnd;
+}
+
+export function requiresPriorLiveEventContribution(eventDate: Date, now: Date = new Date()): boolean {
+  const { liveCutoff, windowEnd } = getEventPostWindowBounds(eventDate);
+  return now > liveCutoff && now <= windowEnd;
 }
 
 /**
@@ -221,7 +233,8 @@ export async function verifyEventPostingPermission(
   eventId: string,
   userId: string,
   userLat: number | null,
-  userLon: number | null
+  userLon: number | null,
+  now: Date = new Date()
 ): Promise<PostingPermissionResult> {
   // Get event details
   const event = await prisma.event.findUnique({
@@ -241,21 +254,47 @@ export async function verifyEventPostingPermission(
     return { allowed: false, code: 'EVENT_NOT_FOUND', reason: 'Event not found' };
   }
 
-  // Check if posting window is open (2 days before to end of event day)
-  if (!isPostPostingWindowOpen(event.date)) {
-    const eventTime = new Date(event.date);
-    const windowStart = new Date(eventTime.getTime() - 2 * 24 * 60 * 60 * 1000);
-    const endOfEventDay = new Date(Date.UTC(
-      eventTime.getUTCFullYear(),
-      eventTime.getUTCMonth(),
-      eventTime.getUTCDate() + 1,
-    ));
-    const windowEnd = new Date(endOfEventDay.getTime() + 8 * 60 * 60 * 1000);
+  const { windowStart, liveCutoff, windowEnd } = getEventPostWindowBounds(event.date);
+
+  // Check if posting window is open (2 days before to 2 days after)
+  if (now < windowStart || now > windowEnd) {
     return {
       allowed: false,
       code: 'POSTING_WINDOW_CLOSED',
       reason: `Posting opens ${formatWindowDateTime(windowStart)} and closes ${formatWindowDateTime(windowEnd)}.`,
     };
+  }
+
+  // After the live event window, only prior in-event contributors may continue posting.
+  // This allows attendees to finish uploads later without requiring them to still be at the venue.
+  if (now > liveCutoff) {
+    if (!event.game_id) {
+      return {
+        allowed: false,
+        code: 'POSTING_WINDOW_CLOSED',
+        reason: 'Post-event uploads are only available to people who already posted from this event while it was live.',
+      };
+    }
+
+    const priorLivePost = await prisma.post.findFirst({
+      where: {
+        game_id: event.game_id,
+        author_id: userId,
+        deleted_at: null,
+        created_at: { lte: liveCutoff },
+      },
+      select: { id: true },
+    });
+
+    if (!priorLivePost) {
+      return {
+        allowed: false,
+        code: 'POSTING_WINDOW_CLOSED',
+        reason: 'Post-event uploads are only available to people who already posted from this event while it was live.',
+      };
+    }
+
+    return { allowed: true };
   }
 
   // Resolve venue coordinates: event first, then fall back to game
