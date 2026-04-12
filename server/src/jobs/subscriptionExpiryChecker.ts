@@ -90,7 +90,7 @@ export async function checkExpiringSubscriptions() {
             timeZone: 'America/Chicago',
           }),
           daysRemaining: String(daysUntilExpiry),
-          renewalPrice: plan === 'legend' ? '$20/year' : '$0/month',
+          renewalPrice: plan === 'legend' ? '$29.99/year' : '$0/month',
           featuresLosing: ['Access to premium features', 'Team management tools'],
           renewLink: `${APP_BASE_URL}/billing/renew`,
           manageSubscriptionLink: `${APP_BASE_URL}/billing`,

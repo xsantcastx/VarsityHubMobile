@@ -778,7 +778,7 @@ export default function Step4Organization() {
                 )}
                 {(ob.plan === 'legend') && (
                   <>
-                    <View style={styles.benefitRow}><Ionicons name="trophy" size={14} color="#FFD700" /><Text style={styles.benefitItem}>$20/year unlimited teams</Text></View>
+                    <View style={styles.benefitRow}><Ionicons name="trophy" size={14} color="#FFD700" /><Text style={styles.benefitItem}>$29.99/year unlimited teams</Text></View>
                     <View style={styles.benefitRow}><Ionicons name="infinite" size={14} color="#FFD700" /><Text style={styles.benefitItem}>Unlimited authorized users</Text></View>
                     <View style={styles.benefitRow}><Ionicons name="star" size={14} color="#FFD700" /><Text style={styles.benefitItem}>Premium features</Text></View>
                   </>
