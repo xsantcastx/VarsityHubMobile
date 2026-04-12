@@ -4,11 +4,23 @@ import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Image, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Image,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Message, User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
+import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 
 type MiniUser = {
@@ -43,6 +55,7 @@ export default function MessagesScreen() {
   const params = useLocalSearchParams<{ sharePost?: string }>();
   const sharePostId = params?.sharePost ? String(params.sharePost) : undefined;
   const colorScheme = useColorScheme();
+  const { user: authUser } = useAuth();
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -70,15 +83,14 @@ export default function MessagesScreen() {
     setLoading(true);
     setError(null);
     try {
-      try {
-        const u = await User.me();
-        setMe(u);
-      } catch (error: any) {
-        if (__DEV__) {
-          console.warn('[Messages] Failed to load user:', error?.message || error);
-        }
-        // Continue without user data
-      }
+      // Use cached auth user instead of redundant API call
+      const u =
+        authUser ??
+        (await User.me().catch((err: any) => {
+          if (__DEV__) console.warn('[Messages] Failed to load user:', err?.message || err);
+          return null;
+        }));
+      setMe(u);
 
       const result: UIMsg[] | { _isNotModified: boolean } = await (Message.list
         ? Message.list('-created_at', 50)
@@ -93,7 +105,7 @@ export default function MessagesScreen() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [authUser]);
 
   // Load on mount
   useEffect(() => {
@@ -123,7 +135,7 @@ export default function MessagesScreen() {
       } catch {
         // Silently fail - don't disrupt inbox
       }
-    }, 3000);
+    }, 15000); // Reduced from 3s — inbox doesn't need sub-second freshness
     return () => {
       mounted = false;
       clearInterval(interval);
@@ -150,7 +162,7 @@ export default function MessagesScreen() {
           id: convKey,
           other,
           lastMessage: msg,
-          unreadCount: (!mine && !msg.read) ? 1 : 0,
+          unreadCount: !mine && !msg.read ? 1 : 0,
           messages: [msg],
         });
       } else {
@@ -167,8 +179,9 @@ export default function MessagesScreen() {
     });
 
     // Sort by last message date
-    return Array.from(convMap.values()).sort((a, b) =>
-      new Date(b.lastMessage.created_at).getTime() - new Date(a.lastMessage.created_at).getTime()
+    return Array.from(convMap.values()).sort(
+      (a, b) =>
+        new Date(b.lastMessage.created_at).getTime() - new Date(a.lastMessage.created_at).getTime()
     );
   }, [messages, me]);
 
@@ -276,7 +289,7 @@ export default function MessagesScreen() {
         style={[
           styles.conversationRow,
           hasUnread && styles.conversationUnread,
-          { borderBottomColor: Colors[colorScheme].border }
+          { borderBottomColor: Colors[colorScheme].border },
         ]}
         onPress={() => openThread(item)}
       >
@@ -297,7 +310,7 @@ export default function MessagesScreen() {
               style={[
                 styles.conversationName,
                 { color: Colors[colorScheme].text },
-                hasUnread && styles.conversationNameBold
+                hasUnread && styles.conversationNameBold,
               ]}
               numberOfLines={1}
             >
@@ -313,7 +326,7 @@ export default function MessagesScreen() {
               style={[
                 styles.messagePreview,
                 { color: Colors[colorScheme].tabIconDefault },
-                hasUnread && styles.messagePreviewBold
+                hasUnread && styles.messagePreviewBold,
               ]}
               numberOfLines={2}
             >
@@ -360,7 +373,10 @@ export default function MessagesScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['bottom']}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}
+      edges={['bottom']}
+    >
       <Stack.Screen options={{ headerShown: false }} />
 
       {/* Enhanced header with gradient and safe area */}
@@ -369,17 +385,34 @@ export default function MessagesScreen() {
         style={[styles.headerGradient, { paddingTop: insets.top + 12 }]}
       >
         <View style={styles.headerRow}>
-          <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)' as any)} style={styles.backButton} accessibilityRole="button" accessibilityLabel="Go back">
+          <Pressable
+            onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)' as any))}
+            style={styles.backButton}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+          >
             <Ionicons name="chevron-back" size={24} color={Colors[colorScheme].text} />
           </Pressable>
           <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Messages</Text>
-          <Pressable onPress={() => setSafetyOpen(true)} style={styles.iconButton} accessibilityLabel="Safety">
+          <Pressable
+            onPress={() => setSafetyOpen(true)}
+            style={styles.iconButton}
+            accessibilityLabel="Safety"
+          >
             <Ionicons name="shield-checkmark-outline" size={24} color={Colors[colorScheme].text} />
           </Pressable>
         </View>
 
         {/* Search bar */}
-        <View style={[styles.searchContainer, { backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
+        <View
+          style={[
+            styles.searchContainer,
+            {
+              backgroundColor:
+                colorScheme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+            },
+          ]}
+        >
           <Ionicons name="search" size={20} color={Colors[colorScheme].tabIconDefault} />
           <TextInput
             placeholder="Search conversations..."
@@ -397,12 +430,20 @@ export default function MessagesScreen() {
       </LinearGradient>
 
       <View style={styles.contentContainer}>
-        {loading && <View style={styles.center}><ActivityIndicator /></View>}
+        {loading && (
+          <View style={styles.center}>
+            <ActivityIndicator />
+          </View>
+        )}
         {error && !loading && <Text style={styles.error}>{error}</Text>}
 
         {!loading && filtered.length === 0 && !error && (
           <View style={styles.emptyState}>
-            <Ionicons name="chatbubbles-outline" size={64} color={Colors[colorScheme].tabIconDefault} />
+            <Ionicons
+              name="chatbubbles-outline"
+              size={64}
+              color={Colors[colorScheme].tabIconDefault}
+            />
             <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text }]}>
               {query ? 'No conversations found' : 'No messages yet'}
             </Text>
@@ -423,7 +464,7 @@ export default function MessagesScreen() {
         {!loading && filtered.length > 0 && (
           <FlatList
             data={filtered}
-            keyExtractor={(item) => item.id}
+            keyExtractor={item => item.id}
             renderItem={renderConversation}
             contentContainerStyle={{ paddingBottom: 80 }}
           />
@@ -433,7 +474,10 @@ export default function MessagesScreen() {
       {/* Floating compose button */}
       {!loading && (
         <Pressable
-          style={[styles.fab, { backgroundColor: Colors[colorScheme].tint, bottom: insets.bottom + 16 }]}
+          style={[
+            styles.fab,
+            { backgroundColor: Colors[colorScheme].tint, bottom: insets.bottom + 16 },
+          ]}
           onPress={() => setComposeOpen(true)}
         >
           <Ionicons name="create-outline" size={24} color="white" />
@@ -441,18 +485,40 @@ export default function MessagesScreen() {
       )}
 
       {/* Compose Modal */}
-      <Modal visible={composeOpen} transparent animationType="slide" onRequestClose={() => setComposeOpen(false)}>
+      <Modal
+        visible={composeOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setComposeOpen(false)}
+      >
         <View style={styles.modalBackdrop}>
-          <View style={[styles.composeModal, { backgroundColor: Colors[colorScheme].background, paddingTop: insets.top + 16 }]}>
+          <View
+            style={[
+              styles.composeModal,
+              { backgroundColor: Colors[colorScheme].background, paddingTop: insets.top + 16 },
+            ]}
+          >
             <View style={styles.composeHeader}>
               <Pressable onPress={() => setComposeOpen(false)} style={styles.modalCloseButton}>
                 <Ionicons name="close" size={28} color={Colors[colorScheme].text} />
               </Pressable>
-              <Text style={[styles.composeTitle, { color: Colors[colorScheme].text }]}>New Message</Text>
+              <Text style={[styles.composeTitle, { color: Colors[colorScheme].text }]}>
+                New Message
+              </Text>
               <View style={{ width: 28 }} />
             </View>
 
-            <View style={[styles.searchContainer, { backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)', marginHorizontal: 16, marginBottom: 8 }]}>
+            <View
+              style={[
+                styles.searchContainer,
+                {
+                  backgroundColor:
+                    colorScheme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+                  marginHorizontal: 16,
+                  marginBottom: 8,
+                },
+              ]}
+            >
               <Ionicons name="search" size={20} color={Colors[colorScheme].tabIconDefault} />
               <TextInput
                 placeholder="Search users by username..."
@@ -464,7 +530,11 @@ export default function MessagesScreen() {
               />
               {searchUserQuery.length > 0 && (
                 <Pressable onPress={() => setSearchUserQuery('')}>
-                  <Ionicons name="close-circle" size={20} color={Colors[colorScheme].tabIconDefault} />
+                  <Ionicons
+                    name="close-circle"
+                    size={20}
+                    color={Colors[colorScheme].tabIconDefault}
+                  />
                 </Pressable>
               )}
             </View>
@@ -477,8 +547,14 @@ export default function MessagesScreen() {
 
             {!searchingUsers && searchUserQuery.length >= 2 && searchResults.length === 0 && (
               <View style={styles.emptyState}>
-                <Ionicons name="people-outline" size={48} color={Colors[colorScheme].tabIconDefault} />
-                <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text, fontSize: 16 }]}>
+                <Ionicons
+                  name="people-outline"
+                  size={48}
+                  color={Colors[colorScheme].tabIconDefault}
+                />
+                <Text
+                  style={[styles.emptyTitle, { color: Colors[colorScheme].text, fontSize: 16 }]}
+                >
                   No users found
                 </Text>
               </View>
@@ -487,15 +563,21 @@ export default function MessagesScreen() {
             {!searchingUsers && searchResults.length > 0 && (
               <FlatList
                 data={searchResults}
-                keyExtractor={(item) => item.id}
+                keyExtractor={item => item.id}
                 renderItem={renderUserSearchItem}
               />
             )}
 
             {searchUserQuery.length < 2 && (
               <View style={styles.emptyState}>
-                <Ionicons name="mail-outline" size={48} color={Colors[colorScheme].tabIconDefault} />
-                <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text, fontSize: 16 }]}>
+                <Ionicons
+                  name="mail-outline"
+                  size={48}
+                  color={Colors[colorScheme].tabIconDefault}
+                />
+                <Text
+                  style={[styles.emptyTitle, { color: Colors[colorScheme].text, fontSize: 16 }]}
+                >
                   Search for someone
                 </Text>
                 <Text style={[styles.emptySubtitle, { color: Colors[colorScheme].tabIconDefault }]}>
@@ -508,25 +590,65 @@ export default function MessagesScreen() {
       </Modal>
 
       {/* Safety sheet */}
-      <Modal visible={safetyOpen} transparent animationType="fade" onRequestClose={() => setSafetyOpen(false)}>
+      <Modal
+        visible={safetyOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSafetyOpen(false)}
+      >
         <Pressable style={styles.sheetBackdrop} onPress={() => setSafetyOpen(false)}>
-          <Pressable style={[styles.sheet, { backgroundColor: Colors[colorScheme].background }]} onPress={() => {}}>
+          <Pressable
+            style={[styles.sheet, { backgroundColor: Colors[colorScheme].background }]}
+            onPress={() => {}}
+          >
             <Text style={[styles.sheetTitle, { color: Colors[colorScheme].text }]}>Safety</Text>
-            <Pressable style={styles.sheetRow} onPress={() => { setSafetyOpen(false); void void void router.push('/report-abuse'); }}>
+            <Pressable
+              style={styles.sheetRow}
+              onPress={() => {
+                setSafetyOpen(false);
+                void void void router.push('/report-abuse');
+              }}
+            >
               <Ionicons name="flag-outline" size={18} color={Colors[colorScheme].text} />
-              <Text style={[styles.sheetText, { color: Colors[colorScheme].text }]}>Report a message</Text>
+              <Text style={[styles.sheetText, { color: Colors[colorScheme].text }]}>
+                Report a message
+              </Text>
             </Pressable>
-            <Pressable style={styles.sheetRow} onPress={() => { setSafetyOpen(false); void void void router.push('/blocked-users'); }}>
+            <Pressable
+              style={styles.sheetRow}
+              onPress={() => {
+                setSafetyOpen(false);
+                void void void router.push('/blocked-users');
+              }}
+            >
               <Ionicons name="person-remove-outline" size={18} color={Colors[colorScheme].text} />
-              <Text style={[styles.sheetText, { color: Colors[colorScheme].text }]}>Blocked users</Text>
+              <Text style={[styles.sheetText, { color: Colors[colorScheme].text }]}>
+                Blocked users
+              </Text>
             </Pressable>
-            <Pressable style={styles.sheetRow} onPress={() => { setSafetyOpen(false); void void void router.push('/dm-restrictions'); }}>
+            <Pressable
+              style={styles.sheetRow}
+              onPress={() => {
+                setSafetyOpen(false);
+                void void void router.push('/dm-restrictions');
+              }}
+            >
               <Ionicons name="options-outline" size={18} color={Colors[colorScheme].text} />
-              <Text style={[styles.sheetText, { color: Colors[colorScheme].text }]}>DM restrictions</Text>
+              <Text style={[styles.sheetText, { color: Colors[colorScheme].text }]}>
+                DM restrictions
+              </Text>
             </Pressable>
-            <Pressable style={styles.sheetRow} onPress={() => { setSafetyOpen(false); void void void router.push('/settings'); }}>
+            <Pressable
+              style={styles.sheetRow}
+              onPress={() => {
+                setSafetyOpen(false);
+                void void void router.push('/settings');
+              }}
+            >
               <Ionicons name="settings-outline" size={18} color={Colors[colorScheme].text} />
-              <Text style={[styles.sheetText, { color: Colors[colorScheme].text }]}>Privacy & settings</Text>
+              <Text style={[styles.sheetText, { color: Colors[colorScheme].text }]}>
+                Privacy & settings
+              </Text>
             </Pressable>
           </Pressable>
         </Pressable>
@@ -755,7 +877,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 2,
   },
-  sheetBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'flex-end' },
+  sheetBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
   sheet: { width: '100%', borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 16, gap: 10 },
   sheetTitle: { fontSize: 16, fontWeight: '800', marginBottom: 6 },
   sheetRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10 },

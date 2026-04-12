@@ -10,10 +10,10 @@ export default function MessagesTabIcon({ color }: { color: string }) {
     let alive = true;
     const load = async () => {
       try {
-        const list: any[] = await (Message.list ? Message.list('-created_at', 200) : []);
+        // Lightweight count endpoint instead of fetching 200 full messages
+        const result = await (Message.unreadCount ? Message.unreadCount() : { count: 0 });
         if (!alive) return;
-        const count = (list || []).filter((m: any) => !m.read).length;
-        setUnread(count);
+        setUnread(result?.count ?? 0);
       } catch {}
     };
     void load();

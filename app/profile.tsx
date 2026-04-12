@@ -7,6 +7,7 @@ import { useAuth } from '@/context/AuthProvider';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { useUser } from '@/hooks/useUser';
 import { calculateContrastRatio } from '@/utils/accessibility';
+import { avatarUrl, thumbUrl } from '@/utils/cloudinaryUrl';
 import events from '@/utils/events';
 import { pickerMediaTypesProp } from '@/utils/picker';
 import { getGradientForColor } from '@/utils/theme';
@@ -824,7 +825,7 @@ export default function ProfileScreen() {
           >
             <View style={styles.avatarContainer}>
               {me?.avatar_url ? (
-                <Image source={{ uri: String(me?.avatar_url) }} style={styles.avatarImage} contentFit="cover" />
+                <Image source={{ uri: avatarUrl(String(me?.avatar_url)) }} style={styles.avatarImage} contentFit="cover" />
               ) : (
                 <View style={[styles.avatarPlaceholder, { backgroundColor: colorScheme === 'dark' ? theme.surface || '#374151' : '#E5E7EB' }]}>
                   <Ionicons name="person" size={48} color={theme.mutedText} />
@@ -930,7 +931,7 @@ export default function ProfileScreen() {
                     onPress={() => void router.push({ pathname: '/team-page', params: { id: t.id, name: t.name } } as any)}
                   >
                     {t.logo_url || t.avatar_url ? (
-                      <Image source={{ uri: t.logo_url || t.avatar_url || '' }} style={styles.teamChipAvatar} contentFit="cover" />
+                      <Image source={{ uri: avatarUrl(t.logo_url || t.avatar_url || '') || '' }} style={styles.teamChipAvatar} contentFit="cover" />
                     ) : (
                       <View style={[styles.teamChipPlaceholder, { backgroundColor: theme.tint + '30' }]}>
                         <Ionicons name="people" size={14} color={theme.tint} />
@@ -1105,6 +1106,9 @@ export default function ProfileScreen() {
           contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16), paddingHorizontal: 8 }}
           onEndReachedThreshold={0.5}
           onEndReached={onEndReachedPosts}
+          windowSize={5}
+          maxToRenderPerBatch={6}
+          removeClippedSubviews
           renderItem={({ item, index }) => {
             const thumb = item.media_url;
             const _isVideo = !!thumb && VIDEO_EXT.test(thumb);
@@ -1126,7 +1130,7 @@ export default function ProfileScreen() {
               >
                 {thumb ? (
                   <View style={styles.gridImageContainer}>
-                    <Image source={{ uri: thumb }} style={styles.gridImage} contentFit="cover" />
+                    <Image source={{ uri: thumbUrl(thumb) }} style={styles.gridImage} contentFit="cover" />
                     <View style={styles.gridImageOverlay} />
                   </View>
                 ) : (
@@ -1177,6 +1181,9 @@ export default function ProfileScreen() {
           contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16), paddingHorizontal: 8 }}
           onEndReachedThreshold={0.5}
           onEndReached={onEndReachedReplies}
+          windowSize={5}
+          maxToRenderPerBatch={6}
+          removeClippedSubviews
           renderItem={({ item, index }) => {
             const postItem = unwrapPost(item);
             const thumb = postItem?.media_url;
@@ -1198,7 +1205,7 @@ export default function ProfileScreen() {
               >
                 {thumb ? (
                   <View style={styles.gridImageContainer}>
-                    <Image source={{ uri: thumb }} style={styles.gridImage} contentFit="cover" />
+                    <Image source={{ uri: thumbUrl(thumb) }} style={styles.gridImage} contentFit="cover" />
                     <View style={styles.gridImageOverlay} />
                   </View>
                 ) : (
@@ -1249,6 +1256,9 @@ export default function ProfileScreen() {
           contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16), paddingHorizontal: 8 }}
           onEndReachedThreshold={0.5}
           onEndReached={onEndReachedUpvotes}
+          windowSize={5}
+          maxToRenderPerBatch={6}
+          removeClippedSubviews
           renderItem={({ item, index }) => {
             const postItem = unwrapPost(item);
             const thumb = postItem?.media_url;
@@ -1270,7 +1280,7 @@ export default function ProfileScreen() {
               >
                 {thumb ? (
                   <View style={styles.gridImageContainer}>
-                    <Image source={{ uri: thumb }} style={styles.gridImage} contentFit="cover" />
+                    <Image source={{ uri: thumbUrl(thumb) }} style={styles.gridImage} contentFit="cover" />
                     <View style={styles.gridImageOverlay} />
                   </View>
                 ) : (
@@ -1321,6 +1331,9 @@ export default function ProfileScreen() {
           contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16), paddingHorizontal: 8 }}
           onEndReachedThreshold={0.5}
           onEndReached={onEndReachedBookmarks}
+          windowSize={5}
+          maxToRenderPerBatch={6}
+          removeClippedSubviews
           renderItem={({ item, index }) => {
             const postItem = unwrapPost(item);
             const thumb = postItem?.media_url;
@@ -1341,7 +1354,7 @@ export default function ProfileScreen() {
               >
                 {thumb ? (
                   <View style={styles.gridImageContainer}>
-                    <Image source={{ uri: thumb }} style={styles.gridImage} contentFit="cover" />
+                    <Image source={{ uri: thumbUrl(thumb) }} style={styles.gridImage} contentFit="cover" />
                     <View style={styles.gridImageOverlay} />
                   </View>
                 ) : (

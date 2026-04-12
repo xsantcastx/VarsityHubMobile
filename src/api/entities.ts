@@ -469,6 +469,7 @@ export const Message = {
   markReadByConversation: (conversationId: string) =>
     httpPost('/messages/mark-read', { conversation_id: conversationId }),
   markReadWith: (email: string) => httpPost('/messages/mark-read', { with: email }),
+  unreadCount: (): Promise<{ count: number }> => httpGet('/messages/unread-count'),
 };
 
 // Stubs for future entities

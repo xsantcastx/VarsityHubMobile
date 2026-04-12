@@ -7,9 +7,10 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { Alert, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { avatarUrl, feedImageUrl } from '@/utils/cloudinaryUrl';
 import RankingBadge from './RankingBadge';
 import VideoPlayer from './VideoPlayer';
 
@@ -21,7 +22,7 @@ type PostCardProps = {
   onUpdated?: (updatedPost: any) => void; // callback when post is updated
 };
 
-export default function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated }: PostCardProps) {
+function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated }: PostCardProps) {
   // Determine badge type and position
   // Example: post.rankingType: 'trending' | 'recent' | 'top', post.rank: number
   const rankingType = post.rankingType || null; // e.g., 'trending', 'recent', 'top'
@@ -219,7 +220,7 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
           >
             <View style={styles.authorAvatarWrap}>
               {author?.avatar_url ? (
-                <Image source={{ uri: String(author.avatar_url) }} style={styles.authorAvatar} contentFit="cover" />
+                <Image source={{ uri: avatarUrl(String(author.avatar_url)) }} style={styles.authorAvatar} contentFit="cover" />
               ) : (
                 <View style={[styles.authorAvatar, styles.avatarFallback]}>
                   <Text style={styles.avatarFallbackText}>
@@ -249,9 +250,9 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
       {(isImage || isVideo) ? (
         <View style={styles.mediaWrap}>
           {isImage && mediaUrl ? (
-            <Image source={{ uri: mediaUrl }} style={styles.media} contentFit="cover" />
+            <Image source={{ uri: feedImageUrl(mediaUrl) }} style={styles.media} contentFit="cover" />
           ) : isVideo && previewUrl ? (
-            <Image source={{ uri: previewUrl }} style={styles.media} contentFit="cover" />
+            <Image source={{ uri: feedImageUrl(previewUrl) }} style={styles.media} contentFit="cover" />
           ) : isVideo && mediaUrl ? (
             <VideoPlayer uri={mediaUrl} style={styles.media} />
           ) : null}
@@ -465,3 +466,5 @@ const styles = StyleSheet.create({
   titleInput: { borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, padding: 12, fontSize: 16, marginBottom: 12, minHeight: 50 },
   contentInput: { borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, padding: 12, fontSize: 16, flex: 1, minHeight: 120 },
 });
+
+export default React.memo(PostCard);

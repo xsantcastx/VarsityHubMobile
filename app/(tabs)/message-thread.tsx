@@ -89,25 +89,22 @@ export default function MessageThreadScreen() {
     }
   }, [prefill, prefillApplied, router]);
 
-  // INSTANT MESSAGING: Poll every 3 seconds while in conversation
+  // INSTANT MESSAGING: Poll every 5 seconds while in conversation
+  // User.me() removed — user identity doesn't change mid-conversation
   useEffect(() => {
     let mounted = true;
     const interval = setInterval(async () => {
       if (!mounted) return;
       try {
-        const user = await User.me();
         let list: Msg[] = [];
         if (conversation_id) list = await MessageApi.threadByConversation(String(conversation_id), 100);
         else if (withParam) list = await MessageApi.threadWith(String(withParam), 100);
         list = Array.isArray(list) ? list.slice().reverse() : [];
-        if (mounted) {
-          setMsgs(list);
-          setMe(user);
-        }
+        if (mounted) setMsgs(list);
       } catch {
         // Silently fail - don't disrupt conversation
       }
-    }, 3000); // Check for new messages every 3 seconds
+    }, 5000);
 
     return () => {
       mounted = false;

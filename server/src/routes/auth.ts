@@ -3,14 +3,18 @@ import crypto, { createPublicKey, randomInt, type KeyObject } from 'crypto';
 import { Router } from 'express';
 import jwt, { type JwtPayload } from 'jsonwebtoken';
 import { z } from 'zod';
-import { sendPasswordChangedEmail, sendPasswordResetEmail, sendVerificationEmail } from '../lib/email.js';
+import {
+  sendPasswordChangedEmail,
+  sendPasswordResetEmail,
+  sendVerificationEmail,
+} from '../lib/email.js';
 import { validateContent } from '../lib/contentFilter.js';
 import { ConflictError } from '../lib/errors/ConflictError.js';
 import { ValidationError } from '../lib/errors/ValidationError.js';
 import { signJwt, signRefreshJwt, verifyRefreshJwt } from '../lib/jwt.js';
 import { prisma } from '../lib/prisma.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
-import type { AuthedRequest } from '../middleware/auth.js';
+import { invalidateAuthCache, type AuthedRequest } from '../middleware/auth.js';
 import { passwordResetLimiter } from '../middleware/rateLimiters.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
 
@@ -30,16 +34,16 @@ const generateOtpCode = () => String(randomInt(100000, 1000000));
 function checkAuthRateLimit(identifier: string): boolean {
   const now = Date.now();
   const record = authRate.get(identifier);
-  
+
   if (!record || now > record.resetAt) {
     authRate.set(identifier, { attempts: 1, resetAt: now + AUTH_WINDOW_MS });
     return true;
   }
-  
+
   if (record.attempts >= MAX_AUTH_ATTEMPTS) {
     return false;
   }
-  
+
   record.attempts++;
   return true;
 }
@@ -47,10 +51,14 @@ function checkAuthRateLimit(identifier: string): boolean {
 // simple in-memory rate limiting for verification send: 1/30s, 5/hour per user
 const verifyRate: Map<string, { last: number; count: number; hourStart: number }> = new Map();
 const verifyConfirmRate: Map<string, { attempts: number; resetAt: number }> = new Map();
-const GOOGLE_ALLOWED_AUDIENCES = (process.env.GOOGLE_OAUTH_CLIENT_IDS || process.env.GOOGLE_OAUTH_AUDIENCE || '')
+const GOOGLE_ALLOWED_AUDIENCES = (
+  process.env.GOOGLE_OAUTH_CLIENT_IDS ||
+  process.env.GOOGLE_OAUTH_AUDIENCE ||
+  ''
+)
   .split(',')
-  .map((value) => value.trim())
-  .filter((value) => value.length > 0);
+  .map(value => value.trim())
+  .filter(value => value.length > 0);
 const APPLE_JWKS_URL = 'https://appleid.apple.com/auth/keys';
 const APPLE_JWKS_TTL_MS = 6 * 60 * 60 * 1000;
 const appleKeyCache = new Map<string, { key: KeyObject; expiresAt: number }>();
@@ -66,9 +74,9 @@ async function getApplePublicKey(kid: string): Promise<KeyObject> {
   if (!response.ok) {
     throw new Error(`Failed to fetch Apple JWKS: ${response.status}`);
   }
-  const data = await response.json() as { keys?: Array<Record<string, unknown>> };
+  const data = (await response.json()) as { keys?: Array<Record<string, unknown>> };
   const keys = Array.isArray(data?.keys) ? data.keys : [];
-  const jwk = keys.find((key) => key?.kid === kid);
+  const jwk = keys.find(key => key?.kid === kid);
   if (!jwk) {
     throw new Error('Apple JWKS does not include requested key');
   }
@@ -142,92 +150,106 @@ const registerSchema = z.object({
   dob: z.string().optional(), // COPPA: reject if under 13
 });
 
-authRouter.post('/register', asyncHandler(async (req, res) => {
-  const start = Date.now();
-  debugLog('[register] Incoming request');
-  const parsed = registerSchema.safeParse(req.body);
-  if (!parsed.success) {
-    throw new ValidationError('Invalid registration data', {
-      validationIssues: parsed.error.issues.map((issue) => ({
-        path: issue.path.map(String),
-        message: issue.message,
-      })),
-    });
-  }
-  const { email, password, display_name, role, dob } = parsed.data;
-  const sanitizedEmail = email.trim().toLowerCase();
-
-  if (display_name && display_name.trim().length > 0) {
-    const filterResult = validateContent({ content: display_name });
-    if (!filterResult.valid) {
-      throw new ValidationError(filterResult.error || 'Invalid display name', {
-        errorCode: filterResult.code,
+authRouter.post(
+  '/register',
+  asyncHandler(async (req, res) => {
+    const start = Date.now();
+    debugLog('[register] Incoming request');
+    const parsed = registerSchema.safeParse(req.body);
+    if (!parsed.success) {
+      throw new ValidationError('Invalid registration data', {
+        validationIssues: parsed.error.issues.map(issue => ({
+          path: issue.path.map(String),
+          message: issue.message,
+        })),
       });
     }
-  }
+    const { email, password, display_name, role, dob } = parsed.data;
+    const sanitizedEmail = email.trim().toLowerCase();
 
-  // COPPA: Reject registration if DOB indicates under 13
-  if (dob && isUnder13(dob)) {
-    throw new ValidationError('VarsityHub is not available for users under 13. Please have a parent or guardian contact support@varsityhub.app.', {
-      errorCode: 'COPPA_UNDER_13',
-    });
-  }
-  
-  // Prevent duplicate accounts - check if email already exists
-  // Users can create multiple accounts with different emails, but not duplicate the same email
-  debugLog('[register] Checking for existing user');
-  const exists = await prisma.user.findUnique({ where: { email: sanitizedEmail } });
-  if (exists) {
-    throw new ConflictError('Email already registered', {
-      errorCode: 'EMAIL_ALREADY_REGISTERED',
-    });
-  }
-  const password_hash = await bcrypt.hash(password, 10);
-  const code = generateOtpCode();
-  const exp = new Date(Date.now() + 30 * 60 * 1000);
-  const userRole = role || 'fan';
-
-  const initialPreferences = {
-    role: userRole,
-    onboarding_completed: false,
-  };
-
-  debugLog('[register] Creating user record');
-  const user = await prisma.user.create({
-    data: {
-      email: sanitizedEmail,
-      password_hash,
-      display_name,
-      email_verified: false,
-      email_verification_code: code,
-      email_verification_expires: exp,
-      preferences: initialPreferences
+    if (display_name && display_name.trim().length > 0) {
+      const filterResult = validateContent({ content: display_name });
+      if (!filterResult.valid) {
+        throw new ValidationError(filterResult.error || 'Invalid display name', {
+          errorCode: filterResult.code,
+        });
+      }
     }
-  });
-  const { access_token, refresh_token } = issueAuthTokens(user);
-  try {
-    const emailSend = sendVerificationEmail(email, code, display_name || sanitizedEmail.split('@')[0]);
-    const EMAIL_TIMEOUT_MS = 5000;
-    const timed = await Promise.race([
-      emailSend,
-      new Promise((resolve) => setTimeout(resolve, EMAIL_TIMEOUT_MS, 'timeout'))
-    ]);
-    if (timed === 'timeout') {
-      console.warn('[verify-code] [register] sendVerificationEmail timed out after 5s — email may still be queued by SendGrid');
-    } else if (timed === false) {
-      console.error('[verify-code] [register] sendVerificationEmail returned false — email was NOT sent (check SendGridProvider logs above for the specific error)');
-    } else {
-      debugLog('[verify-code] [register] verification email accepted by provider');
+
+    // COPPA: Reject registration if DOB indicates under 13
+    if (dob && isUnder13(dob)) {
+      throw new ValidationError(
+        'VarsityHub is not available for users under 13. Please have a parent or guardian contact support@varsityhub.app.',
+        {
+          errorCode: 'COPPA_UNDER_13',
+        }
+      );
     }
-  } catch (e) {
-    console.error('[verify-code] [register] sendVerificationEmail threw:', e);
-    req.log?.warn?.({ err: e }, 'Email send failed; returning code in dev');
-  }
-  const payload: any = { access_token, refresh_token, user: sanitizeUser(user) };
-  if (process.env.NODE_ENV !== 'production') payload.dev_verification_code = code;
-  debugLog('[register] Completed in', Date.now() - start, 'ms');
-  res.status(201).json(payload);
-}));
+
+    // Prevent duplicate accounts - check if email already exists
+    // Users can create multiple accounts with different emails, but not duplicate the same email
+    debugLog('[register] Checking for existing user');
+    const exists = await prisma.user.findUnique({ where: { email: sanitizedEmail } });
+    if (exists) {
+      throw new ConflictError('Email already registered', {
+        errorCode: 'EMAIL_ALREADY_REGISTERED',
+      });
+    }
+    const password_hash = await bcrypt.hash(password, 10);
+    const code = generateOtpCode();
+    const exp = new Date(Date.now() + 30 * 60 * 1000);
+    const userRole = role || 'fan';
+
+    const initialPreferences = {
+      role: userRole,
+      onboarding_completed: false,
+    };
+
+    debugLog('[register] Creating user record');
+    const user = await prisma.user.create({
+      data: {
+        email: sanitizedEmail,
+        password_hash,
+        display_name,
+        email_verified: false,
+        email_verification_code: code,
+        email_verification_expires: exp,
+        preferences: initialPreferences,
+      },
+    });
+    const { access_token, refresh_token } = issueAuthTokens(user);
+    try {
+      const emailSend = sendVerificationEmail(
+        email,
+        code,
+        display_name || sanitizedEmail.split('@')[0]
+      );
+      const EMAIL_TIMEOUT_MS = 5000;
+      const timed = await Promise.race([
+        emailSend,
+        new Promise(resolve => setTimeout(resolve, EMAIL_TIMEOUT_MS, 'timeout')),
+      ]);
+      if (timed === 'timeout') {
+        console.warn(
+          '[verify-code] [register] sendVerificationEmail timed out after 5s — email may still be queued by SendGrid'
+        );
+      } else if (timed === false) {
+        console.error(
+          '[verify-code] [register] sendVerificationEmail returned false — email was NOT sent (check SendGridProvider logs above for the specific error)'
+        );
+      } else {
+        debugLog('[verify-code] [register] verification email accepted by provider');
+      }
+    } catch (e) {
+      console.error('[verify-code] [register] sendVerificationEmail threw:', e);
+      req.log?.warn?.({ err: e }, 'Email send failed; returning code in dev');
+    }
+    const payload: any = { access_token, refresh_token, user: sanitizeUser(user) };
+    if (process.env.NODE_ENV !== 'production') payload.dev_verification_code = code;
+    debugLog('[register] Completed in', Date.now() - start, 'ms');
+    res.status(201).json(payload);
+  })
+);
 
 const loginSchema = z.object({ email: z.string().email(), password: z.string().min(1) });
 
@@ -236,12 +258,12 @@ authRouter.post('/login', async (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: 'Invalid credentials' });
   const { email, password } = parsed.data;
   const sanitizedEmail = email.trim().toLowerCase();
-  
+
   // Rate limiting
   if (!checkAuthRateLimit(sanitizedEmail)) {
     return res.status(429).json({ error: 'Too many login attempts. Please try again later.' });
   }
-  
+
   const user = await prisma.user.findUnique({ where: { email: sanitizedEmail } });
   if (!user) return res.status(401).json({ error: 'Invalid credentials' });
   if (user.banned) return res.status(403).json({ error: 'Account banned' });
@@ -254,7 +276,12 @@ authRouter.post('/login', async (req, res) => {
   const { access_token, refresh_token } = issueAuthTokens(user);
   const sanitized = sanitizeUser(user);
   const needsOnboarding = sanitized?.preferences?.onboarding_completed === false;
-  const body: any = { access_token, refresh_token, user: sanitized, needs_onboarding: needsOnboarding };
+  const body: any = {
+    access_token,
+    refresh_token,
+    user: sanitized,
+    needs_onboarding: needsOnboarding,
+  };
   if (!user.email_verified) body.needs_verification = true;
   return res.json(body);
 });
@@ -267,7 +294,9 @@ authRouter.post('/refresh', async (req, res) => {
   const parsed = refreshSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
 
-  const payload = verifyRefreshJwt<{ id?: string; type?: string; sv?: number }>(parsed.data.refresh_token);
+  const payload = verifyRefreshJwt<{ id?: string; type?: string; sv?: number }>(
+    parsed.data.refresh_token
+  );
   if (!payload?.id || payload.type !== 'refresh') {
     return res.status(401).json({ error: 'Invalid refresh token' });
   }
@@ -301,14 +330,16 @@ authRouter.post('/google', async (req, res) => {
   const { id_token } = parsed.data;
 
   try {
-    const googleResponse = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(id_token)}`);
+    const googleResponse = await fetch(
+      `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(id_token)}`
+    );
     if (!googleResponse.ok) {
       const detail = await googleResponse.text().catch(() => '');
       req.log?.warn?.({ detail }, '[auth/google] tokeninfo rejected credential');
       return res.status(401).json({ error: 'Google authentication failed' });
     }
 
-    const payload = await googleResponse.json() as any;
+    const payload = (await googleResponse.json()) as any;
     const googleId = typeof payload?.sub === 'string' ? payload.sub : null;
     const audience = typeof payload?.aud === 'string' ? payload.aud : null;
     const email = typeof payload?.email === 'string' ? String(payload.email).toLowerCase() : null;
@@ -322,14 +353,18 @@ authRouter.post('/google', async (req, res) => {
       return res.status(400).json({ error: 'Google account email is not verified' });
     }
 
-    if (GOOGLE_ALLOWED_AUDIENCES.length && (!audience || !GOOGLE_ALLOWED_AUDIENCES.includes(audience))) {
+    if (
+      GOOGLE_ALLOWED_AUDIENCES.length &&
+      (!audience || !GOOGLE_ALLOWED_AUDIENCES.includes(audience))
+    ) {
       req.log?.warn?.({ audience }, '[auth/google] audience mismatch');
       return res.status(400).json({ error: 'Google credential not issued for this application' });
     }
 
-    const displayNameSource = typeof payload?.name === 'string' && payload.name.trim().length
-      ? payload.name.trim()
-      : email.split('@')[0];
+    const displayNameSource =
+      typeof payload?.name === 'string' && payload.name.trim().length
+        ? payload.name.trim()
+        : email.split('@')[0];
     const avatarUrl = typeof payload?.picture === 'string' ? payload.picture : null;
 
     let user = await prisma.user.findUnique({ where: { google_id: googleId } });
@@ -342,7 +377,8 @@ authRouter.post('/google', async (req, res) => {
         const currentPrefs = (existingByEmail as any)?.preferences || {};
         const prefPatch: Record<string, unknown> = {};
         if (typeof currentPrefs.role !== 'string') prefPatch.role = 'fan';
-        if (typeof currentPrefs.onboarding_completed === 'undefined') prefPatch.onboarding_completed = false;
+        if (typeof currentPrefs.onboarding_completed === 'undefined')
+          prefPatch.onboarding_completed = false;
         const updates: any = {
           google_id: googleId,
           email_verified: true,
@@ -350,7 +386,8 @@ authRouter.post('/google', async (req, res) => {
           email_verification_expires: null,
         };
         if (avatarUrl && !existingByEmail.avatar_url) updates.avatar_url = avatarUrl;
-        if (displayNameSource && !existingByEmail.display_name) updates.display_name = displayNameSource;
+        if (displayNameSource && !existingByEmail.display_name)
+          updates.display_name = displayNameSource;
         if (Object.keys(prefPatch).length) {
           updates.preferences = mergePreferences(currentPrefs, prefPatch);
         }
@@ -415,10 +452,10 @@ authRouter.post('/apple', async (req, res) => {
     if (isDevelopmentToken && process.env.NODE_ENV === 'production') {
       return res.status(400).json({ error: 'Development tokens are not allowed in production' });
     }
-    
+
     let appleId: string;
     let email: string | null = null;
-    
+
     if (isDevelopmentToken) {
       // Extract the simulator user ID
       appleId = identity_token.replace('sim-', '');
@@ -458,7 +495,9 @@ authRouter.post('/apple', async (req, res) => {
         debugLog('[auth/apple] Apple token verified');
       } catch (err: any) {
         console.error('[auth/apple] Token verification failed:', err?.message || err);
-        return res.status(400).json({ error: 'Failed to verify Apple token', detail: err?.message });
+        return res
+          .status(400)
+          .json({ error: 'Failed to verify Apple token', detail: err?.message });
       }
     }
 
@@ -475,7 +514,7 @@ authRouter.post('/apple', async (req, res) => {
       let existingByEmail = null;
       if (email) {
         existingByEmail = await prisma.user.findFirst({
-          where: { email: { equals: email, mode: 'insensitive' } }
+          where: { email: { equals: email, mode: 'insensitive' } },
         });
       }
 
@@ -484,19 +523,20 @@ authRouter.post('/apple', async (req, res) => {
         const currentPrefs = (existingByEmail as any)?.preferences || {};
         const prefPatch: Record<string, unknown> = {};
         if (typeof currentPrefs.role !== 'string') prefPatch.role = 'fan';
-        if (typeof currentPrefs.onboarding_completed === 'undefined') prefPatch.onboarding_completed = false;
-        
+        if (typeof currentPrefs.onboarding_completed === 'undefined')
+          prefPatch.onboarding_completed = false;
+
         const updates: any = {
           apple_id: appleId,
           email_verified: true,
           email_verification_code: null,
           email_verification_expires: null,
         };
-        
+
         if (Object.keys(prefPatch).length) {
           updates.preferences = mergePreferences(currentPrefs, prefPatch);
         }
-        
+
         user = await prisma.user.update({ where: { id: existingByEmail.id }, data: updates });
       } else {
         // Create new user
@@ -523,7 +563,7 @@ authRouter.post('/apple', async (req, res) => {
           if (createErr?.code === 'P2002') {
             debugLog('[auth/apple] User already exists, linking Apple ID');
             const existingUser = await prisma.user.findFirst({
-              where: { email: { equals: userEmail, mode: 'insensitive' } }
+              where: { email: { equals: userEmail, mode: 'insensitive' } },
             });
             if (existingUser) {
               user = await prisma.user.update({
@@ -569,7 +609,9 @@ authRouter.post('/password/forgot', passwordResetLimiter, async (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
   const email = parsed.data.email.trim();
   debugLog('[password-reset] Looking for user:', email);
-  const user = await prisma.user.findFirst({ where: { email: { equals: email, mode: 'insensitive' } } });
+  const user = await prisma.user.findFirst({
+    where: { email: { equals: email, mode: 'insensitive' } },
+  });
   const payload: any = { ok: true };
   if (!user) {
     debugLog('[password-reset] No user found for:', email);
@@ -615,7 +657,9 @@ authRouter.post('/password/reset', passwordResetLimiter, async (req, res) => {
   const parsed = passwordResetSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
   const { email, code, password } = parsed.data;
-  const user = await prisma.user.findFirst({ where: { email: { equals: email.trim(), mode: 'insensitive' } } });
+  const user = await prisma.user.findFirst({
+    where: { email: { equals: email.trim(), mode: 'insensitive' } },
+  });
   if (!user || !user.password_reset_code || !user.password_reset_expires) {
     return res.status(400).json({ error: 'Invalid or expired reset code' });
   }
@@ -636,6 +680,7 @@ authRouter.post('/password/reset', passwordResetLimiter, async (req, res) => {
       preferences: bumpSessionVersion(user.preferences),
     },
   });
+  invalidateAuthCache(user.id);
 
   return res.json({ ok: true });
 });
@@ -650,18 +695,18 @@ authRouter.post('/password/change', async (req: AuthedRequest, res) => {
   const parsed = passwordChangeSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
   const { current_password, new_password } = parsed.data;
-  
+
   // Get user with password hash
   const user = await prisma.user.findUnique({ where: { id: req.user.id } });
   if (!user) return res.status(404).json({ error: 'User not found' });
-  
+
   // Verify current password
   const isValid = await bcrypt.compare(current_password, user.password_hash);
   if (!isValid) return res.status(401).json({ error: 'Current password is incorrect' });
-  
+
   // Hash new password
   const password_hash = await bcrypt.hash(new_password, 10);
-  
+
   // Update password
   await prisma.user.update({
     where: { id: user.id },
@@ -670,7 +715,8 @@ authRouter.post('/password/change', async (req: AuthedRequest, res) => {
       preferences: bumpSessionVersion(user.preferences),
     },
   });
-  
+  invalidateAuthCache(user.id);
+
   // Send confirmation email
   try {
     const userName = user.display_name || user.email?.split('@')[0] || 'VarsityHub user';
@@ -679,7 +725,7 @@ authRouter.post('/password/change', async (req: AuthedRequest, res) => {
     console.warn('[email] Password changed email failed:', e);
     // Don't fail the request if email fails
   }
-  
+
   return res.json({ ok: true });
 });
 
@@ -698,10 +744,19 @@ authRouter.get('/me', async (req: AuthedRequest, res) => {
     },
   });
   if (!user) return res.status(404).json({ error: 'Not found' });
-  const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+  const adminEmails = (process.env.ADMIN_EMAILS || '')
+    .split(',')
+    .map(s => s.trim().toLowerCase())
+    .filter(Boolean);
   const is_admin = user.email ? adminEmails.includes(user.email.toLowerCase()) : false;
   const defaults = {
-    notifications: { game_event_reminders: false, team_updates: false, comments_upvotes: false, follows_notifications: true, messages_notifications: true },
+    notifications: {
+      game_event_reminders: false,
+      team_updates: false,
+      comments_upvotes: false,
+      follows_notifications: true,
+      messages_notifications: true,
+    },
     is_parent: false,
     zip_code: null,
     // Only set onboarding_completed=true for admin accounts
@@ -719,34 +774,59 @@ authRouter.get('/me', async (req: AuthedRequest, res) => {
     ...(is_admin ? { role: 'admin' } : {}),
     preferences: prefs,
     is_admin,
-    approval_status: typeof moderationPrefs.approval_status === 'string' ? moderationPrefs.approval_status : null,
-    approval_reason: typeof moderationPrefs.approval_reason === 'string' ? moderationPrefs.approval_reason : null,
+    approval_status:
+      typeof moderationPrefs.approval_status === 'string' ? moderationPrefs.approval_status : null,
+    approval_reason:
+      typeof moderationPrefs.approval_reason === 'string' ? moderationPrefs.approval_reason : null,
     suspension_until:
-      typeof moderationPrefs.suspension_until === 'string' ? moderationPrefs.suspension_until : null,
+      typeof moderationPrefs.suspension_until === 'string'
+        ? moderationPrefs.suspension_until
+        : null,
   });
 });
 
 const updateMeSchema = z.object({
-  display_name: z.string().min(1).max(15).refine((val) => val.trim().length > 0, { message: 'Display name cannot be only whitespace' }).optional(),
-  username: z.string().min(1).max(25).regex(/^[a-z0-9_.]+$/, { message: 'Username can only contain lowercase letters, numbers, dots, and underscores' }).optional(),
-  avatar_url: z.string()
+  display_name: z
+    .string()
+    .min(1)
+    .max(15)
+    .refine(val => val.trim().length > 0, { message: 'Display name cannot be only whitespace' })
+    .optional(),
+  username: z
+    .string()
+    .min(1)
+    .max(25)
+    .regex(/^[a-z0-9_.]+$/, {
+      message: 'Username can only contain lowercase letters, numbers, dots, and underscores',
+    })
+    .optional(),
+  avatar_url: z
+    .string()
     .url({ message: 'Avatar URL must be a valid URL' })
-    .refine((url) => {
-      try {
-        const parsed = new URL(url);
-        // Only allow https
-        if (parsed.protocol !== 'https:') return false;
-        // Allow specific domains (Cloudinary, etc.)
-        const allowedDomains = ['res.cloudinary.com', 'varsityhub.app', 'cdn.varsityhub.app'];
-        return allowedDomains.some(d => parsed.hostname.endsWith(d));
-      } catch (error) {
-        console.warn('[auth] Invalid avatar URL format:', error);
-        return false;
-      }
-    }, { message: 'Avatar URL must be from an allowed domain (Cloudinary or VarsityHub CDN)' })
+    .refine(
+      url => {
+        try {
+          const parsed = new URL(url);
+          // Only allow https
+          if (parsed.protocol !== 'https:') return false;
+          // Allow specific domains (Cloudinary, etc.)
+          const allowedDomains = ['res.cloudinary.com', 'varsityhub.app', 'cdn.varsityhub.app'];
+          return allowedDomains.some(d => parsed.hostname.endsWith(d));
+        } catch (error) {
+          console.warn('[auth] Invalid avatar URL format:', error);
+          return false;
+        }
+      },
+      { message: 'Avatar URL must be from an allowed domain (Cloudinary or VarsityHub CDN)' }
+    )
     .optional()
     .nullable(),
-  bio: z.string().max(1000).transform((val) => val === '' ? null : val).optional().nullable(),
+  bio: z
+    .string()
+    .max(1000)
+    .transform(val => (val === '' ? null : val))
+    .optional()
+    .nullable(),
   preferences: z.any().optional(),
 });
 
@@ -756,26 +836,26 @@ authRouter.put('/me', async (req: AuthedRequest, res) => {
   if (!parsed.success) {
     return res.status(400).json({
       error: 'Invalid payload',
-      issues: parsed.error.issues.map((i) => ({ path: i.path, message: i.message })),
+      issues: parsed.error.issues.map(i => ({ path: i.path, message: i.message })),
     });
   }
   const data = parsed.data as any;
   let patch: any = { ...data };
-  
+
   // Validate username availability if provided
   if (data.username) {
     const exists = await prisma.user.findFirst({
       where: {
         OR: [
           { username: { equals: data.username, mode: 'insensitive' } },
-          { display_name: { equals: data.username, mode: 'insensitive' } }
+          { display_name: { equals: data.username, mode: 'insensitive' } },
         ],
-        NOT: { id: req.user.id }
+        NOT: { id: req.user.id },
       },
-      select: { id: true }
+      select: { id: true },
     });
     if (exists) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Username taken',
         message: 'This username is already in use.',
       });
@@ -794,22 +874,29 @@ authRouter.put('/me', async (req: AuthedRequest, res) => {
       return res.status(400).json({ error: filterResult.error, code: filterResult.code });
     }
   }
-  
+
   if (data.preferences) {
     // COPPA: Reject if DOB in preferences indicates under 13
     const dobToCheck = data.preferences?.dob;
     if (dobToCheck !== undefined && isUnder13(dobToCheck)) {
       return res.status(403).json({
         error: 'COPPA_UNDER_13',
-        message: 'VarsityHub is not available for users under 13. Please have a parent or guardian contact support@varsityhub.app.',
+        message:
+          'VarsityHub is not available for users under 13. Please have a parent or guardian contact support@varsityhub.app.',
       });
     }
-    const current = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true } });
+    const current = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { preferences: true },
+    });
     const mergedPrefs = mergePreferences(current?.preferences || {}, data.preferences);
     patch.preferences = mergedPrefs;
   }
   const { preferences, ...rest } = patch;
-  const user = await prisma.user.update({ where: { id: req.user.id }, data: { ...rest, ...(preferences ? { preferences } : {}) } });
+  const user = await prisma.user.update({
+    where: { id: req.user.id },
+    data: { ...rest, ...(preferences ? { preferences } : {}) },
+  });
   return res.json(sanitizeUser(user));
 });
 
@@ -820,26 +907,26 @@ authRouter.patch('/me', async (req: AuthedRequest, res) => {
   if (!parsed.success) {
     return res.status(400).json({
       error: 'Invalid payload',
-      issues: parsed.error.issues.map((i) => ({ path: i.path, message: i.message })),
+      issues: parsed.error.issues.map(i => ({ path: i.path, message: i.message })),
     });
   }
   const data = parsed.data as any;
   let patch: any = { ...data };
-  
+
   // Validate username availability if provided
   if (data.username) {
     const exists = await prisma.user.findFirst({
       where: {
         OR: [
           { username: { equals: data.username, mode: 'insensitive' } },
-          { display_name: { equals: data.username, mode: 'insensitive' } }
+          { display_name: { equals: data.username, mode: 'insensitive' } },
         ],
-        NOT: { id: req.user.id }
+        NOT: { id: req.user.id },
       },
-      select: { id: true }
+      select: { id: true },
     });
     if (exists) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Username taken',
         message: 'This username is already in use.',
       });
@@ -858,22 +945,29 @@ authRouter.patch('/me', async (req: AuthedRequest, res) => {
       return res.status(400).json({ error: filterResult.error, code: filterResult.code });
     }
   }
-  
+
   if (data.preferences) {
     // COPPA: Reject if DOB in preferences indicates under 13
     const dobToCheck = data.preferences?.dob;
     if (dobToCheck !== undefined && isUnder13(dobToCheck)) {
       return res.status(403).json({
         error: 'COPPA_UNDER_13',
-        message: 'VarsityHub is not available for users under 13. Please have a parent or guardian contact support@varsityhub.app.',
+        message:
+          'VarsityHub is not available for users under 13. Please have a parent or guardian contact support@varsityhub.app.',
       });
     }
-    const current = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true } });
+    const current = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { preferences: true },
+    });
     const mergedPrefs = mergePreferences(current?.preferences || {}, data.preferences);
     patch.preferences = mergedPrefs;
   }
   const { preferences, ...rest } = patch;
-  const user = await prisma.user.update({ where: { id: req.user.id }, data: { ...rest, ...(preferences ? { preferences } : {}) } });
+  const user = await prisma.user.update({
+    where: { id: req.user.id },
+    data: { ...rest, ...(preferences ? { preferences } : {}) },
+  });
   return res.json(sanitizeUser(user));
 });
 
@@ -882,9 +976,9 @@ function mergePreferences(base: any, incoming: any) {
   if (!base && !incoming) return {};
   if (!base) return incoming;
   if (!incoming) return base;
-  
+
   const out = { ...base };
-  
+
   // Deep merge for nested objects
   for (const key in incoming) {
     if (incoming[key] === null || incoming[key] === undefined) {
@@ -893,7 +987,12 @@ function mergePreferences(base: any, incoming: any) {
       if (incoming[key] === null && key in incoming) {
         delete out[key];
       }
-    } else if (typeof incoming[key] === 'object' && !Array.isArray(incoming[key]) && incoming[key] !== null && incoming[key].constructor === Object) {
+    } else if (
+      typeof incoming[key] === 'object' &&
+      !Array.isArray(incoming[key]) &&
+      incoming[key] !== null &&
+      incoming[key].constructor === Object
+    ) {
       // Deep merge objects (but not arrays or special objects like Date)
       out[key] = mergePreferences(base[key], incoming[key]);
     } else {
@@ -901,50 +1000,55 @@ function mergePreferences(base: any, incoming: any) {
       out[key] = incoming[key];
     }
   }
-  
+
   return out;
 }
 
 // Partial update for user preferences
 authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  const schema = z.object({
-    notifications: z.object({
-      game_event_reminders: z.boolean().optional(),
-      team_updates: z.boolean().optional(),
-      comments_upvotes: z.boolean().optional(),
-      follows_notifications: z.boolean().optional(),
-      messages_notifications: z.boolean().optional(),
-    }).partial().optional(),
-    is_parent: z.boolean().optional(),
-    zip_code: z.string().min(2).max(20).optional().nullable(),
-    onboarding_completed: z.boolean().optional(),
-    
-    // New onboarding fields
-    plan: z.enum(['rookie', 'veteran', 'legend']).optional(),
-    // Rookie is not a role
-    role: z.enum(['fan', 'coach']).optional(),
-    affiliation: z.enum(['school', 'independent']).optional(),
-    dob: z.string().optional(),
-    sports_interests: z.array(z.string()).optional(),
-    personalization_goals: z.array(z.string()).optional(),
-    primary_intents: z.array(z.string()).optional(),
-    season_start: z.string().optional(),
-    season_end: z.string().optional(),
-    location_enabled: z.boolean().optional(),
-    notifications_enabled: z.boolean().optional(),
-    messaging_policy_accepted: z.boolean().optional(),
-    push_token: z.string().optional(),
-    profile_private: z.boolean().optional(),
-    comment_permission: z.enum(['everyone', 'following', 'none']).optional(),
-    dm_policy: z.enum(['everyone', 'following', 'no_one']).optional(),
-  }).partial();
-  
+  const schema = z
+    .object({
+      notifications: z
+        .object({
+          game_event_reminders: z.boolean().optional(),
+          team_updates: z.boolean().optional(),
+          comments_upvotes: z.boolean().optional(),
+          follows_notifications: z.boolean().optional(),
+          messages_notifications: z.boolean().optional(),
+        })
+        .partial()
+        .optional(),
+      is_parent: z.boolean().optional(),
+      zip_code: z.string().min(2).max(20).optional().nullable(),
+      onboarding_completed: z.boolean().optional(),
+
+      // New onboarding fields
+      plan: z.enum(['rookie', 'veteran', 'legend']).optional(),
+      // Rookie is not a role
+      role: z.enum(['fan', 'coach']).optional(),
+      affiliation: z.enum(['school', 'independent']).optional(),
+      dob: z.string().optional(),
+      sports_interests: z.array(z.string()).optional(),
+      personalization_goals: z.array(z.string()).optional(),
+      primary_intents: z.array(z.string()).optional(),
+      season_start: z.string().optional(),
+      season_end: z.string().optional(),
+      location_enabled: z.boolean().optional(),
+      notifications_enabled: z.boolean().optional(),
+      messaging_policy_accepted: z.boolean().optional(),
+      push_token: z.string().optional(),
+      profile_private: z.boolean().optional(),
+      comment_permission: z.enum(['everyone', 'following', 'none']).optional(),
+      dm_policy: z.enum(['everyone', 'following', 'no_one']).optional(),
+    })
+    .partial();
+
   const parsed = schema.safeParse(req.body || {});
   if (!parsed.success) {
     return res.status(400).json({
       error: 'Invalid payload',
-      issues: parsed.error.issues.map((i) => ({ path: i.path, message: i.message })),
+      issues: parsed.error.issues.map(i => ({ path: i.path, message: i.message })),
     });
   }
   const incoming = parsed.data as any;
@@ -952,13 +1056,18 @@ authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
   if (incoming.dob !== undefined && isUnder13(incoming.dob)) {
     return res.status(403).json({
       error: 'COPPA_UNDER_13',
-      message: 'VarsityHub is not available for users under 13. Please have a parent or guardian contact support@varsityhub.app.',
+      message:
+        'VarsityHub is not available for users under 13. Please have a parent or guardian contact support@varsityhub.app.',
     });
   }
-  const current = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true, email: true } });
-  const currentPrefs = (current?.preferences && typeof current.preferences === 'object')
-    ? (current.preferences as Record<string, any>)
-    : {};
+  const current = await prisma.user.findUnique({
+    where: { id: req.user.id },
+    select: { preferences: true, email: true },
+  });
+  const currentPrefs =
+    current?.preferences && typeof current.preferences === 'object'
+      ? (current.preferences as Record<string, any>)
+      : {};
   const onboardingCompleted = currentPrefs.onboarding_completed === true;
 
   const currentPlan = typeof currentPrefs.plan === 'string' ? currentPrefs.plan : undefined;
@@ -987,10 +1096,19 @@ authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
   }
 
   // Check if user is admin (same logic as GET /me endpoint)
-  const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+  const adminEmails = (process.env.ADMIN_EMAILS || '')
+    .split(',')
+    .map(s => s.trim().toLowerCase())
+    .filter(Boolean);
   const is_admin = current?.email ? adminEmails.includes(current.email.toLowerCase()) : false;
   const defaults = {
-    notifications: { game_event_reminders: false, team_updates: false, comments_upvotes: false, follows_notifications: true, messages_notifications: true },
+    notifications: {
+      game_event_reminders: false,
+      team_updates: false,
+      comments_upvotes: false,
+      follows_notifications: true,
+      messages_notifications: true,
+    },
     is_parent: false,
     zip_code: null,
     // Only set onboarding_completed=true for admin accounts (same as GET /me)
@@ -1009,7 +1127,10 @@ authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
   // 2. Apply current user preferences on top (preserve user's actual values)
   // 3. Apply incoming changes on top (apply this update)
   const merged = mergePreferences(mergePreferences(defaults, currentPrefs), incoming);
-  const updated = await prisma.user.update({ where: { id: req.user.id }, data: { preferences: merged } });
+  const updated = await prisma.user.update({
+    where: { id: req.user.id },
+    data: { preferences: merged },
+  });
   return res.json({ preferences: updated.preferences });
 });
 
@@ -1020,40 +1141,42 @@ const completeOnboardingSchema = z.object({
   role: z.enum(['fan', 'coach']).optional(),
   username: z.string().min(1).max(25).optional(),
   display_name: z.string().optional(),
-  affiliation: z.enum(['none', 'university', 'high_school', 'club', 'youth', 'school', 'independent']).optional(),
+  affiliation: z
+    .enum(['none', 'university', 'high_school', 'club', 'youth', 'school', 'independent'])
+    .optional(),
   dob: z.string().optional(),
   zip: z.string().optional(),
   zip_code: z.string().optional(),
-  
+
   // Plan and subscription
   plan: z.enum(['rookie', 'veteran', 'legend']).optional(),
   payment_pending: z.union([z.boolean(), z.string()]).optional(),
   team_count_total: z.number().int().min(0).optional(),
-  
+
   // Team/Organization
   team_id: z.string().optional(),
   team_name: z.string().optional(),
   organization_id: z.string().optional(),
   organization_name: z.string().optional(),
   sport: z.string().optional(),
-  
+
   // Season
   season_start: z.string().optional(),
   season_end: z.string().optional(),
-  
+
   // Authorized users
   authorized: z.array(z.any()).optional(),
   authorized_users: z.array(z.any()).optional(),
-  
+
   // Profile
   avatar_url: z.string().optional(),
   bio: z.string().optional(),
   sports_interests: z.array(z.string()).optional(),
-  
+
   // Interests/Goals
   primary_intents: z.array(z.string()).optional(),
   personalization_goals: z.array(z.string()).optional(),
-  
+
   // Features/Permissions
   location_enabled: z.boolean().optional(),
   notifications_enabled: z.boolean().optional(),
@@ -1067,14 +1190,15 @@ authRouter.post('/me/complete-onboarding', async (req: AuthedRequest, res) => {
     console.error('[Onboarding] Validation failed:', parsed.error);
     return res.status(400).json({ error: 'Invalid payload', details: parsed.error });
   }
-  
+
   const data = parsed.data;
 
   // COPPA: Reject if DOB indicates under 13 - do not store
   if (data.dob !== undefined && isUnder13(data.dob)) {
     return res.status(403).json({
       error: 'COPPA_UNDER_13',
-      message: 'VarsityHub is not available for users under 13. Please have a parent or guardian contact support@varsityhub.app.',
+      message:
+        'VarsityHub is not available for users under 13. Please have a parent or guardian contact support@varsityhub.app.',
     });
   }
   if (data.display_name && data.display_name.trim().length > 0) {
@@ -1083,15 +1207,18 @@ authRouter.post('/me/complete-onboarding', async (req: AuthedRequest, res) => {
       return res.status(400).json({ error: filterResult.error, code: filterResult.code });
     }
   }
-  
+
   // Get current preferences FIRST to preserve role if not in payload
-  const current = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true } });
-  const currentPrefs = current?.preferences as any || {};
-  
+  const current = await prisma.user.findUnique({
+    where: { id: req.user.id },
+    select: { preferences: true },
+  });
+  const currentPrefs = (current?.preferences as any) || {};
+
   // CRITICAL: Role MUST be preserved from onboarding step-1 or provided in payload
   // If role is undefined in payload, use existing role from preferences (set during step-1)
-  const finalRole = data.role !== undefined ? data.role : (currentPrefs.role || 'fan');
-  
+  const finalRole = data.role !== undefined ? data.role : currentPrefs.role || 'fan';
+
   // CRITICAL: For coaches, validate required steps are completed
   if (finalRole === 'coach') {
     // Coaches MUST have: username, plan, and team/org
@@ -1105,21 +1232,21 @@ authRouter.post('/me/complete-onboarding', async (req: AuthedRequest, res) => {
       return res.status(400).json({ error: 'Team or organization required for coach onboarding' });
     }
   }
-  
+
   // Update user with direct fields
   const updateData: any = {};
   if (data.username) updateData.username = data.username;
   if (data.display_name) updateData.display_name = data.display_name;
   if (data.avatar_url) updateData.avatar_url = data.avatar_url;
   if (data.bio) updateData.bio = data.bio;
-  
+
   const currentUser = await prisma.user.findUnique({ where: { id: req.user.id } });
   if (data.role === 'fan' && !currentUser?.bio && !data.bio) {
-    updateData.bio = "Sports enthusiast following local teams and supporting young athletes 🏆";
+    updateData.bio = 'Sports enthusiast following local teams and supporting young athletes 🏆';
   }
-  
+
   // Prepare preferences update
-  
+
   const preferencesUpdate: any = {
     onboarding_completed: true,
     role: finalRole, // Always set role explicitly - never leave undefined
@@ -1144,13 +1271,13 @@ authRouter.post('/me/complete-onboarding', async (req: AuthedRequest, res) => {
     payment_pending: data.payment_pending,
     team_count_total: data.team_count_total,
   };
-  
+
   // CRITICAL: Role must NEVER be undefined - preserve from current preferences if not in payload
   // This ensures OAuth-created users (who start as 'fan') can properly become 'coach' during onboarding
   if (preferencesUpdate.role === undefined) {
     preferencesUpdate.role = currentPrefs.role || 'fan'; // Use existing role or default to fan
   }
-  
+
   // Clean up undefined values (but keep role - it's already set above)
   Object.keys(preferencesUpdate).forEach(key => {
     if (preferencesUpdate[key] === undefined && key !== 'role') {
@@ -1169,16 +1296,16 @@ authRouter.post('/me/complete-onboarding', async (req: AuthedRequest, res) => {
   // CRITICAL: Ensure role from preferencesUpdate takes precedence (user's choice during onboarding)
   const merged = mergePreferences(normalizedCurrent || {}, preferencesUpdate);
   updateData.preferences = merged;
-  
+
   // Update user
-  const updated = await prisma.user.update({ 
-    where: { id: req.user.id }, 
-    data: updateData 
+  const updated = await prisma.user.update({
+    where: { id: req.user.id },
+    data: updateData,
   });
-  
-  return res.json({ 
-    message: 'Onboarding completed successfully', 
-    user: sanitizeUser(updated) 
+
+  return res.json({
+    message: 'Onboarding completed successfully',
+    user: sanitizeUser(updated),
   });
 });
 
@@ -1191,16 +1318,29 @@ authRouter.post('/verify/request', async (req: AuthedRequest, res) => {
   const now = Date.now();
   const key = user.id;
   const rec = verifyRate.get(key) || { last: 0, count: 0, hourStart: now };
-  if (now - rec.hourStart > 3600_000) { rec.hourStart = now; rec.count = 0; }
-  if (now - rec.last < 30_000) return res.status(429).json({ error: 'Please wait before requesting another code' });
+  if (now - rec.hourStart > 3600_000) {
+    rec.hourStart = now;
+    rec.count = 0;
+  }
+  if (now - rec.last < 30_000)
+    return res.status(429).json({ error: 'Please wait before requesting another code' });
   if (rec.count >= 5) return res.status(429).json({ error: 'Too many requests' });
   const code = generateOtpCode();
   const exp = new Date(Date.now() + 30 * 60 * 1000);
-  await prisma.user.update({ where: { id: user.id }, data: { email_verification_code: code, email_verification_expires: exp } });
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { email_verification_code: code, email_verification_expires: exp },
+  });
   try {
-    const sent = await sendVerificationEmail(user.email, code, user.display_name || user.email.split('@')[0]);
+    const sent = await sendVerificationEmail(
+      user.email,
+      code,
+      user.display_name || user.email.split('@')[0]
+    );
     if (!sent) {
-      console.error('[verify-code] [verify/request] sendVerificationEmail returned false — email was NOT sent (check SendGridProvider logs above for the specific error)');
+      console.error(
+        '[verify-code] [verify/request] sendVerificationEmail returned false — email was NOT sent (check SendGridProvider logs above for the specific error)'
+      );
     } else {
       debugLog('[verify-code] [verify/request] verification email accepted by provider');
     }
@@ -1210,7 +1350,9 @@ authRouter.post('/verify/request', async (req: AuthedRequest, res) => {
   }
   const payload: any = { ok: true };
   if (process.env.NODE_ENV !== 'production') payload.dev_verification_code = code;
-  rec.last = now; rec.count += 1; verifyRate.set(key, rec);
+  rec.last = now;
+  rec.count += 1;
+  verifyRate.set(key, rec);
   return res.json(payload);
 });
 
@@ -1233,17 +1375,24 @@ authRouter.post('/verify/confirm', async (req: AuthedRequest, res) => {
   const confirmKey = user.id;
   const confirmRec = verifyConfirmRate.get(confirmKey);
   if (confirmRec && now < confirmRec.resetAt && confirmRec.attempts >= 10) {
-    return res.status(429).json({ error: 'Too many verification attempts. Please request a new code or try again later.' });
+    return res.status(429).json({
+      error: 'Too many verification attempts. Please request a new code or try again later.',
+    });
   }
-  if (!user.email_verification_code || !user.email_verification_expires) return res.status(400).json({ error: 'No verification in progress' });
-  if (new Date() > user.email_verification_expires) return res.status(400).json({ error: 'Code expired' });
+  if (!user.email_verification_code || !user.email_verification_expires)
+    return res.status(400).json({ error: 'No verification in progress' });
+  if (new Date() > user.email_verification_expires)
+    return res.status(400).json({ error: 'Code expired' });
   if (String(code) !== String(user.email_verification_code)) {
     const nextAttempts = confirmRec && now < confirmRec.resetAt ? confirmRec.attempts + 1 : 1;
     verifyConfirmRate.set(confirmKey, { attempts: nextAttempts, resetAt: now + AUTH_WINDOW_MS });
     return res.status(400).json({ error: 'Invalid code' });
   }
   verifyConfirmRate.delete(confirmKey);
-  const updated = await prisma.user.update({ where: { id: user.id }, data: { email_verified: true, email_verification_code: null, email_verification_expires: null } });
+  const updated = await prisma.user.update({
+    where: { id: user.id },
+    data: { email_verified: true, email_verification_code: null, email_verification_expires: null },
+  });
   return res.json({ ok: true, user: sanitizeUser(updated) });
 });
 
@@ -1267,12 +1416,12 @@ authRouter.post('/test-email', requireAdmin as any, async (req, res) => {
   if (process.env.NODE_ENV === 'production') {
     return res.status(403).json({ error: 'Test endpoint not available in production' });
   }
-  
+
   const { email } = req.body;
   if (!email) {
     return res.status(400).json({ error: 'Email required' });
   }
-  
+
   try {
     debugLog('[email-test] Testing email functionality...');
     const sent = await sendVerificationEmail(email, '123456', 'VarsityHub Tester');

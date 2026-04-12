@@ -108,7 +108,7 @@ highlightsRouter.get('/', async (req: AuthedRequest, res) => {
       deleted_at: null,
     },
     orderBy: [{ created_at: 'desc' }],
-    take: 500, // Increased pool size
+    take: 100, // Reduced from 500 — sort in DB, not app memory
     select: baseSelect,
   });
 

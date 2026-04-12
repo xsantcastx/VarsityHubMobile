@@ -57,7 +57,9 @@ app.set('trust proxy', true);
 
 // pino-http ESM interop can require using the default property in some setups
 const pinoMiddleware = (typeof (pinoHttp as any) === 'function' ? (pinoHttp as any) : (pinoHttp as any).default) || pinoHttp;
-app.use(pinoMiddleware({ transport: { target: 'pino-pretty' } }));
+app.use(pinoMiddleware(
+  process.env.NODE_ENV === 'production' ? {} : { transport: { target: 'pino-pretty' } }
+));
 // In dev, disable CSP to allow loading media from API when app runs on a different origin
 app.use(helmet({ contentSecurityPolicy: false }));
 

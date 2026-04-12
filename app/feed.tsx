@@ -1,11 +1,30 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Modal,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
-import { Advertisement, Event, Game, Highlights, Notification as NotificationApi, Post as PostApi, User } from '@/api/entities';
+import {
+  Advertisement,
+  Event,
+  Game,
+  Highlights,
+  Notification as NotificationApi,
+  Post as PostApi,
+  User,
+} from '@/api/entities';
 import { BannerAd } from '@/components/BannerAd';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -17,12 +36,31 @@ import * as Linking from 'expo-linking';
 import * as Location from 'expo-location';
 
 import PostCard from '@/components/PostCard';
+import { useAuth } from '@/context/AuthProvider';
+import { avatarUrl, bannerUrl, feedImageUrl } from '@/utils/cloudinaryUrl';
 import GameVerticalFeedScreen from './game-details/GameVerticalFeedScreen';
 
-type GameItem = { id: string; title?: string; date?: string; location?: string; cover_image_url?: string; banner_url?: string | null; event_id?: string | null; home_score?: number | null; away_score?: number | null; winner?: string | null };
+type GameItem = {
+  id: string;
+  title?: string;
+  date?: string;
+  location?: string;
+  cover_image_url?: string;
+  banner_url?: string | null;
+  event_id?: string | null;
+  home_score?: number | null;
+  away_score?: number | null;
+  winner?: string | null;
+};
+type FeedPageResult = {
+  items: any[];
+  nextCursor: string | null;
+  followed_feed_meta?: any;
+  followed_teams_feed_meta?: any;
+};
 
 // RSVP Badge Component
-const RSVPBadge = ({ gameItem, onRSVPChange }: { gameItem: any, onRSVPChange?: () => void }) => {
+const RSVPBadge = ({ gameItem, onRSVPChange }: { gameItem: any; onRSVPChange?: () => void }) => {
   const colorScheme = useColorScheme();
   const [isRsvped, setIsRsvped] = useState(false);
   const [rsvpCount, setRsvpCount] = useState((gameItem as any).rsvpCount || 0);
@@ -55,20 +93,20 @@ const RSVPBadge = ({ gameItem, onRSVPChange }: { gameItem: any, onRSVPChange?: (
       Alert.alert('RSVP closed', 'You cannot RSVP to events that have already occurred.');
       return;
     }
-    
+
     setIsLoading(true);
     try {
       const newRsvpState = !isRsvped;
       const response: any = await Event.rsvp(gameItem.event_id, newRsvpState);
-      
+
       setIsRsvped(response.going || response.attending || false);
       setRsvpCount(response.count || 0);
-      
+
       Alert.alert(
         newRsvpState ? 'RSVP Confirmed' : 'RSVP Removed',
         newRsvpState ? 'You are now attending this game!' : 'You are no longer attending this game.'
       );
-      
+
       onRSVPChange?.();
     } catch (error: any) {
       const status = error?.status;
@@ -84,10 +122,12 @@ const RSVPBadge = ({ gameItem, onRSVPChange }: { gameItem: any, onRSVPChange?: (
     }
   };
 
-  const badgeText = isEventPast ? 'RSVP closed' : (isRsvped ? `${rsvpCount} going` : '+');
+  const badgeText = isEventPast ? 'RSVP closed' : isRsvped ? `${rsvpCount} going` : '+';
   const badgeA11yLabel = isEventPast
     ? `RSVP closed. ${rsvpCount} went`
-    : (isRsvped ? `${rsvpCount} going - Tap to remove RSVP` : 'Tap to RSVP');
+    : isRsvped
+      ? `${rsvpCount} going - Tap to remove RSVP`
+      : 'Tap to RSVP';
 
   return (
     <Pressable
@@ -99,22 +139,28 @@ const RSVPBadge = ({ gameItem, onRSVPChange }: { gameItem: any, onRSVPChange?: (
         bottom: 14,
         backgroundColor: isEventPast
           ? 'rgba(127, 29, 29, 0.92)'
-          : (isRsvped ? 'rgba(34, 197, 94, 0.9)' : (colorScheme === 'dark' ? 'rgba(30,41,59,0.85)' : 'rgba(0,0,0,0.75)')),
+          : isRsvped
+            ? 'rgba(34, 197, 94, 0.9)'
+            : colorScheme === 'dark'
+              ? 'rgba(30,41,59,0.85)'
+              : 'rgba(0,0,0,0.75)',
         paddingHorizontal: isEventPast ? 10 : 12,
         paddingVertical: 8,
         borderRadius: 20,
         zIndex: 1000,
-        opacity: (isLoading || isEventPast) ? 0.6 : 1,
+        opacity: isLoading || isEventPast ? 0.6 : 1,
       }}
       accessibilityRole="button"
       accessibilityLabel={badgeA11yLabel}
     >
-      <Text style={{
-        color: 'white',
-        fontSize: isEventPast ? 11 : 12,
-        fontWeight: isEventPast ? '700' : '600',
-        letterSpacing: isEventPast ? 0.2 : 0,
-      }}>
+      <Text
+        style={{
+          color: 'white',
+          fontSize: isEventPast ? 11 : 12,
+          fontWeight: isEventPast ? '700' : '600',
+          letterSpacing: isEventPast ? 0.2 : 0,
+        }}
+      >
         {badgeText}
       </Text>
     </Pressable>
@@ -124,7 +170,10 @@ const RSVPBadge = ({ gameItem, onRSVPChange }: { gameItem: any, onRSVPChange?: (
 const deriveTeamLabels = (game: GameItem): { teamA: string; teamB: string } => {
   const title = typeof game.title === 'string' ? game.title : '';
   if (title) {
-    const parts = title.split(/\s+vs\.?\s+/i).map((part) => part.trim()).filter(Boolean);
+    const parts = title
+      .split(/\s+vs\.?\s+/i)
+      .map(part => part.trim())
+      .filter(Boolean);
     if (parts.length >= 2) {
       return { teamA: parts[0], teamB: parts[1] };
     }
@@ -152,7 +201,10 @@ const shortenLabel = (label: string) => {
   return `${trimmed.slice(0, 9)}...`;
 };
 
-const buildVotePreviewEntry = (payload: any, labels: { teamA: string; teamB: string }): VotePreviewEntry => {
+const buildVotePreviewEntry = (
+  payload: any,
+  labels: { teamA: string; teamB: string }
+): VotePreviewEntry => {
   const toNumber = (value: any) => (typeof value === 'number' ? value : 0);
   const teamA = Math.max(0, toNumber(payload?.teamA ?? payload?.team_a));
   const teamB = Math.max(0, toNumber(payload?.teamB ?? payload?.team_b));
@@ -174,12 +226,12 @@ const buildVotePreviewEntry = (payload: any, labels: { teamA: string; teamB: str
   };
 };
 
-
 export default function FeedScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const colorScheme = useColorScheme() ?? 'light';
+  const { user: authUser } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [games, setGames] = useState<GameItem[]>([]);
@@ -197,18 +249,22 @@ export default function FeedScreen() {
   const [highlightPreview, setHighlightPreview] = useState<any | null>(null);
   const [sponsoredAds, setSponsoredAds] = useState<any[]>([]);
   const [followedPosts, setFollowedPosts] = useState<any[]>([]);
-  const [followedFeedMeta, setFollowedFeedMeta] = useState<{ following_count: number } | undefined>(undefined);
+  const [followedFeedMeta, setFollowedFeedMeta] = useState<{ following_count: number } | undefined>(
+    undefined
+  );
   const [followedTeamsPosts, setFollowedTeamsPosts] = useState<any[]>([]);
-  const [followedTeamsFeedMeta, setFollowedTeamsFeedMeta] = useState<{ followed_teams_count: number } | undefined>(undefined);
+  const [followedTeamsFeedMeta, setFollowedTeamsFeedMeta] = useState<
+    { followed_teams_count: number } | undefined
+  >(undefined);
   const voteSummariesRef = useRef<Record<string, VotePreviewEntry>>({});
   const [voteSummaries, setVoteSummaries] = useState<Record<string, VotePreviewEntry>>({});
   const [hasUnreadAlerts, setHasUnreadAlerts] = useState(false);
   const [notificationsMenuOpen, setNotificationsMenuOpen] = useState(false);
-  
+
   // State for notifications in modal
   const [notificationsList, setNotificationsList] = useState<any[]>([]);
   const [loadingNotifications, setLoadingNotifications] = useState(false);
-  
+
   // Ad rotation timer state - based on slide requirements
   const [currentAdIndex, setCurrentAdIndex] = useState(0);
   const [isShowingPromoCard, setIsShowingPromoCard] = useState(false);
@@ -216,15 +272,15 @@ export default function FeedScreen() {
 
   const preloadVoteSummaries = useCallback(async (gameList: GameItem[]) => {
     const candidates = gameList
-      .map((game) => ({ id: String(game.id), labels: deriveTeamLabels(game) }))
-      .filter((entry) => entry.id && !voteSummariesRef.current[entry.id]);
+      .map(game => ({ id: String(game.id), labels: deriveTeamLabels(game) }))
+      .filter(entry => entry.id && !voteSummariesRef.current[entry.id]);
     if (!candidates.length) return;
     const limited = candidates.slice(0, 12);
-    const ids = limited.map((e) => e.id);
+    const ids = limited.map(e => e.id);
     try {
       const batch = await Game.votesSummaryBatch(ids);
       const next = { ...voteSummariesRef.current };
-      limited.forEach((entry) => {
+      limited.forEach(entry => {
         const value = (batch as Record<string, any>)?.[entry.id];
         if (value) {
           try {
@@ -243,144 +299,176 @@ export default function FeedScreen() {
     }
   }, []);
 
-  const load = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
-    if (!silent) setLoading(true);
-    setError(null);
-    try {
-      let user: any = null;
+  const load = useCallback(
+    async ({ silent = false }: { silent?: boolean } = {}) => {
+      if (!silent) setLoading(true);
+      setError(null);
+      let specificErrorSet = false;
       try {
-        user = await User.me();
+        // Use cached auth user instead of redundant API call
+        let user: any = authUser ?? null;
+        if (!user) {
+          try {
+            user = await User.me();
+          } catch (err) {
+            if (__DEV__) console.warn('Feed load: unable to fetch user', err);
+          }
+        }
         setMe(user);
-      } catch (err) {
-        if (__DEV__) console.warn('Feed load: unable to fetch user', err);
-      }
-      const countryCode = typeof user?.preferences?.country_code === 'string'
-        ? String(user.preferences.country_code).toUpperCase()
-        : undefined;
-      const todayISO = new Date().toISOString().slice(0, 10);
-      // Load games with better error handling
-      let gamesData: any = null;
-      try {
-        gamesData = await Game.list('-date', { limit: 30 });
-      } catch (err: any) {
-        console.error('[Feed] Failed to load games:', err);
-        // If it's a network error, show a more helpful message
-        if (err?.isNetworkError || err?.status === 0) {
-          setError('Unable to connect to server. Please check your internet connection.');
-        } else if (err?.status === 401 || err?.status === 403) {
-          setError('Please sign in to view games.');
-        } else {
-          setError('Unable to load games. Please try again.');
+        const countryCode =
+          typeof user?.preferences?.country_code === 'string'
+            ? String(user.preferences.country_code).toUpperCase()
+            : undefined;
+        const todayISO = new Date().toISOString().slice(0, 10);
+        // Load games with better error handling
+        let gamesData: any = null;
+        try {
+          gamesData = await Game.list('-date', { limit: 30 });
+        } catch (err: any) {
+          console.error('[Feed] Failed to load games:', err);
+          // If it's a network error, show a more helpful message
+          if (err?.isNetworkError || err?.status === 0) {
+            setError('Unable to connect to server. Please check your internet connection.');
+          } else if (err?.status === 401 || err?.status === 403) {
+            setError('Please sign in to view games.');
+          } else {
+            setError('Unable to load games. Please try again.');
+          }
+          specificErrorSet = true;
+          gamesData = null;
         }
-        gamesData = null;
-      }
-      
-      // Load followed posts (people + teams) when signed in, highlights, and ads
-      const [followedPage, followedTeamsPage, highlightsData, forFeedAds] = await Promise.all([
-        user
-          ? PostApi.filterPage({ followed_only: true }, null, 20, '-created_at').catch(() => ({ items: [], nextCursor: null, followed_feed_meta: undefined }))
-          : Promise.resolve({ items: [], nextCursor: null, followed_feed_meta: undefined }),
-        user
-          ? PostApi.filterPage({ followed_teams: true }, null, 20, '-created_at').catch(() => ({ items: [], nextCursor: null, followed_teams_feed_meta: undefined }))
-          : Promise.resolve({ items: [], nextCursor: null, followed_teams_feed_meta: undefined }),
-        Highlights.fetch(countryCode ? { country: countryCode, limit: 20 } : { limit: 20 }).catch((err) => {
-          if (__DEV__) console.warn('Highlights preview load failed', err);
-          return null;
-        }),
-        Advertisement.forFeed(todayISO, undefined, 5).catch(() => null),
-      ]);
-      setFollowedPosts(Array.isArray(followedPage?.items) ? followedPage.items : []);
-      setFollowedFeedMeta(followedPage?.followed_feed_meta);
-      setFollowedTeamsPosts(Array.isArray(followedTeamsPage?.items) ? followedTeamsPage.items : []);
-      setFollowedTeamsFeedMeta(followedTeamsPage?.followed_teams_feed_meta);
-      
-      // Handle cursor-based response or array
-      let normalizedGames: any[] = [];
-      let cursor: string | null = null;
-      if (gamesData && typeof gamesData === 'object' && 'items' in gamesData) {
-        normalizedGames = Array.isArray(gamesData.items) ? gamesData.items : [];
-        cursor = gamesData.nextCursor || null;
-      } else if (Array.isArray(gamesData)) {
-        normalizedGames = gamesData;
-      } else if (gamesData === null || gamesData === undefined) {
-        // If games failed to load, don't inject sample data - show error instead
-        normalizedGames = [];
-      }
-      
-      // Only inject sample events if we successfully loaded but got empty results
-      // (not if the request failed)
-      if ((!normalizedGames || normalizedGames.length === 0) && gamesData !== null) {
-        const now = new Date();
-        const addDays = (d: number) => new Date(now.getTime() + d * 86400000).toISOString();
-        normalizedGames = [
-          {
-            id: 'sample-warriors-cavaliers',
-            title: 'Golden State Warriors vs. Cleveland Cavaliers',
-            date: addDays(2),
-            location: 'Chase Center, San Francisco, CA 94158',
-            cover_image_url: 'https://images.unsplash.com/photo-1517649763962-0c623066013b?q=80&w=1280&auto=format&fit=crop',
-          },
-          {
-            id: 'sample-duke-unc',
-            title: 'Duke Blue Devils vs. North Carolina Tar Heels',
-            date: addDays(5),
-            location: 'Cameron Indoor Stadium, Durham, NC 27708',
-            cover_image_url: 'https://images.unsplash.com/photo-1518655048521-f130df041f66?q=80&w=1280&auto=format&fit=crop',
-          },
-          {
-            id: 'sample-patriots-jets',
-            title: 'New England Patriots vs. New York Jets',
-            date: addDays(7),
-            location: 'Gillette Stadium, Foxborough, MA 02035',
-            cover_image_url: 'https://images.unsplash.com/photo-1504457049873-30ffae0d3d31?q=80&w=1280&auto=format&fit=crop',
-          },
-        ];
-      }
-      setGames(normalizedGames);
-      setGamesCursor(cursor);
-      setHasMoreGames(!!cursor);
-      if (highlightsData) {
-        const merged: any[] = [];
-        if (Array.isArray(highlightsData.nationalTop)) merged.push(...highlightsData.nationalTop);
-        if (Array.isArray(highlightsData.ranked)) merged.push(...highlightsData.ranked);
-        const firstWithMedia = merged.find((item) => typeof item?.media_url === 'string' && item.media_url);
-        setHighlightPreview(firstWithMedia || null);
-      } else {
+
+        // Load followed posts (people + teams) when signed in, highlights, and ads
+        const emptyFollowedPage: FeedPageResult = {
+          items: [],
+          nextCursor: null,
+          followed_feed_meta: undefined,
+        };
+        const emptyFollowedTeamsPage: FeedPageResult = {
+          items: [],
+          nextCursor: null,
+          followed_teams_feed_meta: undefined,
+        };
+        const [followedPage, followedTeamsPage, highlightsData, forFeedAds] = await Promise.all([
+          user
+            ? (PostApi.filterPage({ followed_only: true }, null, 20, '-created_at').catch(
+                () => emptyFollowedPage
+              ) as Promise<FeedPageResult>)
+            : Promise.resolve(emptyFollowedPage),
+          user
+            ? (PostApi.filterPage({ followed_teams: true }, null, 20, '-created_at').catch(
+                () => emptyFollowedTeamsPage
+              ) as Promise<FeedPageResult>)
+            : Promise.resolve(emptyFollowedTeamsPage),
+          Highlights.fetch(countryCode ? { country: countryCode, limit: 20 } : { limit: 20 }).catch(
+            err => {
+              if (__DEV__) console.warn('Highlights preview load failed', err);
+              return null;
+            }
+          ),
+          Advertisement.forFeed(todayISO, undefined, 5).catch(() => null),
+        ]);
+        setFollowedPosts(Array.isArray(followedPage?.items) ? followedPage.items : []);
+        setFollowedFeedMeta(followedPage?.followed_feed_meta);
+        setFollowedTeamsPosts(
+          Array.isArray(followedTeamsPage?.items) ? followedTeamsPage.items : []
+        );
+        setFollowedTeamsFeedMeta(followedTeamsPage?.followed_teams_feed_meta);
+
+        // Handle cursor-based response or array
+        let normalizedGames: any[] = [];
+        let cursor: string | null = null;
+        if (gamesData && typeof gamesData === 'object' && 'items' in gamesData) {
+          normalizedGames = Array.isArray(gamesData.items) ? gamesData.items : [];
+          cursor = gamesData.nextCursor || null;
+        } else if (Array.isArray(gamesData)) {
+          normalizedGames = gamesData;
+        } else if (gamesData === null || gamesData === undefined) {
+          // If games failed to load, don't inject sample data - show error instead
+          normalizedGames = [];
+        }
+
+        // Only inject sample events if we successfully loaded but got empty results
+        // (not if the request failed)
+        if ((!normalizedGames || normalizedGames.length === 0) && gamesData !== null) {
+          const now = new Date();
+          const addDays = (d: number) => new Date(now.getTime() + d * 86400000).toISOString();
+          normalizedGames = [
+            {
+              id: 'sample-warriors-cavaliers',
+              title: 'Golden State Warriors vs. Cleveland Cavaliers',
+              date: addDays(2),
+              location: 'Chase Center, San Francisco, CA 94158',
+              cover_image_url:
+                'https://images.unsplash.com/photo-1517649763962-0c623066013b?q=80&w=1280&auto=format&fit=crop',
+            },
+            {
+              id: 'sample-duke-unc',
+              title: 'Duke Blue Devils vs. North Carolina Tar Heels',
+              date: addDays(5),
+              location: 'Cameron Indoor Stadium, Durham, NC 27708',
+              cover_image_url:
+                'https://images.unsplash.com/photo-1518655048521-f130df041f66?q=80&w=1280&auto=format&fit=crop',
+            },
+            {
+              id: 'sample-patriots-jets',
+              title: 'New England Patriots vs. New York Jets',
+              date: addDays(7),
+              location: 'Gillette Stadium, Foxborough, MA 02035',
+              cover_image_url:
+                'https://images.unsplash.com/photo-1504457049873-30ffae0d3d31?q=80&w=1280&auto=format&fit=crop',
+            },
+          ];
+        }
+        setGames(normalizedGames);
+        setGamesCursor(cursor);
+        setHasMoreGames(!!cursor);
+        if (highlightsData) {
+          const merged: any[] = [];
+          if (Array.isArray(highlightsData.nationalTop)) merged.push(...highlightsData.nationalTop);
+          if (Array.isArray(highlightsData.ranked)) merged.push(...highlightsData.ranked);
+          const firstWithMedia = merged.find(
+            item => typeof item?.media_url === 'string' && item.media_url
+          );
+          setHighlightPreview(firstWithMedia || null);
+        } else {
+          setHighlightPreview(null);
+        }
+        if (forFeedAds && Array.isArray((forFeedAds as any).ads)) {
+          const list = ((forFeedAds as any).ads as any[]).filter(a => !!a); // Allow ads with or without banners
+          // Shuffle order for fairness
+          for (let i = list.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [list[i], list[j]] = [list[j], list[i]];
+          }
+          setSponsoredAds(list);
+        } else {
+          setSponsoredAds([]);
+        }
+      } catch (e: any) {
+        console.error('[Feed] Failed to load feed:', e);
+        // Only set generic error if we haven't already set a specific one
+        if (!specificErrorSet) {
+          if (e?.isNetworkError || e?.status === 0) {
+            setError('Unable to connect to server. Please check your internet connection.');
+          } else if (e?.status === 401 || e?.status === 403) {
+            setError('Please sign in to view your feed.');
+          } else {
+            setError('Unable to load feed. Please try again.');
+          }
+        }
+        setGames([]);
         setHighlightPreview(null);
+        setFollowedPosts([]);
+        setFollowedFeedMeta(undefined);
+        setFollowedTeamsPosts([]);
+        setFollowedTeamsFeedMeta(undefined);
+      } finally {
+        if (!silent) setLoading(false);
       }
-      if (forFeedAds && Array.isArray((forFeedAds as any).ads)) {
-        const list = ((forFeedAds as any).ads as any[]).filter((a) => !!a); // Allow ads with or without banners
-        // Shuffle order for fairness
-        for (let i = list.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [list[i], list[j]] = [list[j], list[i]];
-        }
-        setSponsoredAds(list);
-      } else {
-        setSponsoredAds([]);
-      }
-    } catch (e: any) {
-      console.error('[Feed] Failed to load feed:', e);
-      // Only set generic error if we haven't already set a specific one
-      if (!error) {
-        if (e?.isNetworkError || e?.status === 0) {
-          setError('Unable to connect to server. Please check your internet connection.');
-        } else if (e?.status === 401 || e?.status === 403) {
-          setError('Please sign in to view your feed.');
-        } else {
-          setError('Unable to load feed. Please try again.');
-        }
-      }
-      setGames([]);
-      setHighlightPreview(null);
-      setFollowedPosts([]);
-      setFollowedFeedMeta(undefined);
-      setFollowedTeamsPosts([]);
-      setFollowedTeamsFeedMeta(undefined);
-    } finally {
-      if (!silent) setLoading(false);
-    }
-  }, [error]);
+    },
+    [authUser]
+  );
 
   const _loadMore = useCallback(async () => {
     if (loadingMore || !hasMoreGames || !gamesCursor) return;
@@ -388,7 +476,7 @@ export default function FeedScreen() {
     setLoadingMore(true);
     try {
       const nextData = await Game.list('-date');
-      
+
       // Handle cursor-based response or array
       let normalizedGames: any[] = [];
       let cursor: string | null = null;
@@ -426,13 +514,13 @@ export default function FeedScreen() {
       // Check for unread notifications when feed gains focus
       void (async () => {
         try {
-          const timeoutPromise = new Promise((_, reject) => 
+          const timeoutPromise = new Promise((_, reject) =>
             setTimeout(() => reject(new Error('Notification check timeout')), 10000)
           );
-          const payload = await Promise.race([
+          const payload = (await Promise.race([
             NotificationApi.unreadCount(),
-            timeoutPromise
-          ]) as any;
+            timeoutPromise,
+          ])) as any;
           setHasUnreadAlerts(Boolean(payload?.has_unread));
         } catch (err: any) {
           // ignore notification poll errors, but log in dev
@@ -441,7 +529,7 @@ export default function FeedScreen() {
           }
         }
       })();
-    }, [load]),
+    }, [load])
   );
 
   // Lightweight polling to keep unread dots fresh while on the Feed
@@ -450,13 +538,13 @@ export default function FeedScreen() {
     const tick = async () => {
       try {
         // Add timeout to prevent hanging
-        const timeoutPromise = new Promise((_, reject) => 
+        const timeoutPromise = new Promise((_, reject) =>
           setTimeout(() => reject(new Error('Notification poll timeout')), 10000)
         );
-        const payload = await Promise.race([
+        const payload = (await Promise.race([
           NotificationApi.unreadCount(),
-          timeoutPromise
-        ]) as any;
+          timeoutPromise,
+        ])) as any;
         if (!mounted) return;
         setHasUnreadAlerts(Boolean(payload?.has_unread));
       } catch (err: any) {
@@ -466,14 +554,19 @@ export default function FeedScreen() {
         }
       }
     };
-    const id = setInterval(tick, 60000); // Poll every 60 seconds (reduced frequency to prevent timeouts)
-    return () => { mounted = false; clearInterval(id); };
+    // Poll every 120s — tab layout already polls at 60s for the profile badge.
+    // This is only for the in-feed bell dot; staleness up to 2 min is fine.
+    const id = setInterval(tick, 120000);
+    return () => {
+      mounted = false;
+      clearInterval(id);
+    };
   }, []);
 
   // Load notifications when modal opens
   useEffect(() => {
     if (!notificationsMenuOpen) return;
-    
+
     const loadModalData = async () => {
       setLoadingNotifications(true);
       try {
@@ -485,7 +578,7 @@ export default function FeedScreen() {
         setLoadingNotifications(false);
       }
     };
-    
+
     void loadModalData();
   }, [notificationsMenuOpen]);
 
@@ -503,9 +596,11 @@ export default function FeedScreen() {
     const q = query.toLowerCase().trim();
     const zip = q.match(/\b\d{5}\b/);
     if (zip) {
-      return games.filter((g) => (g.location || '').toLowerCase().includes(zip[0]));
+      return games.filter(g => (g.location || '').toLowerCase().includes(zip[0]));
     }
-    return games.filter((g) => (g.title || '').toLowerCase().includes(q) || (g.location || '').toLowerCase().includes(q));
+    return games.filter(
+      g => (g.title || '').toLowerCase().includes(q) || (g.location || '').toLowerCase().includes(q)
+    );
   }, [games, query]);
 
   // Separate upcoming and past events
@@ -513,8 +608,8 @@ export default function FeedScreen() {
     const now = new Date();
     const upcoming: GameItem[] = [];
     const past: GameItem[] = [];
-    
-    filtered.forEach((game) => {
+
+    filtered.forEach(game => {
       if (game.date) {
         const gameDate = new Date(game.date);
         if (gameDate >= now) {
@@ -527,7 +622,7 @@ export default function FeedScreen() {
         upcoming.push(game);
       }
     });
-    
+
     return { upcomingEvents: upcoming, pastEvents: past };
   }, [filtered]);
 
@@ -536,34 +631,36 @@ export default function FeedScreen() {
   // 2+ ads: Show each ad for 1:30 (90 seconds), then promo card for 10 seconds, cycle repeats
   useEffect(() => {
     const activeAdsCount = sponsoredAds?.length || 0;
-    
+
     if (activeAdsCount === 0) {
       // No ads, always show promo card
       setIsShowingPromoCard(true);
       return;
     }
-    
+
     // Reset cycle start time when ads change
     adCycleStartTimeRef.current = Date.now();
     setCurrentAdIndex(0);
     setIsShowingPromoCard(false);
-    
+
     // Calculate timing based on number of ads
-    const AD_DURATION_MS = activeAdsCount === 1 
-      ? 2 * 60 * 1000  // 2 minutes for 1 ad
-      : 90 * 1000;      // 1:30 (90 seconds) for 2+ ads
-    const PROMO_DURATION_MS = activeAdsCount === 1
-      ? 15 * 1000       // 15 seconds promo for 1 ad
-      : 10 * 1000;      // 10 seconds promo for 2+ ads
-    const CYCLE_DURATION_MS = (AD_DURATION_MS * activeAdsCount) + PROMO_DURATION_MS;
+    const AD_DURATION_MS =
+      activeAdsCount === 1
+        ? 2 * 60 * 1000 // 2 minutes for 1 ad
+        : 90 * 1000; // 1:30 (90 seconds) for 2+ ads
+    const PROMO_DURATION_MS =
+      activeAdsCount === 1
+        ? 15 * 1000 // 15 seconds promo for 1 ad
+        : 10 * 1000; // 10 seconds promo for 2+ ads
+    const CYCLE_DURATION_MS = AD_DURATION_MS * activeAdsCount + PROMO_DURATION_MS;
     const totalAdTime = AD_DURATION_MS * activeAdsCount;
-    
+
     // Update every second to keep rotation smooth
     const interval = setInterval(() => {
       const now = Date.now();
       const elapsed = now - adCycleStartTimeRef.current;
       const cyclePosition = elapsed % CYCLE_DURATION_MS;
-      
+
       // Check if we're in promo card phase
       if (cyclePosition >= totalAdTime) {
         // Show promo card
@@ -573,10 +670,10 @@ export default function FeedScreen() {
         setIsShowingPromoCard(false);
         const adSlot = Math.floor(cyclePosition / AD_DURATION_MS);
         const newIndex = Math.min(adSlot % activeAdsCount, activeAdsCount - 1);
-        setCurrentAdIndex((prev) => prev !== newIndex ? newIndex : prev);
+        setCurrentAdIndex(prev => (prev !== newIndex ? newIndex : prev));
       }
     }, 1000);
-    
+
     return () => clearInterval(interval);
   }, [sponsoredAds?.length]);
 
@@ -585,7 +682,7 @@ export default function FeedScreen() {
   const upcomingWithAds = useMemo(() => {
     const result: Array<GameItem | { type: 'ad'; ad: any | null }> = [];
     const activeAdsCount = sponsoredAds?.length || 0;
-    
+
     // If no events exist, show ad/promo card alone
     if (upcomingEvents.length === 0) {
       if (isShowingPromoCard || activeAdsCount === 0) {
@@ -595,10 +692,10 @@ export default function FeedScreen() {
       }
       return result;
     }
-    
+
     upcomingEvents.forEach((event, index) => {
       result.push(event);
-      
+
       // Insert ad/promo card AFTER the first event (index 0)
       if (index === 0) {
         if (isShowingPromoCard || activeAdsCount === 0) {
@@ -610,12 +707,13 @@ export default function FeedScreen() {
         }
       }
     });
-    
+
     return result;
   }, [upcomingEvents, sponsoredAds, currentAdIndex, isShowingPromoCard]);
 
   const verticalFeedTitle = 'All Highlights';
-  const verticalFeedPreviewImage = typeof highlightPreview?.media_url === 'string' ? highlightPreview.media_url : null;
+  const verticalFeedPreviewImage =
+    typeof highlightPreview?.media_url === 'string' ? highlightPreview.media_url : null;
   const verticalFeedSubtitleText = highlightPreview?.title
     ? `Featured: ${highlightPreview.title}`
     : 'Tap to watch top plays from every game.';
@@ -638,9 +736,10 @@ export default function FeedScreen() {
     }
   }, []);
 
-  const userCountryCode = typeof me?.preferences?.country_code === 'string'
-    ? String(me.preferences.country_code).toUpperCase()
-    : undefined;
+  const userCountryCode =
+    typeof me?.preferences?.country_code === 'string'
+      ? String(me.preferences.country_code).toUpperCase()
+      : undefined;
 
   const openVerticalFeed = useCallback(() => {
     setActiveVerticalFeedGameId(null);
@@ -666,7 +765,12 @@ export default function FeedScreen() {
           marginBottom: 12,
         }}
       >
-        <Text style={{ color: colorScheme === 'dark' ? Colors[colorScheme].text : '#92400E', fontWeight: '700' }}>
+        <Text
+          style={{
+            color: colorScheme === 'dark' ? Colors[colorScheme].text : '#92400E',
+            fontWeight: '700',
+          }}
+        >
           Verify your email to unlock posting and ads. Tap to verify.
         </Text>
       </Pressable>
@@ -677,7 +781,7 @@ export default function FeedScreen() {
     <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
       {/* Navbar title intentionally swapped to show Feed in the stack and VarsityHub in the UI header */}
       <Stack.Screen options={{ title: 'Feed' }} />
-      
+
       {/* Enhanced header with gradient background and safe area */}
       <LinearGradient
         colors={colorScheme === 'dark' ? ['#1e293b', '#0f172a'] : ['#ffffff', '#f8fafc']}
@@ -686,37 +790,41 @@ export default function FeedScreen() {
         <View style={styles.headerRow}>
           {/* Notifications on LEFT */}
           <View style={styles.headerActions}>
-            <Pressable 
-              onPress={() => setNotificationsMenuOpen(true)} 
-              style={styles.iconButton} 
-              accessibilityRole="button" 
+            <Pressable
+              onPress={() => setNotificationsMenuOpen(true)}
+              style={styles.iconButton}
+              accessibilityRole="button"
               accessibilityLabel="Open notifications"
             >
               <View>
                 <Ionicons name="notifications-outline" size={24} color={Colors[colorScheme].text} />
-                {hasUnreadAlerts ? (
-                  <View style={styles.alertDot} />
-                ) : null}
+                {hasUnreadAlerts ? <View style={styles.alertDot} /> : null}
               </View>
             </Pressable>
           </View>
           <View style={{ flex: 1 }} />
-          <Pressable 
-            style={styles.brandRow} 
+          <Pressable
+            style={styles.brandRow}
             onPress={openInstagram}
             accessibilityRole="button"
             accessibilityLabel="Open VarsityHub Instagram"
           >
             <Image source={require('../assets/images/logo.svg')} style={styles.logoImage} />
-            <Text style={[styles.brand, { color: Colors[colorScheme].text }]} numberOfLines={1} allowFontScaling={false}>Varsity Hub</Text>
+            <Text
+              style={[styles.brand, { color: Colors[colorScheme].text }]}
+              numberOfLines={1}
+              allowFontScaling={false}
+            >
+              Varsity Hub
+            </Text>
           </Pressable>
           <View style={{ flex: 1 }} />
           {/* Messages on RIGHT */}
           <View style={styles.headerActions}>
-            <Pressable 
-              onPress={() => void router.push('/messages')} 
-              style={styles.iconButton} 
-              accessibilityRole="button" 
+            <Pressable
+              onPress={() => void router.push('/messages')}
+              style={styles.iconButton}
+              accessibilityRole="button"
               accessibilityLabel="Open messages"
             >
               <Ionicons name="chatbubbles-outline" size={24} color={Colors[colorScheme].text} />
@@ -726,432 +834,247 @@ export default function FeedScreen() {
       </LinearGradient>
 
       <View style={styles.contentContainer}>
-
-      {error && (
-        <View style={{ marginBottom: 8, paddingHorizontal: 16 }}>
-          <Text style={[styles.error, { color: Colors[colorScheme].text }]}>{error}</Text>
-          <Pressable
-            onPress={() => void router.push('/sign-in')}
-            style={{ paddingVertical: 8 }}
-            accessibilityLabel="Sign in to load personalized feed"
-            accessibilityRole="button"
-          >
-            <Text style={{ color: Colors[colorScheme].tint, fontWeight: '600' }}>Sign in to load personalized feed</Text>
-          </Pressable>
-        </View>
-      )}
-      {/* Maps Button - Navigate to nearby games/teams/events */}
-      <View
-        style={[styles.mapsButton, { backgroundColor: '#0A84FF' }]}
-        onStartShouldSetResponder={() => true}
-        onResponderRelease={async () => {
-          try {
-            const { status } = await Location.requestForegroundPermissionsAsync();
-            if (status === 'granted') {
-              const location = await Location.getCurrentPositionAsync({});
-              router.push({
-                pathname: '/game-map',
-                params: { 
-                  lat: location.coords.latitude.toString(),
-                  lng: location.coords.longitude.toString()
-                }
-              });
-            } else {
+        {error && (
+          <View style={{ marginBottom: 8, paddingHorizontal: 16 }}>
+            <Text style={[styles.error, { color: Colors[colorScheme].text }]}>{error}</Text>
+            <Pressable
+              onPress={() => void router.push('/sign-in')}
+              style={{ paddingVertical: 8 }}
+              accessibilityLabel="Sign in to load personalized feed"
+              accessibilityRole="button"
+            >
+              <Text style={{ color: Colors[colorScheme].tint, fontWeight: '600' }}>
+                Sign in to load personalized feed
+              </Text>
+            </Pressable>
+          </View>
+        )}
+        {/* Maps Button - Navigate to nearby games/teams/events */}
+        <View
+          style={[styles.mapsButton, { backgroundColor: '#0A84FF' }]}
+          onStartShouldSetResponder={() => true}
+          onResponderRelease={async () => {
+            try {
+              const { status } = await Location.requestForegroundPermissionsAsync();
+              if (status === 'granted') {
+                const location = await Location.getCurrentPositionAsync({});
+                router.push({
+                  pathname: '/game-map',
+                  params: {
+                    lat: location.coords.latitude.toString(),
+                    lng: location.coords.longitude.toString(),
+                  },
+                });
+              } else {
+                router.push('/game-map');
+              }
+            } catch (error) {
+              console.error('Error getting location:', error);
               router.push('/game-map');
             }
-          } catch (error) {
-            console.error('Error getting location:', error);
-            router.push('/game-map');
-          }
-        }}
-        accessibilityRole="button"
-        accessibilityLabel="View nearby games on map"
-        accessibilityHint="Double tap to open map"
-        accessible
-      >
-        <Ionicons name="map" size={24} color="#FFFFFF" />
-        <Text style={styles.mapsButtonText}>View Nearby Games on Map</Text>
-        <Ionicons name="chevron-forward" size={20} color="#FFFFFF" />
-      </View>
-
-      <Text style={[styles.helper, { color: Colors[colorScheme].mutedText }]}>Showing upcoming and recent games in your area.</Text>
-
-      {loading && (
-        <View style={styles.center}>
-          <ActivityIndicator />
+          }}
+          accessibilityRole="button"
+          accessibilityLabel="View nearby games on map"
+          accessibilityHint="Double tap to open map"
+          accessible
+        >
+          <Ionicons name="map" size={24} color="#FFFFFF" />
+          <Text style={styles.mapsButtonText}>View Nearby Games on Map</Text>
+          <Ionicons name="chevron-forward" size={20} color="#FFFFFF" />
         </View>
-      )}
-      {!loading && upcomingEvents.length === 0 && pastEvents.length === 0 && !error && (
-  <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>No games found.</Text>
-      )}
 
-      <ScrollView
-        style={{ flex: 1, overflow: 'hidden' }}
-        contentContainerStyle={{
-          paddingVertical: 12,
-          paddingBottom: Math.max(tabBarHeight + 16, insets.bottom + 80),
-          overflow: 'hidden',
-        }}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={Colors[colorScheme].tint}
-          />
-        }
-        showsVerticalScrollIndicator={false}
-      >
-        {renderEmailReminder()}
+        <Text style={[styles.helper, { color: Colors[colorScheme].mutedText }]}>
+          Showing upcoming and recent games in your area.
+        </Text>
 
-        {/* Upcoming Events with Ads — Dark hero game cards at top */}
-        {upcomingWithAds.length > 0 && (
-          <View style={{ gap: 20, marginBottom: 24 }}>
-            {upcomingWithAds.map((item, index) => {
-              // Check if this is an ad
-              if ('type' in item && item.type === 'ad') {
-                const adData = item.ad;
-                
-                // If no ad data, show promotional card
-                if (!adData) {
-                  return (
-                    <View key={`promo-${index}`} style={[
-                      styles.sponsoredFeedCard,
-                      {
-                        backgroundColor: Colors[colorScheme].card,
-                        borderColor: Colors[colorScheme].border,
-                      }
-                    ]}>
-                      <Text style={[styles.sponsoredLabel, { color: Colors[colorScheme].mutedText }]}>
-                        AD SPACE AVAILABLE
-                      </Text>
-                      <Pressable 
+        {loading && (
+          <View style={styles.center}>
+            <ActivityIndicator />
+          </View>
+        )}
+        {!loading && upcomingEvents.length === 0 && pastEvents.length === 0 && !error && (
+          <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>
+            No games found.
+          </Text>
+        )}
+
+        <ScrollView
+          style={{ flex: 1, overflow: 'hidden' }}
+          contentContainerStyle={{
+            paddingVertical: 12,
+            paddingBottom: Math.max(tabBarHeight + 16, insets.bottom + 80),
+            overflow: 'hidden',
+          }}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={Colors[colorScheme].tint}
+            />
+          }
+          showsVerticalScrollIndicator={false}
+        >
+          {renderEmailReminder()}
+
+          {/* Upcoming Events with Ads — Dark hero game cards at top */}
+          {upcomingWithAds.length > 0 && (
+            <View style={{ gap: 20, marginBottom: 24 }}>
+              {upcomingWithAds.map((item, index) => {
+                // Check if this is an ad
+                if ('type' in item && item.type === 'ad') {
+                  const adData = item.ad;
+
+                  // If no ad data, show promotional card
+                  if (!adData) {
+                    return (
+                      <View
+                        key={`promo-${index}`}
                         style={[
-                          styles.promoPlaceholder,
+                          styles.sponsoredFeedCard,
                           {
-                            backgroundColor: colorScheme === 'dark' ? '#111827' : '#F5F9FF',
-                            borderColor: colorScheme === 'dark' ? '#1F2937' : '#C7DBFF',
-                          }
+                            backgroundColor: Colors[colorScheme].card,
+                            borderColor: Colors[colorScheme].border,
+                          },
                         ]}
-                        onPress={() => void router.push('/submit-ad')}
-                        accessibilityRole="button"
-                        accessibilityLabel="Reserve your ad space"
                       >
-                        <View style={[
-                          styles.promoIcon,
-                          { borderColor: colorScheme === 'dark' ? '#60A5FA' : '#2563EB', justifyContent: 'center', alignItems: 'center' },
-                        ]}>
-                          <Ionicons name="megaphone-outline" size={24} color={colorScheme === 'dark' ? '#60A5FA' : '#2563EB'} />
-                        </View>
-                        <View style={{ flex: 1, paddingRight: 12 }}>
-                          <Text style={[
-                            styles.promoTitle,
-                            { color: colorScheme === 'dark' ? '#BFDBFE' : '#1E3A8A' },
-                          ]}>
-                            Reserve Your Ad Space Now
-                          </Text>
-                          <Text style={[
-                            styles.promoSubtitle,
-                            { color: colorScheme === 'dark' ? '#94A3B8' : '#64748B' },
-                          ]}>
-                            Promote your program, fundraiser, or business to local fans.
-                          </Text>
-                        </View>
-                        <View style={[
-                          styles.promoteCtaBanner,
-                          { backgroundColor: colorScheme === 'dark' ? '#2563EB' : '#2563EB' },
-                        ]}>
-                          <View style={[
-                            styles.promoteCtaIcon,
-                            { borderColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center' },
-                          ]}>
-                            <Ionicons name="arrow-forward" size={12} color="#FFFFFF" />
+                        <Text
+                          style={[styles.sponsoredLabel, { color: Colors[colorScheme].mutedText }]}
+                        >
+                          AD SPACE AVAILABLE
+                        </Text>
+                        <Pressable
+                          style={[
+                            styles.promoPlaceholder,
+                            {
+                              backgroundColor: colorScheme === 'dark' ? '#111827' : '#F5F9FF',
+                              borderColor: colorScheme === 'dark' ? '#1F2937' : '#C7DBFF',
+                            },
+                          ]}
+                          onPress={() => void router.push('/submit-ad')}
+                          accessibilityRole="button"
+                          accessibilityLabel="Reserve your ad space"
+                        >
+                          <View
+                            style={[
+                              styles.promoIcon,
+                              {
+                                borderColor: colorScheme === 'dark' ? '#60A5FA' : '#2563EB',
+                                justifyContent: 'center',
+                                alignItems: 'center',
+                              },
+                            ]}
+                          >
+                            <Ionicons
+                              name="megaphone-outline"
+                              size={24}
+                              color={colorScheme === 'dark' ? '#60A5FA' : '#2563EB'}
+                            />
                           </View>
-                          <Text style={styles.promoteCtaText}>Click Here</Text>
+                          <View style={{ flex: 1, paddingRight: 12 }}>
+                            <Text
+                              style={[
+                                styles.promoTitle,
+                                { color: colorScheme === 'dark' ? '#BFDBFE' : '#1E3A8A' },
+                              ]}
+                            >
+                              Reserve Your Ad Space Now
+                            </Text>
+                            <Text
+                              style={[
+                                styles.promoSubtitle,
+                                { color: colorScheme === 'dark' ? '#94A3B8' : '#64748B' },
+                              ]}
+                            >
+                              Promote your program, fundraiser, or business to local fans.
+                            </Text>
+                          </View>
+                          <View
+                            style={[
+                              styles.promoteCtaBanner,
+                              { backgroundColor: colorScheme === 'dark' ? '#2563EB' : '#2563EB' },
+                            ]}
+                          >
+                            <View
+                              style={[
+                                styles.promoteCtaIcon,
+                                {
+                                  borderColor: '#FFFFFF',
+                                  justifyContent: 'center',
+                                  alignItems: 'center',
+                                },
+                              ]}
+                            >
+                              <Ionicons name="arrow-forward" size={12} color="#FFFFFF" />
+                            </View>
+                            <Text style={styles.promoteCtaText}>Click Here</Text>
+                          </View>
+                        </Pressable>
+                      </View>
+                    );
+                  }
+
+                  // Otherwise show actual ad
+                  return (
+                    <View
+                      key={`ad-${index}`}
+                      style={[
+                        styles.sponsoredFeedCard,
+                        {
+                          backgroundColor: Colors[colorScheme].card,
+                          borderColor: Colors[colorScheme].border,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[styles.sponsoredLabel, { color: Colors[colorScheme].mutedText }]}
+                      >
+                        SPONSORED
+                      </Text>
+                      {adData.banner_url ? (
+                        <BannerAd
+                          bannerUrl={adData.banner_url}
+                          fitMode={adData.banner_fit_mode || 'fill'}
+                          targetUrl={adData.target_url}
+                          businessName={adData.business_name}
+                          description={adData.description}
+                          aspectRatio={3.5}
+                        />
+                      ) : (
+                        <View
+                          style={[
+                            styles.adPlaceholder,
+                            { backgroundColor: colorScheme === 'dark' ? '#1E293B' : '#F3F4F6' },
+                          ]}
+                        >
+                          <Ionicons
+                            name="megaphone-outline"
+                            size={48}
+                            color={colorScheme === 'dark' ? '#64748B' : '#9CA3AF'}
+                          />
                         </View>
-                      </Pressable>
+                      )}
                     </View>
                   );
                 }
-                
-                // Otherwise show actual ad
-                return (
-                  <View key={`ad-${index}`} style={[
-                    styles.sponsoredFeedCard,
-                    {
-                      backgroundColor: Colors[colorScheme].card,
-                      borderColor: Colors[colorScheme].border,
-                    }
-                  ]}>
-                    <Text style={[styles.sponsoredLabel, { color: Colors[colorScheme].mutedText }]}>
-                      SPONSORED
-                    </Text>
-                    {adData.banner_url ? (
-                      <BannerAd
-                        bannerUrl={adData.banner_url}
-                        fitMode={adData.banner_fit_mode || 'fill'}
-                        targetUrl={adData.target_url}
-                        businessName={adData.business_name}
-                        description={adData.description}
-                        aspectRatio={3.5}
-                      />
-                    ) : (
-                      <View style={[styles.adPlaceholder, { backgroundColor: colorScheme === 'dark' ? '#1E293B' : '#F3F4F6' }]}>
-                        <Ionicons name="megaphone-outline" size={48} color={colorScheme === 'dark' ? '#64748B' : '#9CA3AF'} />
-                      </View>
-                    )}
-                  </View>
-                );
-              }
 
-              // Otherwise it's a regular event (game card)
-              const gameItem = item as GameItem;
-              const raw = gameItem as any;
-              const firstMediaUrl =
-                Array.isArray(raw?.media) && raw.media.length > 0
-                  ? (raw.media[0]?.thumbnail_url || raw.media[0]?.url || null)
-                  : Array.isArray(raw?.posts) && raw.posts.length > 0
-                  ? (raw.posts[0]?.media_url || raw.posts[0]?.thumbnail_url || null)
-                  : null;
-              const banner = gameItem.cover_image_url || raw?.banner_url || firstMediaUrl || null;
-              const hasBanner = typeof banner === 'string' && banner.length > 0;
-              const gradient: [string, string] = index % 2 === 0 ? ['#1e293b', '#0f172a'] : ['#0f172a', '#1e293b'];
-              const eventDate = gameItem.date ? format(new Date(gameItem.date), 'MMM d') : 'TBD';
-              const eventTime = gameItem.date ? format(new Date(gameItem.date), 'h:mm a') : '';
-              const locationText = gameItem.location ? String(gameItem.location).split(',')[0] : 'Location TBD';
-              const reviewsCount =
-                typeof raw?.reviews_count === 'number'
-                  ? raw.reviews_count
-                  : Array.isArray(raw?.reviews)
-                    ? raw.reviews.length
-                    : raw?._count && typeof raw._count.reviews === 'number'
-                      ? raw._count.reviews
-                      : 0;
-              const mediaCount =
-                typeof raw?.media_count === 'number'
-                  ? raw.media_count
-                  : Array.isArray(raw?.media)
-                    ? raw.media.length
-                    : 0;
-              const summary = voteSummaries[String(gameItem.id)] || null;
-              const voteText = summary
-                ? `${summary.teamALabelShort} ${summary.pctA}% | ${summary.teamBLabelShort} ${summary.pctB}%`
-                : null;
-              const scoreText = typeof raw?.home_score === 'number' && typeof raw?.away_score === 'number'
-                ? `${raw.home_score} - ${raw.away_score}`
-                : null;
-
-              return (
-                <Pressable
-                  key={String(gameItem.id)}
-                  style={styles.singleEventCard}
-                  onPress={() => void router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(gameItem.id) } })}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${gameItem.title || 'Game'} on ${eventDate}${eventTime ? ` at ${eventTime}` : ''}`}
-                >
-                  <LinearGradient colors={gradient} style={StyleSheet.absoluteFillObject} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
-                  {hasBanner && (
-                    <Image source={{ uri: banner! }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
-                  )}
-                  <LinearGradient
-                    colors={colorScheme === 'dark' ? ['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.9)'] : ['rgba(15,23,42,0.05)', 'rgba(15,23,42,0.85)']}
-                    style={styles.gridShade}
-                    pointerEvents="none"
-                  />
-                  <View style={styles.gridContent}>
-                    <View style={styles.gridDateChip}>
-                      <Ionicons name="calendar-outline" size={12} color="#FFFFFF" />
-                      <Text style={styles.gridDateText}>{eventDate}</Text>
-                    </View>
-                    <Text style={styles.gridTitle} numberOfLines={2}>
-                      {gameItem.title ? String(gameItem.title) : 'Game'}
-                    </Text>
-                    <Text style={styles.gridMeta} numberOfLines={1}>
-                      {scoreText ? `${scoreText} • ${eventTime ? `${eventTime} • ${locationText}` : locationText}` : (eventTime ? `${eventTime} • ${locationText}` : locationText)}
-                    </Text>
-                    <View style={styles.gridStatsRow}>
-                      <View style={styles.gridStat}>
-                        <Ionicons name="chatbubble-ellipses-outline" size={12} color="#F9FAFB" />
-                        <Text style={styles.gridStatText}>{reviewsCount}</Text>
-                      </View>
-                      <View style={styles.gridStat}>
-                        <Ionicons name="image-outline" size={12} color="#F9FAFB" />
-                        <Text style={styles.gridStatText}>{mediaCount}</Text>
-                      </View>
-                    </View>
-                    {voteText ? (
-                      <Text style={styles.gridVoteText} numberOfLines={1}>
-                        {voteText}
-                      </Text>
-                    ) : null}
-                  </View>
-                  <RSVPBadge gameItem={gameItem} onRSVPChange={onRefresh} />
-                </Pressable>
-              );
-            })}
-          </View>
-        )}
-
-        {/* Social Feed — Posts from people you follow */}
-        {me && (
-          <View style={{ marginBottom: 24 }}>
-            <Text style={[styles.sectionHeader, { color: Colors[colorScheme].mutedText }]}>
-              From people you follow
-            </Text>
-            {followedPosts.length > 0 ? (
-              <View style={{ gap: 12, marginTop: 8 }}>
-                {followedPosts.map((post: any) => (
-                  <PostCard
-                    key={String(post.id)}
-                    post={post}
-                    showAuthorHeader
-                    onPress={() => void router.push(`/post-detail?id=${encodeURIComponent(String(post.id))}`)}
-                    onDeleted={(postId) => setFollowedPosts((prev) => prev.filter((p) => String(p.id) !== postId))}
-                    onUpdated={(updated) => setFollowedPosts((prev) => prev.map((p) => (String(p.id) === String(updated.id) ? { ...p, ...updated } : p)))}
-                  />
-                ))}
-              </View>
-            ) : (
-              <View style={[styles.socialFeedEmpty, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
-                <Ionicons name="people-outline" size={48} color={Colors[colorScheme].mutedText} />
-                <Text style={[styles.socialFeedEmptyTitle, { color: Colors[colorScheme].text }]}>
-                  {followedFeedMeta?.following_count === 0
-                    ? 'Follow users or teams to see their posts here'
-                    : 'No posts from people you follow yet'}
-                </Text>
-                <Text style={[styles.socialFeedEmptySubtitle, { color: Colors[colorScheme].mutedText }]}>
-                  {followedFeedMeta?.following_count === 0
-                    ? 'Discover and follow athletes, coaches, and teams to build your feed.'
-                    : 'Check back soon — when they post, it will show up here.'}
-                </Text>
-                <Pressable
-                  style={[styles.socialFeedEmptyButton, { backgroundColor: Colors[colorScheme].tint }]}
-                  onPress={() => void router.push('/(tabs)/discover')}
-                  accessibilityLabel={followedFeedMeta?.following_count === 0 ? 'Find people to follow' : 'Discover more'}
-                  accessibilityRole="button"
-                >
-                  <Text style={styles.socialFeedEmptyButtonText}>
-                    {followedFeedMeta?.following_count === 0 ? 'Find people to follow' : 'Discover more'}
-                  </Text>
-                </Pressable>
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* Social Feed — Posts from teams you follow (dark game card style) */}
-        {me && (
-          <View style={{ marginBottom: 24 }}>
-            <Text style={[styles.sectionHeader, { color: Colors[colorScheme].mutedText }]}>
-              From teams you follow
-            </Text>
-            {followedTeamsPosts.length > 0 ? (
-              <View style={{ gap: 20, marginTop: 8 }}>
-                {followedTeamsPosts.map((post: any, index: number) => {
-                  const team = post.team || {};
-                  const teamName = team.name || 'Team';
-                  const teamLogo = team.logo_url || null;
-                  const mediaUrl = post.media_url || post.mediaUrl || null;
-                  const caption = post.caption || post.content || '';
-                  const gradient: [string, string] = index % 2 === 0 ? ['#1e293b', '#0f172a'] : ['#0f172a', '#1e293b'];
-                  return (
-                    <Pressable
-                      key={String(post.id)}
-                      style={styles.singleEventCard}
-                      onPress={() => void router.push(`/post-detail?id=${encodeURIComponent(String(post.id))}`)}
-                      accessibilityRole="button"
-                      accessibilityLabel={`View post from ${teamName}`}
-                    >
-                      <LinearGradient colors={gradient} style={StyleSheet.absoluteFillObject} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
-                      {mediaUrl && (
-                        <Image source={{ uri: mediaUrl }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
-                      )}
-                      <LinearGradient
-                        colors={['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.9)']}
-                        style={styles.gridShade}
-                        pointerEvents="none"
-                      />
-                      <View style={styles.gridContent}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                          {teamLogo ? (
-                            <Image source={{ uri: teamLogo }} style={{ width: 28, height: 28, borderRadius: 14 }} contentFit="cover" />
-                          ) : (
-                            <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: '#374151', alignItems: 'center', justifyContent: 'center' }}>
-                              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>{(teamName || 'T').charAt(0).toUpperCase()}</Text>
-                            </View>
-                          )}
-                          <Text style={[styles.gridTitle, { marginBottom: 0 }]} numberOfLines={1}>
-                            {teamName}
-                          </Text>
-                        </View>
-                        {caption ? (
-                          <Text style={[styles.gridMeta, { color: '#F9FAFB', marginBottom: 6 }]} numberOfLines={2}>
-                            {caption}
-                          </Text>
-                        ) : null}
-                        <View style={styles.gridStatsRow}>
-                          <View style={styles.gridStat}>
-                            <Ionicons name="arrow-up" size={12} color="#F9FAFB" />
-                            <Text style={styles.gridStatText}>{post.upvotes_count ?? 0}</Text>
-                          </View>
-                          <View style={styles.gridStat}>
-                            <Ionicons name="chatbubble-ellipses-outline" size={12} color="#F9FAFB" />
-                            <Text style={styles.gridStatText}>{post.comments_count ?? 0}</Text>
-                          </View>
-                        </View>
-                      </View>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            ) : (
-              <View style={[styles.socialFeedEmpty, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
-                <Ionicons name="shirt-outline" size={48} color={Colors[colorScheme].mutedText} />
-                <Text style={[styles.socialFeedEmptyTitle, { color: Colors[colorScheme].text }]}>
-                  {followedTeamsFeedMeta?.followed_teams_count === 0
-                    ? 'Follow teams to see their posts here'
-                    : 'No posts from teams you follow yet'}
-                </Text>
-                <Text style={[styles.socialFeedEmptySubtitle, { color: Colors[colorScheme].mutedText }]}>
-                  {followedTeamsFeedMeta?.followed_teams_count === 0
-                    ? 'Discover and follow teams to see their updates and game content.'
-                    : 'Check back soon — when they post, it will show up here.'}
-                </Text>
-                <Pressable
-                  style={[styles.socialFeedEmptyButton, { backgroundColor: Colors[colorScheme].tint }]}
-                  onPress={() => void router.push('/(tabs)/discover')}
-                  accessibilityLabel={followedTeamsFeedMeta?.followed_teams_count === 0 ? 'Find teams to follow' : 'Discover more'}
-                  accessibilityRole="button"
-                >
-                  <Text style={styles.socialFeedEmptyButtonText}>
-                    {followedTeamsFeedMeta?.followed_teams_count === 0 ? 'Find teams to follow' : 'Discover more'}
-                  </Text>
-                </Pressable>
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* Past Events Section */}
-        {pastEvents.length > 0 && (
-          <View style={{ marginTop: 32 }}>
-            <Text style={[styles.sectionHeader, { color: Colors[colorScheme].mutedText }]}>
-              Past Events
-            </Text>
-            <View style={{ gap: 20, marginTop: 12 }}>
-              {pastEvents.map((item, index) => {
-                const raw = item as any;
+                // Otherwise it's a regular event (game card)
+                const gameItem = item as GameItem;
+                const raw = gameItem as any;
                 const firstMediaUrl =
                   Array.isArray(raw?.media) && raw.media.length > 0
-                    ? (raw.media[0]?.thumbnail_url || raw.media[0]?.url || null)
+                    ? raw.media[0]?.thumbnail_url || raw.media[0]?.url || null
                     : Array.isArray(raw?.posts) && raw.posts.length > 0
-                    ? (raw.posts[0]?.media_url || raw.posts[0]?.thumbnail_url || null)
-                    : null;
-                const banner = item.cover_image_url || raw?.banner_url || firstMediaUrl || null;
+                      ? raw.posts[0]?.media_url || raw.posts[0]?.thumbnail_url || null
+                      : null;
+                const banner = gameItem.cover_image_url || raw?.banner_url || firstMediaUrl || null;
                 const hasBanner = typeof banner === 'string' && banner.length > 0;
-                const gradient: [string, string] = index % 2 === 0 ? ['#1e293b', '#0f172a'] : ['#0f172a', '#1e293b'];
-                const eventDate = item.date ? format(new Date(item.date), 'MMM d') : 'TBD';
-                const eventTime = item.date ? format(new Date(item.date), 'h:mm a') : '';
-                const locationText = item.location ? String(item.location).split(',')[0] : 'Location TBD';
+                const gradient: [string, string] =
+                  index % 2 === 0 ? ['#1e293b', '#0f172a'] : ['#0f172a', '#1e293b'];
+                const eventDate = gameItem.date ? format(new Date(gameItem.date), 'MMM d') : 'TBD';
+                const eventTime = gameItem.date ? format(new Date(gameItem.date), 'h:mm a') : '';
+                const locationText = gameItem.location
+                  ? String(gameItem.location).split(',')[0]
+                  : 'Location TBD';
                 const reviewsCount =
                   typeof raw?.reviews_count === 'number'
                     ? raw.reviews_count
@@ -1166,28 +1089,47 @@ export default function FeedScreen() {
                     : Array.isArray(raw?.media)
                       ? raw.media.length
                       : 0;
-                const summary = voteSummaries[String(item.id)] || null;
+                const summary = voteSummaries[String(gameItem.id)] || null;
                 const voteText = summary
                   ? `${summary.teamALabelShort} ${summary.pctA}% | ${summary.teamBLabelShort} ${summary.pctB}%`
                   : null;
-                const scoreText = typeof raw?.home_score === 'number' && typeof raw?.away_score === 'number'
-                  ? `${raw.home_score} - ${raw.away_score}`
-                  : null;
+                const scoreText =
+                  typeof raw?.home_score === 'number' && typeof raw?.away_score === 'number'
+                    ? `${raw.home_score} - ${raw.away_score}`
+                    : null;
 
                 return (
                   <Pressable
-                    key={String(item.id)}
+                    key={String(gameItem.id)}
                     style={styles.singleEventCard}
-                    onPress={() => void router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(item.id) } })}
+                    onPress={() =>
+                      void router.push({
+                        pathname: '/(tabs)/feed/game/[id]',
+                        params: { id: String(gameItem.id) },
+                      })
+                    }
                     accessibilityRole="button"
-                    accessibilityLabel={`${item.title || 'Game'} on ${eventDate}${eventTime ? ` at ${eventTime}` : ''}`}
+                    accessibilityLabel={`${gameItem.title || 'Game'} on ${eventDate}${eventTime ? ` at ${eventTime}` : ''}`}
                   >
-                    <LinearGradient colors={gradient} style={StyleSheet.absoluteFillObject} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
+                    <LinearGradient
+                      colors={gradient}
+                      style={StyleSheet.absoluteFillObject}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                    />
                     {hasBanner && (
-                      <Image source={{ uri: banner! }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
+                      <Image
+                        source={{ uri: bannerUrl(banner!) }}
+                        style={StyleSheet.absoluteFillObject}
+                        contentFit="cover"
+                      />
                     )}
                     <LinearGradient
-                      colors={colorScheme === 'dark' ? ['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.9)'] : ['rgba(15,23,42,0.05)', 'rgba(15,23,42,0.85)']}
+                      colors={
+                        colorScheme === 'dark'
+                          ? ['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.9)']
+                          : ['rgba(15,23,42,0.05)', 'rgba(15,23,42,0.85)']
+                      }
                       style={styles.gridShade}
                       pointerEvents="none"
                     />
@@ -1197,10 +1139,14 @@ export default function FeedScreen() {
                         <Text style={styles.gridDateText}>{eventDate}</Text>
                       </View>
                       <Text style={styles.gridTitle} numberOfLines={2}>
-                        {item.title ? String(item.title) : 'Game'}
+                        {gameItem.title ? String(gameItem.title) : 'Game'}
                       </Text>
                       <Text style={styles.gridMeta} numberOfLines={1}>
-                        {scoreText ? `${scoreText} • ${eventTime ? `${eventTime} • ${locationText}` : locationText}` : (eventTime ? `${eventTime} • ${locationText}` : locationText)}
+                        {scoreText
+                          ? `${scoreText} • ${eventTime ? `${eventTime} • ${locationText}` : locationText}`
+                          : eventTime
+                            ? `${eventTime} • ${locationText}`
+                            : locationText}
                       </Text>
                       <View style={styles.gridStatsRow}>
                         <View style={styles.gridStat}>
@@ -1218,62 +1164,433 @@ export default function FeedScreen() {
                         </Text>
                       ) : null}
                     </View>
-                    <RSVPBadge gameItem={item} onRSVPChange={onRefresh} />
+                    <RSVPBadge gameItem={gameItem} onRSVPChange={onRefresh} />
                   </Pressable>
                 );
               })}
             </View>
-          </View>
-        )}
-        
-        {/* Footer Content */}
-        <View style={styles.gridFooter}>
-          {/* Removed static sponsored card - ads now appear in feed */}
+          )}
 
-          <View style={styles.verticalFeedSection}>
-            <Text style={styles.sectionTitle}>{verticalFeedTitle}</Text>
-            <Pressable
-              onPress={openVerticalFeed}
-              style={styles.verticalFeedCard}
-              accessibilityRole="button"
-              accessibilityLabel="Open highlights reel"
-            >
-              {verticalFeedPreviewImage ? (
-                <Image source={{ uri: verticalFeedPreviewImage }} style={styles.verticalFeedImage} contentFit="cover" />
-              ) : (
-                <LinearGradient
-                  colors={colorScheme === 'dark' ? ['#1e293b', '#0f172a'] : ['#1e293b', '#0f172a']}
-                  style={styles.verticalFeedImage}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                />
-              )}
-              <LinearGradient
-                colors={colorScheme === 'dark' ? ['rgba(15,23,42,0.2)', 'rgba(15,23,42,0.9)'] : ['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.85)']}
-                style={styles.verticalFeedShade}
-              />
-              <View style={styles.verticalFeedContent}>
-                <View style={styles.verticalFeedBadge}>
-                  <Ionicons name="play" size={18} color="#fff" />
+          {/* Social Feed — Posts from people you follow */}
+          {me && (
+            <View style={{ marginBottom: 24 }}>
+              <Text style={[styles.sectionHeader, { color: Colors[colorScheme].mutedText }]}>
+                From people you follow
+              </Text>
+              {followedPosts.length > 0 ? (
+                <View style={{ gap: 12, marginTop: 8 }}>
+                  {followedPosts.map((post: any) => (
+                    <PostCard
+                      key={String(post.id)}
+                      post={post}
+                      showAuthorHeader
+                      onPress={() =>
+                        void router.push(`/post-detail?id=${encodeURIComponent(String(post.id))}`)
+                      }
+                      onDeleted={postId =>
+                        setFollowedPosts(prev => prev.filter(p => String(p.id) !== postId))
+                      }
+                      onUpdated={updated =>
+                        setFollowedPosts(prev =>
+                          prev.map(p =>
+                            String(p.id) === String(updated.id) ? { ...p, ...updated } : p
+                          )
+                        )
+                      }
+                    />
+                  ))}
                 </View>
-                <Text style={styles.verticalFeedTitleText}>Watch Highlights</Text>
-                {verticalFeedAuthorText ? (
-                  <Text style={styles.verticalFeedCaption} numberOfLines={1}>{verticalFeedAuthorText}</Text>
-                ) : null}
-                <Text style={styles.verticalFeedSubtitle} numberOfLines={2}>
-                  {verticalFeedSubtitleText}
-                </Text>
-              </View>
-            </Pressable>
-          </View>
-
-          {loadingMore ? (
-            <View style={styles.loadingMore}>
-              <ActivityIndicator size="small" color={Colors[colorScheme].tint} />
+              ) : (
+                <View
+                  style={[
+                    styles.socialFeedEmpty,
+                    {
+                      backgroundColor: Colors[colorScheme].card,
+                      borderColor: Colors[colorScheme].border,
+                    },
+                  ]}
+                >
+                  <Ionicons name="people-outline" size={48} color={Colors[colorScheme].mutedText} />
+                  <Text style={[styles.socialFeedEmptyTitle, { color: Colors[colorScheme].text }]}>
+                    {followedFeedMeta?.following_count === 0
+                      ? 'Follow users or teams to see their posts here'
+                      : 'No posts from people you follow yet'}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.socialFeedEmptySubtitle,
+                      { color: Colors[colorScheme].mutedText },
+                    ]}
+                  >
+                    {followedFeedMeta?.following_count === 0
+                      ? 'Discover and follow athletes, coaches, and teams to build your feed.'
+                      : 'Check back soon — when they post, it will show up here.'}
+                  </Text>
+                  <Pressable
+                    style={[
+                      styles.socialFeedEmptyButton,
+                      { backgroundColor: Colors[colorScheme].tint },
+                    ]}
+                    onPress={() => void router.push('/(tabs)/discover')}
+                    accessibilityLabel={
+                      followedFeedMeta?.following_count === 0
+                        ? 'Find people to follow'
+                        : 'Discover more'
+                    }
+                    accessibilityRole="button"
+                  >
+                    <Text style={styles.socialFeedEmptyButtonText}>
+                      {followedFeedMeta?.following_count === 0
+                        ? 'Find people to follow'
+                        : 'Discover more'}
+                    </Text>
+                  </Pressable>
+                </View>
+              )}
             </View>
-          ) : null}
-        </View>
-      </ScrollView>
+          )}
+
+          {/* Social Feed — Posts from teams you follow (dark game card style) */}
+          {me && (
+            <View style={{ marginBottom: 24 }}>
+              <Text style={[styles.sectionHeader, { color: Colors[colorScheme].mutedText }]}>
+                From teams you follow
+              </Text>
+              {followedTeamsPosts.length > 0 ? (
+                <View style={{ gap: 20, marginTop: 8 }}>
+                  {followedTeamsPosts.map((post: any, index: number) => {
+                    const team = post.team || {};
+                    const teamName = team.name || 'Team';
+                    const teamLogo = team.logo_url || null;
+                    const mediaUrl = post.media_url || post.mediaUrl || null;
+                    const caption = post.caption || post.content || '';
+                    const gradient: [string, string] =
+                      index % 2 === 0 ? ['#1e293b', '#0f172a'] : ['#0f172a', '#1e293b'];
+                    return (
+                      <Pressable
+                        key={String(post.id)}
+                        style={styles.singleEventCard}
+                        onPress={() =>
+                          void router.push(`/post-detail?id=${encodeURIComponent(String(post.id))}`)
+                        }
+                        accessibilityRole="button"
+                        accessibilityLabel={`View post from ${teamName}`}
+                      >
+                        <LinearGradient
+                          colors={gradient}
+                          style={StyleSheet.absoluteFillObject}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 1 }}
+                        />
+                        {mediaUrl && (
+                          <Image
+                            source={{ uri: feedImageUrl(mediaUrl) }}
+                            style={StyleSheet.absoluteFillObject}
+                            contentFit="cover"
+                          />
+                        )}
+                        <LinearGradient
+                          colors={['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.9)']}
+                          style={styles.gridShade}
+                          pointerEvents="none"
+                        />
+                        <View style={styles.gridContent}>
+                          <View
+                            style={{
+                              flexDirection: 'row',
+                              alignItems: 'center',
+                              gap: 8,
+                              marginBottom: 4,
+                            }}
+                          >
+                            {teamLogo ? (
+                              <Image
+                                source={{ uri: avatarUrl(teamLogo) }}
+                                style={{ width: 28, height: 28, borderRadius: 14 }}
+                                contentFit="cover"
+                              />
+                            ) : (
+                              <View
+                                style={{
+                                  width: 28,
+                                  height: 28,
+                                  borderRadius: 14,
+                                  backgroundColor: '#374151',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                }}
+                              >
+                                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>
+                                  {(teamName || 'T').charAt(0).toUpperCase()}
+                                </Text>
+                              </View>
+                            )}
+                            <Text style={[styles.gridTitle, { marginBottom: 0 }]} numberOfLines={1}>
+                              {teamName}
+                            </Text>
+                          </View>
+                          {caption ? (
+                            <Text
+                              style={[styles.gridMeta, { color: '#F9FAFB', marginBottom: 6 }]}
+                              numberOfLines={2}
+                            >
+                              {caption}
+                            </Text>
+                          ) : null}
+                          <View style={styles.gridStatsRow}>
+                            <View style={styles.gridStat}>
+                              <Ionicons name="arrow-up" size={12} color="#F9FAFB" />
+                              <Text style={styles.gridStatText}>{post.upvotes_count ?? 0}</Text>
+                            </View>
+                            <View style={styles.gridStat}>
+                              <Ionicons
+                                name="chatbubble-ellipses-outline"
+                                size={12}
+                                color="#F9FAFB"
+                              />
+                              <Text style={styles.gridStatText}>{post.comments_count ?? 0}</Text>
+                            </View>
+                          </View>
+                        </View>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              ) : (
+                <View
+                  style={[
+                    styles.socialFeedEmpty,
+                    {
+                      backgroundColor: Colors[colorScheme].card,
+                      borderColor: Colors[colorScheme].border,
+                    },
+                  ]}
+                >
+                  <Ionicons name="shirt-outline" size={48} color={Colors[colorScheme].mutedText} />
+                  <Text style={[styles.socialFeedEmptyTitle, { color: Colors[colorScheme].text }]}>
+                    {followedTeamsFeedMeta?.followed_teams_count === 0
+                      ? 'Follow teams to see their posts here'
+                      : 'No posts from teams you follow yet'}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.socialFeedEmptySubtitle,
+                      { color: Colors[colorScheme].mutedText },
+                    ]}
+                  >
+                    {followedTeamsFeedMeta?.followed_teams_count === 0
+                      ? 'Discover and follow teams to see their updates and game content.'
+                      : 'Check back soon — when they post, it will show up here.'}
+                  </Text>
+                  <Pressable
+                    style={[
+                      styles.socialFeedEmptyButton,
+                      { backgroundColor: Colors[colorScheme].tint },
+                    ]}
+                    onPress={() => void router.push('/(tabs)/discover')}
+                    accessibilityLabel={
+                      followedTeamsFeedMeta?.followed_teams_count === 0
+                        ? 'Find teams to follow'
+                        : 'Discover more'
+                    }
+                    accessibilityRole="button"
+                  >
+                    <Text style={styles.socialFeedEmptyButtonText}>
+                      {followedTeamsFeedMeta?.followed_teams_count === 0
+                        ? 'Find teams to follow'
+                        : 'Discover more'}
+                    </Text>
+                  </Pressable>
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* Past Events Section */}
+          {pastEvents.length > 0 && (
+            <View style={{ marginTop: 32 }}>
+              <Text style={[styles.sectionHeader, { color: Colors[colorScheme].mutedText }]}>
+                Past Events
+              </Text>
+              <View style={{ gap: 20, marginTop: 12 }}>
+                {pastEvents.map((item, index) => {
+                  const raw = item as any;
+                  const firstMediaUrl =
+                    Array.isArray(raw?.media) && raw.media.length > 0
+                      ? raw.media[0]?.thumbnail_url || raw.media[0]?.url || null
+                      : Array.isArray(raw?.posts) && raw.posts.length > 0
+                        ? raw.posts[0]?.media_url || raw.posts[0]?.thumbnail_url || null
+                        : null;
+                  const banner = item.cover_image_url || raw?.banner_url || firstMediaUrl || null;
+                  const hasBanner = typeof banner === 'string' && banner.length > 0;
+                  const gradient: [string, string] =
+                    index % 2 === 0 ? ['#1e293b', '#0f172a'] : ['#0f172a', '#1e293b'];
+                  const eventDate = item.date ? format(new Date(item.date), 'MMM d') : 'TBD';
+                  const eventTime = item.date ? format(new Date(item.date), 'h:mm a') : '';
+                  const locationText = item.location
+                    ? String(item.location).split(',')[0]
+                    : 'Location TBD';
+                  const reviewsCount =
+                    typeof raw?.reviews_count === 'number'
+                      ? raw.reviews_count
+                      : Array.isArray(raw?.reviews)
+                        ? raw.reviews.length
+                        : raw?._count && typeof raw._count.reviews === 'number'
+                          ? raw._count.reviews
+                          : 0;
+                  const mediaCount =
+                    typeof raw?.media_count === 'number'
+                      ? raw.media_count
+                      : Array.isArray(raw?.media)
+                        ? raw.media.length
+                        : 0;
+                  const summary = voteSummaries[String(item.id)] || null;
+                  const voteText = summary
+                    ? `${summary.teamALabelShort} ${summary.pctA}% | ${summary.teamBLabelShort} ${summary.pctB}%`
+                    : null;
+                  const scoreText =
+                    typeof raw?.home_score === 'number' && typeof raw?.away_score === 'number'
+                      ? `${raw.home_score} - ${raw.away_score}`
+                      : null;
+
+                  return (
+                    <Pressable
+                      key={String(item.id)}
+                      style={styles.singleEventCard}
+                      onPress={() =>
+                        void router.push({
+                          pathname: '/(tabs)/feed/game/[id]',
+                          params: { id: String(item.id) },
+                        })
+                      }
+                      accessibilityRole="button"
+                      accessibilityLabel={`${item.title || 'Game'} on ${eventDate}${eventTime ? ` at ${eventTime}` : ''}`}
+                    >
+                      <LinearGradient
+                        colors={gradient}
+                        style={StyleSheet.absoluteFillObject}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                      />
+                      {hasBanner && (
+                        <Image
+                          source={{ uri: bannerUrl(banner!) }}
+                          style={StyleSheet.absoluteFillObject}
+                          contentFit="cover"
+                        />
+                      )}
+                      <LinearGradient
+                        colors={
+                          colorScheme === 'dark'
+                            ? ['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.9)']
+                            : ['rgba(15,23,42,0.05)', 'rgba(15,23,42,0.85)']
+                        }
+                        style={styles.gridShade}
+                        pointerEvents="none"
+                      />
+                      <View style={styles.gridContent}>
+                        <View style={styles.gridDateChip}>
+                          <Ionicons name="calendar-outline" size={12} color="#FFFFFF" />
+                          <Text style={styles.gridDateText}>{eventDate}</Text>
+                        </View>
+                        <Text style={styles.gridTitle} numberOfLines={2}>
+                          {item.title ? String(item.title) : 'Game'}
+                        </Text>
+                        <Text style={styles.gridMeta} numberOfLines={1}>
+                          {scoreText
+                            ? `${scoreText} • ${eventTime ? `${eventTime} • ${locationText}` : locationText}`
+                            : eventTime
+                              ? `${eventTime} • ${locationText}`
+                              : locationText}
+                        </Text>
+                        <View style={styles.gridStatsRow}>
+                          <View style={styles.gridStat}>
+                            <Ionicons
+                              name="chatbubble-ellipses-outline"
+                              size={12}
+                              color="#F9FAFB"
+                            />
+                            <Text style={styles.gridStatText}>{reviewsCount}</Text>
+                          </View>
+                          <View style={styles.gridStat}>
+                            <Ionicons name="image-outline" size={12} color="#F9FAFB" />
+                            <Text style={styles.gridStatText}>{mediaCount}</Text>
+                          </View>
+                        </View>
+                        {voteText ? (
+                          <Text style={styles.gridVoteText} numberOfLines={1}>
+                            {voteText}
+                          </Text>
+                        ) : null}
+                      </View>
+                      <RSVPBadge gameItem={item} onRSVPChange={onRefresh} />
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          )}
+
+          {/* Footer Content */}
+          <View style={styles.gridFooter}>
+            {/* Removed static sponsored card - ads now appear in feed */}
+
+            <View style={styles.verticalFeedSection}>
+              <Text style={styles.sectionTitle}>{verticalFeedTitle}</Text>
+              <Pressable
+                onPress={openVerticalFeed}
+                style={styles.verticalFeedCard}
+                accessibilityRole="button"
+                accessibilityLabel="Open highlights reel"
+              >
+                {verticalFeedPreviewImage ? (
+                  <Image
+                    source={{ uri: verticalFeedPreviewImage }}
+                    style={styles.verticalFeedImage}
+                    contentFit="cover"
+                  />
+                ) : (
+                  <LinearGradient
+                    colors={
+                      colorScheme === 'dark' ? ['#1e293b', '#0f172a'] : ['#1e293b', '#0f172a']
+                    }
+                    style={styles.verticalFeedImage}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  />
+                )}
+                <LinearGradient
+                  colors={
+                    colorScheme === 'dark'
+                      ? ['rgba(15,23,42,0.2)', 'rgba(15,23,42,0.9)']
+                      : ['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.85)']
+                  }
+                  style={styles.verticalFeedShade}
+                />
+                <View style={styles.verticalFeedContent}>
+                  <View style={styles.verticalFeedBadge}>
+                    <Ionicons name="play" size={18} color="#fff" />
+                  </View>
+                  <Text style={styles.verticalFeedTitleText}>Watch Highlights</Text>
+                  {verticalFeedAuthorText ? (
+                    <Text style={styles.verticalFeedCaption} numberOfLines={1}>
+                      {verticalFeedAuthorText}
+                    </Text>
+                  ) : null}
+                  <Text style={styles.verticalFeedSubtitle} numberOfLines={2}>
+                    {verticalFeedSubtitleText}
+                  </Text>
+                </View>
+              </Pressable>
+            </View>
+
+            {loadingMore ? (
+              <View style={styles.loadingMore}>
+                <ActivityIndicator size="small" color={Colors[colorScheme].tint} />
+              </View>
+            ) : null}
+          </View>
+        </ScrollView>
       </View>
 
       {/* Notifications & Messages Menu Modal */}
@@ -1283,7 +1600,12 @@ export default function FeedScreen() {
         presentationStyle="pageSheet"
         onRequestClose={() => setNotificationsMenuOpen(false)}
       >
-        <View style={[styles.menuModal, { backgroundColor: Colors[colorScheme].background, paddingTop: insets.top }]}>
+        <View
+          style={[
+            styles.menuModal,
+            { backgroundColor: Colors[colorScheme].background, paddingTop: insets.top },
+          ]}
+        >
           {/* Header */}
           <View style={[styles.menuHeader, { borderBottomColor: Colors[colorScheme].border }]}>
             <Text style={[styles.menuTitle, { color: Colors[colorScheme].text }]}>Updates</Text>
@@ -1302,80 +1624,108 @@ export default function FeedScreen() {
           {/* Content */}
           <View style={{ flex: 1 }}>
             {loadingNotifications ? (
-              <View style={styles.center}><ActivityIndicator /></View>
+              <View style={styles.center}>
+                <ActivityIndicator />
+              </View>
             ) : notificationsList.length === 0 ? (
               <View style={{ padding: 24, alignItems: 'center' }}>
-                <Ionicons name="notifications-off-outline" size={48} color={Colors[colorScheme].mutedText} />
-                <Text style={[styles.emptyText, { color: Colors[colorScheme].mutedText }]}>No notifications</Text>
+                <Ionicons
+                  name="notifications-off-outline"
+                  size={48}
+                  color={Colors[colorScheme].mutedText}
+                />
+                <Text style={[styles.emptyText, { color: Colors[colorScheme].mutedText }]}>
+                  No notifications
+                </Text>
               </View>
             ) : (
               <FlatList
-                    data={notificationsList}
-                    keyExtractor={(item) => item.id}
-                    renderItem={({ item }) => {
-                      const title = item.type === 'FOLLOW'
-                        ? `${item.actor?.username ? `@${item.actor.username}` : item.actor?.display_name || 'Someone'} followed you`
-                        : item.type === 'UPVOTE'
+                data={notificationsList}
+                keyExtractor={item => item.id}
+                renderItem={({ item }) => {
+                  const title =
+                    item.type === 'FOLLOW'
+                      ? `${item.actor?.username ? `@${item.actor.username}` : item.actor?.display_name || 'Someone'} followed you`
+                      : item.type === 'UPVOTE'
                         ? `${item.actor?.username ? `@${item.actor.username}` : item.actor?.display_name || 'Someone'} upvoted your post`
                         : item.type === 'COMMENT'
-                        ? `${item.actor?.username ? `@${item.actor.username}` : item.actor?.display_name || 'Someone'} commented on your post`
-                        : item.type === 'TEAM_INVITE'
-                        ? `${item.actor?.username ? `@${item.actor.username}` : item.actor?.display_name || 'Someone'} invited you to join ${item.meta?.team_name || 'a team'}`
-                        : 'Notification';
-                      
-                      return (
-                        <Pressable
-                          style={[styles.listRow, !item.read_at && styles.listRowUnread, { borderBottomColor: Colors[colorScheme].border }]}
-                          accessibilityLabel={title}
-                          accessibilityRole="button"
-                          onPress={async () => {
-                            // Mark notification as read
-                            if (!item.read_at) {
-                              try {
-                                await NotificationApi.markRead(item.id);
-                                // Update local state to remove unread indicator immediately
-                                setNotificationsList(prev => 
-                                  prev.map(n => n.id === item.id ? { ...n, read_at: new Date().toISOString() } : n)
-                                );
-                                // Refresh unread count
-                                const page = await NotificationApi.listPage(null, 1, true);
-                                setHasUnreadAlerts(Array.isArray(page.items) && page.items.length > 0);
-                              } catch (e) {
-                                console.error('Failed to mark notification as read', e);
-                              }
-                            }
-                            
-                            setNotificationsMenuOpen(false);
-                            // Always navigate to the actor's profile if available
-                            if (item.actor?.id) {
-                              router.push(`/user-profile?id=${encodeURIComponent(item.actor.id)}`);
-                            } else if (item.type === 'TEAM_INVITE') {
-                              router.push('/team-invites');
-                            }
-                          }}
-                        >
-                          <View style={styles.listAvatarWrap}>
-                            {item.actor?.avatar_url ? (
-                              <Image source={{ uri: item.actor.avatar_url }} style={styles.listAvatar} />
-                            ) : (
-                              <View style={[styles.listAvatar, { backgroundColor: Colors[colorScheme].border }]} />
-                            )}
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <Text style={[styles.listTitle, { color: Colors[colorScheme].text }]}>{title}</Text>
-                            {item.post?.content && (
-                              <Text numberOfLines={1} style={[styles.listSubtitle, { color: Colors[colorScheme].mutedText }]}>
-                                {item.post.content}
-                              </Text>
-                            )}
-                          </View>
-                          {!item.read_at && <View style={styles.unreadDot} />}
-                        </Pressable>
-                      );
-                    }}
-                  />
-                )}
-              </View>
+                          ? `${item.actor?.username ? `@${item.actor.username}` : item.actor?.display_name || 'Someone'} commented on your post`
+                          : item.type === 'TEAM_INVITE'
+                            ? `${item.actor?.username ? `@${item.actor.username}` : item.actor?.display_name || 'Someone'} invited you to join ${item.meta?.team_name || 'a team'}`
+                            : 'Notification';
+
+                  return (
+                    <Pressable
+                      style={[
+                        styles.listRow,
+                        !item.read_at && styles.listRowUnread,
+                        { borderBottomColor: Colors[colorScheme].border },
+                      ]}
+                      accessibilityLabel={title}
+                      accessibilityRole="button"
+                      onPress={async () => {
+                        // Mark notification as read
+                        if (!item.read_at) {
+                          try {
+                            await NotificationApi.markRead(item.id);
+                            // Update local state to remove unread indicator immediately
+                            setNotificationsList(prev =>
+                              prev.map(n =>
+                                n.id === item.id ? { ...n, read_at: new Date().toISOString() } : n
+                              )
+                            );
+                            // Refresh unread count
+                            const page = await NotificationApi.listPage(null, 1, true);
+                            setHasUnreadAlerts(Array.isArray(page.items) && page.items.length > 0);
+                          } catch (e) {
+                            console.error('Failed to mark notification as read', e);
+                          }
+                        }
+
+                        setNotificationsMenuOpen(false);
+                        // Always navigate to the actor's profile if available
+                        if (item.actor?.id) {
+                          router.push(`/user-profile?id=${encodeURIComponent(item.actor.id)}`);
+                        } else if (item.type === 'TEAM_INVITE') {
+                          router.push('/team-invites');
+                        }
+                      }}
+                    >
+                      <View style={styles.listAvatarWrap}>
+                        {item.actor?.avatar_url ? (
+                          <Image
+                            source={{ uri: avatarUrl(item.actor.avatar_url) }}
+                            style={styles.listAvatar}
+                          />
+                        ) : (
+                          <View
+                            style={[
+                              styles.listAvatar,
+                              { backgroundColor: Colors[colorScheme].border },
+                            ]}
+                          />
+                        )}
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.listTitle, { color: Colors[colorScheme].text }]}>
+                          {title}
+                        </Text>
+                        {item.post?.content && (
+                          <Text
+                            numberOfLines={1}
+                            style={[styles.listSubtitle, { color: Colors[colorScheme].mutedText }]}
+                          >
+                            {item.post.content}
+                          </Text>
+                        )}
+                      </View>
+                      {!item.read_at && <View style={styles.unreadDot} />}
+                    </Pressable>
+                  );
+                }}
+              />
+            )}
+          </View>
         </View>
       </Modal>
 
@@ -1385,7 +1735,9 @@ export default function FeedScreen() {
         presentationStyle="fullScreen"
         onRequestClose={closeVerticalFeed}
       >
-  <View style={[styles.verticalFeedModal, { backgroundColor: Colors[colorScheme].background }]}>
+        <View
+          style={[styles.verticalFeedModal, { backgroundColor: Colors[colorScheme].background }]}
+        >
           {verticalFeedModalVisible ? (
             <GameVerticalFeedScreen
               key={activeVerticalFeedGameId || 'all-highlights'}
@@ -1411,8 +1763,22 @@ const styles = StyleSheet.create({
   },
   contentContainer: { flex: 1, paddingHorizontal: 16, paddingTop: 12, overflow: 'hidden' },
   logoImage: { width: 36, height: 36, borderRadius: 8 },
-  headerActions: { flex: 1, flexShrink: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 8 },
-  iconButton: { width: 44, height: 44, flexShrink: 0, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  headerActions: {
+    flex: 1,
+    flexShrink: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 8,
+  },
+  iconButton: {
+    width: 44,
+    height: 44,
+    flexShrink: 0,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   center: { paddingVertical: 24, alignItems: 'center' },
   error: { color: '#b91c1c', marginBottom: 8 },
   muted: { fontSize: 14 },
@@ -1420,7 +1786,18 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   brand: { fontSize: 26, fontWeight: '800', letterSpacing: -0.5, flexShrink: 1 },
-  searchBox: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 48, borderRadius: 12, paddingHorizontal: 12, backgroundColor: '#F3F4F6', marginBottom: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB' },
+  searchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    height: 48,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    backgroundColor: '#F3F4F6',
+    marginBottom: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#E5E7EB',
+  },
   searchInput: { flex: 1, height: 44 },
   mapsButton: {
     flexDirection: 'row',
@@ -1465,7 +1842,7 @@ const styles = StyleSheet.create({
   },
   singleEventCard: {
     width: '100%',
-    aspectRatio: 4/5, // More Instagram-like (taller, similar to 4:5 Instagram posts)
+    aspectRatio: 4 / 5, // More Instagram-like (taller, similar to 4:5 Instagram posts)
     borderRadius: 18,
     overflow: 'hidden',
     position: 'relative',
@@ -1683,27 +2060,75 @@ const styles = StyleSheet.create({
     padding: 18,
     gap: 6,
   },
-  adInviteTitle: { fontWeight: '800', fontSize: 18, textTransform: 'uppercase', letterSpacing: 0.8 },
+  adInviteTitle: {
+    fontWeight: '800',
+    fontSize: 18,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
   adInviteSubtitle: { fontSize: 13, lineHeight: 18 },
   loadingMore: { paddingVertical: 16, alignItems: 'center' },
   sectionTitle: { fontWeight: '800', marginBottom: 8 },
-  zipSuggestionList: { marginTop: 6, marginBottom: 8, borderRadius: 12, backgroundColor: '#FFFFFF', borderWidth: StyleSheet.hairlineWidth, borderColor: '#E2E8F0', overflow: 'hidden', shadowColor: '#0f172a', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
-  zipSuggestionItem: { paddingHorizontal: 16, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  zipSuggestionList: {
+    marginTop: 6,
+    marginBottom: 8,
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#E2E8F0',
+    overflow: 'hidden',
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
+  zipSuggestionItem: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   zipSuggestionZip: { fontWeight: '700', color: '#111827', fontSize: 15 },
   zipSuggestionCount: { color: '#6b7280', fontSize: 12 },
   verticalFeedSection: { marginTop: 32, marginBottom: 24 },
-  verticalFeedCard: { marginTop: 12, borderRadius: 20, overflow: 'hidden', backgroundColor: '#0f172a', minHeight: 220, aspectRatio: 1, justifyContent: 'flex-end' },
+  verticalFeedCard: {
+    marginTop: 12,
+    borderRadius: 20,
+    overflow: 'hidden',
+    backgroundColor: '#0f172a',
+    minHeight: 220,
+    aspectRatio: 1,
+    justifyContent: 'flex-end',
+  },
   verticalFeedImage: { ...StyleSheet.absoluteFillObject },
   verticalFeedShade: { ...StyleSheet.absoluteFillObject },
   verticalFeedContent: { position: 'absolute', left: 20, right: 20, bottom: 20, gap: 8 },
-  verticalFeedBadge: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(37,99,235,0.95)', overflow: 'hidden' },
+  verticalFeedBadge: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(37,99,235,0.95)',
+    overflow: 'hidden',
+  },
   verticalFeedTitleText: { color: '#ffffff', fontWeight: '800', fontSize: 20 },
   verticalFeedCaption: { color: '#bfdbfe', fontWeight: '600', fontSize: 12 },
   verticalFeedSubtitle: { color: '#cbd5f5', fontWeight: '600', fontSize: 13 },
   verticalFeedModal: { flex: 1, backgroundColor: '#020617' },
-  alertDot: { position: 'absolute', right: -1, top: -1, width: 8, height: 8, borderRadius: 4, backgroundColor: '#EF4444' },
+  alertDot: {
+    position: 'absolute',
+    right: -1,
+    top: -1,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#EF4444',
+  },
   // Menu Modal Styles
-  menuModal: { 
+  menuModal: {
     flex: 1,
   },
   menuHeader: {

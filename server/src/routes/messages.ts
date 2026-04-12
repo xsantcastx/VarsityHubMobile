@@ -10,6 +10,21 @@ import { messageLimiter } from '../middleware/rateLimiters.js';
 export const messagesRouter = Router();
 messagesRouter.use(requireAuth as any);
 
+// Lightweight unread message count — used by the tab bar badge
+messagesRouter.get('/unread-count', async (req: AuthedRequest, res) => {
+  try {
+    const meId = req.user?.id;
+    if (!meId) return res.status(401).json({ error: 'Unauthorized' });
+    const count = await prisma.message.count({
+      where: { recipient_id: meId, read: false },
+    });
+    return res.json({ count });
+  } catch (e: any) {
+    console.error('[messages/unread-count]', e);
+    return res.status(500).json({ error: 'Internal error' });
+  }
+});
+
 function ageFromDob(dob: string | null | undefined): number | null {
   if (!dob || typeof dob !== 'string') return null;
   const d = new Date(dob);
