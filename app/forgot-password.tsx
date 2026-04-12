@@ -3,6 +3,7 @@ import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
+import { useAppTranslation } from '@/lib/i18n/useAppTranslation';
 import { validateEmail } from '@/utils/formUtils';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
@@ -22,6 +23,7 @@ export default function ForgotPasswordScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const palette = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
+  const { t } = useAppTranslation();
 
   // Phase 1: email
   const [email, setEmail] = useState('');
@@ -40,12 +42,12 @@ export default function ForgotPasswordScreen() {
   const onSendCode = async () => {
     const trimmed = email.trim();
     if (!trimmed) {
-      setSendError('Enter the email you use to sign in.');
+      setSendError(t('auth.forgotPassword.errors.enterEmail'));
       return;
     }
     const emailCheck = validateEmail(trimmed);
     if (!emailCheck.valid) {
-      setSendError(emailCheck.error || 'Please enter a valid email address.');
+      setSendError(t('auth.forgotPassword.errors.invalidEmail'));
       return;
     }
     setSendLoading(true);
@@ -53,7 +55,7 @@ export default function ForgotPasswordScreen() {
     try {
       await User.requestPasswordReset(trimmed);
       setCodeSent(true);
-    } catch (e: any) {
+    } catch {
       // Never reveal whether the email exists — treat server errors as success
       setCodeSent(true);
     } finally {
@@ -64,15 +66,15 @@ export default function ForgotPasswordScreen() {
   const onResetPassword = async () => {
     const trimmedCode = code.trim();
     if (trimmedCode.length !== 6 || !/^\d{6}$/.test(trimmedCode)) {
-      setResetError('Enter the 6-digit code from your email.');
+      setResetError(t('auth.forgotPassword.errors.invalidCode'));
       return;
     }
     if (password.length < 8) {
-      setResetError('Password must be at least 8 characters.');
+      setResetError(t('auth.forgotPassword.errors.passwordMin'));
       return;
     }
     if (password !== confirmPassword) {
-      setResetError('Passwords do not match.');
+      setResetError(t('auth.forgotPassword.errors.passwordsDoNotMatch'));
       return;
     }
     setResetLoading(true);
@@ -81,7 +83,7 @@ export default function ForgotPasswordScreen() {
       await User.resetPassword(email.trim(), trimmedCode, password);
       setDone(true);
     } catch (e: any) {
-      setResetError(e?.message || 'Invalid or expired code. Please try again.');
+      setResetError(e?.message || t('auth.forgotPassword.errors.invalidOrExpiredCode'));
     } finally {
       setResetLoading(false);
     }
@@ -90,7 +92,7 @@ export default function ForgotPasswordScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: palette.background }]} edges={['top']}>
       <Stack.Screen options={{
-        title: 'Forgot Password',
+        title: t('auth.forgotPassword.meta.title'),
         headerLeft: () => (
           <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingLeft: 8 }}>
             <MaterialIcons name="chevron-left" size={24} color={palette.tint} />
@@ -104,28 +106,28 @@ export default function ForgotPasswordScreen() {
             // Success state
             <>
               <MaterialIcons name="check-circle" size={48} color="#10B981" style={{ alignSelf: 'center' }} />
-              <Text style={[styles.title, { color: palette.text, textAlign: 'center' }]}>Password updated!</Text>
+              <Text style={[styles.title, { color: palette.text, textAlign: 'center' }]}>{t('auth.forgotPassword.success.title')}</Text>
               <Text style={[styles.subtitle, { color: palette.mutedText, textAlign: 'center' }]}>
-                You can now sign in with your new password.
+                {t('auth.forgotPassword.success.subtitle')}
               </Text>
               {/* eslint-disable-next-line react-native/no-raw-text */}
               <Button onPress={() => void router.replace('/sign-in')}>
-                Sign in
+                {t('auth.forgotPassword.success.signIn')}
               </Button>
             </>
           ) : (
             // All fields on one screen
             <>
-              <Text style={[styles.title, { color: palette.text }]}>Reset your password</Text>
+              <Text style={[styles.title, { color: palette.text }]}>{t('auth.forgotPassword.form.title')}</Text>
               <Text style={[styles.subtitle, { color: palette.mutedText }]}>
-                Enter your email and we'll send a 6-digit code to reset your password.
+                {t('auth.forgotPassword.form.subtitle')}
               </Text>
 
               {sendError ? <Text style={[styles.error, { color: palette.destructive }]}>{sendError}</Text> : null}
               {resetError ? <Text style={[styles.error, { color: palette.destructive }]}>{resetError}</Text> : null}
 
               <Input
-                placeholder="name@school.edu"
+                placeholder={t('common.placeholders.email')}
                 value={email}
                 onChangeText={setEmail}
                 autoCapitalize="none"
@@ -137,16 +139,16 @@ export default function ForgotPasswordScreen() {
 
               {!codeSent ? (
                 <Button onPress={onSendCode} disabled={sendLoading}>
-                  {sendLoading ? <ActivityIndicator color="white" /> : 'Send reset code'}
+                  {sendLoading ? <ActivityIndicator color="white" /> : t('auth.forgotPassword.actions.sendResetCode')}
                 </Button>
               ) : (
                 <Text style={[styles.subtitle, { color: '#10B981', fontWeight: '600', textAlign: 'center' }]}>
-                  Code sent to {email.trim()}
+                  {t('auth.forgotPassword.form.codeSent', { email: email.trim() })}
                 </Text>
               )}
 
               <Input
-                placeholder="Enter 6-digit code"
+                placeholder={t('auth.forgotPassword.fields.codePlaceholder')}
                 value={code}
                 onChangeText={(t) => setCode(t.replace(/\D/g, '').slice(0, 6))}
                 keyboardType="number-pad"
@@ -157,7 +159,7 @@ export default function ForgotPasswordScreen() {
               />
 
               <Input
-                placeholder="New password (min 8 characters)"
+                placeholder={t('auth.forgotPassword.fields.newPasswordPlaceholder')}
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry
@@ -167,7 +169,7 @@ export default function ForgotPasswordScreen() {
               />
 
               <Input
-                placeholder="Confirm new password"
+                placeholder={t('auth.forgotPassword.fields.confirmPasswordPlaceholder')}
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
                 secureTextEntry
@@ -177,12 +179,14 @@ export default function ForgotPasswordScreen() {
               />
 
               <Button onPress={codeSent ? onResetPassword : onSendCode} disabled={codeSent ? resetLoading : sendLoading}>
-                {(codeSent ? resetLoading : sendLoading) ? <ActivityIndicator color="white" /> : codeSent ? 'Update password' : 'Send reset code'}
+                {(codeSent ? resetLoading : sendLoading)
+                  ? <ActivityIndicator color="white" />
+                  : codeSent ? t('auth.forgotPassword.actions.updatePassword') : t('auth.forgotPassword.actions.sendResetCode')}
               </Button>
 
               {codeSent ? (
                 <Pressable onPress={() => { setCodeSent(false); setCode(''); setPassword(''); setConfirmPassword(''); setResetError(null); setSendError(null); }} style={styles.linkRow}>
-                  <Text style={[styles.link, { color: palette.tint }]}>Wrong email? Change it</Text>
+                  <Text style={[styles.link, { color: palette.tint }]}>{t('auth.forgotPassword.actions.wrongEmail')}</Text>
                 </Pressable>
               ) : null}
             </>
@@ -191,7 +195,7 @@ export default function ForgotPasswordScreen() {
 
         {!done && (
           <Pressable style={styles.secondary} onPress={() => void router.replace('/sign-in')}>
-            <Text style={[styles.secondaryText, { color: palette.tint }]}>Back to sign in</Text>
+            <Text style={[styles.secondaryText, { color: palette.tint }]}>{t('auth.forgotPassword.actions.backToSignIn')}</Text>
           </Pressable>
         )}
       </KeyboardAwareScreen>

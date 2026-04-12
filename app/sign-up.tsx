@@ -15,6 +15,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { useGoogleAuth } from '@/hooks/useGoogleAuth';
 import { calculatePasswordStrength, sanitizeEmail, validateEmail, validatePassword } from '@/utils/formUtils';
 import { useAuth } from '@/context/AuthProvider';
+import { useAppTranslation } from '@/lib/i18n/useAppTranslation';
 import { captureException } from '@/utils/sentry';
 import { Ionicons } from '@expo/vector-icons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -25,6 +26,7 @@ const { AppleAuthenticationButton, AppleAuthenticationButtonType, AppleAuthentic
 export default function SignUpScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
+  const { t } = useAppTranslation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -36,7 +38,7 @@ export default function SignUpScreen() {
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   const [showSignInPrompt, setShowSignInPrompt] = useState(false);
-  const [passwordStrength, setPasswordStrength] = useState({ score: 0, feedback: 'Very weak' });
+  const [passwordStrength, setPasswordStrength] = useState({ score: 0 });
   const passwordRef = useRef<any>(null);
   const submitting = useRef(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
@@ -45,11 +47,19 @@ export default function SignUpScreen() {
   const handlePasswordChange = (value: string) => {
     setPassword(value);
     if (value) {
-      setPasswordStrength(calculatePasswordStrength(value));
+      setPasswordStrength({ score: calculatePasswordStrength(value).score });
     } else {
-      setPasswordStrength({ score: 0, feedback: 'Very weak' });
+      setPasswordStrength({ score: 0 });
     }
   };
+
+  const passwordStrengthText = [
+    t('auth.signUp.password.levels.veryWeak'),
+    t('auth.signUp.password.levels.weak'),
+    t('auth.signUp.password.levels.fair'),
+    t('auth.signUp.password.levels.good'),
+    t('auth.signUp.password.levels.strong'),
+  ][passwordStrength.score];
 
   const attemptRegistration = async (attempt: number = 1): Promise<any> => {
     setRetryCount(attempt > 1 ? attempt : 0);
@@ -75,7 +85,7 @@ export default function SignUpScreen() {
           if (__DEV__) console.error(`[sign-up] Recovery login failed:`, loginError?.message);
           // If login fails, the user might not have been created after all
           // Or there might be a password issue - throw a helpful error
-          throw new Error('Registration may have partially succeeded but login failed. Please try signing in directly or contact support.');
+          throw new Error(t('auth.signUp.errors.partialSuccess'));
         }
       }
       
@@ -98,14 +108,14 @@ export default function SignUpScreen() {
   const onSubmit = async () => {
     if (submitting.current) return;
     if (loading) return;
-    if (!email || !password) { setError('Please enter email and password'); return; }
+    if (!email || !password) { setError(t('auth.signUp.errors.enterEmailAndPassword')); return; }
     
     // Use form validation utilities
     const emailValidation = validateEmail(email);
-    if (!emailValidation.valid) { setError(emailValidation.error || 'Invalid email'); return; }
+    if (!emailValidation.valid) { setError(t('auth.signUp.errors.invalidEmail')); return; }
     
     const passwordValidation = validatePassword(password, 8, true);
-    if (!passwordValidation.valid) { setError(passwordValidation.error || 'Invalid password'); return; }
+    if (!passwordValidation.valid) { setError(t('auth.signUp.errors.invalidPassword')); return; }
     
     trackTap('auth_email_submit', { screen: 'sign_up' });
     submitting.current = true;
@@ -130,25 +140,25 @@ export default function SignUpScreen() {
       });
       
       // Handle specific error types with better messaging
-      let errorMessage = 'Sign up failed';
+      let errorMessage = t('auth.signUp.errors.default');
       let promptSignIn = false;
       
       if (e?.message?.includes('Registration may have partially succeeded')) {
-        errorMessage = 'Your account may have been created but there was an issue signing you in. Please try signing in directly.';
+        errorMessage = t('auth.signUp.errors.partialSuccess');
         promptSignIn = true;
       } else if (e?.message?.includes('Email already registered') || e?.status === 409 || e?.data?.errorCode === 'EMAIL_ALREADY_REGISTERED') {
-        errorMessage = 'An account with this email already exists. Would you like to sign in instead?';
+        errorMessage = t('auth.signUp.errors.existingAccount');
         promptSignIn = true;
         setEmail('');
         setPassword('');
       } else if (e?.message?.includes('Request timeout')) {
-        errorMessage = 'Registration is taking longer than expected. Our servers might be busy. Please try again in a few minutes.';
+        errorMessage = t('auth.signUp.errors.timeout');
       } else if (e?.message?.includes('Network request failed')) {
-        errorMessage = 'Network error. Please check your internet connection and try again.';
+        errorMessage = t('auth.signUp.errors.network');
       } else if (e?.message?.includes('password')) {
-        errorMessage = 'Password must be at least 8 characters and contain letters and numbers.';
+        errorMessage = t('auth.signUp.errors.invalidPassword');
       } else if (e?.message?.includes('email')) {
-        errorMessage = 'Please enter a valid email address.';
+        errorMessage = t('auth.signUp.errors.invalidEmail');
       } else if (e?.message) {
         errorMessage = e.message;
       }
@@ -160,7 +170,7 @@ export default function SignUpScreen() {
 
   const handleGoogleSignUp = async () => {
     if (!googleReady) {
-      setError('Google sign up is not configured yet. Please use email for now.');
+      setError(t('auth.signUp.errors.googleNotConfigured'));
       return;
     }
     setError(null);
@@ -171,22 +181,22 @@ export default function SignUpScreen() {
       // Let AuthProvider handle routing (onboarding vs tabs)
       await checkAuth();
     } catch (e: any) {
-      const message = e?.message || 'Google sign up failed';
+      const message = e?.message || t('auth.signUp.errors.googleDefault');
       if (typeof message === 'string' && message.toLowerCase().includes('cancel')) {
         return;
       }
       captureException(typeof e === 'string' ? new Error(e) : e, { tags: { context: 'google-signup' } });
-      setError(message);
+      setError(message || t('auth.signUp.errors.googleDefault'));
     }
   };
 
   const handleAppleSignUp = async () => {
     if (Platform.OS !== 'ios') {
-      setError('Apple sign in is only available on iOS.');
+      setError(t('auth.signUp.errors.appleOnlyIos'));
       return;
     }
     if (!appleReady) {
-      setError('Apple sign in is still initializing. Please try again in a moment.');
+      setError(t('auth.signUp.errors.appleInitializing'));
       return;
     }
     if (appleLoading) {
@@ -202,11 +212,11 @@ export default function SignUpScreen() {
     } catch (e: any) {
       if (__DEV__) console.error('[sign-up] Apple sign up error:', e);
       captureException(typeof e === 'string' ? new Error(e) : e, { tags: { context: 'apple-signup' } });
-      const message = e?.message || 'Apple sign up failed';
+      const message = e?.message || t('auth.signUp.errors.appleDefault');
       if (typeof message === 'string' && message.toLowerCase().includes('cancel')) {
         return;
       }
-      setError(message);
+      setError(message || t('auth.signUp.errors.appleDefault'));
     }
   };
 
@@ -214,14 +224,14 @@ export default function SignUpScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
       <Stack.Screen 
         options={{ 
-          title: 'Create Account',
+          title: t('auth.signUp.meta.title'),
           headerShown: true,
-          headerBackTitle: 'Back'
+          headerBackTitle: t('auth.signUp.meta.backTitle')
         }} 
       />
       <KeyboardAwareScreen contentContainerStyle={styles.content}>
-        <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Create Account</Text>
-        <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>Choose how you'd like to sign up</Text>
+        <Text style={[styles.title, { color: Colors[colorScheme].text }]}>{t('auth.signUp.title')}</Text>
+        <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>{t('auth.signUp.subtitle')}</Text>
         
         {error ? (
           <View style={styles.errorContainer}>
@@ -231,9 +241,9 @@ export default function SignUpScreen() {
                 variant="outline"
                 onPress={() => router.replace('/sign-in')}
                 style={{ marginTop: 12 }}
-                accessibilityLabel="Go to sign in"
+                accessibilityLabel={t('auth.signUp.actions.goToSignInLabel')}
               >
-                <Text style={{ color: Colors[colorScheme].tint, fontSize: 16, fontWeight: '600' }}>Go to Sign In</Text>
+                <Text style={{ color: Colors[colorScheme].tint, fontSize: 16, fontWeight: '600' }}>{t('auth.signUp.actions.goToSignIn')}</Text>
               </Button>
             )}
           </View>
@@ -248,8 +258,8 @@ export default function SignUpScreen() {
             activeOpacity={0.7}
             accessibilityRole="checkbox"
             accessibilityState={{ checked: agreedToTerms }}
-            accessibilityLabel="I agree to the Terms of Service and Privacy Policy"
-            accessibilityHint="Double tap to toggle"
+            accessibilityLabel={t('auth.signUp.agreements.agreeLabel')}
+            accessibilityHint={t('auth.signUp.agreements.agreeHint')}
           >
             <Ionicons
               name={agreedToTerms ? 'checkbox' : 'checkbox-outline'}
@@ -257,19 +267,19 @@ export default function SignUpScreen() {
               color={agreedToTerms ? Colors[colorScheme].tint : Colors[colorScheme].mutedText}
             />
             <Text style={[styles.checkboxText, { color: Colors[colorScheme].text }]}>
-              I agree to the{' '}
+              {t('auth.signUp.agreements.agreePrefix')}{' '}
               <Text
                 style={{ color: Colors[colorScheme].tint, textDecorationLine: 'underline' }}
                 onPress={() => Linking.openURL('https://varsityhub.app/terms').catch(() => {})}
               >
-                Terms of Service
+                {t('auth.signUp.agreements.termsOfService')}
               </Text>
-              {' '}and{' '}
+              {' '}{t('auth.signUp.agreements.and')}{' '}
               <Text
                 style={{ color: Colors[colorScheme].tint, textDecorationLine: 'underline' }}
                 onPress={() => Linking.openURL('https://varsityhub.app/privacy').catch(() => {})}
               >
-                Privacy Policy
+                {t('auth.signUp.agreements.privacyPolicy')}
               </Text>
             </Text>
           </TouchableOpacity>
@@ -281,8 +291,8 @@ export default function SignUpScreen() {
             activeOpacity={0.7}
             accessibilityRole="checkbox"
             accessibilityState={{ checked: confirmedAge }}
-            accessibilityLabel="I confirm I am at least 13 years old"
-            accessibilityHint="Double tap to toggle"
+            accessibilityLabel={t('auth.signUp.agreements.ageLabel')}
+            accessibilityHint={t('auth.signUp.agreements.ageHint')}
           >
             <Ionicons
               name={confirmedAge ? 'checkbox' : 'checkbox-outline'}
@@ -290,13 +300,13 @@ export default function SignUpScreen() {
               color={confirmedAge ? Colors[colorScheme].tint : Colors[colorScheme].mutedText}
             />
             <Text style={[styles.checkboxText, { color: Colors[colorScheme].text }]}>
-              I confirm I am at least 13 years old
+              {t('auth.signUp.agreements.ageText')}
             </Text>
           </TouchableOpacity>
 
           {/* Apple Sign Up Option (iOS only) */}
           {Platform.OS === 'ios' ? (
-            <View pointerEvents={(!agreedToTerms || !confirmedAge) ? 'none' : 'auto'} style={(!agreedToTerms || !confirmedAge) ? styles.buttonDisabled : undefined} accessibilityLabel="Sign up with Apple" accessibilityRole="button" accessibilityHint="Double tap to create an account with your Apple ID">
+            <View pointerEvents={(!agreedToTerms || !confirmedAge) ? 'none' : 'auto'} style={(!agreedToTerms || !confirmedAge) ? styles.buttonDisabled : undefined} accessibilityLabel={t('auth.signUp.oauth.appleLabel')} accessibilityRole="button" accessibilityHint={t('auth.signUp.oauth.appleHint')}>
               <AppleAuthenticationButton
                 onPress={handleAppleSignUp}
                 buttonType={AppleAuthenticationButtonType.SIGN_UP}
@@ -314,14 +324,14 @@ export default function SignUpScreen() {
               onPress={handleGoogleSignUp}
               disabled={googleLoading || !agreedToTerms || !confirmedAge}
               accessibilityRole="button"
-              accessibilityLabel="Continue with Google"
-              accessibilityHint="Double tap to create an account with your Google account"
+              accessibilityLabel={t('auth.signUp.oauth.googleLabel')}
+              accessibilityHint={t('auth.signUp.oauth.googleHint')}
             >
               <Ionicons name="logo-google" size={20} color="#4285F4" style={styles.googleIcon} />
               {googleLoading ? (
                 <ActivityIndicator size="small" color="#4285F4" />
               ) : (
-                <Text style={[styles.googleButtonText, { color: Colors[colorScheme].text }]}>Continue with Google</Text>
+                <Text style={[styles.googleButtonText, { color: Colors[colorScheme].text }]}>{t('auth.signUp.oauth.googleLabel')}</Text>
               )}
             </Pressable>
           ) : googleConfigured ? (
@@ -329,7 +339,7 @@ export default function SignUpScreen() {
             <View
               style={[styles.googleButton, styles.disabledGoogleButton, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
               accessibilityRole="text"
-              accessibilityLabel="Google sign up loading"
+              accessibilityLabel={t('auth.signUp.oauth.googleLoading')}
             >
               <Ionicons name="logo-google" size={20} color={Colors[colorScheme].mutedText} style={styles.googleIcon} />
               <ActivityIndicator size="small" color={Colors[colorScheme].mutedText} style={{ marginLeft: 8 }} />
@@ -339,41 +349,41 @@ export default function SignUpScreen() {
             <View
               style={[styles.googleButton, styles.disabledGoogleButton, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
               accessibilityRole="text"
-              accessibilityLabel="Google sign up not available"
+              accessibilityLabel={t('auth.signUp.oauth.googleUnavailable')}
             >
               <Ionicons name="logo-google" size={20} color={Colors[colorScheme].mutedText} style={styles.googleIcon} />
               <View style={{ flex: 1 }}>
-                <Text style={[styles.googleButtonText, { color: Colors[colorScheme].text }]}>Google sign-up temporarily unavailable</Text>
-                <Text style={[styles.googleButtonSubtext, { color: Colors[colorScheme].mutedText }]}>Please use email or Apple sign-up to continue.</Text>
+                <Text style={[styles.googleButtonText, { color: Colors[colorScheme].text }]}>{t('auth.signUp.oauth.googleUnavailable')}</Text>
+                <Text style={[styles.googleButtonSubtext, { color: Colors[colorScheme].mutedText }]}>{t('auth.signUp.oauth.googleUnavailableHelp')}</Text>
               </View>
             </View>
           )}
 
           <View style={styles.divider}>
             <View style={[styles.dividerLine, { backgroundColor: Colors[colorScheme].border }]} />
-            <Text style={[styles.dividerText, { color: Colors[colorScheme].mutedText }]}>or</Text>
+            <Text style={[styles.dividerText, { color: Colors[colorScheme].mutedText }]}>{t('common.actions.or')}</Text>
             <View style={[styles.dividerLine, { backgroundColor: Colors[colorScheme].border }]} />
           </View>
 
           {/* Email Sign Up Option */}
-          <Button onPress={() => setShowEmailForm(true)} variant="outline" disabled={!agreedToTerms || !confirmedAge} accessibilityLabel="Sign up with Email" accessibilityRole="button" accessibilityHint="Double tap to enter your email and password">
+          <Button onPress={() => setShowEmailForm(true)} variant="outline" disabled={!agreedToTerms || !confirmedAge} accessibilityLabel={t('auth.signUp.actions.signUpWithEmailLabel')} accessibilityRole="button" accessibilityHint={t('auth.signUp.actions.signUpWithEmailHint')}>
             <MaterialIcons name="mail" size={16} color={Colors[colorScheme].mutedText} style={{ marginRight: 8 }} />
-            <Text style={{ color: Colors[colorScheme].text, fontSize: 16, fontWeight: '600' }}>Sign up with Email</Text>
+            <Text style={{ color: Colors[colorScheme].text, fontSize: 16, fontWeight: '600' }}>{t('auth.signUp.actions.signUpWithEmail')}</Text>
           </Button>
         </>
         ) : (
           <>
           {/* Back Button */}
-          <Pressable style={styles.backButton} onPress={() => setShowEmailForm(false)} accessibilityRole="button" accessibilityLabel="Back to sign up options" accessibilityHint="Double tap to return to Apple and Google options">
+          <Pressable style={styles.backButton} onPress={() => setShowEmailForm(false)} accessibilityRole="button" accessibilityLabel={t('auth.signUp.actions.backToOptionsLabel')} accessibilityHint={t('auth.signUp.actions.backToOptionsHint')}>
             <MaterialIcons name="arrow-back" size={20} color={Colors[colorScheme].mutedText} />
-            <Text style={[styles.backText, { color: Colors[colorScheme].mutedText }]}>Back to options</Text>
+            <Text style={[styles.backText, { color: Colors[colorScheme].mutedText }]}>{t('auth.signUp.actions.backToOptions')}</Text>
           </Pressable>
 
           {/* Email Form */}
-          <Input placeholder="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" style={{ marginBottom: 10 }} accessibilityLabel="Email" accessibilityHint="Enter your email address" returnKeyType="next" onSubmitEditing={() => passwordRef.current?.focus()} />
-          <Input ref={passwordRef} placeholder="Password" value={password} onChangeText={handlePasswordChange} secureTextEntry accessibilityLabel="Password" accessibilityHint="Enter at least 8 characters with one letter and one number" returnKeyType="go" onSubmitEditing={onSubmit} />
+          <Input placeholder={t('auth.signUp.fields.emailPlaceholder')} value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" style={{ marginBottom: 10 }} accessibilityLabel={t('auth.signUp.fields.emailLabel')} accessibilityHint={t('auth.signUp.fields.emailHint')} returnKeyType="next" onSubmitEditing={() => passwordRef.current?.focus()} />
+          <Input ref={passwordRef} placeholder={t('auth.signUp.fields.passwordPlaceholder')} value={password} onChangeText={handlePasswordChange} secureTextEntry accessibilityLabel={t('auth.signUp.fields.passwordLabel')} accessibilityHint={t('auth.signUp.fields.passwordHint')} returnKeyType="go" onSubmitEditing={onSubmit} />
           <Text style={{ fontSize: 11, color: Colors[colorScheme].mutedText, marginTop: 4 }}>
-            Password must be at least 8 characters
+            {t('auth.signUp.password.requirement')}
           </Text>
           {/* Password Strength Indicator */}
           {password.length > 0 && (
@@ -397,10 +407,10 @@ export default function SignUpScreen() {
                 ))}
               </View>
               <Text style={{ fontSize: 12, color: Colors[colorScheme].text + '99' }}>
-                Password strength: {passwordStrength.feedback}
+                {t('auth.signUp.password.strengthLabel', { strength: passwordStrengthText })}
               </Text>
               <Text style={{ fontSize: 11, color: Colors[colorScheme].text + '77', marginTop: 2 }}>
-                Min 8 characters. Must contain at least one letter and one number
+                {t('auth.signUp.password.strengthHint')}
               </Text>
             </View>
           )}
@@ -414,8 +424,8 @@ export default function SignUpScreen() {
             activeOpacity={0.7}
             accessibilityRole="checkbox"
             accessibilityState={{ checked: agreedToTerms }}
-            accessibilityLabel="I agree to the Terms of Service and Privacy Policy"
-            accessibilityHint="Double tap to toggle"
+            accessibilityLabel={t('auth.signUp.agreements.agreeLabel')}
+            accessibilityHint={t('auth.signUp.agreements.agreeHint')}
           >
             <Ionicons
               name={agreedToTerms ? 'checkbox' : 'checkbox-outline'}
@@ -423,19 +433,19 @@ export default function SignUpScreen() {
               color={agreedToTerms ? Colors[colorScheme].tint : Colors[colorScheme].mutedText}
             />
             <Text style={[styles.checkboxText, { color: Colors[colorScheme].text }]}>
-              I agree to the{' '}
+              {t('auth.signUp.agreements.agreePrefix')}{' '}
               <Text
                 style={{ color: Colors[colorScheme].tint, textDecorationLine: 'underline' }}
                 onPress={() => Linking.openURL('https://varsityhub.app/terms').catch(() => {})}
               >
-                Terms of Service
+                {t('auth.signUp.agreements.termsOfService')}
               </Text>
-              {' '}and{' '}
+              {' '}{t('auth.signUp.agreements.and')}{' '}
               <Text
                 style={{ color: Colors[colorScheme].tint, textDecorationLine: 'underline' }}
                 onPress={() => Linking.openURL('https://varsityhub.app/privacy').catch(() => {})}
               >
-                Privacy Policy
+                {t('auth.signUp.agreements.privacyPolicy')}
               </Text>
             </Text>
           </TouchableOpacity>
@@ -447,8 +457,8 @@ export default function SignUpScreen() {
             activeOpacity={0.7}
             accessibilityRole="checkbox"
             accessibilityState={{ checked: confirmedAge }}
-            accessibilityLabel="I confirm I am at least 13 years old"
-            accessibilityHint="Double tap to toggle"
+            accessibilityLabel={t('auth.signUp.agreements.ageLabel')}
+            accessibilityHint={t('auth.signUp.agreements.ageHint')}
           >
             <Ionicons
               name={confirmedAge ? 'checkbox' : 'checkbox-outline'}
@@ -456,25 +466,25 @@ export default function SignUpScreen() {
               color={confirmedAge ? Colors[colorScheme].tint : Colors[colorScheme].mutedText}
             />
             <Text style={[styles.checkboxText, { color: Colors[colorScheme].text }]}>
-              I confirm I am at least 13 years old
+              {t('auth.signUp.agreements.ageText')}
             </Text>
           </TouchableOpacity>
 
-          <Button onPress={onSubmit} disabled={loading || !agreedToTerms || !confirmedAge} accessibilityLabel={loading ? 'Creating account' : 'Create account'} accessibilityRole="button" accessibilityHint="Double tap to sign up with email and password">
+          <Button onPress={onSubmit} disabled={loading || !agreedToTerms || !confirmedAge} accessibilityLabel={loading ? t('auth.signUp.actions.submittingLabel') : t('auth.signUp.actions.submitLabel')} accessibilityRole="button" accessibilityHint={t('auth.signUp.actions.submitHint')}>
             {loading ? (
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <ActivityIndicator size="small" color="white" />
                 <Text style={{ color: 'white', marginLeft: 8, fontSize: 16 }}>
-                  {retryCount > 0 ? `Retrying... (${retryCount}/3)` : 'Creating account...'}
+                  {retryCount > 0 ? t('auth.signUp.actions.retrying', { count: retryCount }) : t('auth.signUp.actions.submitting')}
                 </Text>
               </View>
-            ) : 'Sign Up'}
+            ) : t('auth.signUp.actions.submit')}
           </Button>
           </>
         )}
 
-        <Pressable style={{ marginTop: 24, alignItems: 'center' }} onPress={() => void router.replace('/sign-in')} accessibilityRole="button" accessibilityLabel="Already have an account? Sign in" accessibilityHint="Double tap to go to sign in">
-          <Text style={[styles.signInLink, { color: Colors[colorScheme].tint }]}>Already have an account? Sign in</Text>
+        <Pressable style={{ marginTop: 24, alignItems: 'center' }} onPress={() => void router.replace('/sign-in')} accessibilityRole="button" accessibilityLabel={t('auth.signUp.actions.alreadyHaveAccountLabel')} accessibilityHint={t('auth.signUp.actions.alreadyHaveAccountHint')}>
+          <Text style={[styles.signInLink, { color: Colors[colorScheme].tint }]}>{t('auth.signUp.actions.alreadyHaveAccount')}</Text>
         </Pressable>
       </KeyboardAwareScreen>
     </SafeAreaView>

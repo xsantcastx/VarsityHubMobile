@@ -21,6 +21,7 @@ import { NavigationHistoryProvider } from '@/context/NavigationHistoryContext';
 import { PostCacheProvider } from '@/context/PostCacheContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { ThemeProvider } from '@/hooks/useCustomColorScheme';
+import { initializeI18n } from '@/lib/i18n';
 import { NotificationTapHandler } from '@/components/NotificationTapHandler';
 import { handleDeepLinkAuthAware, handleInitialDeepLink, setupDeepLinkListener } from '@/utils/deepLinks';
 import { initSentry } from '@/utils/sentry';
@@ -63,7 +64,26 @@ function RootLayout() {
   const [loaded] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
+  const [i18nReady, setI18nReady] = React.useState(false);
   const navState = useRootNavigationState();
+
+  React.useEffect(() => {
+    let isMounted = true;
+
+    initializeI18n()
+      .catch((error) => {
+        devLog('i18n initialization failed', error);
+      })
+      .finally(() => {
+        if (isMounted) {
+          setI18nReady(true);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   React.useEffect(() => {
     if (__DEV__) {
@@ -119,7 +139,7 @@ function RootLayout() {
     return unsubscribe;
   }, []);
 
-  if (!loaded) {
+  if (!loaded || !i18nReady) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors[colorScheme ?? 'light'].background }}>
         <ActivityIndicator />

@@ -21,6 +21,7 @@ import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useAppleAuth } from '@/hooks/useAppleAuth';
 import { useGoogleAuth } from '@/hooks/useGoogleAuth';
+import { useAppTranslation } from '@/lib/i18n/useAppTranslation';
 import { captureException } from '@/utils/sentry';
 import { validateEmail } from '@/utils/formUtils';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
@@ -38,6 +39,7 @@ export default function SignInScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const palette = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
+  const { t } = useAppTranslation();
 
   const passwordRef = useRef<TextInput>(null);
   const [email, setEmail] = useState('');
@@ -52,12 +54,12 @@ export default function SignInScreen() {
   const onSubmit = async () => {
     if (loading) return;
     if (!email || !password) {
-      setError('Please enter email and password');
+      setError(t('auth.signIn.errors.enterEmailAndPassword'));
       return;
     }
     const emailCheck = validateEmail(email);
     if (!emailCheck.valid) {
-      setError(emailCheck.error || 'Please enter a valid email address');
+      setError(t('auth.signIn.errors.invalidEmail'));
       return;
     }
     setLoading(true);
@@ -68,7 +70,7 @@ export default function SignInScreen() {
       if (!res?.access_token) {
         const errMsg = `Invalid login response: missing access_token. Response keys: ${Object.keys(res || {}).join(', ')}`;
         captureException(new Error(errMsg), { tags: { context: 'email-password-login' } });
-        setError('Invalid login response from server');
+        setError(t('auth.signIn.errors.invalidLoginResponse'));
         setLoading(false);
         return;
       }
@@ -106,24 +108,28 @@ export default function SignInScreen() {
       
       // Show user-friendly error messages
       if (status === 401) {
-        setError('Invalid email or password. Please try again.');
+        setError(t('auth.signIn.errors.invalidCredentials'));
       } else if (status === 429) {
-        setError('Too many login attempts. Please wait a moment and try again.');
+        setError(t('auth.signIn.errors.tooManyAttempts'));
       } else if (status === 403) {
         const banReason = e?.data?.ban_reason || e?.response?.data?.ban_reason;
         const bannedUntil = e?.data?.banned_until || e?.response?.data?.banned_until;
         if (bannedUntil) {
           const until = new Date(bannedUntil).toLocaleDateString();
-          setError(`Your account is temporarily suspended until ${until}.${banReason ? ` Reason: ${banReason}` : ''}`);
+          setError(
+            banReason
+              ? t('auth.signIn.errors.suspendedUntilWithReason', { reason: banReason, until })
+              : t('auth.signIn.errors.suspendedUntil', { until })
+          );
         } else {
-          setError(banReason || 'This account has been banned. Please contact support@varsityhub.app.');
+          setError(banReason || t('auth.signIn.errors.banned'));
         }
       } else if (errMsg.includes('Network') || errMsg.includes('timeout') || errMsg.includes('fetch')) {
-        setError('Unable to connect to server. Please check your internet connection.');
+        setError(t('auth.signIn.errors.network'));
       } else if (status === 500 || errMsg.toLowerCase().includes('internal server')) {
-        setError('Server is temporarily unavailable. Please try again in a moment.');
+        setError(t('auth.signIn.errors.serverUnavailable'));
       } else {
-        setError(errMsg || 'Login failed. Please try again.');
+        setError(errMsg || t('auth.signIn.errors.default'));
       }
       
       // Capture error with context
@@ -141,7 +147,7 @@ export default function SignInScreen() {
 
   const handleGoogleLogin = async () => {
     if (!googleReady) {
-      setError('Google sign in is not configured yet.');
+      setError(t('auth.signIn.errors.googleNotConfigured'));
       return;
     }
     setError(null);
@@ -153,7 +159,7 @@ export default function SignInScreen() {
       if (!response?.access_token) {
         const errMsg = `Google sign-in failed: missing access_token. Response: ${JSON.stringify(response).substring(0, 200)}`;
         captureException(new Error(errMsg), { tags: { context: 'google-signin' } });
-        setError('Failed to complete Google sign-in. Please try again.');
+        setError(t('auth.signIn.errors.googleFailed'));
         return;
       }
 
@@ -167,7 +173,7 @@ export default function SignInScreen() {
         });
       } catch (authError: any) {
         if (__DEV__) console.warn('[sign-in] checkAuth after Google login failed:', authError?.message);
-        setError('Sign-in succeeded but we could not load your profile. Please try again.');
+        setError(t('auth.signIn.errors.profileLoadFailed'));
       }
     } catch (e: any) {
       // Silently ignore user cancellation
@@ -182,11 +188,11 @@ export default function SignInScreen() {
       
       // Show user-friendly error
       if (message.includes('Network') || message.includes('timeout') || message.includes('fetch')) {
-        setError('Unable to connect to server. Please check your internet connection.');
+        setError(t('auth.signIn.errors.network'));
       } else if (message.includes('not configured')) {
-        setError('Google sign-in is not configured. Please use email/password login.');
+        setError(t('auth.signIn.errors.googleUnavailableUseEmail'));
       } else {
-        setError(message || 'Google sign-in failed. Please try again.');
+        setError(message || t('auth.signIn.errors.googleFailed'));
       }
       
       captureException(
@@ -199,7 +205,7 @@ export default function SignInScreen() {
   const handleAppleLogin = async () => {
     if (appleLoading) return;
     if (Platform.OS !== 'ios') {
-      setError('Apple sign in is only available on iOS.');
+      setError(t('auth.signIn.errors.appleOnlyIos'));
       return;
     }
     setError(null);
@@ -211,7 +217,7 @@ export default function SignInScreen() {
       if (!response?.access_token) {
         const errMsg = `Apple sign-in failed: missing access_token. Response: ${JSON.stringify(response).substring(0, 200)}`;
         captureException(new Error(errMsg), { tags: { context: 'apple-signin' } });
-        setError('Failed to complete Apple sign-in. Please try again.');
+        setError(t('auth.signIn.errors.appleFailed'));
         return;
       }
 
@@ -225,7 +231,7 @@ export default function SignInScreen() {
         });
       } catch (authError: any) {
         if (__DEV__) console.warn('[sign-in] checkAuth after Apple login failed:', authError?.message);
-        setError('Sign-in succeeded but we could not load your profile. Please try again.');
+        setError(t('auth.signIn.errors.profileLoadFailed'));
       }
     } catch (e: any) {
       const message = e?.message || 'Apple sign in failed';
@@ -243,13 +249,13 @@ export default function SignInScreen() {
       
       // Show user-friendly error
       if (message.includes('not available in the simulator') || message.includes('simulator')) {
-        setError('Apple Sign-In requires a real device. Use email/password in the simulator.');
+        setError(t('auth.signIn.errors.appleDeviceOnly'));
       } else if (message.includes('Network') || message.includes('timeout') || message.includes('fetch')) {
-        setError('Unable to connect to server. Please check your internet connection.');
+        setError(t('auth.signIn.errors.network'));
       } else if (message.toLowerCase().includes('internal server') || e?.status === 500) {
-        setError('Server is temporarily unavailable. Please try again in a moment.');
+        setError(t('auth.signIn.errors.serverUnavailable'));
       } else {
-        setError(message || 'Apple sign-in failed. Please try again.');
+        setError(message || t('auth.signIn.errors.appleFailed'));
       }
 
       captureException(
@@ -261,7 +267,7 @@ export default function SignInScreen() {
 
   return (
     <SafeAreaView style={[styles.root, { backgroundColor: palette.background, borderLeftWidth: 0, borderRightWidth: 0 }]} edges={['top']}>
-      <Stack.Screen options={{ title: 'Sign In', headerShown: false }} />
+      <Stack.Screen options={{ title: t('auth.signIn.meta.title'), headerShown: false }} />
         <ScrollView
           contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(24, insets.bottom) }]}
           keyboardShouldPersistTaps="handled"
@@ -288,11 +294,11 @@ export default function SignInScreen() {
                 source={require('../assets/images/logo.png')}
                 style={styles.logo}
                 contentFit="contain"
-                accessibilityLabel="VarsityHub logo"
+                accessibilityLabel={t('auth.signIn.logoLabel')}
               />
             </View>
-            <Text style={[styles.title, { color: palette.text }]}>Welcome back</Text>
-            <Text style={[styles.subtitle, { color: palette.mutedText }]}>Sign in to keep your community in sync.</Text>
+            <Text style={[styles.title, { color: palette.text }]}>{t('auth.signIn.title')}</Text>
+            <Text style={[styles.subtitle, { color: palette.mutedText }]}>{t('auth.signIn.subtitle')}</Text>
           </View>
 
           <View style={[styles.card, { backgroundColor: palette.elevated, borderColor: palette.border, borderWidth: 2 }]}>
@@ -307,7 +313,7 @@ export default function SignInScreen() {
                 buttonStyle={colorScheme === 'dark' ? AppleAuthenticationButtonStyle.WHITE : AppleAuthenticationButtonStyle.BLACK}
                 cornerRadius={8}
                 style={{ width: '100%', height: 50, marginBottom: 0, borderWidth: 2, borderColor: palette.border }}
-                accessibilityLabel="Sign in with Apple"
+                accessibilityLabel={t('auth.signIn.oauth.appleLabel')}
               />
             ) : null}
 
@@ -317,14 +323,14 @@ export default function SignInScreen() {
                 onPress={handleGoogleLogin}
                 disabled={googleLoading}
                 accessibilityRole="button"
-                accessibilityLabel="Continue with Google"
-                accessibilityHint="Double tap to sign in with your Google account"
+                accessibilityLabel={t('auth.signIn.oauth.googleLabel')}
+                accessibilityHint={t('auth.signIn.oauth.googleHint')}
               >
                 <Ionicons name="logo-google" size={20} color="#4285F4" style={styles.googleIcon} />
                 {googleLoading ? (
                   <ActivityIndicator size="small" color="#4285F4" />
                 ) : (
-                  <Text style={[styles.googleButtonText, { color: palette.text }]}>Continue with Google</Text>
+                  <Text style={[styles.googleButtonText, { color: palette.text }]}>{t('auth.signIn.oauth.googleLabel')}</Text>
                 )}
               </Pressable>
             ) : googleConfigured ? (
@@ -332,7 +338,7 @@ export default function SignInScreen() {
               <View
                 style={[styles.googleButton, styles.disabledGoogleButton, { backgroundColor: palette.card, borderColor: palette.border, borderWidth: 2 }]}
                 accessibilityRole="text"
-                accessibilityLabel="Google sign in loading"
+                accessibilityLabel={t('auth.signIn.oauth.googleLoading')}
               >
                 <Ionicons name="logo-google" size={20} color={palette.mutedText} style={styles.googleIcon} />
                 <ActivityIndicator size="small" color={palette.mutedText} style={{ marginLeft: 8 }} />
@@ -342,13 +348,13 @@ export default function SignInScreen() {
               <View
                 style={[styles.googleButton, styles.disabledGoogleButton, { backgroundColor: palette.surface, borderColor: palette.border, borderWidth: 2 }]}
                 accessibilityRole="text"
-                accessibilityLabel="Google sign in not available"
+                accessibilityLabel={t('auth.signIn.oauth.googleUnavailable')}
               >
                 <Ionicons name="logo-google" size={20} color={palette.mutedText} style={styles.googleIcon} />
                 <View style={{ flex: 1 }}>
-                <Text style={[styles.googleButtonText, { color: palette.mutedText }]}>Google sign-in temporarily unavailable</Text>
+                <Text style={[styles.googleButtonText, { color: palette.mutedText }]}>{t('auth.signIn.oauth.googleUnavailable')}</Text>
                   <Text style={[styles.googleButtonSubtext, { color: palette.mutedText }]}>
-                    Please use email or Apple sign-in to continue.
+                    {t('auth.signIn.oauth.googleUnavailableHelp')}
                   </Text>
                 </View>
               </View>
@@ -356,15 +362,15 @@ export default function SignInScreen() {
 
             <View style={styles.divider}>
               <View style={[styles.dividerLine, { backgroundColor: palette.border }]} />
-              <Text style={[styles.dividerText, { color: palette.mutedText }]}>or</Text>
+              <Text style={[styles.dividerText, { color: palette.mutedText }]}>{t('common.actions.or')}</Text>
               <View style={[styles.dividerLine, { backgroundColor: palette.border }]} />
             </View>
 
             <View style={styles.fieldSpacing}>
-              <Text style={[styles.label, { color: palette.mutedText }]}>Email</Text>
+              <Text style={[styles.label, { color: palette.mutedText }]}>{t('auth.signIn.fields.emailLabel')}</Text>
               <Input
                 testID="sign-in-email"
-                placeholder="name@school.edu"
+                placeholder={t('common.placeholders.email')}
                 value={email}
                 onChangeText={setEmail}
                 autoCapitalize="none"
@@ -374,8 +380,8 @@ export default function SignInScreen() {
                 returnKeyType="next"
                 onSubmitEditing={() => passwordRef.current?.focus()}
                 placeholderTextColor={palette.mutedText}
-                accessibilityLabel="Email"
-                accessibilityHint="Enter your email address"
+                accessibilityLabel={t('auth.signIn.fields.emailA11yLabel')}
+                accessibilityHint={t('auth.signIn.fields.emailA11yHint')}
                 style={[
                   styles.input,
                   {
@@ -389,11 +395,11 @@ export default function SignInScreen() {
             </View>
 
             <View style={styles.fieldSpacing}>
-              <Text style={[styles.label, { color: palette.mutedText }]}>Password</Text>
+              <Text style={[styles.label, { color: palette.mutedText }]}>{t('auth.signIn.fields.passwordLabel')}</Text>
               <Input
                 ref={passwordRef}
                 testID="sign-in-password"
-                placeholder="Enter your password"
+                placeholder={t('auth.signIn.fields.passwordPlaceholder')}
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry
@@ -402,8 +408,8 @@ export default function SignInScreen() {
                 returnKeyType="go"
                 onSubmitEditing={onSubmit}
                 placeholderTextColor={palette.mutedText}
-                accessibilityLabel="Password"
-                accessibilityHint="Enter your password"
+                accessibilityLabel={t('auth.signIn.fields.passwordA11yLabel')}
+                accessibilityHint={t('auth.signIn.fields.passwordA11yHint')}
                 style={[
                   styles.input,
                   {
@@ -420,19 +426,19 @@ export default function SignInScreen() {
               style={styles.forgotLink}
               onPress={() => void router.push('/forgot-password')}
               accessibilityRole="button"
-              accessibilityLabel="Forgot password?"
-              accessibilityHint="Double tap to reset your password"
+              accessibilityLabel={t('auth.signIn.links.forgotPasswordLabel')}
+              accessibilityHint={t('auth.signIn.links.forgotPasswordHint')}
             >
-              <Text style={[styles.forgotLinkText, { color: palette.tint }]}>Forgot password?</Text>
+              <Text style={[styles.forgotLinkText, { color: palette.tint }]}>{t('auth.signIn.links.forgotPassword')}</Text>
             </Pressable>
 
             <Button
               onPress={onSubmit}
               disabled={loading}
-              accessibilityLabel={loading ? 'Signing in' : 'Sign In'}
-              accessibilityHint="Double tap to sign in with email and password"
+              accessibilityLabel={loading ? t('auth.signIn.actions.submitting') : t('auth.signIn.actions.submit')}
+              accessibilityHint={t('auth.signIn.actions.submitHint')}
             >
-              {loading ? <ActivityIndicator color="white" /> : 'Sign In'}
+              {loading ? <ActivityIndicator color="white" /> : t('auth.signIn.actions.submit')}
             </Button>
           </View>
 
@@ -440,11 +446,11 @@ export default function SignInScreen() {
             style={styles.footer}
             onPress={() => void router.replace('/sign-up')}
             accessibilityRole="button"
-            accessibilityLabel="Need an account? Create one"
-            accessibilityHint="Double tap to go to sign up"
+            accessibilityLabel={t('auth.signIn.actions.createOneLabel')}
+            accessibilityHint={t('auth.signIn.actions.createOneHint')}
           >
-            <Text style={[styles.footerText, { color: palette.mutedText }]}>Need an account?</Text>
-            <Text style={[styles.footerLink, { color: palette.tint }]}>Create one</Text>
+            <Text style={[styles.footerText, { color: palette.mutedText }]}>{t('auth.signIn.actions.needAccount')}</Text>
+            <Text style={[styles.footerLink, { color: palette.tint }]}>{t('auth.signIn.actions.createOne')}</Text>
           </Pressable>
         </ScrollView>
     </SafeAreaView>

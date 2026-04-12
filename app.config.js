@@ -161,6 +161,7 @@ module.exports = ({ config }) => {
       'expo-web-browser',
       'expo-secure-store',
       'expo-font',
+      'expo-localization',
       'expo-audio',
       'expo-apple-authentication',
       'expo-asset',

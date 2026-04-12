@@ -1,0 +1,16 @@
+{
+  "actions": {
+    "back": "Back",
+    "cancel": "Cancel",
+    "continue": "Continue",
+    "or": "or",
+    "save": "Save"
+  },
+  "fields": {
+    "email": "Email",
+    "password": "Password"
+  },
+  "placeholders": {
+    "email": "name@school.edu"
+  }
+}
