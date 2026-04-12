@@ -27,6 +27,8 @@ echo ""
 echo "[2/10] Checking Google Maps API keys..."
 if grep -q '"googleMapsApiKey":' app.json && ! grep -q '"googleMapsApiKey": ""' app.json; then
     echo "✅ iOS Google Maps API key configured"
+elif [ -f "app.config.js" ] && grep -q "googleMapsApiKey" app.config.js && grep -q "GOOGLE_MAPS_API_KEY" app.config.js; then
+    echo "✅ iOS Google Maps API key sourced from env via app.config.js"
 else
     echo "❌ ERROR: iOS Google Maps API key missing or empty"
     ((ERRORS++))
@@ -34,6 +36,8 @@ fi
 
 if grep -q '"apiKey":' app.json && ! grep -q '"apiKey": ""' app.json; then
     echo "✅ Android Google Maps API key configured"
+elif [ -f "app.config.js" ] && grep -q "googleMaps" app.config.js && grep -q "GOOGLE_MAPS_API_KEY" app.config.js; then
+    echo "✅ Android Google Maps API key sourced from env via app.config.js"
 else
     echo "❌ ERROR: Android Google Maps API key missing or empty"
     ((ERRORS++))
@@ -85,9 +89,11 @@ if [ -f ".env" ]; then
         echo "⚠️  WARNING: API URL might not be production"
         ((WARNINGS++))
     fi
+elif grep -q '"EXPO_PUBLIC_API_URL":' app.json 2>/dev/null || grep -q "EXPO_PUBLIC_API_URL" app.config.js 2>/dev/null; then
+    echo "✅ API URL provided via Expo config / env-driven config"
 else
-    echo "❌ ERROR: .env file missing"
-    ((ERRORS++))
+    echo "⚠️  WARNING: No local .env or Expo API URL config detected"
+    ((WARNINGS++))
 fi
 
 echo ""

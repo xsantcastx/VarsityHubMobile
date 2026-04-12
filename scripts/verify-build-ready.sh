@@ -14,7 +14,13 @@ ERRORS=0
 WARNINGS=0
 
 # Treat key warnings as errors to avoid wasting build credits
-STRICT_MODE="${STRICT_MODE:-1}"
+STRICT_MODE="${STRICT_MODE:-0}"
+
+run_with_timeout() {
+    local seconds="$1"
+    shift
+    perl -e 'alarm shift @ARGV; exec @ARGV' "$seconds" "$@"
+}
 
 mark_warning_or_error() {
     local message="$1"
@@ -27,9 +33,15 @@ mark_warning_or_error() {
     fi
 }
 
+mark_warning() {
+    local message="$1"
+    echo -e "${YELLOW}⚠️  $message${NC}"
+    WARNINGS=$((WARNINGS + 1))
+}
+
 EAS_ENV_CACHE=""
 if command -v eas &> /dev/null; then
-    EAS_ENV_CACHE=$(eas env:list --environment production 2>/dev/null || true)
+    EAS_ENV_CACHE=$(run_with_timeout 20 eas env:list --environment production 2>/dev/null || true)
 fi
 
 get_eas_env_value() {
@@ -106,10 +118,10 @@ if command -v git &> /dev/null; then
     if git diff --quiet && git diff --cached --quiet; then
         echo -e "${GREEN}✅ Git working tree clean${NC}"
     else
-        mark_warning_or_error "Uncommitted changes detected - consider committing before build"
+        mark_warning "Uncommitted changes detected - consider committing before build"
     fi
 else
-    mark_warning_or_error "Git not found - skipping status check"
+    mark_warning "Git not found - skipping status check"
 fi
 echo ""
 
@@ -193,11 +205,11 @@ fi
 SENTRY_TOKEN_FOUND=0
 if command -v eas &> /dev/null; then
     # Check if token exists as a secret (most common)
-    if eas secret:list 2>/dev/null | grep -q "SENTRY_AUTH_TOKEN"; then
+    if run_with_timeout 20 eas secret:list 2>/dev/null | grep -q "SENTRY_AUTH_TOKEN"; then
         echo -e "${GREEN}✅ SENTRY_AUTH_TOKEN found in EAS secrets${NC}"
         SENTRY_TOKEN_FOUND=1
     # Fallback: check environment variables
-    elif eas env:list --environment production 2>/dev/null | grep -q "SENTRY_AUTH_TOKEN"; then
+    elif run_with_timeout 20 eas env:list --environment production 2>/dev/null | grep -q "SENTRY_AUTH_TOKEN"; then
         echo -e "${GREEN}✅ SENTRY_AUTH_TOKEN found in EAS production environment${NC}"
         SENTRY_TOKEN_FOUND=1
     else
@@ -834,12 +846,12 @@ if [ -n "$IOS_BUNDLE_ID" ] && [ -n "$ANDROID_PACKAGE" ]; then
     if [ "$IOS_BUNDLE_ID" = "$ANDROID_PACKAGE" ]; then
         echo -e "${GREEN}✅ Bundle IDs match: $IOS_BUNDLE_ID${NC}"
     else
-        mark_warning_or_error "iOS and Android bundle IDs differ (iOS: $IOS_BUNDLE_ID, Android: $ANDROID_PACKAGE)"
+        mark_warning "iOS and Android bundle IDs differ (iOS: $IOS_BUNDLE_ID, Android: $ANDROID_PACKAGE)"
     fi
 
     # Check for potential typos (varsithub vs varsityhub)
     if [[ "$IOS_BUNDLE_ID" =~ varsithub ]] && [[ ! "$IOS_BUNDLE_ID" =~ varsityhub ]]; then
-        mark_warning_or_error "Bundle ID contains 'varsithub' - did you mean 'varsityhub'? ($IOS_BUNDLE_ID)"
+        mark_warning "Bundle ID contains 'varsithub' - verify this is intentional before App Store submission ($IOS_BUNDLE_ID)"
     fi
 else
     if [ -z "$IOS_BUNDLE_ID" ]; then

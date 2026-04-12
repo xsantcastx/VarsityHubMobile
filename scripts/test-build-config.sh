@@ -39,57 +39,33 @@ if [ -f "android/app/lint-baseline.xml" ]; then
         ERRORS=$((ERRORS + 1))
     fi
 else
-    echo -e "${RED}❌ lint-baseline.xml missing${NC}"
-    ERRORS=$((ERRORS + 1))
+    if grep -q "withAndroidLintExtraTranslationFix" app.json 2>/dev/null && [ -f "plugins/withAndroidLintExtraTranslationFix.js" ]; then
+        echo -e "${GREEN}✅ Lint baseline not required - ExtraTranslation handled by config plugin${NC}"
+    else
+        echo -e "${RED}❌ lint-baseline.xml missing and no lint-fix plugin found${NC}"
+        ERRORS=$((ERRORS + 1))
+    fi
 fi
 echo ""
 
 # Test 2: Lint configuration in build.gradle
 echo -e "${BLUE}Test 2: Lint configuration...${NC}"
-if grep -q "disable 'ExtraTranslation'" android/app/build.gradle; then
-    echo -e "${GREEN}✅ ExtraTranslation check disabled${NC}"
+if grep -q "withAndroidLintExtraTranslationFix" app.json 2>/dev/null && [ -f "plugins/withAndroidLintExtraTranslationFix.js" ]; then
+    echo -e "${GREEN}✅ ExtraTranslation handled by Expo config plugin${NC}"
 else
-    echo -e "${RED}❌ ExtraTranslation check not disabled${NC}"
-    ERRORS=$((ERRORS + 1))
-fi
-
-if grep -q "abortOnError false" android/app/build.gradle; then
-    echo -e "${GREEN}✅ abortOnError set to false${NC}"
-else
-    echo -e "${RED}❌ abortOnError not set to false${NC}"
-    ERRORS=$((ERRORS + 1))
-fi
-
-if grep -q "baseline file(\"lint-baseline.xml\")" android/app/build.gradle; then
-    echo -e "${GREEN}✅ Baseline file configured${NC}"
-else
-    echo -e "${RED}❌ Baseline file not configured${NC}"
+    echo -e "${RED}❌ ExtraTranslation fix plugin not configured${NC}"
     ERRORS=$((ERRORS + 1))
 fi
 echo ""
 
 # Test 3: lintVitalRelease task configuration
 echo -e "${BLUE}Test 3: lintVitalRelease task configuration...${NC}"
-if grep -q "lintVitalRelease" android/app/build.gradle; then
-    echo -e "${GREEN}✅ lintVitalRelease task handling found${NC}"
-    
-    # Check for exception handling
-    if grep -q "ExtraTranslation.*error.*suppressed\|catch.*ExtraTranslation" android/app/build.gradle; then
-        echo -e "${GREEN}✅ ExtraTranslation error handling configured${NC}"
-    else
-        echo -e "${YELLOW}⚠️  ExtraTranslation error handling may be missing${NC}"
-        WARNINGS=$((WARNINGS + 1))
-    fi
-    
-    # Check for ignoreFailures
-    if grep -q "ignoreFailures.*true" android/app/build.gradle; then
-        echo -e "${GREEN}✅ ignoreFailures configured${NC}"
-    else
-        echo -e "${YELLOW}⚠️  ignoreFailures may not be set${NC}"
-        WARNINGS=$((WARNINGS + 1))
-    fi
+if [ -f "plugins/withAndroidLintExtraTranslationFix.js" ] && \
+   grep -q "values-b+en" plugins/withAndroidLintExtraTranslationFix.js 2>/dev/null && \
+   grep -q "displayName" plugins/withAndroidLintExtraTranslationFix.js 2>/dev/null; then
+    echo -e "${GREEN}✅ ExtraTranslation lint handling found in config plugin${NC}"
 else
-    echo -e "${RED}❌ lintVitalRelease task handling not found${NC}"
+    echo -e "${RED}❌ ExtraTranslation lint handling not found${NC}"
     ERRORS=$((ERRORS + 1))
 fi
 echo ""
@@ -97,14 +73,14 @@ echo ""
 # Test 4: Strings in default locale
 echo -e "${BLUE}Test 4: Strings in default locale...${NC}"
 if [ -f "android/app/src/main/res/values/strings.xml" ]; then
-    if grep -q '<string name="name">' android/app/src/main/res/values/strings.xml; then
+    if grep -q '<string name="name"' android/app/src/main/res/values/strings.xml; then
         echo -e "${GREEN}✅ 'name' string in default locale${NC}"
     else
         echo -e "${RED}❌ 'name' string missing from default locale${NC}"
         ERRORS=$((ERRORS + 1))
     fi
     
-    if grep -q '<string name="displayName">' android/app/src/main/res/values/strings.xml; then
+    if grep -q '<string name="displayName"' android/app/src/main/res/values/strings.xml; then
         echo -e "${GREEN}✅ 'displayName' string in default locale${NC}"
     else
         echo -e "${RED}❌ 'displayName' string missing from default locale${NC}"
@@ -149,7 +125,8 @@ else
     WARNINGS=$((WARNINGS + 1))
 fi
 
-if grep -q "googleMaps\|googleMapsApiKey" app.json; then
+if grep -q "googleMaps\|googleMapsApiKey" app.json || \
+   ([ -f "app.config.js" ] && grep -q "GOOGLE_MAPS_API_KEY" app.config.js && grep -q "googleMapsApiKey" app.config.js); then
     echo -e "${GREEN}✅ Google Maps configured${NC}"
 else
     echo -e "${YELLOW}⚠️  Google Maps may not be configured${NC}"

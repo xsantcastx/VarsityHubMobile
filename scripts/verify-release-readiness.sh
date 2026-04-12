@@ -17,6 +17,16 @@ ERRORS=0
 WARNINGS=0
 BLOCKERS=0
 
+first_existing_file() {
+    for candidate in "$@"; do
+        if [ -f "$candidate" ]; then
+            echo "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${MAGENTA}🚀 RELEASE READINESS VERIFICATION - FEBRUARY 2026${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -32,7 +42,8 @@ echo ""
 
 # Test 1.1: Coach role detection
 echo -e "${BLUE}Test 1.1: Coach role detection...${NC}"
-if grep -q "isCoach\|role === 'coach'" utils/roles.ts; then
+ROLE_FILE=$(first_existing_file "src/utils/roles.ts" "utils/roles.ts")
+if [ -n "${ROLE_FILE:-}" ] && grep -q "isCoach\|role === 'coach'" "$ROLE_FILE"; then
     echo -e "${GREEN}✅ Coach role detection functions exist${NC}"
 else
     echo -e "${RED}❌ Coach role detection missing${NC}"
@@ -114,9 +125,10 @@ echo ""
 
 # Test 2.1: Onboarding context exists
 echo -e "${BLUE}Test 2.1: Onboarding context...${NC}"
-if [ -f "context/OnboardingContext.tsx" ]; then
+ONBOARDING_CONTEXT_FILE=$(first_existing_file "src/context/OnboardingContext.tsx" "context/OnboardingContext.tsx")
+if [ -n "${ONBOARDING_CONTEXT_FILE:-}" ]; then
     echo -e "${GREEN}✅ Onboarding context exists${NC}"
-    if grep -q "UserRole.*fan.*coach\|role.*coach\|role.*fan" context/OnboardingContext.tsx; then
+    if grep -q "UserRole.*fan.*coach\|role.*coach\|role.*fan" "$ONBOARDING_CONTEXT_FILE"; then
         echo -e "${GREEN}✅ Onboarding supports role selection${NC}"
     else
         echo -e "${YELLOW}⚠️  Onboarding role support may need verification${NC}"
@@ -144,7 +156,7 @@ done
 # Test 2.3: Fan onboarding (simplified)
 echo -e "${BLUE}Test 2.3: Fan onboarding...${NC}"
 if grep -q "role.*===.*'fan'\|role === 'fan'" app/onboarding/step-1-role.tsx 2>/dev/null && \
-   grep -q "skip.*profile\|step.*7.*profile\|setProgress(5)" app/onboarding/step-1-role.tsx 2>/dev/null; then
+   grep -q "isCoach.*\\? 2 : 5\|nextStepIndex = isCoach ? 2 : 5\|ob\.role === 'coach' &&" app/onboarding/step-2-basic.tsx 2>/dev/null; then
     echo -e "${GREEN}✅ Fan onboarding has simplified flow${NC}"
 else
     echo -e "${YELLOW}⚠️  Fan onboarding may not skip steps${NC}"
@@ -338,8 +350,9 @@ echo ""
 
 # Test 7.1: DM restrictions
 echo -e "${BLUE}Test 7.1: DM restrictions...${NC}"
-if [ -f "utils/dmRestrictions.ts" ]; then
-    if grep -q "age.*18\|minor\|block" utils/dmRestrictions.ts; then
+DM_RESTRICTIONS_FILE=$(first_existing_file "src/utils/dmRestrictions.ts" "utils/dmRestrictions.ts")
+if [ -n "${DM_RESTRICTIONS_FILE:-}" ]; then
+    if grep -q "age.*18\|minor\|block\|coach_verified\|adult_to_minor" "$DM_RESTRICTIONS_FILE"; then
         echo -e "${GREEN}✅ DM restrictions implemented${NC}"
     else
         echo -e "${YELLOW}⚠️  DM restrictions may be incomplete${NC}"

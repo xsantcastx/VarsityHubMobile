@@ -1,22 +1,93 @@
-# Source of Truth Registry
+# Source Of Truth Registry
 
-This registry defines which layer owns each critical state, who may write it, who reads it, and which invariants must always hold. If a change touches one of these fields, review against this file before merge.
+## coach approval_status
 
-| Domain | Owner | Writers | Readers | Backstop | Invariants |
-| --- | --- | --- | --- | --- | --- |
-| `approval_status` | Server moderation state | Admin moderation actions, organization approval flows | Team creation, game creation, profile badge, coach agreement, pending approval screens, notifications | Server-side role and approval checks | Only trusted server writers may change it. Client never sets it. Valid transitions are `PENDING -> APPROVED` or `PENDING -> REJECTED`. |
-| `payment_status` | Server payment state | Stripe webhook finalization, trusted server-side payment finalizers | Ads feed, admin ads, checkout status, analytics | Server ignores client-supplied payment fields | Client must never set `payment_status`. Ad creation starts as `unpaid`. Only verified payment completion may move `unpaid -> paid`. |
-| `status` on ads | Server ad lifecycle state | Trusted admin review actions, verified payment finalization | Feed delivery, admin ads, creator ads list | Review endpoints and finalizers validate transitions | New ads start as `draft`. Paid ads only become `active` after verified payment and approval. Rejected ads do not silently revert to payable states. |
-| `plan` | Server billing state | Free plan selection, verified subscription checkout/finalization, admin/manual support actions | Onboarding, team limits, subscription UI, billing screens | Billing endpoints verify current state before mutation | Paid plans are not persisted before confirmed checkout. On iOS, paid upgrade entry points must not bypass App Store restrictions. |
-| `team_count_total` / effective team quantity | Server billing and entitlement state | Team creation flow, subscription quantity update flow | Team creation limits, billing summary | Team limit endpoints and subscription updates reconcile quantity | Rookie gets first two teams free. Veteran bills per additional team. Legend remains unlimited. |
-| `role` | Server identity state | Auth/signup flows, trusted admin actions | Protected routes, onboarding, UI gating | Protected routes re-check on server | Client UI may hide/show options, but authorization must not rely on client role alone. |
-| `email_verified` | Server auth state | Email verification endpoints | Checkout, protected onboarding actions, verify screens | Protected endpoints enforce verification | Users cannot perform email-verified-only actions until the server marks verification complete. |
-| `session_version` | Server auth session state | Auth/session invalidation paths | Auth middleware, token validation | Auth middleware cache invalidation | Session changes must invalidate stale auth cache and old tokens. |
-| `push_token` | Server device state | Auth/device registration flows | Notification delivery jobs | Validation and null-safe delivery checks | Missing tokens must degrade safely. Notification delivery must not assume every user has a valid token. |
-| `organization membership` | Server membership state | Invite acceptance, join request approval, admin actions | Organization screens, permissions, coach approval sync | Membership role/status checks on server | Membership acceptance and approval must not drift from `approval_status` for coach flows. |
+- Owner: server
+- Canonical storage: `User.preferences.approval_status`
+- Writers:
+  - organization invite acceptance
+  - organization join-request approval/rejection
+  - admin coach moderation with organization context
+- Readers:
+  - team creation
+  - game creation
+  - onboarding pending screens
+  - coach agreement screen
+  - profile badge
+- Invariants:
+  - `APPROVED` requires organization context
+  - approval transitions emit `COACH_APPROVED` or `COACH_REJECTED`
+  - route handlers must call shared coach approval helpers instead of mutating preferences inline
 
-## Review Rules
+## organization status
 
-- If a field is not listed here and it affects auth, billing, moderation, or entitlements, add it before merging the feature.
-- If frontend and backend validations intentionally diverge, document the reason in code and reference the product decision.
-- If a writer changes, update this registry in the same PR.
+- Owner: server
+- Canonical storage: `Organization.status`
+- Writers:
+  - admin organization review
+- Readers:
+  - league pending approval flow
+  - admin organization screens
+  - organization discovery and onboarding
+- Invariants:
+  - activating an organization must sync the owner coach approval path
+  - rejecting an organization must archive the owner membership and reject coach approval
+
+## ad status
+
+- Owner: server
+- Canonical storage: `Ad.status`
+- Valid states:
+  - `draft`
+  - `pending`
+  - `approved`
+  - `active`
+  - `rejected`
+  - `archived`
+- Writers:
+  - ad creation
+  - checkout submission
+  - admin ad review
+  - payment finalization
+- Readers:
+  - admin ads
+  - my ads
+  - feed ad delivery
+- Invariants:
+  - checkout submission moves `draft -> pending`
+  - admin approval moves `pending -> approved` when unpaid
+  - admin approval moves `pending -> active` when already paid
+  - payment finalization moves `approved -> active`
+  - payment finalization on `draft|pending` must not auto-activate the ad
+
+## ad payment_status
+
+- Owner: server
+- Canonical storage: `Ad.payment_status`
+- Writers:
+  - ad creation
+  - payment finalization
+  - refund flows
+- Readers:
+  - feed ad delivery
+  - admin ads
+  - my ads
+- Invariants:
+  - clients cannot set `payment_status`
+  - paid ads are not necessarily active
+  - feed requires both `payment_status='paid'` and `status='active'`
+
+## subscription plan
+
+- Owner: server
+- Canonical storage: `User.preferences.plan`
+- Writers:
+  - subscription checkout finalization
+  - explicit downgrade/reset flows
+- Readers:
+  - onboarding plan step
+  - manage subscription
+  - team and organization plan gates
+- Invariants:
+  - paid plans are only persisted after successful payment finalization
+  - platform purchase rules must match UI messaging
