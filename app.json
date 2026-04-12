@@ -25,9 +25,6 @@
       "appleTeamId": "B5H8F69RW5",
       "bundleIdentifier": "com.varsithub.varsityhub-ios",
       "usesAppleSignIn": true,
-      "config": {
-        "googleMapsApiKey": "AIzaSyDKZL34B2z-qVvfWKfLUVsAL7I_jCXbGFA"
-      },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "VarsityHub needs camera access to capture photos and videos for your sports content.",
@@ -54,11 +51,6 @@
       "softwareKeyboardLayoutMode": "pan",
       "edgeToEdgeEnabled": true,
       "package": "com.varsityhub.varsityhub",
-      "config": {
-        "googleMaps": {
-          "apiKey": "AIzaSyDKZL34B2z-qVvfWKfLUVsAL7I_jCXbGFA"
-        }
-      },
       "permissions": [
         "android.permission.RECORD_AUDIO",
         "android.permission.CAMERA",

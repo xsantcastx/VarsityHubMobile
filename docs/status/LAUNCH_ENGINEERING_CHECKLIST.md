@@ -8,7 +8,7 @@
 | Expo Push project ID | ✅ | Sourced from `app.json.extra.eas.projectId`; ensure tokens registered via `AuthProvider`. |
 | Stripe / SendGrid secrets | ⏳ Verify | Server expects env vars (see `server/src/lib/email.ts`, payments routes). Confirm values stored in hosting platform and CI. |
 | `ALLOWED_ORIGINS` | ✅ Guarded | `server/src/index.ts` now rejects `*` in prod; populate env with store domains before deploy. |
-| Google Maps API keys | ⚠️ Hard-coded | Keys live in `app.json` → `ios.config/googleMapsApiKey` & `android.config.googleMaps.apiKey`. Confirm allowed to ship or move to env vars. |
+| Google Maps API keys | ✅ Env-backed | Expo config now injects them from `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY` via `app.config.js`; rotate/restrict the old key in Google Cloud. |
 
 ## 2. Backend Readiness
 | Task | Status | Notes |
