@@ -87,6 +87,23 @@ function clearLegacyWebToken(key: string) {
   }
 }
 
+type AuthTokenResponse = {
+  access_token?: string;
+  refresh_token?: string;
+};
+
+function parseAuthTokenResponse(value: unknown): AuthTokenResponse {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('Invalid auth response');
+  }
+
+  const response = value as Record<string, unknown>;
+  const parsed: AuthTokenResponse = {};
+  if (typeof response.access_token === 'string') parsed.access_token = response.access_token;
+  if (typeof response.refresh_token === 'string') parsed.refresh_token = response.refresh_token;
+  return parsed;
+}
+
 async function saveToken(token: string | null) {
   setAuthToken(token);
   try {
@@ -168,9 +185,11 @@ export const auth = {
     }
   },
   async register(email: string, password: string, display_name?: string) {
-    const res = await httpPostLongTimeout('/auth/register', { email, password, display_name });
-    if ((res as any)?.access_token) await saveToken((res as any).access_token);
-    if ((res as any)?.refresh_token) await saveRefreshToken((res as any).refresh_token);
+    const res = parseAuthTokenResponse(
+      await httpPostLongTimeout('/auth/register', { email, password, display_name })
+    );
+    if (res.access_token) await saveToken(res.access_token);
+    if (res.refresh_token) await saveRefreshToken(res.refresh_token);
     return res;
   },
   async login(email: string, password: string) {
@@ -279,9 +298,13 @@ export const auth = {
         return null;
       }
 
-      const { access_token, refresh_token } = await res.json();
+      const { access_token, refresh_token } = parseAuthTokenResponse(await res.json());
+      if (!access_token) {
+        await auth.logout();
+        return null;
+      }
       await saveToken(access_token);
-      await saveRefreshToken(refresh_token);
+      await saveRefreshToken(refresh_token ?? null);
       return access_token;
     } catch (error) {
       clearTimeout(timeoutId);

@@ -1,6 +1,8 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 
+type PromoDb = Pick<typeof prisma, 'promoCode' | 'promoRedemption'>;
+
 export type PromoPreviewInput = {
   code: string;
   userId: string;
@@ -8,11 +10,11 @@ export type PromoPreviewInput = {
   service?: string;
 };
 
-export async function previewPromo(input: PromoPreviewInput) {
+export async function previewPromo(input: PromoPreviewInput, db: PromoDb = prisma) {
   const now = new Date();
   const code = (input.code || '').trim().toUpperCase();
 
-  const promo = await prisma.promoCode.findUnique({ where: { code } });
+  const promo = await db.promoCode.findUnique({ where: { code } });
   if (!promo || !promo.enabled) return { valid: false, reason: 'invalid_or_disabled' } as const;
   if (promo.start_at && now < promo.start_at) return { valid: false, reason: 'not_started' } as const;
   if (promo.end_at && now > promo.end_at) return { valid: false, reason: 'expired' } as const;
@@ -21,7 +23,7 @@ export async function previewPromo(input: PromoPreviewInput) {
   if (promo.max_redemptions != null && promo.uses >= promo.max_redemptions)
     return { valid: false, reason: 'usage_exhausted' } as const;
 
-  const userUses = await prisma.promoRedemption.count({
+  const userUses = await db.promoRedemption.count({
     where: { promo_id: promo.id, user_id: input.userId },
   });
   if (promo.per_user_limit != null && userUses >= promo.per_user_limit)
@@ -46,51 +48,57 @@ export async function previewPromo(input: PromoPreviewInput) {
   } as const;
 }
 
-export async function redeemPromo(input: PromoPreviewInput & { orderId?: string }) {
-  return prisma.$transaction(async (tx) => {
-    const upper = (input.code || '').trim().toUpperCase();
-    const promo = await tx.promoCode.findUnique({ where: { code: upper } });
-    if (!promo || !promo.enabled) return { ok: false, error: 'invalid_or_disabled' } as const;
+async function redeemPromoWithDb(input: PromoPreviewInput & { orderId?: string }, db: PromoDb) {
+  const upper = (input.code || '').trim().toUpperCase();
+  const promo = await db.promoCode.findUnique({ where: { code: upper } });
+  if (!promo || !promo.enabled) return { ok: false, error: 'invalid_or_disabled' } as const;
 
-    const preview = await previewPromo({ ...input, code: upper });
-    if (!preview.valid) return { ok: false, error: preview.reason } as const;
+  const preview = await previewPromo({ ...input, code: upper }, db);
+  if (!preview.valid) return { ok: false, error: preview.reason } as const;
 
-    // Atomic capacity gate: increment uses only if under max.
-    // The WHERE clause makes this a single atomic operation — no check-then-act race.
-    if (promo.max_redemptions != null) {
-      const updated = await tx.promoCode.updateMany({
-        where: { id: promo.id, uses: { lt: promo.max_redemptions } },
-        data: { uses: { increment: 1 } },
-      });
-      if (updated.count === 0) {
-        return { ok: false, error: 'usage_exhausted' } as const;
-      }
-    } else {
-      await tx.promoCode.update({
-        where: { id: promo.id },
-        data: { uses: { increment: 1 } },
-      });
+  // Atomic capacity gate: increment uses only if under max.
+  // The WHERE clause makes this a single atomic operation — no check-then-act race.
+  if (promo.max_redemptions != null) {
+    const updated = await db.promoCode.updateMany({
+      where: { id: promo.id, uses: { lt: promo.max_redemptions } },
+      data: { uses: { increment: 1 } },
+    });
+    if (updated.count === 0) {
+      return { ok: false, error: 'usage_exhausted' } as const;
     }
+  } else {
+    await db.promoCode.update({
+      where: { id: promo.id },
+      data: { uses: { increment: 1 } },
+    });
+  }
 
-    // Record redemption — unique(promo_id, order_id) catches replays
-    try {
-      await tx.promoRedemption.create({
-        data: {
-          promo_id: promo.id,
-          user_id: input.userId,
-          order_id: input.orderId ?? null,
-          amount_discounted_cents: preview.discount_cents,
-        },
-      });
-    } catch (err: any) {
-      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-        // Replay — decrement the uses we just incremented
-        await tx.promoCode.update({ where: { id: promo.id }, data: { uses: { decrement: 1 } } });
-        return { ok: true, alreadyRedeemed: true, ...preview } as const;
-      }
-      throw err;
+  // Record redemption — unique(promo_id, order_id) catches replays
+  try {
+    await db.promoRedemption.create({
+      data: {
+        promo_id: promo.id,
+        user_id: input.userId,
+        order_id: input.orderId ?? null,
+        amount_discounted_cents: preview.discount_cents,
+      },
+    });
+  } catch (err: any) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+      // Replay — decrement the uses we just incremented
+      await db.promoCode.update({ where: { id: promo.id }, data: { uses: { decrement: 1 } } });
+      return { ok: true, alreadyRedeemed: true, ...preview } as const;
     }
+    throw err;
+  }
 
-    return { ok: true, ...preview } as const;
-  }, { isolationLevel: 'Serializable' });
+  return { ok: true, ...preview } as const;
+}
+
+export async function redeemPromo(
+  input: PromoPreviewInput & { orderId?: string },
+  db?: PromoDb
+) {
+  if (db) return redeemPromoWithDb(input, db);
+  return prisma.$transaction((tx) => redeemPromoWithDb(input, tx), { isolationLevel: 'Serializable' });
 }

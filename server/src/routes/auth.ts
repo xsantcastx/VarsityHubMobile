@@ -795,23 +795,29 @@ authRouter.post('/password/reset', asyncHandler(async (req, res) => {
     return res.status(400).json({ error: 'Invalid or expired reset code' });
   }
 
-  // Success — clear failure tracking and reset the code
-  await clearResetFailures(sanitizedEmail);
+  const normalizedCode = String(code).trim();
 
   const password_hash = await bcrypt.hash(password, 10);
-  await prisma.$transaction([
-    prisma.user.update({
-      where: { id: user.id },
-      data: {
-        password_hash,
-        password_reset_code: null,
-        password_reset_expires: null,
-        password_changed_at: new Date(),
-      },
-    }),
-    // Revoke all refresh tokens — stolen tokens can no longer mint new access tokens
-    prisma.refreshToken.deleteMany({ where: { user_id: user.id } }),
-  ]);
+  const updated = await prisma.user.updateMany({
+    where: {
+      id: user.id,
+      password_reset_code: normalizedCode,
+      password_reset_expires: { gt: new Date() },
+    },
+    data: {
+      password_hash,
+      password_reset_code: null,
+      password_reset_expires: null,
+      password_changed_at: new Date(),
+    },
+  });
+  if (updated.count !== 1) {
+    return res.status(400).json({ error: 'Invalid or expired reset code' });
+  }
+
+  // Success — clear failure tracking and revoke refresh tokens after consuming the code atomically.
+  await clearResetFailures(sanitizedEmail);
+  await prisma.refreshToken.deleteMany({ where: { user_id: user.id } });
 
   // Security alert: password changed notification removed as part of email cleanup
 

@@ -346,4 +346,47 @@ describe('API Authentication Endpoints', () => {
       expect(response.body).toHaveProperty('ok');
     });
   });
+
+  describe('POST /auth/password/reset', () => {
+    it('consumes the reset code so it cannot be reused', async () => {
+      await request(app)
+        .post('/auth/password/forgot')
+        .send({ email: TEST_EMAIL })
+        .expect(200);
+
+      const resetUser = await prisma.user.findUnique({
+        where: { email: TEST_EMAIL },
+        select: { password_reset_code: true, password_hash: true },
+      });
+
+      expect(resetUser?.password_reset_code).toBeTruthy();
+
+      const firstPassword = 'ResetPassword123!';
+      await request(app)
+        .post('/auth/password/reset')
+        .send({
+          email: TEST_EMAIL,
+          code: resetUser!.password_reset_code,
+          password: firstPassword,
+        })
+        .expect(200);
+
+      await request(app)
+        .post('/auth/password/reset')
+        .send({
+          email: TEST_EMAIL,
+          code: resetUser!.password_reset_code,
+          password: 'AnotherPassword123!',
+        })
+        .expect(400);
+
+      const updatedUser = await prisma.user.findUnique({
+        where: { email: TEST_EMAIL },
+        select: { password_hash: true, password_reset_code: true },
+      });
+
+      expect(updatedUser?.password_reset_code).toBeNull();
+      expect(await bcrypt.compare(firstPassword, updatedUser!.password_hash)).toBe(true);
+    });
+  });
 });

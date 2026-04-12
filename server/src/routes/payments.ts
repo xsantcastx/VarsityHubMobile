@@ -427,15 +427,26 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paym
   // If promo covers 100% of the base price, treat as free (absorb tax on complimentary orders)
   const isFullyComped = discount >= subtotal;
   if (total === 0 || isFullyComped) {
-    // Record redemption and create reservations
-    if (appliedCode) {
-      await redeemPromo({ code: appliedCode, subtotalCents: subtotal, userId: req.user!.id, service: 'booking', orderId: `FREE-${crypto.randomUUID()}` });
-    }
     try {
-      await prisma.$transaction([
-        prisma.ad.update({ where: { id: String(ad_id) }, data: { payment_status: 'paid', status: 'active' } }),
-        prisma.adReservation.createMany({ data: isoDates.map((s) => ({ ad_id: String(ad_id), date: new Date(s + 'T00:00:00.000Z') })), skipDuplicates: true }),
-      ]);
+      await prisma.$transaction(async (tx) => {
+        if (appliedCode) {
+          await redeemPromo(
+            {
+              code: appliedCode,
+              subtotalCents: subtotal,
+              userId: req.user!.id,
+              service: 'booking',
+              orderId: `FREE-${crypto.randomUUID()}`,
+            },
+            tx
+          );
+        }
+        await tx.ad.update({ where: { id: String(ad_id) }, data: { payment_status: 'paid', status: 'active' } });
+        await tx.adReservation.createMany({
+          data: isoDates.map((s) => ({ ad_id: String(ad_id), date: new Date(s + 'T00:00:00.000Z') })),
+          skipDuplicates: true,
+        });
+      });
     } catch (e) {
       console.error('Failed to create ad reservations for free promo:', e);
       return res.status(500).json({ error: 'Failed to reserve ad dates. Please try again.' });
