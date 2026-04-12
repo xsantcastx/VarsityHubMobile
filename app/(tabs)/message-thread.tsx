@@ -32,6 +32,7 @@ export default function MessageThreadScreen() {
   const [me, setMe] = useState<any>(null);
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [text, setText] = useState(prefill || '');
+  const [sending, setSending] = useState(false);
   const flatRef = useRef<FlatList<Msg>>(null);
   const [safetyOpen, setSafetyOpen] = useState(false);
   const [restrictionModal, setRestrictionModal] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
@@ -121,7 +122,7 @@ export default function MessageThreadScreen() {
 
   const send = async () => {
     const content = text.trim();
-    if (!content) return;
+    if (!content || sending) return;
 
     // Check DM restrictions before sending
     if (me && otherParticipant) {
@@ -143,6 +144,7 @@ export default function MessageThreadScreen() {
       created_at: new Date().toISOString(),
     };
     setMsgs((arr) => arr.concat(optimisticMsg));
+    setSending(true);
 
     try {
       // Determine recipient. If `with` was an email, send by email; if it was an id, send by id.
@@ -174,6 +176,8 @@ export default function MessageThreadScreen() {
       // Remove optimistic message on failure; preserve text so user can retry
       setMsgs((arr) => arr.filter((m) => m.id !== optimisticMsg.id));
       setError('Failed to send message');
+    } finally {
+      setSending(false);
     }
   };
 
@@ -329,10 +333,10 @@ export default function MessageThreadScreen() {
           />
           <Pressable
             onPress={send}
-            style={[styles.sendBtn, !text.trim() && styles.sendBtnDisabled]}
-            disabled={!text.trim()}
+            style={[styles.sendBtn, (!text.trim() || sending) && styles.sendBtnDisabled]}
+            disabled={!text.trim() || sending}
           >
-            <Ionicons name="send" size={18} color="white" />
+            {sending ? <ActivityIndicator size="small" color="white" /> : <Ionicons name="send" size={18} color="white" />}
           </Pressable>
         </View>
 

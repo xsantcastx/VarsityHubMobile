@@ -73,31 +73,31 @@ export default function SubmitAdScreen() {
         if (!normalizedEmail && typeof me?.email === 'string') {
           normalizedEmail = me.email.trim().toLowerCase();
         }
-      } catch {}
+      } catch (error) {
+        if (__DEV__) console.warn('[submit-ad.web] Failed to load current user context:', error);
+      }
 
-      // Try server-side creation first
-      let serverId: string | null = null;
-      try {
-        const created: any = await AdsApi.create({
-          contact_name: name.trim(),
-          contact_email: email.trim(),
-          business_name: business.trim(),
-          banner_url: bannerUrl || undefined,
-          banner_fit_mode: bannerFitMode,
-          target_url: targetUrl.trim() || undefined,
-          target_zip_code: zip.trim(),
-          radius: 45,
-          description: desc.trim() || undefined,
-        });
-        serverId = String(created?.id || '');
-        if (created?.user_id) currentUserId = String(created.user_id);
-        if (typeof created?.contact_email === 'string') {
-          normalizedEmail = created.contact_email.trim().toLowerCase();
-        }
-      } catch {}
+      const created: any = await AdsApi.create({
+        contact_name: name.trim(),
+        contact_email: email.trim(),
+        business_name: business.trim(),
+        banner_url: bannerUrl || undefined,
+        banner_fit_mode: bannerFitMode,
+        target_url: targetUrl.trim() || undefined,
+        target_zip_code: zip.trim(),
+        radius: 45,
+        description: desc.trim() || undefined,
+      });
+      const adId = String(created?.id || '');
+      if (!adId) {
+        throw new Error('Ad creation did not return an id. Please try again.');
+      }
+      if (created?.user_id) currentUserId = String(created.user_id);
+      if (typeof created?.contact_email === 'string') {
+        normalizedEmail = created.contact_email.trim().toLowerCase();
+      }
 
-      const adId = serverId || `local-${Date.now()}-${Math.round(Math.random() * 1e6)}`;
-      // Keep a local copy so My Ads can show offline
+      // Keep a local copy so My Ads can show immediately after successful creation.
       try {
         const draft: DraftAd = {
           id: adId,
@@ -111,7 +111,7 @@ export default function SubmitAdScreen() {
           description: desc.trim() || undefined,
           created_at: new Date().toISOString(),
           owner_id: currentUserId,
-          isLocal: !serverId,
+          isLocal: false,
         };
         const baseKey = settings.SETTINGS_KEYS.LOCAL_ADS;
         const scopedKey = currentUserId ? `${baseKey}_${currentUserId}` : baseKey;
@@ -126,7 +126,9 @@ export default function SubmitAdScreen() {
             await settings.setJson(baseKey, legacyFiltered);
           }
         }
-      } catch {}
+      } catch (error) {
+        if (__DEV__) console.warn('[submit-ad.web] Failed to cache created ad locally:', error);
+      }
 
       router.push({ pathname: '/ad-calendar', params: { adId } });
     } catch (e: any) {

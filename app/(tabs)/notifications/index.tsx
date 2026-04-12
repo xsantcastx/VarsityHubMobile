@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
@@ -34,6 +34,7 @@ export default function NotificationsScreen() {
   const [items, setItems] = useState<Notif[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [markingAll, setMarkingAll] = useState(false);
+  const navigationLockRef = useRef(false);
 
   const load = useCallback(async (cursor?: string | null, append = false) => {
     setLoading(!append && !refreshing);
@@ -120,6 +121,12 @@ export default function NotificationsScreen() {
       ? 'Your coach application was updated'
       : 'Notification';
     const onPress = () => {
+      if (navigationLockRef.current) return;
+      navigationLockRef.current = true;
+      setTimeout(() => {
+        navigationLockRef.current = false;
+      }, 750);
+
       if ((item.type === 'FOLLOW' || item.type === 'FOLLOW_REQUEST') && item.actor?.id) {
         router.push(`/user-profile?id=${encodeURIComponent(item.actor.id)}`);
       } else if ((item.type === 'UPVOTE' || item.type === 'COMMENT' || item.type === 'MENTION' || item.type === 'COMMENT_REPLY' || item.type === 'SHARE') && item.post?.id) {
