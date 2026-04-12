@@ -35,7 +35,7 @@ export default function CreateScreen() {
     if (router.canGoBack()) {
       router.back();
     } else {
-      router.push('/(tabs)' as any);
+      router.replace('/(tabs)' as any);
     }
   };
 

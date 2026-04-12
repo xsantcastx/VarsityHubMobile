@@ -375,7 +375,7 @@ function MessageThreadScreen() {
         <KeyboardAvoidingView
           style={{ flex: 1 }}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={0}
+          keyboardVerticalOffset={88}
         >
           <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
             <Stack.Screen

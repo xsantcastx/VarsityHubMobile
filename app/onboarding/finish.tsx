@@ -25,7 +25,20 @@ export default function OnboardingFinish() {
   const [cooldown, setCooldown] = useState(0);
   const timerRef = useRef<any>(null);
 
-  useEffect(() => { void (async () => { try { setMe(await User.me()); } catch {} })(); }, []);
+  useEffect(() => {
+    let mounted = true;
+    void (async () => {
+      try {
+        const user = await User.me();
+        if (mounted) setMe(user);
+      } catch (error) {
+        if (__DEV__) console.warn('[Onboarding][Finish] Failed to load current user:', error);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
   useEffect(() => {
     if (cooldown <= 0) return; 
     timerRef.current = setTimeout(() => setCooldown((c) => c - 1), 1000);
