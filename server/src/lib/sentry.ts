@@ -54,15 +54,17 @@ export function addSentryErrorHandler(app: Express) {
 /**
  * Manually capture exception
  */
-export function captureException(error: Error | string, context?: Record<string, any>) {
-  if (typeof error === 'string') {
-    Sentry.captureMessage(error, 'error');
-  } else {
-    Sentry.captureException(error);
-  }
-  if (context) {
-    Sentry.setContext('additional', context);
-  }
+export function captureException(error: Error | string, context?: Record<string, unknown>) {
+  Sentry.withScope(scope => {
+    if (context) {
+      scope.setContext('additional', context);
+    }
+    if (typeof error === 'string') {
+      Sentry.captureMessage(error, 'error');
+    } else {
+      Sentry.captureException(error);
+    }
+  });
 }
 
 /**
@@ -93,7 +95,7 @@ export function clearUserContext() {
 /**
  * Add breadcrumb for debugging
  */
-export function addBreadcrumb(message: string, category: string = 'custom', level: 'fatal' | 'error' | 'warning' | 'info' | 'debug' = 'info', data?: Record<string, any>) {
+export function addBreadcrumb(message: string, category: string = 'custom', level: 'fatal' | 'error' | 'warning' | 'info' | 'debug' = 'info', data?: Record<string, unknown>) {
   Sentry.addBreadcrumb({
     message,
     category,

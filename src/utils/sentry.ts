@@ -83,7 +83,7 @@ export function initSentry() {
   }
 }
 
-export function captureException(error: Error | unknown, context?: Record<string, any>) {
+export function captureException(error: Error | unknown, context?: Record<string, unknown>) {
   if (!sentryReady) {
     if (__DEV__) {
       console.debug('[sentry] captureException skipped in dev:', error);
@@ -94,13 +94,15 @@ export function captureException(error: Error | unknown, context?: Record<string
   }
 
   console.error('[sentry] Capturing exception:', error);
-  if (context) {
-    Sentry.setContext('custom', context);
-  }
-  Sentry.captureException(error);
+  Sentry.withScope(scope => {
+    if (context) {
+      scope.setContext('custom', context);
+    }
+    Sentry.captureException(error);
+  });
 }
 
-export function captureBreadcrumb(message: string, category: string, data?: Record<string, any>) {
+export function captureBreadcrumb(message: string, category: string, data?: Record<string, unknown>) {
   if (!sentryReady) {
     if (!__DEV__) {
       console.warn('[sentry] captureBreadcrumb skipped; Sentry not ready');

@@ -142,7 +142,7 @@ check_step "Android build.gradle exists" "test -f android/app/build.gradle"
 check_step "Android manifest exists" "test -f android/app/src/main/AndroidManifest.xml"
 
 # Check for critical Android config
-if grep -q "namespace.*com.varsithub.varsityhub" android/app/build.gradle; then
+if grep -q "namespace.*com.varsityhub.varsityhub" android/app/build.gradle; then
     echo -e "${GREEN}✅ Android namespace configured${NC}"
 else
     echo -e "${RED}❌ Android namespace not found${NC}"
@@ -150,7 +150,7 @@ else
 fi
 
 # Check Sentry Android config
-if grep -q "SENTRY_AUTH_TOKEN" android/app/build.gradle; then
+if grep -q "sentry.gradle" android/app/build.gradle && [ -f "android/sentry.properties" ]; then
     echo -e "${GREEN}✅ Sentry Android configuration present${NC}"
 else
     echo -e "${YELLOW}⚠️  Sentry Android configuration may be missing${NC}"
@@ -228,7 +228,7 @@ echo ""
 echo -e "${BLUE}🔑 Critical Code Paths${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-check_step "Sentry initialization exists" "test -f utils/sentry.ts"
+check_step "Sentry initialization exists" "test -f src/utils/sentry.ts"
 check_step "App layout exists" "test -f app/_layout.tsx"
 check_step "Error boundary exists" "test -f components/ErrorBoundary.tsx"
 

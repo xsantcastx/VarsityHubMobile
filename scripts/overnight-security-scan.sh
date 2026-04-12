@@ -15,6 +15,10 @@ echo "Phase 1: Snyk Security Scan"
 echo "================================================="
 {
     if command -v snyk &> /dev/null; then
+        if [ -z "${SNYK_TOKEN:-}" ]; then
+            echo "⚠️  SNYK_TOKEN is not set. Skipping Snyk scans to avoid interactive auth hangs."
+            echo "   Configure SNYK_TOKEN locally or rely on the GitHub Actions workflow."
+        else
         echo "🔍 Running Snyk security scan..."
         snyk test --severity-threshold=high 2>&1 || echo "⚠️  Snyk scan completed with issues (check output)"
         
@@ -24,6 +28,7 @@ echo "================================================="
             cd server
             snyk code test --severity-threshold=high 2>&1 || echo "⚠️  Snyk code scan completed"
             cd ..
+        fi
         fi
     else
         echo "⚠️  Snyk CLI not installed. Skipping security scan."

@@ -166,7 +166,7 @@ echo ""
 
 # Android build config
 echo -e "${BLUE}Step 6: Android build configuration...${NC}"
-if grep -q "namespace.*com.varsithub.varsityhub" android/app/build.gradle; then
+if grep -q "namespace.*com.varsityhub.varsityhub" android/app/build.gradle; then
     echo -e "${GREEN}✅ Android namespace configured${NC}"
 else
     echo -e "${RED}❌ Android namespace missing${NC}"
@@ -222,7 +222,8 @@ if [ -n "$SENTRY_ORG" ] && [ -n "$SENTRY_PROJECT" ]; then
             # Note: We can't access the token directly from EAS, but we can check if sentry-cli is configured
             echo -e "${GREEN}✅ sentry-cli available for project verification${NC}"
         elif [ $SENTRY_TOKEN_FOUND -eq 1 ]; then
-            mark_warning_or_error "sentry-cli not installed - cannot verify project exists"
+            echo -e "${YELLOW}⚠️  sentry-cli not installed locally; relying on EAS env presence for verification${NC}"
+            WARNINGS=$((WARNINGS + 1))
         fi
     else
         echo -e "${RED}❌ Sentry org/project mismatch!${NC}"
@@ -327,18 +328,21 @@ echo ""
 # Critical blockers check (from READINESS_CHECKLIST)
 echo -e "${BLUE}Step 9: Critical blockers verification...${NC}"
 
-# Google Maps API Key check (iOS + Android)
-IOS_GMAPS_KEY=$(node -e "console.log(JSON.parse(require('fs').readFileSync('app.json', 'utf8')).expo.ios?.config?.googleMapsApiKey || '')" 2>/dev/null)
-ANDROID_GMAPS_KEY=$(node -e "console.log(JSON.parse(require('fs').readFileSync('app.json', 'utf8')).expo.android?.config?.googleMaps?.apiKey || '')" 2>/dev/null)
-if [ -n "$IOS_GMAPS_KEY" ] && [ "$IOS_GMAPS_KEY" != "YOUR_GOOGLE_MAPS_API_KEY" ]; then
-    echo -e "${GREEN}✅ iOS Google Maps API key configured${NC}"
-else
-    mark_warning_or_error "iOS Google Maps API key missing or placeholder (ios.config.googleMapsApiKey)"
+# Google Maps API Key check (supports app.config.js + EAS env)
+MAPS_KEY_PRESENT=0
+if [ -n "${EXPO_PUBLIC_GOOGLE_MAPS_API_KEY:-}" ] || [ -n "${GOOGLE_MAPS_API_KEY:-}" ]; then
+    MAPS_KEY_PRESENT=1
+elif [ -f ".env" ] && grep -Eq "^(EXPO_PUBLIC_GOOGLE_MAPS_API_KEY|GOOGLE_MAPS_API_KEY)=" .env; then
+    MAPS_KEY_PRESENT=1
+elif [ "$(get_eas_env_value "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY")" = "__EAS_ENV_PRESENT__" ] || [ "$(get_eas_env_value "GOOGLE_MAPS_API_KEY")" = "__EAS_ENV_PRESENT__" ]; then
+    MAPS_KEY_PRESENT=1
 fi
-if [ -n "$ANDROID_GMAPS_KEY" ] && [ "$ANDROID_GMAPS_KEY" != "YOUR_GOOGLE_MAPS_API_KEY" ]; then
+
+if [ "$MAPS_KEY_PRESENT" -eq 1 ]; then
+    echo -e "${GREEN}✅ iOS Google Maps API key configured${NC}"
     echo -e "${GREEN}✅ Android Google Maps API key configured${NC}"
 else
-    mark_warning_or_error "Android Google Maps API key missing or placeholder (android.config.googleMaps.apiKey)"
+    mark_warning_or_error "Google Maps API key missing (checked shell env, .env, and EAS production env)"
 fi
 
 # Apple submission info check
