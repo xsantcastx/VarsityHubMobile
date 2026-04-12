@@ -32,7 +32,7 @@ echo ""
 
 # Test 1.1: Coach role detection
 echo -e "${BLUE}Test 1.1: Coach role detection...${NC}"
-if grep -q "isCoach\|role === 'coach'" utils/roles.ts; then
+if grep -q "isCoachRole" utils/userRole.ts || grep -q "role === 'coach'" hooks/useRequireCoach.ts; then
     echo -e "${GREEN}✅ Coach role detection functions exist${NC}"
 else
     echo -e "${RED}❌ Coach role detection missing${NC}"
