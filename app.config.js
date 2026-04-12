@@ -1,5 +1,3 @@
-const { expo } = require('./app.json');
-
 const readEnv = (key, fallback = '') => {
   const value = process.env[key];
   if (value === undefined || value === null || value === '') {
@@ -13,40 +11,45 @@ const mapsKey =
   readEnv('GOOGLE_MAPS_API_KEY') ||
   readEnv('GOOGLE_MAPS_API_KEY_MOBILE');
 
-const sentryDsn = readEnv('EXPO_PUBLIC_SENTRY_DSN', expo.extra?.EXPO_PUBLIC_SENTRY_DSN || '');
-const stripeKey = readEnv(
-  'EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY',
-  expo.extra?.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || ''
-);
-
 const isProductionBuild =
   process.env.EAS_BUILD_PROFILE === 'production' ||
   process.env.APP_ENV === 'production' ||
   (process.env.EAS_BUILD === 'true' && process.env.NODE_ENV === 'production');
 
-if (isProductionBuild && !mapsKey) {
-  // Fail fast in CI rather than shipping a build with a broken Maps SDK. The
-  // hardcoded key used to live in app.json; committing empty + this check is
-  // how we prevent that regression.
-  throw new Error(
-    '[app.config] GOOGLE_MAPS_API_KEY (or EXPO_PUBLIC_GOOGLE_MAPS_API_KEY) must be set for production builds. ' +
-      'Provision via EAS secrets: `eas secret:create --scope project --name GOOGLE_MAPS_API_KEY --value <key>`.'
+module.exports = ({ config }) => {
+  const expo = config;
+  const sentryDsn = readEnv('EXPO_PUBLIC_SENTRY_DSN', expo.extra?.EXPO_PUBLIC_SENTRY_DSN || '');
+  const stripeKey = readEnv(
+    'EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY',
+    expo.extra?.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || ''
   );
-}
-if (isProductionBuild && !stripeKey) {
-  throw new Error(
-    '[app.config] EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY must be set for production builds. ' +
-      'Provision it via EAS env/secrets before shipping checkout flows.'
-  );
-}
-if (!mapsKey && !isProductionBuild) {
-  console.warn('[app.config] GOOGLE_MAPS_API_KEY is not set — map surfaces will be blank in this build.');
-}
-if (!sentryDsn) {
-  console.warn('[app.config] EXPO_PUBLIC_SENTRY_DSN is not set — client crash reporting is disabled.');
-}
 
-module.exports = () => {
+  if (isProductionBuild && !mapsKey) {
+    // Fail fast in CI rather than shipping a build with a broken Maps SDK. The
+    // hardcoded key used to live in app.json; committing empty + this check is
+    // how we prevent that regression.
+    throw new Error(
+      '[app.config] GOOGLE_MAPS_API_KEY (or EXPO_PUBLIC_GOOGLE_MAPS_API_KEY) must be set for production builds. ' +
+        'Provision via EAS secrets: `eas secret:create --scope project --name GOOGLE_MAPS_API_KEY --value <key>`.'
+    );
+  }
+  if (isProductionBuild && !stripeKey) {
+    throw new Error(
+      '[app.config] EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY must be set for production builds. ' +
+        'Provision it via EAS env/secrets before shipping checkout flows.'
+    );
+  }
+  if (!mapsKey && !isProductionBuild) {
+    console.warn(
+      '[app.config] GOOGLE_MAPS_API_KEY is not set — map surfaces will be blank in this build.'
+    );
+  }
+  if (!sentryDsn) {
+    console.warn(
+      '[app.config] EXPO_PUBLIC_SENTRY_DSN is not set — client crash reporting is disabled.'
+    );
+  }
+
   const ios = {
     ...expo.ios,
     config: {
@@ -68,8 +71,10 @@ module.exports = () => {
 
   const extra = {
     ...(expo.extra ?? {}),
-    EXPO_PUBLIC_GOOGLE_MAPS_API_KEY:
-      readEnv('EXPO_PUBLIC_GOOGLE_MAPS_API_KEY', expo.extra?.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || ''),
+    EXPO_PUBLIC_GOOGLE_MAPS_API_KEY: readEnv(
+      'EXPO_PUBLIC_GOOGLE_MAPS_API_KEY',
+      expo.extra?.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || ''
+    ),
     EXPO_PUBLIC_SENTRY_DSN: sentryDsn,
     EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY: stripeKey,
   };

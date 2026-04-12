@@ -22,12 +22,12 @@
     "android:ci": "set CI=1&& expo start --android --port 19002",
     "postinstall": "node ./tools/ensure-simple-swizzle.js && node ./tools/ensure-debug-index.js && node ./tools/patches/patch-router-sitemap.js && node ./tools/ensure-is-arrayish.js && node ./tools/patches/patch-logbox-button.js && node ./scripts/patch-lottie-ios.js",
     "fix:deps": "node ./tools/ensure-simple-swizzle.js && node ./tools/ensure-debug-index.js && node ./tools/ensure-is-arrayish.js",
-    "lint": "expo lint",
-    "lint:fix": "expo lint --fix",
-    "lint:strict": "expo lint --fix && npm run typecheck",
+    "lint": "eslint \"app/**/*.{js,jsx,ts,tsx}\" \"components/**/*.{js,jsx,ts,tsx}\" \"src/**/*.{js,jsx,ts,tsx}\" --no-error-on-unmatched-pattern",
+    "lint:fix": "npm run lint -- --fix",
+    "lint:strict": "npm run lint:fix && npm run typecheck",
     "format": "prettier --write \"{app,components,src,server/src,docs,scripts,__tests__,tests}/**/*.{ts,tsx,js,jsx,json,md,yml,yaml}\" README.md package.json server/package.json .github/workflows/ci.yml",
     "format:check": "prettier --check \"{app,components,src,server/src,docs,scripts,__tests__,tests}/**/*.{ts,tsx,js,jsx,json,md,yml,yaml}\" README.md package.json server/package.json .github/workflows/ci.yml",
-    "doctor": "npx expo-doctor",
+    "doctor": "expo-doctor",
     "validate:pre-launch": "bash scripts/validate-pre-launch.sh",
     "build:production": "bash scripts/build-production.sh",
     "build:ios": "bash scripts/build-safe.sh ios",
@@ -105,7 +105,7 @@
     "expo-symbols": "~1.0.7",
     "expo-system-ui": "~6.0.8",
     "expo-updates": "~29.0.15",
-    "expo-video": "~3.0.14",
+    "expo-video": "~3.0.16",
     "expo-web-browser": "~15.0.9",
     "lottie-ios": "4.5.0",
     "lottie-react-native": "~7.3.1",
@@ -139,7 +139,8 @@
     "eslint": "^8.57.0",
     "eslint-plugin-react-hooks": "^4.6.2",
     "eslint-plugin-react-native": "^4.0.0",
-    "jest-expo": "~54.0.16",
+    "expo-doctor": "^1.18.18",
+    "jest-expo": "~54.0.17",
     "prettier": "^3.8.2",
     "react-test-renderer": "19.1.0",
     "ts-jest": "^29.4.6"
@@ -152,8 +153,17 @@
     "@expo/cli": {
       "picomatch": "3.0.2"
     },
+    "@expo/config": {
+      "minimatch": "10.2.5"
+    },
+    "@expo/config-plugins": {
+      "minimatch": "10.2.5"
+    },
+    "expo-updates": {
+      "minimatch": "10.2.5"
+    },
+    "@tootallnate/once": "3.0.1",
     "@xmldom/xmldom": "0.8.12",
-    "ajv": "8.18.0",
     "axios": "1.15.0",
     "brace-expansion@1.1.12": "1.1.14",
     "brace-expansion@2.0.2": "2.0.3",
