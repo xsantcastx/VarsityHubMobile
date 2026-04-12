@@ -1,5 +1,6 @@
 import { Subscriptions, User } from '@/api/entities';
 import { Button } from '@/components/ui/button';
+import { IOS_PAID_PLANS_BLOCKED_MESSAGE, IOS_PAID_PLANS_TITLE } from '@/constants/billing';
 import { useFocusEffect } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
@@ -56,8 +57,8 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
   const onSubscribe = async (targetPlan: 'veteran' | 'legend') => {
     if (Platform.OS === 'ios') {
       Alert.alert(
-        'Not available on iOS',
-        'Paid coach plan upgrades are currently unavailable in the iOS app.',
+        IOS_PAID_PLANS_TITLE,
+        IOS_PAID_PLANS_BLOCKED_MESSAGE,
       );
       return;
     }
@@ -142,7 +143,7 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
             </View>
           ) : Platform.OS === 'ios' ? (
             <Text style={[styles.description, { color: Colors[colorScheme ?? 'light'].mutedText }]}>
-              Paid coach plan upgrades are currently unavailable in the iOS app.
+              {IOS_PAID_PLANS_BLOCKED_MESSAGE}
             </Text>
           ) : (
             // Free plan (rookie) or no plan - show upgrade options

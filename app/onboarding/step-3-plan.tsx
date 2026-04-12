@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View, useColorScheme } from 'react-native';
 // @ts-ignore
 import { Payments, Subscriptions, User } from '@/api/entities';
+import { IOS_PAID_PLANS_ROOKIE_MESSAGE, IOS_PAID_PLANS_TITLE } from '@/constants/billing';
 import { PLAN_DEFINITIONS, Plan } from '@/constants/plans';
 import { useOnboarding } from '@/context/OnboardingContext';
 import OnboardingLayout from './components/OnboardingLayout';
@@ -154,7 +155,7 @@ export default function Step3Plan() {
     (!paymentsStatusLoading && paymentsTemporarilyDisabled) ||
     (!!paymentsStatusError && !paymentsTemporarilyDisabled);
   const paymentsWarningMessage = iosPaidPlansBlocked
-    ? 'Paid coach plans are not currently purchasable inside the iOS app. Use Rookie on iPhone for now, or upgrade from Android/web until Apple in-app purchase support ships.'
+    ? IOS_PAID_PLANS_ROOKIE_MESSAGE
     : paymentsTemporarilyDisabled
     ? 'Coach plan checkout is temporarily unavailable while payments are being configured. You can continue with the Rookie plan or try again later.'
     : paymentsStatusError;
@@ -264,8 +265,8 @@ export default function Step3Plan() {
     if (!plan) return;
     if (Platform.OS === 'ios' && plan !== 'rookie') {
       Alert.alert(
-        'Not available on iOS',
-        'Paid coach plans are not currently purchasable inside the iOS app. Continue with Rookie here, or upgrade from Android/web until Apple in-app purchase support ships.'
+        IOS_PAID_PLANS_TITLE,
+        IOS_PAID_PLANS_ROOKIE_MESSAGE
       );
       return;
     }

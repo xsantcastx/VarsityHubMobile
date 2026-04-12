@@ -1,4 +1,9 @@
 import { Colors } from '@/constants/Colors';
+import {
+  IOS_PAID_PLANS_SUBSCRIPTION_CHANGE_MESSAGE,
+  IOS_PAID_PLANS_TEAM_UPGRADE_MESSAGE,
+  IOS_PAID_PLANS_TITLE,
+} from '@/constants/billing';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -291,8 +296,8 @@ export default function CreateTeamScreen() {
         if (userPlan === 'rookie' && teamCount >= 2) {
           if (Platform.OS === 'ios') {
             Alert.alert(
-              'Upgrade Required',
-              'Adding a third team requires a paid coach plan. Paid upgrades are not currently purchasable inside the iOS app. Upgrade from Android/web, then return to create the team.'
+              IOS_PAID_PLANS_TITLE,
+              IOS_PAID_PLANS_TEAM_UPGRADE_MESSAGE
             );
             setSubmitting(false);
             return;
@@ -347,8 +352,8 @@ export default function CreateTeamScreen() {
         if (userPlan === 'veteran') {
           if (Platform.OS === 'ios') {
             Alert.alert(
-              'Manage Billing Elsewhere',
-              'Adding another Veteran team updates your paid subscription. Subscription changes are not currently available inside the iOS app. Use Android/web to update billing, then return to create the team.'
+              IOS_PAID_PLANS_TITLE,
+              IOS_PAID_PLANS_SUBSCRIPTION_CHANGE_MESSAGE
             );
             setSubmitting(false);
             return;

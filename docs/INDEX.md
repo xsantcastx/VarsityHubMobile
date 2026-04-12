@@ -10,6 +10,10 @@ This is the single entry point for VarsityHub docs. Use the sections below to fi
 - [Backend](./08-BACKEND.md)
 - [Troubleshooting](./11-TROUBLESHOOTING.md)
 
+## Engineering Standards
+- [Audit Standard](./AUDIT_STANDARD.md)
+- [Source of Truth Registry](./SOURCE_OF_TRUTH_REGISTRY.md)
+
 ## Setup
 - [Localhost Dev Setup](./setup/LOCALHOST_DEV_SETUP.md)
 - [Quick Dev Start](./setup/QUICK_DEV_START.md)

@@ -8,6 +8,7 @@
 import { httpPost } from '@/api/http';
 import { CoachTier, CoachTierBadge, CoachTierBenefits } from '@/components/CoachTierBadge';
 import CustomActionModal from '@/components/CustomActionModal';
+import { IOS_PAID_PLANS_BLOCKED_MESSAGE, IOS_PAID_PLANS_TITLE } from '@/constants/billing';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
@@ -47,8 +48,8 @@ export default function SubscriptionPaywallScreen() {
     if (Platform.OS === 'ios') {
       setModal({
         visible: true,
-        title: 'Not available on iOS',
-        message: 'Paid coach plan upgrades are currently unavailable in the iOS app.',
+        title: IOS_PAID_PLANS_TITLE,
+        message: IOS_PAID_PLANS_BLOCKED_MESSAGE,
         options: [{ label: 'Got it', onPress: () => setModal(null) }],
       });
       return;

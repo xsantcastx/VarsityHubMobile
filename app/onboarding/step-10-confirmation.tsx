@@ -159,7 +159,7 @@ export default function Step10Confirmation() {
 
   const handleStepPress = (step: any) => {
     if (!step.completed) {
-      router.push({
+      router.replace({
         pathname: step.route,
         params: { returnToConfirmation: 'true' }
       });
