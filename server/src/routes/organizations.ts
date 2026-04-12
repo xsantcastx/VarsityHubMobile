@@ -50,6 +50,19 @@ function getPreferenceObject(preferences: unknown): Record<string, any> {
 }
 
 /**
+ * Parse `limit`/`offset` from a request query string and clamp to a safe
+ * pagination window. Routes must never return unbounded result sets —
+ * especially when rows carry PII (email, names).
+ */
+function parsePagination(query: any, { defaultLimit = 50, maxLimit = 100 } = {}): { limit: number; offset: number } {
+  const rawLimit = Number(query?.limit);
+  const limit = Number.isFinite(rawLimit) ? Math.max(1, Math.min(maxLimit, rawLimit)) : defaultLimit;
+  const rawOffset = Number(query?.offset);
+  const offset = Number.isFinite(rawOffset) ? Math.max(0, rawOffset) : 0;
+  return { limit, offset };
+}
+
+/**
  * Shared duplicate-org lookup. Scoped to a zip code so the query is always
  * indexable — a nullish/empty zip_code means we cannot reliably detect
  * cross-area duplicates and we MUST NOT fall back to a full-table scan.
@@ -95,7 +108,7 @@ async function assertCoachRoleOrAdmin(req: AuthedRequest): Promise<void> {
   }
 }
 
-async function markCoachApprovalPending(
+export async function markCoachApprovalPending(
   userId: string,
   updates: { organization_id?: string; organization_name?: string }
 ) {
@@ -120,7 +133,7 @@ async function markCoachApprovalPending(
   });
 }
 
-async function markCoachApprovedForOrganization(
+export async function markCoachApprovedForOrganization(
   userId: string,
   organizationId: string,
   organizationName: string,
@@ -173,6 +186,93 @@ async function markCoachApprovedForOrganization(
       screen: 'organization',
     }
   ).catch(() => {});
+}
+
+export async function markCoachRejectedForOrganization(
+  userId: string,
+  organizationId: string,
+  organizationName: string,
+  reason?: string,
+  actorId?: string
+) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { preferences: true },
+  });
+  const prefs = getPreferenceObject(user?.preferences);
+  if (prefs.role !== 'coach') return;
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      preferences: {
+        ...prefs,
+        organization_id: organizationId,
+        organization_name: organizationName,
+        approval_status: 'REJECTED',
+        approval_reason: reason || null,
+        approval_reviewed_at: new Date().toISOString(),
+      },
+    },
+  });
+  invalidateAuthCache(userId);
+
+  if (!actorId) return;
+
+  await createInAppNotification({
+    userId,
+    actorId,
+    type: 'COACH_REJECTED',
+    meta: {
+      organization_id: organizationId,
+      organization_name: organizationName,
+      reason: reason || null,
+    },
+  }).catch(() => {});
+
+  await sendPushNotification(
+    userId,
+    'Coach application update',
+    reason || 'Your coach application was not approved.',
+    {
+      type: 'coach_rejected',
+      organization_id: organizationId,
+      organization_name: organizationName,
+      reason: reason || null,
+      screen: 'profile',
+    }
+  ).catch(() => {});
+}
+
+function normalizeJoinRequestStatus(status: string | null | undefined): 'pending' | 'approved' | 'rejected' {
+  if (status === 'approved') return 'approved';
+  if (status === 'rejected' || status === 'denied') return 'rejected';
+  return 'pending';
+}
+
+function serializeJoinRequest(joinRequest: any, includeOrganization: boolean = false) {
+  const normalizedStatus = normalizeJoinRequestStatus(joinRequest?.status);
+  const requesterName =
+    joinRequest?.user?.display_name ||
+    joinRequest?.user?.username ||
+    joinRequest?.user?.email ||
+    'Unknown user';
+
+  return {
+    id: joinRequest.id,
+    organization_id: joinRequest.organization_id,
+    organization_name: includeOrganization ? joinRequest.organization?.name || null : null,
+    requester_id: joinRequest.user_id,
+    requester_name: requesterName,
+    requester_email: joinRequest?.user?.email || null,
+    requester_avatar_url: joinRequest?.user?.avatar_url || null,
+    message: joinRequest.message || null,
+    status: normalizedStatus,
+    created_at: joinRequest.created_at,
+    reviewed_at: joinRequest.reviewed_at || null,
+    reviewed_by: joinRequest.reviewed_by || null,
+    rejection_reason: normalizedStatus === 'rejected' ? joinRequest.message || null : null,
+  };
 }
 
 // List organizations (public, with optional search)
@@ -853,7 +953,7 @@ organizationsRouter.post('/join-requests', requireAuth as any, async (req: Authe
 // Get join requests for an organization (admin only)
 organizationsRouter.get('/:id/join-requests', requireAuth as any, async (req: AuthedRequest, res) => {
   const id = String(req.params.id);
-  const status = String((req.query as any).status || 'pending');
+  const requestedStatus = String((req.query as any).status || 'pending').trim().toLowerCase();
 
   // Check if user is owner/manager
   const membership = await prisma.organizationMembership.findUnique({
@@ -871,15 +971,17 @@ organizationsRouter.get('/:id/join-requests', requireAuth as any, async (req: Au
 
   // Paginate to bound the response. Without this a long-running org could
   // return thousands of PII rows (name + email) in a single call.
-  const rawLimit = Number((req.query as any).limit);
-  const limit = Number.isFinite(rawLimit) ? Math.max(1, Math.min(100, rawLimit)) : 50;
-  const rawOffset = Number((req.query as any).offset);
-  const offset = Number.isFinite(rawOffset) ? Math.max(0, rawOffset) : 0;
+  const { limit, offset } = parsePagination(req.query);
 
   const joinRequests = await prisma.organizationJoinRequest.findMany({
     where: {
       organization_id: id,
-      status: status === 'all' ? undefined : status
+      status:
+        requestedStatus === 'all'
+          ? undefined
+          : requestedStatus === 'rejected'
+            ? { in: ['rejected', 'denied'] }
+            : requestedStatus
     },
     include: {
       user: {
@@ -897,14 +999,24 @@ organizationsRouter.get('/:id/join-requests', requireAuth as any, async (req: Au
     skip: offset,
   });
 
-  return res.json(joinRequests);
+  return res.json(joinRequests.map((joinRequest) => serializeJoinRequest(joinRequest)));
 });
 
 // Get user's own join requests
 organizationsRouter.get('/join-requests/me', requireAuth as any, async (req: AuthedRequest, res) => {
+  const { limit, offset } = parsePagination(req.query);
   const joinRequests = await prisma.organizationJoinRequest.findMany({
     where: { user_id: req.user!.id },
     include: {
+      user: {
+        select: {
+          id: true,
+          display_name: true,
+          username: true,
+          avatar_url: true,
+          email: true,
+        },
+      },
       organization: {
         select: {
           id: true,
@@ -915,10 +1027,12 @@ organizationsRouter.get('/join-requests/me', requireAuth as any, async (req: Aut
         }
       }
     },
-    orderBy: { created_at: 'desc' }
+    orderBy: { created_at: 'desc' },
+    take: limit,
+    skip: offset,
   });
-  
-  return res.json(joinRequests);
+
+  return res.json(joinRequests.map((joinRequest) => serializeJoinRequest(joinRequest, true)));
 });
 
 // Approve join request
@@ -1004,14 +1118,14 @@ organizationsRouter.post('/join-requests/:requestId/approve', requireAuth as any
   return res.json({ message: 'Join request approved' });
 });
 
-// Deny join request
-const denyJoinRequestSchema = z.object({
+// Reject join request
+const rejectJoinRequestSchema = z.object({
   reason: z.string().max(500).optional(),
 });
 
-organizationsRouter.post('/join-requests/:requestId/deny', requireAuth as any, async (req: AuthedRequest, res) => {
+const rejectJoinRequestHandler = async (req: AuthedRequest, res: any) => {
   const requestId = String(req.params.requestId);
-  const parsed = denyJoinRequestSchema.safeParse(req.body);
+  const parsed = rejectJoinRequestSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
   
   const { reason } = parsed.data;
@@ -1055,10 +1169,10 @@ organizationsRouter.post('/join-requests/:requestId/deny', requireAuth as any, a
   await prisma.organizationJoinRequest.update({
     where: { id: requestId },
     data: {
-      status: 'denied',
+      status: 'rejected',
       reviewed_at: new Date(),
       reviewed_by: req.user!.id,
-      message: reason || joinRequest.message // Store denial reason in message field
+      message: reason || joinRequest.message,
     }
   });
   
@@ -1070,5 +1184,8 @@ organizationsRouter.post('/join-requests/:requestId/deny', requireAuth as any, a
     reason: reason,
   });
   
-  return res.json({ message: 'Join request denied' });
-});
+  return res.json({ message: 'Join request rejected' });
+};
+
+organizationsRouter.post('/join-requests/:requestId/reject', requireAuth as any, rejectJoinRequestHandler);
+organizationsRouter.post('/join-requests/:requestId/deny', requireAuth as any, rejectJoinRequestHandler);

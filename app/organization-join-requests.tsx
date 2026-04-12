@@ -11,17 +11,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 type JoinRequest = {
   id: string;
   organization_id: string;
-  organization_name: string;
-  team_id: string;
-  team_name: string;
-  message: string;
+  organization_name?: string | null;
+  message?: string | null;
   requester_id: string;
   requester_name: string;
+  requester_email?: string | null;
   status: 'pending' | 'approved' | 'rejected';
   created_at: string;
-  approved_at?: string;
-  rejected_at?: string;
-  rejection_reason?: string;
+  reviewed_at?: string | null;
+  rejection_reason?: string | null;
 };
 
 export default function OrganizationJoinRequestsScreen() {
@@ -74,7 +72,7 @@ export default function OrganizationJoinRequestsScreen() {
   const handleApprove = async (request: JoinRequest) => {
     Alert.alert(
       'Approve Request',
-      `Allow "${request.team_name}" to join ${params.organization_name || 'this organization'}?`,
+      `Approve ${request.requester_name} to join ${params.organization_name || 'this organization'}?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -85,7 +83,7 @@ export default function OrganizationJoinRequestsScreen() {
               setProcessingId(request.id);
               try {
                 await Organization.approveJoinRequest(request.id);
-                Alert.alert('Success', `${request.team_name} has been added to your organization!`);
+                Alert.alert('Success', `${request.requester_name} has been added to your organization.`);
                 await loadRequests();
               } catch (err: any) {
                 console.error('[OrganizationJoinRequests] Error approving request:', err);
@@ -109,22 +107,17 @@ export default function OrganizationJoinRequestsScreen() {
     void (async () => {
       if (!rejectModal.request) return;
       
-      // Validate reason is not empty
       const reason = rejectModal.reason.trim();
-      if (!reason) {
-        Alert.alert('Reason Required', 'Please provide a reason for rejecting this request.');
-        return;
-      }
       
       setProcessingId(rejectModal.request.id);
       try {
         await Organization.rejectJoinRequest(rejectModal.request.id, reason);
-        Alert.alert('Request Rejected', `${rejectModal.request.team_name} has been notified.`);
+        Alert.alert('Request Rejected', `${rejectModal.request.requester_name} has been notified.`);
         await loadRequests();
       } catch (err: any) {
         console.error('[OrganizationJoinRequests] Error rejecting request:', err);
         captureException(err, { tags: { screen: 'organization-join-requests', action: 'reject' } });
-        Alert.alert('Error', err?.message || 'Failed to reject reject');
+        Alert.alert('Error', err?.message || 'Failed to reject request');
       } finally {
         setProcessingId(null);
         setRejectModal({ visible: false, request: null, reason: '' });
@@ -157,7 +150,7 @@ export default function OrganizationJoinRequestsScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
       <Stack.Screen
         options={{
-          title: 'Team Join Requests',
+          title: 'Join Requests',
           headerShown: false,
         }}
       />
@@ -177,7 +170,7 @@ export default function OrganizationJoinRequestsScreen() {
           <Ionicons name="arrow-back" size={24} color={theme.text} />
         </Pressable>
         <View style={styles.headerTextContainer}>
-          <Text style={[styles.headerTitle, { color: theme.text }]}>Team Requests</Text>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>Join Requests</Text>
           {params.organization_name && (
             <Text style={[styles.headerSubtitle, { color: theme.mutedText }]} numberOfLines={1}>
               {params.organization_name}
@@ -257,7 +250,7 @@ export default function OrganizationJoinRequestsScreen() {
               <Text style={[styles.emptySubtitle, { color: theme.mutedText }]}>
                 {filter === 'pending'
                   ? 'All caught up! New requests will appear here.'
-                  : 'Coaches can request to join your organization from their team page.'}
+                  : 'People can request to join your organization, and approvals will appear here.'}
               </Text>
             </View>
           ) : (
@@ -274,15 +267,17 @@ export default function OrganizationJoinRequestsScreen() {
                       { backgroundColor: theme.card, borderColor: theme.border },
                     ]}
                   >
-                    {/* Team Info */}
+                    {/* Requester Info */}
                     <View style={styles.requestHeader}>
                       <View style={styles.requestHeaderText}>
                         <Text style={[styles.teamName, { color: theme.text }]}>
-                          {request.team_name}
+                          {request.requester_name}
                         </Text>
-                        <Text style={[styles.requesterName, { color: theme.mutedText }]}>
-                          by {request.requester_name}
-                        </Text>
+                        {request.requester_email ? (
+                          <Text style={[styles.requesterName, { color: theme.mutedText }]}>
+                            {request.requester_email}
+                          </Text>
+                        ) : null}
                       </View>
                       <View
                         style={[
@@ -381,7 +376,7 @@ export default function OrganizationJoinRequestsScreen() {
           <Pressable style={[styles.modalCard, { backgroundColor: theme.background }]} onPress={() => {}}>
             <Text style={[styles.modalTitle, { color: theme.text }]}>Reject Request</Text>
             <Text style={[styles.modalSubtitle, { color: theme.mutedText }]}>
-              {rejectModal.request ? `Optional reason for rejecting ${rejectModal.request.team_name}.` : ''}
+              {rejectModal.request ? `Optional reason for rejecting ${rejectModal.request.requester_name}.` : ''}
             </Text>
             <TextInput
               placeholder="Reason (optional)"

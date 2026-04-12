@@ -78,36 +78,46 @@ describe('Event Creation', () => {
 
   describe('Coach Event Creation', () => {
     it('should auto-approve events created by coaches', async () => {
+      // Coaches bypass the approval workflow: `status` goes straight to
+      // EventStatus.approved and `approval_status` reflects the decision.
       const event = await prisma.event.create({
         data: {
           title: 'Test Game',
-          date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
+          date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
           location: 'Test Stadium',
           creator_id: coachUserId,
-          status: 'approved', // Auto-approved for coaches
+          creator_role: 'coach',
+          status: 'approved',
+          approval_status: 'approved',
         },
       });
 
       expect(event).toBeDefined();
       expect(event.status).toBe('approved');
+      expect(event.approval_status).toBe('approved');
       expect(event.creator_id).toBe(coachUserId);
     });
   });
 
   describe('Fan Event Creation', () => {
     it('should require approval for events created by fans', async () => {
+      // Fan-created events default to EventStatus.draft and
+      // EventApprovalStatus.pending until an admin/coach approves.
       const event = await prisma.event.create({
         data: {
           title: 'Fan Event',
           date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
           location: 'Test Location',
           creator_id: fanUserId,
-          status: 'pending', // Requires approval
+          creator_role: 'fan',
+          status: 'draft',
+          approval_status: 'pending',
         },
       });
 
       expect(event).toBeDefined();
-      expect(event.status).toBe('pending');
+      expect(event.status).toBe('draft');
+      expect(event.approval_status).toBe('pending');
       expect(event.creator_id).toBe(fanUserId);
     });
   });
