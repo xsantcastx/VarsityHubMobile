@@ -32,7 +32,7 @@ See **[docs/INDEX.md](./docs/INDEX.md)** for the full documentation index.
 
 - **[docs/INDEX.md](./docs/INDEX.md)** - Documentation entry point
 - **[docs/01-SETUP.md](./docs/01-SETUP.md)** - Development environment setup
-- **[docs/04-DEVELOPMENT.md](./docs/04-DEVELOPMENT.md)** - Development workflow and standards
+- **[docs/03-ENVIRONMENT.md](./docs/03-ENVIRONMENT.md)** - Environment variables and runtime configuration
 - **[docs/07-PRODUCTION.md](./docs/07-PRODUCTION.md)** - Production launch guide
 - **[docs/release/CHECKLIST.md](./docs/release/CHECKLIST.md)** - Release gating checklist
 - **[docs/status/INDEX.md](./docs/status/INDEX.md)** - Status reports and checklists
@@ -74,8 +74,6 @@ DATABASE_URL="postgresql://..." node scripts/check-db.js
 
 ## 🔐 Security
 
-**Foundation Grade: A-** (see [SECURITY.md](./SECURITY.md))
-
 Recent security enhancements:
 - ✅ Refresh token system (1h access tokens + 30d refresh)
 - ✅ Comprehensive audit logging
@@ -114,19 +112,7 @@ cd server && npm test -- --testPathPattern="coach-approval"  # Integration tests
 
 ---
 
-## 🧪 Feature Flags
-
-- `EXPO_PUBLIC_FORCE_SAMPLE_FEED`: When set to `true`, the Feed shows bundled sample events (UNC/Duke, Warriors/Lakers, Patriots/Jets) regardless of backend results. Great for demos and regression tests. Configure in `.env` or your CI/CD env.
-
-Example:
-```bash
-EXPO_PUBLIC_FORCE_SAMPLE_FEED=true npx expo start
-```
-
-On EAS/production, set it via your environment management (or keep `false` to use live data).
-
 ---
 
-**Last Updated**: March 16, 2026  
-**Security Grade**: A-  
+**Last Updated**: April 12, 2026  
 **Repository Size**: ~18 MB (source) / ~2.5 GB (with dependencies)
