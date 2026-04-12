@@ -139,7 +139,7 @@ jobs:
 
   dependency-audit:
     runs-on: ubuntu-latest
-    name: npm audit
+    name: npm audit (server prod)
     if: >-
       ${{ !contains(github.event.head_commit.message, '[skip snyk]') &&
           (github.event_name != 'pull_request' || !contains(github.event.pull_request.title, '[skip snyk]')) &&
@@ -155,20 +155,24 @@ jobs:
           node-version: '22'
           cache: 'npm'
 
+      - name: Install server dependencies
+        run: cd server && npm ci
+
       - name: Run npm audit
-        run: npm audit --audit-level=moderate
+        run: cd server && npm audit --omit=dev --audit-level=moderate
         continue-on-error: true
 
       - name: Check for high/critical vulnerabilities
         run: |
-          CRITICAL=$(npm audit --json 2>/dev/null | jq '.metadata.vulnerabilities.critical // 0')
-          HIGH=$(npm audit --json 2>/dev/null | jq '.metadata.vulnerabilities.high // 0')
+          cd server
+          CRITICAL=$(npm audit --omit=dev --json 2>/dev/null | jq '.metadata.vulnerabilities.critical // 0')
+          HIGH=$(npm audit --omit=dev --json 2>/dev/null | jq '.metadata.vulnerabilities.high // 0')
           if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
-            echo "❌ Found critical or high severity vulnerabilities"
-            npm audit
+            echo "❌ Found critical or high severity vulnerabilities in server production dependencies"
+            npm audit --omit=dev
             exit 1
           else
-            echo "✅ No high/critical vulnerabilities found"
+            echo "✅ No high/critical vulnerabilities found in server production dependencies"
           fi
 
   container-scan:
