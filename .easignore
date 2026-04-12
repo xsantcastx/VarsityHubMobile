@@ -2,10 +2,12 @@
 # the builders need. Anything excluded here is re-created by the build machines.
 
 .git
+.git.nosync/
 .gitignore
 
 # Dependencies
 node_modules/
+node_modules.nosync/
 npm-debug.*
 yarn-debug.*
 yarn-error.*
