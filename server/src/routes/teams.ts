@@ -1,3 +1,4 @@
+import { TeamRole } from '@prisma/client';
 import { Router } from 'express';
 import { z } from 'zod';
 import { logAdminActivityFromReq } from '../lib/adminActivityLogger.js';
@@ -13,11 +14,31 @@ import { requireVerified } from '../middleware/requireVerified.js';
 import { getAuthorizedUsersPerTeam, getMaxTeamsForPlan } from '../lib/planLimits.js';
 
 export const teamsRouter = Router();
+const TEAM_MANAGEMENT_ROLES = [
+  TeamRole.owner,
+  TeamRole.manager,
+  TeamRole.coach,
+  TeamRole.assistant_coach,
+] as const;
+const TEAM_AUTHORIZED_ROLES = [
+  TeamRole.manager,
+  TeamRole.coach,
+  TeamRole.assistant_coach,
+  TeamRole.equipment,
+  TeamRole.health_wellness,
+] as const;
+const TEAM_ROLE_VALUES = new Set<TeamRole>(Object.values(TeamRole));
 const debugLog = (...args: Parameters<typeof console.log>) => {
   if (process.env.ENABLE_SERVER_DEBUG_LOGS === 'true' || process.env.NODE_ENV !== 'production') {
     console.log(...args);
   }
 };
+
+function parseTeamRole(role: unknown): TeamRole | null {
+  if (typeof role !== 'string') return null;
+  const normalized = role.trim().toLowerCase();
+  return TEAM_ROLE_VALUES.has(normalized as TeamRole) ? (normalized as TeamRole) : null;
+}
 
 function getCoachApprovalStatus(preferences: unknown): string {
   const prefs =
@@ -71,7 +92,7 @@ async function canManageTeamMembers(teamId: string, userId: string): Promise<boo
     where: {
       team_id: teamId,
       user_id: userId,
-      role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
+      role: { in: [...TEAM_MANAGEMENT_ROLES] },
       status: 'active',
     },
   });
@@ -86,13 +107,11 @@ teamsRouter.get('/managed', authMiddleware as any, async (req: AuthedRequest, re
     .trim()
     .toLowerCase();
   const userId = req.user.id;
-  const managementRoles = ['owner', 'manager', 'coach', 'assistant_coach'];
-
   let where: any = {
     memberships: {
       some: {
         user_id: userId,
-        role: { in: managementRoles },
+        role: { in: [...TEAM_MANAGEMENT_ROLES] },
         status: 'active',
       },
     },
@@ -227,12 +246,10 @@ teamsRouter.get('/', async (req, res) => {
     }
 
     const userId = authReq.user.id;
-    const managementRoles = ['owner', 'manager', 'coach', 'assistant_coach'];
-
     where.memberships = {
       some: {
         user_id: userId,
-        role: { in: managementRoles },
+        role: { in: [...TEAM_MANAGEMENT_ROLES] },
         status: 'active',
       },
     };
@@ -385,7 +402,8 @@ teamsRouter.patch('/:id/members/:userId', requireAuth as any, async (req: Authed
   const userId = String(req.params.userId);
   const { role } = (req.body || {}) as { role?: string };
 
-  if (!role) return res.status(400).json({ error: 'role is required' });
+  const resolvedRole = parseTeamRole(role);
+  if (!resolvedRole) return res.status(400).json({ error: 'role is required' });
 
   const membership = await prisma.teamMembership.findUnique({
     where: { team_id_user_id: { team_id: teamId, user_id: userId } } as any,
@@ -402,7 +420,7 @@ teamsRouter.patch('/:id/members/:userId', requireAuth as any, async (req: Authed
 
   const updated = await prisma.teamMembership.update({
     where: { id: membership.id },
-    data: { role: String(role) },
+    data: { role: resolvedRole },
   });
   return res.json(updated);
 });
@@ -1275,6 +1293,11 @@ teamsRouter.post('/:id/invite', async (req: AuthedRequest, res) => {
   // CRITICAL: Use transaction to prevent race condition bypassing user limits
   let invite;
   try {
+    const inviteRole = parseTeamRole(role ?? TeamRole.member);
+    if (!inviteRole) {
+      return res.status(400).json({ error: 'Invalid role' });
+    }
+
     const user = await prisma.user.findUnique({ where: { id: req.user.id } });
     const prefs = (user?.preferences || {}) as any;
     const plan = prefs.plan || 'rookie';
@@ -1292,7 +1315,7 @@ teamsRouter.post('/:id/invite', async (req: AuthedRequest, res) => {
         const memberCount = await tx.teamMembership.count({
           where: {
             team_id: id,
-            role: { in: ['manager', 'coach', 'assistant_coach', 'equipment', 'health_wellness'] },
+            role: { in: [...TEAM_AUTHORIZED_ROLES] },
           },
         });
         const totalAuthorized = inviteCount + memberCount;
@@ -1305,7 +1328,7 @@ teamsRouter.post('/:id/invite', async (req: AuthedRequest, res) => {
       }
 
       // Create invite within same transaction
-      return await tx.teamInvite.create({ data: { team_id: id, email, role: role || 'member' } });
+      return await tx.teamInvite.create({ data: { team_id: id, email, role: inviteRole } });
     });
   } catch (e: any) {
     // Handle specific limit errors

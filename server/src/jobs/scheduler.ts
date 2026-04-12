@@ -87,8 +87,15 @@ const SCHEDULED_JOBS: ScheduledJob[] = [
     cron: '*/15 * * * *', // Every 15 minutes
     description: 'Check push notification delivery receipts',
     handler: async () => {
-      // This would check Expo push receipts
-      console.log('[Scheduler] Push receipt verification - TODO');
+      try {
+        const { verifyPushReceipts } = await import('../lib/notifications.js');
+        const { checked, cleared } = await verifyPushReceipts();
+        if (checked > 0 || cleared > 0) {
+          console.log(`[Scheduler] Push receipts: checked=${checked} cleared=${cleared}`);
+        }
+      } catch (err) {
+        console.error('[Scheduler] verifyPushReceipts failed:', err);
+      }
     },
   },
   {

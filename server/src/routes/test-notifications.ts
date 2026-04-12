@@ -3,6 +3,7 @@
  * Remove this file in production or protect with admin auth
  */
 
+import { EventStatus } from '@prisma/client';
 import { Router } from 'express';
 import { calculateDistance, isWithinGeofence, verifyEventPostingPermission } from '../lib/geofencing.js';
 import { notifyNewFollower, notifyNewMessage, notifyPostInteraction, sendPushNotification } from '../lib/notifications.js';
@@ -181,7 +182,7 @@ testNotificationsRouter.get('/test/upcoming-games', requireAuth as any, async (r
             gte: new Date(twelveHoursFromNow.getTime() - 5 * 60 * 1000),
             lte: new Date(twelveHoursFromNow.getTime() + 5 * 60 * 1000),
           },
-          status: 'active',
+          status: EventStatus.approved,
           rsvps: {
             some: {
               user_id: req.user!.id
@@ -201,7 +202,7 @@ testNotificationsRouter.get('/test/upcoming-games', requireAuth as any, async (r
             gte: new Date(oneHourFromNow.getTime() - 5 * 60 * 1000),
             lte: new Date(oneHourFromNow.getTime() + 5 * 60 * 1000),
           },
-          status: 'active',
+          status: EventStatus.approved,
           rsvps: {
             some: {
               user_id: req.user!.id

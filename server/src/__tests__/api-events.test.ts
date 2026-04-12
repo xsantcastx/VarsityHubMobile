@@ -24,6 +24,7 @@ describe('API Event Endpoints', () => {
   let coachToken: string;
   let fanUserId: string;
   let fanToken: string;
+  let coachManagedTeamId: string;
 
   beforeAll(async () => {
     ({ prisma } = await import('../lib/prisma.js'));
@@ -38,11 +39,29 @@ describe('API Event Endpoints', () => {
         email_verified: true,
         preferences: {
           role: 'coach',
+          approval_status: 'APPROVED',
         },
       },
     });
     coachUserId = coach.id;
     coachToken = signJwt({ id: coachUserId });
+
+    const coachTeam = await prisma.team.create({
+      data: {
+        name: `Coach Managed Team ${Date.now()}`,
+        description: 'Fixture team for event moderation access',
+      },
+    });
+    coachManagedTeamId = coachTeam.id;
+
+    await prisma.teamMembership.create({
+      data: {
+        team_id: coachManagedTeamId,
+        user_id: coachUserId,
+        role: 'owner',
+        status: 'active',
+      },
+    });
 
     // Create fan user
     const fanPasswordHash = await bcrypt.hash(TEST_PASSWORD, 10);
@@ -71,6 +90,15 @@ describe('API Event Endpoints', () => {
           },
         },
       });
+
+      if (coachManagedTeamId) {
+        await prisma.teamMembership.deleteMany({
+          where: { team_id: coachManagedTeamId },
+        });
+        await prisma.team.delete({
+          where: { id: coachManagedTeamId },
+        });
+      }
 
       // Clean up users
       await prisma.user.deleteMany({

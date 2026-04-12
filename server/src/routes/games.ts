@@ -1,3 +1,4 @@
+import { TeamRole } from '@prisma/client';
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
@@ -9,6 +10,12 @@ import { makeCreateStoryHandler, makeListMediaHandler, serializeMedia } from './
 import { debugLog } from '../lib/debugLog.js';
 
 export const gamesRouter = Router();
+const TEAM_MANAGEMENT_ROLES = [
+  TeamRole.owner,
+  TeamRole.manager,
+  TeamRole.coach,
+  TeamRole.assistant_coach,
+] as const;
 
 // Helper function to generate Google Maps links
 const generateMapsLink = (
@@ -327,7 +334,6 @@ gamesRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
     }
 
     // Approval workflow: only approved coaches/managers or admins can create games.
-    const managementRoles = ['owner', 'manager', 'coach', 'assistant_coach'];
     let isCoach = false;
 
     // Check if user is super admin (can create events for ANY team)
@@ -366,7 +372,7 @@ gamesRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
         where: {
           team_id: parsed.data.home_team_id,
           user_id: req.user.id,
-          role: { in: managementRoles },
+          role: { in: [...TEAM_MANAGEMENT_ROLES] },
         },
       });
       isCoach = !!membership;

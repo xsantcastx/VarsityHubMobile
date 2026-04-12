@@ -10,6 +10,7 @@ import { calculateSalesTax } from '../lib/taxCalculator.js';
 import { calculateStripeFee, getTransactionBySession, logTransaction, updateTransactionStatus } from '../lib/transactionLogger.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
+import { requireAdmin } from '../middleware/requireAdmin.js';
 import { calculateAdPriceCents } from '../utils/adPricing.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', { apiVersion: '2024-06-20' });
@@ -892,14 +893,8 @@ paymentsRouter.post('/debug/reset-to-rookie', requireVerified as any, async (req
 });
 
 // Admin endpoint to reset all users with unpaid subscriptions
-paymentsRouter.post('/admin/reset-unpaid-subscriptions', requireVerified as any, async (req: AuthedRequest, res) => {
+paymentsRouter.post('/admin/reset-unpaid-subscriptions', requireVerified as any, requireAdmin as any, async (req: AuthedRequest, res) => {
   try {
-    // Check if user is admin (you might want to add proper admin role checking)
-    const currentUser = await prisma.user.findUnique({ where: { id: req.user!.id } });
-    if (!currentUser || currentUser.email !== 'admin@varsityhub.com') {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
-
     debugLog('🔍 Admin-initiated bulk reset of unpaid subscriptions...');
 
     // Get all users and filter in JavaScript (simpler than complex Prisma query)

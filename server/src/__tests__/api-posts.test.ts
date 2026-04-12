@@ -5,6 +5,7 @@
  */
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 import { app } from '../testApp.js';
 import bcrypt from 'bcrypt';
@@ -14,6 +15,7 @@ let signJwt: any;
 
 const shouldSkipDbTests = process.env.SKIP_SERVER_DB_TESTS === '1';
 const describeDb = shouldSkipDbTests ? describe.skip : describe;
+const TEST_EMAIL = `test-posts-${Date.now()}-${randomUUID()}@example.com`;
 
 describeDb('Posts API Endpoints', () => {
   let testUser: any;
@@ -24,9 +26,10 @@ describeDb('Posts API Endpoints', () => {
     ({ prisma } = await import('../lib/prisma.js'));
     ({ signJwt } = await import('../lib/jwt.js'));
     // Create test user
+    await prisma.user.deleteMany({ where: { email: TEST_EMAIL } }).catch(() => {});
     testUser = await prisma.user.create({
       data: {
-        email: `test-posts-${Date.now()}@example.com`,
+        email: TEST_EMAIL,
         password_hash: await bcrypt.hash('TestPassword123!', 10),
         display_name: 'Test Posts User',
         email_verified: true,

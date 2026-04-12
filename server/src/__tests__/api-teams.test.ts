@@ -38,6 +38,7 @@ describe('API Team Endpoints', () => {
         email_verified: true,
         preferences: {
           role: 'coach',
+          approval_status: 'APPROVED',
         },
       },
     });

@@ -11,6 +11,7 @@ import { prisma } from '../lib/prisma.js';
 import { invalidateAuthCache, type AuthedRequest } from '../middleware/auth.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
+import { requireVerified } from '../middleware/requireVerified.js';
 import { debugLog } from '../lib/debugLog.js';
 import { getAuthorizedUsersOrgLimit } from '../lib/planLimits.js';
 
@@ -46,6 +47,24 @@ function getPreferenceObject(preferences: unknown): Record<string, any> {
   return preferences && typeof preferences === 'object' && !Array.isArray(preferences)
     ? ({ ...(preferences as Record<string, any>) } as Record<string, any>)
     : {};
+}
+
+/**
+ * Shared duplicate-org lookup. Scoped to a zip code so the query is always
+ * indexable — a nullish/empty zip_code means we cannot reliably detect
+ * cross-area duplicates and we MUST NOT fall back to a full-table scan.
+ */
+async function findDuplicateOrganization(
+  name: string,
+  zipCode: string | undefined
+): Promise<{ id: string; name: string } | null> {
+  if (!zipCode) return null;
+  const normalized = normalizeOrganizationName(name);
+  const candidates = await prisma.organization.findMany({
+    where: { zip_code: zipCode, status: 'active' },
+    select: { id: true, name: true },
+  });
+  return candidates.find((o) => normalizeOrganizationName(o.name) === normalized) ?? null;
 }
 
 async function assertCoachRoleOrAdmin(req: AuthedRequest): Promise<void> {
@@ -336,7 +355,7 @@ const createOrganizationSchema = z.object({
 });
 
 // Create organization
-organizationsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
+organizationsRouter.post('/', requireAuth as any, requireVerified as any, async (req: AuthedRequest, res) => {
   try {
     await assertCoachRoleOrAdmin(req);
   } catch (error: any) {
@@ -347,21 +366,9 @@ organizationsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res
 
   const parsed = createOrganizationSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
-  
+
   const data = parsed.data;
-  // Duplicate guard: when zip_code is provided scope to that area; otherwise skip the
-  // full-table scan (no zip_code means we can't reliably detect cross-area duplicates and
-  // `zip_code: undefined` in a Prisma where clause removes the filter entirely, causing a
-  // scan of ALL organizations).
-  const nm = normalizeOrganizationName(data.name);
-  let dup: { id: string; name: string } | null = null;
-  if (data.zip_code) {
-    const sameZipOrgs = await prisma.organization.findMany({
-      where: { zip_code: data.zip_code, status: 'active' },
-      select: { id: true, name: true },
-    });
-    dup = sameZipOrgs.find(o => normalizeOrganizationName(o.name) === nm) ?? null;
-  }
+  const dup = await findDuplicateOrganization(data.name, data.zip_code);
   if (dup) {
     return res.status(409).json({ error: 'DUPLICATE_ORGANIZATION', duplicate_of: { id: dup.id, name: dup.name } });
   }
@@ -414,7 +421,7 @@ const createOrganizationWithTeamsSchema = z.object({
 });
 
 // Enhanced create organization for onboarding
-organizationsRouter.post('/create', requireAuth as any, async (req: AuthedRequest, res) => {
+organizationsRouter.post('/create', requireAuth as any, requireVerified as any, async (req: AuthedRequest, res) => {
   try {
     await assertCoachRoleOrAdmin(req);
   } catch (error: any) {
@@ -425,18 +432,9 @@ organizationsRouter.post('/create', requireAuth as any, async (req: AuthedReques
 
   const parsed = createOrganizationWithTeamsSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
-  
+
   const data = parsed.data;
-  // Duplicate guard (same logic as simple create)
-  const nm = normalizeOrganizationName(data.name);
-  const possibleDuplicates = await prisma.organization.findMany({
-    where: {
-      zip_code: data.zip_code || undefined,
-      status: 'active'
-    },
-    select: { id: true, name: true, zip_code: true }
-  });
-  const dup = possibleDuplicates.find(o => normalizeOrganizationName(o.name) === nm);
+  const dup = await findDuplicateOrganization(data.name, data.zip_code);
   if (dup) {
     return res.status(409).json({ error: 'DUPLICATE_ORGANIZATION', duplicate_of: { id: dup.id, name: dup.name } });
   }
@@ -827,9 +825,11 @@ organizationsRouter.post('/join-requests', requireAuth as any, async (req: Authe
     }
   });
   
-  // Send email notification to organization owners
-  if (organization.memberships.length > 0) {
-    const owner = organization.memberships[0];
+  // Send email notification to organization owners. Guard the chain: an org
+  // with zero owner rows (e.g. a denied coach whose membership was removed)
+  // would NPE on `owner.user.email` otherwise.
+  const owner = organization.memberships.find((m) => m?.user?.email);
+  if (owner) {
     await sendJoinRequestToAdmin({
       adminEmail: owner.user.email,
       adminName: owner.user.display_name || 'Admin',
@@ -837,6 +837,8 @@ organizationsRouter.post('/join-requests', requireAuth as any, async (req: Authe
       organizationName: organization.name,
       message: message,
       requestId: joinRequest.id,
+    }).catch((err) => {
+      console.warn('[organizations] sendJoinRequestToAdmin failed:', (err as any)?.message || err);
     });
   }
 
@@ -852,21 +854,28 @@ organizationsRouter.post('/join-requests', requireAuth as any, async (req: Authe
 organizationsRouter.get('/:id/join-requests', requireAuth as any, async (req: AuthedRequest, res) => {
   const id = String(req.params.id);
   const status = String((req.query as any).status || 'pending');
-  
+
   // Check if user is owner/manager
   const membership = await prisma.organizationMembership.findUnique({
-    where: { 
-      organization_id_user_id: { 
-        organization_id: id, 
-        user_id: req.user!.id 
-      } as any 
+    where: {
+      organization_id_user_id: {
+        organization_id: id,
+        user_id: req.user!.id
+      } as any
     }
   });
-  
+
   if (!membership || !isOrganizationAdmin(membership.role)) {
     return res.status(403).json({ error: 'Insufficient permissions' });
   }
-  
+
+  // Paginate to bound the response. Without this a long-running org could
+  // return thousands of PII rows (name + email) in a single call.
+  const rawLimit = Number((req.query as any).limit);
+  const limit = Number.isFinite(rawLimit) ? Math.max(1, Math.min(100, rawLimit)) : 50;
+  const rawOffset = Number((req.query as any).offset);
+  const offset = Number.isFinite(rawOffset) ? Math.max(0, rawOffset) : 0;
+
   const joinRequests = await prisma.organizationJoinRequest.findMany({
     where: {
       organization_id: id,
@@ -883,9 +892,11 @@ organizationsRouter.get('/:id/join-requests', requireAuth as any, async (req: Au
         }
       }
     },
-    orderBy: { created_at: 'desc' }
+    orderBy: { created_at: 'desc' },
+    take: limit,
+    skip: offset,
   });
-  
+
   return res.json(joinRequests);
 });
 

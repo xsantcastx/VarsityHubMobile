@@ -22,10 +22,98 @@ export {
  */
 
 import { Expo, ExpoPushMessage } from 'expo-server-sdk';
+import { EventApprovalStatus, EventStatus, Prisma } from '@prisma/client';
 import { prisma } from './prisma.js';
 import { debugLog } from './debugLog.js';
 
 const expo = new Expo();
+
+/**
+ * Remove a user's push_token from their preferences. Called when Expo reports
+ * DeviceNotRegistered (the token is permanently invalid) so we stop pushing
+ * to a dead device and future queries skip it.
+ */
+async function clearPushTokenForUser(userId: string, expectedToken?: string): Promise<void> {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { preferences: true },
+    });
+    if (!user) return;
+    const prefs = (user.preferences && typeof user.preferences === 'object')
+      ? { ...(user.preferences as Record<string, any>) }
+      : {};
+    if (expectedToken && prefs.push_token && prefs.push_token !== expectedToken) return;
+    if (!prefs.push_token) return;
+    delete prefs.push_token;
+    await prisma.user.update({ where: { id: userId }, data: { preferences: prefs as any } });
+    debugLog(`[push] Cleared dead push token for user ${userId}`);
+  } catch (err) {
+    console.error('[push] Failed to clear push token:', err);
+  }
+}
+
+/**
+ * Fetch receipts for every pending ticket, mark the row resolved, and clear
+ * push tokens that Expo reports as invalid. Called by the scheduler.
+ *
+ * Expo reference: https://docs.expo.dev/push-notifications/sending-notifications/#check-push-receipts-for-errors
+ */
+export async function verifyPushReceipts(): Promise<{ checked: number; cleared: number }> {
+  const pending = await prisma.pushTicket.findMany({
+    where: { status: 'pending' },
+    take: 500,
+    orderBy: { created_at: 'asc' },
+  });
+  if (pending.length === 0) return { checked: 0, cleared: 0 };
+
+  const ticketIds = pending.map((t) => t.ticket_id);
+  const chunks = expo.chunkPushNotificationReceiptIds(ticketIds);
+  let checked = 0;
+  let cleared = 0;
+
+  for (const chunk of chunks) {
+    try {
+      const receipts = await expo.getPushNotificationReceiptsAsync(chunk);
+      for (const [ticketId, receipt] of Object.entries(receipts)) {
+        checked += 1;
+        const row = pending.find((p) => p.ticket_id === ticketId);
+        if (!row) continue;
+
+        if (receipt.status === 'ok') {
+          await prisma.pushTicket.update({
+            where: { ticket_id: ticketId },
+            data: { status: 'ok', resolved_at: new Date() },
+          });
+        } else {
+          const errorCode = (receipt as any).details?.error ?? null;
+          await prisma.pushTicket.update({
+            where: { ticket_id: ticketId },
+            data: {
+              status: 'error',
+              error_code: errorCode,
+              error_message: receipt.message ?? null,
+              resolved_at: new Date(),
+            },
+          });
+          if (errorCode === 'DeviceNotRegistered') {
+            await clearPushTokenForUser(row.user_id, row.push_token);
+            cleared += 1;
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[push] Failed to fetch receipts for chunk:', err);
+    }
+  }
+
+  const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  await prisma.pushTicket.deleteMany({
+    where: { status: { in: ['ok', 'error'] }, resolved_at: { lt: cutoff } },
+  });
+
+  return { checked, cleared };
+}
 
 type InAppNotificationInput = {
   userId: string;
@@ -100,12 +188,34 @@ export async function sendPushNotification(
 
     // Send notification
     const chunks = expo.chunkPushNotifications([message]);
-    const tickets = [];
-    
+
     for (const chunk of chunks) {
       try {
         const ticketChunk = await expo.sendPushNotificationsAsync(chunk);
-        tickets.push(...ticketChunk);
+        // Persist 'ok' tickets so the scheduler can look up receipts and reap
+        // invalid tokens (DeviceNotRegistered, MessageRateExceeded, etc.).
+        // Tickets with status 'error' failed at send time — clear the token now
+        // if the error indicates it's invalid.
+        for (const ticket of ticketChunk) {
+          if (ticket.status === 'ok' && ticket.id) {
+            await prisma.pushTicket.create({
+              data: {
+                ticket_id: ticket.id,
+                user_id: userId,
+                push_token: pushToken,
+                status: 'pending',
+              },
+            }).catch((err) => {
+              console.error('[push] Failed to persist push ticket:', err);
+            });
+          } else if (ticket.status === 'error') {
+            const details = (ticket as any).details;
+            if (details?.error === 'DeviceNotRegistered') {
+              await clearPushTokenForUser(userId, pushToken);
+            }
+            console.warn('[push] Send-time error ticket:', ticket.message, details);
+          }
+        }
       } catch (error) {
         console.error('Error sending push notification chunk:', error);
       }
@@ -283,8 +393,8 @@ export async function notifyUpcomingGames(hoursBeforeGame: number): Promise<void
         lte: windowEnd,
       },
       OR: [
-        { status: { in: ['active', 'approved'] } },
-        { approval_status: 'approved' },
+        { status: EventStatus.approved },
+        { approval_status: EventApprovalStatus.approved },
       ],
     },
     include: {
@@ -301,11 +411,26 @@ export async function notifyUpcomingGames(hoursBeforeGame: number): Promise<void
       },
     },
   });
+  const eventsWithRsvps = upcomingEvents as Prisma.EventGetPayload<{
+    include: {
+      rsvps: {
+        include: {
+          user: {
+            select: {
+              id: true;
+              display_name: true;
+              preferences: true;
+            };
+          };
+        };
+      };
+    };
+  }>[];
 
-  debugLog(`Found ${upcomingEvents.length} events happening in ${hoursBeforeGame} hours`);
+  debugLog(`Found ${eventsWithRsvps.length} events happening in ${hoursBeforeGame} hours`);
 
   // Send notifications to all RSVPd users
-  for (const event of upcomingEvents) {
+  for (const event of eventsWithRsvps) {
     for (const rsvp of event.rsvps) {
       const user = rsvp.user;
       

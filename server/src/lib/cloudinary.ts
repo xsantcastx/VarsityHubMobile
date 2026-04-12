@@ -18,6 +18,39 @@ export const getCloudinaryFolder = (): string => {
 
 type CloudinaryResourceType = 'image' | 'video' | 'auto';
 
+/**
+ * Rewrite a Cloudinary delivery URL to strip image metadata (EXIF/GPS/IPTC).
+ *
+ * Cloudinary retains EXIF on the stored original; the canonical way to deliver
+ * a privacy-safe asset is to insert `fl_strip_profile` into the transformation
+ * segment of the URL. For video and non-image resources we return the URL
+ * unchanged — Cloudinary's video pipeline already strips metadata.
+ *
+ * Input:  https://res.cloudinary.com/<cloud>/image/upload/v123/<public_id>.jpg
+ * Output: https://res.cloudinary.com/<cloud>/image/upload/fl_strip_profile/v123/<public_id>.jpg
+ *
+ * If the URL already has a transformation segment, we prepend `fl_strip_profile,`
+ * so existing transforms survive.
+ */
+export function stripImageMetadataUrl(secureUrl: string | undefined, resourceType: string): string | undefined {
+  if (!secureUrl) return secureUrl;
+  if (resourceType !== 'image') return secureUrl;
+  const match = secureUrl.match(/^(https:\/\/res\.cloudinary\.com\/[^/]+\/image\/upload\/)(.*)$/);
+  if (!match) return secureUrl;
+  const [, prefix, rest] = match;
+  // If `rest` starts with a version segment (v1234/...) there is no transform yet.
+  if (/^v\d+\//.test(rest)) {
+    return `${prefix}fl_strip_profile/${rest}`;
+  }
+  // Otherwise a transform block already exists up to the first `/`.
+  const slash = rest.indexOf('/');
+  if (slash === -1) return secureUrl;
+  const transform = rest.slice(0, slash);
+  const tail = rest.slice(slash + 1);
+  if (transform.split(',').includes('fl_strip_profile')) return secureUrl;
+  return `${prefix}fl_strip_profile,${transform}/${tail}`;
+}
+
 export interface CloudinaryUploadResult {
   public_id: string;
   secure_url?: string;
@@ -92,5 +125,10 @@ export async function uploadBufferToCloudinary(
   }
 
   const result = (await response.json()) as CloudinaryUploadResult;
+  // Ensure delivered URLs strip EXIF/GPS/IPTC from image originals.
+  const stripped = stripImageMetadataUrl(result.secure_url, result.resource_type);
+  if (stripped) result.secure_url = stripped;
+  const strippedHttp = stripImageMetadataUrl(result.url, result.resource_type);
+  if (strippedHttp) result.url = strippedHttp;
   return result;
 }

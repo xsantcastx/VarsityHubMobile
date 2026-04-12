@@ -131,7 +131,7 @@ model Game {
   destination     String?  // For team trips - destination city/venue
   
   // Approval workflow
-  approval_status String   @default("approved") // approved | pending | rejected
+  approval_status GameApprovalStatus @default(approved)
   created_by_id   String?
   created_by      User?    @relation("created_games", fields: [created_by_id], references: [id], onDelete: SetNull)
   approved_by_id  String?
@@ -244,14 +244,14 @@ model Event {
   longitude  Float?
   banner_url String?
   game_id    String?
-  status     String   @default("draft") // draft, approved, rejected, cancelled
+  status     EventStatus @default(draft)
   capacity   Int?
   created_at DateTime @default(now())
   
   // Fan event creation fields
   creator_id      String?
   creator_role    String?   // fan, coach, organizer
-  approval_status String    @default("pending") // pending, approved, rejected
+  approval_status EventApprovalStatus @default(pending)
   event_type      String?   // game, watch_party, fundraiser, tryout, bbq, other
   description     String?
   linked_league   String?   // League/school name or ID
@@ -450,8 +450,8 @@ model Ad {
   target_zip_code String?
   radius          Int      @default(45) // non-null with default
   description     String?
-  status          String   @default("draft") // draft | pending | approved | active | rejected | archived
-  payment_status  String   @default("unpaid") // unpaid | paid | refunded
+  status          AdStatus @default(draft)
+  payment_status  AdPaymentStatus @default(unpaid)
   admin_note      String?  // Admin note on approval/rejection
   created_at      DateTime @default(now())
 
@@ -557,6 +557,67 @@ enum NotificationType {
   GAME_REMINDER
   COACH_APPROVED
   COACH_REJECTED
+}
+
+enum AdStatus {
+  draft
+  pending
+  active
+  approved
+  rejected
+  archived
+}
+
+enum AdPaymentStatus {
+  unpaid
+  pending_approval
+  hold
+  paid
+  refunded
+}
+
+enum TeamRole {
+  owner
+  manager
+  coach
+  assistant_coach
+  player
+  parent
+  member
+  equipment
+  health_wellness
+}
+
+enum MembershipStatus {
+  active
+  invited
+  archived
+}
+
+enum InviteStatus {
+  pending
+  accepted
+  declined
+  revoked
+}
+
+enum EventStatus {
+  draft
+  approved
+  rejected
+  cancelled
+}
+
+enum EventApprovalStatus {
+  pending
+  approved
+  rejected
+}
+
+enum GameApprovalStatus {
+  approved
+  pending
+  rejected
 }
 
 model Notification {
@@ -712,8 +773,8 @@ model TeamMembership {
   team_id String
   user_id String
 
-  role       String   @default("member") // owner | manager | coach | assistant_coach | equipment | health_wellness | player | parent | member
-  status     String   @default("active") // active | invited | archived
+  role       TeamRole         @default(member)
+  status     MembershipStatus @default(active)
   created_at DateTime @default(now())
 
   team Team @relation(fields: [team_id], references: [id], onDelete: Cascade)
@@ -728,8 +789,8 @@ model TeamInvite {
   id         String   @id @default(cuid())
   team_id    String
   email      String
-  role       String   @default("member") // owner | manager | coach | assistant_coach | equipment | health_wellness | player | parent | member
-  status     String   @default("pending") // pending | accepted | declined | revoked
+  role       TeamRole     @default(member)
+  status     InviteStatus @default(pending)
   created_at DateTime @default(now())
 
   team Team @relation(fields: [team_id], references: [id], onDelete: Cascade)
@@ -940,11 +1001,31 @@ model AbuseReport {
   created_at      DateTime @default(now())
   
   reporter        User     @relation(fields: [reporter_id], references: [id], onDelete: Cascade)
-  
+
   @@index([reporter_id])
   @@index([status])
   @@index([created_at])
 }
 
+// ===========================
+// Push Receipt Tickets
+// ===========================
+// One row per ticket returned by Expo's sendPushNotificationsAsync.
+// Scheduler polls pending tickets, fetches receipts, clears push tokens for
+// DeviceNotRegistered errors, then deletes resolved rows.
 
+model PushTicket {
+  id            String   @id @default(cuid())
+  ticket_id     String   @unique
+  user_id       String
+  push_token    String
+  status        String   @default("pending") // pending | ok | error
+  error_code    String?
+  error_message String?
+  created_at    DateTime @default(now())
+  resolved_at   DateTime?
+
+  @@index([status, created_at])
+  @@index([user_id])
+}
 

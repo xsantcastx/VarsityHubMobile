@@ -348,6 +348,17 @@ export const mentionsSearchLimiter = createLimiter({
   max: isDev ? 100000 : 30,
 });
 
+/**
+ * Promo code preview/redeem lookups
+ * 20 per minute per user (prevents brute-force enumeration of valid codes).
+ * Tuned to still allow legitimate typo-and-retry during checkout.
+ */
+export const promoLimiter = createLimiter({
+  name: 'promo',
+  windowMs: 60 * 1000, // 1 minute
+  max: isDev ? 100000 : 20,
+});
+
 // ============================================
 // Export all limiters for easy application
 // ============================================
@@ -374,6 +385,7 @@ export const rateLimiters = {
   payment: paymentLimiter,
   userLookup: userLookupLimiter,
   mentionsSearch: mentionsSearchLimiter,
+  promo: promoLimiter,
 };
 
 export default rateLimiters;

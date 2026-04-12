@@ -1,10 +1,11 @@
 import { Router } from 'express';
 import { previewPromo, redeemPromo } from '../lib/promos.js';
 import type { AuthedRequest } from '../middleware/auth.js';
+import { promoLimiter } from '../middleware/rateLimiters.js';
 
 export const promosRouter = Router();
 
-promosRouter.post('/preview', async (req: AuthedRequest, res) => {
+promosRouter.post('/preview', promoLimiter as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'unauthorized' });
   const { code, subtotal_cents, service } = (req.body as any) || {};
   const result = await previewPromo({
@@ -16,7 +17,7 @@ promosRouter.post('/preview', async (req: AuthedRequest, res) => {
   return res.json(result);
 });
 
-promosRouter.post('/redeem', async (req: AuthedRequest, res) => {
+promosRouter.post('/redeem', promoLimiter as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'unauthorized' });
   const { code, subtotal_cents, service, order_id } = (req.body as any) || {};
   const result = await redeemPromo({

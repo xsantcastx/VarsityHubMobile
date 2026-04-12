@@ -1,3 +1,4 @@
+import { EventApprovalStatus, EventStatus, Prisma, TeamRole } from '@prisma/client';
 import { Router } from 'express';
 import { z } from 'zod';
 import { validateContent } from '../lib/contentFilter.js';
@@ -20,7 +21,12 @@ import { getIsAdmin } from '../middleware/requireAdmin.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 
 export const eventsRouter = Router();
-const eventModerationRoles = ['owner', 'manager', 'coach', 'assistant_coach'] as const;
+const eventModerationRoles = [
+  TeamRole.owner,
+  TeamRole.manager,
+  TeamRole.coach,
+  TeamRole.assistant_coach,
+] as const;
 const organizationModerationRoles = ['owner', 'manager', 'administrator'] as const;
 
 async function hasEventModerationAccess(userId: string): Promise<boolean> {
@@ -81,7 +87,7 @@ function buildPendingEventsWhere(scope: {
   teamIds: string[];
   organizationIds: string[];
   organizationNames: string[];
-}) {
+}): Prisma.EventWhereInput {
   const scopedConditions: any[] = [];
 
   if (scope.teamIds.length > 0) {
@@ -107,13 +113,13 @@ function buildPendingEventsWhere(scope: {
 
   if (scopedConditions.length === 0) {
     return {
-      approval_status: 'pending',
+      approval_status: EventApprovalStatus.pending,
       id: '__no_visible_events__',
     };
   }
 
   return {
-    approval_status: 'pending',
+    approval_status: EventApprovalStatus.pending,
     OR: scopedConditions,
   };
 }
@@ -301,7 +307,9 @@ eventsRouter.get('/pending', authMiddleware as any, async (req: AuthedRequest, r
   }
 
   const events = await prisma.event.findMany({
-    where: isAdmin ? { approval_status: 'pending' } : buildPendingEventsWhere(scope),
+    where: isAdmin
+      ? { approval_status: EventApprovalStatus.pending }
+      : buildPendingEventsWhere(scope),
     orderBy: { created_at: 'desc' },
     include: {
       game: {
@@ -349,7 +357,7 @@ eventsRouter.get('/:id', authMiddleware as any, async (req: AuthedRequest, res) 
   if (!event) return res.status(404).json({ error: 'Not found' });
   const count = await prisma.eventRsvp.count({ where: { event_id: id } });
   const payload = serializeEvent(event, { includeGame: true, rsvpCount: count });
-  if (req.user && event.status !== 'cancelled') {
+  if (req.user && event.status !== EventStatus.cancelled) {
     const isCreator = event.creator_id === req.user.id;
     let isTeamOwner = false;
     if (event.game?.home_team_id || event.game?.away_team_id) {

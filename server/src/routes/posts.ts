@@ -333,6 +333,23 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
     delete fallbackQuery.include.poll;
     rows = await prisma.post.findMany(fallbackQuery);
   }
+  const rowAuthorIds: string[] = Array.from(
+    new Set(rows.map((post: any) => post.author_id).filter(Boolean))
+  );
+  let followingIds = new Set<string>();
+  if (currentUserId && rowAuthorIds.length) {
+    const follows = await prisma.follows.findMany({
+      where: {
+        follower_id: currentUserId,
+        following_id: { in: rowAuthorIds },
+        status: 'accepted',
+      },
+      select: { following_id: true },
+    });
+    followingIds = new Set(
+      (follows as Array<{ following_id: string }>).map((follow) => follow.following_id)
+    );
+  }
   const blockedIds = await getBlockedUserIds(currentUserId);
   const visibleRows = rows.filter((post: any) =>
     canViewAuthorPosts(post.author, currentUserId, followingIds, blockedIds)
@@ -341,31 +358,24 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
   const nextCursor = visibleRows.length > limit ? visibleRows[limit].id : null;
 
   const postIds: string[] = items.map((p: any) => p.id);
-  const authorIds: string[] = items.map((p: any) => p.author_id).filter(Boolean);
 
   let upvotedIds = new Set<string>();
   let bookmarkedIds = new Set<string>();
-  let followingIds = new Set<string>();
 
   if (currentUserId && items.length) {
-    const followPromise = authorIds.length
-      ? prisma.follows.findMany({ where: { follower_id: currentUserId, following_id: { in: authorIds }, status: 'accepted' }, select: { following_id: true } })
-      : Promise.resolve([] as Array<{ following_id: string }>);
-    const [upvotes, bookmarks, follows] = await Promise.all([
+    const [upvotes, bookmarks] = await Promise.all([
       prisma.postUpvote.findMany({ where: { user_id: currentUserId, post_id: { in: postIds } }, select: { post_id: true } }),
       prisma.postBookmark.findMany({ where: { user_id: currentUserId, post_id: { in: postIds } }, select: { post_id: true } }),
-      followPromise,
     ]);
     upvotedIds = new Set(upvotes.map((u) => u.post_id));
     bookmarkedIds = new Set(bookmarks.map((b) => b.post_id));
-    followingIds = new Set((follows as Array<{ following_id: string }>).map((f) => f.following_id));
-    
+
     // Debug logging for follow relationships
-    debugLog('[posts] Follow debug:', { 
-      currentUserId, 
-      authorIds, 
+    debugLog('[posts] Follow debug:', {
+      currentUserId,
+      rowAuthorIds,
       followingIds: Array.from(followingIds),
-      followRecords: follows.length 
+      followRecords: followingIds.size,
     });
   }
 
