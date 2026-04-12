@@ -432,7 +432,7 @@ export default function SettingsScreen() {
                         <NavRow 
                           title="Review Organizations" 
                           subtitle="Approve or reject organization pages" 
-                          onPress={() => void router.navigate('/admin-organizations')} 
+                          onPress={() => void router.navigate('/admin-organizations' as any)} 
                         />
                       </SectionCard>
                     )}

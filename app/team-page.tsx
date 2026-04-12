@@ -59,11 +59,13 @@ type TeamMember = {
   user_id?: string;
   team_id?: string;
   role?: string;
+  status?: string;
   jersey_number?: string | number;
   position?: string;
   user?: {
     id: string;
     display_name?: string;
+    username?: string;
     full_name?: string;
     avatar_url?: string;
     is_parent?: boolean;

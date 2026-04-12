@@ -69,7 +69,7 @@ const mockUseAuthRequest = jest.fn(() => [
 
 jest.mock('expo-auth-session/providers/google', () => ({
   __esModule: true,
-  useAuthRequest: (...args: any[]) => mockUseAuthRequest(...args),
+  useAuthRequest: mockUseAuthRequest,
 }));
 
 jest.mock('expo-web-browser', () => ({
