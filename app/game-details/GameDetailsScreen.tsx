@@ -13,7 +13,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
-import { AccessibilityInfo, ActivityIndicator, Alert, Animated, Linking, Modal, Platform, Pressable, RefreshControl, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, Alert, Animated, AppState, Linking, Modal, Platform, Pressable, RefreshControl, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getApiBaseUrl } from '../../api/http';
 import MatchBanner from '../components/MatchBanner';
@@ -24,6 +24,7 @@ import settings from '@/api/settings';
 import { uploadFile } from '@/api/upload';
 import VideoPlayer from '@/components/VideoPlayer';
 import VideoTrimmer from '@/components/VideoTrimmer';
+import { useAuth } from '@/context/AuthProvider';
 import GameVerticalFeedScreen, { mapHighlightToFeedPost } from './GameVerticalFeedScreen';
 import { applyClearVote, applyVoteSelection, buildVoteSummary, parseVoteSummary, type VoteOption, type VoteSummary } from '@/utils/voteSummary';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
@@ -441,6 +442,7 @@ const GameDetailsScreen = () => {
   const isTestEnv = typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'test';
   const { id, eventId } = useLocalSearchParams<{ id: string; teamId?: string; eventId?: string }>();
   const router = useRouter();
+  const { user: authUser } = useAuth();
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme() ?? 'light';
   const { location, loading: _locLoading, error: _locError, permissionGranted, requestPermission, needsPreciseAccuracy, openSettings } = useDeviceLocation();
@@ -540,20 +542,32 @@ const GameDetailsScreen = () => {
     viewerOpenRef.current = !!storiesViewer?.visible;
   }, [storiesViewer?.visible]);
 
-  // Load current user ID for story expiration UI (creator check, countdown)
+  // Sync current user ID from auth context (no extra network call)
   useEffect(() => {
-    User.me().then((u: any) => { currentUserIdRef.current = u?.id ?? null; }).catch(() => { currentUserIdRef.current = null; });
-  }, []);
+    currentUserIdRef.current = authUser?.id ?? null;
+  }, [authUser?.id]);
 
-  // Tick every second to update countdown/live status (paused while stories viewer is open)
+  // Tick to update countdown/live status (paused while stories viewer is open or app backgrounded)
   useEffect(() => {
     if (isTestEnv) return;
-    const t = setInterval(() => {
-      if (!viewerOpenRef.current) {
-        setNowTs(Date.now());
-      }
-    }, 1000);
-    return () => clearInterval(t);
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+    const startTicking = () => {
+      if (intervalId) return;
+      intervalId = setInterval(() => {
+        if (!viewerOpenRef.current) {
+          setNowTs(Date.now());
+        }
+      }, 5000);
+    };
+    const stopTicking = () => {
+      if (intervalId) { clearInterval(intervalId); intervalId = null; }
+    };
+    startTicking();
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') { setNowTs(Date.now()); startTicking(); }
+      else stopTicking();
+    });
+    return () => { stopTicking(); sub.remove(); };
   }, [isTestEnv]);
 
   const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -2272,9 +2286,14 @@ const renderBanner = () => {
     );
   };
 
-  // Sanitize generic placeholder descriptions
+  // Sanitize generic placeholder descriptions and strip internal seed tags.
+  // [DEMO_MATCHUP] is an internal marker (see seed-demo-matchups.ts) used by
+  // the server carve-out — it must never render to users.
   const displayDescription = useMemo(() => {
-    const s = (vm?.description || '').replace(/\s+/g, ' ').trim();
+    const s = (vm?.description || '')
+      .replace(DEMO_MATCHUP_TAG, '')
+      .replace(/\s+/g, ' ')
+      .trim();
     if (!s) return null;
     if (/^friendly match$/i.test(s)) return null;
     return s;

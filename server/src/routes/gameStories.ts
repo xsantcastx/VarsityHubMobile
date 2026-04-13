@@ -206,13 +206,16 @@ export const makeCreateStoryHandler = ({ prisma }: StoryDeps) => async (req: Aut
   
   // Skip geofencing for sample games (IDs starting with "sample-")
   const isSampleGame = /^sample-/i.test(id);
-  
+
   if (!isSampleGame) {
-    // Fetch game with team IDs so we can check team membership for bypass
+    // Fetch game with team IDs so we can check team membership for bypass.
+    // `description` is also selected so we can detect [DEMO_MATCHUP]-tagged
+    // games — see the demo carve-out below.
     const game = await prisma.game.findUnique({
       where: { id },
       select: {
         id: true,
+        description: true,
         home_team_id: true,
         away_team_id: true,
         events: {
@@ -222,6 +225,14 @@ export const makeCreateStoryHandler = ({ prisma }: StoryDeps) => async (req: Aut
         },
       },
     });
+
+    // [DEMO_MATCHUP] carve-out — one-off for Duke v UNC + Cavs v Warriors
+    // promo content. Seeded via server/scripts/seed-demo-matchups.ts and
+    // wiped via server/scripts/wipe-demo-matchups.ts. Skips geofence and
+    // time-window checks for these specific Game rows only; every other
+    // game still runs the full verification. Becomes dead code once the
+    // demo rows are wiped, at which point the whole branch can be deleted.
+    const isDemoMatchup = typeof game?.description === 'string' && game.description.includes('[DEMO_MATCHUP]');
 
     // Admins and active members of either team bypass geofencing/time-window checks
     const isAdmin = await getIsAdmin(req as any);
@@ -233,7 +244,7 @@ export const makeCreateStoryHandler = ({ prisma }: StoryDeps) => async (req: Aut
         }))
       : false;
 
-    if (!isAdmin && !isTeamMember && game?.events && game.events.length > 0) {
+    if (!isDemoMatchup && !isAdmin && !isTeamMember && game?.events && game.events.length > 0) {
       const event = game.events[0];
       const location = parsed.data.location;
       const lat = location?.lat ?? null;
