@@ -550,22 +550,41 @@ function CreatePostScreen() {
 
   const [error, setError] = useState<string | null>(null);
 
+  // Kept in sync with server/scripts/seed-demo-matchups.ts DEMO_TAG and the
+  // [DEMO_MATCHUP] carve-out in server/src/routes/posts.ts — renaming this
+  // silently breaks the client bypass for seeded promo matchups.
+  const DEMO_MATCHUP_TAG = '[DEMO_MATCHUP]';
+  const isDemoMatchupGame =
+    typeof suggestedGame?.description === 'string'
+    && suggestedGame.description.includes(DEMO_MATCHUP_TAG);
+
   // Proactive geofence + time window check when a game is selected
   const geofenceWarning = useMemo(() => {
     if (!suggestedGame || !selectedGameId || isSampleEvent(selectedGameId)) return null;
+    // Seeded demo matchups (Duke v UNC, Cavs v Warriors) skip the client
+    // warning — server's [DEMO_MATCHUP] carve-out already bypasses geofence
+    // and posting-window checks for these Game rows only.
+    if (isDemoMatchupGame) return null;
     const eventDate = suggestedGame.date ? new Date(suggestedGame.date) : null;
     if (!eventDate || isNaN(eventDate.getTime())) return null;
 
-    // Check posting window (2 days before → ~32h after to match server's midnight UTC + 8h Pacific buffer)
+    // Check posting window (2 days before to 2 days after event start).
+    // The "already posted while it was live" cutoff is event start + 2 hours,
+    // matching the server rule in server/src/lib/geofencing.ts.
     const now = Date.now();
     const windowStart = eventDate.getTime() - 2 * 24 * 60 * 60 * 1000;
-    const windowEnd = eventDate.getTime() + 32 * 60 * 60 * 1000;
+    const liveCutoff = eventDate.getTime() + 2 * 60 * 60 * 1000;
+    const windowEnd = eventDate.getTime() + 2 * 24 * 60 * 60 * 1000;
     if (now < windowStart) {
       const openDate = new Date(windowStart);
       return `Posting opens ${openDate.toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${openDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. You can still draft your post now.`;
     }
     if (now > windowEnd) {
       return 'The posting window for this event has closed.';
+    }
+    if (now > liveCutoff) {
+      const closeDate = new Date(windowEnd);
+      return `Post-event uploads stay open until ${closeDate.toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${closeDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}, but only for people who already posted from this event while it was live.`;
     }
 
     // Check distance (3km = ~1.86 miles) if both user and venue coords are available
@@ -608,9 +627,10 @@ function CreatePostScreen() {
     if (__DEV__) console.warn('[CreatePost] State - selectedGameId:', selectedGameId, '| suggestedGame:', suggestedGame?.id);
 
     // Proactive geofence check: if posting to a real event and location is not available, prompt first.
+    // Seeded demo matchups bypass the location gate — server carve-out accepts uploads without coords.
     const isRealGame = selectedGameId && !isSampleEvent(selectedGameId);
     const gameHasCoords = typeof suggestedGame?.latitude === 'number' || typeof suggestedGame?.venue_lat === 'number';
-    if (isRealGame && gameHasCoords && !locationReady) {
+    if (isRealGame && gameHasCoords && !locationReady && !isDemoMatchupGame) {
       if (!permissionGranted) {
         Alert.alert(
           'Location Required',

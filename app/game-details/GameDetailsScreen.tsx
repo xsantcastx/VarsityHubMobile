@@ -387,9 +387,18 @@ const computeIsPast = (iso?: string | null) => {
   return d.getTime() < Date.now();
 };
 
-const canAddStory = (eventIso?: string | null, gameId?: string | null) => {
+// Kept in sync with server/scripts/seed-demo-matchups.ts DEMO_TAG and the
+// carve-out in server/src/routes/gameStories.ts — changing this string
+// silently breaks the client gate for seeded promo matchups.
+const DEMO_MATCHUP_TAG = '[DEMO_MATCHUP]';
+
+const canAddStory = (eventIso?: string | null, gameId?: string | null, description?: string | null) => {
   // Sample events can always add stories (no time restriction)
   if (isSampleId(gameId)) return true;
+
+  // Seeded demo matchups (Duke v UNC, Cavs v Warriors) bypass the day-of gate
+  // to match the server-side [DEMO_MATCHUP] carve-out in gameStories.ts.
+  if (typeof description === 'string' && description.includes(DEMO_MATCHUP_TAG)) return true;
 
   // Without an event date, allow uploading — no window to enforce client-side
   if (!eventIso) return true;
@@ -1209,8 +1218,13 @@ const GameDetailsScreen = () => {
   const handleAddStory = useCallback(async () => {
     if (!vm?.gameId || storyBusy) return;
 
-    // Proactive distance check — warn user before they capture media
-    if (!isSampleId(vm.gameId) && location?.latitude && location?.longitude) {
+    // Proactive distance check — warn user before they capture media.
+    // Seeded [DEMO_MATCHUP] games (Duke v UNC, Cavs v Warriors) bypass the
+    // 1km check here because the server's story carve-out already accepts
+    // them regardless of distance.
+    const vmDescription = typeof vm.description === 'string' ? vm.description : '';
+    const isDemoMatchup = vmDescription.includes(DEMO_MATCHUP_TAG);
+    if (!isSampleId(vm.gameId) && !isDemoMatchup && location?.latitude && location?.longitude) {
       const venueLat = vm.venueLat;
       const venueLng = vm.venueLng;
       if (typeof venueLat === 'number' && typeof venueLng === 'number') {
@@ -1280,11 +1294,35 @@ const GameDetailsScreen = () => {
     
     try {
       setStoryBusy(true);
-      const result = await ImagePicker.launchCameraAsync({
+      const pickerOptions: ImagePicker.ImagePickerOptions = {
         mediaTypes: ImagePicker.MediaTypeOptions.All,
         quality: 0.8,
         videoMaxDuration: 30,
-      });
+      };
+      // Demo matchups (Duke v UNC, Cavs v Warriors) let fans upload from the
+      // camera roll as well — they're not physically at Chase Center or Cameron
+      // Indoor, so the camera-only rule for geofenced events doesn't apply.
+      let result: ImagePicker.ImagePickerResult;
+      if (isDemoMatchup) {
+        const source = await new Promise<'camera' | 'library' | null>((resolve) => {
+          Alert.alert(
+            'Add to Story',
+            'Choose a source for your story.',
+            [
+              { text: 'Camera', onPress: () => resolve('camera') },
+              { text: 'Photo Library', onPress: () => resolve('library') },
+              { text: 'Cancel', style: 'cancel', onPress: () => resolve(null) },
+            ],
+            { cancelable: true, onDismiss: () => resolve(null) },
+          );
+        });
+        if (!source) { setStoryBusy(false); return; }
+        result = source === 'library'
+          ? await ImagePicker.launchImageLibraryAsync(pickerOptions)
+          : await ImagePicker.launchCameraAsync(pickerOptions);
+      } else {
+        result = await ImagePicker.launchCameraAsync(pickerOptions);
+      }
       if (!result || result.canceled || !result.assets || !result.assets.length) return;
 
       const asset = result.assets[0];
@@ -2333,9 +2371,9 @@ const renderBanner = () => {
               {/* Add Story Section */}
               <View style={styles.secondaryActionsRow}>
                 <Pressable
-                  style={[styles.actionBtn, (!vm?.gameId || storyBusy || !canAddStory(vm?.date, vm?.gameId)) ? styles.actionBtnDisabled : null]}
+                  style={[styles.actionBtn, (!vm?.gameId || storyBusy || !canAddStory(vm?.date, vm?.gameId, vm?.description)) ? styles.actionBtnDisabled : null]}
                   onPress={handleAddStory}
-                  disabled={!vm?.gameId || storyBusy || !canAddStory(vm?.date, vm?.gameId)}
+                  disabled={!vm?.gameId || storyBusy || !canAddStory(vm?.date, vm?.gameId, vm?.description)}
                 >
                   <Ionicons
                     name={storyBusy ? "checkmark-circle-outline" : "add-circle-outline"}
