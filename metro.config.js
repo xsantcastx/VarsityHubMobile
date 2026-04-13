@@ -1,6 +1,5 @@
 const { getDefaultConfig } = require('expo/metro-config');
 const path = require('path');
-const reactNativeWebPath = require.resolve('react-native-web');
 
 const config = getDefaultConfig(__dirname);
 
@@ -45,9 +44,9 @@ const nativeOnlyShims = {
 
 const originalResolveRequest = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
-  if (platform === 'web' && moduleName === 'react-native') {
-    return { type: 'sourceFile', filePath: reactNativeWebPath };
-  }
+  // Do NOT override react-native resolution here — Expo's getDefaultConfig()
+  // already maps react-native → react-native-web on web, including sub-paths
+  // like react-native/Libraries/BatchedBridge. Overriding it breaks sub-path resolution.
   if (platform === 'web' && nativeOnlyShims[moduleName]) {
     return { type: 'sourceFile', filePath: path.resolve(__dirname, 'shims', nativeOnlyShims[moduleName]) };
   }
