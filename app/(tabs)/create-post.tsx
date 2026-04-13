@@ -550,9 +550,21 @@ function CreatePostScreen() {
 
   const [error, setError] = useState<string | null>(null);
 
+  // Kept in sync with server/scripts/seed-demo-matchups.ts DEMO_TAG and the
+  // [DEMO_MATCHUP] carve-out in server/src/routes/posts.ts — renaming this
+  // silently breaks the client bypass for seeded promo matchups.
+  const DEMO_MATCHUP_TAG = '[DEMO_MATCHUP]';
+  const isDemoMatchupGame =
+    typeof suggestedGame?.description === 'string'
+    && suggestedGame.description.includes(DEMO_MATCHUP_TAG);
+
   // Proactive geofence + time window check when a game is selected
   const geofenceWarning = useMemo(() => {
     if (!suggestedGame || !selectedGameId || isSampleEvent(selectedGameId)) return null;
+    // Seeded demo matchups (Duke v UNC, Cavs v Warriors) skip the client
+    // warning — server's [DEMO_MATCHUP] carve-out already bypasses geofence
+    // and posting-window checks for these Game rows only.
+    if (isDemoMatchupGame) return null;
     const eventDate = suggestedGame.date ? new Date(suggestedGame.date) : null;
     if (!eventDate || isNaN(eventDate.getTime())) return null;
 
@@ -615,9 +627,10 @@ function CreatePostScreen() {
     if (__DEV__) console.warn('[CreatePost] State - selectedGameId:', selectedGameId, '| suggestedGame:', suggestedGame?.id);
 
     // Proactive geofence check: if posting to a real event and location is not available, prompt first.
+    // Seeded demo matchups bypass the location gate — server carve-out accepts uploads without coords.
     const isRealGame = selectedGameId && !isSampleEvent(selectedGameId);
     const gameHasCoords = typeof suggestedGame?.latitude === 'number' || typeof suggestedGame?.venue_lat === 'number';
-    if (isRealGame && gameHasCoords && !locationReady) {
+    if (isRealGame && gameHasCoords && !locationReady && !isDemoMatchupGame) {
       if (!permissionGranted) {
         Alert.alert(
           'Location Required',
