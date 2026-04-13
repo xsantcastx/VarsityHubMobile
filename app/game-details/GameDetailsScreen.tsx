@@ -1065,7 +1065,7 @@ const GameDetailsScreen = () => {
         initialDelayMs: 800,
         maxDelayMs: 4000,
       }).catch(() => null);
-      deferredMediaPromise = retryWithBackoff(() => Game.media(gameIdValue, { include_expired: true }), {
+      deferredMediaPromise = retryWithBackoff(() => Game.media(gameIdValue), {
         maxRetries: 0,
         initialDelayMs: 800,
         maxDelayMs: 4000,
@@ -1817,10 +1817,8 @@ const GameDetailsScreen = () => {
           {mediaItems.map((it, idx) => {
             const isVideo = it.kind === 'video' || (typeof it.url === 'string' && VIDEO_EXT.test(it.url));
             const wasSeen = !!seenStories[it.id];
-            const expiresAt = it.expires_at ? new Date(it.expires_at).getTime() : null;
-            const isExpired = expiresAt != null && expiresAt <= nowTs;
-            const isCreator = currentUserIdRef.current && it.user_id === currentUserIdRef.current;
-            const showExpiredForCreator = isExpired && isCreator;
+            // Stories persist forever — no expiry overlay. The 24h window only
+            // controls when stories can be CREATED, not their visibility.
             return (
               <Pressable
                 key={`${it.id}-${idx}`}
@@ -1828,7 +1826,6 @@ const GameDetailsScreen = () => {
                   styles.storyItem,
                   styles.storyItemGap,
                   wasSeen ? styles.storyItemSeen : null,
-                  showExpiredForCreator ? styles.storyItemExpired : null,
                 ]}
                 onPress={() => setStoriesViewer({ visible: true, items: mediaItems as any, index: idx })}
               >
@@ -1847,12 +1844,6 @@ const GameDetailsScreen = () => {
                     />
                   )}
                   {wasSeen ? <View style={styles.storySeenOverlay} /> : null}
-                  {showExpiredForCreator ? (
-                    <View style={styles.storyExpiredOverlay}>
-                      <Text style={styles.storyExpiredLabel}>Expired</Text>
-                      <Text style={styles.storyExpiredHint}>Tap to delete</Text>
-                    </View>
-                  ) : null}
                 </View>
               </Pressable>
             );

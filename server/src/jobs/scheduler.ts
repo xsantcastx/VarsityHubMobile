@@ -115,29 +115,12 @@ const SCHEDULED_JOBS: ScheduledJob[] = [
     },
   },
   {
+    // Stories persist forever — no cleanup needed.
+    // The 24h window only controls when stories can be POSTED, not their lifespan.
     name: 'cleanup-expired-stories',
-    cron: '0 * * * *', // Every hour
-    description: 'Delete expired stories (24h after creation)',
-    handler: async () => {
-      try {
-        const { prisma } = await import('../lib/prisma.js');
-        const now = new Date();
-        const result = await prisma.story.deleteMany({
-          where: { expires_at: { lt: now } },
-        });
-        if (result.count > 0) {
-          console.log(`[Scheduler] Cleaned up ${result.count} expired stories`);
-        }
-      } catch (err: any) {
-        if (err?.code === 'P2022' || err?.message?.includes('expires_at')) {
-          console.warn('[Scheduler] Story expires_at column may not exist yet, skipping cleanup');
-          captureMessage('Story cleanup skipped: expires_at column missing — stories are accumulating', 'warning');
-        } else {
-          console.error('[Scheduler] Failed to cleanup expired stories:', err);
-          captureException(err instanceof Error ? err : new Error(String(err)), { extra: { context: 'story_cleanup' } });
-        }
-      }
-    },
+    cron: '0 0 31 2 *', // Disabled — Feb 31 never fires
+    description: '(Disabled) Stories no longer expire',
+    handler: async () => { /* no-op */ },
   },
   {
     name: 'verify-push-receipts',

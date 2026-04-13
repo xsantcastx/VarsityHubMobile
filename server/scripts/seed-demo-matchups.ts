@@ -46,6 +46,7 @@ interface GameSeed {
   latitude: number;
   longitude: number;
   banner_url: string;
+  cover_image_url: string;
   description: string;
 }
 
@@ -112,11 +113,12 @@ const GAMES: GameSeed[] = [
     title: 'Duke Blue Devils vs. UNC Tar Heels',
     home: 'Duke Blue Devils',
     away: 'UNC Tar Heels',
-    daysFromNow: 1,
+    daysFromNow: 1, // Re-running the seed bumps this forward — always "tomorrow"
     location: 'Cameron Indoor Stadium, Durham, NC',
     latitude: 36.0017,
     longitude: -78.9430,
-    banner_url: 'https://picsum.photos/seed/duke-unc-banner/1200/600',
+    banner_url: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/q_auto/f_auto/v1776111005/convert_dauk3b.webp',
+    cover_image_url: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/q_auto/f_auto/v1776111005/convert_dauk3b.webp',
     description: `${DEMO_TAG} Tobacco Road rivalry. Demo event for promo content.`,
   },
   {
@@ -127,7 +129,8 @@ const GAMES: GameSeed[] = [
     location: 'Rocket Mortgage FieldHouse, Cleveland, OH',
     latitude: 41.4965,
     longitude: -81.6882,
-    banner_url: 'https://picsum.photos/seed/cavs-warriors-banner/1200/600',
+    banner_url: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/q_auto/f_auto/v1776111005/unnamed_yhflhv.jpg',
+    cover_image_url: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/q_auto/f_auto/v1776111005/unnamed_yhflhv.jpg',
     description: `${DEMO_TAG} 2016 NBA Finals rematch vibe. Demo event for promo content.`,
   },
 ];
@@ -183,6 +186,7 @@ async function upsertGame(seed: GameSeed, homeId: string, awayId: string): Promi
         latitude: seed.latitude,
         longitude: seed.longitude,
         banner_url: seed.banner_url,
+        cover_image_url: seed.cover_image_url,
         description: seed.description,
         home_team: seed.home,
         away_team: seed.away,
@@ -205,6 +209,7 @@ async function upsertGame(seed: GameSeed, homeId: string, awayId: string): Promi
       home_team: seed.home,
       away_team: seed.away,
       banner_url: seed.banner_url,
+      cover_image_url: seed.cover_image_url,
       description: seed.description,
       event_type: 'game',
       approval_status: 'approved',
