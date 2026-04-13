@@ -27,6 +27,11 @@ const configureNotificationHandlers = async () => {
   
   notif.setNotificationHandler({
     handleNotification: async () => ({
+      // iOS 14+: shouldShowAlert is deprecated. Use the granular pair so iOS
+      // renders a standard transient banner instead of falling back to a legacy
+      // presentation that can leave a persistent bell indicator on screen.
+      shouldShowBanner: true,
+      shouldShowList: true,
       shouldShowAlert: true,
       shouldPlaySound: true,
       shouldSetBadge: false,

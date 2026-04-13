@@ -746,7 +746,7 @@ export default function FeedScreen() {
       {/* Enhanced header with gradient background and safe area */}
       <LinearGradient
         colors={colorScheme === 'dark' ? ['#1e293b', '#0f172a'] : ['#ffffff', '#f8fafc']}
-        style={[styles.headerGradient, { paddingTop: insets.top + 12 }]}
+        style={[styles.headerGradient, { paddingTop: insets.top + 4 }]}
       >
         <View style={styles.headerRow}>
           {/* Notifications on LEFT */}

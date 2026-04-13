@@ -2286,14 +2286,14 @@ const renderBanner = () => {
     );
   };
 
-  // Sanitize generic placeholder descriptions and strip internal seed tags.
-  // [DEMO_MATCHUP] is an internal marker (see seed-demo-matchups.ts) used by
-  // the server carve-out — it must never render to users.
+  // Sanitize generic placeholder descriptions and strip internal seed text.
+  // For [DEMO_MATCHUP]-tagged games the whole description is seed/promo filler
+  // ("Tobacco Road rivalry. Demo event for promo content.") and must not
+  // render to users — return null so the description block is hidden entirely.
   const displayDescription = useMemo(() => {
-    const s = (vm?.description || '')
-      .replace(DEMO_MATCHUP_TAG, '')
-      .replace(/\s+/g, ' ')
-      .trim();
+    const raw = vm?.description || '';
+    if (raw.includes(DEMO_MATCHUP_TAG)) return null;
+    const s = raw.replace(/\s+/g, ' ').trim();
     if (!s) return null;
     if (/^friendly match$/i.test(s)) return null;
     return s;
