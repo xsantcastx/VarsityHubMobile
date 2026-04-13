@@ -1,5 +1,6 @@
 import CollageView, { type CollageData } from '@/components/CollageView';
 import { Colors } from '@/constants/Colors';
+import { captureRef } from '@/lib/native/viewShot';
 import { sanitizeTitle } from '@/lib/sanitizeTitle';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
@@ -29,7 +30,6 @@ import {
     View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { captureRef } from 'react-native-view-shot';
 
 import { Game, Highlights, Post, Report, User } from '@/api/entities';
 import { httpGet } from '@/api/http';

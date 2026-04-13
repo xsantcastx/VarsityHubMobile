@@ -1,8 +1,8 @@
-import { uploadFile } from '@/api/upload';
+import { uploadFile } from '../../api/upload';
 import { getApiBaseUrl } from '../../api/http';
+import ViewShot, { captureRef } from '@/lib/native/viewShot';
 import { useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, Text, View } from 'react-native';
-import ViewShot, { captureRef } from 'react-native-view-shot';
 import MatchBanner from './MatchBanner';
 
 type Props = {

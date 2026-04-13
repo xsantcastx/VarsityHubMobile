@@ -15,6 +15,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
+import AppleAuthButton from '@/components/auth/AppleAuthButton';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
@@ -27,13 +28,6 @@ import { validateEmail } from '@/utils/formUtils';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import auth from '@/api/auth';
 import { Ionicons } from '@expo/vector-icons';
-import * as AppleAuthentication from 'expo-apple-authentication';
-
-const {
-  AppleAuthenticationButton,
-  AppleAuthenticationButtonType,
-  AppleAuthenticationButtonStyle,
-} = AppleAuthentication;
 
 export default function SignInScreen() {
   const router = useRouter();
@@ -307,11 +301,10 @@ export default function SignInScreen() {
             ) : null}
 
             {Platform.OS === 'ios' ? (
-              <AppleAuthenticationButton
+              <AppleAuthButton
                 onPress={handleAppleLogin}
-                buttonType={AppleAuthenticationButtonType.SIGN_IN}
-                buttonStyle={colorScheme === 'dark' ? AppleAuthenticationButtonStyle.WHITE : AppleAuthenticationButtonStyle.BLACK}
-                cornerRadius={8}
+                mode="signIn"
+                colorScheme={colorScheme}
                 style={{ width: '100%', height: 50, marginBottom: 0, borderWidth: 2, borderColor: palette.border }}
                 accessibilityLabel={t('auth.signIn.oauth.appleLabel')}
               />

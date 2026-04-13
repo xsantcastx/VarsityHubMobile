@@ -33,10 +33,18 @@ config.resolver.extraNodeModules = {
 };
 
 // Shim native-only modules on web so Metro doesn't try to bundle them
+const nativeOnlyShims = {
+  '@stripe/stripe-react-native': 'stripe-react-native.js',
+  'expo-haptics': 'expo-haptics.js',
+  '@react-native-community/datetimepicker': 'datetimepicker.js',
+  'expo-media-library': 'expo-media-library.js',
+  'react-native-view-shot': 'react-native-view-shot.js',
+};
+
 const originalResolveRequest = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
-  if (platform === 'web' && moduleName === '@stripe/stripe-react-native') {
-    return { type: 'sourceFile', filePath: path.resolve(__dirname, 'shims/stripe-react-native.js') };
+  if (platform === 'web' && nativeOnlyShims[moduleName]) {
+    return { type: 'sourceFile', filePath: path.resolve(__dirname, 'shims', nativeOnlyShims[moduleName]) };
   }
   if (originalResolveRequest) {
     return originalResolveRequest(context, moduleName, platform);

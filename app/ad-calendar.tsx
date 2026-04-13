@@ -1,7 +1,7 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { usePaymentSheet } from '@/hooks/usePaymentSheetCompat';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { usePaymentSheet } from '@stripe/stripe-react-native';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAdIAP } from '@/hooks/useAdIAP';

@@ -4,6 +4,7 @@ import { ActivityIndicator, Linking, Platform, Pressable, StyleSheet, Text, Touc
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { User } from '@/api/entities';
+import AppleAuthButton from '@/components/auth/AppleAuthButton';
 import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,9 +20,6 @@ import { useAppTranslation } from '@/lib/i18n/useAppTranslation';
 import { captureException } from '@/utils/sentry';
 import { Ionicons } from '@expo/vector-icons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import * as AppleAuthentication from 'expo-apple-authentication';
-
-const { AppleAuthenticationButton, AppleAuthenticationButtonType, AppleAuthenticationButtonStyle } = AppleAuthentication;
 
 export default function SignUpScreen() {
   const router = useRouter();
@@ -307,11 +305,10 @@ export default function SignUpScreen() {
           {/* Apple Sign Up Option (iOS only) */}
           {Platform.OS === 'ios' ? (
             <View pointerEvents={(!agreedToTerms || !confirmedAge) ? 'none' : 'auto'} style={(!agreedToTerms || !confirmedAge) ? styles.buttonDisabled : undefined} accessibilityLabel={t('auth.signUp.oauth.appleLabel')} accessibilityRole="button" accessibilityHint={t('auth.signUp.oauth.appleHint')}>
-              <AppleAuthenticationButton
+              <AppleAuthButton
                 onPress={handleAppleSignUp}
-                buttonType={AppleAuthenticationButtonType.SIGN_UP}
-                buttonStyle={colorScheme === 'dark' ? AppleAuthenticationButtonStyle.WHITE : AppleAuthenticationButtonStyle.BLACK}
-                cornerRadius={8}
+                mode="signUp"
+                colorScheme={colorScheme}
                 style={{ width: '100%', height: 50, marginBottom: 8 }}
               />
             </View>

@@ -1,6 +1,6 @@
 import bcrypt from 'bcrypt';
 import crypto, { createPublicKey, type KeyObject } from 'crypto';
-import { Router } from 'express';
+import { Router, type Response } from 'express';
 import { OAuth2Client } from 'google-auth-library';
 import jwt, { type JwtPayload } from 'jsonwebtoken';
 import { z } from 'zod';
@@ -1472,8 +1472,7 @@ authRouter.post('/me/complete-onboarding', authLimiter, requireAuth as any, requ
   });
 }));
 
-// Request a new email verification code (authenticated)
-authRouter.post('/verify/request', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
+async function handleVerifyRequest(req: AuthedRequest, res: Response) {
   const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
   if (!user) return res.status(404).json({ error: 'Not found' });
   if (user.email_verified) return res.json({ ok: true, already_verified: true });
@@ -1507,11 +1506,16 @@ authRouter.post('/verify/request', requireAuth as any, asyncHandler(async (req: 
   if (shouldExposeDevCodes) payload.dev_verification_code = code;
   await rlSet(verifyLastKey, String(Date.now()), 30_000);
   return res.json(payload);
+}
+
+// Request a new email verification code (authenticated)
+authRouter.post('/verify/request', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
+  return handleVerifyRequest(req, res);
 }));
 
 // Alias: /auth/verify/send
 authRouter.post('/verify/send', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
-  (authRouter as any).handle({ ...req, url: '/verify/request' }, res);
+  return handleVerifyRequest(req, res);
 }));
 
 // Verify code (authenticated)

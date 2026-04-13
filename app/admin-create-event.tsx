@@ -23,7 +23,7 @@ import { Team } from '@/api/entities';
 import { autocompleteLocations, PlaceSuggestion } from '@/api/geocoding';
 import { safeGoBack } from '@/utils/navigation';
 import { sanitizeText } from '@/utils/formUtils';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import DateTimePicker from '@/lib/native/dateTimePicker';
 
 const EVENT_TYPES = [
   { value: 'game', label: 'Game/Match', emoji: '🏈' },

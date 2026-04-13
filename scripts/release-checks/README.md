@@ -29,6 +29,8 @@ bash scripts/release-checks/release-pass.sh
 | [push-verify.sh](push-verify.sh) | Trigger a push to a real device, print the SQL that confirms `PushTicket` resolved + dead tokens got reaped. | `AUTH_JWT`, `RECIPIENT_ID`, signed release build on a device |
 | [pool-stress.sh](pool-stress.sh) | 50-concurrency / 500-request probe; reports p50/p95/p99 and error rate. | `API_URL` (+ `AUTH_JWT` for protected endpoints) |
 | [ota-check.sh](ota-check.sh) | Hits the Expo update URL with real device headers, confirms the manifest is reachable and well-formed for iOS + Android. | Reads `app.json` directly — no env required |
+| [ota-check-both.sh](ota-check-both.sh) | Runs the OTA manifest sanity check for multiple runtimes, useful when you need to support both `1.0.1` and `1.0.2` installs. | No env required |
+| [set-runtime-version.sh](set-runtime-version.sh) | Updates `app.json` and `package.json` to a specific app version so `eas update` targets that runtime. | Version arg, e.g. `1.0.1` |
 
 ## Sentry canary
 
@@ -57,3 +59,25 @@ railway variables set SENTRY_CANARY_TOKEN=$(openssl rand -hex 16)
 Run order: always `release-pass.sh` first. The individual scripts are what it
 calls under the hood and can be run standalone when you want to iterate on a
 single check.
+
+## Dual-runtime OTA workflow
+
+When `expo.runtimeVersion.policy = appVersion`, one update publish only reaches
+installs whose app version matches the current `app.json` version.
+
+If you need to support both `1.0.1` and `1.0.2` binaries:
+
+```bash
+# 1. Verify both OTA lanes exist
+bash scripts/release-checks/ota-check-both.sh 1.0.1 1.0.2
+
+# 2. Publish to 1.0.1 installs
+bash scripts/release-checks/set-runtime-version.sh 1.0.1
+eas update --branch production --platform all --message "1.0.1 OTA: <summary>"
+
+# 3. Publish to 1.0.2 installs
+bash scripts/release-checks/set-runtime-version.sh 1.0.2
+eas update --branch production --platform all --message "1.0.2 OTA: <summary>"
+```
+
+Do not assume one `eas update` reaches both runtimes. It will not.

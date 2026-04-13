@@ -14,6 +14,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ErrorToastContainer } from '@/components/ErrorToast';
 import { OfflineBanner } from '@/components/OfflineBanner';
+import { StripeProvider } from '@/components/providers/StripeProvider';
 import { Colors } from '@/constants/Colors';
 import { MAX_CONTENT_WIDTH } from '@/constants/layout';
 import { AuthProvider } from '@/context/AuthProvider';
@@ -27,7 +28,6 @@ import { handleDeepLinkAuthAware, handleInitialDeepLink, setupDeepLinkListener }
 import { initSentry } from '@/utils/sentry';
 import { initAnalytics } from '@/utils/analytics';
 import { getConfig } from '@/config/env';
-import { StripeProvider } from '@stripe/stripe-react-native';
 
 
 // Conditionally import notifications only if not in Expo Go
@@ -151,10 +151,7 @@ function RootLayout() {
     <SafeAreaProvider>
       <ErrorBoundary>
         <GestureHandlerRootView style={{ flex: 1 }}>
-          <StripeProvider
-            publishableKey={getConfig().stripePublishableKey}
-            merchantIdentifier="merchant.app.varsityhub"
-          >
+          <StripeProvider publishableKey={getConfig().stripePublishableKey} merchantIdentifier="merchant.app.varsityhub">
           <ThemeProvider>
             <PostCacheProvider>
               <NavigationHistoryProvider>
@@ -273,7 +270,7 @@ function RootLayout() {
               </NavigationHistoryProvider>
             </PostCacheProvider>
           </ThemeProvider>
-        </StripeProvider>
+          </StripeProvider>
         </GestureHandlerRootView>
       </ErrorBoundary>
     </SafeAreaProvider>
