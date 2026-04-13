@@ -129,8 +129,8 @@ const GAMES: GameSeed[] = [
     location: 'Rocket Mortgage FieldHouse, Cleveland, OH',
     latitude: 41.4965,
     longitude: -81.6882,
-    banner_url: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/q_auto:best/f_auto/v1776111005/unnamed_yhflhv.jpg',
-    cover_image_url: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/q_auto:best/f_auto/v1776111005/unnamed_yhflhv.jpg',
+    banner_url: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/q_auto:best/f_auto/v1776113584/IMG_5935_qazitw.jpg',
+    cover_image_url: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/q_auto:best/f_auto/v1776113584/IMG_5935_qazitw.jpg',
     description: `${DEMO_TAG} 2016 NBA Finals rematch vibe. Demo event for promo content.`,
   },
 ];

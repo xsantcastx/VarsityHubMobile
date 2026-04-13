@@ -19,7 +19,7 @@ const DUKE_UNC_IMAGE =
 
 // Cavs v Warriors → Duke Wallace Wade Stadium (football field, blue seats)
 const CAVS_WARRIORS_IMAGE =
-  'https://res.cloudinary.com/dxb5oq4fs/image/upload/q_auto:best/f_auto/v1776111005/unnamed_yhflhv.jpg';
+  'https://res.cloudinary.com/dxb5oq4fs/image/upload/q_auto:best/f_auto/v1776113584/IMG_5935_qazitw.jpg';
 
 async function main() {
   console.log('[update-demo-images] Updating demo game images...');
