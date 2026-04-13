@@ -877,44 +877,7 @@ export default function FeedScreen() {
         <View style={{ alignItems: 'center', paddingVertical: 40, paddingHorizontal: 24 }}>
           <MaterialIcons name="dynamic-feed" size={56} color={Colors[colorScheme].mutedText} />
           <Text style={{ color: Colors[colorScheme].text, fontSize: 18, fontWeight: '700', marginTop: 14, marginBottom: 6 }}>No posts yet</Text>
-          <Text style={[styles.muted, { color: Colors[colorScheme].mutedText, textAlign: 'center', lineHeight: 20, marginBottom: 20 }]}>
-            Follow teams and coaches to see their content here.
-          </Text>
-          <Pressable
-            testID="feed-discover-games-button"
-            onPress={() => router.push('/(tabs)/discover')}
-            style={{
-              backgroundColor: Colors[colorScheme].tint,
-              paddingHorizontal: 24,
-              paddingVertical: 12,
-              borderRadius: 10,
-              marginBottom: 10,
-              width: '100%',
-              alignItems: 'center',
-            }}
-            accessibilityRole="button"
-            accessibilityLabel="Discover nearby games"
-          >
-            <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '600' }}>Discover Nearby Games</Text>
-          </Pressable>
-          <Pressable
-            testID="feed-browse-teams-button"
-            onPress={() => router.push('/(tabs)/discover')}
-            style={{
-              backgroundColor: 'transparent',
-              paddingHorizontal: 24,
-              paddingVertical: 12,
-              borderRadius: 10,
-              borderWidth: 1,
-              borderColor: Colors[colorScheme].border,
-              width: '100%',
-              alignItems: 'center',
-            }}
-            accessibilityRole="button"
-            accessibilityLabel="Browse teams to follow"
-          >
-            <Text style={{ color: Colors[colorScheme].text, fontSize: 15, fontWeight: '600' }}>Browse Teams</Text>
-          </Pressable>
+          <Text style={[styles.muted, { color: Colors[colorScheme].mutedText, textAlign: 'center', lineHeight: 20 }]}>Follow teams and coaches to see their content here.</Text>
         </View>
       )}
 
@@ -1068,9 +1031,6 @@ export default function FeedScreen() {
               const gameItem = item as GameItem;
               if (!gameItem.id) return null;
               const raw = gameItem as any;
-              const gameStartMs = gameItem.date ? new Date(gameItem.date).getTime() : null;
-              const nowMs = Date.now();
-              const isLive = gameStartMs != null && gameStartMs <= nowMs && nowMs - gameStartMs <= LIVE_WINDOW_MS;
               const firstMediaUrl =
                 Array.isArray(raw?.media) && raw.media.length > 0
                   ? (raw.media[0]?.thumbnail_url || raw.media[0]?.url || null)
@@ -1109,10 +1069,10 @@ export default function FeedScreen() {
                 <Pressable
                   testID={`feed-game-card-${gameItem.id}`}
                   key={String(gameItem.id)}
-                  style={[styles.singleEventCard, isLive ? { borderWidth: 2, borderColor: '#EF4444' } : null]}
+                  style={styles.singleEventCard}
                   onPress={() => void router.push({ pathname: '/game/[id]', params: { id: String(gameItem.id) } })}
                   accessibilityRole="button"
-                  accessibilityLabel={`${gameItem.title || 'Game'} on ${eventDate}${eventTime ? ` at ${eventTime}` : ''}${isLive ? ' — LIVE NOW' : ''}`}
+                  accessibilityLabel={`${gameItem.title || 'Game'} on ${eventDate}${eventTime ? ` at ${eventTime}` : ''}`}
                 >
                   <LinearGradient colors={gradient} style={StyleSheet.absoluteFillObject} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
                   {hasBanner && (
@@ -1124,17 +1084,9 @@ export default function FeedScreen() {
                     pointerEvents="none"
                   />
                   <View style={styles.gridContent}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      <View style={styles.gridDateChip}>
-                        <MaterialIcons name="event" size={12} color="#FFFFFF" />
-                        <Text style={styles.gridDateText}>{eventDate}</Text>
-                      </View>
-                      {isLive ? (
-                        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#EF4444', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2, gap: 4 }}>
-                          <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#fff' }} />
-                          <Text style={{ color: '#fff', fontSize: 10, fontWeight: '800', letterSpacing: 0.5 }}>LIVE</Text>
-                        </View>
-                      ) : null}
+                    <View style={styles.gridDateChip}>
+                      <MaterialIcons name="event" size={12} color="#FFFFFF" />
+                      <Text style={styles.gridDateText}>{eventDate}</Text>
                     </View>
                     <Text style={styles.gridTitle} numberOfLines={2}>
                       {gameItem.title ? String(gameItem.title) : 'Game'}

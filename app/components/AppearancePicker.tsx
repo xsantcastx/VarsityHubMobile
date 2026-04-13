@@ -1,5 +1,5 @@
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
+import { Colors } from '../../constants/Colors';
+import { useColorScheme } from '../../hooks/useColorScheme';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 export type AppearancePreset = 'classic' | 'sparkle' | 'sporty';

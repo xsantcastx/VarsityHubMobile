@@ -1,21 +1,42 @@
-import { Tabs, useRouter } from 'expo-router';
-import React, { useMemo } from 'react';
+import { Tabs } from 'expo-router';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { AppState } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Pressable, View, Text } from 'react-native';
 
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { HapticTab } from '@/components/HapticTab';
 import CenterTabButton from '@/components/ui/CenterTabButton';
 import { IconSymbol } from '@/components/ui/IconSymbol';
 import TabBarBackground from '@/components/ui/TabBarBackground';
-import NotificationBellIcon from '@/components/ui/NotificationBellIcon';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+// @ts-ignore
+import { Notification } from '@/api/entities';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const insets = useSafeAreaInsets();
-  const router = useRouter();
+  const [unreadCount, setUnreadCount] = useState<number>(0);
+
+  const fetchUnread = useCallback(() => {
+    Notification.unreadCount()
+      .then((res: any) => {
+        const count = typeof res === 'number' ? res : (res?.count ?? res?.unread ?? 0);
+        setUnreadCount(count);
+      })
+      .catch(() => {});
+  }, []);
+
+  // Fetch on mount and when app comes to foreground
+  useEffect(() => {
+    fetchUnread();
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') fetchUnread();
+    });
+    // Poll every 30s while app is active
+    const interval = setInterval(fetchUnread, 30000);
+    return () => { sub.remove(); clearInterval(interval); };
+  }, [fetchUnread]);
 
   const hiddenTab = useMemo(
     () =>
@@ -62,24 +83,6 @@ export default function TabLayout() {
           tabBarButton: HapticTab,
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="square.grid.2x2.fill" color={color} />,
           tabBarAccessibilityLabel: 'Feed',
-          headerShown: true,
-          headerTitle: '',
-          headerRight: () => (
-            <Pressable
-              onPress={() => router.push('/notifications/index' as any)}
-              style={{ paddingRight: 16, paddingLeft: 8 }}
-              accessibilityRole="button"
-              accessibilityLabel="Notifications"
-            >
-              <NotificationBellIcon color={Colors[colorScheme].text} />
-            </Pressable>
-          ),
-          headerStyle: {
-            backgroundColor: Colors[colorScheme].background,
-            borderBottomWidth: 1,
-            borderBottomColor: Colors[colorScheme].border,
-          },
-          headerTintColor: Colors[colorScheme].text,
         }}
       />
       <Tabs.Screen
@@ -109,46 +112,52 @@ export default function TabLayout() {
           tabBarAccessibilityLabel: 'Discover',
         }}
       />
-      <Tabs.Screen name="index" options={hiddenTab} />
-      <Tabs.Screen name="notifications/index" options={hiddenTab} />
-      <Tabs.Screen name="messages/index" options={hiddenTab} />
-      <Tabs.Screen name="feed/game/[id]" options={hiddenTab} />
-      <Tabs.Screen name="feed/game/index" options={hiddenTab} />
-      <Tabs.Screen name="discover/mobile-community" options={hiddenTab} />
-      <Tabs.Screen name="discover/game/index" options={hiddenTab} />
-      <Tabs.Screen name="discover/game/[id]" options={hiddenTab} />
-      <Tabs.Screen name="admin-ads" options={hiddenTab} />
-      <Tabs.Screen name="admin-messages" options={hiddenTab} />
-      <Tabs.Screen name="admin-teams" options={hiddenTab} />
-      <Tabs.Screen name="admin-users" options={hiddenTab} />
-      <Tabs.Screen name="admin-user-detail" options={hiddenTab} />
-      <Tabs.Screen name="ad-calendar" options={hiddenTab} />
-      <Tabs.Screen name="edit-ad" options={hiddenTab} />
-      <Tabs.Screen name="my-ads" options={hiddenTab} />
-      <Tabs.Screen name="submit-ad" options={hiddenTab} />
-      <Tabs.Screen name="game-detail" options={hiddenTab} />
-      <Tabs.Screen name="game-photos" options={hiddenTab} />
-      <Tabs.Screen name="game-highlights" options={hiddenTab} />
-      <Tabs.Screen name="game-reviews" options={hiddenTab} />
-      <Tabs.Screen name="create-post" options={hiddenTab} />
-      <Tabs.Screen name="team-profile" options={hiddenTab} />
-      <Tabs.Screen name="team-hub" options={hiddenTab} />
-      <Tabs.Screen name="team-contacts" options={hiddenTab} />
-      <Tabs.Screen name="edit-profile" options={hiddenTab} />
-      <Tabs.Screen name="create-team" options={hiddenTab} />
-      <Tabs.Screen name="edit-team" options={hiddenTab} />
-      <Tabs.Screen name="manage-teams" options={hiddenTab} />
-      <Tabs.Screen name="my-team" options={hiddenTab} />
-      <Tabs.Screen name="followers" options={hiddenTab} />
-      <Tabs.Screen name="following" options={hiddenTab} />
-      <Tabs.Screen name="organization" options={hiddenTab} />
-      <Tabs.Screen name="event-detail" options={hiddenTab} />
-      <Tabs.Screen name="edit-event" options={hiddenTab} />
-      <Tabs.Screen name="edit-organization" options={hiddenTab} />
-      <Tabs.Screen name="event-approvals" options={hiddenTab} />
-      <Tabs.Screen name="approvals" options={hiddenTab} />
-      <Tabs.Screen name="verify-email" options={hiddenTab} />
-      <Tabs.Screen name="team-page" options={hiddenTab} />
+  {/* Hidden screens within (tabs) that should not appear as tabs */}
+  <Tabs.Screen name="index" options={hiddenTab} />
+  <Tabs.Screen name="notifications/index" options={hiddenTab} />
+  <Tabs.Screen name="messages/index" options={hiddenTab} />
+  {/* Hide nested game routes under Feed */}
+  <Tabs.Screen name="feed/game/[id]" options={hiddenTab} />
+  <Tabs.Screen name="feed/game/index" options={hiddenTab} />
+  {/* Hide nested routes under Discover */}
+  <Tabs.Screen name="discover/mobile-community" options={hiddenTab} />
+  <Tabs.Screen name="discover/game/index" options={hiddenTab} />
+  <Tabs.Screen name="discover/game/[id]" options={hiddenTab} />
+  {/* Admin screens - hidden but accessible with tab bar */}
+  <Tabs.Screen name="admin-ads" options={hiddenTab} />
+  <Tabs.Screen name="admin-messages" options={hiddenTab} />
+  <Tabs.Screen name="admin-teams" options={hiddenTab} />
+  <Tabs.Screen name="admin-users" options={hiddenTab} />
+  <Tabs.Screen name="admin-user-detail" options={hiddenTab} />
+  {/* Ad screens - hidden but accessible with tab bar */}
+  <Tabs.Screen name="ad-calendar" options={hiddenTab} />
+  <Tabs.Screen name="edit-ad" options={hiddenTab} />
+  <Tabs.Screen name="my-ads" options={hiddenTab} />
+  <Tabs.Screen name="submit-ad" options={hiddenTab} />
+  {/* Game/Event screens - hidden but accessible with tab bar */}
+  <Tabs.Screen name="game-detail" options={hiddenTab} />
+  <Tabs.Screen name="game-photos" options={hiddenTab} />
+  <Tabs.Screen name="game-highlights" options={hiddenTab} />
+  <Tabs.Screen name="game-reviews" options={hiddenTab} />
+  {/* Common navigation screens - hidden but accessible with tab bar */}
+  <Tabs.Screen name="create-post" options={hiddenTab} />
+  <Tabs.Screen name="team-profile" options={hiddenTab} />
+  <Tabs.Screen name="team-hub" options={hiddenTab} />
+  <Tabs.Screen name="team-contacts" options={hiddenTab} />
+  <Tabs.Screen name="edit-profile" options={hiddenTab} />
+  <Tabs.Screen name="create-team" options={hiddenTab} />
+  <Tabs.Screen name="edit-team" options={hiddenTab} />
+  <Tabs.Screen name="manage-teams" options={hiddenTab} />
+  <Tabs.Screen name="my-team" options={hiddenTab} />
+  <Tabs.Screen name="followers" options={hiddenTab} />
+  <Tabs.Screen name="following" options={hiddenTab} />
+  <Tabs.Screen name="organization" options={hiddenTab} />
+  <Tabs.Screen name="event-detail" options={hiddenTab} />
+  <Tabs.Screen name="edit-event" options={hiddenTab} />
+  <Tabs.Screen name="edit-organization" options={hiddenTab} />
+  <Tabs.Screen name="event-approvals" options={hiddenTab} />
+  <Tabs.Screen name="approvals" options={hiddenTab} />
+  <Tabs.Screen name="verify-email" options={hiddenTab} />
       <Tabs.Screen
         name="profile/index"
         options={{
@@ -156,6 +165,8 @@ export default function TabLayout() {
           tabBarButton: HapticTab,
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="person.crop.circle" color={color} />,
           tabBarAccessibilityLabel: 'Profile',
+          tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
+          tabBarBadgeStyle: { backgroundColor: '#EF4444', fontSize: 10, minWidth: 18, height: 18, lineHeight: 14 },
         }}
       />
     </Tabs>

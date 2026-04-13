@@ -654,11 +654,14 @@ postsRouter.post('/', requireVerified as any, requireOnboarded as any, asyncHand
     let homeTeamId: string | null = null;
     let awayTeamId: string | null = null;
 
-    // Look up game to get event + team IDs for membership check
+    // Look up game to get event + team IDs for membership check.
+    // `description` is selected so we can detect [DEMO_MATCHUP]-tagged games.
+    let isDemoMatchup = false;
     if (gameId) {
       const game = await prisma.game.findUnique({
         where: { id: gameId },
         select: {
+          description: true,
           home_team_id: true,
           away_team_id: true,
           events: {
@@ -675,6 +678,10 @@ postsRouter.post('/', requireVerified as any, requireOnboarded as any, asyncHand
           targetEventId = game.events[0].id;
           debugLog(`✅ Found associated event ${targetEventId} for game ${gameId}`);
         }
+        // [DEMO_MATCHUP] carve-out — one-off for Duke v UNC + Cavs v Warriors
+        // promo content. See server/scripts/seed-demo-matchups.ts. This branch
+        // becomes dead code once the demo rows are wiped from the DB.
+        isDemoMatchup = typeof game.description === 'string' && game.description.includes('[DEMO_MATCHUP]');
       }
     }
 
@@ -688,7 +695,9 @@ postsRouter.post('/', requireVerified as any, requireOnboarded as any, asyncHand
         }))
       : false;
 
-    if (isAdmin || isTeamMember) {
+    if (isDemoMatchup) {
+      debugLog(`✅ [DEMO_MATCHUP] game ${gameId} — skipping geofencing`);
+    } else if (isAdmin || isTeamMember) {
       debugLog(`✅ Geofencing bypassed (isAdmin=${isAdmin}, isTeamMember=${isTeamMember})`);
     } else if (targetEventId) {
       const verification = await verifyEventPostingPermission(
