@@ -16,11 +16,11 @@ import { useFocusEffect } from '@react-navigation/native';
 import { safeGoBack } from '@/utils/navigation';
 import OnboardingLayout from './components/OnboardingLayout';
 import * as ImagePicker from 'expo-image-picker';
-import * as Notifications from 'expo-notifications';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import { uploadFile } from '@/api/upload';
 import { getConfig } from '@/config/env';
+import Notifications from '@/utils/notifications';
 
 // Username validation: lowercase letters, numbers, dots, underscores only (matches backend)
 // Spaces are normalized to underscores BEFORE validation

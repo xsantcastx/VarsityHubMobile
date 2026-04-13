@@ -6,12 +6,9 @@ import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
 import { useAuth } from '@/context/AuthProvider';
+import Notifications from '@/utils/notifications';
 
 const isExpoGo = Constants.executionEnvironment === 'storeClient';
-let Notifications: any = null;
-if (!isExpoGo) {
-  Notifications = require('expo-notifications');
-}
 
 const devLog = (...args: unknown[]) => {
   if (__DEV__) console.log(...args); // eslint-disable-line no-console -- dev-only logging
@@ -22,7 +19,7 @@ export function NotificationTapHandler() {
   const { user } = useAuth();
 
   useEffect(() => {
-    if (isExpoGo || !Notifications) return;
+    if (isExpoGo) return;
 
     const subscription = Notifications.addNotificationResponseReceivedListener((response: any) => {
       const data = response?.notification?.request?.content?.data;

@@ -28,14 +28,11 @@ import { handleDeepLinkAuthAware, handleInitialDeepLink, setupDeepLinkListener }
 import { initSentry } from '@/utils/sentry';
 import { initAnalytics, installPostHogLogTracking } from '@/utils/analytics';
 import { getConfig } from '@/config/env';
+import Notifications from '@/utils/notifications';
 
 
 // Conditionally import notifications only if not in Expo Go
 const isExpoGo = Constants.executionEnvironment === 'storeClient';
-let Notifications: any = null;
-if (!isExpoGo) {
-  Notifications = require('expo-notifications');
-}
 
 const devLog = (...args: unknown[]) => {
   if (__DEV__) {
@@ -114,7 +111,7 @@ function RootLayout() {
   }, []);
 
   React.useEffect(() => {
-    if (Platform.OS !== 'android' || isExpoGo || !Notifications) return;
+    if (Platform.OS !== 'android' || isExpoGo) return;
     Notifications.setNotificationChannelAsync('default', {
       name: 'General',
       importance: Notifications.AndroidImportance.MAX,

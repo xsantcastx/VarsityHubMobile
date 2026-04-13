@@ -1,5 +1,6 @@
 const { getDefaultConfig } = require('expo/metro-config');
 const path = require('path');
+const reactNativeWebPath = require.resolve('react-native-web');
 
 const config = getDefaultConfig(__dirname);
 
@@ -34,6 +35,7 @@ config.resolver.extraNodeModules = {
 
 // Shim native-only modules on web so Metro doesn't try to bundle them
 const nativeOnlyShims = {
+  '@react-native-async-storage/async-storage': 'async-storage.js',
   '@stripe/stripe-react-native': 'stripe-react-native.js',
   'expo-haptics': 'expo-haptics.js',
   '@react-native-community/datetimepicker': 'datetimepicker.js',
@@ -43,6 +45,9 @@ const nativeOnlyShims = {
 
 const originalResolveRequest = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (platform === 'web' && moduleName === 'react-native') {
+    return { type: 'sourceFile', filePath: reactNativeWebPath };
+  }
   if (platform === 'web' && nativeOnlyShims[moduleName]) {
     return { type: 'sourceFile', filePath: path.resolve(__dirname, 'shims', nativeOnlyShims[moduleName]) };
   }
