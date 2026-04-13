@@ -10,12 +10,13 @@ import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { safeGoBack } from '@/utils/navigation';
+import { useAppTranslation } from '@/lib/i18n/useAppTranslation';
 import { captureException } from '@/utils/sentry';
 
 export default function VerifyScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
+  const { t } = useAppTranslation();
   const { pendingVerificationEmail, checkAuth, user, markOnboardingCompleteLocally: _markOnboardingCompleteLocally } = useAuth();
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
@@ -51,7 +52,7 @@ export default function VerifyScreen() {
         extra: { email: _email },
       });
 
-      setInfo('Email verified successfully!');
+      setInfo(t('auth.verify.info.verified'));
       setCode('');
       setIsVerified(true);
 
@@ -63,7 +64,7 @@ export default function VerifyScreen() {
           typeof userError === 'string' ? new Error(userError) : (userError as Error),
           { tags: { context: 'verify-email-refresh' } }
         );
-        setError('Verification successful but failed to load profile. Please sign in again.');
+        setError(t('auth.verify.errors.profileReloadFailed'));
         redirectTimerRef.current = setTimeout(() => {
           router.replace('/sign-in');
         }, 2000);
@@ -76,23 +77,23 @@ export default function VerifyScreen() {
       });
       
       // Provide more helpful error messages
-      let errorMsg = e?.message || e?.data?.error || 'Verification failed';
+      let errorMsg = e?.message || e?.data?.error || t('auth.verify.errors.default');
       const status = e?.status;
       
       if (status === 429) {
-        errorMsg = 'Too many attempts. Please wait a moment and try again.';
+        errorMsg = t('auth.verify.errors.tooManyAttempts');
       } else if (status === 400) {
         if (errorMsg.includes('expired')) {
-          errorMsg = 'Verification code has expired. Please request a new code.';
+          errorMsg = t('auth.verify.errors.expired');
         } else if (errorMsg.includes('Invalid code')) {
-          errorMsg = 'Invalid verification code. Please check the code and try again.';
+          errorMsg = t('auth.verify.errors.invalidCode');
         } else if (errorMsg.includes('No verification in progress')) {
-          errorMsg = 'No verification code found. Please request a new code.';
+          errorMsg = t('auth.verify.errors.noVerificationInProgress');
         }
       } else if (status === 401) {
-        errorMsg = 'Please sign in again to verify your email.';
+        errorMsg = t('auth.verify.errors.signInAgain');
       } else if (status === 404) {
-        errorMsg = 'Account not found. Please contact support.';
+        errorMsg = t('auth.verify.errors.accountNotFound');
       }
       
       setError(errorMsg);
@@ -116,7 +117,7 @@ export default function VerifyScreen() {
         extra: { sendgrid_ready: res?.dev_verification_code ? 'dev-mode' : 'production' },
       });
 
-      setInfo('Verification code sent! Please check your email (and spam folder).');
+      setInfo(t('auth.verify.info.verificationSent'));
       setResendCooldown(60);
     } catch (e: any) {
       const resendDuration = Date.now() - startTime;
@@ -125,15 +126,15 @@ export default function VerifyScreen() {
         extra: { error_code: e?.data?.error },
       });
       
-      let errorMsg = e?.message || e?.data?.error || 'Resend failed';
+      let errorMsg = e?.message || e?.data?.error || t('auth.verify.errors.resendDefault');
       const status = e?.status;
       
       // Provide helpful error messages
       if (status === 429) {
-        errorMsg = 'Please wait a moment and try again.';
+        errorMsg = t('auth.verify.errors.resendWait');
         setResendCooldown(60);
       } else if (status === 401) {
-        errorMsg = 'Please sign in again to request a verification code.';
+        errorMsg = t('auth.verify.errors.resendSignInAgain');
       }
       
       setError(errorMsg);
@@ -150,7 +151,7 @@ export default function VerifyScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
       <Stack.Screen
         options={{
-          title: 'Verify Your Account',
+          title: t('auth.verify.meta.title'),
           headerShown: false,
         }}
       />
@@ -160,19 +161,20 @@ export default function VerifyScreen() {
         <MaterialIcons name="mail-outline" size={64} color={colorScheme === 'dark' ? '#60A5FA' : '#2563EB'} />
       </View>
 
-      <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Check Your Email</Text>
+      <Text style={[styles.title, { color: Colors[colorScheme].text }]}>{t('auth.verify.title')}</Text>
       <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>
-        We sent a 6-digit verification code to {pendingVerificationEmail || user?.email || 'your email address'}.
-        Enter the code below to complete your registration.
+        {t('auth.verify.subtitle', {
+          email: pendingVerificationEmail || user?.email || t('auth.verify.fallbackEmail'),
+        })}
       </Text>
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {info ? <Text style={styles.info}>{info}</Text> : null}
 
       <View style={styles.codeSection}>
-        <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Verification Code</Text>
+        <Text style={[styles.label, { color: Colors[colorScheme].text }]}>{t('auth.verify.fields.codeLabel')}</Text>
         <Input
-          placeholder="Enter 6-digit code"
+          placeholder={t('auth.verify.fields.codePlaceholder')}
           value={code}
           onChangeText={(t: string) => {
             const cleaned = t.replace(/[^0-9]/g, '');
@@ -189,7 +191,7 @@ export default function VerifyScreen() {
 
       {isVerified ? (
         <Button onPress={onContinue} style={styles.verifyButton}>
-          <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>Continue to App</Text>
+          <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>{t('auth.verify.actions.continueToApp')}</Text>
         </Button>
       ) : (
         <Button
@@ -197,16 +199,18 @@ export default function VerifyScreen() {
           disabled={loading || code.trim().length < 6}
           style={styles.verifyButton}
         >
-          {loading ? <ActivityIndicator color="#fff" /> : 'Verify Email'}
+          {loading ? <ActivityIndicator color="#fff" /> : t('auth.verify.actions.verifyEmail')}
         </Button>
       )}
 
       {!isVerified && (
         <View style={styles.footer}>
-          <Text style={[styles.footerText, { color: Colors[colorScheme].mutedText }]}>Didn't receive the code?</Text>
+          <Text style={[styles.footerText, { color: Colors[colorScheme].mutedText }]}>{t('auth.verify.actions.didNotReceiveCode')}</Text>
           <Pressable onPress={onResend} disabled={loading || resendCooldown > 0}>
             <Text style={[styles.linkText, { color: Colors[colorScheme].tint }, (loading || resendCooldown > 0) && styles.linkTextDisabled]}>
-              {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend Code'}
+              {resendCooldown > 0
+                ? t('auth.verify.actions.resendIn', { seconds: resendCooldown })
+                : t('auth.verify.actions.resendCode')}
             </Text>
           </Pressable>
         </View>
@@ -215,7 +219,7 @@ export default function VerifyScreen() {
 
       {isVerified && (
         <Text style={[styles.autoRedirectText, { color: Colors[colorScheme].mutedText }]}>
-          Automatically continuing in a few seconds...
+          {t('auth.verify.actions.autoContinue')}
         </Text>
       )}
     </SafeAreaView>

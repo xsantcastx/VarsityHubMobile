@@ -2,7 +2,7 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import React, { useEffect, useRef, useState } from 'react';
 import { Dimensions, Image, Modal, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
-import ViewShot, { captureRef } from 'react-native-view-shot';
+import ViewShot, { captureRef } from '@/lib/native/viewShot';
 
 type Props = {
   visible: boolean;

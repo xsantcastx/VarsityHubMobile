@@ -615,10 +615,7 @@ export default function ProfileScreen() {
   const preferences = me?.preferences ? (me.preferences as ProfilePreferences) : null;
   const rawRole = preferences?.role ?? (me as any)?.role ?? '';
   const roleRaw = typeof rawRole === 'string' ? rawRole.toLowerCase() : '';
-  const approvalStatus = (me as any)?.approval_status;
-  const roleLabel = roleRaw === 'coach'
-    ? (approvalStatus === 'APPROVED' ? 'Coach / Organizer' : 'Pending Coach')
-    : roleRaw === 'fan' ? 'Fan' : null;
+  const roleLabel = roleRaw === 'coach' ? 'Coach / Organizer' : roleRaw === 'fan' ? 'Fan' : null;
   // Guard against internal IDs (cuid / UUID) being leaked as username
   const isInternalId = (s: string) =>
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s) || // UUID
@@ -874,11 +871,11 @@ export default function ProfileScreen() {
             <Text style={[styles.userName, { color: theme.text }]}>{displayUsername}</Text>
             {roleLabel && (
               <View style={[styles.roleBadge,
-                roleRaw === 'coach' && (approvalStatus === 'APPROVED' ? styles.coachBadge : styles.fanBadge),
+                roleRaw === 'coach' && styles.coachBadge,
                 roleRaw === 'player' && styles.playerBadge,
                 roleRaw === 'fan' && styles.fanBadge
               ]}>
-                <Text style={styles.roleText}>{roleRaw === 'coach' ? (approvalStatus === 'APPROVED' ? 'COACH' : 'PENDING COACH') : roleRaw.toUpperCase()}</Text>
+                <Text style={styles.roleText}>{roleRaw === 'coach' ? 'COACH' : roleRaw.toUpperCase()}</Text>
               </View>
             )}
           </View>

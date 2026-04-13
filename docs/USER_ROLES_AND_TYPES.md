@@ -133,21 +133,22 @@ These determine **what features users can access** and **how they use the app**.
 - **Payment:** No payment required
 
 ### Veteran
-- **Price:** $70/year ($7,000 cents in backend)
-- **Teams:** Pay per team added ($2.50/month per team)
-- **Features:** Priority support, advanced analytics
+- **Price:** $0.99/month per team over 2 (99 cents in backend)
+- **Teams:** Unlimited teams, billed only for each team above the first 2
+- **Features:** Priority support, advanced analytics, larger team/staff limits
 - **Payment:** Stripe checkout required
 
 ### Legend
-- **Price:** $150/year ($15,000 cents in backend)
+- **Price:** $29.99/year ($2,999 cents in backend)
 - **Teams:** Unlimited everything
-- **Features:** All Veteran + custom branding, white-label
+- **Features:** All Veteran + extracurricular clubs and unlimited coaches
 - **Payment:** Stripe checkout required
 
 **Backend Pricing (server/src/routes/payments.ts):**
 ```typescript
-// Line 117-118
-unit_amount: chosen === 'veteran' ? 7000 : 15000,  // $70 or $150 per year
+// Current subscription billing
+unit_amount: 99 (Veteran monthly per team over 2)
+unit_amount: 2999 (Legend yearly)
 ```
 
 ---

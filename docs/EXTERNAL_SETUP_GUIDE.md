@@ -26,7 +26,7 @@ Set these in **Railway Dashboard → Your Project → Variables** (or via `railw
 
 ### Overview
 
-VarsityHub uses **Apple IAP** (iOS) and **Google Play Billing** (Android) for subscription tiers: `veteran_vhub` ($2.50/mo) and `Legend_vhub` ($19.99/yr). The server validates receipts via Apple/Google APIs.
+VarsityHub uses **Apple IAP** (iOS) and **Google Play Billing** (Android) for subscription tiers: `veteran_vhub` ($0.99/mo per additional team) and `Legend_vhub` ($29.99/yr). The server validates receipts via Apple/Google APIs.
 
 ### Requirements
 
@@ -39,8 +39,8 @@ VarsityHub uses **Apple IAP** (iOS) and **Google Play Billing** (Android) for su
 
 1. **App Store Connect** → Your App → **In-App Purchases**
 2. Create **Auto-Renewable Subscriptions**:
-   - Product ID: `veteran_vhub` — $2.50/month
-   - Product ID: `Legend_vhub` — $19.99/year
+   - Product ID: `veteran_vhub` — $0.99/month per additional team
+   - Product ID: `Legend_vhub` — $29.99/year
 3. Ensure products are **Ready to Submit** (linked to a subscription group).
 4. **App Store Connect** → App Information → **App-Specific Shared Secret** → Generate/Copy → set as `APPLE_IAP_SHARED_SECRET` on Railway.
 

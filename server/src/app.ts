@@ -12,6 +12,7 @@ import { verifyMediaSignature } from './lib/mediaAccess.js';
 import { addSentryErrorHandler, initSentry } from './lib/sentry.js';
 import { swaggerSpec } from './lib/swagger.js';
 import { authMiddleware } from './middleware/auth.js';
+import { requestContextMiddleware, resolveIncomingRequestId } from './middleware/requestContext.js';
 import { requireAdmin } from './middleware/requireAdmin.js';
 import { requireAuth } from './middleware/requireAuth.js';
 import { requireVerified } from './middleware/requireVerified.js';
@@ -59,7 +60,16 @@ app.set('trust proxy', 1);
 
 // pino-http ESM interop can require using the default property in some setups
 const pinoMiddleware = (typeof (pinoHttp as any) === 'function' ? (pinoHttp as any) : (pinoHttp as any).default) || pinoHttp;
-app.use(pinoMiddleware(process.env.NODE_ENV !== 'production' ? { transport: { target: 'pino-pretty' } } : {}));
+app.use(
+  pinoMiddleware({
+    ...(process.env.NODE_ENV !== 'production' ? { transport: { target: 'pino-pretty' } } : {}),
+    genReqId: (req: Request) => {
+      const requestId = resolveIncomingRequestId(req.headers['x-request-id']);
+      return requestId;
+    },
+  })
+);
+app.use(requestContextMiddleware);
 // In dev, disable CSP to allow loading media from API when app runs on a different origin.
 // In prod, enable CSP with sensible defaults for a mobile API backend.
 app.use(helmet({
@@ -135,8 +145,8 @@ const corsOptions: cors.CorsOptions = {
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  exposedHeaders: ['X-Total-Count', 'X-Page-Count'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Request-Id', 'X-Health-Check-Secret'],
+  exposedHeaders: ['X-Total-Count', 'X-Page-Count', 'X-Request-Id'],
 };
 debugLog(`[cors] allowed origins: ${allowedOrigins.join(', ') || '(regex only)'}`);
 app.use(cors(corsOptions));
@@ -167,9 +177,14 @@ app.use((req, res, next) => {
 });
 
 // Handle malformed JSON body (returns 400 instead of 500)
-app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   if (err.type === 'entity.parse.failed' || (err instanceof SyntaxError && 'body' in err)) {
-    return res.status(400).json({ error: 'Invalid JSON in request body' });
+    const requestId = (req as any).id;
+    (req as any).log?.warn?.(
+      { err, requestId, route: req.originalUrl || req.url },
+      'Rejected malformed JSON request'
+    );
+    return res.status(400).json({ error: 'Invalid JSON in request body', requestId });
   }
   next(err);
 });
@@ -324,7 +339,7 @@ app.get('/terms', (_req, res) => {
 <h2>3. Your Account</h2><p>Provide accurate info. Keep credentials secure. You are responsible for all activity on your account.</p>
 <h2>4. Rules</h2><p>Do not: post illegal or abusive content; impersonate others; upload content you don't own; spam; interfere with the app; bully or threaten users; upload broadcast/official sports footage.</p>
 <h2>5. Content</h2><p>You own your content. By posting, you grant us a license to display it. All fan content must be personally filmed. Official broadcast content is prohibited. VarsityHub has no affiliation with any league or broadcaster.</p>
-<h2>6. Subscriptions</h2><p>Rookie: Free (2 teams). Veteran: $0.99/mo per additional team. Legend: $20/yr unlimited. Auto-renew unless cancelled. Payments via Apple IAP (iOS), Google Play (Android), or Stripe. Cancel anytime in Settings.</p>
+<h2>6. Subscriptions</h2><p>Rookie: Free (2 teams). Veteran: $0.99/mo per additional team. Legend: $29.99/yr unlimited. Auto-renew unless cancelled. Payments via Apple IAP (iOS), Google Play (Android), or Stripe. Cancel anytime in Settings.</p>
 <h2>7. DMCA</h2><p>Registered DMCA Designated Service Provider (No. DMCA-1070362). Takedown notices: <a href="mailto:support@varsityhub.app">support@varsityhub.app</a>. Response within 24 hours.</p>
 <h2>8. Disclaimers</h2><p>App provided "AS IS." Not liable for indirect damages. Total liability capped at 12 months of payments. You indemnify us against claims from your use.</p>
 <h2>9. Disputes</h2><p>Connecticut law. Binding arbitration (small claims excepted). Class action waiver.</p>

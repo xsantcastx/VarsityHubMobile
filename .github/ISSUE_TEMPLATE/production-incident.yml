@@ -1,0 +1,80 @@
+name: Production Incident
+description: Capture a production error with the context needed to reproduce it and fix the root cause.
+title: "[incident]: "
+labels:
+  - incident
+  - production
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Fill this out before starting a fix. The goal is a root-cause correction with a regression test, not a one-off patch.
+  - type: input
+    id: release_sha
+    attributes:
+      label: Release SHA
+      description: Commit SHA or Sentry release reported by the failing build or event.
+      placeholder: 5358147c39927048d0d0e8b6a68db8cf36d52bc4
+    validations:
+      required: true
+  - type: input
+    id: request_id
+    attributes:
+      label: Request ID
+      description: Copy the `X-Request-Id` from the failing response or server log.
+      placeholder: 4d292d37-b5f4-44ac-9a48-2a9e3d9ef25d
+    validations:
+      required: false
+  - type: input
+    id: sentry_event
+    attributes:
+      label: Sentry Event URL
+      description: Paste the exact Sentry issue or event URL.
+      placeholder: https://sentry.io/organizations/lime-productions/issues/...
+    validations:
+      required: false
+  - type: textarea
+    id: blast_radius
+    attributes:
+      label: User impact
+      description: Who is affected, what breaks, and how severe it is.
+      placeholder: Sign-in fails for all iOS users on build 1.0.2 after token refresh.
+    validations:
+      required: true
+  - type: input
+    id: route_or_screen
+    attributes:
+      label: Failing route or screen
+      description: API route, worker job, or app screen where the error was observed.
+      placeholder: POST /payments/finalize or app/sign-in.tsx
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Exact sequence that reproduces the failure.
+    validations:
+      required: true
+  - type: textarea
+    id: root_cause
+    attributes:
+      label: Root cause
+      description: Leave blank until proven. Update this before closing the incident.
+    validations:
+      required: false
+  - type: checkboxes
+    id: resolution_checklist
+    attributes:
+      label: Resolution checklist
+      options:
+        - label: I reproduced the issue on the reported release or an equivalent environment.
+          required: true
+        - label: I identified the root cause, not just the symptom.
+          required: true
+        - label: I added or updated a regression test that fails before the fix and passes after it.
+          required: true
+        - label: I verified rollback or kill-switch options before rollout.
+          required: true
+        - label: I confirmed the fix in Sentry/logs after deploy.
+          required: true

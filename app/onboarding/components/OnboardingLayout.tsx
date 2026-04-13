@@ -116,28 +116,27 @@ export default function OnboardingLayout({
       </View>
 
       <View style={[styles.progressBarContainer, { backgroundColor: isDark ? '#374151' : '#F3F4F6' }]}>
-        <View
+        <View 
           style={[
-            styles.progressBar,
-            {
+            styles.progressBar, 
+            { 
               width: `${(step / effectiveTotalSteps) * 100}%`,
               backgroundColor: colors.primary
             }
-          ]}
+          ]} 
         />
       </View>
 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
         style={{ flex: 1 }}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
       >
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
-          style={{ flex: 1 }}
         >
           <View style={styles.titleSection}>
             {aboveTitle}
@@ -148,28 +147,28 @@ export default function OnboardingLayout({
           </View>
 
           {children}
-
-          {onContinue && (
-            <View style={[styles.footer, { borderTopColor: colors.border, backgroundColor: colors.background, paddingBottom: insets.bottom > 0 ? insets.bottom : 16 }]}>
-              <Pressable
-                onPress={onContinue}
-                disabled={continueDisabled || loading}
-                style={[
-                  styles.continueButton,
-                  { backgroundColor: (continueDisabled || loading) ? colors.primaryMuted : colors.primary },
-                ]}
-                accessibilityLabel="Continue"
-                accessibilityRole="button"
-              >
-                {loading ? (
-                  <ActivityIndicator color="#FFFFFF" />
-                ) : (
-                  <Text style={styles.continueButtonText}>Continue</Text>
-                )}
-              </Pressable>
-            </View>
-          )}
         </ScrollView>
+
+      {onContinue && (
+        <View style={[styles.footer, { borderTopColor: colors.border, backgroundColor: colors.background, paddingBottom: insets.bottom > 0 ? insets.bottom : 16 }]}>
+          <Pressable
+            onPress={onContinue}
+            disabled={continueDisabled || loading}
+            style={[
+              styles.continueButton,
+              { backgroundColor: (continueDisabled || loading) ? colors.primaryMuted : colors.primary },
+            ]}
+            accessibilityLabel="Continue"
+            accessibilityRole="button"
+          >
+            {loading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.continueButtonText}>Continue</Text>
+            )}
+          </Pressable>
+        </View>
+      )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -222,7 +221,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 20,
-    paddingBottom: 40,
+    paddingBottom: 24,
   },
   titleSection: {
     marginBottom: 24,

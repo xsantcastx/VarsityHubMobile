@@ -1,11 +1,11 @@
-import { Post } from '@/api/entities';
+import { Post, Report } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { sanitizeTitle } from '@/lib/sanitizeTitle';
 import { useAuth } from '@/context/AuthProvider';
 import { usePostCache } from '@/context/PostCacheContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { REPORT_REASONS, usePostInteractions } from '@/hooks/usePostInteractions';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -33,16 +33,9 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
   const { remove: removeFromCache } = usePostCache();
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
-  const {
-    upvotesCount, bookmarked, bookmarksCount, reportSubmitting,
-    onUpvote, onBookmark, submitReport: handleReportPost,
-  } = usePostInteractions({
-    postId: String(post.id),
-    initialUpvotes: post.upvotes_count || 0,
-    initialBookmarked: !!post.has_bookmarked,
-    initialBookmarksCount: post.bookmarks_count || 0,
-    tag: 'PostCard',
-  });
+  const [bookmarked, setBookmarked] = useState<boolean>(!!post.has_bookmarked);
+  const [bookmarksCount, setBookmarksCount] = useState<number>(post.bookmarks_count || 0);
+  const [upvotesCount, setUpvotesCount] = useState<number>(post.upvotes_count || 0);
   const [pressed, setPressed] = useState(false);
   const [showActionsMenu, setShowActionsMenu] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
@@ -50,15 +43,83 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
   const [editTitle, setEditTitle] = useState(post.title || '');
   const [updating, setUpdating] = useState(false);
   const [showReportMenu, setShowReportMenu] = useState(false);
+  const [reportSubmitting, setReportSubmitting] = useState(false);
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [mediaError, setMediaError] = useState(false);
 
   // Cleanup delete timer on unmount to prevent memory leak
   useEffect(() => {
+    const timer = deleteTimerRef.current;
     return () => {
-      if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current);
+      if (timer) clearTimeout(timer);
     };
   }, []);
+
+  const REPORT_REASONS = [
+    { value: 'copyright', label: 'Copyright / broadcast footage' },
+    { value: 'impersonation', label: 'Unauthorized use of my likeness' },
+    { value: 'nudity', label: 'Inappropriate content' },
+    { value: 'spam', label: 'Spam' },
+    { value: 'harassment', label: 'Harassment' },
+    { value: 'hate_speech', label: 'Hate speech' },
+    { value: 'violence', label: 'Violence' },
+    { value: 'false_information', label: 'False information' },
+    { value: 'other', label: 'Other' },
+  ];
+
+  const handleReportPost = async (reason: string) => {
+    setReportSubmitting(true);
+    try {
+      await Report.create({ target_type: 'post', target_id: String(post.id), reason });
+      Alert.alert('Report Submitted', 'Thank you for helping keep our community safe.');
+    } catch (error: any) {
+      if (error?.status === 409) {
+        Alert.alert('Already Reported', 'You have already reported this post.');
+      } else {
+        Alert.alert('Error', error?.message || 'Failed to submit report. Please try again.');
+      }
+    } finally {
+      setReportSubmitting(false);
+      setShowReportMenu(false);
+    }
+  };
+
+  const upvoteInFlight = useRef(false);
+  const onUpvote = async () => {
+    if (upvoteInFlight.current) return;
+    upvoteInFlight.current = true;
+    try {
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+      const r: any = await Post.toggleUpvote(String(post.id));
+      if (r && typeof r.count === 'number') {
+        setUpvotesCount(r.count);
+      }
+    } catch (error) {
+      if (__DEV__) console.error('[PostCard] Failed to toggle upvote:', error);
+      Alert.alert('Error', 'Failed to update vote. Please try again.');
+    } finally {
+      upvoteInFlight.current = false;
+    }
+  };
+
+  const bookmarkInFlight = useRef(false);
+  const onBookmark = async () => {
+    if (bookmarkInFlight.current) return;
+    bookmarkInFlight.current = true;
+    try {
+      void Haptics.selectionAsync().catch(() => {});
+      const r: any = await Post.toggleBookmark(String(post.id));
+      if (r && typeof r.bookmarks_count === 'number') {
+        setBookmarksCount(r.bookmarks_count);
+      }
+      if (r && typeof r.bookmarked === 'boolean') setBookmarked(r.bookmarked);
+    } catch (error) {
+      if (__DEV__) console.error('[PostCard] Failed to toggle bookmark:', error);
+      Alert.alert('Error', 'Failed to bookmark post. Please try again.');
+    } finally {
+      bookmarkInFlight.current = false;
+    }
+  };
 
   const handleDeletePost = async () => {
     Alert.alert(
@@ -189,15 +250,15 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
               {author?.avatar_url ? (
                 <Image source={{ uri: optimizeImageUrl(String(author.avatar_url), 80) }} style={styles.authorAvatar} contentFit="cover" />
               ) : (
-                <View style={[styles.authorAvatar, styles.avatarFallback, { backgroundColor: Colors[colorScheme].mutedText }]}>
-                  <Text style={[styles.avatarFallbackText, { color: Colors[colorScheme].background }]}>
+                <View style={[styles.authorAvatar, styles.avatarFallback]}>
+                  <Text style={styles.avatarFallbackText}>
                     {(author?.display_name || author?.username || '?').charAt(0).toUpperCase()}
                   </Text>
                 </View>
               )}
             </View>
             <Text numberOfLines={1} style={[styles.authorName, { color: Colors[colorScheme].text }]}>
-              {author?.username ? `@${author.username}` : (author?.display_name || 'User')}
+              {author?.display_name || (author?.username ? `@${author.username}` : 'User')}
             </Text>
           </Pressable>
           {currentUser && (
@@ -383,7 +444,7 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
                 key={r.value}
                 style={styles.actionItem}
                 disabled={reportSubmitting}
-                onPress={() => { handleReportPost(r.value).then(() => setShowReportMenu(false)); }}
+                onPress={() => void handleReportPost(r.value)}
                 accessibilityRole="button"
                 accessibilityLabel={`Report for ${r.label}`}
               >
@@ -472,7 +533,7 @@ const styles = StyleSheet.create({
   bookmarkBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, marginLeft: 8 },
   bookmarkText: { fontWeight: '800', fontSize: 13 },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 8, paddingVertical: 6 },
-  metaText: { fontWeight: '700', fontSize: 12 },
+  metaText: { color: '#6B7280', fontWeight: '700', fontSize: 12 },
   // Team ribbon styles
   teamRowOverlay: { position: 'absolute', top: 8, left: 8, flexDirection: 'row', alignItems: 'center', gap: 6 },
   teamPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: 'rgba(238,242,255,0.95)', borderWidth: 1, borderColor: '#C7D2FE' },
@@ -485,28 +546,28 @@ const styles = StyleSheet.create({
   authorInfo: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
   authorAvatarWrap: { width: 28, height: 28, borderRadius: 14, overflow: 'hidden' },
   authorAvatar: { width: 28, height: 28, borderRadius: 14 },
-  avatarFallback: { alignItems: 'center', justifyContent: 'center' },
-  avatarFallbackText: { fontWeight: '700', fontSize: 12 },
+  avatarFallback: { backgroundColor: '#374151', alignItems: 'center', justifyContent: 'center' },
+  avatarFallbackText: { color: '#fff', fontWeight: '700', fontSize: 12 },
   authorName: { fontWeight: '700', maxWidth: 220 },
   actionsButton: { padding: 4, borderRadius: 12 },
   
   // Modal styles
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'center', alignItems: 'center' },
-  actionsMenu: { borderRadius: 12, minWidth: 160, paddingVertical: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4, elevation: 5 },
+  actionsMenu: { backgroundColor: 'white', borderRadius: 12, minWidth: 160, paddingVertical: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4, elevation: 5 },
   actionItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, gap: 12 },
-  actionText: { fontSize: 16, fontWeight: '500' },
-  actionSeparator: { height: 1, marginHorizontal: 8 },
+  actionText: { fontSize: 16, fontWeight: '500', color: '#374151' },
+  actionSeparator: { height: 1, backgroundColor: '#D1D5DB', marginHorizontal: 8 },
 
   // Edit modal styles
-  editModal: { flex: 1 },
+  editModal: { flex: 1, backgroundColor: 'white' },
   editHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 },
-  editTitle: { fontSize: 18, fontWeight: '700' },
-  cancelButton: { fontSize: 16 },
-  saveButton: { fontSize: 16, fontWeight: '600' },
-  saveButtonDisabled: { opacity: 0.5 },
+  editTitle: { fontSize: 18, fontWeight: '700', color: '#111827' },
+  cancelButton: { fontSize: 16, color: '#6B7280' },
+  saveButton: { fontSize: 16, fontWeight: '600', color: '#2563EB' },
+  saveButtonDisabled: { color: '#9CA3AF' },
   editContent: { flex: 1, padding: 16 },
-  titleInput: { borderWidth: 1, borderRadius: 8, padding: 12, fontSize: 16, marginBottom: 12, minHeight: 50 },
-  contentInput: { borderWidth: 1, borderRadius: 8, padding: 12, fontSize: 16, flex: 1, minHeight: 120 },
+  titleInput: { borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, padding: 12, fontSize: 16, marginBottom: 12, minHeight: 50 },
+  contentInput: { borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, padding: 12, fontSize: 16, flex: 1, minHeight: 120 },
 
   // Report modal styles
   reportTitle: { fontSize: 16, fontWeight: '700', paddingHorizontal: 16, paddingVertical: 12 },

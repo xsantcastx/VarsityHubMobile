@@ -14,6 +14,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ErrorToastContainer } from '@/components/ErrorToast';
 import { OfflineBanner } from '@/components/OfflineBanner';
+import { StripeProvider } from '@/components/providers/StripeProvider';
 import { Colors } from '@/constants/Colors';
 import { MAX_CONTENT_WIDTH } from '@/constants/layout';
 import { AuthProvider } from '@/context/AuthProvider';
@@ -21,20 +22,17 @@ import { NavigationHistoryProvider } from '@/context/NavigationHistoryContext';
 import { PostCacheProvider } from '@/context/PostCacheContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { ThemeProvider } from '@/hooks/useCustomColorScheme';
+import { initializeI18n } from '@/lib/i18n';
 import { NotificationTapHandler } from '@/components/NotificationTapHandler';
 import { handleDeepLinkAuthAware, handleInitialDeepLink, setupDeepLinkListener } from '@/utils/deepLinks';
 import { initSentry } from '@/utils/sentry';
-import { initAnalytics } from '@/utils/analytics';
+import { initAnalytics, installPostHogLogTracking } from '@/utils/analytics';
 import { getConfig } from '@/config/env';
-import { StripeProvider } from '@stripe/stripe-react-native';
+import Notifications from '@/utils/notifications';
 
 
 // Conditionally import notifications only if not in Expo Go
 const isExpoGo = Constants.executionEnvironment === 'storeClient';
-let Notifications: any = null;
-if (!isExpoGo) {
-  Notifications = require('expo-notifications');
-}
 
 const devLog = (...args: unknown[]) => {
   if (__DEV__) {
@@ -46,6 +44,7 @@ const devLog = (...args: unknown[]) => {
 // Initialize Sentry and PostHog before app renders
 initSentry();
 initAnalytics();
+installPostHogLogTracking();
 
 // Initialize testing monitor on web (only in development)
 if (Platform.OS === 'web' && __DEV__) {
@@ -63,7 +62,26 @@ function RootLayout() {
   const [loaded] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
+  const [i18nReady, setI18nReady] = React.useState(false);
   const navState = useRootNavigationState();
+
+  React.useEffect(() => {
+    let isMounted = true;
+
+    initializeI18n()
+      .catch((error) => {
+        devLog('i18n initialization failed', error);
+      })
+      .finally(() => {
+        if (isMounted) {
+          setI18nReady(true);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   React.useEffect(() => {
     if (__DEV__) {
@@ -93,7 +111,7 @@ function RootLayout() {
   }, []);
 
   React.useEffect(() => {
-    if (Platform.OS !== 'android' || isExpoGo || !Notifications) return;
+    if (Platform.OS !== 'android' || isExpoGo) return;
     Notifications.setNotificationChannelAsync('default', {
       name: 'General',
       importance: Notifications.AndroidImportance.MAX,
@@ -119,7 +137,7 @@ function RootLayout() {
     return unsubscribe;
   }, []);
 
-  if (!loaded) {
+  if (!loaded || !i18nReady) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors[colorScheme ?? 'light'].background }}>
         <ActivityIndicator />
@@ -131,10 +149,7 @@ function RootLayout() {
     <SafeAreaProvider>
       <ErrorBoundary>
         <GestureHandlerRootView style={{ flex: 1 }}>
-          <StripeProvider
-            publishableKey={getConfig().stripePublishableKey}
-            merchantIdentifier="merchant.app.varsityhub"
-          >
+          <StripeProvider publishableKey={getConfig().stripePublishableKey} merchantIdentifier="merchant.app.varsityhub">
           <ThemeProvider>
             <PostCacheProvider>
               <NavigationHistoryProvider>
@@ -253,7 +268,7 @@ function RootLayout() {
               </NavigationHistoryProvider>
             </PostCacheProvider>
           </ThemeProvider>
-        </StripeProvider>
+          </StripeProvider>
         </GestureHandlerRootView>
       </ErrorBoundary>
     </SafeAreaProvider>

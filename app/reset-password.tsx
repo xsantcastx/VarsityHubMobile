@@ -3,6 +3,7 @@ import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
+import { useAppTranslation } from '@/lib/i18n/useAppTranslation';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
@@ -22,6 +23,7 @@ export default function ResetPasswordScreen() {
   const params = useLocalSearchParams<{ email?: string; code?: string }>();
   const colorScheme = useColorScheme();
   const palette = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
+  const { t } = useAppTranslation();
 
   const [email, setEmail] = useState(typeof params.email === 'string' ? params.email : '');
   const [code, setCode] = useState(typeof params.code === 'string' ? params.code : '');
@@ -36,29 +38,29 @@ export default function ResetPasswordScreen() {
     const trimmedEmail = email.trim();
     const trimmedCode = code.trim();
     if (!trimmedEmail || !trimmedCode) {
-      setError('Enter your email and reset code.');
+      setError(t('auth.resetPassword.errors.enterEmailAndCode'));
       return;
     }
     
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(trimmedEmail)) {
-      setError('Please enter a valid email address.');
+      setError(t('auth.resetPassword.errors.invalidEmail'));
       return;
     }
     
     // Validate reset code — must be exactly 6 digits
     if (trimmedCode.length !== 6 || !/^\d{6}$/.test(trimmedCode)) {
-      setError('Enter the 6-digit code from your email.');
+      setError(t('auth.resetPassword.errors.invalidCode'));
       return;
     }
     
     if (password.length < 8) {
-      setError('Password must be at least 8 characters.');
+      setError(t('auth.resetPassword.errors.passwordMin'));
       return;
     }
     if (password !== confirmPassword) {
-      setError('Passwords do not match.');
+      setError(t('auth.resetPassword.errors.passwordsDoNotMatch'));
       return;
     }
     setLoading(true);
@@ -66,10 +68,10 @@ export default function ResetPasswordScreen() {
     setInfo(null);
     try {
       await User.resetPassword(trimmedEmail, trimmedCode, password);
-      setInfo('Password updated! You can sign in with your new password.');
+      setInfo(t('auth.resetPassword.info.passwordUpdated'));
       setResetSuccess(true);
     } catch (e: any) {
-      setError(e?.message || 'Unable to reset password.');
+      setError(e?.message || t('auth.resetPassword.errors.default'));
     } finally {
       setLoading(false);
     }
@@ -78,7 +80,7 @@ export default function ResetPasswordScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: palette.background }]} edges={['top', 'bottom']}>
       <Stack.Screen options={{
-        title: 'Reset Password',
+        title: t('auth.resetPassword.meta.title'),
         headerShown: true,
         headerLeft: () => (
           <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingLeft: 8 }}>
@@ -88,15 +90,15 @@ export default function ResetPasswordScreen() {
       }} />
       <KeyboardAwareScreen contentContainerStyle={styles.content}>
         <View style={[styles.card, { backgroundColor: palette.elevated, borderColor: palette.border }]}>
-          <Text style={[styles.title, { color: palette.text }]}>Enter your reset code</Text>
-          <Text style={[styles.subtitle, { color: palette.mutedText }]}>We sent a reset code to your email. Enter it with your new password.</Text>
+          <Text style={[styles.title, { color: palette.text }]}>{t('auth.resetPassword.title')}</Text>
+          <Text style={[styles.subtitle, { color: palette.mutedText }]}>{t('auth.resetPassword.subtitle')}</Text>
 
           {error ? (
             <>
               <Text style={[styles.error, { color: '#b91c1c' }]}>{error}</Text>
               {(error.toLowerCase().includes('expired') || error.toLowerCase().includes('invalid')) && (
                 <Pressable onPress={() => router.replace('/forgot-password')} style={{ marginTop: 4, marginBottom: 8 }}>
-                  <Text style={{ color: palette.tint, fontWeight: '600', fontSize: 14 }}>Request a new code</Text>
+                  <Text style={{ color: palette.tint, fontWeight: '600', fontSize: 14 }}>{t('auth.resetPassword.actions.requestNewCode')}</Text>
                 </Pressable>
               )}
             </>
@@ -108,12 +110,12 @@ export default function ResetPasswordScreen() {
               onPress={() => router.replace('/sign-in')}
               style={{ backgroundColor: palette.tint, paddingVertical: 14, borderRadius: 10, alignItems: 'center', marginTop: 12 }}
             >
-              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>Back to Sign In</Text>
+              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>{t('auth.resetPassword.actions.backToSignIn')}</Text>
             </Pressable>
           ) : null}
 
           <Input
-            placeholder="name@school.edu"
+            placeholder={t('common.placeholders.email')}
             value={email}
             onChangeText={setEmail}
             autoCapitalize="none"
@@ -130,7 +132,7 @@ export default function ResetPasswordScreen() {
           />
 
           <Input
-            placeholder="6-digit code from email"
+            placeholder={t('auth.resetPassword.fields.codePlaceholder')}
             value={code}
             onChangeText={(t) => setCode(t.replace(/\D/g, '').slice(0, 6))}
             keyboardType="number-pad"
@@ -147,7 +149,7 @@ export default function ResetPasswordScreen() {
           />
 
           <Input
-            placeholder="New password (min 8 characters)"
+            placeholder={t('auth.resetPassword.fields.newPasswordPlaceholder')}
             value={password}
             onChangeText={setPassword}
             secureTextEntry
@@ -163,7 +165,7 @@ export default function ResetPasswordScreen() {
           />
 
           <Input
-            placeholder="Confirm new password"
+            placeholder={t('auth.resetPassword.fields.confirmPasswordPlaceholder')}
             value={confirmPassword}
             onChangeText={setConfirmPassword}
             secureTextEntry
@@ -179,12 +181,12 @@ export default function ResetPasswordScreen() {
           />
 
           <Button onPress={onSubmit} disabled={loading}>
-            {loading ? <ActivityIndicator color="white" /> : 'Update password'}
+            {loading ? <ActivityIndicator color="white" /> : t('auth.resetPassword.actions.updatePassword')}
           </Button>
         </View>
 
         <Pressable style={styles.secondary} onPress={() => void router.replace('/sign-in')}>
-          <Text style={[styles.secondaryText, { color: palette.tint }]}>Back to sign in</Text>
+          <Text style={[styles.secondaryText, { color: palette.tint }]}>{t('auth.resetPassword.actions.backToSignInLink')}</Text>
         </Pressable>
       </KeyboardAwareScreen>
     </SafeAreaView>

@@ -17,10 +17,10 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useAuth } from '@/context/AuthProvider';
 import { useVHubIAP } from '@/hooks/useIAP';
+import { usePaymentSheet } from '@/hooks/usePaymentSheetCompat';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
-import { usePaymentSheet } from '@stripe/stripe-react-native';
 import { useEffect, useState } from 'react';
 import {
     ActivityIndicator,

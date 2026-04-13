@@ -8,6 +8,7 @@ type EnvKey =
   | 'EXPO_PUBLIC_WEB_BASE_URL'
   | 'EXPO_PUBLIC_APP_BASE_URL'
   | 'EXPO_PUBLIC_SENTRY_DSN'
+  | 'EXPO_PUBLIC_COMMIT_SHA'
   | 'EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY'
   | 'EXPO_PUBLIC_ADMIN_EMAILS'
   | 'EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID'
@@ -50,6 +51,7 @@ export type AppConfig = {
   appScheme: string;
   webBaseUrl: string;
   sentryDsn: string;
+  commitSha?: string;
   stripePublishableKey: string;
   adminEmails: string[];
   expoProjectFullName?: string;
@@ -83,6 +85,7 @@ const config: AppConfig = {
         DEFAULT_WEB_BASE
     ) || DEFAULT_WEB_BASE,
   sentryDsn: readEnv('EXPO_PUBLIC_SENTRY_DSN'),
+  commitSha: readEnv('EXPO_PUBLIC_COMMIT_SHA') || undefined,
   stripePublishableKey: readEnv('EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY'),
   adminEmails: (readEnv('EXPO_PUBLIC_ADMIN_EMAILS') || '')
     .split(',')

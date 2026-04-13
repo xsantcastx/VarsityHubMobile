@@ -99,15 +99,9 @@ function BillingScreen() {
     } finally { setBusy(false); }
   }
 
-  const getPlanDescription = (plan: string) => {
-    switch (plan) {
-      case 'veteran':
-        return 'First 2 teams free, then $0.99/month per additional team. Up to 2 authorized users per team.';
-      case 'legend':
-        return 'Unlimited teams at $20/year. Create extracurricular clubs (Theater, Chess, etc.). Unlimited authorized users.';
-      default:
-        return 'Free plan with 2 teams. 1 authorized user per team.';
-    }
+  const getPlanDescription = (plan: Plan) => {
+    const definition = PLAN_DEFINITIONS[plan];
+    return definition?.billing?.description || 'Free plan with 2 teams. 1 authorized user per team.';
   };
 
   // ── iOS: Show actual plan status + link to App Store subscriptions ──
@@ -195,7 +189,7 @@ function BillingScreen() {
         <View style={[styles.banner, styles.bannerLegend]}>
           <Text style={[styles.bannerTitle, styles.bannerTitleLegend]}>Legend Plan</Text>
           <Text style={styles.bannerDescription}>{getPlanDescription('legend')}</Text>
-          <Text style={styles.bannerLine}>Annual: <Text style={styles.bold}>$20/year</Text></Text>
+          <Text style={styles.bannerLine}>Annual: <Text style={styles.bold}>{formatPlanPrice('legend')}</Text></Text>
           {!!summary.current_period_end && (
             <Text style={styles.bannerHint}>Renews: {new Date(summary.current_period_end).toLocaleDateString()}</Text>
           )}

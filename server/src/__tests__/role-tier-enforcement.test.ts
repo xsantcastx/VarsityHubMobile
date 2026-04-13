@@ -9,7 +9,7 @@
  *
  *  Rookie   – max 2 teams, 1 authorized user/team, no extracurricular
  *  Veteran  – unlimited teams ($0.99/mo per team beyond 2), 5 auth users/team, no extracurricular
- *  Legend   – unlimited teams ($20/yr), unlimited auth users, extracurricular clubs
+ *  Legend   – unlimited teams ($29.99/yr), unlimited auth users, extracurricular clubs
  * ──────────────────────────────────────────────────────────────────────
  *
  *  Accounts are fully separate: fan ≠ coach. A fan should never reach
@@ -89,6 +89,9 @@ async function createOrgForUser(userId: string, orgName: string): Promise<string
       name: orgName,
       description: 'Test org',
       org_type: 'club',
+      admin_approved: true,
+      approved_at: new Date(),
+      approved_by: 'test-suite',
       updated_at: new Date(),
     },
   });
@@ -356,7 +359,7 @@ describe('Veteran Coach plan limits', () => {
     const planDefs = (await import('../lib/planLimits.js')).getAllPlanDefinitions();
     const veteran = (planDefs as any).veteran;
     expect(veteran.price).toBe('$0.99');
-    expect(veteran.period).toContain('per additional team');
+    expect(veteran.period).toContain('per team over 2');
   });
 
   it('Veteran can have up to 5 authorized users per team', async () => {
@@ -415,10 +418,10 @@ describe('Legend Coach plan limits', () => {
     expect(planSupportsExtracurricular('legend')).toBe(true);
   });
 
-  it('Legend is charged $20/year (plan pricing check)', async () => {
+  it('Legend is charged $29.99/year (plan pricing check)', async () => {
     const planDefs = (await import('../lib/planLimits.js')).getAllPlanDefinitions();
     const legend = (planDefs as any).legend;
-    expect(legend.price).toBe('$20.00');
+    expect(legend.price).toBe('$29.99');
     expect(legend.period).toContain('year');
   });
 });
@@ -602,13 +605,13 @@ describe('Plan definitions integrity', () => {
     const { getAllPlanDefinitions } = await import('../lib/planLimits.js');
     const veteran = (getAllPlanDefinitions() as any).veteran;
     expect(veteran.price).toBe('$0.99');
-    expect(veteran.period).toContain('per additional team');
+    expect(veteran.period).toContain('per team over 2');
   });
 
-  it('Legend pricing: $20.00 per year', async () => {
+  it('Legend pricing: $29.99 per year', async () => {
     const { getAllPlanDefinitions } = await import('../lib/planLimits.js');
     const legend = (getAllPlanDefinitions() as any).legend;
-    expect(legend.price).toBe('$20.00');
+    expect(legend.price).toBe('$29.99');
     expect(legend.period).toContain('year');
   });
 

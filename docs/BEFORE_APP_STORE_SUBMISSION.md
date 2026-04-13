@@ -107,7 +107,7 @@ You only need to create products in the stores and set env vars on Railway (belo
 1. App Store Connect → Your App → **In-App Purchases**.
 2. Create (if missing) and submit for review products that **match the IDs in code**:
    - **veteran_vhub** — Auto-Renewable Subscription, $0.99/month.
-   - **legend_vhub** — Auto-Renewable Subscription, $19.99/year.
+   - **legend_vhub** — Auto-Renewable Subscription, $29.99/year.
 3. SKUs must be **Ready to Submit** before they work in sandbox.
 
 ### Google Play Console

@@ -1,6 +1,55 @@
 import * as Sentry from '@sentry/node';
 import type { Express } from 'express';
 import { debugLog } from './debugLog.js';
+import { getBuildMetadata, resolveBuildSha, resolveReleaseName } from './release.js';
+
+type SentryCaptureContext = {
+  context?: string;
+  extra?: Record<string, any>;
+  tags?: Record<string, string | number | boolean | null | undefined>;
+  user?: {
+    id?: string;
+    email?: string;
+    username?: string;
+  };
+  level?: Sentry.SeverityLevel;
+  [key: string]: any;
+};
+
+const applyScopeContext = (scope: Sentry.Scope, context?: SentryCaptureContext) => {
+  if (!context) return;
+
+  if (context.tags) {
+    for (const [key, value] of Object.entries(context.tags)) {
+      if (value !== undefined && value !== null) {
+        scope.setTag(key, String(value));
+      }
+    }
+  }
+
+  if (context.user) {
+    scope.setUser({
+      id: context.user.id,
+      email: context.user.email,
+      username: context.user.username,
+    });
+  }
+
+  if (context.context) {
+    scope.setContext('capture_context', { name: context.context });
+  }
+
+  if (context.extra) {
+    scope.setContext('extra', context.extra);
+  }
+
+  const passthroughEntries = Object.entries(context).filter(
+    ([key]) => !['context', 'extra', 'tags', 'user', 'level'].includes(key)
+  );
+  if (passthroughEntries.length > 0) {
+    scope.setContext('additional', Object.fromEntries(passthroughEntries));
+  }
+};
 
 /**
  * Initialize Sentry error tracking
@@ -8,6 +57,8 @@ import { debugLog } from './debugLog.js';
 export function initSentry(app: Express) {
   const dsn = process.env.SENTRY_DSN;
   const environment = process.env.NODE_ENV || 'development';
+  const release = resolveReleaseName(process.env, 'varsityhub-server');
+  const build = getBuildMetadata(process.env, 'varsityhub-server');
 
   if (!dsn) {
     debugLog('⚠️ Sentry DSN not configured - error tracking disabled');
@@ -17,6 +68,7 @@ export function initSentry(app: Express) {
   Sentry.init({
     dsn,
     environment,
+    release: release ?? undefined,
     integrations: [
       new Sentry.Integrations.Http({ tracing: true }),
       new Sentry.Integrations.OnUncaughtException(),
@@ -33,6 +85,15 @@ export function initSentry(app: Express) {
       }
       return event;
     },
+    initialScope: (scope) => {
+      if (build.sha) {
+        scope.setTag('commit_sha', build.sha);
+      }
+      if (build.release) {
+        scope.setTag('release_name', build.release);
+      }
+      return scope;
+    },
   });
 
   // Request handler - should be the first middleware
@@ -41,7 +102,7 @@ export function initSentry(app: Express) {
   // Tracing middleware
   app.use(Sentry.Handlers.tracingHandler());
 
-  debugLog(`✅ Sentry initialized for ${environment} environment`);
+  debugLog(`✅ Sentry initialized for ${environment} environment${release ? ` (${release})` : ''}`);
 }
 
 /**
@@ -56,13 +117,17 @@ export function addSentryErrorHandler(app: Express) {
  */
 export function captureException(error: Error | string, context?: Record<string, any>) {
   if (typeof error === 'string') {
-    Sentry.captureMessage(error, 'error');
-  } else {
+    Sentry.withScope((scope) => {
+      applyScopeContext(scope, context);
+      Sentry.captureMessage(error, 'error');
+    });
+    return;
+  }
+
+  Sentry.withScope((scope) => {
+    applyScopeContext(scope, context);
     Sentry.captureException(error);
-  }
-  if (context) {
-    Sentry.setContext('additional', context);
-  }
+  });
 }
 
 /**
@@ -76,10 +141,12 @@ export function captureMessage(message: string, level: 'fatal' | 'error' | 'warn
  * Set user context for error tracking
  */
 export function setUserContext(userId: string, email?: string, username?: string) {
-  Sentry.setUser({
-    id: userId,
-    email,
-    username,
+  Sentry.configureScope((scope) => {
+    scope.setUser({
+      id: userId,
+      email,
+      username,
+    });
   });
 }
 
@@ -87,7 +154,9 @@ export function setUserContext(userId: string, email?: string, username?: string
  * Clear user context
  */
 export function clearUserContext() {
-  Sentry.setUser(null);
+  Sentry.configureScope((scope) => {
+    scope.setUser(null);
+  });
 }
 
 /**
@@ -99,5 +168,30 @@ export function addBreadcrumb(message: string, category: string = 'custom', leve
     category,
     level,
     data,
+  });
+}
+
+export function bindRequestContext(context: {
+  requestId: string;
+  method: string;
+  path: string;
+  userId?: string;
+}) {
+  const buildSha = resolveBuildSha();
+  Sentry.configureScope((scope) => {
+    scope.setTag('request_id', context.requestId);
+    if (buildSha) {
+      scope.setTag('commit_sha', buildSha);
+    }
+    scope.setTransactionName(`${context.method} ${context.path}`);
+    scope.setContext('request', {
+      id: context.requestId,
+      method: context.method,
+      path: context.path,
+      userId: context.userId ?? null,
+    });
+    if (context.userId) {
+      scope.setUser({ id: context.userId });
+    }
   });
 }

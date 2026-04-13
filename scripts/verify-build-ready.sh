@@ -215,7 +215,8 @@ if [ -n "$SENTRY_ORG" ] && [ -n "$SENTRY_PROJECT" ]; then
             # Note: We can't access the token directly from EAS, but we can check if sentry-cli is configured
             echo -e "${GREEN}✅ sentry-cli available for project verification${NC}"
         elif [ $SENTRY_TOKEN_FOUND -eq 1 ]; then
-            mark_warning_or_error "sentry-cli not installed - cannot verify project exists"
+            echo -e "${YELLOW}⚠️  sentry-cli not installed - skipping direct project verification${NC}"
+            WARNINGS=$((WARNINGS + 1))
         fi
     else
         echo -e "${RED}❌ Sentry org/project mismatch!${NC}"
@@ -691,7 +692,7 @@ echo ""
 # Step 14: Version Consistency
 echo -e "${BLUE}Step 14: Version consistency check...${NC}"
 APP_VERSION=$(node -e "console.log(JSON.parse(require('fs').readFileSync('app.json', 'utf8')).expo.version || '')" 2>/dev/null)
-RUNTIME_VERSION=$(node -e "console.log(JSON.parse(require('fs').readFileSync('app.json', 'utf8')).expo.runtimeVersion || '')" 2>/dev/null)
+RUNTIME_VERSION=$(node -e "const runtime = JSON.parse(require('fs').readFileSync('app.json', 'utf8')).expo.runtimeVersion; if (!runtime) { console.log(''); } else if (typeof runtime === 'string') { console.log(runtime); } else if (runtime.policy === 'appVersion') { console.log('__POLICY_APP_VERSION__'); } else { console.log(JSON.stringify(runtime)); }" 2>/dev/null)
 PKG_VERSION=$(node -e "console.log(JSON.parse(require('fs').readFileSync('package.json', 'utf8')).version || '')" 2>/dev/null)
 
 if [ -n "$APP_VERSION" ]; then
@@ -702,7 +703,7 @@ else
 fi
 
 if [ -n "$RUNTIME_VERSION" ]; then
-    if [ "$APP_VERSION" = "$RUNTIME_VERSION" ]; then
+    if [ "$APP_VERSION" = "$RUNTIME_VERSION" ] || [ "$RUNTIME_VERSION" = "__POLICY_APP_VERSION__" ]; then
         echo -e "${GREEN}✅ Runtime version matches app version: $RUNTIME_VERSION${NC}"
     else
         mark_warning_or_error "Runtime version ($RUNTIME_VERSION) differs from app version ($APP_VERSION)"

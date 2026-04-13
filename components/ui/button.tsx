@@ -12,6 +12,7 @@ export interface ButtonProps extends AccessibilityProps {
   size?: Size;
   style?: ViewStyle;
   textStyle?: TextStyle;
+  testID?: string;
 }
 
 export function Button({
@@ -22,6 +23,7 @@ export function Button({
   size = 'md',
   style,
   textStyle,
+  testID,
   ...accessibilityProps
 }: ButtonProps) {
   const vs = getVariantStyles(variant);
@@ -39,6 +41,7 @@ export function Button({
     <Pressable
       onPress={onPress}
       disabled={disabled}
+      testID={testID}
       style={[styles.base, vs.container, ss.container, disabled && styles.disabled, style]}
       {...accessibilityProps}
     >
@@ -85,4 +88,3 @@ function getSizeStyles(size: Size): { container: ViewStyle; text: TextStyle } {
 }
 
 export default Button;
-

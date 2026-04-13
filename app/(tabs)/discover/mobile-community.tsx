@@ -794,7 +794,7 @@ function CommunityDiscoverScreen() {
                 <Pressable
                   key={t.id}
                   style={[styles.searchResultRow, { borderBottomColor: Colors[colorScheme].border }]}
-                  onPress={() => { setQuery(''); setUnifiedSearchResults(null); void router.push(`/team-page?id=${t.id}`); }}
+                  onPress={() => { setQuery(''); setUnifiedSearchResults(null); void router.push(`/team-profile?id=${t.id}`); }}
                   accessibilityRole="button"
                   accessibilityLabel={`View team ${t.name}`}
                 >
@@ -1022,8 +1022,8 @@ function CommunityDiscoverScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Manage your organization"
               >
-                <MaterialIcons name="business" size={24} color={Colors[colorScheme].tint} />
-                <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Manage Org</Text>
+                <MaterialIcons name="business" size={24} color="#1E3A5F" />
+                <Text style={[styles.coachActionTitle, { color: '#1E3A5F' }]}>Manage Org</Text>
                 <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Your organization</Text>
               </Pressable>
             </>
@@ -1037,8 +1037,8 @@ function CommunityDiscoverScreen() {
                   accessibilityRole="button"
                   accessibilityLabel="Manage your organization"
                 >
-                  <MaterialIcons name="business" size={24} color={Colors[colorScheme].tint} />
-                  <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Manage Org</Text>
+                  <MaterialIcons name="business" size={24} color="#1E3A5F" />
+                  <Text style={[styles.coachActionTitle, { color: '#1E3A5F' }]}>Manage Org</Text>
                   <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Your organization</Text>
                 </Pressable>
               )}
@@ -1181,7 +1181,7 @@ function CommunityDiscoverScreen() {
                     const index = posts.findIndex((post: any) => String(post.id) === String(p.id));
                     void router.push(`/post-detail?id=${p.id}&postIds=${encodeURIComponent(postIds)}&index=${Math.max(0, index)}`);
                   }}
-                  showAuthorHeader={true}
+                  showAuthorHeader={false}
                   onDeleted={(postId) => {
                     // Remove deleted post from both arrays
                     setFollowingPosts(prev => prev.filter(post => String(post.id) !== postId));

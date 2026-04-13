@@ -21,10 +21,23 @@ Scripts for managing user data, subscriptions, and database operations.
 Scripts for managing Stripe payment integration.
 
 - **`create_stripe_prices.js`** - Creates Stripe price IDs for subscription plans
-  - Sets up Veteran ($70/year) and Legend ($150/year) pricing
+  - Sets up Veteran ($0.99/month per additional team over 2) and Legend ($29.99/year) pricing
   - Outputs price IDs for environment variables
   - ⚠️  Contains actual Stripe keys - keep secure
   - Usage: `node create_stripe_prices.js`
+
+### 📁 demo content
+Scripts for creating and removing real demo matchups for promo capture.
+
+- **`seed-demo-matchups.ts`** - Upserts two real teams + two real games tagged with `[DEMO_MATCHUP]`
+  - Seeds Duke vs UNC and Cavs vs Warriors with real coordinates and venues
+  - Safe to run repeatedly; reuses rows instead of duplicating them
+  - Intended for admin promo content, stories, RSVP screenshots, and game-detail verification
+  - Usage: `npm run demo:seed-matchups`
+
+- **`wipe-demo-matchups.ts`** - Removes all rows tagged `[DEMO_MATCHUP]`
+  - Deletes stories, posts, votes, games, memberships, follows, invites, and teams in FK-safe order
+  - Usage: `npm run demo:wipe-matchups`
 
 ## Usage
 
@@ -35,6 +48,8 @@ cd server
 node scripts/database/check_user_plans.mjs
 node scripts/database/reset_unpaid_simple.mjs  
 node scripts/stripe/create_stripe_prices.js
+npm run demo:seed-matchups
+npm run demo:wipe-matchups
 ```
 
 ## P0 Foundation scripts

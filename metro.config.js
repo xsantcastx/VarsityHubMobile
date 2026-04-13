@@ -33,10 +33,22 @@ config.resolver.extraNodeModules = {
 };
 
 // Shim native-only modules on web so Metro doesn't try to bundle them
+const nativeOnlyShims = {
+  '@react-native-async-storage/async-storage': 'async-storage.js',
+  '@stripe/stripe-react-native': 'stripe-react-native.js',
+  'expo-haptics': 'expo-haptics.js',
+  '@react-native-community/datetimepicker': 'datetimepicker.js',
+  'expo-media-library': 'expo-media-library.js',
+  'react-native-view-shot': 'react-native-view-shot.js',
+};
+
 const originalResolveRequest = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
-  if (platform === 'web' && moduleName === '@stripe/stripe-react-native') {
-    return { type: 'sourceFile', filePath: path.resolve(__dirname, 'shims/stripe-react-native.js') };
+  // Do NOT override react-native resolution here — Expo's getDefaultConfig()
+  // already maps react-native → react-native-web on web, including sub-paths
+  // like react-native/Libraries/BatchedBridge. Overriding it breaks sub-path resolution.
+  if (platform === 'web' && nativeOnlyShims[moduleName]) {
+    return { type: 'sourceFile', filePath: path.resolve(__dirname, 'shims', nativeOnlyShims[moduleName]) };
   }
   if (originalResolveRequest) {
     return originalResolveRequest(context, moduleName, platform);

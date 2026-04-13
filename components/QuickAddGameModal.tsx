@@ -5,7 +5,7 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useTeamOptions } from '@/hooks/useTeamOptions';
 import { Ionicons } from '@expo/vector-icons';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import DateTimePicker from '@/lib/native/dateTimePicker';
 import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
@@ -24,7 +24,7 @@ import {
     View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import ViewShot, { captureRef } from 'react-native-view-shot';
+import ViewShot, { captureRef } from '@/lib/native/viewShot';
 import { getApiBaseUrl } from '../api/http';
 import MatchBanner from '../app/components/MatchBanner';
 import AppearancePicker, { AppearancePreset } from './AppearancePicker';

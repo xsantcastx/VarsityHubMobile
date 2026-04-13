@@ -1,14 +1,16 @@
-import { Post } from '@/api/entities';
+import { Post, Report } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { REPORT_REASONS, usePostInteractions } from '@/hooks/usePostInteractions';
+import { REPORT_REASONS } from '@/hooks/usePostInteractions';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import React, { useMemo, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useMemo, useRef, useState } from 'react';
+import { Alert, type AlertButton, Pressable, StyleSheet, Text, View } from 'react-native';
 import PollCard from './PollCard';
+import { showErrorToast } from './ErrorToast';
 
 type MasonryPostCardProps = {
   post: any;
@@ -20,15 +22,43 @@ type MasonryPostCardProps = {
 function MasonryPostCard({ post, onPress, onDeleted: _onDeleted, onUpdated: _onUpdated }: MasonryPostCardProps) {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
-  const {
-    upvotesCount, bookmarked, onUpvote, onBookmark, submitReport,
-  } = usePostInteractions({
-    postId: String(post.id),
-    initialUpvotes: post.upvotes_count || 0,
-    initialBookmarked: !!post.has_bookmarked,
-    tag: 'MasonryPostCard',
-  });
+  const [bookmarked, setBookmarked] = useState<boolean>(!!post.has_bookmarked);
+  const [upvotesCount, setUpvotesCount] = useState<number>(post.upvotes_count || 0);
   const [pressed, setPressed] = useState(false);
+
+  const upvoteInFlight = useRef(false);
+  const onUpvote = async () => {
+    if (upvoteInFlight.current) return;
+    upvoteInFlight.current = true;
+    try {
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      const r: any = await Post.toggleUpvote(String(post.id));
+      if (r && typeof r.count === 'number') {
+        setUpvotesCount(r.count);
+      }
+    } catch (error) {
+      if (__DEV__) console.error('[MasonryPostCard] Failed to toggle upvote:', error);
+      showErrorToast('Failed to update vote');
+    } finally {
+      upvoteInFlight.current = false;
+    }
+  };
+
+  const bookmarkInFlight = useRef(false);
+  const onBookmark = async () => {
+    if (bookmarkInFlight.current) return;
+    bookmarkInFlight.current = true;
+    try {
+      void Haptics.selectionAsync();
+      const r: any = await Post.toggleBookmark(String(post.id));
+      if (r && typeof r.bookmarked === 'boolean') setBookmarked(r.bookmarked);
+    } catch (error) {
+      if (__DEV__) console.error('[MasonryPostCard] Failed to toggle bookmark:', error);
+      showErrorToast('Failed to save bookmark');
+    } finally {
+      bookmarkInFlight.current = false;
+    }
+  };
 
   const mediaUrl = post?.media_url || post?.mediaUrl || null;
   const previewUrl = post?.preview_url || post?.thumbnail_url || post?.previewUrl || null;
@@ -59,15 +89,25 @@ function MasonryPostCard({ post, onPress, onDeleted: _onDeleted, onUpdated: _onU
   };
 
   const handleReport = () => {
-    const reasons = REPORT_REASONS.slice(0, 5); // Show top reasons in action sheet
-    Alert.alert('Report Post', 'Select a reason:', [
-      ...reasons.map(r => ({
-        text: r.label,
-        style: 'default' as const,
-        onPress: () => { void submitReport(r.value); },
-      })),
-      { text: 'Cancel', style: 'cancel' as const },
-    ]);
+    const reasons = REPORT_REASONS.slice(0, 5);
+    const buttons: AlertButton[] = reasons.map((r) => ({
+      text: r.label,
+      style: 'default',
+      onPress: async () => {
+        try {
+          await Report.create({ target_type: 'post', target_id: String(post.id), reason: r.value });
+          Alert.alert('Report Submitted', 'Thank you for helping keep our community safe.');
+        } catch (error: any) {
+          if (error?.status === 409) {
+            Alert.alert('Already Reported', 'You have already reported this post.');
+          } else {
+            Alert.alert('Error', error?.message || 'Failed to submit report. Please try again.');
+          }
+        }
+      },
+    }));
+    buttons.push({ text: 'Cancel', style: 'cancel' });
+    Alert.alert('Report Post', 'Select a reason:', buttons);
   };
 
   return (

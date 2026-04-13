@@ -1,5 +1,5 @@
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
+import { Colors } from '../../constants/Colors';
+import { useColorScheme } from '../../hooks/useColorScheme';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Dimensions, Easing, Image, ImageBackground, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import MatchBannerLottie from './MatchBannerLottie';

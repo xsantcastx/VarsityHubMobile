@@ -7,6 +7,14 @@ const appConfig = getConfig();
 const envDsn = process.env.EXPO_PUBLIC_SENTRY_DSN?.trim() || '';
 const configDsn = appConfig.sentryDsn || '';
 const SENTRY_DSN = envDsn || configDsn;
+const COMMIT_SHA =
+  process.env.EXPO_PUBLIC_COMMIT_SHA?.trim() ||
+  appConfig.commitSha?.trim() ||
+  '';
+const APP_VERSION = Constants.expoConfig?.version || '1.0.0';
+const SENTRY_RELEASE = COMMIT_SHA
+  ? `varsityhubmobile@${APP_VERSION}+${COMMIT_SHA.slice(0, 12)}`
+  : `varsityhubmobile@${APP_VERSION}`;
 
 const isPlaceholderDsn = (dsn: string) => {
   const lower = dsn.toLowerCase();
@@ -38,6 +46,7 @@ export function initSentry() {
     Sentry.init({
       dsn,
       environment: appConfig.nodeEnv || 'development',
+      release: SENTRY_RELEASE,
       debug: __DEV__,
       enableAutoSessionTracking: true,
       tracesSampleRate: Number.isNaN(tracesSampleRate) ? 0.2 : tracesSampleRate,
@@ -61,8 +70,16 @@ export function initSentry() {
 
     // Tag with platform and version for filtering
     Sentry.setTag('platform', Platform.OS);
-    Sentry.setTag('app_version', Constants.expoConfig?.version || '1.0.0');
+    Sentry.setTag('app_version', APP_VERSION);
     Sentry.setTag('expo_version', Constants.expoConfig?.sdkVersion || 'unknown');
+    if (COMMIT_SHA) {
+      Sentry.setTag('commit_sha', COMMIT_SHA);
+    }
+    Sentry.setContext('build', {
+      release: SENTRY_RELEASE,
+      version: APP_VERSION,
+      commit_sha: COMMIT_SHA || null,
+    });
   } catch (error) {
     // Silently fail in development - Sentry initialization errors are non-critical
     if (__DEV__) {
