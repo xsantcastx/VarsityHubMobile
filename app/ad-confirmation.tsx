@@ -87,7 +87,8 @@ function AdConfirmationScreen() {
   const businessName = adDetails?.business_name || params.businessName || 'Your Business';
   const selectedDates = params.selectedDates || 'your selected dates';
   const totalAmount = params.totalAmount || '$0.00';
-  const hoursRemaining = params.hoursRemaining ? parseInt(params.hoursRemaining, 10) : null;
+  const _parsedHours = parseInt(params.hoursRemaining, 10);
+  const hoursRemaining = Number.isFinite(_parsedHours) ? _parsedHours : null;
   const bannerUrl = adDetails?.banner_url;
 
   return (

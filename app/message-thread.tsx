@@ -285,7 +285,7 @@ function MessageThreadScreen() {
           <Text style={[
             styles.bubbleText,
             { color: mine ? '#FFFFFF' : Colors[colorScheme].text }
-          ]}>{item.content}</Text>
+          ]}>{item.content || ''}</Text>
         </View>
         {mine && <View style={styles.avatarSpacer} />}
       </View>

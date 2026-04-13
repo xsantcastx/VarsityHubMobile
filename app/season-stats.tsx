@@ -79,7 +79,7 @@ function computeTeamStats(games: any[], teamId: string): TeamStats {
   const winPercentage = gamesPlayed > 0 ? wins / gamesPlayed : 0;
 
   // Streak: count consecutive same results from most recent
-  const sorted = [...completed].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const sorted = [...completed].filter((g: any) => g.date).sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
   let streak = '-';
   if (sorted.length > 0) {
     const getOutcome = (g: any) => {

@@ -16,11 +16,11 @@ import { useFocusEffect } from '@react-navigation/native';
 import { safeGoBack } from '@/utils/navigation';
 import OnboardingLayout from './components/OnboardingLayout';
 import * as ImagePicker from 'expo-image-picker';
-import * as Notifications from 'expo-notifications';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import { uploadFile } from '@/api/upload';
 import { getConfig } from '@/config/env';
+import Notifications from '@/utils/notifications';
 
 // Username validation: lowercase letters, numbers, dots, underscores only (matches backend)
 // Spaces are normalized to underscores BEFORE validation
@@ -483,7 +483,7 @@ export default function Step2Basic() {
         <>
           <Text style={styles.label}>Organization Type</Text>
           <Text style={[styles.hint, { color: Colors[colorScheme].mutedText }]}>
-            Select the type of organization you're affiliated with (optional)
+            Select the type of organization you're affiliated with{ob.role !== 'coach' ? ' (optional)' : ''}
           </Text>
           <View style={styles.affiliationGrid}>
             {[

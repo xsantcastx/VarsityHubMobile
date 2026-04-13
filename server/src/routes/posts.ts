@@ -483,12 +483,17 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
 });
 
 postsRouter.get('/trending', async (req: AuthedRequest, res) => {
-  // Set trending sort and reuse the main GET / handler
-  req.query.sort = 'trending';
-  // Re-dispatch through the router by calling the root handler directly
-  // Express next() won't work across different paths, so we emit a synthetic request
-  req.url = '/';
-  (postsRouter as any).handle(req, res, () => res.status(404).json({ error: 'Not found' }));
+  try {
+    // Set trending sort and reuse the main GET / handler
+    req.query.sort = 'trending';
+    // Re-dispatch through the router by calling the root handler directly
+    // Express next() won't work across different paths, so we emit a synthetic request
+    req.url = '/';
+    (postsRouter as any).handle(req, res, () => res.status(404).json({ error: 'Not found' }));
+  } catch (err) {
+    console.error('[posts] GET /trending error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Debug endpoint to check follow relationships (admin only)

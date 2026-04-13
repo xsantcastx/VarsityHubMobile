@@ -404,7 +404,7 @@ function Step3League() {
           docUrl = result?.url || result?.secure_url || result?.path || (typeof result === 'string' ? result : null);
           if (docUrl) setSupportingDocumentUrl(docUrl);
         } catch (uploadErr: any) {
-          Alert.alert('Upload Failed', uploadErr?.message || 'Could not upload supporting document. Please try again.');
+          Alert.alert('Upload Failed', String(uploadErr?.message || uploadErr || 'Could not upload supporting document. Please try again.'));
           setSaving(false);
           setUploadingDocument(false);
           return;

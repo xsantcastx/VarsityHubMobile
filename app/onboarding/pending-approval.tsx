@@ -296,8 +296,12 @@ function PendingApproval() {
                 <Pressable
                   style={[styles.primaryButton, { backgroundColor: '#1B3A6B', marginTop: 24 }]}
                   onPress={async () => {
-                    await checkAuth();
-                    router.replace({ pathname: '/onboarding/coach-agreement', params: { redirect: 'organization' } } as any);
+                    try {
+                      await checkAuth();
+                      router.replace({ pathname: '/onboarding/coach-agreement', params: { redirect: 'organization' } } as any);
+                    } catch {
+                      Alert.alert('Connection Error', 'Could not verify your account status. Please check your connection and try again.');
+                    }
                   }}
                 >
                   <MaterialIcons name="business" size={20} color="#fff" />
@@ -306,8 +310,12 @@ function PendingApproval() {
                 <Pressable
                   style={[styles.secondaryButton, { borderColor: '#1B3A6B', marginTop: 0 }]}
                   onPress={async () => {
-                    await checkAuth();
-                    router.replace({ pathname: '/onboarding/coach-agreement', params: { redirect: 'create-team' } } as any);
+                    try {
+                      await checkAuth();
+                      router.replace({ pathname: '/onboarding/coach-agreement', params: { redirect: 'create-team' } } as any);
+                    } catch {
+                      Alert.alert('Connection Error', 'Could not verify your account status. Please check your connection and try again.');
+                    }
                   }}
                 >
                   <Text style={[styles.secondaryButtonText, { color: '#1B3A6B' }]}>Create Your First Team</Text>
