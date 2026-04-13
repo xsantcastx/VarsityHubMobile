@@ -15,11 +15,11 @@ const DEMO_TAG = '[DEMO_MATCHUP]';
 
 // Duke v UNC → Oracle Arena crowd photo (basketball arena, yellow crowd)
 const DUKE_UNC_IMAGE =
-  'https://res.cloudinary.com/dxb5oq4fs/image/upload/q_auto/f_auto/v1776111005/convert_dauk3b.webp';
+  'https://res.cloudinary.com/dxb5oq4fs/image/upload/q_auto:best/f_auto/v1776111005/convert_dauk3b.webp';
 
 // Cavs v Warriors → Duke Wallace Wade Stadium (football field, blue seats)
 const CAVS_WARRIORS_IMAGE =
-  'https://res.cloudinary.com/dxb5oq4fs/image/upload/q_auto/f_auto/v1776111005/unnamed_yhflhv.jpg';
+  'https://res.cloudinary.com/dxb5oq4fs/image/upload/q_auto:best/f_auto/v1776111005/unnamed_yhflhv.jpg';
 
 async function main() {
   console.log('[update-demo-images] Updating demo game images...');

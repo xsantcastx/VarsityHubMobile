@@ -117,8 +117,8 @@ const GAMES: GameSeed[] = [
     location: 'Cameron Indoor Stadium, Durham, NC',
     latitude: 36.0017,
     longitude: -78.9430,
-    banner_url: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/q_auto/f_auto/v1776111005/convert_dauk3b.webp',
-    cover_image_url: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/q_auto/f_auto/v1776111005/convert_dauk3b.webp',
+    banner_url: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/q_auto:best/f_auto/v1776111005/convert_dauk3b.webp',
+    cover_image_url: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/q_auto:best/f_auto/v1776111005/convert_dauk3b.webp',
     description: `${DEMO_TAG} Tobacco Road rivalry. Demo event for promo content.`,
   },
   {
@@ -129,8 +129,8 @@ const GAMES: GameSeed[] = [
     location: 'Rocket Mortgage FieldHouse, Cleveland, OH',
     latitude: 41.4965,
     longitude: -81.6882,
-    banner_url: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/q_auto/f_auto/v1776111005/unnamed_yhflhv.jpg',
-    cover_image_url: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/q_auto/f_auto/v1776111005/unnamed_yhflhv.jpg',
+    banner_url: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/q_auto:best/f_auto/v1776111005/unnamed_yhflhv.jpg',
+    cover_image_url: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/q_auto:best/f_auto/v1776111005/unnamed_yhflhv.jpg',
     description: `${DEMO_TAG} 2016 NBA Finals rematch vibe. Demo event for promo content.`,
   },
 ];
