@@ -104,6 +104,9 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
   
   const lastRedirectRef = React.useRef<string | null>(null);
   const segmentsRef = React.useRef(segments);
+  // Guard against multiple in-flight coach-role restores triggered by repeated
+  // effect runs. Cleared in the async block's finally.
+  const restoringCoachRef = React.useRef(false);
   
   // Update segments ref on every render
   React.useEffect(() => {
@@ -569,18 +572,18 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
 
     // If user is awaiting email verification, navigate to verify-email
     if (pendingVerificationEmail && firstSegment !== 'verify-email') {
-      // Belt-and-suspenders: if we have a pending email but no user and no stored token,
-      // the verification flow is stale — clear it and send to sign-in
+      // Belt-and-suspenders: if we have a pending email but no user, check the
+      // stored token asynchronously. If the token is gone, the verification
+      // flow is stale — clear it. setState triggers this effect to re-run,
+      // which then falls through to unauthenticated routing (→ /sign-in).
       if (!user) {
-        const storedToken = await auth.getToken().catch(() => null);
-        if (!storedToken) {
-          if (__DEV__) console.log('[AuthProvider] Stale pendingVerificationEmail — no user or token, clearing');
-          setPendingVerificationEmail(null);
-          if (lastRedirectRef.current !== '/sign-in') {
-            redirectWithTelemetry('/sign-in', 'stale_verification_cleared');
+        void (async () => {
+          const storedToken = await auth.getToken().catch(() => null);
+          if (!storedToken) {
+            if (__DEV__) console.log('[AuthProvider] Stale pendingVerificationEmail — no user or token, clearing');
+            setPendingVerificationEmail(null);
           }
-          return;
-        }
+        })();
       }
       if (lastRedirectRef.current !== '/verify-email') {
         redirectWithTelemetry('/verify-email', 'pending_verification');
@@ -606,18 +609,26 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       // When a coach taps "Continue as Fan", role is saved as 'fan' with proceeding_as_fan=true.
       // Once the org is approved, we must flip them back to coach and send them through agreement.
       if (user.approval_status === 'APPROVED' && user.preferences?.proceeding_as_fan === true) {
-        // Restore coach role on server — await so we know it succeeded before redirecting
-        try {
-          await User.updatePreferences({ proceeding_as_fan: false, role: 'coach' });
-          // Optimistic local update so the next routing cycle sees the new state immediately
-          setUser((prev) => prev ? { ...prev, preferences: { ...prev.preferences, proceeding_as_fan: false, role: 'coach' } } : prev);
-        } catch (err: any) {
-          if (__DEV__) console.warn('[AuthProvider] Failed to restore coach role:', err?.message);
-          captureException(err, { tags: { context: 'fan_to_coach_restore' } });
-          // Don't redirect — let the next checkAuth cycle retry
-          return;
+        // Fire-and-forget restore (the effect callback is sync, so we can't await).
+        // The ref prevents the redirect loop: once the restore is in-flight, we
+        // stop kicking off duplicates; the finally block clears the ref and the
+        // next effect re-run (triggered by setUser) will see the clean state.
+        if (!restoringCoachRef.current) {
+          restoringCoachRef.current = true;
+          void (async () => {
+            try {
+              await User.updatePreferences({ proceeding_as_fan: false, role: 'coach' });
+              setUser((prev) => prev ? { ...prev, preferences: { ...prev.preferences, proceeding_as_fan: false, role: 'coach' } } : prev);
+            } catch (err: any) {
+              if (__DEV__) console.warn('[AuthProvider] Failed to restore coach role:', err?.message);
+              captureException(err, { tags: { context: 'fan_to_coach_restore' } });
+            } finally {
+              restoringCoachRef.current = false;
+            }
+          })();
         }
-        // Route to coach-agreement if they haven't accepted it yet
+        // Route to coach-agreement if they haven't accepted it yet — this does not
+        // depend on the in-flight restore completing.
         const onAgreement = Array.isArray(segmentsRef.current) && segmentsRef.current.join('/').includes('coach-agreement');
         if (!user.preferences?.coach_agreement_accepted_at && !onAgreement) {
           if (__DEV__) console.log('[AuthProvider] Approved fan→coach transition — routing to coach agreement');
