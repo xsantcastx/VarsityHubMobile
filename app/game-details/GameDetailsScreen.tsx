@@ -1981,7 +1981,10 @@ const renderBanner = () => {
   const finalsBanner = finalsBannerUrl;
   const bannerImageUrl = finalsBanner || bannerUrl;
   const bannerImageKey = bannerImageUrl ? `${bannerImageUrl}-${vm?.gameId || vm?.id || vm?.title || ''}` : 'banner-fallback';
-  const isHero = Boolean(leftLogo && rightLogo) && !finalsBanner;
+  // A real banner/cover image from the DB takes precedence over the MatchBanner
+  // team-logo hero. Demo matchups set banner_url to a specific Cloudinary
+  // asset that should render as the event page background.
+  const isHero = Boolean(leftLogo && rightLogo) && !finalsBanner && !bannerUrl;
   const bannerHeight = isHero ? 320 : 240;
 
   const heroBanner = bannerImageUrl && !isHero ? (
