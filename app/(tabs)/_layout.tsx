@@ -8,7 +8,6 @@ import { HapticTab } from '@/components/HapticTab';
 import CenterTabButton from '@/components/ui/CenterTabButton';
 import { IconSymbol } from '@/components/ui/IconSymbol';
 import TabBarBackground from '@/components/ui/TabBarBackground';
-import NotificationBellIcon from '@/components/ui/NotificationBellIcon';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 
@@ -62,24 +61,10 @@ export default function TabLayout() {
           tabBarButton: HapticTab,
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="square.grid.2x2.fill" color={color} />,
           tabBarAccessibilityLabel: 'Feed',
-          headerShown: true,
-          headerTitle: '',
-          headerRight: () => (
-            <Pressable
-              onPress={() => router.push('/notifications/index' as any)}
-              style={{ paddingRight: 16, paddingLeft: 8 }}
-              accessibilityRole="button"
-              accessibilityLabel="Notifications"
-            >
-              <NotificationBellIcon color={Colors[colorScheme].text} />
-            </Pressable>
-          ),
-          headerStyle: {
-            backgroundColor: Colors[colorScheme].background,
-            borderBottomWidth: 1,
-            borderBottomColor: Colors[colorScheme].border,
-          },
-          headerTintColor: Colors[colorScheme].text,
+          // Feed renders its own LinearGradient header with the outline
+          // notifications bell on the left and chat bubble on the right.
+          // Do not show the stack header above it — the extra header was
+          // rendering a second (filled) bell that didn't belong.
         }}
       />
       <Tabs.Screen
